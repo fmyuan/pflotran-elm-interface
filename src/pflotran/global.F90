@@ -1,14 +1,14 @@
 module Global_module
 
 #include "petsc/finclude/petscsys.h"
-  use petscsys  
+  use petscsys
   use Global_Aux_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
-  
-  private 
+
+  private
 
   public GlobalSetup, &
          GlobalSetAuxVarScalar, &
@@ -23,10 +23,10 @@ contains
 ! ************************************************************************** !
 
 subroutine GlobalSetup(realization)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/22/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Patch_module
@@ -34,9 +34,9 @@ subroutine GlobalSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
- 
+
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
@@ -49,17 +49,17 @@ subroutine GlobalSetup(realization)
   type(global_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: auxvars_bc(:)
   type(global_auxvar_type), pointer :: auxvars_ss(:)
-  
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
 
   patch%aux%Global => GlobalAuxCreate()
-  
-  ! allocate auxvar data structures for all grid cells  
+
+  ! allocate auxvar data structures for all grid cells
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   option%iflag = 1 ! allocate mass_balance array
-#else  
+#else
   option%iflag = 0 ! be sure not to allocate mass_balance array
 #endif
   allocate(auxvars(grid%ngmax))
@@ -68,12 +68,12 @@ subroutine GlobalSetup(realization)
   enddo
   patch%aux%Global%auxvars => auxvars
   patch%aux%Global%num_aux = grid%ngmax
-  
+
   ! count the number of boundary connections and allocate
-  ! auxvar data structures for them  
+  ! auxvar data structures for them
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
     sum_connection = sum_connection + &
                      boundary_condition%connection_set%num_connections
@@ -81,7 +81,7 @@ subroutine GlobalSetup(realization)
   enddo
 
   if (sum_connection > 0) then
-    option%iflag = 1 ! enable allocation of mass_balance array 
+    option%iflag = 1 ! enable allocation of mass_balance array
     allocate(auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
       call GlobalAuxVarInit(auxvars_bc(iconn),option)
@@ -91,10 +91,10 @@ subroutine GlobalSetup(realization)
   patch%aux%Global%num_aux_bc = sum_connection
 
   ! count the number of source/sink connections and allocate
-  ! auxvar data structures for them  
+  ! auxvar data structures for them
   source_sink => patch%source_sink_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(source_sink)) exit
     sum_connection = sum_connection + &
                      source_sink%connection_set%num_connections
@@ -102,7 +102,7 @@ subroutine GlobalSetup(realization)
   enddo
 
   if (sum_connection > 0) then
-    option%iflag = 1 ! enable allocation of mass_balance array 
+    option%iflag = 1 ! enable allocation of mass_balance array
     allocate(auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
       call GlobalAuxVarInit(auxvars_ss(iconn),option)
@@ -112,18 +112,18 @@ subroutine GlobalSetup(realization)
   patch%aux%Global%num_aux_ss = sum_connection
 
   option%iflag = 0
-  
+
 end subroutine GlobalSetup
 
 ! ************************************************************************** !
 
 subroutine GlobalSetAuxVarScalar(realization,value,ivar)
-  ! 
+  !
   ! Sets values of auxvar data using a scalar value.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/19/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Option_module
@@ -133,7 +133,7 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
                                GAS_DENSITY, GAS_SATURATION, &
                                TEMPERATURE, LIQUID_DENSITY_MOL, &
                                GAS_DENSITY_MOL
-  
+
   implicit none
 
   class(realization_subsurface_type) :: realization
@@ -144,20 +144,20 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: auxvars_bc(:)
-    
+
   PetscInt :: i
   PetscInt :: iphase
   PetscInt :: num_aux
   PetscInt :: num_aux_bc
-  
+
   patch => realization%patch
-  option => realization%option  
+  option => realization%option
 
   auxvars => patch%aux%Global%auxvars
   auxvars_bc => patch%aux%Global%auxvars_bc
   num_aux = patch%aux%Global%num_aux
   num_aux_bc = patch%aux%Global%num_aux_bc
-  
+
   select case(ivar)
     case(LIQUID_PRESSURE)
       iphase = option%liquid_phase
@@ -226,18 +226,18 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
       print *, 'Case(', ivar, ') not supported in GlobalSetAuxVarScalar'
       stop
   end select
-  
+
 end subroutine GlobalSetAuxVarScalar
 
 ! ************************************************************************** !
 
 subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
-  ! 
+  !
   ! Sets values of auxvar data using a vector.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/19/08
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -256,26 +256,26 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
   class(realization_subsurface_type) :: realization
   Vec :: vec_loc
   PetscInt :: ivar
-  PetscInt :: time_level  
-  
+  PetscInt :: time_level
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: auxvars(:)
-  
+
   PetscInt :: ghosted_id
   PetscInt :: iphase
   PetscReal, pointer :: vec_loc_p(:)
   PetscErrorCode :: ierr
-  
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
-  
+
   auxvars => patch%aux%Global%auxvars
 
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
-  
+
   select case(ivar)
     case(LIQUID_PRESSURE)
       iphase = option%liquid_phase
@@ -444,7 +444,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
       do ghosted_id=1, grid%ngmax
         patch%aux%Global%auxvars(ghosted_id)%darcy_vel(option%liquid_phase) = vec_loc_p(ghosted_id)
       enddo
-      !end select 
+      !end select
     case default
       print *, 'Case(', ivar, ') not supported in GlobalSetAuxVarVecLoc'
       stop
@@ -457,12 +457,12 @@ end subroutine GlobalSetAuxVarVecLoc
 ! ************************************************************************** !
 
 subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar)
-  ! 
+  !
   ! Sets values of auxvar data using a vector.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/19/08
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -471,27 +471,27 @@ subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar)
   use Grid_module
   use Option_module
   use Variables_module, only : STATE
-  
+
   implicit none
 
   class(realization_subsurface_type) :: realization
   Vec :: vec_loc
   PetscInt :: ivar
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  
+
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
   PetscErrorCode :: ierr
-  
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
-  
+
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
-  
+
   select case(ivar)
     case(STATE)
       do ghosted_id=1, grid%ngmax
@@ -510,30 +510,30 @@ end subroutine GlobalGetAuxVarVecLoc
 ! ************************************************************************** !
 
 subroutine GlobalWeightAuxVars(realization,weight)
-  ! 
+  !
   ! Updates the densities and saturations in auxiliary
   ! variables associated with reactive transport
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/03/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Option_module
   use Material_module, only : MaterialWeightAuxVars
-  
+
   implicit none
 
   class(realization_subsurface_type) :: realization
   PetscReal :: weight
-  
+
   type(option_type), pointer :: option
   type(global_auxvar_type), pointer :: auxvars(:)
   PetscInt :: ghosted_id
-  
+
   option => realization%option
   auxvars => realization%patch%aux%Global%auxvars
-  
+
   ! interpolate variables based on weight
   do ghosted_id = 1, realization%patch%aux%Global%num_aux
     auxvars(ghosted_id)%sat(:) = &
@@ -551,8 +551,8 @@ subroutine GlobalWeightAuxVars(realization,weight)
            (1.d0-weight)*auxvars(ghosted_id)%den_kg_store(:,TIME_T))
       enddo
   end select
-  
-  select case(option%iflowmode) 
+
+  select case(option%iflowmode)
     case(G_MODE,H_MODE)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
@@ -561,15 +561,15 @@ subroutine GlobalWeightAuxVars(realization,weight)
         auxvars(ghosted_id)%temp = &
           (weight*auxvars(ghosted_id)%temp_store(TIME_TpDT)+ &
            (1.d0-weight)*auxvars(ghosted_id)%temp_store(TIME_T))
-      enddo  
+      enddo
     case(WF_MODE)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
            (1.d0-weight)*auxvars(ghosted_id)%pres_store(:,TIME_T))
-      enddo  
+      enddo
     case(MPH_MODE)
-      ! need future implementation for ims_mode too    
+      ! need future implementation for ims_mode too
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
@@ -584,48 +584,48 @@ subroutine GlobalWeightAuxVars(realization,weight)
   !      auxvars(ghosted_id)%den(:) = &
   !        (weight*auxvars(ghosted_id)%den_store(:,TIME_TpDT)+ &
   !         (1.d0-weight)*auxvars(ghosted_id)%den_store(:,TIME_T))
-      enddo  
+      enddo
   end select
-  
+
 end subroutine GlobalWeightAuxVars
 
 ! ************************************************************************** !
 
 subroutine GlobalUpdateState(realization)
-  ! 
+  !
   ! Updates global aux var variables for use in
   ! reactive transport
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/14/09
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Realization_Base_class, only : RealizationGetVariable
   use Communicator_Base_class
   use Variables_module, only : STATE
-  
+
   class(realization_subsurface_type) :: realization
-  
+
   call RealizationGetVariable(realization,realization%field%work,STATE, &
                               ZERO_INTEGER)
   call realization%comm1%GlobalToLocal(realization%field%work, &
                                        realization%field%work_loc)
   call GlobalSetAuxVarVecLoc(realization,realization%field%work_loc,STATE, &
                              ZERO_INTEGER)
-  
+
 end subroutine GlobalUpdateState
 
 ! ************************************************************************** !
 
 subroutine GlobalUpdateAuxVars(realization,time_level,time)
-  ! 
+  !
   ! Updates global aux var variables for use in
   ! reactive transport
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/14/09
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Realization_Base_class, only : RealizationGetVariable
@@ -639,7 +639,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                                TEMPERATURE, SC_FUGA_COEFF, GAS_DENSITY_MOL, &
                                DARCY_VELOCITY
   use ZFlow_Aux_module, only : zflow_density_kg
-  
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Discretization_module
@@ -648,7 +648,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   class(realization_subsurface_type) :: realization
   PetscReal :: time
   PetscInt  :: time_level
-  
+
   PetscInt :: local_id, local_id_max
   Vec :: vec_x,vec_y,vec_z,global_vec
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:), vec_calc_ptr(:)
@@ -659,17 +659,17 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
 
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  
+
   option => realization%option
   field => realization%field
-  
+
   select case(time_level)
     case(TIME_T)
       realization%patch%aux%Global%time_t = time
     case(TIME_TpDT)
       realization%patch%aux%Global%time_tpdt = time
-  end select  
-  
+  end select
+
   ! liquid density
   select case(option%iflowmode)
     case(ZFLOW_MODE)
@@ -693,29 +693,29 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   if (flag) then
     call GlobalUpdateSingleAuxVar(realization,GAS_SATURATION,time_level)
   endif
-  
-  
+
+
   select case(option%iflowmode)
     case(MPH_MODE)
       ! Gas density
       call GlobalUpdateSingleAuxVar(realization,GAS_DENSITY,time_level)
       call GlobalUpdateSingleAuxVar(realization,GAS_DENSITY_MOL,time_level)
- 
+
       ! liquid pressure
       call GlobalUpdateSingleAuxVar(realization,LIQUID_PRESSURE,time_level)
- 
+
       ! gas pressure
       call GlobalUpdateSingleAuxVar(realization,GAS_PRESSURE,time_level)
- 
+
       ! temperature
       call GlobalUpdateSingleAuxVar(realization,TEMPERATURE,time_level)
-      
+
       ! fugacity coeff
       call GlobalUpdateSingleAuxVar(realization,SC_FUGA_COEFF,time_level)
     case(TH_MODE,TH_TS_MODE)
       ! pressure
       call GlobalUpdateSingleAuxVar(realization,LIQUID_DENSITY,time_level)
- 
+
       ! temperature
       call GlobalUpdateSingleAuxVar(realization,TEMPERATURE,time_level)
     case(G_MODE,WF_MODE)
@@ -732,8 +732,8 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   end select
 
   ! darcy velocity (start)
-  if (option%flow%store_darcy_vel) then 
-    
+  if (option%flow%store_darcy_vel) then
+
     !Create vectors of approapriate size
     discretization => realization%discretization
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
@@ -745,7 +745,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
     call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z, &
                                          LIQUID_PHASE)
 
-    ! open the vectors 
+    ! open the vectors
     call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
     call VecGetArrayF90(vec_y, vec_y_ptr,ierr)
     call VecGetArrayF90(vec_z, vec_z_ptr,ierr)
@@ -778,8 +778,8 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(vec_x,ierr);CHKERRQ(ierr)
     call VecDestroy(vec_y,ierr);CHKERRQ(ierr)
-    call VecDestroy(vec_z,ierr);CHKERRQ(ierr) 
-    call VecDestroy(vec_calc,ierr);CHKERRQ(ierr) 
+    call VecDestroy(vec_z,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_calc,ierr);CHKERRQ(ierr)
 
   end if
   ! darcy velocity (end)
@@ -789,12 +789,12 @@ end subroutine GlobalUpdateAuxVars
 ! ************************************************************************** !
 
 subroutine GlobalUpdateSingleAuxVar(realization,ivar,time_level)
-  ! 
+  !
   ! Updates a single variable in global auxvar
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/23/21
-  ! 
+  !
   use Field_module
   use Realization_Subsurface_class
   use Realization_Base_class, only : RealizationGetVariable

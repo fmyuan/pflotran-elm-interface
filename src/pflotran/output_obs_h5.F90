@@ -377,7 +377,7 @@ contains
     call WriteH5RegionGridInfo(realization_base, file_id)
 
     call h5fclose_f(file_id, h5_err)
-    
+
 
   end subroutine WriteH5ObservationRegionDomain
 

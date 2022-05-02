@@ -1,5 +1,5 @@
 module Time_Storage_module
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -7,7 +7,7 @@ module Time_Storage_module
   private
 
 #include "petsc/finclude/petscsys.h"
-  
+
   type, public :: time_storage_type
     PetscReal, pointer :: times(:)
     PetscReal :: cur_time
@@ -15,13 +15,13 @@ module Time_Storage_module
     PetscInt :: cur_time_index
     PetscInt :: max_time_index
     PetscBool :: is_cyclic
-    PetscReal :: time_shift    ! shift for cyclic data sets 
+    PetscReal :: time_shift    ! shift for cyclic data sets
     PetscBool :: cur_time_index_changed
     PetscBool :: cur_time_fraction_changed
     PetscInt :: time_interpolation_method
     PetscBool :: force_update
   end type time_storage_type
-  
+
   public :: TimeStorageCreate, &
             TimeStorageGetTimes, &
             TimeStorageVerify, &
@@ -34,15 +34,15 @@ contains
 ! ************************************************************************** !
 
 function TimeStorageCreate()
-  ! 
+  !
   ! Initializes a time storage
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11, 05/03/13
-  ! 
+  !
   use petscsys
   implicit none
-  
+
   type(time_storage_type), pointer :: time_storage
   type(time_storage_type), pointer :: TimeStorageCreate
 
@@ -58,37 +58,37 @@ function TimeStorageCreate()
   time_storage%cur_time_fraction_changed = PETSC_FALSE
   time_storage%time_interpolation_method = INTERPOLATION_NULL
   time_storage%force_update = PETSC_FALSE
-  
+
   TimeStorageCreate => time_storage
-    
+
 end function TimeStorageCreate
 
 ! ************************************************************************** !
 
 subroutine TimeStorageVerify(default_time, time_storage, &
                              default_time_storage, header, option)
-  ! 
+  !
   ! Verifies the data in a time storage
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11, 05/03/13
-  ! 
+  !
 
   use petscsys
   use Option_module
 
   implicit none
-  
+
   PetscReal :: default_time
   type(time_storage_type), pointer :: time_storage
   type(time_storage_type), pointer :: default_time_storage
   character(len=MAXSTRINGLENGTH) :: header
   type(option_type) :: option
-  
+
   PetscInt :: array_size
-  
+
   if (.not.associated(time_storage)) return
-  
+
   if (associated(default_time_storage)) then
     if (default_time_storage%is_cyclic) time_storage%is_cyclic = PETSC_TRUE
     if (time_storage%time_interpolation_method == INTERPOLATION_NULL) then
@@ -96,13 +96,13 @@ subroutine TimeStorageVerify(default_time, time_storage, &
         default_time_storage%time_interpolation_method
     endif
   endif
-  
+
   if (time_storage%time_interpolation_method == INTERPOLATION_NULL) then
     option%io_buffer = 'Time interpolation method must be specified in ' // &
       trim(header) // '.'
     call PrintErrMsg(option)
   endif
-  
+
   time_storage%max_time_index = 1
   if (.not.associated(time_storage%times)) then
     if (associated(default_time_storage)) then
@@ -122,9 +122,9 @@ subroutine TimeStorageVerify(default_time, time_storage, &
       time_storage%times = default_time
     endif
   endif
-  time_storage%max_time_index = size(time_storage%times,1) 
+  time_storage%max_time_index = size(time_storage%times,1)
   time_storage%cur_time_index = 1
-  
+
   time_storage%time_shift = time_storage%times(time_storage%max_time_index)
 
 end subroutine TimeStorageVerify
@@ -132,22 +132,22 @@ end subroutine TimeStorageVerify
 ! ************************************************************************** !
 
 subroutine TimeStorageGetTimes(time_storage, option, max_sim_time, time_array)
-  ! 
+  !
   ! Fills an array of times based on time storage
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11, 05/03/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(time_storage_type), pointer :: time_storage
   type(option_type) :: option
   PetscReal :: max_sim_time
   PetscReal, pointer :: time_array(:)
-  
+
   PetscInt :: num_times
   PetscInt :: itime
   PetscReal :: time_shift
@@ -157,7 +157,7 @@ subroutine TimeStorageGetTimes(time_storage, option, max_sim_time, time_array)
     nullify(time_array)
     return
   endif
-  
+
   if (.not.time_storage%is_cyclic .or. time_storage%max_time_index == 1) then
     allocate(time_array(time_storage%max_time_index))
     time_array =  time_storage%times
@@ -174,14 +174,14 @@ subroutine TimeStorageGetTimes(time_storage, option, max_sim_time, time_array)
     do
       num_times = num_times + 1
       itime = itime + 1
-      ! exit for non-cyclic - but is will never enter conditional given 
+      ! exit for non-cyclic - but is will never enter conditional given
       ! conditional above.
       if (itime > time_storage%max_time_index) exit
       temp_times(num_times) = time_storage%times(itime) + time_shift
       if (mod(itime,time_storage%max_time_index) == 0) then
         itime = 0
-        time_shift = time_shift + time_storage%times(time_storage%max_time_index) 
-      endif 
+        time_shift = time_shift + time_storage%times(time_storage%max_time_index)
+      endif
       ! exit for cyclic
       if (temp_times(num_times) >= max_sim_time) exit
     enddo
@@ -190,26 +190,26 @@ subroutine TimeStorageGetTimes(time_storage, option, max_sim_time, time_array)
     time_array(:) = temp_times(1:num_times)
     deallocate(temp_times)
   endif
- 
+
 end subroutine TimeStorageGetTimes
 
 ! ************************************************************************** !
 
 subroutine TimeStoragePrint(time_storage,option)
-  ! 
+  !
   ! Prints time storage info
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11, 05/03/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(time_storage_type) :: time_storage
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
 
   write(option%fid_out,'(8x,''Time Storage'')')
@@ -219,7 +219,7 @@ subroutine TimeStoragePrint(time_storage,option)
     string = 'no'
   endif
   write(option%fid_out,'(8x,''Is cyclic: '',a)') trim(string)
-  if (size(time_storage%times) > 1) then  
+  if (size(time_storage%times) > 1) then
     write(option%fid_out,'(8x,''  Number of values: '', i7)') &
       time_storage%max_time_index
     write(option%fid_out,'(8x,''Start value:'',es16.8)') &
@@ -230,30 +230,30 @@ subroutine TimeStoragePrint(time_storage,option)
     write(option%fid_out,'(8x,''Value:'',es16.8)') time_storage%times(1)
   endif
 
-            
+
 end subroutine TimeStoragePrint
 
 ! ************************************************************************** !
 
 subroutine TimeStorageUpdate(time_storage)
-  ! 
+  !
   ! Updates a time storage
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11, 05/03/13
-  ! 
+  !
 
   use petscsys
   use Option_module
-  
+
   implicit none
-  
+
   type(time_storage_type) :: time_storage
-  
+
   PetscInt :: irank
   PetscInt :: cur_time_index
   PetscInt :: next_time_index
-  
+
   ! cycle times if at max_time_index and cyclic
   if (time_storage%cur_time_index == time_storage%max_time_index .and. &
       time_storage%is_cyclic .and. time_storage%max_time_index > 1) then
@@ -263,7 +263,7 @@ subroutine TimeStorageUpdate(time_storage)
     enddo
     time_storage%cur_time_index = 1
   endif
- 
+
   cur_time_index = time_storage%cur_time_index
   next_time_index = min(time_storage%cur_time_index+1, &
                         time_storage%max_time_index)
@@ -275,7 +275,7 @@ subroutine TimeStorageUpdate(time_storage)
     if (time_storage%cur_time < time_storage%times(next_time_index) .or. &
         cur_time_index == next_time_index) &
       exit
-    
+
     if (cur_time_index /= next_time_index) &
       ! toggle flag indicating a change in index
       time_storage%cur_time_index_changed = PETSC_TRUE
@@ -294,7 +294,7 @@ subroutine TimeStorageUpdate(time_storage)
       next_time_index = 2
     endif
   enddo
-    
+
   time_storage%cur_time_index = cur_time_index
   if (cur_time_index < 1) then
     return
@@ -326,22 +326,22 @@ end subroutine TimeStorageUpdate
 ! ************************************************************************** !
 
 subroutine TimeStorageDestroy(time_storage)
-  ! 
+  !
   ! Destroys a time storage associated with a sub_condition
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11, 05/03/13
-  ! 
+  !
 
   implicit none
-  
+
   type(time_storage_type), pointer :: time_storage
-  
+
   if (.not.associated(time_storage)) return
-  
+
   if (associated(time_storage%times)) deallocate(time_storage%times)
   nullify(time_storage%times)
-  
+
   deallocate(time_storage)
   nullify(time_storage)
 

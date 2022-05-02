@@ -3,15 +3,15 @@ module PM_Base_Pointer_module
 #include "petsc/finclude/petscts.h"
   use petscts
   use PM_Base_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-  ! Since the context (ctx) for procedures passed to PETSc must be declared 
-  ! as a "type" instead of a "class", object is a workaround for passing the 
+  ! Since the context (ctx) for procedures passed to PETSc must be declared
+  ! as a "type" instead of a "class", object is a workaround for passing the
   ! process model as context of a procedure where one can pass the
   ! pm_base_pointer_type to a procedure, declaring it as e.g.
   !
@@ -20,7 +20,7 @@ module PM_Base_Pointer_module
   ! and use the ptr:
   !
   ! pm_ptr%this%Residual
-  !  
+  !
   type, public :: pm_base_pointer_type
     class(pm_base_type), pointer :: pm
   end type pm_base_pointer_type
@@ -41,10 +41,10 @@ contains
 ! ************************************************************************** !
 
 subroutine PMResidualPtr(snes,xx,r,this,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   implicit none
 
   SNES :: snes
@@ -52,7 +52,7 @@ subroutine PMResidualPtr(snes,xx,r,this,ierr)
   Vec :: r
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
-  
+
   call this%pm%Residual(snes,xx,r,ierr)
 
 end subroutine PMResidualPtr
@@ -60,10 +60,10 @@ end subroutine PMResidualPtr
 ! ************************************************************************** !
 
 subroutine PMJacobianPtr(snes,xx,A,B,this,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   implicit none
 
   SNES :: snes
@@ -71,18 +71,18 @@ subroutine PMJacobianPtr(snes,xx,A,B,this,ierr)
   Mat :: A, B
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
-  
+
   call this%pm%Jacobian(snes,xx,A,B,ierr)
-    
+
 end subroutine PMJacobianPtr
 
 ! ************************************************************************** !
 
 subroutine PMRHSFunctionPtr(ts,time,xx,ff,this,ierr)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 04/12/13
-  ! 
+  !
   implicit none
 
   TS :: ts
@@ -91,7 +91,7 @@ subroutine PMRHSFunctionPtr(ts,time,xx,ff,this,ierr)
   Vec :: ff
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
-  
+
   call this%pm%RHSFunction(ts,time,xx,ff,ierr)
 
 end subroutine PMRHSFunctionPtr
@@ -99,10 +99,10 @@ end subroutine PMRHSFunctionPtr
 ! ************************************************************************** !
 
 subroutine PMIFunctionPtr(ts,time,U,Udot,F,this,ierr)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/20/18
-  ! 
+  !
   implicit none
 
   TS :: ts
@@ -111,7 +111,7 @@ subroutine PMIFunctionPtr(ts,time,U,Udot,F,this,ierr)
   Vec :: F
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
-  
+
   call this%pm%IFunction(ts,time,U,Udot,F,ierr)
 
 end subroutine PMIFunctionPtr
@@ -119,10 +119,10 @@ end subroutine PMIFunctionPtr
 ! ************************************************************************** !
 
 subroutine PMIJacobianPtr(ts,time,U,Udot,shift,A,B,this,ierr)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/20/18
-  ! 
+  !
   implicit none
 
   TS :: ts
@@ -132,21 +132,21 @@ subroutine PMIJacobianPtr(ts,time,U,Udot,shift,A,B,this,ierr)
   Mat :: A, B
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
-  
+
   call this%pm%IJacobian(ts,time,U,Udot,shift,A,B,ierr)
-    
+
 end subroutine PMIJacobianPtr
 
 ! ************************************************************************** !
 
 subroutine PMCheckUpdatePreTRPtr(snes,X,dX,changed,this,ierr)
-  ! 
+  !
   ! Wrapper for native call to XXXCheckUpdatePreTR
   ! when using Newton Trust Region Method
-  ! 
+  !
   ! Author: Heeho Park
   ! Date: 04/13/20
-  ! 
+  !
    implicit none
 
   Vec :: X
@@ -156,22 +156,22 @@ subroutine PMCheckUpdatePreTRPtr(snes,X,dX,changed,this,ierr)
   PetscErrorCode :: ierr
 
   SNES :: snes
-  
+
   call this%pm%CheckUpdatePre(snes,X,dX,changed,ierr)
-    
+
 end subroutine PMCheckUpdatePreTRPtr
 
 ! ************************************************************************** !
 
 subroutine PMCheckUpdatePostTRPtr(snes,X0,dX,X1,dX_changed,X1_changed, &
                                 this,ierr)
-  ! 
+  !
   ! Wrapper for native call to XXXCheckUpdatePost
   ! when using Newton Trust Region Method
-  ! 
+  !
   ! Author: Heeho Park
   ! Date: 04/13/20
-  ! 
+  !
   implicit none
 
   Vec :: X0
@@ -183,20 +183,20 @@ subroutine PMCheckUpdatePostTRPtr(snes,X0,dX,X1,dX_changed,X1_changed, &
   PetscErrorCode :: ierr
 
   SNES :: snes
-  
+
   call this%pm%CheckUpdatePost(snes,X0,dX,X1,dX_changed,X1_changed,ierr)
-    
+
 end subroutine PMCheckUpdatePostTRPtr
 
 ! ************************************************************************** !
 
 subroutine PMCheckUpdatePrePtr(linesearch,X,dX,changed,this,ierr)
-  ! 
+  !
   ! Wrapper for native call to XXXCheckUpdatePre
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/02/14
-  ! 
+  !
    implicit none
 
   SNESLineSearch :: linesearch
@@ -207,22 +207,22 @@ subroutine PMCheckUpdatePrePtr(linesearch,X,dX,changed,this,ierr)
   PetscErrorCode :: ierr
 
   SNES :: snes
-  
+
   call SNESLineSearchGetSNES(linesearch,snes,ierr);CHKERRQ(ierr)
   call this%pm%CheckUpdatePre(snes,X,dX,changed,ierr)
-    
+
 end subroutine PMCheckUpdatePrePtr
 
 ! ************************************************************************** !
 
 subroutine PMCheckUpdatePostPtr(linesearch,X0,dX,X1,dX_changed,X1_changed, &
                                 this,ierr)
-  ! 
+  !
   ! Wrapper for native call to XXXCheckUpdatePost
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/02/14
-  ! 
+  !
   implicit none
 
   SNESLineSearch :: linesearch
@@ -235,21 +235,21 @@ subroutine PMCheckUpdatePostPtr(linesearch,X0,dX,X1,dX_changed,X1_changed, &
   PetscErrorCode :: ierr
 
   SNES :: snes
-  
+
   call SNESLineSearchGetSNES(linesearch,snes,ierr);CHKERRQ(ierr)
   call this%pm%CheckUpdatePost(snes,X0,dX,X1,dX_changed,X1_changed,ierr)
-    
+
 end subroutine PMCheckUpdatePostPtr
 
 ! ************************************************************************** !
 
 subroutine PMCheckConvergencePtr(snes,it,xnorm,unorm,fnorm,reason,this,ierr)
-  ! 
+  !
   ! User defined convergence test for a process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/15/17
-  ! 
+  !
   implicit none
 
   SNES :: snes
@@ -262,7 +262,7 @@ subroutine PMCheckConvergencePtr(snes,it,xnorm,unorm,fnorm,reason,this,ierr)
   PetscErrorCode :: ierr
 
   call this%pm%CheckConvergence(snes,it,xnorm,unorm,fnorm,reason,ierr)
-    
+
 end subroutine PMCheckConvergencePtr
 
 end module PM_Base_Pointer_module

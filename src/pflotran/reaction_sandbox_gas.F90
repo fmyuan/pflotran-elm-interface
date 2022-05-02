@@ -4,16 +4,16 @@ module Reaction_Sandbox_Gas_class
   use petscsys
 
   use Reaction_Sandbox_Base_class
-  
+
   use Global_Aux_module
   use Reactive_Transport_Aux_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public, &
        extends(reaction_sandbox_base_type) :: reaction_sandbox_gas_type
     PetscInt :: nspecies
@@ -27,9 +27,9 @@ module Reaction_Sandbox_Gas_class
 
     ! create an allocatable array of word-length strings
     character(len=MAXWORDLENGTH), allocatable :: name_vec(:)
-    
+
     PetscReal, allocatable :: k(:) ! rate constant [mol/m^3 gas]
-    PetscReal, allocatable :: Keq(:) ! equilibrium constant [L_gas/m^3 bulk]  
+    PetscReal, allocatable :: Keq(:) ! equilibrium constant [L_gas/m^3 bulk]
 
   contains
     procedure, public :: ReadInput => GasRead
@@ -45,15 +45,15 @@ contains
 ! ************************************************************************** !
 
 function GasCreate()
-  ! 
+  !
   ! Allocates gas reaction object.
-  ! 
-  ! Author: Kris Kuhlman 
+  !
+  ! Author: Kris Kuhlman
   ! Date: July 2018
-  ! 
+  !
 
   implicit none
-  
+
   class(reaction_sandbox_gas_type), pointer :: GasCreate
   PetscInt, parameter :: ns = 0
 
@@ -78,19 +78,19 @@ end function GasCreate
 ! ************************************************************************** !
 
 subroutine GasRead(this,input,option)
-  ! 
-  ! Reads input deck for gas reaction parameters 
-  ! 
+  !
+  ! Reads input deck for gas reaction parameters
+  !
   ! Author: Kris Kuhlman
   ! Date: July 2018
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
   use Units_module, only : UnitsConvertToInternal
-  
+
   implicit none
-  
+
   class(reaction_sandbox_gas_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -98,17 +98,17 @@ subroutine GasRead(this,input,option)
   character(len=21) :: buffer
   PetscInt :: i, previous_ns
   character(len=MAXWORDLENGTH) :: word
-  
+
   call InputPushBlock(input,option)
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
          'CHEMISTRY,REACTION_SANDBOX,GAS')
-    
+
     call StringToUpper(word)
     select case(trim(word))
     case('NUM_GAS_SPECIES')
@@ -131,7 +131,7 @@ subroutine GasRead(this,input,option)
         this%Keq = 0.0d0
         deallocate(this%name_vec);allocate(this%name_vec(this%nspecies))
       end if
-      
+
     case('GAS_SPECIES_NAMES')
       buffer = 'gas_species_names_XXX'
       do i=1, this%nspecies
@@ -141,13 +141,13 @@ subroutine GasRead(this,input,option)
         call InputErrorMsg(input,option,buffer, &
              'CHEMISTRY,REACTION_SANDBOX,GAS')
       end do
-        
+
     case('RATE_CONSTANTS')
       ! units of: moles / (m^3 gas * sec)
       call InputReadNDoubles(input,option,this%k,this%nspecies)
       call InputErrorMsg(input,option,'rate_constants', &
            'CHEMISTRY,REACTION_SANDBOX,GAS')
-      
+
     case('EQUILIBRIUM_CONSTANTS')
       ! units of: liters gas / (m^3 bulk )
       call InputReadNDoubles(input,option,this%Keq,this%nspecies)
@@ -166,27 +166,27 @@ subroutine GasRead(this,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine GasRead
 
 ! ************************************************************************** !
 
 subroutine GasSetup(this,reaction,option)
-  ! 
+  !
   ! Sets up the gas reaction either with parameters either
   ! read from the input deck or hardwired.
-  ! 
+  !
   ! Author: Kris Kuhlman
   ! Date: July 2018
-  ! 
+  !
 
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
-  use Reaction_Gas_Aux_module, only : GasGetIDFromName  
+  use Reaction_Gas_Aux_module, only : GasGetIDFromName
   use Option_module
 
   implicit none
-  
+
   class(reaction_sandbox_gas_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
@@ -197,7 +197,7 @@ subroutine GasSetup(this,reaction,option)
   character(len=3) :: g = '(g)'
 
   ! species read from file must exist in database in both (aq) and (g) form
-  
+
   do i = 1, this%nspecies
     word = trim(this%name_vec(i))//aq
     this%aq_vec(i) = GetPrimarySpeciesIDFromName(word,reaction,option)
@@ -206,7 +206,7 @@ subroutine GasSetup(this,reaction,option)
     word = trim(this%name_vec(i))//g
     this%gas_vec(i) = GasGetIDFromName(reaction%gas,word)
   end do
-  
+
 end subroutine GasSetup
 
 ! ************************************************************************** !
@@ -214,20 +214,20 @@ end subroutine GasSetup
 subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option)
-  ! 
+  !
   ! Evaluates reaction storing residual and/or Jacobian
-  ! 
+  !
   ! Author: Kris Kuhlman
   ! Date: July 2018
-  ! 
+  !
 
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module
-  
+
   implicit none
-  
-  class(reaction_sandbox_gas_type) :: this  
+
+  class(reaction_sandbox_gas_type) :: this
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -235,14 +235,14 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
- 
+
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
 
   PetscInt :: i
   PetscInt, parameter :: iphase = 2
-  
+
   PetscReal :: L_water
   PetscReal :: im_rate  ! specified rate (mol/sec)
   PetscReal :: g_rate  ! specified rate (mol/sec)
@@ -252,7 +252,7 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: RT
 
   if (material_auxvar%id /= this%material_id_skip) then
-    
+
     ! converts pressure in Pa to moles per m^3 gas
     RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0)*1.0d3
 
@@ -265,10 +265,10 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
       !   Q = ratio of gas concentration [Cg] to sorbed concentration [Cs]
       !   Cg = gas concentration [mol/L gas]
       !   Cs = gas concentration [mol/m^3 bulk]
-      !   
+      !
       !   Cs = Keq * Cg, therefore, Keq = Cs/Cg at equilibrium
-      !   Q = Cs/Cg as measured 
-      
+      !   Q = Cs/Cg as measured
+
       ! gas concentration from partial pressure
       Cg = rt_auxvar%gas_pp(this%gas_vec(i)) * 1.0d5 / RT
 
@@ -283,35 +283,35 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
       im_rate = -g_rate
 
       Residual(this%aq_vec(i)) = Residual(this%aq_vec(i)) - g_rate
-      
+
       Residual(this%im_vec(i) + reaction%offset_immobile) = &
            Residual(this%im_vec(i) + reaction%offset_immobile) - im_rate
-      
+
     end do
-    
+
     if (compute_derivative) then
       option%io_buffer = 'NUMERICAL_JACOBIAN must always be used in SUBSURFACE_TRANSPORT' // &
            ' process model due to assumptions in gas reaction sandbox'
       call PrintErrMsg(option)
     endif
   end if
-    
+
 end subroutine GasReact
 
 ! ************************************************************************** !
 
 subroutine GasDestroy(this)
-  ! 
+  !
   ! Destroys allocatable or pointer objects created in this
   ! module
-  ! 
+  !
   ! Author: Kris Kuhlman
   ! Date: July 2018
-  ! 
+  !
 
   implicit none
-  
-  class(reaction_sandbox_gas_type) :: this  
+
+  class(reaction_sandbox_gas_type) :: this
 
   deallocate(this%aq_vec)
   deallocate(this%im_vec)

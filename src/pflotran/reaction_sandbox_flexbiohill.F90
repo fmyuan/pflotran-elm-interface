@@ -7,9 +7,9 @@ module Reaction_Sand_FlexBioHill_class
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public, &
     extends(reaction_sandbox_biohill_type) :: reaction_sandbox_flexbiohill_type
     PetscReal :: k_max
@@ -35,11 +35,11 @@ contains
 ! ************************************************************************** !
 
 function FlexBioHillCreate()
-  ! 
+  !
   ! Allocates flexible biodegradation reaction object.
-  ! 
+  !
   implicit none
-  
+
   class(reaction_sandbox_flexbiohill_type), pointer :: FlexBioHillCreate
 
   allocate(FlexBioHillCreate)
@@ -52,14 +52,14 @@ function FlexBioHillCreate()
   FlexBioHillCreate%n = 1.d0
   FlexBioHillCreate%molarity_units = PETSC_TRUE
   nullify(FlexBioHillCreate%stoich)
-  nullify(FlexBioHillCreate%next)  
-      
+  nullify(FlexBioHillCreate%next)
+
 end function FlexBioHillCreate
 
 ! ************************************************************************** !
 
 subroutine FlexBioHillReadInput(this,input,option)
-  ! 
+  !
   ! Reads flexible biodegradation reaction parameters
   !
   use Option_module
@@ -89,7 +89,7 @@ subroutine FlexBioHillReadInput(this,input,option)
     call StringToUpper(word)
 
     select case(word)
-      case('AQUEOUS_CONCENTRATION_UNITS') 
+      case('AQUEOUS_CONCENTRATION_UNITS')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,word,error_string)
         call StringToUpper(word)
@@ -103,29 +103,29 @@ subroutine FlexBioHillReadInput(this,input,option)
                          trim(error_string)//&
                          'AQUEOUS_CONCENTRATION_UNITS',option)
         end select
-      case('MAX_SPECIFIC_UTILIZATION_RATE') 
+      case('MAX_SPECIFIC_UTILIZATION_RATE')
         call InputReadDouble(input,option,this%k_max)
         call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%k_max,'1/sec', &
                                       trim(error_string)//','//word,option)
-      case('AAQ_HALF_SATURATION_CONSTANT') 
+      case('AAQ_HALF_SATURATION_CONSTANT')
         call InputReadDouble(input,option,K_Aaq)
         call InputErrorMsg(input,option,word,error_string)
-      case('BAQ_HALF_SATURATION_CONSTANT') 
+      case('BAQ_HALF_SATURATION_CONSTANT')
         call InputReadDouble(input,option,this%K_Baq)
         call InputErrorMsg(input,option,word,error_string)
-      case('CAQ_MONOD_INHIBITION_CONSTANT') 
+      case('CAQ_MONOD_INHIBITION_CONSTANT')
         call InputReadDouble(input,option,this%I_Caq)
         call InputErrorMsg(input,option,word,error_string)
-      case('YIELD') 
+      case('YIELD')
         call InputReadDouble(input,option,this%yield)
         call InputErrorMsg(input,option,word,error_string)
-      case('BIOMASS_DECAY_RATE_CONSTANT') 
+      case('BIOMASS_DECAY_RATE_CONSTANT')
         call InputReadDouble(input,option,this%k_decay)
         call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%k_decay,'1/sec', &
                                       trim(error_string)//','//word,option)
-      case('HILL_EXPONENT') 
+      case('HILL_EXPONENT')
         call InputReadDouble(input,option,this%n)
         call InputErrorMsg(input,option,word,error_string)
       case default
@@ -168,9 +168,9 @@ end subroutine FlexBioHillReadInput
 ! ************************************************************************** !
 
 subroutine FlexBioHillSetup(this,reaction,option)
-  ! 
+  !
   ! Sets up the flexible biodegradation reaction with hardwired parameters
-  ! 
+  !
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
@@ -197,9 +197,9 @@ end subroutine FlexBioHillSetup
 subroutine FlexBioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
                                rt_auxvar,global_auxvar,material_auxvar, &
                                reaction,option)
-  ! 
+  !
   ! Evaluates flexible biodegradation reaction storing residual and Jacobian
-  ! 
+  !
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module

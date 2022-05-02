@@ -328,7 +328,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                        matrixlength0);
     call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
- 
+
   ! geophysics
   if (option%ngeopdof > 0) then
     call VecGetArrayF90(field%electrical_conductivity,cond_p, &
@@ -473,7 +473,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   if (matrix_length_index > 0) then
     call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
- 
+
   if (option%ngeopdof > 0) then
     call VecRestoreArrayF90(field%electrical_conductivity,cond_p, &
       ierr);CHKERRQ(ierr)
@@ -609,7 +609,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  MATRIX_LENGTH,ZERO_INTEGER)
     call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr);
-  endif  
+  endif
 
   if (option%ngeopdof > 0) then
      call DiscretizationGlobalToLocal(discretization, &

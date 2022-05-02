@@ -1,10 +1,10 @@
 module Region_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use Geometry_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -22,11 +22,11 @@ module Region_module
   PetscInt, parameter, public :: DEFINED_BY_POLY_CELL_CENTER = 9
   PetscInt, parameter, public :: DEFINED_BY_CARTESIAN_BOUNDARY = 10
 
-  type, public :: block_type        
-    PetscInt :: i1,i2,j1,j2,k1,k2    
+  type, public :: block_type
+    PetscInt :: i1,i2,j1,j2,k1,k2
     type(block_type), pointer :: next
   end type block_type
- 
+
   type, public :: region_type
     PetscInt :: id
     PetscInt :: def_type
@@ -47,11 +47,11 @@ module Region_module
     type(polygonal_volume_type), pointer :: polygonal_volume
     type(region_type), pointer :: next
   end type region_type
-  
+
   type, public :: region_ptr_type
     type(region_type), pointer :: ptr
   end type region_ptr_type
-  
+
   type, public :: region_list_type
     PetscInt :: num_regions
     type(region_type), pointer :: first
@@ -63,57 +63,57 @@ module Region_module
     PetscInt :: nfaces
     PetscInt, pointer :: face_vertices(:,:)
   end type region_sideset_type
-  
+
   type, public :: region_explicit_face_type
     type(point3d_type), pointer :: face_centroids(:)
     PetscReal, pointer :: face_areas(:)
   end type region_explicit_face_type
-  
+
   interface RegionCreate
     module procedure RegionCreateWithBlock
     module procedure RegionCreateWithList
     module procedure RegionCreateWithNothing
-    module procedure RegionCreateWithRegion    
+    module procedure RegionCreateWithRegion
   end interface RegionCreate
-  
+
   interface RegionReadFromFile
     module procedure RegionReadFromFileId
     module procedure RegionReadFromFilename
     module procedure RegionReadSideSet
     module procedure RegionReadExplicitFaceSet
   end interface RegionReadFromFile
-  
+
   public :: RegionCreate, &
             RegionRead, &
             RegionReadFromFile, &
             RegionInitList, &
             RegionAddToList, &
-            RegionGetPtrFromList, & 
+            RegionGetPtrFromList, &
             RegionDestroyList, &
             RegionReadSideSet, &
             RegionCreateSideset, &
             RegionCheckCellIndexBounds, &
             RegionInputRecord, &
             RegionDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function RegionCreateWithNothing()
-  ! 
+  !
   ! Creates a region with no arguments
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
-  
+
   type(region_type), pointer :: RegionCreateWithNothing
-  
+
   type(region_type), pointer :: region
-  
+
   allocate(region)
   region%id = 0
   region%def_type = 0
@@ -138,7 +138,7 @@ function RegionCreateWithNothing()
   nullify(region%explicit_faceset)
   nullify(region%polygonal_volume)
   nullify(region%next)
-  
+
   RegionCreateWithNothing => region
 
 end function RegionCreateWithNothing
@@ -146,23 +146,23 @@ end function RegionCreateWithNothing
 ! ************************************************************************** !
 
 function RegionCreateSideset()
-  ! 
+  !
   ! Creates a sideset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/19/11
-  ! 
+  !
 
   implicit none
-  
+
   type(region_sideset_type), pointer :: RegionCreateSideset
-  
+
   type(region_sideset_type), pointer :: sideset
-  
+
   allocate(sideset)
   sideset%nfaces = 0
   nullify(sideset%face_vertices)
-  
+
   RegionCreateSideset => sideset
 
 end function RegionCreateSideset
@@ -170,23 +170,23 @@ end function RegionCreateSideset
 ! ************************************************************************** !
 
 function RegionCreateExplicitFaceSet()
-  ! 
+  !
   ! Creates a sideset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/19/11
-  ! 
+  !
 
   implicit none
-  
+
   type(region_explicit_face_type), pointer :: RegionCreateExplicitFaceSet
-  
+
   type(region_explicit_face_type), pointer :: explicit_faceset
-  
+
   allocate(explicit_faceset)
   nullify(explicit_faceset%face_centroids)
   nullify(explicit_faceset%face_areas)
-  
+
   RegionCreateExplicitFaceSet => explicit_faceset
 
 end function RegionCreateExplicitFaceSet
@@ -194,21 +194,21 @@ end function RegionCreateExplicitFaceSet
 ! ************************************************************************** !
 
 function RegionCreateWithBlock(i1,i2,j1,j2,k1,k2)
-  ! 
+  !
   ! Creates a region with i,j,k indices for arguments
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: i1, i2, j1, j2, k1, k2
-  
+
   type(region_type), pointer :: RegionCreateWithBlock
 
   type(region_type), pointer :: region
-  
+
   region => RegionCreateWithNothing()
   region%i1 = i1
   region%i2 = i2
@@ -218,34 +218,34 @@ function RegionCreateWithBlock(i1,i2,j1,j2,k1,k2)
   region%k2 = k2
   region%num_cells = (abs(i2-i1)+1)*(abs(j2-j1)+1)* &
                                     (abs(k2-k1)+1)
-                                    
-  RegionCreateWithBlock => region                                    
+
+  RegionCreateWithBlock => region
 
 end function RegionCreateWithBlock
 
 ! ************************************************************************** !
 
 function RegionCreateWithList(list)
-  ! 
+  !
   ! RegionCreate: Creates a region from a list of cells
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: list(:)
-  
+
   type(region_type), pointer :: RegionCreateWithList
-  
+
   type(region_type), pointer :: region
 
   region => RegionCreateWithNothing()
   region%num_cells = size(list)
   allocate(region%cell_ids(region%num_cells))
   region%cell_ids = list
-  
+
   RegionCreateWithList => region
 
 end function RegionCreateWithList
@@ -253,25 +253,25 @@ end function RegionCreateWithList
 ! ************************************************************************** !
 
 function RegionCreateWithRegion(region)
-  ! 
+  !
   ! Creates a copy of a region
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/22/08
-  ! 
+  !
 
   use Grid_Unstructured_Cell_module
 
   implicit none
-  
+
   type(region_type), pointer :: RegionCreateWithRegion
   type(region_type), pointer :: region
-  
+
   type(region_type), pointer :: new_region
   PetscInt :: icount, temp_int
-  
+
   new_region => RegionCreateWithNothing()
-  
+
   new_region%id = region%id
   new_region%def_type = region%def_type
   new_region%name = region%name
@@ -346,25 +346,25 @@ function RegionCreateWithRegion(region)
                                    new_region%polygonal_volume%yz_coordinates)
     endif
   endif
-  
+
   RegionCreateWithRegion => new_region
-  
+
 end function RegionCreateWithRegion
 
 ! ************************************************************************** !
 
 subroutine RegionInitList(list)
-  ! 
+  !
   ! Initializes a region list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07
-  ! 
+  !
 
   implicit none
 
   type(region_list_type) :: list
-  
+
   nullify(list%first)
   nullify(list%last)
   nullify(list%array)
@@ -375,62 +375,62 @@ end subroutine RegionInitList
 ! ************************************************************************** !
 
 subroutine RegionAddToList(new_region,list)
-  ! 
+  !
   ! Adds a new region to a region list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07
-  ! 
+  !
 
   implicit none
-  
+
   type(region_type), pointer :: new_region
   type(region_list_type) :: list
-  
+
   list%num_regions = list%num_regions + 1
   new_region%id = list%num_regions
   if (.not.associated(list%first)) list%first => new_region
   if (associated(list%last)) list%last%next => new_region
   list%last => new_region
-  
+
 end subroutine RegionAddToList
 
 ! ************************************************************************** !
 
 subroutine RegionRead(region,input,option)
-  ! 
+  !
   ! Reads a region from the input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/20/08
-  ! 
+  !
   use Input_Aux_module
   use String_module
   use Option_module
   use Grid_Structured_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   type(region_type) :: region
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: keyword, word
 
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGION')
-    call StringToUpper(keyword)   
+    call StringToUpper(keyword)
 
     select case(trim(keyword))
-    
+
       case('BLOCK')
         region%def_type = DEFINED_BY_BLOCK
         call InputReadInt(input,option,region%i1)
@@ -438,7 +438,7 @@ subroutine RegionRead(region,input,option)
           input%ierr = 0
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'REGION')
-          call InputReadInt(input,option,region%i1) 
+          call InputReadInt(input,option,region%i1)
         endif
         call InputErrorMsg(input,option,'i1','REGION')
         call InputReadInt(input,option,region%i2)
@@ -477,7 +477,7 @@ subroutine RegionRead(region,input,option)
       case('COORDINATE')
         region%def_type = DEFINED_BY_COORD
         allocate(region%coordinates(1))
-        call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%x) 
+        call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%x)
         if (InputError(input)) then
           input%ierr = 0
           call InputReadPflotranString(input,option)
@@ -505,7 +505,7 @@ subroutine RegionRead(region,input,option)
           if (InputCheckExit(input,option)) exit
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','REGION')
-          call StringToUpper(word)   
+          call StringToUpper(word)
           select case(trim(word))
             case('TYPE')
               call InputReadCard(input,option,word)
@@ -569,58 +569,58 @@ subroutine RegionRead(region,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
- 
+
 end subroutine RegionRead
 
 ! ************************************************************************** !
 
 subroutine RegionReadFromFilename(region,option,filename)
-  ! 
+  !
   ! Reads a list of cells from a file named filename
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07
-  ! 
+  !
 
   use Input_Aux_module
   use Option_module
   use Utility_module
-  
+
   implicit none
-  
+
   type(region_type) :: region
   type(option_type) :: option
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: filename
-  
+
   input => InputCreate(IUNIT_TEMP,filename,option)
-  call RegionReadFromFileId(region,input,option)          
-  call InputDestroy(input)         
+  call RegionReadFromFileId(region,input,option)
+  call InputDestroy(input)
 
 end subroutine RegionReadFromFilename
 
 ! ************************************************************************** !
 
 subroutine RegionReadFromFileId(region,input,option)
-  ! 
+  !
   ! Reads a list of cells from an open file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07
-  ! 
+  !
 
   use Input_Aux_module
   use Option_module
   use Utility_module
   use Logging_module
   use Grid_Unstructured_Cell_module
-  
+
   implicit none
-  
+
   type(region_type) :: region
   type(option_type) :: option
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: word
   character(len=1) :: backslash
 
@@ -647,13 +647,13 @@ subroutine RegionReadFromFileId(region,input,option)
   PetscInt, parameter :: VERTEX_IDS = 3
 
   call PetscLogEventBegin(logging%event_region_read_ascii,ierr);CHKERRQ(ierr)
-  
+
   !TODO(geh): clean and optimize this subroutine
-  
+
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-  
+
   allocate(temp_int_array(max_size))
   allocate(cell_ids_p(max_size))
   allocate(face_ids_p(max_size))
@@ -663,7 +663,7 @@ subroutine RegionReadFromFileId(region,input,option)
   allocate(vert_id_2_p(max_size))
   allocate(vert_id_3_p(max_size))
   allocate(vert_id_4_p(max_size))
-  
+
   temp_int_array = 0
   cell_ids_p = 0
   face_ids_p = 0
@@ -672,8 +672,8 @@ subroutine RegionReadFromFileId(region,input,option)
   vert_id_2_p = -1
   vert_id_3_p = -1
   vert_id_4_p = -1
-  
-  
+
+
   count = 0
 
   ! Determine if region definition in the input data is one of the following:
@@ -683,7 +683,7 @@ subroutine RegionReadFromFileId(region,input,option)
   !     line
   count = 0
   call InputReadPflotranString(input, option)
-  do 
+  do
     call InputReadInt(input, option, temp_int)
     if (InputError(input)) exit
     count = count + 1
@@ -762,7 +762,7 @@ subroutine RegionReadFromFileId(region,input,option)
       face_ids_p(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
         call ReallocateArray(cell_ids_p, max_size)
-        ! since ReallocateArray doubles max_size, we need to divide by 2 
+        ! since ReallocateArray doubles max_size, we need to divide by 2
         ! before calling again
         max_size = max_size / 2
         call ReallocateArray(face_ids_p, max_size)
@@ -832,7 +832,7 @@ subroutine RegionReadFromFileId(region,input,option)
 
         if (count+1 > max_size) then ! resize temporary array
           call ReallocateArray(vert_id_0_p,max_size)
-          ! since ReallocateArray doubles max_size, we need to divide by 2 
+          ! since ReallocateArray doubles max_size, we need to divide by 2
           ! before calling again
           max_size = max_size / 2
           call ReallocateArray(vert_id_1_p,max_size)
@@ -872,8 +872,8 @@ subroutine RegionReadFromFileId(region,input,option)
     deallocate(vert_id_4_p)
 
   endif
-  
-#if 0  
+
+#if 0
   count = 1
   do
     call InputReadPflotranString(input,option)
@@ -898,7 +898,7 @@ subroutine RegionReadFromFileId(region,input,option)
     nullify(region%cell_ids)
   endif
 #endif
-  deallocate(temp_int_array) 
+  deallocate(temp_int_array)
 
   call PetscLogEventEnd(logging%event_region_read_ascii,ierr);CHKERRQ(ierr)
 
@@ -907,23 +907,23 @@ end subroutine RegionReadFromFileId
 ! ************************************************************************** !
 
 subroutine RegionReadSideSet(sideset,filename,option)
-  ! 
+  !
   ! Reads an unstructured grid sideset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/19/11
-  ! 
+  !
 
   use Input_Aux_module
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   type(region_sideset_type) :: sideset
   character(len=MAXSTRINGLENGTH) :: filename
   type(option_type) :: option
-  
+
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string, hint
   character(len=MAXWORDLENGTH) :: word
@@ -939,7 +939,7 @@ subroutine RegionReadSideSet(sideset,filename,option)
   PetscMPIInt :: status_mpi(MPI_STATUS_SIZE)
   PetscMPIInt :: int_mpi
   PetscInt :: fileid
-  
+
   fileid = 86
   input => InputCreate(fileid,filename,option)
 
@@ -960,14 +960,14 @@ subroutine RegionReadSideSet(sideset,filename,option)
 
   call InputReadPflotranString(input,option)
   string = 'unstructured sideset'
-  call InputReadStringErrorMsg(input,option,hint)  
+  call InputReadStringErrorMsg(input,option,hint)
 
   ! read num_faces
   call InputReadInt(input,option,sideset%nfaces)
   call InputErrorMsg(input,option,'number of faces',hint)
 
   ! divide faces across ranks
-  num_faces_local = sideset%nfaces/option%comm%mycommsize 
+  num_faces_local = sideset%nfaces/option%comm%mycommsize
   num_faces_local_save = num_faces_local
   remainder = sideset%nfaces - num_faces_local*option%comm%mycommsize
   if (option%myrank < remainder) num_faces_local = &
@@ -993,7 +993,7 @@ subroutine RegionReadSideSet(sideset,filename,option)
       do iface = 1, num_to_read
         ! read in the vertices defining the cell face
         call InputReadPflotranString(input,option)
-        call InputReadStringErrorMsg(input,option,hint)  
+        call InputReadStringErrorMsg(input,option,hint)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'face type',hint)
         call StringToUpper(word)
@@ -1065,36 +1065,36 @@ end subroutine RegionReadSideSet
 ! ************************************************************************** !
 
 subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
-  ! 
+  !
   ! Reads an unstructured grid explicit region
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/18/12
-  ! 
+  !
   use Input_Aux_module
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   type(region_explicit_face_type), pointer :: explicit_faceset
   PetscInt, pointer :: cell_ids(:)
   character(len=MAXSTRINGLENGTH) :: filename
   type(option_type) :: option
-  
+
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string, hint
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: fileid
-  
+
   PetscInt :: num_connections
   PetscInt :: iconn
-  
+
   explicit_faceset => RegionCreateExplicitFaceSet()
-  
+
   fileid = 86
   input => InputCreate(fileid,filename,option)
-  
+
 ! Format of explicit unstructured grid file
 ! id_ = integer
 ! x_, y_, z_, area_ = real
@@ -1121,18 +1121,18 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     hint = trim(word)
-  
+
     select case(word)
       case('CONNECTIONS')
         hint = 'Explicit Unstructured Grid CONNECTIONS in file: ' // &
           trim(adjustl(filename))
         call InputReadInt(input,option,num_connections)
         call InputErrorMsg(input,option,'number of connections',hint)
-        
+
         allocate(cell_ids(num_connections))
         cell_ids = 0
         allocate(explicit_faceset%face_areas(num_connections))
-        explicit_faceset%face_areas = 0    
+        explicit_faceset%face_areas = 0
         allocate(explicit_faceset%face_centroids(num_connections))
         do iconn = 1, num_connections
           explicit_faceset%face_centroids(iconn)%x = 0.d0
@@ -1141,7 +1141,7 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
         enddo
         do iconn = 1, num_connections
           call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option,hint)  
+          call InputReadStringErrorMsg(input,option,hint)
           call InputReadInt(input,option,cell_ids(iconn))
           call InputErrorMsg(input,option,'cell id',hint)
           call InputReadDouble(input,option, &
@@ -1171,28 +1171,28 @@ end subroutine RegionReadExplicitFaceSet
 ! ************************************************************************** !
 
 function RegionGetPtrFromList(region_name,region_list)
-  ! 
+  !
   ! Returns a pointer to the region matching region_name
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
 
   use String_module
 
   implicit none
-  
+
   type(region_type), pointer :: RegionGetPtrFromList
   character(len=MAXWORDLENGTH) :: region_name
   PetscInt :: length
   type(region_list_type) :: region_list
 
   type(region_type), pointer :: region
-    
+
   nullify(RegionGetPtrFromList)
   region => region_list%first
-  
-  do 
+
+  do
     if (.not.associated(region)) exit
     length = len_trim(region_name)
     if (length == len_trim(region%name) .and. &
@@ -1202,24 +1202,24 @@ function RegionGetPtrFromList(region_name,region_list)
     endif
     region => region%next
   enddo
-  
+
 end function RegionGetPtrFromList
 
 ! ************************************************************************** !
 
 subroutine RegionCheckCellIndexBounds(region,num_cells,option)
-  ! 
+  !
   ! Checks to ensure that cell ids listed in a region are within the bounds
   ! of 1 and the maximum cell id.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/27/19
-  ! 
+  !
   use Option_module
   use String_module
 
   implicit none
-  
+
   type(region_type) :: region
   PetscInt :: num_cells
   type(option_type) :: option
@@ -1257,25 +1257,25 @@ end subroutine RegionCheckCellIndexBounds
 ! **************************************************************************** !
 
 subroutine RegionInputRecord(region_list)
-  ! 
+  !
   ! Prints ingested region information to the input record file
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/30/2016
-  ! 
+  !
   use Grid_Structured_module
 
   implicit none
 
   type(region_list_type), pointer :: region_list
-  
+
   type(region_type), pointer :: cur_region
   character(len=MAXWORDLENGTH) :: word1, word2
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
   PetscInt :: id = INPUT_RECORD_UNIT
   character(len=10) :: sFormat, iFormat
-  
+
   sFormat = '(ES14.7)'
   iFormat = '(I10)'
 
@@ -1284,7 +1284,7 @@ subroutine RegionInputRecord(region_list)
                   &-----------------------'
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'REGIONS'
-  
+
   cur_region => region_list%first
   do
     if (.not.associated(cur_region)) exit
@@ -1292,9 +1292,9 @@ subroutine RegionInputRecord(region_list)
     write(id,'(a)') adjustl(trim(cur_region%name))
     if (len_trim(cur_region%filename) > 0) then
       write(id,'(a29)',advance='no') 'from file: '
-      write(id,'(a)') adjustl(trim(cur_region%filename)) 
+      write(id,'(a)') adjustl(trim(cur_region%filename))
     endif
-    
+
     select case (cur_region%def_type)
     !--------------------------------
       case (DEFINED_BY_BLOCK)
@@ -1367,7 +1367,7 @@ subroutine RegionInputRecord(region_list)
         write(id,'(a)') 'POLYGON CELL CENTERS IN VOLUME'
     !--------------------------------
     end select
-    
+
     if (cur_region%iface /= 0) then
       write(id,'(a29)',advance='no') 'face: '
       select case (cur_region%iface)
@@ -1385,97 +1385,97 @@ subroutine RegionInputRecord(region_list)
           write(id,'(a)') 'top'
       end select
     endif
-    
+
     write(id,'(a29)') '---------------------------: '
     cur_region => cur_region%next
   enddo
-  
+
 end subroutine RegionInputRecord
 
 ! **************************************************************************** !
 
 subroutine RegionDestroySideset(sideset)
-  ! 
+  !
   ! Deallocates a unstructured grid side set
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/09
-  ! 
+  !
 
   implicit none
-  
+
   type(region_sideset_type), pointer :: sideset
-  
+
   if (.not.associated(sideset)) return
-  
+
   if (associated(sideset%face_vertices)) deallocate(sideset%face_vertices)
   nullify(sideset%face_vertices)
-  
+
   deallocate(sideset)
   nullify(sideset)
-  
+
 end subroutine RegionDestroySideset
 
 ! ************************************************************************** !
 
 subroutine RegionDestroyExplicitFaceSet(explicit_faceset)
-  ! 
+  !
   ! Deallocates a unstructured grid explicit grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/18/12
-  ! 
+  !
 
   use Utility_module, only : DeallocateArray
 
   implicit none
-  
+
   type(region_explicit_face_type), pointer :: explicit_faceset
-  
+
   if (.not.associated(explicit_faceset)) return
-  
+
   if (associated(explicit_faceset%face_centroids)) &
     deallocate(explicit_faceset%face_centroids)
   nullify(explicit_faceset%face_centroids)
   call DeallocateArray(explicit_faceset%face_areas)
-  
+
   deallocate(explicit_faceset)
   nullify(explicit_faceset)
-  
+
 end subroutine RegionDestroyExplicitFaceSet
 
 ! ************************************************************************** !
 
 subroutine RegionDestroyList(region_list)
-  ! 
+  !
   ! Deallocates a list of regions
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
 
   implicit none
-  
+
   type(region_list_type), pointer :: region_list
-  
+
   type(region_type), pointer :: region, prev_region
-  
+
   if (.not.associated(region_list)) return
-  
+
   region => region_list%first
-  do 
+  do
     if (.not.associated(region)) exit
     prev_region => region
     region => region%next
     call RegionDestroy(prev_region)
   enddo
-  
+
   region_list%num_regions = 0
   nullify(region_list%first)
   nullify(region_list%last)
   if (associated(region_list%array)) deallocate(region_list%array)
   nullify(region_list%array)
-  
+
   deallocate(region_list)
   nullify(region_list)
 
@@ -1484,20 +1484,20 @@ end subroutine RegionDestroyList
 ! ************************************************************************** !
 
 subroutine RegionDestroy(region)
-  ! 
+  !
   ! Deallocates a region
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
-  
+
   type(region_type), pointer :: region
-  
+
   if (.not.associated(region)) return
-  
+
   call DeallocateArray(region%cell_ids)
   call DeallocateArray(region%faces)
   if (associated(region%coordinates)) deallocate(region%coordinates)
@@ -1505,10 +1505,10 @@ subroutine RegionDestroy(region)
   call RegionDestroySideset(region%sideset)
   call RegionDestroyExplicitFaceSet(region%explicit_faceset)
   call GeometryDestroyPolygonalVolume(region%polygonal_volume)
-  
+
   if (associated(region%vertex_ids)) deallocate(region%vertex_ids)
   nullify(region%vertex_ids)
-  
+
   nullify(region%next)
 
   deallocate(region)

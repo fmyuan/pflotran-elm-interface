@@ -41,12 +41,12 @@ contains
 ! ************************************************************************** !
 
 function PMGeomechForceCreate()
-  ! 
+  !
   ! This routine creates
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   implicit none
 
@@ -70,12 +70,12 @@ end function PMGeomechForceCreate
 ! ************************************************************************** !
 
 subroutine PMGeomechForceSetup(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Discretization_module
   use Communicator_Structured_class
@@ -101,12 +101,12 @@ end subroutine PMGeomechForceSetup
 ! ************************************************************************** !
 
 recursive subroutine PMGeomechForceInitializeRun(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Force_module, only : GeomechUpdateSolution
 
@@ -119,12 +119,12 @@ end subroutine PMGeomechForceInitializeRun
 ! ************************************************************************** !
 
 recursive subroutine PMGeomechForceFinalizeRun(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   implicit none
 
@@ -143,12 +143,12 @@ end subroutine PMGeomechForceFinalizeRun
 ! ************************************************************************** !
 
 subroutine PMGeomechForceSetRealization(this, geomech_realization)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Grid_module
 
@@ -168,52 +168,52 @@ end subroutine PMGeomechForceSetRealization
 ! ************************************************************************** !
 
 subroutine PMGeomechForceInitializeTimestep(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Force_module, only : GeomechanicsForceInitialGuess
   use Global_module
-  
+
   implicit none
-  
+
   class(pm_geomech_force_type) :: this
 
-#ifdef PM_GEOMECH_FORCE_DEBUG  
+#ifdef PM_GEOMECH_FORCE_DEBUG
   call PrintMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
   call GeomechanicsForceInitialGuess(this%geomech_realization)
-  
+
 end subroutine PMGeomechForceInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMGeomechForceResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Force_module, only : GeomechForceResidual
 
   implicit none
-  
+
   class(pm_geomech_force_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
-#ifdef PM_GEOMECH_FORCE_DEBUG  
+
+#ifdef PM_GEOMECH_FORCE_DEBUG
   call PrintMsg(this%option,'PMGeomechForce%Residual()')
 #endif
-  
+
   call GeomechForceResidual(snes,xx,r,this%geomech_realization,ierr)
 
 end subroutine PMGeomechForceResidual
@@ -221,27 +221,27 @@ end subroutine PMGeomechForceResidual
 ! ************************************************************************** !
 
 subroutine PMGeomechForceJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Force_module, only : GeomechForceJacobian
 
   implicit none
-  
+
   class(pm_geomech_force_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
-#ifdef PM_GEOMECH_FORCE_DEBUG  
+
+#ifdef PM_GEOMECH_FORCE_DEBUG
   call PrintMsg(this%option,'PMGeomechForce%Jacobian()')
 #endif
-  
+
   call GeomechForceJacobian(snes,xx,A,B,this%geomech_realization,ierr)
 
 end subroutine PMGeomechForceJacobian
@@ -249,12 +249,12 @@ end subroutine PMGeomechForceJacobian
 ! ************************************************************************** !
 
 subroutine PMGeomechForcePreSolve(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   implicit none
 
@@ -265,12 +265,12 @@ end subroutine PMGeomechForcePreSolve
 ! ************************************************************************** !
 
 subroutine PMGeomechForceUpdateSolution(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Force_module, only : GeomechUpdateSolution, &
                                         GeomechStoreInitialDisp, &
@@ -308,7 +308,7 @@ end subroutine PMGeomechForceUpdateSolution
 ! ************************************************************************** !
 
 function PMGeomechAcceptSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
 
@@ -330,7 +330,7 @@ subroutine PMGeomechCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   !
   ! Author: Glenn Hammond
   ! Date: 11/15/17
-  ! 
+  !
   use Convergence_module
   use Grid_module
 
@@ -357,20 +357,20 @@ end subroutine PMGeomechCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMGeomechForceFinalizeTimestep(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Global_module
 
   implicit none
-  
+
   class(pm_geomech_force_type) :: this
-  
-#ifdef PM_GEOMECH_FORCE_DEBUG  
+
+#ifdef PM_GEOMECH_FORCE_DEBUG
   call PrintMsg(this%option,'PMGeomechForce%FinalizeTimestep()')
 #endif
 
@@ -379,59 +379,59 @@ end subroutine PMGeomechForceFinalizeTimestep
 ! ************************************************************************** !
 
 subroutine PMGeomechForceCheckpointBinary(this,viewer)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Checkpoint_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_geomech_force_type) :: this
   PetscViewer :: viewer
-  
+
   call PrintErrMsg(this%option,'add code for checkpointing Geomech in PM approach')
-  
+
 end subroutine PMGeomechForceCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine PMGeomechForceRestartBinary(this,viewer)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Checkpoint_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_geomech_force_type) :: this
   PetscViewer :: viewer
-  
+
   call PrintErrMsg(this%option,'add code for restarting Geomech in PM approach')
-  
+
 end subroutine PMGeomechForceRestartBinary
 
 ! ************************************************************************** !
 
 subroutine PMGeomechForceInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_geomech_force_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -447,19 +447,19 @@ end subroutine PMGeomechForceInputRecord
 ! ************************************************************************** !
 
 subroutine PMGeomechForceDestroy(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/31/13
-  ! 
+  !
 
   use Geomechanics_Realization_class, only : GeomechRealizDestroy
 
   implicit none
-  
+
   class(pm_geomech_force_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -472,7 +472,7 @@ subroutine PMGeomechForceDestroy(this)
   call GeomechRealizDestroy(this%geomech_realization)
 
   call this%comm1%Destroy()
-  
+
 end subroutine PMGeomechForceDestroy
 
 end module PM_Geomechanics_Force_class

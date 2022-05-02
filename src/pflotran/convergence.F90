@@ -5,7 +5,7 @@ module Convergence_module
   use Solver_module
   use Option_module
   use Grid_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -21,29 +21,29 @@ module Convergence_module
 
   public :: ConvergenceContextCreate, ConvergenceTest, &
             ConvergenceContextDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function ConvergenceContextCreate(solver,option,grid)
-  ! 
+  !
   ! Creates a context containing pointer
   ! for convergence subroutines
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/12/08
-  ! 
+  !
 
   implicit none
-  
+
   type(convergence_context_type), pointer :: ConvergenceContextCreate
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  
+
   type(convergence_context_type), pointer :: context
-  
+
   allocate(context)
   context%solver => solver
   context%option => option
@@ -57,16 +57,16 @@ end function ConvergenceContextCreate
 
 subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                            grid,option,solver,ierr)
-  ! 
+  !
   ! User defined convergence test
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/12/08
-  ! 
+  !
   use String_module
 
   implicit none
-  
+
   SNES :: snes_
   PetscInt :: i_iteration
   PetscReal :: xnorm ! 2-norm of updated solution
@@ -78,14 +78,14 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   type(option_type) :: option
   !TODO(geh): remove calculations based on grid to something for pm specific
   type(grid_type), pointer :: grid
-  
+
   Vec :: solution_vec
   Vec :: update_vec
   Vec :: residual_vec
   PetscReal :: inorm_solution  !infinity norms
-  PetscReal :: inorm_update  
-  PetscReal :: inorm_residual  
-  
+  PetscReal :: inorm_update
+  PetscReal :: inorm_residual
+
   PetscInt :: i, ndof, max_index, min_index
   PetscInt :: icount
   PetscReal, allocatable :: fnorm_solution_stride(:)
@@ -94,7 +94,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   PetscReal, allocatable :: inorm_solution_stride(:)
   PetscReal, allocatable :: inorm_update_stride(:)
   PetscReal, allocatable :: inorm_residual_stride(:)
-  
+
   PetscReal :: norm1_solution
   PetscReal :: norm1_update
   PetscReal :: norm1_residual
@@ -103,14 +103,14 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   PetscReal, allocatable :: norm1_residual_stride(:)
 
   KSP :: ksp
-  
+
   PetscInt, allocatable :: imax_solution(:)
   PetscInt, allocatable :: imax_update(:)
   PetscInt, allocatable :: imax_residual(:)
   PetscReal, allocatable :: max_solution_val(:)
   PetscReal, allocatable :: max_update_val(:)
   PetscReal, allocatable :: max_residual_val(:)
-  
+
   PetscInt, allocatable :: imin_solution(:)
   PetscInt, allocatable :: imin_update(:)
   PetscInt, allocatable :: imin_residual(:)
@@ -118,7 +118,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   PetscReal, allocatable :: min_update_val(:)
   PetscReal, allocatable :: min_residual_val(:)
   PetscReal, pointer :: vec_ptr(:)
-  
+
   character(len=MAXSTRINGLENGTH) :: string, string2, string3, sec_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
   character(len=MAXSTRINGLENGTH) :: out_string
@@ -184,16 +184,16 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !   reason = -1
     return
   endif
-  
+
 ! Checking if norm exceeds divergence tolerance
 !geh: inorm_residual is being used without being calculated.
 !      if (fnorm > solver%max_norm .or. unorm > solver%max_norm .or. &
 !        inorm_residual > solver%max_norm) then
-  
+
   if (option%out_of_table) then
     reason = -19
   endif
-   
+
   if (option%converged) then
     reason = 12
     ! set back to false
@@ -215,10 +215,10 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   ! must turn off after each convergence check as a subsequent process
   ! model may not use this custom test
   option%convergence = CONVERGENCE_OFF
-    
+
 !  if (reason <= 0 .and. solver%check_infinity_norm) then
   if (solver%check_infinity_norm) then
-  
+
     call SNESGetFunction(snes_,residual_vec,PETSC_NULL_FUNCTION, &
                          PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
 
@@ -241,11 +241,11 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     if (inorm_update < solver%newton_inf_upd_tol .and. i_iteration > 0) then
       reason = 11
     endif
-    
+
     if (inorm_residual > solver%max_norm) then
       reason = -20
     endif
- 
+
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
     !TODO(geh): move to PMRTCheckConvergence
@@ -257,7 +257,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         reason = 0
       endif
     endif
-    
+
     ! force the minimum number of iterations
     if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
@@ -287,7 +287,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       end select
       if (option%use_mc .and. option%ntrandof > 0 .and. solver%itype == &
           TRANSPORT_CLASS) then
-        i = int(sec_reason) 
+        i = int(sec_reason)
         select case(i)
           case(1)
             sec_string = 'itol_res_sec'
@@ -341,7 +341,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                      trim(StringWrite(icount*13)) // 'x,'
           endif
           string = trim(string) // '" rsn: '//trim(rsn_string)//'")'
-          write(out_string,trim(string)) 
+          write(out_string,trim(string))
         else
           out_string = trim(out_string) // ' rsn: ' // trim(rsn_string)
         endif
@@ -349,7 +349,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       call OptionPrint(out_string,option)
     endif
   else
-  
+
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
     if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
@@ -360,7 +360,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         reason = 0
       endif
     endif
-    
+
     ! force the minimum number of iterations
     if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
@@ -399,7 +399,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         call PrintMsg(option)
       endif
     endif
-  endif    
+  endif
 
   if (solver%print_detailed_convergence .and. associated(grid)) then
 
@@ -409,7 +409,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                          PETSC_NULL_INTEGER, &
                          ierr);CHKERRQ(ierr)
     call SNESGetSolutionUpdate(snes_,update_vec,ierr);CHKERRQ(ierr)
-    
+
     ! infinity norms
     call VecNorm(solution_vec,NORM_INFINITY,inorm_solution,ierr);CHKERRQ(ierr)
     call VecNorm(update_vec,NORM_INFINITY,inorm_update,ierr);CHKERRQ(ierr)
@@ -418,9 +418,9 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     call VecNorm(solution_vec,NORM_1,norm1_solution,ierr);CHKERRQ(ierr)
     call VecNorm(update_vec,NORM_1,norm1_update,ierr);CHKERRQ(ierr)
     call VecNorm(residual_vec,NORM_1,norm1_residual,ierr);CHKERRQ(ierr)
-    
+
     call VecGetBlockSize(solution_vec,ndof,ierr);CHKERRQ(ierr)
-    
+
     allocate(fnorm_solution_stride(ndof))
     allocate(fnorm_update_stride(ndof))
     allocate(fnorm_residual_stride(ndof))
@@ -430,7 +430,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     allocate(norm1_solution_stride(ndof))
     allocate(norm1_update_stride(ndof))
     allocate(norm1_residual_stride(ndof))
-    
+
     allocate(imax_solution(ndof))
     allocate(imax_update(ndof))
     allocate(imax_residual(ndof))
@@ -463,7 +463,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                           ierr);CHKERRQ(ierr)
     call VecStrideNormAll(residual_vec,NORM_INFINITY,inorm_residual_stride, &
                           ierr);CHKERRQ(ierr)
-    
+
     ! can't use VecStrideMaxAll since the index location is not currently supported.
     do i=1,ndof
       call VecStrideMax(solution_vec,i-1,imax_solution(i),max_solution_val(i), &
@@ -539,11 +539,11 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       end select
 
       ! uncomment the lines below to determine data printed
-      
+
       print_sol_norm_info = PETSC_TRUE  ! solution_vec norm information
       print_upd_norm_info = PETSC_TRUE  ! update_vec norm information
       print_res_norm_info = PETSC_TRUE  ! residual_vec norm information
-    
+
       !print_norm_by_dof_info = PETSC_TRUE
       print_max_val_and_loc_info = PETSC_TRUE
 
@@ -626,7 +626,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       endif
       print *
     endif
-    
+
     deallocate(fnorm_solution_stride)
     deallocate(fnorm_update_stride)
     deallocate(fnorm_residual_stride)
@@ -636,7 +636,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     deallocate(norm1_solution_stride)
     deallocate(norm1_update_stride)
     deallocate(norm1_residual_stride)
-    
+
     deallocate(imax_solution)
     deallocate(imax_update)
     deallocate(imax_residual)
@@ -650,31 +650,31 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     deallocate(min_solution_val)
     deallocate(min_update_val)
     deallocate(min_residual_val)
-    
+
   endif
-  
+
 end subroutine ConvergenceTest
 
 ! ************************************************************************** !
 
 subroutine ConvergenceContextDestroy(context)
-  ! 
+  !
   ! Destroy context
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/12/08
-  ! 
+  !
 
   implicit none
-  
+
   type(convergence_context_type), pointer :: context
-  
+
   if (.not.associated(context)) return
-  
+
   nullify(context%solver)
   nullify(context%option)
   nullify(context%grid)
-  
+
   deallocate(context)
   nullify(context)
 

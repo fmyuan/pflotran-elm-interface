@@ -180,7 +180,7 @@ contains
     @assertEqual(plane2%B*tempreal, plane%B, 1.0d-14)
     @assertEqual(plane2%C*tempreal, plane%C, 1.0d-14)
     @assertEqual(plane2%D*tempreal, plane%D, 1.0d-14)
-   
+
 
     ! point4 should be in plane
     tempreal = GeomComputeDistanceFromPlane(plane,point4)
@@ -223,7 +223,7 @@ contains
     type(point3d_type) :: intercept
 
     PetscReal, parameter :: x1 = -1.d0
-    PetscReal, parameter :: y1 = 0.d0 
+    PetscReal, parameter :: y1 = 0.d0
     PetscReal, parameter :: z1 = -2.d0
     PetscReal, parameter :: x2 = -2.d0
     PetscReal, parameter :: y2 = 0.d0
@@ -282,7 +282,7 @@ contains
     PetscReal, parameter :: zc = 2.d0
 
     PetscReal, parameter :: x1 = 4.d0
-    PetscReal, parameter :: y1 = 1.d0 
+    PetscReal, parameter :: y1 = 1.d0
     PetscReal, parameter :: z1 = 1.d0
     PetscReal, parameter :: x2 = 8.d0
     PetscReal, parameter :: y2 = -2.d0

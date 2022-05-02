@@ -1,13 +1,13 @@
 module Geomechanics_Material_module
-  
-#include "petsc/finclude/petscsys.h"  
+
+#include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public :: geomech_material_property_type
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: id
@@ -16,14 +16,14 @@ module Geomechanics_Material_module
     PetscReal :: density
     PetscReal :: biot_coeff
     PetscReal :: thermal_exp_coeff
-  
+
     type(geomech_material_property_type), pointer :: next
   end type geomech_material_property_type
 
   type, public :: geomech_material_property_ptr_type
     type(geomech_material_property_type), pointer :: ptr
   end type geomech_material_property_ptr_type
-  
+
   public :: GeomechanicsMaterialPropertyCreate, &
             GeomechanicsMaterialPropertyDestroy, &
             GeomechanicsMaterialPropertyAddToList, &
@@ -36,21 +36,21 @@ contains
 ! ************************************************************************** !
 
 function GeomechanicsMaterialPropertyCreate()
-  ! 
+  !
   ! Creates a geomechanics material property
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   implicit none
-  
+
   type(geomech_material_property_type), &
     pointer :: GeomechanicsMaterialPropertyCreate
   type(geomech_material_property_type), pointer :: geomech_material_property
-  
+
   allocate(geomech_material_property)
-  
+
   geomech_material_property%name = ''
   geomech_material_property%id = 0
   geomech_material_property%youngs_modulus = 0.d0
@@ -58,9 +58,9 @@ function GeomechanicsMaterialPropertyCreate()
   geomech_material_property%density = 0.d0
   geomech_material_property%biot_coeff = 0.d0
   geomech_material_property%thermal_exp_coeff = 0.d0
-  
+
   nullify(geomech_material_property%next)
-  
+
   GeomechanicsMaterialPropertyCreate => geomech_material_property
 
 end function GeomechanicsMaterialPropertyCreate
@@ -69,37 +69,37 @@ end function GeomechanicsMaterialPropertyCreate
 
 subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
                                             input,option)
-  ! 
+  !
   ! Reads geomechanics material properties
   ! property
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13. 09/02/13
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   implicit none
-  
+
   type(geomech_material_property_type) :: geomech_material_property
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
-    
+
     if (InputCheckExit(input,option)) exit
-  
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_MATERIAL_PROPERTY')
     call StringToUpper(keyword)
-    
+
     select case(trim(keyword))
       case('ID')
         call InputReadInt(input,option,geomech_material_property%id)
@@ -135,27 +135,27 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
       end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine GeomechanicsMaterialPropertyRead
 
 ! ************************************************************************** !
 
 subroutine GeomechanicsMaterialPropertyAddToList(geomech_material_property, &
                                                  list)
-  ! 
+  !
   ! Destroys a geomechanics material
   ! property
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   implicit none
-  
+
   type(geomech_material_property_type), pointer :: geomech_material_property
   type(geomech_material_property_type), pointer :: list
   type(geomech_material_property_type), pointer :: cur_geomech_material_property
-  
+
   if (associated(list)) then
     cur_geomech_material_property => list
     ! loop to end of list
@@ -167,19 +167,19 @@ subroutine GeomechanicsMaterialPropertyAddToList(geomech_material_property, &
   else
     list => geomech_material_property
   endif
-  
+
 end subroutine GeomechanicsMaterialPropertyAddToList
 
 ! ************************************************************************** !
 
 subroutine GeomechanicsMaterialPropConvertListToArray(list,array,option)
-  ! 
+  !
   ! Destroys a geomechanics material
   ! property
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   use Option_module
   use String_module
@@ -276,13 +276,13 @@ end subroutine GeomechanicsMaterialPropConvertListToArray
 function GeomechanicsMaterialPropGetPtrFromArray( &
                                             geomech_material_property_name, &
                                             geomech_material_property_array)
-  ! 
+  !
   ! Destroys a geomechanics material
   ! property
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   use String_module
 
@@ -320,25 +320,25 @@ end function GeomechanicsMaterialPropGetPtrFromArray
 
 recursive subroutine GeomechanicsMaterialPropertyDestroy(&
                                                     geomech_material_property)
-  ! 
+  !
   ! Destroys a geomechanics material
   ! property
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   implicit none
-  
+
   type(geomech_material_property_type), pointer :: geomech_material_property
-  
+
   if (.not.associated(geomech_material_property)) return
-  
+
   call GeomechanicsMaterialPropertyDestroy(geomech_material_property%next)
-  
+
   deallocate(geomech_material_property)
   nullify(geomech_material_property)
-  
+
 end subroutine GeomechanicsMaterialPropertyDestroy
 
 end module Geomechanics_Material_module

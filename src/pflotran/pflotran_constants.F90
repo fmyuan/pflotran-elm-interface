@@ -313,7 +313,7 @@ module PFLOTRAN_Constants_module
   ! uninitialized values
   PetscInt, parameter, public :: UNINITIALIZED_INTEGER = -999
   PetscReal, parameter, public :: UNINITIALIZED_DOUBLE = -999.d0
-  
+
   ! maximum values
   PetscReal, parameter, public :: MAX_DOUBLE = 1.d20
 

@@ -5,8 +5,8 @@ module Matrix_Zeroing_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
-  private 
+
+  private
 
   type, public :: matrix_zeroing_type
     PetscInt :: n_inactive_rows
@@ -14,23 +14,23 @@ module Matrix_Zeroing_module
     PetscInt, pointer :: inactive_rows_local_ghosted(:)
     PetscInt, pointer :: row_zeroing_array(:)
   end type matrix_zeroing_type
-  
+
   public :: MatrixZeroingCreate, &
             MatrixZeroingInitInactive, &
             MatrixZeroingInitRowZeroing, &
             MatrixZeroingDestroy
-            
+
 contains
 
 ! ************************************************************************** !
 
 function MatrixZeroingCreate()
-  ! 
+  !
   ! MatrixZeroingCreate: Allocate and initialize zeroing object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
-  ! 
+  !
   implicit none
 
   type(matrix_zeroing_type), pointer :: matrix_zeroing
@@ -42,20 +42,20 @@ function MatrixZeroingCreate()
   nullify(matrix_zeroing%inactive_rows_local)         ! inactive
   nullify(matrix_zeroing%inactive_rows_local_ghosted) ! inactive
   nullify(matrix_zeroing%row_zeroing_array)           ! disabled (e.g. isotherm)
-  
+
   MatrixZeroingCreate => matrix_zeroing
-  
+
 end function MatrixZeroingCreate
 
 ! ************************************************************************** !
 
 subroutine MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
-  ! 
+  !
   ! Initialize inactive arrays in matrix zeroing object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
-  
+
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -72,15 +72,15 @@ subroutine MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
   matrix_zeroing%inactive_rows_local = 0
   allocate(matrix_zeroing%inactive_rows_local_ghosted(n_inactive_rows))
   matrix_zeroing%inactive_rows_local_ghosted = 0
-  
+
 end subroutine MatrixZeroingInitInactive
 
 ! ************************************************************************** !
 
 subroutine MatrixZeroingInitRowZeroing(matrix_zeroing,nrows)
-  ! 
+  !
   ! Initialize inactive arrays in matrix zeroing object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
 
@@ -96,33 +96,33 @@ subroutine MatrixZeroingInitRowZeroing(matrix_zeroing,nrows)
 
   allocate(matrix_zeroing%row_zeroing_array(nrows))
   matrix_zeroing%row_zeroing_array = 0
-  
+
 end subroutine MatrixZeroingInitRowZeroing
 
 ! ************************************************************************** !
 
 subroutine MatrixZeroingDestroy(matrix_zeroing)
-  ! 
+  !
   ! Deallocates a matrix zeroing object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
 
   type(matrix_zeroing_type), pointer :: matrix_zeroing
-  
+
   if (.not.associated(matrix_zeroing)) return
-  
+
   call DeallocateArray(matrix_zeroing%inactive_rows_local)
   call DeallocateArray(matrix_zeroing%inactive_rows_local_ghosted)
   call DeallocateArray(matrix_zeroing%row_zeroing_array)
-  
+
   deallocate(matrix_zeroing)
   nullify(matrix_zeroing)
-  
+
 end subroutine MatrixZeroingDestroy
 
 end module Matrix_Zeroing_module

@@ -25,20 +25,20 @@ contains
 ! ************************************************************************** !
 
 subroutine UGridPolyhedraRead(ugrid, filename, option)
-  ! 
+  !
   ! This routine reads unstructured polyhedra grid in ASCII.
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 09/29/13
-  ! 
+  !
 
   use Input_Aux_module
   use Option_module
   use String_module
-  
+
   implicit none
 
-  type(grid_unstructured_type) :: ugrid 
+  type(grid_unstructured_type) :: ugrid
   character(len=MAXSTRINGLENGTH) :: filename
   type(option_type) :: option
 
@@ -103,7 +103,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   ugrid%nmax = num_cells
 
   ! divide cells across ranks
-  num_cells_local = num_cells/option%comm%mycommsize 
+  num_cells_local = num_cells/option%comm%mycommsize
   num_cells_local_save = num_cells_local
   remainder = num_cells - &
               num_cells_local*option%comm%mycommsize
@@ -284,7 +284,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       num_to_read = nfaces_per_proc(irank+1)
       do iface = 1, num_to_read
         call InputReadPflotranString(input,option)
-        call InputReadStringErrorMsg(input,option,hint)  
+        call InputReadStringErrorMsg(input,option,hint)
 
         call InputReadInt(input,option,temp_int)
         call InputErrorMsg(input,option,'face id',hint)
@@ -400,7 +400,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   ugrid%num_vertices_global = num_vertices
 
    ! divide cells across ranks
-  num_vertices_local = num_vertices/option%comm%mycommsize 
+  num_vertices_local = num_vertices/option%comm%mycommsize
   num_vertices_local_save = num_vertices_local
   remainder = num_vertices - &
               num_vertices_local*option%comm%mycommsize
@@ -426,7 +426,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       if (irank < remainder) num_to_read = num_to_read + 1
       do ivert = 1, num_to_read
         call InputReadPflotranString(input,option)
-        call InputReadStringErrorMsg(input,option,hint)  
+        call InputReadStringErrorMsg(input,option,hint)
         call InputReadDouble(input,option,temp_real_array(1,ivert))
         call InputErrorMsg(input,option,'vertex x coordinate',hint)
         call InputReadDouble(input,option,temp_real_array(2,ivert))
@@ -488,12 +488,12 @@ end subroutine UGridPolyhedraRead
 ! ************************************************************************** !
 
 subroutine UGridPolyhedraDecompose(ugrid, option)
-  ! 
+  !
   ! This routine decomposes a polyhedra grid across ranks.
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 09/29/13
-  ! 
+  !
 
 #include "petsc/finclude/petscdm.h"
   use petscdm
@@ -738,7 +738,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
                           ierr);CHKERRQ(ierr)
 #endif
   call MatDestroy(Adj_mat,ierr);CHKERRQ(ierr)
-  
+
 #if UGRID_DEBUG
   if (ugrid%grid_type == THREE_DIM_GRID) then
     call PetscViewerASCIIOpen(option%mycomm,'Dual_subsurf.out',viewer, &
@@ -794,13 +794,13 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   option%io_buffer = 'Maximum number of duals per cell: ' // adjustl(string)
   call PrintMsg(option)
 #endif
-  
+
   call MatRestoreRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                           num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
-  
+
   ! in order to redistributed vertex/cell data among ranks, I package it
-  ! in a crude way within a strided petsc vec and pass it.  The stride 
-  ! determines the size of each cells "packaged" data 
+  ! in a crude way within a strided petsc vec and pass it.  The stride
+  ! determines the size of each cells "packaged" data
   max_nface_per_cell = pgrid%max_nface_per_cell
   max_nvert_per_face = pgrid%max_nvert_per_face
 
@@ -852,20 +852,20 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   ! vertex1   ! in cell_N
   ! vertex2
   ! ...
-  ! vertexN   
+  ! vertexN
   ! -888      ! separator between vertex and dual ids
   ! dual1     ! dual ids between cell_N and others
   ! dual2
   ! ...
-  ! dualN     
+  ! dualN
   ! -999999   ! separator indicating end of information for cell_N
-  
-  ! the purpose of -777, -888, and -999999 is to allow one to use cells of 
+
+  ! the purpose of -777, -888, and -999999 is to allow one to use cells of
   ! various geometry.  Currently, the max # vertices = 8 and max # duals = 6.
   ! But this will be generalized in the future.
   call UGridCreateOldVec(ugrid,option, elements_old, &
                          num_cells_local_old, is_new, is_scatter, cell_stride)
-  
+
   ! 0 = 0-based indexing
   ! MagGetRowIJF90 returns row and column pointers for compressed matrix data
   call MatGetRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
@@ -982,7 +982,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
         vec_ptr(count) = 0
       endif
     enddo
-    count = count + 1 
+    count = count + 1
     ! final separator
     vec_ptr(count) = -999999  ! help differentiate
 
@@ -1213,7 +1213,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   call VecDestroy(elements_local,ierr);CHKERRQ(ierr)
 
-  ! now we need to work on aligning the original vertex coordinates with 
+  ! now we need to work on aligning the original vertex coordinates with
   ! the current ordering or permuted/rearranged ordering.
 
   ugrid%num_vertices_local = pgrid%num_vertices_local
@@ -1351,7 +1351,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     pgrid%vertex_coordinates(ivertex)%z = vec_ptr((ivertex-1)*3+3)
   enddo
   call VecRestoreArrayF90(vertices_new,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 #if UGRID_DEBUG
   write(string,*) option%myrank
   if (ugrid%grid_type == THREE_DIM_GRID) then
@@ -1389,12 +1389,12 @@ end subroutine UGridPolyhedraDecompose
 
 subroutine UGridPolyhedraSetCellCentroids(pgrid,x,y,z, &
                                          x_min,x_max,y_min,y_max,z_min,z_max,option)
-  ! 
+  !
   ! This routine set cell centroids for local+ghosted control volumes.
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 12/28/13
-  ! 
+  !
 
   use Option_module
   type(unstructured_polyhedra_type), pointer :: pgrid
@@ -1432,13 +1432,13 @@ end subroutine UGridPolyhedraSetCellCentroids
 
 function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
                                              grid_y, grid_z, option)
-  ! 
+  !
   ! This routine compute internal connectivity of an unstrucutred polyhedra
   ! grid.
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 12/28/13
-  ! 
+  !
 
   use Connection_module
   use Option_module
@@ -1449,7 +1449,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
   implicit none
 
   type(connection_set_type), pointer :: UGridPolyhedraComputeInternConnect
-  type(grid_unstructured_type) :: ugrid 
+  type(grid_unstructured_type) :: ugrid
   PetscReal :: grid_x(*), grid_y(*), grid_z(*)
   type(option_type) :: option
 
@@ -1494,14 +1494,14 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
   PetscInt :: face_type,  face_type2
   PetscInt :: nfaces,     nfaces2
   PetscInt :: nvertices,  nvertices2
-  
+
   PetscInt :: nintercp
   PetscInt :: iintercp
   PetscInt :: idx
   PetscBool :: face_found
   PetscBool :: vertex_found
   PetscBool :: cell_found
-    
+
   PetscReal :: v1(3), v2(3), v3(3)
   PetscReal :: n1(3), n2(3), n_up_dn(3)
   PetscReal :: dist_up, dist_dn
@@ -1513,7 +1513,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
 
   PetscErrorCode :: ierr
 
-  character(len=MAXSTRINGLENGTH) :: string  
+  character(len=MAXSTRINGLENGTH) :: string
 
   pgrid => ugrid%polyhedra_grid
 
@@ -1658,13 +1658,13 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
                   face_to_cell(2,face_id) = cell_id2
                   dup_face_id(face_id) = face_id2
                 else
-#ifdef UGRID_DEBUG                
+#ifdef UGRID_DEBUG
                   write(string,*) option%myrank, face_id, ' -> ', face_id2
                   option%io_buffer = 'Duplicated face removed:' // trim(string)
                   call PrintMsg(option)
 #endif
                   cell_to_face(iface,cell_id) = face_id2
-                  ! flag face_id as removed  
+                  ! flag face_id as removed
                   face_to_cell(1,face_id) = -face_to_cell(1,face_id)
                   face_to_cell(2,face_id) = cell_id2
                   ! add cell_id to face_ids2 list
@@ -1790,7 +1790,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
   do ghosted_id = 1, ugrid%ngmax
     do ivertex = 1, ugrid%cell_vertices(0,ghosted_id)
       vertex_id = ugrid%cell_vertices(ivertex,ghosted_id)
-      if ( vertex_id <= 0) cycle 
+      if ( vertex_id <= 0) cycle
       count = vertex_to_cell(0,vertex_id) + 1
       if (count > ugrid%max_cells_sharing_a_vertex) then
         write(string,*) 'Vertex can be shared by at most by ', &
@@ -1845,7 +1845,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
         if (face_found) then
           ugrid%connection_to_face(iconn) = face_id
         else
-          write(string,*) option%myrank,local_id,dual_local_id 
+          write(string,*) option%myrank,local_id,dual_local_id
           option%io_buffer = 'face not found in connection loop' // trim(string)
           call PrintErrMsg(option)
         endif
@@ -1883,7 +1883,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
         intercept%y = 0.d0
         intercept%z = 0.d0
 
-        do iintercp = 0, nintercp - 1 
+        do iintercp = 0, nintercp - 1
           idx = ugrid%face_to_vertex(1 + iintercp,face_id)
           point1 = ugrid%vertices(idx)
           idx = ugrid%face_to_vertex(2 + iintercp,face_id)
@@ -2032,23 +2032,23 @@ end function UGridPolyhedraComputeInternConnect
 ! ************************************************************************** !
 
 subroutine UGridPolyhedraComputeVolumes(ugrid, option, volume)
-  ! 
+  !
   ! This routine sets volumes of local control volumes.
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 12/28/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
   Vec :: volume
 
   type(unstructured_polyhedra_type), pointer :: pgrid
-  
+
   PetscInt :: icell
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
@@ -2067,28 +2067,28 @@ end subroutine UGridPolyhedraComputeVolumes
 
 subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
                                              iconn, ghosted_id, option)
-  ! 
+  !
   ! This routine computes details about boundary connections (area, dist, etc)
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 12/28/13
-  ! 
+  !
 
   use Connection_module
   use Utility_module, only : DotProduct
   use Option_module
   use Grid_Unstructured_Cell_module
-  use Geometry_module  
-  
+  use Geometry_module
+
   implicit none
-  
+
   type(grid_unstructured_type) :: ugrid
   type(connection_set_type) :: connection
   PetscInt :: iface_cell
   PetscInt :: iconn
   PetscInt :: ghosted_id
   type(option_type) :: option
-  
+
   PetscInt :: face_id
   PetscInt :: ivert,vert_id
   PetscInt :: face_type
@@ -2101,7 +2101,7 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
   PetscErrorCode :: ierr
 
   pgrid => ugrid%polyhedra_grid
-  
+
   select case(connection%itype)
     case(BOUNDARY_CONNECTION_TYPE)
       if (iface_cell == 0) then
@@ -2133,7 +2133,7 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
       v1(1) = v2(1) - intercept%x
       v1(2) = v2(2) - intercept%y
       v1(3) = v2(3) - intercept%z
-      
+
       dist = sqrt(DotProduct(v1, v1))
       n_dist = v1/dist
       connection%dist(0, iconn) = dist
@@ -2145,7 +2145,7 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
       connection%intercp(2,iconn)= intercept%y
       connection%intercp(3,iconn)= intercept%z
       connection%face_id(iconn)  = face_id
-      
+
   end select
 
 end subroutine UGridPolyhedraPopulateConnection
@@ -2155,40 +2155,40 @@ end subroutine UGridPolyhedraPopulateConnection
 subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, z_max, &
                                               ugrid, option, num_cells, &
                                               cell_ids, cell_face_ids)
-  ! 
+  !
   ! This routine returns cells that are within a cube.
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 12/28/13
-  ! 
+  !
   use Option_module
   use Utility_module, only : ReallocateArray
   use Geometry_module
-  
+
   implicit none
-                  
+
   PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   type(grid_unstructured_type) :: ugrid
   type(option_type) :: option
   PetscInt :: num_cells
   PetscInt, pointer :: cell_ids(:)
   PetscInt, pointer :: cell_face_ids(:)
-  
+
   type(unstructured_polyhedra_type), pointer :: pgrid
   PetscInt :: cell_type, num_faces, iface, face_type
   PetscInt :: vertex_id
   PetscInt :: num_vertices, ivertex
   PetscInt :: local_id, ghosted_id
   type(point3d_type) :: point
-  
+
   PetscReal :: x_min_adj, x_max_adj, y_min_adj, y_max_adj, z_min_adj, z_max_adj
   PetscReal :: pert
   PetscBool :: in_rectangle
-  
+
   PetscInt, pointer :: temp_cell_array(:), temp_face_array(:)
   PetscInt :: temp_array_size
   PetscInt :: face_id
-  
+
   pgrid => ugrid%polyhedra_grid
 
   temp_array_size = 100
@@ -2196,18 +2196,18 @@ subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, 
   allocate(temp_face_array(temp_array_size))
   temp_cell_array = 0
   temp_face_array = 0
-  
+
   ! enlarge box slightly
   pert = max(1.d-8*(x_max-x_min),1.d-8)
-  x_min_adj = x_min - pert 
-  x_max_adj = x_max + pert 
+  x_min_adj = x_min - pert
+  x_max_adj = x_max + pert
   pert = max(1.d-8*(y_max-y_min),1.d-8)
-  y_min_adj = y_min - pert 
-  y_max_adj = y_max + pert 
+  y_min_adj = y_min - pert
+  y_max_adj = y_max + pert
   pert = max(1.d-8*(z_max-z_min),1.d-8)
-  z_min_adj = z_min - pert 
-  z_max_adj = z_max + pert 
-  
+  z_min_adj = z_min - pert
+  z_max_adj = z_max + pert
+
   do local_id = 1, ugrid%nlmax
     ghosted_id = local_id ! ghosted ids are same for first nlocal cells
     num_faces = pgrid%cell_nfaces(ghosted_id)
@@ -2229,7 +2229,7 @@ subroutine UGridPolyhedraGetCellsInRectangle(x_min, x_max, y_min, y_max, z_min, 
           exit
         endif
       enddo
-     
+
       if (in_rectangle) then
         num_cells = num_cells + 1
         if (num_cells > temp_array_size) then
@@ -2258,12 +2258,12 @@ end subroutine UGridPolyhedraGetCellsInRectangle
 ! ************************************************************************** !
 
 subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
-  ! 
+  !
   ! This routine computes informations later required to write tecplot output
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 12/29/13
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec

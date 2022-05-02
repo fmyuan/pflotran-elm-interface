@@ -6,9 +6,9 @@ module Reaction_Database_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public :: database_rxn_type
     PetscInt :: nspec
     character(len=MAXWORDLENGTH), pointer :: spec_name(:)
@@ -25,21 +25,21 @@ module Reaction_Database_Aux_module
             DatabaseRxnCreateFromRxnString, &
             DatabaseCheckLegitimateLogKs, &
             DatabaseRxnDestroy
-            
+
 contains
 
 ! ************************************************************************** !
 
 function DatabaseRxnCreate()
-  ! 
+  !
   ! Allocate and initialize an equilibrium reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/01/08
-  ! 
+  !
 
   implicit none
-    
+
   type(database_rxn_type), pointer :: DatabaseRxnCreate
 
   type(database_rxn_type), pointer :: dbaserxn
@@ -50,9 +50,9 @@ function DatabaseRxnCreate()
   nullify(dbaserxn%stoich)
   nullify(dbaserxn%spec_ids)
   nullify(dbaserxn%logK)
-  
+
   DatabaseRxnCreate => dbaserxn
-  
+
 end function DatabaseRxnCreate
 
 ! ************************************************************************** !
@@ -64,19 +64,19 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
                                         primary_im_species_names, &
                                         consider_immobile_species,&
                                         option)
-  ! 
+  !
   ! Creates a database reaction given a
   ! reaction string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/30/12
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
-  
+
   implicit none
-  
+
   character(len=MAXSTRINGLENGTH) :: reaction_string
   PetscInt :: naqcomp ! mobile aqueoues species
   PetscInt :: aq_offset ! offset for aqueous species
@@ -86,7 +86,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
   character(len=MAXWORDLENGTH), pointer :: primary_im_species_names(:)
   PetscBool :: consider_immobile_species
   type(option_type) :: option
-    
+
   type(database_rxn_type), pointer :: DatabaseRxnCreateFromRxnString
 
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -99,12 +99,12 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
   PetscBool :: found
   PetscErrorCode :: ierr
   type(database_rxn_type), pointer :: dbaserxn
-  
-  
+
+
   dbaserxn => DatabaseRxnCreate()
 
   icount = 0
-  ! Be sure to copy as words are removed when read.  Need to full string for 
+  ! Be sure to copy as words are removed when read.  Need to full string for
   ! later below
   string = reaction_string
   do
@@ -133,7 +133,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
     end select
 
   enddo
-      
+
   ! load species into database format
   dbaserxn%nspec = icount
   allocate(dbaserxn%spec_name(icount))
@@ -153,7 +153,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
     !geh: This conditional ensures that if water is at the end of
     !     the reaction expression, it is skipped.
     if (icount > dbaserxn%nspec) exit
-        
+
     ierr = 0
     call InputReadWord(string,word,PETSC_TRUE,ierr)
     if (InputError(ierr)) exit
@@ -199,7 +199,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
                               MAXWORDLENGTH)) then
               dbaserxn%spec_ids(icount) = i + aq_offset
               found = PETSC_TRUE
-              exit      
+              exit
             endif
           enddo
           ! set the primary immobile species id
@@ -209,11 +209,11 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
                                 MAXWORDLENGTH)) then
                 dbaserxn%spec_ids(icount) = i + im_offset
                 found = PETSC_TRUE
-                exit      
+                exit
               endif
             enddo
           endif
-          
+
           ! check water
           word2 = 'H2O'
           if (StringCompareIgnoreCase(word,word2)) then
@@ -236,7 +236,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
         negative_flag = PETSC_FALSE
     end select
   enddo
-      
+
   ! if no stoichiometry specified, default = 1.
   do i = 1, dbaserxn%nspec
     if ((dbaserxn%stoich(i) + 999.d0) < 1.d-10) dbaserxn%stoich(i) = 1.d0
@@ -270,9 +270,9 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
       endif
     enddo
   enddo
-  
+
   DatabaseRxnCreateFromRxnString => dbaserxn
-  
+
 end function DatabaseRxnCreateFromRxnString
 
 ! ************************************************************************** !
@@ -281,19 +281,19 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
                                   num_rxn_species,rxn_species_names, &
                                   rxn_stoich,rxn_species_ids,species_name, &
                                   option)
-  ! 
+  !
   ! Aligns the ordering of species in reaction with
   ! the current basis
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/08
-  ! 
+  !
 
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   PetscInt :: num_basis_species
   character(len=MAXWORDLENGTH) :: basis_names(num_basis_species), species_name
   PetscInt :: num_rxn_species
@@ -306,7 +306,7 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
   PetscInt :: i_basis_species
   PetscReal :: stoich_new(num_basis_species)
   PetscBool :: found
-  
+
   stoich_new = 0.d0
   do i_rxn_species = 1, num_rxn_species
     found = PETSC_FALSE
@@ -326,7 +326,7 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
       call PrintErrMsg(option)
     endif
   enddo
-  
+
   ! zero everthing out
   rxn_species_names = ''
   rxn_stoich = 0.d0
@@ -342,7 +342,7 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
       rxn_species_ids(i_rxn_species) = i_basis_species
     endif
   enddo
-  
+
   if (i_rxn_species /= num_rxn_species) then
     write(option%io_buffer,*) &
                    'Number of reaction species does not match original:', &
@@ -350,29 +350,29 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
     call PrintErrMsg(option)
   endif
 
-end subroutine BasisAlignSpeciesInRxn 
+end subroutine BasisAlignSpeciesInRxn
 
 ! ************************************************************************** !
 
 subroutine BasisSubSpeciesInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
-  ! 
+  !
   ! Swaps out a chemical species in a chemical
   ! reaction, replacing it with the species in a
   ! secondary reaction (swaps 1 into 2)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/06/08
-  ! 
+  !
 
   use String_module
 
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: name1
   type(database_rxn_type) :: dbaserxn1
   type(database_rxn_type) :: dbaserxn2
   PetscReal :: scale
-  
+
   PetscInt :: i, j, tempcount, prevcount
   character(len=MAXWORDLENGTH) :: tempnames(20)
   PetscReal :: tempstoich(20)
@@ -395,7 +395,7 @@ subroutine BasisSubSpeciesInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
       scale = dbaserxn2%stoich(i)
     endif
   enddo
-  
+
   ! search for duplicate species and add stoichs or add new species
   ! if not duplicated
   do j=1,dbaserxn1%nspec
@@ -415,11 +415,11 @@ subroutine BasisSubSpeciesInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
       tempstoich(tempcount) = scale*dbaserxn1%stoich(j)
     endif
   enddo
-  
+
   ! deallocate arrays
   deallocate(dbaserxn2%spec_name)
   deallocate(dbaserxn2%stoich)
-  
+
   ! check for zero stoichiometries due to cancelation
   prevcount = tempcount
   tempcount = 0
@@ -430,21 +430,21 @@ subroutine BasisSubSpeciesInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
       tempstoich(tempcount) = tempstoich(i)
     endif
   enddo
-  
+
   tempnames(tempcount+1:) = ''
   tempstoich(tempcount+1:) = 0.d0
-  
+
   ! reallocate
   allocate(dbaserxn2%spec_name(tempcount))
   allocate(dbaserxn2%stoich(tempcount))
-  
+
   ! fill arrays in dbaserxn
   dbaserxn2%nspec = tempcount
   do i=1,tempcount
     dbaserxn2%spec_name(i) = tempnames(i)
     dbaserxn2%stoich(i) = tempstoich(i)
   enddo
-  
+
   dbaserxn2%logK = dbaserxn2%logK + scale*dbaserxn1%logK
 
 end subroutine BasisSubSpeciesInGasOrSecRxn
@@ -452,23 +452,23 @@ end subroutine BasisSubSpeciesInGasOrSecRxn
 ! ************************************************************************** !
 
 subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
-  ! 
+  !
   ! Swaps out a chemical species in a chemical
   ! reaction, replacing it with the species in a
   ! secondary reaction (swaps 1 into 2)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/06/08
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: name
   type(database_rxn_type) :: sec_dbaserxn
   type(database_rxn_type) :: mnrl_dbaserxn
   PetscReal :: scale
-  
+
   PetscInt :: i, j, tempcount, prevcount
   character(len=MAXWORDLENGTH) :: tempnames(20)
   PetscReal :: tempstoich(20)
@@ -476,7 +476,7 @@ subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
 
   tempnames = ''
   tempstoich = 0.d0
-  
+
   ! load species in reaction other than species 1 into new arrays
   scale = 1.d0
   tempcount = 0
@@ -491,7 +491,7 @@ subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
       scale = mnrl_dbaserxn%stoich(i)
     endif
   enddo
-  
+
   ! search for duplicate species and add stoichs or add new species
   ! if not duplicated
   do j=1,sec_dbaserxn%nspec
@@ -511,11 +511,11 @@ subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
       tempstoich(tempcount) = scale*sec_dbaserxn%stoich(j)
     endif
   enddo
-  
+
   ! deallocate arrays
   deallocate(mnrl_dbaserxn%spec_name)
   deallocate(mnrl_dbaserxn%stoich)
-  
+
   ! check for zero stoichiometries due to cancelation
   prevcount = tempcount
   tempcount = 0
@@ -529,18 +529,18 @@ subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
 
   tempnames(tempcount+1:) = ''
   tempstoich(tempcount+1:) = 0.d0
-    
+
   ! reallocate
   allocate(mnrl_dbaserxn%spec_name(tempcount))
   allocate(mnrl_dbaserxn%stoich(tempcount))
-  
+
   ! fill arrays in dbaserxn
   mnrl_dbaserxn%nspec = tempcount
   do i=1,tempcount
     mnrl_dbaserxn%spec_name(i) = tempnames(i)
     mnrl_dbaserxn%stoich(i) = tempstoich(i)
   enddo
-  
+
   mnrl_dbaserxn%logK = mnrl_dbaserxn%logK + scale*sec_dbaserxn%logK
 
 end subroutine BasisSubSpeciesInMineralRxn
@@ -549,33 +549,33 @@ end subroutine BasisSubSpeciesInMineralRxn
 
 function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
                                       option)
-  ! 
+  !
   ! Checks whether legitimate log Ks exist for
   ! all database temperatures if running
   ! non-isothermal
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/07/13
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-    
+
   type(database_rxn_type), pointer :: dbaserxn
   character(len=MAXWORDLENGTH) :: species_name
   PetscReal :: temperatures(:)
   type(option_type) :: option
 
   PetscBool :: DatabaseCheckLegitimateLogKs
-  
+
   PetscInt :: itemp
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  
+
   DatabaseCheckLegitimateLogKs = PETSC_TRUE
 
   if (.not.associated(dbaserxn) .or. option%use_isothermal) return
-  
+
   string = ''
   do itemp = 1, size(dbaserxn%logK)
     if (dabs(dbaserxn%logK(itemp) - 500.) < 1.d-10) then
@@ -584,40 +584,40 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
       DatabaseCheckLegitimateLogKs = PETSC_FALSE
     endif
   enddo
-  
+
   if (.not.DatabaseCheckLegitimateLogKs) then
     option%io_buffer = 'Undefined log Ks for temperatures (' // &
                        trim(adjustl(string)) // ') for species "' // &
                        trim(species_name) // '" in database.'
     call PrintWrnMsg(option)
   endif
-  
+
 end function DatabaseCheckLegitimateLogKs
 
 ! ************************************************************************** !
 
 subroutine DatabaseRxnDestroy(dbaserxn)
-  ! 
+  !
   ! Deallocates a database reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/29/08
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
-    
+
   type(database_rxn_type), pointer :: dbaserxn
 
   if (.not.associated(dbaserxn)) return
-  
+
   if (associated(dbaserxn%spec_name)) deallocate(dbaserxn%spec_name)
   nullify(dbaserxn%spec_name)
   call DeallocateArray(dbaserxn%spec_ids)
   call DeallocateArray(dbaserxn%stoich)
   call DeallocateArray(dbaserxn%logK)
 
-  deallocate(dbaserxn)  
+  deallocate(dbaserxn)
   nullify(dbaserxn)
 
 end subroutine DatabaseRxnDestroy

@@ -1,9 +1,9 @@
   module spline_module
 
 #include "petsc/finclude/petscsys.h"
-  
+
   public
-  
+
   contains
 
 ! ************************************************************************** !
@@ -22,7 +22,7 @@ subroutine spline(x,y,n,y2)
   use PFLOTRAN_Constants_module
 
       implicit none
-      
+
       PetscInt :: i,n,k
       PetscReal :: x(n),y(n),y2(n),u(n)
       PetscReal :: sig,p,qn,un
@@ -93,7 +93,7 @@ subroutine locate(xx,n,x,j)
 
 !     given an array xx of length n, and given a value x, returns a
 !     value j such that x is between xx(j) and xx(j+1).  xx must be
-!     monotonic, either increasing or decreasing.  j=0 or j=n is 
+!     monotonic, either increasing or decreasing.  j=0 or j=n is
 !     returned to indicate that x is out of range.
 !
 !     press, w.h., b.p. flannery, s.a. teukolsky, and w.t. vetterling.
@@ -104,7 +104,7 @@ subroutine locate(xx,n,x,j)
       PetscInt :: jl,ju,jm,j,n
       PetscReal :: xx(n)
       PetscReal :: x
-      
+
       jl = 0
       ju = n+1
    10 continue

@@ -4,7 +4,7 @@ module clm_pflotran_interface_data
 #include "petsc/finclude/petscvec.h"
   use petscsys
   use petscvec
-  
+
   implicit none
 
   private
@@ -12,7 +12,7 @@ module clm_pflotran_interface_data
   type, public :: clm_pflotran_idata_type
 
   ! Time invariant data:
-  
+
   ! (i) Soil properties -
   ! Local for CLM  - mpi vectors
   Vec :: hksat_x_clm
@@ -53,17 +53,17 @@ module clm_pflotran_interface_data
   Vec :: area_top_face_pf  ! mpi vec
 
   ! Time variant data
-  
+
   ! (i) Sink/Source of water for PFLOTRAN's 3D subsurface domain
   Vec :: qflx_clm   ! mpi vec
   Vec :: qflx_pf    ! seq vec
-  
+
   ! (ii) Source of water and temperature of rain for PFLOTRAN's 2D surface domain
   Vec :: rain_clm   ! mpi vec
   Vec :: rain_pf    ! seq vec
   Vec :: rain_temp_clm ! mpi vec
   Vec :: rain_temp_pf  ! seq vec
-  
+
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
   Vec :: gflux_subsurf_clm  ! mpi vec
@@ -117,23 +117,23 @@ module clm_pflotran_interface_data
   end type clm_pflotran_idata_type
 
   type(clm_pflotran_idata_type) , public, target , save :: clm_pf_idata
-  
+
   public :: CLMPFLOTRANIDataInit, &
             CLMPFLOTRANIDataCreateVec, &
             CLMPFLOTRANIDataDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
   subroutine CLMPFLOTRANIDataInit()
-  ! 
+  !
   ! This routine initialized the data transfer type.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 4/10/2013
-  ! 
-  
+  !
+
     implicit none
 
     clm_pf_idata%nlclm_sub = 0
@@ -183,12 +183,12 @@ contains
 
     clm_pf_idata%qflx_clm = PETSC_NULL_VEC
     clm_pf_idata%qflx_pf = PETSC_NULL_VEC
-    
+
     clm_pf_idata%rain_clm = PETSC_NULL_VEC
     clm_pf_idata%rain_pf = PETSC_NULL_VEC
     clm_pf_idata%rain_temp_clm = PETSC_NULL_VEC
     clm_pf_idata%rain_temp_pf = PETSC_NULL_VEC
-    
+
     clm_pf_idata%gflux_subsurf_clm = PETSC_NULL_VEC
     clm_pf_idata%gflux_subsurf_pf = PETSC_NULL_VEC
 
@@ -214,16 +214,16 @@ contains
 ! ************************************************************************** !
 
   subroutine CLMPFLOTRANIDataCreateVec(mycomm)
-  ! 
+  !
   ! This routine creates PETSc vectors required for data transfer between
   ! CLM and PFLOTRAN.
-  ! 
+  !
   ! Author: Gautam Bisht, ORNL
   ! Date: 2011
-  ! 
-  
+  !
+
     implicit none
-    
+
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
     PetscReal      :: zero = 0.0d0
@@ -316,15 +316,15 @@ contains
 ! ************************************************************************** !
 
   subroutine CLMPFLOTRANIDataDestroy()
-  ! 
+  !
   ! This routine destroys PETSc vectors that were created for data transfer.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 4/10/2013
-  ! 
-  
+  !
+
     implicit none
-    
+
     PetscErrorCode :: ierr
 
     if(clm_pf_idata%hksat_x_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_x_clm,ierr)
@@ -359,12 +359,12 @@ contains
 
     if(clm_pf_idata%qflx_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%qflx_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
-    
+
     if(clm_pf_idata%rain_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_clm,ierr)
     if(clm_pf_idata%rain_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_pf,ierr)
     if(clm_pf_idata%rain_temp_clm     /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_temp_clm,ierr)
     if(clm_pf_idata%rain_temp_pf      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_temp_pf,ierr)
-    
+
     if(clm_pf_idata%gflux_subsurf_clm /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
     if(clm_pf_idata%gflux_subsurf_pf  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
 

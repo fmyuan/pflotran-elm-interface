@@ -1157,7 +1157,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = 'Vm/S'
       name = 'Electrical Jacobian'
       category = OUTPUT_GENERIC
-      id = ELECTRICAL_JACOBIAN      
+      id = ELECTRICAL_JACOBIAN
     case ('SMECTITE')
       units = ''
       name = 'Smectite'

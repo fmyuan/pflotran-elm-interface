@@ -1,10 +1,10 @@
 module Dataset_Base_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use Time_Storage_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -31,7 +31,7 @@ module Dataset_Base_class
   ! dataset types
   PetscInt, public, parameter :: DATASET_INTEGER = 1
   PetscInt, public, parameter :: DATASET_REAL = 2
-  
+
   public :: DatasetBaseCreate, &
             DatasetBaseInit, &
             DatasetBaseCopy, &
@@ -49,40 +49,40 @@ contains
 ! ************************************************************************** !
 
 function DatasetBaseCreate()
-  ! 
+  !
   ! Creates members of base database class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/03/13
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
 
   class(dataset_base_type), pointer :: DatasetBaseCreate
-  
+
   allocate(dataset)
   call DatasetBaseInit(dataset)
 
   DatasetBaseCreate => dataset
-    
+
 end function DatasetBaseCreate
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseInit(this)
-  ! 
+  !
   ! Initializes members of base database class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/03/13
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(dataset_base_type) :: this
-  
+
   this%name = ''
   this%filename = ''
   this%header = ''
@@ -97,24 +97,24 @@ subroutine DatasetBaseInit(this)
   this%buffer_slice_offset = 0
   this%buffer_nslice = 0
   nullify(this%next)
-    
+
 end subroutine DatasetBaseInit
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseCopy(this, that)
-  ! 
+  !
   ! Copies members of base database class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/03/13
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(dataset_base_type) :: this
   class(dataset_base_type) :: that
-  
+
   that%name = this%name
   that%filename = this%filename
   that%rank = this%rank
@@ -147,23 +147,23 @@ subroutine DatasetBaseCopy(this, that)
   that%buffer_nslice = this%buffer_nslice
   that%next => this%next
   nullify(this%next)
-    
+
 end subroutine DatasetBaseCopy
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseVerify(this,dataset_error,option)
-  ! 
+  !
   ! Verifies that data structure is properly set up.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/08/13
-  ! 
-  
+  !
+
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_base_type) :: this
   PetscBool :: dataset_error
   type(option_type) :: option
@@ -213,34 +213,34 @@ subroutine DatasetBaseVerify(this,dataset_error,option)
     call PrintMsg(option)
     dataset_error = PETSC_TRUE
   endif
-    
+
 end subroutine DatasetBaseVerify
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseInterpolateTime(this)
-  ! 
+  !
   ! Interpolates dataset between two buffer times
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_base_type) :: this
-  
+
   PetscInt :: array_size,i
   PetscInt :: time_interpolation_method
   PetscReal :: weight2
   PetscInt :: time1_start, time1_end, time2_start, time2_end
-  
+
   if (.not.associated(this%rbuffer)) return
-  
+
   time_interpolation_method = this%time_storage%time_interpolation_method
-  
+
   if (this%time_storage%cur_time_index >= &
       this%time_storage%max_time_index) then
     ! dataset has reached the end of the time array and is not cyclic.
@@ -254,7 +254,7 @@ subroutine DatasetBaseInterpolateTime(this)
     endif
     return
   endif
-  
+
   array_size = size(this%rarray)
   select case(time_interpolation_method)
     case(INTERPOLATION_NULL)
@@ -288,58 +288,58 @@ end subroutine DatasetBaseInterpolateTime
 ! ************************************************************************** !
 
 subroutine DatasetBaseInterpolateSpace(this,xx,yy,zz,time,real_value,option)
-  ! 
+  !
   ! Interpolates data from the dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11
-  ! 
+  !
 
   use Utility_module, only : InterpolateBilinear
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_base_type) :: this
   PetscReal, intent(in) :: xx, yy, zz
   PetscReal :: time
   PetscReal :: real_value
   type(option_type) :: option
-  
+
 end subroutine DatasetBaseInterpolateSpace
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseReorder(this,option)
-  ! 
+  !
   ! If a dataset is loaded from an HDF5 file, and it was
   ! multidimensional in the HDF5 file, the array needs to be
   ! reordered fro Fortran -> C indexing.  This subroutine
   ! takes care of the reordering.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_base_type) :: this
   type(option_type) :: option
-  
+
   PetscReal, allocatable :: temp_real(:)
   PetscInt :: i, j, k, l
   PetscInt :: length_1d
   PetscInt :: dims(4), n1, n1Xn2, n1Xn2Xn3
   PetscInt :: count, index
   PetscReal, pointer :: rarray(:)
-  
+
   if (this%data_type == DATASET_INTEGER) then
     option%io_buffer = 'Reordering of integer data sets not yet supported.'
     call PrintErrMsg(option)
   endif
-  
+
   ! set each dim to 1 by default for loop below
   dims(:) = 1
   dims(1:this%rank) = this%dims(1:this%rank)
@@ -349,16 +349,16 @@ subroutine DatasetBaseReorder(this,option)
   else
     rarray => this%rarray
   endif
-  
+
   ! Not necessary for 1D arrays
   if (maxval(dims(2:)) == 1) return
-  
+
   length_1d = 1
   do i = 1, size(dims)
     length_1d = length_1d*dims(i)
   enddo
   allocate(temp_real(length_1d))
-  
+
   n1 = dims(1)
   n1Xn2 = n1*dims(2)
   n1Xn2Xn3 = n1Xn2*dims(3)
@@ -373,59 +373,59 @@ subroutine DatasetBaseReorder(this,option)
         enddo
       enddo
     enddo
-  enddo  
+  enddo
 
   !geh: had to add 1:length_1d since in some cases, rarray is larger
   !     than the specified size based on "dims". not sure why....
   rarray(1:length_1d) = temp_real
   deallocate(temp_real)
-  
+
 end subroutine DatasetBaseReorder
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseGetTimes(this, option, max_sim_time, time_array)
-  ! 
+  !
   ! Fills an array of times based on a dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_base_type) :: this
   type(option_type) :: option
   PetscReal :: max_sim_time
   PetscReal, pointer :: time_array(:)
-  
-  
+
+
   if (associated(this%time_storage)) then
     call TimeStorageGetTimes(this%time_storage, option, max_sim_time, &
                              time_array)
   endif
- 
+
 end subroutine DatasetBaseGetTimes
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseAddToList(dataset,list)
-  ! 
+  !
   ! Adds a dataset to linked list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/11
-  ! 
+  !
 
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
   class(dataset_base_type), pointer :: list
 
   class(dataset_base_type), pointer :: cur_dataset
-  
+
   if (associated(list)) then
     cur_dataset => list
     ! loop to end of list
@@ -437,23 +437,23 @@ subroutine DatasetBaseAddToList(dataset,list)
   else
     list => dataset
   endif
-  
+
 end subroutine DatasetBaseAddToList
 
 ! ************************************************************************** !
 
 function DatasetBaseGetPointer(dataset_list, dataset_name, debug_string, &
                                option)
-  ! 
+  !
   ! Returns the pointer to the dataset named "name"
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/11
-  ! 
+  !
 
   use Option_module
   use String_module
-  
+
   class(dataset_base_type), pointer :: dataset_list
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: debug_string
@@ -465,7 +465,7 @@ function DatasetBaseGetPointer(dataset_list, dataset_name, debug_string, &
 
   found = PETSC_FALSE
   cur_dataset => dataset_list
-  do 
+  do
     if (.not.associated(cur_dataset)) exit
     if (StringCompare(dataset_name, &
                       cur_dataset%name,MAXWORDLENGTH)) then
@@ -486,12 +486,12 @@ end function DatasetBaseGetPointer
 ! ************************************************************************** !
 
 function DatasetBaseGetNameInfo(this)
-  ! 
+  !
   ! Returns naming information for dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/20/18
-  ! 
+  !
   implicit none
 
   class(dataset_base_type) :: this
@@ -514,12 +514,12 @@ end function DatasetBaseGetNameInfo
 ! ************************************************************************** !
 
 subroutine DatasetBasePrint(this,option)
-  ! 
+  !
   ! Prints dataset info
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/13
-  ! 
+  !
 
   use Option_module
 
@@ -557,50 +557,50 @@ end subroutine DatasetBasePrint
 ! ************************************************************************** !
 
 subroutine DatasetBaseStrip(this)
-  ! 
+  !
   ! Strips allocated objects within base dataset object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/03/13
-  ! 
+  !
 
   use Utility_module, only : DeallocateArray
 
   implicit none
-  
+
   class(dataset_base_type) :: this
-  
+
   call DeallocateArray(this%iarray)
   call DeallocateArray(this%rarray)
   call DeallocateArray(this%ibuffer)
   call DeallocateArray(this%rbuffer)
   call DeallocateArray(this%dims)
-  
+
   call TimeStorageDestroy(this%time_storage)
-  
+
 end subroutine DatasetBaseStrip
 
 ! ************************************************************************** !
 
 subroutine DatasetBaseDestroy(dataset)
-  ! 
+  !
   ! Destroys a dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/11, 05/03/13
-  ! 
+  !
 
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
-  
+
   if (.not.associated(dataset)) return
-  
+
   call DatasetBaseStrip(dataset)
-  
+
   deallocate(dataset)
   nullify(dataset)
-  
+
 end subroutine DatasetBaseDestroy
 
 end module Dataset_Base_class

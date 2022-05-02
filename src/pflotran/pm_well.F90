@@ -22,36 +22,36 @@ module PM_Well_class
 
   type :: well_grid_type
     ! number of well segments
-    PetscInt :: nsegments      
+    PetscInt :: nsegments
     ! number of well connections
     PetscInt :: nconnections
-    ! delta h discretization of each segment center [m]       
+    ! delta h discretization of each segment center [m]
     PetscReal, pointer :: dh(:)
     ! h coordinate of each segment center [m]
-    type(point3d_type), pointer :: h(:)  
-    ! the local id of the reservoir grid cell within which each segment 
-    ! center resides 
-    PetscInt, pointer :: h_local_id(:) 
-    ! the ghosted id of the reservoir grid cell within which each segment 
-    ! center resides 
+    type(point3d_type), pointer :: h(:)
+    ! the local id of the reservoir grid cell within which each segment
+    ! center resides
+    PetscInt, pointer :: h_local_id(:)
+    ! the ghosted id of the reservoir grid cell within which each segment
+    ! center resides
     PetscInt, pointer :: h_ghosted_id(:)
-    ! the global id of the reservoir grid cell within which each segment 
-    ! center resides 
+    ! the global id of the reservoir grid cell within which each segment
+    ! center resides
     PetscInt, pointer :: h_global_id(:)
     ! the strata id number associated with each well segment
     PetscInt, pointer :: strata_id(:)
     ! coordinate of the top/bottom of the well [m]
     PetscReal :: tophole(3)
-    PetscReal :: bottomhole(3)   
+    PetscReal :: bottomhole(3)
     ! x-y span search distance multipier
-    PetscInt :: xy_span_multiplier 
+    PetscInt :: xy_span_multiplier
   end type well_grid_type
 
   type :: well_reservoir_type
-    ! reservoir liquid pressure [Pa]    
-    PetscReal, pointer :: p_l(:) 
-    ! reservoir gas pressure [Pa]    
-    PetscReal, pointer :: p_g(:) 
+    ! reservoir liquid pressure [Pa]
+    PetscReal, pointer :: p_l(:)
+    ! reservoir gas pressure [Pa]
+    PetscReal, pointer :: p_g(:)
     ! reservoir liquid saturation [-]
     PetscReal, pointer :: s_l(:)
     ! reservoir gas saturation [-]
@@ -97,30 +97,30 @@ module PM_Well_class
     type(well_fluid_type), pointer :: liq
     type(well_fluid_type), pointer :: gas
     ! cross-sectional area of each well segment [calc'd] [m2]
-    PetscReal, pointer :: area(:)         
-    ! diameter of each well segment [m]      
-    PetscReal, pointer :: diameter(:) 
+    PetscReal, pointer :: area(:)
+    ! diameter of each well segment [m]
+    PetscReal, pointer :: diameter(:)
     ! volume of each well segment [calc'd] [m3]
-    PetscReal, pointer :: volume(:) 
-    ! friction ceofficient of each well segment        
-    PetscReal, pointer :: f(:)      
-    ! well index of each well segment [0,1]  0 = cased; 1 = open     
+    PetscReal, pointer :: volume(:)
+    ! friction ceofficient of each well segment
+    PetscReal, pointer :: f(:)
+    ! well index of each well segment [0,1]  0 = cased; 1 = open
     PetscReal, pointer :: WI_base(:)
     ! total well index for each well segment (including reservoir effects)
-    PetscReal, pointer :: WI(:)    
+    PetscReal, pointer :: WI(:)
     ! well index model (probably has to get moved out of well_type)
     character(len=MAXWORDLENGTH) :: WI_model
-    ! well liquid pressure [Pa]     
-    PetscReal, pointer :: pl(:) 
+    ! well liquid pressure [Pa]
+    PetscReal, pointer :: pl(:)
     ! well gas pressure [Pa]
     PetscReal, pointer :: pg(:)
-    ! well liquid Darcy flux [m3/m2-s] of interior interfaces  
+    ! well liquid Darcy flux [m3/m2-s] of interior interfaces
     PetscReal, pointer :: ql(:)
-    ! well gas Darcy flux [m3/m2-s] of interior interfaces  
+    ! well gas Darcy flux [m3/m2-s] of interior interfaces
     PetscReal, pointer :: qg(:)
-    ! well liquid Darcy flux [m3/m2-s] of top/bottom boundaries  
+    ! well liquid Darcy flux [m3/m2-s] of top/bottom boundaries
     PetscReal, pointer :: ql_bc(:)
-    ! well gas Darcy flux [m3/m2-s] of top/bottom boundaries 
+    ! well gas Darcy flux [m3/m2-s] of top/bottom boundaries
     PetscReal, pointer :: qg_bc(:)
     ! well species names
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
@@ -128,9 +128,9 @@ module PM_Well_class
     PetscInt, pointer :: species_parent_id(:)
     ! well species radioactive flag
     PetscBool, pointer :: species_radioactive(:)
-    ! well species decay rate [1/sec] 
+    ! well species decay rate [1/sec]
     PetscReal, pointer :: species_decay_rate(:)
-    ! well species' parent decay rate [1/sec] 
+    ! well species' parent decay rate [1/sec]
     PetscReal, pointer :: species_parent_decay_rate(:)
     ! well species aqueous concentration [mol/m3-liq] (idof,conc@segment)
     PetscReal, pointer :: aqueous_conc(:,:)
@@ -143,7 +143,7 @@ module PM_Well_class
     ! well bottom of hole Sg BC flag
     PetscBool :: bh_sg_set_by_reservoir
     ! well bottom of hole pressure BC [Pa]
-    PetscReal :: bh_p 
+    PetscReal :: bh_p
     ! well top of hole pressure BC [Pa]
     PetscReal :: th_p
     ! well bottom of hole saturation BC [Pa]
@@ -179,7 +179,7 @@ module PM_Well_class
     PetscReal, pointer :: visc(:)
     ! fluid saturation
     PetscReal, pointer :: s(:)
-    ! fluid source/sink in/out of well [kmol/s]   
+    ! fluid source/sink in/out of well [kmol/s]
     PetscReal, pointer :: Q(:)
   end type well_fluid_type
 
@@ -253,13 +253,13 @@ module PM_Well_class
     type(well_grid_type), pointer :: well_grid
     type(well_type), pointer :: well
     type(well_type), pointer :: well_pert(:)
-    type(well_reservoir_type), pointer :: reservoir 
+    type(well_reservoir_type), pointer :: reservoir
     type(well_soln_flow_type), pointer :: flow_soln
     type(well_soln_tran_type), pointer :: tran_soln
     type(strata_list_type), pointer :: strata_list
     PetscReal, pointer :: pert(:,:)
-    PetscInt :: nphase 
-    PetscInt :: nspecies 
+    PetscInt :: nphase
+    PetscInt :: nspecies
     PetscReal :: intrusion_time_start           ! [sec]
     PetscReal :: bh_zero_value                  ! [mol/m3-bulk]
     PetscReal :: dt_flow, dt_tran               ! [sec]
@@ -290,16 +290,16 @@ module PM_Well_class
 ! ************************************************************************** !
 
 function PMWellCreate()
-  ! 
+  !
   ! Creates the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type), pointer :: PMWellCreate
-  
+
   allocate(PMWellCreate)
   call PMBaseInit(PMWellCreate)
 
@@ -413,7 +413,7 @@ function PMWellCreate()
   PMWellCreate%well_pert(:)%bh_ql = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%bh_qg = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%th_ql = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%th_qg = UNINITIALIZED_DOUBLE 
+  PMWellCreate%well_pert(:)%th_qg = UNINITIALIZED_DOUBLE
 
   ! create the reservoir object:
   allocate(PMWellCreate%reservoir)
@@ -443,7 +443,7 @@ function PMWellCreate()
 
   ! create the fluid/liq objects:
   allocate(PMWellCreate%well%liq)
-  PMWellCreate%well%liq%ifluid = 1 
+  PMWellCreate%well%liq%ifluid = 1
   nullify(PMWellCreate%well%liq%kr)
   PMWellCreate%well%liq%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%well%liq%rho)
@@ -534,14 +534,14 @@ function PMWellCreate()
 end function PMWellCreate
 
 ! ************************************************************************** !
-  
+
 subroutine PMWellSetup(this)
-  ! 
+  !
   ! Initializes variables associated with the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 08/04/2021
-  ! 
+  !
 
   use Grid_module
   use Coupler_module
@@ -555,9 +555,9 @@ subroutine PMWellSetup(this)
   use NW_Transport_Aux_module
 
   implicit none
-  
+
   class(pm_well_type) :: this
-  
+
   type(option_type), pointer :: option
   type(grid_type), pointer :: res_grid
   type(well_grid_type), pointer :: well_grid
@@ -579,7 +579,7 @@ subroutine PMWellSetup(this)
   PetscInt :: local_id_well, local_id_res
   PetscInt :: nsegments
   PetscInt :: max_val, min_val
-  PetscInt :: k 
+  PetscInt :: k
   PetscInt :: count1_local, count2_local
   PetscInt :: count1_global, count2_global
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
@@ -673,7 +673,7 @@ subroutine PMWellSetup(this)
   well_grid%dh(:) = total_length/nsegments
 
   ! Get the local_id for each well segment center from the reservoir grid
-  well_grid%h_local_id(:) = -1  
+  well_grid%h_local_id(:) = -1
   do k = 1,well_grid%nsegments
     call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
                                       option,local_id)
@@ -720,7 +720,7 @@ subroutine PMWellSetup(this)
 
   ! Check that no reservoir grid cells were skipped.
   ! Count how many of the h_global_id's are unique.
-  ! This sum must be = to the number of reservoir cells that the 
+  ! This sum must be = to the number of reservoir cells that the
   !   well passes through.
   option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution.... '
   call PrintMsg(option)
@@ -751,7 +751,7 @@ subroutine PMWellSetup(this)
 
   ! Next, sum up how many grid cells the well passes thru.
   ! Note: This count assumes that the well is vertical and the top and
-  !       bottom surfaces do not slope or undulate. 
+  !       bottom surfaces do not slope or undulate.
   count2_local = 0
   count2_global = 0
   do k = 1,res_grid%ngmax
@@ -793,10 +793,10 @@ subroutine PMWellSetup(this)
       endif
     endif
   enddo
-  ! All of the MPI processes need to sum up their counts and place the 
+  ! All of the MPI processes need to sum up their counts and place the
   ! total in count2_global.
   call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI, &
-                    MPI_INTEGER,MPI_SUM,option%mycomm,ierr) 
+                    MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
   write(string2,'(I0.5)') count2_global
 
   ! The only way we can ensure that the well discretization did not skip a
@@ -849,7 +849,7 @@ subroutine PMWellSetup(this)
       call PrintErrMsg(option)
     endif
     this%nspecies = this%realization%reaction_nw%params%nspecies
-    this%tran_soln%ndof = this%nspecies 
+    this%tran_soln%ndof = this%nspecies
   endif
 
   ! add a reservoir src/sink coupler for each well segment
@@ -869,14 +869,14 @@ subroutine PMWellSetup(this)
       input_dummy,string,source_sink%flow_condition%general,option)
     source_sink%flow_condition%general%rate%itype = MASS_RATE_SS ! [kg/s]
     allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
-    source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0 
+    source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0
 
     ! ----- transport -----------
     if (this%transport) then
       write(string,'(I0.4)') k
       source_sink%tran_condition_name = 'well_segment_' // trim(string) // &
                                         '_tran_srcsink'
-      source_sink%tran_condition => TranConditionCreate(option) 
+      source_sink%tran_condition => TranConditionCreate(option)
       source_sink%tran_condition%name = source_sink%tran_condition_name
       tran_constraint_coupler_nwt => TranConstraintCouplerNWTCreate(option)
       allocate(tran_constraint_coupler_nwt%nwt_auxvar)
@@ -900,16 +900,16 @@ end subroutine PMWellSetup
 ! ************************************************************************** !
 
 subroutine PMWellReadPMBlock(this,input)
-  ! 
+  !
   ! Reads input file parameters associated with the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   use Input_Aux_module
   use String_module
   use Utility_module
-  
+
   implicit none
 
   class(pm_well_type) :: this
@@ -923,7 +923,7 @@ subroutine PMWellReadPMBlock(this,input)
   option => this%option
   input%ierr = 0
   error_string = 'WELLBORE_MODEL'
-  
+
   option%io_buffer = 'pflotran card:: WELLBORE_MODEL'
   call PrintMsg(option)
 
@@ -977,7 +977,7 @@ subroutine PMWellReadPMBlock(this,input)
     error_string = 'WELLBORE_MODEL'
     call PMWellReadGrid(this,input,option,word,error_string,found)
     if (found) cycle
-    
+
     error_string = 'WELLBORE_MODEL'
     call PMWellReadWell(this,input,option,word,error_string,found)
     if (found) cycle
@@ -1019,9 +1019,9 @@ end subroutine PMWellReadPMBlock
 ! ************************************************************************** !
 
 subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
-  ! 
+  !
   ! Reads input file parameters associated with the well model grid.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 11/03/2021
   !
@@ -1143,10 +1143,10 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
 ! ************************************************************************** !
 
 subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
-  ! 
-  ! Reads input file parameters associated with the well model 
+  !
+  ! Reads input file parameters associated with the well model
   ! well properties.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 11/03/2021
   !
@@ -1269,7 +1269,7 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
         option%io_buffer = 'Keyword DIAMETER must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
-      endif    
+      endif
 
   !-------------------------------------
     case default
@@ -1293,10 +1293,10 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
 ! ************************************************************************** !
 
 subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
-  ! 
-  ! Reads input file parameters associated with the well model 
+  !
+  ! Reads input file parameters associated with the well model
   ! boundary conditions.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 12/01/2021
   !
@@ -1454,7 +1454,7 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
              // trim(error_string) // ' block.'
           call PrintErrMsg(option)
         endif
-      endif 
+      endif
 
       if ((Initialized(this%well%th_p).or.Initialized(this%well%th_sg)) .and. &
           .not.(Initialized(this%well%th_p).and.Initialized(this%well%th_sg))) &
@@ -1491,9 +1491,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
 
 subroutine PMWellReadFlowSolver(pm_well,input,option,keyword,error_string, &
                                 found)
-  ! 
+  !
   ! Reads input file parameters associated with the well model solver.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 02/03/2022
   !
@@ -1604,9 +1604,9 @@ subroutine PMWellReadFlowSolver(pm_well,input,option,keyword,error_string, &
 
 subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
                                 found)
-  ! 
+  !
   ! Reads input file parameters associated with the well model solver.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 02/17/2022
   !
@@ -1710,9 +1710,9 @@ subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
 
 subroutine PMWellReadWellModelType(this,input,option,keyword,error_string, &
                                    found)
-  ! 
+  !
   ! Reads input file parameters associated with the well model type.
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 12/22/2021
   !
@@ -1780,10 +1780,10 @@ end subroutine PMWellReadWellModelType
 ! ************************************************************************** !
 
 subroutine PMWellReadPass2(input,option)
-  ! 
+  !
   ! Reads input file parameters associated with the well process model.
   ! Second pass dummy read.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 11/03/2021
 
@@ -1798,7 +1798,7 @@ subroutine PMWellReadPass2(input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: card
-  
+
   error_string = 'SUBSURFACE,WELLBORE_MODEL'
 
   input%ierr = 0
@@ -1808,11 +1808,11 @@ subroutine PMWellReadPass2(input,option)
     call InputReadStringErrorMsg(input,option,card)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-  
+
     select case(trim(keyword))
       !--------------------
       case('WELL_GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
@@ -1834,17 +1834,17 @@ end subroutine PMWellReadPass2
 ! ************************************************************************** !
 
 subroutine PMWellSetRealization(this,realization)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   use Realization_Subsurface_class
 
   implicit none
-  
+
   class(pm_well_type) :: this
   class(realization_subsurface_type), pointer :: realization
-  
+
   this%realization => realization
   this%realization_base => realization
 
@@ -1853,9 +1853,9 @@ end subroutine PMWellSetRealization
 ! ************************************************************************** !
 
 recursive subroutine PMWellInitializeRun(this)
-  ! 
+  !
   ! Initializes the simulation run for the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
@@ -1864,11 +1864,11 @@ recursive subroutine PMWellInitializeRun(this)
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_module
-  
+
   implicit none
 
   class(pm_well_type) :: this
-  
+
   type(strata_type), pointer :: patch_strata, well_strata
   type(radioactive_decay_rxn_type), pointer :: rad_rxn
   type(species_type), pointer :: species
@@ -1878,23 +1878,23 @@ recursive subroutine PMWellInitializeRun(this)
   PetscReal :: curr_time
 
   curr_time = this%option%time
-  nsegments = this%well_grid%nsegments 
+  nsegments = this%well_grid%nsegments
 
   patch_strata => this%realization%patch%strata_list%first
-  do 
+  do
     if (.not.associated(patch_strata)) exit
     if (patch_strata%well) then
       well_strata => StrataCreateFromStrata(patch_strata)
       well_strata%region => patch_strata%region
       well_strata%material_property => patch_strata%material_property
-      call StrataAddToList(well_strata,this%strata_list) 
+      call StrataAddToList(well_strata,this%strata_list)
     endif
     patch_strata => patch_strata%next
   enddo
 
   ! loop thru well stratas and mark them as active or inactive
   well_strata => this%strata_list%first
-  do 
+  do
     if (.not.associated(well_strata)) exit
     if (Initialized(well_strata%start_time) .and. &
         Initialized(well_strata%final_time)) then
@@ -1912,7 +1912,7 @@ recursive subroutine PMWellInitializeRun(this)
 
   do k = 1,nsegments
     well_strata => this%strata_list%first
-    do 
+    do
       if (.not.associated(well_strata)) exit
       if ((any(well_strata%region%cell_ids == &
                this%well_grid%h_ghosted_id(k))) .and. &
@@ -2066,7 +2066,7 @@ recursive subroutine PMWellInitializeRun(this)
     do
       if (.not.associated(species)) exit
       k = k + 1
-      this%well%species_names(k) = species%name 
+      this%well%species_names(k) = species%name
       this%well%species_radioactive(k) = species%radioactive
       if (species%radioactive) then
         ! Find the reaction object associated with this species
@@ -2088,7 +2088,7 @@ recursive subroutine PMWellInitializeRun(this)
           enddo
           this%well%species_parent_decay_rate(k) = rad_rxn%rate_constant
         endif
-      endif 
+      endif
       species => species%next
     enddo
   endif
@@ -2107,7 +2107,7 @@ recursive subroutine PMWellInitializeRun(this)
         &WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE not found.'
       call PrintErrMsg(this%option)
     endif
-    cur_constraint => tran_condition%cur_constraint_coupler%constraint 
+    cur_constraint => tran_condition%cur_constraint_coupler%constraint
     select type(constraint=>cur_constraint)
       class is (tran_constraint_nwt_type)
         if (any(constraint%nwt_species%constraint_type /=  &
@@ -2123,28 +2123,28 @@ recursive subroutine PMWellInitializeRun(this)
   endif
 
   call PMWellOutputHeader(this)
-  
+
 end subroutine PMWellInitializeRun
 
 ! ************************************************************************** !
 
 recursive subroutine PMWellFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the simulation run for the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
-  
-  ! placeholder 
-  
+
+  ! placeholder
+
   if (associated(this%next)) then
     call this%next%FinalizeRun()
-  endif  
-  
+  endif
+
 end subroutine PMWellFinalizeRun
 
 ! ************************************************************************** !
@@ -2152,14 +2152,14 @@ end subroutine PMWellFinalizeRun
 subroutine PMWellInitializeTimestep(this)
   !
   ! Initializes and takes the time step for the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   use Strata_module
-  
+
   implicit none
-  
+
   class(pm_well_type) :: this
 
   type(strata_type), pointer :: strata
@@ -2177,7 +2177,7 @@ subroutine PMWellInitializeTimestep(this)
 
   ! loop thru strata and mark them as active or inactive
   strata => this%strata_list%first
-  do 
+  do
     if (.not.associated(strata)) exit
     if (Initialized(strata%start_time) .and. &
         Initialized(strata%final_time)) then
@@ -2194,10 +2194,10 @@ subroutine PMWellInitializeTimestep(this)
   enddo
 
   ! update the well_grid%strata_id assignment for active strata
-  this%well_grid%strata_id(:) = 0 
+  this%well_grid%strata_id(:) = 0
   do k = 1,this%well_grid%nsegments
     strata => this%strata_list%first
-    do 
+    do
       if (.not.associated(strata)) exit
       if ((any(strata%region%cell_ids == &
                this%well_grid%h_ghosted_id(k))) .and. &
@@ -2244,11 +2244,11 @@ end subroutine PMWellInitializeTimestep
 subroutine PMWellInitializeWell(this)
   !
   ! Initializes the well for the first time step.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
-  ! Date: 02/23/2022  
+  ! Date: 02/23/2022
 
-  implicit none  
+  implicit none
 
   class(pm_well_type) :: this
   type(strata_type), pointer :: strata
@@ -2284,7 +2284,7 @@ subroutine PMWellInitializeWell(this)
   this%well_pert(TWO_INTEGER)%gas%rho = this%reservoir%rho_g
   this%well_pert(TWO_INTEGER)%liq%visc = this%reservoir%visc_l
   this%well_pert(TWO_INTEGER)%gas%visc = this%reservoir%visc_g
-    
+
   this%flow_soln%prev_soln%pl = this%well%pl
   this%flow_soln%prev_soln%sg = this%well%gas%s
 
@@ -2317,12 +2317,12 @@ subroutine PMWellInitializeWell(this)
     if (Initialized(this%intrusion_time_start)) then
       ! set the borehole concentrations to the borehole zero value now
       do k = 1,this%well_grid%nsegments
-        this%well%aqueous_mass(:,k) = this%bh_zero_value*this%well%volume(k)       
+        this%well%aqueous_mass(:,k) = this%bh_zero_value*this%well%volume(k)
         this%well%aqueous_conc(:,k) = &
           this%well%aqueous_mass(:,k) / &                           ! [mol]
           (this%well%phi(k)*this%well%volume(k)*this%well%liq%s(k)) ! [m3-liq]
       enddo
-    else 
+    else
       ! set the wellbore concentrations to the reservoir values
       this%well%aqueous_conc = this%reservoir%aqueous_conc
       do k = 1,this%well_grid%nsegments
@@ -2343,7 +2343,7 @@ end subroutine PMWellInitializeWell
 subroutine PMWellUpdateReservoir(this)
   !
   ! Updates the reservoir properties for the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
 
@@ -2353,7 +2353,7 @@ subroutine PMWellUpdateReservoir(this)
   use Grid_module
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar
@@ -2364,7 +2364,7 @@ subroutine PMWellUpdateReservoir(this)
   PetscInt :: k
   PetscInt :: ghosted_id
 
-  option => this%option 
+  option => this%option
 
   res_grid => this%realization%patch%grid
 
@@ -2393,14 +2393,14 @@ subroutine PMWellUpdateReservoir(this)
     this%reservoir%rho_g(k) = wippflo_auxvar%den_kg(option%gas_phase)
     this%reservoir%visc_l(k) = wippflo_auxvar%mu(option%liquid_phase)
     this%reservoir%visc_g(k) = wippflo_auxvar%mu(option%gas_phase)
-    this%reservoir%e_por(k) = wippflo_auxvar%effective_porosity 
+    this%reservoir%e_por(k) = wippflo_auxvar%effective_porosity
 
     this%reservoir%kx(k) = material_auxvar%permeability(1)
     this%reservoir%ky(k) = material_auxvar%permeability(2)
     this%reservoir%kz(k) = material_auxvar%permeability(3)
     this%reservoir%volume(k) = material_auxvar%volume
 
-    this%reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id) 
+    this%reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id)
     this%reservoir%dy(k) = res_grid%structured_grid%dy(ghosted_id)
     this%reservoir%dz(k) = res_grid%structured_grid%dz(ghosted_id)
 
@@ -2422,12 +2422,12 @@ subroutine PMWellUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                time_step_max_growth_factor)
   !
   ! Updates the time step for the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
-  
+
   implicit none
-  
+
   class(pm_well_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
@@ -2443,12 +2443,12 @@ end subroutine PMWellUpdateTimestep
 ! ************************************************************************** !
 
 subroutine PMWellFinalizeTimestep(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscReal :: curr_time
@@ -2461,20 +2461,20 @@ subroutine PMWellFinalizeTimestep(this)
   call PMWellUpdateReservoirSrcSink(this)
 
   call PMWellOutput(this)
-  
+
 end subroutine PMWellFinalizeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSink(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/21/2021
 
   use Coupler_module
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -2486,8 +2486,8 @@ subroutine PMWellUpdateReservoirSrcSink(this)
     write(string,'(I0.4)') k
     srcsink_name = 'well_segment_' // trim(string)
 
-    source_sink => this%realization%patch%source_sink_list%first 
-    do 
+    source_sink => this%realization%patch%source_sink_list%first
+    do
       if (.not.associated(source_sink)) exit
 
       if (trim(srcsink_name) == trim(source_sink%name)) then
@@ -2508,12 +2508,12 @@ end subroutine PMWellUpdateReservoirSrcSink
 ! ************************************************************************** !
 
 subroutine PMWellResidualFlow(this)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscInt :: i, k, iup, idn
@@ -2557,7 +2557,7 @@ subroutine PMWellResidualFlow(this)
                this%flow_soln%residual(this%flow_soln%ndof*i+1) &
                - res_flux(1)
 
-          ! Water mass residual in cell i: Add flux in from BC, 
+          ! Water mass residual in cell i: Add flux in from BC,
           ! add flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
@@ -2567,7 +2567,7 @@ subroutine PMWellResidualFlow(this)
           ! Water mass residual in cell i: Subtract flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
-               + res_flux(1) 
+               + res_flux(1)
           ! Water mass residual in cell i+1: Add flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*i+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*i+1) &
@@ -2594,7 +2594,7 @@ subroutine PMWellResidualFlow(this)
             this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*i+2) &
                  - res_flux(2)
-            ! Air mass residual in cell i: Subtract flux in from BC, 
+            ! Air mass residual in cell i: Subtract flux in from BC,
             ! add flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
@@ -2602,8 +2602,8 @@ subroutine PMWellResidualFlow(this)
           elseif (i < this%well_grid%nsegments) then
             ! Air mass residual in cell i: Subtract flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) & 
-                 + res_flux(2) 
+                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
+                 + res_flux(2)
             ! Air mass residual in cell i+1: Add flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*i+2) &
@@ -2626,22 +2626,22 @@ end subroutine PMWellResidualFlow
 ! ************************************************************************** !
 
 subroutine PMWellResidualTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   ! at this time, the tran_soln%residual vector has been zero'd out and has
   ! been loaded with the fixed accumulation divided by current dt
 
-  ! update the auxiliary variables (runs through the equilibrium 
+  ! update the auxiliary variables (runs through the equilibrium
   ! diss/precip/sorb routine) - we only need to update the aqueous_conc from
-  ! the aqueous_mass value, or vice versa? 
+  ! the aqueous_mass value, or vice versa?
 
-  call PMWellResidualTranAccum(this) 
+  call PMWellResidualTranAccum(this)
 
   ! calculate the source/sink terms (in/out of well segments)
   call PMWellResidualTranSrcSink(this)
@@ -2657,12 +2657,12 @@ end subroutine PMWellResidualTran
 ! ************************************************************************** !
 
 subroutine PMWellResidualTranAccum(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscInt :: ispecies, isegment, k
@@ -2676,7 +2676,7 @@ subroutine PMWellResidualTranAccum(this)
   ! residual in [mol-species/sec]
 
   ! calculate the accumulation term as:
-  ! residual = (Res_accum/tran_dt) 
+  ! residual = (Res_accum/tran_dt)
   !            - residual(which is already = fixed_accum/dt)
 
   do isegment = 1,this%well_grid%nsegments
@@ -2689,8 +2689,8 @@ subroutine PMWellResidualTranAccum(this)
       k = ispecies
       Res(k) = this%well%volume(isegment) * this%well%phi(isegment) * &
                this%well%liq%s(isegment) * &
-               this%well%aqueous_conc(ispecies,isegment) 
-      Res(k) = Res(k) / this%dt_tran 
+               this%well%aqueous_conc(ispecies,isegment)
+      Res(k) = Res(k) / this%dt_tran
     enddo
 
     this%tran_soln%residual(istart:iend) = Res(:) - &
@@ -2702,15 +2702,15 @@ end subroutine PMWellResidualTranAccum
 ! ************************************************************************** !
 
 subroutine PMWellResidualTranSrcSink(this)
-  ! 
-  ! Calculates the source sink terms (Q in/out of well) for the transport 
+  !
+  ! Calculates the source sink terms (Q in/out of well) for the transport
   ! residual equation.
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/06/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscInt :: ispecies, isegment, k
@@ -2754,7 +2754,7 @@ subroutine PMWellResidualTranSrcSink(this)
                                             resr%rho_l(isegment)
       Qout = coef_Qout*well%aqueous_conc(ispecies,isegment)*FMWH2O / &
                                             well%liq%rho(isegment)
-      Res(k) = Qin + Qout 
+      Res(k) = Qin + Qout
     enddo
 
     this%tran_soln%residual(istart:iend) = &
@@ -2766,15 +2766,15 @@ end subroutine PMWellResidualTranSrcSink
 ! ************************************************************************** !
 
 subroutine PMWellResidualTranRxn(this)
-  ! 
-  ! Calculates the decay/ingrowth of radioactive species for the transport 
+  !
+  ! Calculates the decay/ingrowth of radioactive species for the transport
   ! residual equation.
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/06/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscInt :: ispecies, isegment, k
@@ -2814,22 +2814,22 @@ end subroutine PMWellResidualTranRxn
 
 subroutine PMWellResidualTranFlux(this)
   !
-  ! Calculates the interior and BC flux terms for the transport residual 
+  ! Calculates the interior and BC flux terms for the transport residual
   ! equation.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/24/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscInt :: ispecies, isegment, k
   PetscInt :: offset, istart, iend
-  PetscInt :: n_up, n_dn 
+  PetscInt :: n_up, n_dn
   PetscReal :: area_up, area_dn
   PetscReal :: q_up, q_dn
-  PetscReal :: sat, conc 
+  PetscReal :: sat, conc
   PetscReal :: diffusion
   PetscReal :: Res(this%nspecies)
   PetscReal :: Res_up(this%nspecies), Res_dn(this%nspecies)
@@ -2855,13 +2855,13 @@ subroutine PMWellResidualTranFlux(this)
 
   do isegment = 2,(this%well_grid%nsegments-1)
 
-    Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
+    Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0
 
     area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
     area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
 
     q_up = this%well%ql(isegment)
-    q_dn = this%well%ql(isegment-1) 
+    q_dn = this%well%ql(isegment-1)
 
     offset = (isegment-1)*this%nspecies
     istart = offset + 1
@@ -2907,7 +2907,7 @@ subroutine PMWellResidualTranFlux(this)
 
   ! ----- bottom of well -----
   isegment = 1
-  Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
+  Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0
 
   area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
   area_dn = this%well%area(isegment)
@@ -2957,9 +2957,9 @@ subroutine PMWellResidualTranFlux(this)
 
   ! ----- top of well -----
   isegment = this%well_grid%nsegments
-  Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
+  Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0
 
-  area_up = this%well%area(isegment) 
+  area_up = this%well%area(isegment)
   area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
 
   q_up = this%well%ql_bc(2) ! top of hole ql
@@ -3009,7 +3009,7 @@ end subroutine PMWellResidualTranFlux
 ! ************************************************************************** !
 
 subroutine PMWellJacobianFlow(this)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 08/04/2021
 
@@ -3037,7 +3037,7 @@ subroutine PMWellJacobianFlow(this)
                Jtmp(this%nphase,this%nphase), &
                Jac(this%nphase*this%well_grid%nsegments, &
                    this%nphase*this%well_grid%nsegments)
-               
+
   this%flow_soln%Jacobian = 0.d0
   Jac = 0.d0
 
@@ -3060,7 +3060,7 @@ subroutine PMWellJacobianFlow(this)
 
       enddo
 
-      ! Interior Flux Terms ----------------------------------- 
+      ! Interior Flux Terms -----------------------------------
       do iconn = 1,this%well_grid%nconnections
 
         local_id_up = iconn
@@ -3106,7 +3106,7 @@ end subroutine PMWellJacobianFlow
 
 ! ************************************************************************** !
 subroutine PMWellFillJacFlow(pm_well,Jac,Jtmp,id1,id2)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 01/10/2022
   !
@@ -3133,7 +3133,7 @@ end subroutine PMWellFillJacFlow
 ! ************************************************************************** !
 
 subroutine PMWellJacobianTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 04/14/2022
   !
@@ -3151,7 +3151,7 @@ subroutine PMWellJacobianTran(this)
 
   do k = 1,this%well_grid%nsegments
 
-    Jblock(:,:) = 0.d0 
+    Jblock(:,:) = 0.d0
 
     call PMWellJacTranAccum(this,Jblock,k)
 
@@ -3163,7 +3163,7 @@ subroutine PMWellJacobianTran(this)
 
     ! place JBlock into full Jac based on isegment
     jstart = (k-1)*nspecies + 1
-    jend = jstart + nspecies - 1 
+    jend = jstart + nspecies - 1
     this%tran_soln%Jacobian(jstart:jend,jstart:jend) = Jblock
 
   enddo
@@ -3173,7 +3173,7 @@ end subroutine PMWellJacobianTran
 ! ************************************************************************** !
 
 subroutine PMWellJacTranAccum(this,Jblock,isegment)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 04/14/2022
   !
@@ -3182,7 +3182,7 @@ subroutine PMWellJacTranAccum(this,Jblock,isegment)
 
   class(pm_well_type) :: this
   PetscReal :: Jblock(this%nspecies,this%nspecies)
-  PetscInt :: isegment 
+  PetscInt :: isegment
 
   PetscReal :: vol_dt
   PetscInt :: istart, iend, ispecies
@@ -3192,7 +3192,7 @@ subroutine PMWellJacTranAccum(this,Jblock,isegment)
   ! units of tran_dt = [sec]
 
   vol_dt = this%well%volume(isegment)/this%dt_tran
-  
+
   istart = 1
   iend = this%nspecies
 
@@ -3207,7 +3207,7 @@ end subroutine PMWellJacTranAccum
 ! ************************************************************************** !
 
 subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 04/15/2022
   !
@@ -3216,10 +3216,10 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
 
   class(pm_well_type) :: this
   PetscReal :: Jblock(this%nspecies,this%nspecies)
-  PetscInt :: isegment 
+  PetscInt :: isegment
 
   PetscInt :: istart, iend, ispecies
-  PetscReal :: vol, Qin, SS 
+  PetscReal :: vol, Qin, SS
 
   ! units of Jac = [m^3-bulk/sec]
   ! units of volume = [m^3-bulk]
@@ -3251,7 +3251,7 @@ end subroutine PMWellJacTranSrcSink
 ! ************************************************************************** !
 
 subroutine PMWellJacTranFlux(this,Jblock,isegment)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 04/15/2022
   !
@@ -3260,10 +3260,10 @@ subroutine PMWellJacTranFlux(this,Jblock,isegment)
 
   class(pm_well_type) :: this
   PetscReal :: Jblock(this%nspecies,this%nspecies)
-  PetscInt :: isegment 
+  PetscInt :: isegment
 
   PetscInt :: istart, iend, ispecies
-  PetscInt :: n_up, n_dn 
+  PetscInt :: n_up, n_dn
   PetscReal :: d_diffusion_dM
   PetscReal :: J_up, J_dn
   PetscReal :: area_up, area_dn
@@ -3302,11 +3302,11 @@ subroutine PMWellJacTranFlux(this,Jblock,isegment)
 
     q_up = this%well%ql(isegment)
     q_dn = this%well%ql_bc(1) ! bottom of hole ql
-    
+
   else if (isegment == this%well_grid%nsegments) then
     ! ----- top of well -----
 
-    area_up = this%well%area(isegment) 
+    area_up = this%well%area(isegment)
     area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
 
     q_up = this%well%ql_bc(2) ! top of hole ql
@@ -3334,7 +3334,7 @@ end subroutine PMWellJacTranFlux
 ! ************************************************************************** !
 
 subroutine PMWellJacTranRxn(this,Jblock,isegment)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 04/15/2022
   !
@@ -3343,10 +3343,10 @@ subroutine PMWellJacTranRxn(this,Jblock,isegment)
 
   class(pm_well_type) :: this
   PetscReal :: Jblock(this%nspecies,this%nspecies)
-  PetscInt :: isegment 
+  PetscInt :: isegment
 
-  PetscInt :: istart, iend, ispecies, parent_id 
-  PetscReal :: vol 
+  PetscInt :: istart, iend, ispecies, parent_id
+  PetscReal :: vol
 
   ! units of Jac = [m^3-bulk/sec]
   ! units of volume = [m^3-bulk]
@@ -3367,7 +3367,7 @@ subroutine PMWellJacTranRxn(this,Jblock,isegment)
       Jblock(ispecies,parent_id) = Jblock(ispecies,parent_id) - &
                         (vol*this%well%species_parent_decay_rate(ispecies))
     endif
-    
+
   enddo
 
 end subroutine PMWellJacTranRxn
@@ -3375,12 +3375,12 @@ end subroutine PMWellJacTranRxn
 ! ************************************************************************** !
 
 subroutine PMWellPreSolve(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   ! pseudo-code for solve order of operations:
@@ -3388,7 +3388,7 @@ subroutine PMWellPreSolve(this)
   ! call pm%solve()
   !   call pm_well%pmwellsolve()
   !     call pm_well%pmwellsolveflow()
-  !       call pm_well%pmwellpresolveflow() 
+  !       call pm_well%pmwellpresolveflow()
   !       flow solve occurs
   !       call pm_well%pmwellpostsolveflow()
   !     call pm_well%pmwellsolvetran()       ---> if (transport)
@@ -3396,23 +3396,23 @@ subroutine PMWellPreSolve(this)
   !       transport solve occurs             ---> if (transport)
   !       call pm_well%pmwellpostsolvetran() ---> if (transport)
 
-  
+
 end subroutine PMWellPreSolve
 
 ! ************************************************************************** !
 
 subroutine PMWellPreSolveFlow(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time
-  
+
   this%flow_soln%not_converged = PETSC_TRUE
   this%flow_soln%converged = PETSC_FALSE
 
@@ -3420,25 +3420,25 @@ subroutine PMWellPreSolveFlow(this)
 
   write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," sec.")') &
-                   (this%flow_soln%n_steps+1),cur_time,this%dt_flow  
+                   (this%flow_soln%n_steps+1),cur_time,this%dt_flow
   call OptionPrint(out_string,this%option)
-  
+
 end subroutine PMWellPreSolveFlow
 
 ! ************************************************************************** !
 
 subroutine PMWellPreSolveTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time
-  
+
   this%tran_soln%not_converged = PETSC_TRUE
   this%tran_soln%converged = PETSC_FALSE
 
@@ -3448,18 +3448,18 @@ subroutine PMWellPreSolveTran(this)
                      1pe12.5," sec.")') &
                    (this%tran_soln%n_steps+1),cur_time,this%dt_tran
   call OptionPrint(out_string,this%option)
-  
+
 end subroutine PMWellPreSolveTran
 
 ! ************************************************************************** !
 
 subroutine PMWellSolve(this,time,ierr)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
@@ -3471,7 +3471,7 @@ subroutine PMWellSolve(this,time,ierr)
 
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
-    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time 
+    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
     call OptionPrint(out_string,this%option)
     ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs!
     return
@@ -3482,18 +3482,18 @@ subroutine PMWellSolve(this,time,ierr)
   if (this%transport) then
     call PMWellSolveTran(this,time,ierr)
   endif
-  
+
 end subroutine PMWellSolve
 
 ! ************************************************************************** !
 
 subroutine PMWellSolveFlow(this,time,ierr)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 12/01/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
@@ -3534,7 +3534,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ! update the well src/sink Q vector
   call PMWellUpdateWellQ(this%well,this%reservoir)
 
-  do while (this%cumulative_dt_flow < this%realization%option%flow_dt) 
+  do while (this%cumulative_dt_flow < this%realization%option%flow_dt)
 
     ! Tighter coupling
     ! update the well src/sink Q vector
@@ -3591,7 +3591,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
     if (easy_converge_count > 10 ) then
       if (this%cumulative_dt_flow + this%dt_flow * &
           flow_soln%ts_cut_factor < this%realization%option%flow_dt) then
-        this%dt_flow = this%dt_flow * flow_soln%ts_cut_factor 
+        this%dt_flow = this%dt_flow * flow_soln%ts_cut_factor
         flow_soln%cut_timestep = PETSC_FALSE
       endif
     endif
@@ -3635,7 +3635,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
     !    else
     !      ss_step_count = 0
     !    endif
-    !  endif 
+    !  endif
     !  if (steady_state) then
     !    this%cumulative_dt_flow = this%realization%option%flow_dt
     !  endif
@@ -3658,18 +3658,18 @@ subroutine PMWellSolveFlow(this,time,ierr)
   call PMWellCalcVelocity(this)
 
   call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
-  
+
 end subroutine PMWellSolveFlow
 
 ! ************************************************************************** !
 
 subroutine PMWellSolveTran(this,time,ierr)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
@@ -3680,7 +3680,7 @@ subroutine PMWellSolveTran(this,time,ierr)
   PetscInt :: n_iter, ts_cut, easy_converge_count
   PetscReal :: res_fixed(this%tran_soln%ndof*this%well_grid%nsegments)
   PetscInt :: istart, iend
-  PetscInt :: k 
+  PetscInt :: k
 
   soln => this%tran_soln
 
@@ -3694,7 +3694,7 @@ subroutine PMWellSolveTran(this,time,ierr)
   soln%converged = PETSC_FALSE
   soln%not_converged = PETSC_TRUE
 
-  do while (this%cumulative_dt_tran < this%realization%option%flow_dt) 
+  do while (this%cumulative_dt_tran < this%realization%option%flow_dt)
 
     call PMWellPreSolveTran(this)
 
@@ -3726,7 +3726,7 @@ subroutine PMWellSolveTran(this,time,ierr)
         iend = soln%ndof*k
         call PMWellAccumulationTran(this,k,res_fixed(istart:iend))
       enddo
-      soln%residual = res_fixed / this%dt_tran 
+      soln%residual = res_fixed / this%dt_tran
 
       easy_converge_count = easy_converge_count + 1
 
@@ -3740,7 +3740,7 @@ subroutine PMWellSolveTran(this,time,ierr)
         this%realization%option%flow_dt) then
       this%dt_tran = this%realization%option%flow_dt - this%cumulative_dt_tran
     endif
-    
+
     soln%n_steps = soln%n_steps + 1
 
   enddo
@@ -3754,7 +3754,7 @@ end subroutine PMWellSolveTran
 ! ************************************************************************** !
 
 subroutine PMWellUpdateSolutionFlow(pm_well)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 01/21/22
 
@@ -3799,7 +3799,7 @@ end subroutine PMWellUpdateSolutionFlow
 ! ************************************************************************** !
 
 subroutine PMWellUpdateSolutionTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 04/15/22
 
@@ -3809,7 +3809,7 @@ subroutine PMWellUpdateSolutionTran(this)
 
   PetscInt :: ispecies, isegment, k
   PetscInt :: offset, istart, iend
-  PetscReal :: vol 
+  PetscReal :: vol
 
   ! update in [mol/m3-bulk]
   ! volume in [m3-bulk]
@@ -3836,7 +3836,7 @@ end subroutine PMWellUpdateSolutionTran
 ! ************************************************************************** !
 
 subroutine PMWellCutTimestepFlow(pm_well)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 01/24/2022
 
@@ -3863,7 +3863,7 @@ end subroutine PMWellCutTimestepFlow
 ! ************************************************************************** !
 
 subroutine PMWellCutTimestepTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
 
@@ -3882,14 +3882,14 @@ end subroutine PMWellCutTimestepTran
 ! ************************************************************************** !
 
 subroutine PMWellNewtonFlow(this)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 01/20/2022
 
   use Utility_module
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   PetscReal :: identity(this%nphase*this%well_grid%nsegments,&
@@ -3901,8 +3901,8 @@ subroutine PMWellNewtonFlow(this)
   PetscInt :: i,j
   PetscInt :: d
 
-  call PMWellPerturb(this) 
- 
+  call PMWellPerturb(this)
+
   call PMWellResidualFlow(this)
 
   call PMWellJacobianFlow(this)
@@ -3942,24 +3942,24 @@ end subroutine PMWellNewtonFlow
 ! ************************************************************************** !
 
 subroutine PMWellNewtonTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
 
   use Utility_module
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
-  PetscInt :: nm, dummy 
+  PetscInt :: nm, dummy
   PetscInt :: indx(this%nspecies*this%well_grid%nsegments)
 
   nm = this%nspecies * this%well_grid%nsegments
 
   ! at this time, the tran_soln%residual vector has been zero'd out and has
   ! been loaded with the fixed accumulation divided by current dt
- 
+
   call PMWellResidualTran(this)
 
   call PMWellJacobianTran(this)
@@ -3982,75 +3982,75 @@ end subroutine PMWellNewtonTran
 ! ************************************************************************** !
 
 subroutine PMWellPostSolve(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   ! placeholder
-  
+
 end subroutine PMWellPostSolve
 
 ! ************************************************************************** !
 
 subroutine PMWellPostSolveFlow(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
 
   WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," sec &
                      & Total Newton Its =",i8)') &
-                    this%option%time,this%flow_soln%n_newton 
+                    this%option%time,this%flow_soln%n_newton
   call OptionPrint(out_string,this%option)
   WRITE(*,*) ""
-  
+
 end subroutine PMWellPostSolveFlow
 
 ! ************************************************************************** !
 
 subroutine PMWellPostSolveTran(this)
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
 
   WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," sec &
                      & Total Newton Its =",i8)') &
-                    this%option%time,this%tran_soln%n_newton 
+                    this%option%time,this%tran_soln%n_newton
   call OptionPrint(out_string,this%option)
   WRITE(*,*) ""
-  
+
 end subroutine PMWellPostSolveTran
 
 ! ************************************************************************** !
 
 subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
-  ! 
+  !
   ! Checks flow solution convergence against prescribed tolerances.
   !
   ! Author: Jennifer M. Frederick
   ! Date: 01/20/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%flow_soln%ndof*this%well_grid%nsegments)
-  
+
   type(well_soln_flow_type), pointer :: flow_soln
   character(len=MAXSTRINGLENGTH) :: out_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
@@ -4079,7 +4079,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   PetscInt :: idof
   PetscInt :: k
 
-  flow_soln => this%flow_soln 
+  flow_soln => this%flow_soln
 
   n_iter = n_iter + 1
   flow_soln%n_newton = flow_soln%n_newton + 1
@@ -4134,7 +4134,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     if (temp_real < flow_soln%itol_abs_res) then
       cnvgd_due_to_abs_res(k) = PETSC_TRUE
     endif
- 
+
     ! Scaled Residual
     temp_real = dabs(flow_soln%residual(k)/(fixed_accum(k)/this%dt_flow))
     if (temp_real < flow_soln%itol_scaled_res) then
@@ -4198,7 +4198,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
         &,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
         n_iter,max_absolute_residual,max_scaled_residual, &
         max_absolute_update_p,max_absolute_update_s, &
-        max_relative_update_p,max_relative_update_s  
+        max_relative_update_p,max_relative_update_s
   call OptionPrint(out_string,this%option)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
@@ -4215,24 +4215,24 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     flow_soln%not_converged = PETSC_TRUE
   endif
 
-  
+
 end subroutine PMWellCheckConvergenceFlow
 
 ! ************************************************************************** !
 
 subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
-  ! 
+  !
   ! Checks transport solution convergence against prescribed tolerances.
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%tran_soln%ndof*this%well_grid%nsegments)
-  
+
   type(well_soln_tran_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
@@ -4247,10 +4247,10 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   PetscReal :: vol_vec(this%well_grid%nsegments*this%tran_soln%ndof)
   PetscReal :: aq_mass_vec(this%well_grid%nsegments*this%tran_soln%ndof)
   PetscReal :: max_scaled_residual,max_absolute_residual
-  PetscReal :: max_update 
+  PetscReal :: max_update
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
-  PetscInt :: loc_max_update 
-  PetscInt :: k, n, j 
+  PetscInt :: loc_max_update
+  PetscInt :: k, n, j
   PetscInt :: isegment, ispecies
 
   soln => this%tran_soln
@@ -4278,10 +4278,10 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   enddo
 
   ! Relative Update
-  do n = 1,this%well_grid%nsegments 
+  do n = 1,this%well_grid%nsegments
     isegment = n
     do k = 1, soln%ndof
-      ispecies = k 
+      ispecies = k
       j = ((isegment-1)*soln%ndof) + ispecies
       vol_vec(j) = this%well%volume(isegment)
       aq_mass_vec(j) = this%well%aqueous_mass(ispecies,isegment)
@@ -4320,7 +4320,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   endif
 
   write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  rU:",es10.2)') &
-        n_iter,max_absolute_residual,max_scaled_residual,max_update   
+        n_iter,max_absolute_residual,max_scaled_residual,max_update
   call OptionPrint(out_string,this%option)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
@@ -4335,7 +4335,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     soln%converged = PETSC_FALSE
     soln%not_converged = PETSC_TRUE
   endif
-  
+
 end subroutine PMWellCheckConvergenceTran
 
 ! ************************************************************************** !
@@ -4343,12 +4343,12 @@ end subroutine PMWellCheckConvergenceTran
 subroutine PMWellUpdateWellQ(well,reservoir)
   !
   ! Updates the src/sink vector for the fluid object.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
 
   implicit none
-  
+
   type(well_type) :: well
   type(well_reservoir_type), pointer :: reservoir
 
@@ -4381,7 +4381,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
         gas%Q = well%th_qg*well%WI/(abs(sum(well%WI)))
       endif
     !------------------------------------------------------------------------
-    case default 
+    case default
       do i = 1,nsegments
         if (dabs((reservoir%p_l(i)-well%pl(i)))/well%pl(i) > threshold_p) then
           upwind = reservoir%p_l(i) > well%pl(i)
@@ -4400,13 +4400,13 @@ subroutine PMWellUpdateWellQ(well,reservoir)
             mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
           else
             mobility = gas%kr(i)/gas%visc(i)
-          endif 
+          endif
           den_ave = 0.5d0 * (gas%rho(i) + reservoir%rho_g(i)) / &
                              fmw_comp(TWO_INTEGER)
 
           ! Flowrate in kmol/s
           gas%Q(i) = den_ave*mobility*well%WI(i)* &
-                     (reservoir%p_g(i)-well%pg(i)) 
+                     (reservoir%p_g(i)-well%pg(i))
         else
           liq%Q(i) = 0.d0
           gas%Q(i) = 0.d0
@@ -4414,7 +4414,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
       enddo
     !------------------------------------------------------------------------
   end select
-  
+
 end subroutine PMWellUpdateWellQ
 
 ! ************************************************************************** !
@@ -4422,12 +4422,12 @@ end subroutine PMWellUpdateWellQ
 subroutine PMWellCalcVelocity(this)
   !
   ! Calculates the Darcy flux in the well given the well pressures.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 02/16/2022
 
   implicit none
-  
+
   class(pm_well_type) :: this
 
   type(well_grid_type), pointer :: well_grid
@@ -4444,15 +4444,15 @@ subroutine PMWellCalcVelocity(this)
   PetscReal, parameter :: eps = 1.d-8
 
   well_grid => this%well_grid
-  well => this%well 
+  well => this%well
 
   ! iup/idn convention:
   ! up direction goes towards well bottom (towards lower k value)
   ! dn direction goes towards well top (towards higher k value)
 
-  ! the routines for calculating velocity must match PMWellFlux() 
+  ! the routines for calculating velocity must match PMWellFlux()
   ! and PMWellBCFlux() exactly
-  
+
   select case(well%well_model_type)
     !-------------------------------------------------------------------------
     case('CONSTANT_PRESSURE_HYDROSTATIC')
@@ -4511,7 +4511,7 @@ subroutine PMWellCalcVelocity(this)
         well%ql_bc(1) = this%well%bh_ql
         well%qg_bc(1) = this%well%bh_qg
 
-      else 
+      else
         ! error message
       endif
 
@@ -4544,7 +4544,7 @@ subroutine PMWellCalcVelocity(this)
     case('FULL_MOMENTUM')
     !-------------------------------------------------------------------------
   end select
-  
+
 end subroutine PMWellCalcVelocity
 
 ! ************************************************************************** !
@@ -4552,7 +4552,7 @@ end subroutine PMWellCalcVelocity
 subroutine PMWellComputeWellIndex(this)
   !
   ! Computes the well index.
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 12/22/21
 
@@ -4586,7 +4586,7 @@ end subroutine PMWellComputeWellIndex
 
 subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
   !
-  ! Computes the accumulation term for the flow residual based on the 
+  ! Computes the accumulation term for the flow residual based on the
   ! chosen well model.
   !
   ! Author: Michael Nole
@@ -4612,7 +4612,7 @@ subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
     case('WIPP_DARCY')
       ! liquid accumulation term
       Res(1) = (Res(1) + well%liq%s(id) * well%liq%rho(id)) / FMWH2O * &
-                well%phi(id) * well%volume(id) / pm_well%dt_flow 
+                well%phi(id) * well%volume(id) / pm_well%dt_flow
       ! gas accumulation term
       Res(2) = (Res(2) + well%gas%s(id) * well%gas%rho(id)) / &
                 fmw_comp(TWO_INTEGER) * well%phi(id) * well%volume(id) / &
@@ -4628,7 +4628,7 @@ end subroutine PMWellAccumulationFlow
 
 subroutine PMWellSrcSink(pm_well,well,id,Res)
   !
-  ! Computes the source/sink term for the flow residual based on the 
+  ! Computes the source/sink term for the flow residual based on the
   ! chosen well model.
   !
   ! Author: Michael Nole
@@ -4654,7 +4654,7 @@ subroutine PMWellSrcSink(pm_well,well,id,Res)
     case('WIPP_DARCY')
       ! liquid accumulation term
       ! kg/s --> kmol/s
-      Res(1) = Res(1) + well%liq%Q(id) / FMWH2O 
+      Res(1) = Res(1) + well%liq%Q(id) / FMWH2O
       ! gas accumulation term
       ! kg/s --> kmol/s
       Res(2) = Res(2) + well%gas%Q(id) / fmw_comp(TWO_INTEGER)
@@ -4700,7 +4700,7 @@ subroutine PMWellAccumulationTran(this,isegment,Res)
     k = ispecies
     Res(k) = this%well%volume(isegment) * this%well%phi(isegment) * &
              this%well%liq%s(isegment) * &
-             this%tran_soln%prev_soln%aqueous_conc(ispecies,isegment)  
+             this%tran_soln%prev_soln%aqueous_conc(ispecies,isegment)
   enddo
 
 end subroutine PMWellAccumulationTran
@@ -4709,7 +4709,7 @@ end subroutine PMWellAccumulationTran
 
 subroutine PMWellAccumDerivative(pm_well,local_id,Jac)
   !
-  ! Computes the derivative of the accumulation term for the Jacobian, 
+  ! Computes the derivative of the accumulation term for the Jacobian,
   ! based on the chosen well model.
   !
   ! Author: Michael Nole
@@ -4740,7 +4740,7 @@ end subroutine PMWellAccumDerivative
 
 subroutine PMWellSrcSinkDerivative(pm_well,local_id,Jac)
   !
-  ! Computes the derivative of the source/sink term for the Jacobian, 
+  ! Computes the derivative of the source/sink term for the Jacobian,
   ! based on the chosen well model.
   !
   ! Author: Michael Nole
@@ -4771,7 +4771,7 @@ end subroutine PMWellSrcSinkDerivative
 
 subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
   !
-  ! Computes the internal flux terms for the residual based on 
+  ! Computes the internal flux terms for the residual based on
   ! the chosen well model.
   !
   ! Author: Michael Nole
@@ -4864,9 +4864,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
         ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
         q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
                              well_dn%area(idn))
-        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-        !                             density_ave[kmol phase/m^3 phase]        
-        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+        !                             density_ave[kmol phase/m^3 phase]
+        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
         !                                 xmol[kmol comp/kmol phase]
         Res(1) = Res(1) + tot_mole_flux
 
@@ -4901,9 +4901,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
         ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
           q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
                                well_dn%area(idn))
-        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-        !                             density_ave[kmol phase/m^3 phase]        
-        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+        !                             density_ave[kmol phase/m^3 phase]
+        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
         !                                 xmol[kmol comp/kmol phase]
           Res(2) = Res(2) + tot_mole_flux
     case default
@@ -4916,7 +4916,7 @@ end subroutine PMWellFlux
 
 subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   !
-  ! Computes the derivative of the internal flux terms for the Jacobian, 
+  ! Computes the derivative of the internal flux terms for the Jacobian,
   ! based on the chosen well model.
   !
   ! Author: Michael Nole
@@ -4963,7 +4963,7 @@ end subroutine PMWellFluxDerivative
 
 subroutine PMWellBCFlux(pm_well,well,Res)
   !
-  ! Computes the boundary flux terms for the residual based on the 
+  ! Computes the boundary flux terms for the residual based on the
   ! chosen well model.
   !
   ! Author: Michael Nole
@@ -5045,7 +5045,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         if (upwind) then
           call characteristic_curves%liq_rel_perm_function% &
                RelativePermeability(1.d0-well%bh_sg,rel_perm,dkrl_dsatl,option)
-          call EOSWaterViscosity(t,boundary_pressure,Psat,visl,ierr)          
+          call EOSWaterViscosity(t,boundary_pressure,Psat,visl,ierr)
         else
           dn_scale = 1.d0
           rel_perm = well%liq%kr(1)
@@ -5080,7 +5080,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
                CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
         end select
         boundary_pg = boundary_pressure + Pc
-        
+
         call characteristic_curves%gas_rel_perm_function% &
                RelativePermeability(1.d0-well%bh_sg,boundary_krg, &
                dkrg_dsatl,option)
@@ -5120,7 +5120,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(1) = Res(1) + tot_mole_flux
- 
+
         v_darcy = well%bh_qg
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_g(1) / fmw_comp(TWO_INTEGER)
@@ -5250,7 +5250,7 @@ end subroutine PMWellBCFlux
 ! ************************************************************************** !
 subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   !
-  ! Computes the derivative of the boundary flux terms for the Jacobian, 
+  ! Computes the derivative of the boundary flux terms for the Jacobian,
   ! based on the chosen well model.
   !
   ! Author: Michael Nole
@@ -5267,7 +5267,7 @@ subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   PetscReal :: res(2*pm_well%flow_soln%ndof),res_pert(2*pm_well%flow_soln%ndof)
 
   call PMWellBCFlux(pm_well,pm_well%well,res)
-  
+
   Jtop = 0.d0
   Jbtm = 0.d0
 
@@ -5309,7 +5309,7 @@ subroutine PMWellPerturb(pm_well)
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-10
 
-  ! I don't like how pressure and saturation are attributes of 
+  ! I don't like how pressure and saturation are attributes of
   ! different objects
   x(:,ONE_INTEGER) = pm_well%well%pl
   x(:,TWO_INTEGER) = pm_well%well%gas%s
@@ -5325,7 +5325,7 @@ subroutine PMWellPerturb(pm_well)
   do i = 1,pm_well%well_grid%nsegments
     if (x(i,TWO_INTEGER) > 0.5d0) then
       pert(i,TWO_INTEGER) = -1.d0 * perturbation_tolerance
-    else    
+    else
       pert(i,TWO_INTEGER) = perturbation_tolerance
     endif
   enddo
@@ -5373,7 +5373,7 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
   type(characteristic_curves_ptr_type), pointer::characteristic_curves_array(:)
   type(option_type) :: option
 
-  class(characteristic_curves_type), pointer :: characteristic_curves 
+  class(characteristic_curves_type), pointer :: characteristic_curves
   class(sat_func_base_type), pointer :: saturation_function
   type(strata_type), pointer :: strata
   PetscInt :: i,nsegments
@@ -5410,7 +5410,7 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
         if (.not. option%flow%pct_updated) then
           option%flow%pct_updated = PETSC_TRUE
           call sat_func% &
-                   CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option) 
+                   CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
         else
           call sat_func% &
                    CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
@@ -5434,7 +5434,7 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
     call EOSWaterDensityBRAGFLO(t,well%pl(i),PETSC_FALSE, &
                                 dw,dwmol,dwp,dwt,ierr)
     call EOSGasDensity(t,well%pg(i),dg,ierr)
-    
+
     well%liq%rho(i) = dw
     !No water vapor in WIPP_Darcy mode
     well%gas%rho(i) = dg
@@ -5460,7 +5460,7 @@ subroutine PMWellUpdatePropertiesTran(this)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/13/2022
-  
+
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_module
@@ -5481,7 +5481,7 @@ subroutine PMWellUpdatePropertiesTran(this)
           trim(this%well%tran_condition_name)) exit
     tran_condition => tran_condition%next
   enddo
-  cur_constraint => tran_condition%cur_constraint_coupler%constraint 
+  cur_constraint => tran_condition%cur_constraint_coupler%constraint
   select type(constraint=>cur_constraint)
     class is (tran_constraint_nwt_type)
       if (any(constraint%nwt_species%constraint_type /=  &
@@ -5542,40 +5542,40 @@ end subroutine PMWellCopyWell
 ! ************************************************************************** !
 
 function PMWellOutputFilename(option)
-  ! 
+  !
   ! Generates a filename for wellbore model output
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
 
   implicit none
-  
+
   type(option_type), pointer :: option
 
   character(len=MAXSTRINGLENGTH) :: PMWellOutputFilename
 
   PMWellOutputFilename = trim(option%global_prefix) // &
                          trim(option%group_prefix) // '.well'
-  
+
 end function PMWellOutputFilename
 
 ! ************************************************************************** !
 
 subroutine PMWellOutputHeader(this)
-  ! 
+  !
   ! Writes the header for wellbore model output file.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
 
   use Output_Aux_module
   use Grid_module
   use Utility_module
-  
+
   implicit none
-  
+
   class(pm_well_type) :: this
-  
+
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: units_string, variable_string
@@ -5583,22 +5583,22 @@ subroutine PMWellOutputHeader(this)
   PetscBool :: exist
   PetscInt :: fid
   PetscInt :: icolumn
-  PetscInt :: k, j 
-  
+  PetscInt :: k, j
+
   output_option => this%realization%output_option
 
   if (output_option%print_column_ids) then
     icolumn = 1
   else
     icolumn = -1
-  endif 
-  
+  endif
+
   fid = 555
   filename = PMWellOutputFilename(this%option)
   exist = FileExists(trim(filename))
   if (this%option%restart_flag .and. exist) return
-  open(unit=fid,file=filename,action="write",status="replace")  
-  
+  open(unit=fid,file=filename,action="write",status="replace")
+
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
 
@@ -5620,55 +5620,55 @@ subroutine PMWellOutputHeader(this)
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'Well P-liq'
-    units_string = 'Pa' 
+    units_string = 'Pa'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'Res P-liq'
-    units_string = 'Pa' 
+    units_string = 'Pa'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'Well S-liq'
-    units_string = '-' 
+    units_string = '-'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'Well S-gas'
-    units_string = '-' 
+    units_string = '-'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'Well Q-liq'
-    units_string = 'kg/s' 
+    units_string = 'kg/s'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     variable_string = 'Well Q-gas'
-    units_string = 'kg/s' 
+    units_string = 'kg/s'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     if (this%transport) then
       do j = 1,this%nspecies
         variable_string = 'Well Aqueous Conc. ' // &
                           trim(this%well%species_names(j))
-        units_string = 'mol/m^3-liq' 
+        units_string = 'mol/m^3-liq'
         call OutputWriteToHeader(fid,variable_string,units_string, &
                                  cell_string,icolumn)
         variable_string = 'Well Aqueous Mass. ' &
                            // trim(this%well%species_names(j))
-        units_string = 'mol' 
+        units_string = 'mol'
         call OutputWriteToHeader(fid,variable_string,units_string, &
                                  cell_string,icolumn)
       enddo
     endif
   enddo
-  
+
   close(fid)
-  
+
 end subroutine PMWellOutputHeader
 
 ! ************************************************************************** !
 
 subroutine PMWellOutput(this)
-  ! 
+  !
   ! Sets up output for the wellbore process model
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
 
@@ -5677,21 +5677,21 @@ subroutine PMWellOutput(this)
   use Grid_module
 
   implicit none
-  
+
   class(pm_well_type) :: this
-  
+
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: k, j
-  
+
 100 format(100es18.8)
 101 format(1I6.1)
 
   option => this%realization%option
   output_option => this%realization%output_option
-  
+
   fid = 555
   filename = PMWellOutputFilename(option)
   open(unit=fid,file=filename,action="write",status="old", &
@@ -5708,7 +5708,7 @@ subroutine PMWellOutput(this)
                                 this%well%pl(k), &
                                 this%reservoir%p_l(k), &
                                 this%well%liq%s(k), &
-                                this%well%gas%s(k), & 
+                                this%well%gas%s(k), &
                                 this%well%liq%Q(k), &
                                 this%well%gas%Q(k)
     if (this%transport) then
@@ -5718,26 +5718,26 @@ subroutine PMWellOutput(this)
       enddo
     endif
   enddo
-  
+
   close(fid)
-  
+
 end subroutine PMWellOutput
 
 ! ************************************************************************** !
 
 subroutine PMWellDestroy(this)
-  ! 
+  !
   ! Destroys the well process model.
-  ! 
+  !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
   !
   use Utility_module, only : DeallocateArray
 
   implicit none
-  
+
   class(pm_well_type) :: this
-    
+
   call PMBaseDestroy(this)
 
   call DeallocateArray(this%well_grid%h_local_id)
@@ -5826,7 +5826,7 @@ subroutine PMWellDestroy(this)
   nullify(this%well_pert(TWO_INTEGER)%liq)
   nullify(this%well_pert(TWO_INTEGER)%gas)
   nullify(this%well_pert)
-  
+
   call DeallocateArray(this%flow_soln%residual)
   call DeallocateArray(this%flow_soln%Jacobian)
   call DeallocateArray(this%flow_soln%update)
@@ -5844,7 +5844,7 @@ subroutine PMWellDestroy(this)
   endif
 
   nullify(this%strata_list)
-  
+
 end subroutine PMWellDestroy
 
 ! ************************************************************************** !

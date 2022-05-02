@@ -12,7 +12,7 @@ module PM_Richards_TS_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_Richards_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -37,37 +37,37 @@ contains
 ! ************************************************************************** !
 
 function PMRichardsTSCreate()
-  ! 
+  !
   ! Creates Richards TS process models shell
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/07/18
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_richards_ts_type), pointer :: PMRichardsTSCreate
 
   class(pm_richards_ts_type), pointer :: richards_ts_pm
-  
+
   allocate(richards_ts_pm)
   call PMRichardsInit(richards_ts_pm)
   richards_ts_pm%name = 'Richards TS Flow'
   richards_ts_pm%header = 'RICHARDS TS FLOW'
 
   PMRichardsTSCreate => richards_ts_pm
-  
+
 end function PMRichardsTSCreate
 
 ! ************************************************************************** !
 
 subroutine PMRichardsTSUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/07/18
 
   implicit none
-  
+
   class(pm_richards_ts_type) :: this
 
   call PMRichardsTSUpdateAuxVarsPatch(this%realization)
@@ -77,7 +77,7 @@ end subroutine PMRichardsTSUpdateAuxVars
 ! ************************************************************************** !
 
 subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/07/18
 
@@ -89,14 +89,14 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   use Richards_Aux_module, only : RichardsAuxVarCompute2ndOrderDeriv
 
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(richards_auxvar_type), pointer :: rich_auxvars(:) 
+  type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id
@@ -114,7 +114,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   ! 1. Update auxvars based on new values of pressure
   call RichardsUpdateAuxVars(realization)
 
-  ! 2. Update auxvars based on new value of dpressure_dtime, mass, and 
+  ! 2. Update auxvars based on new value of dpressure_dtime, mass, and
   !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
@@ -122,7 +122,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
     !Ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle 
+    if (patch%imat(ghosted_id) <= 0) cycle
     rich_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p(ghosted_id)
     call RichardsAuxVarCompute2ndOrderDeriv(rich_auxvars(ghosted_id), &
                                        global_auxvars(ghosted_id), &
@@ -424,17 +424,17 @@ end subroutine IJacobianAccumulation
 ! ************************************************************************** !
 
 subroutine PMRichardsTSInitializeTimestep(this)
-  ! 
+  !
   ! Should not need this as it is called in PreSolve.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
 
   use Richards_module, only : RichardsInitializeTimestep
-  
+
   implicit none
-  
+
   class(pm_richards_ts_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
@@ -446,18 +446,18 @@ end subroutine PMRichardsTSInitializeTimestep
 
 subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
-  ! 
+  !
   ! Adds a convergence check for the nonlinear problem
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
-  ! 
+  !
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
 
   implicit none
-  
+
   SNES :: snes
   PetscInt :: it
   PetscReal :: xnorm ! 2-norm of updated solution
@@ -477,25 +477,25 @@ end subroutine PMRichardsTSCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMRichardsTSDestroy(this)
-  ! 
+  !
   ! Destroys Richards process model
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
-  ! 
+  !
   use Richards_module, only : RichardsDestroy
 
   implicit none
-  
+
   class(pm_richards_ts_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
 
   ! preserve this ordering
   call PMRichardsDestroy(this)
-  
+
 end subroutine PMRichardsTSDestroy
 
 end module PM_Richards_TS_class

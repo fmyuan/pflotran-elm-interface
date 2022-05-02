@@ -662,14 +662,14 @@ end subroutine EOSRead
 ! **************************************************************************** !
 
 subroutine EOSReferenceDensity(option)
-  ! 
+  !
   ! Calculates reference densities for phases if not specified in input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/08/18
-  ! 
+  !
   use Option_module
-  
+
   implicit none
   type(option_type) :: option
 

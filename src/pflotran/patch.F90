@@ -9609,7 +9609,7 @@ subroutine PatchDestroy(patch)
     deallocate(patch%material_transform_array)
   nullify(patch%material_transform_array)
   nullify(patch%material_transform)
-  
+
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
   call RegionDestroyList(patch%region_list)

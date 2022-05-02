@@ -21,7 +21,7 @@ module Simulation_Aux_module
     Vec :: subsurf_por
     Vec :: subsurf_strain
     Vec :: subsurf_stress
-    Vec :: subsurf_perm0 
+    Vec :: subsurf_perm0
     Vec :: subsurf_perm
 
     VecScatter :: geomechanics_to_subsurf
@@ -40,12 +40,12 @@ contains
 ! ************************************************************************** !
 
 function SimAuxCreate()
-  ! 
+  !
   ! This routine allocates auxillary object.
-  ! 
+  !
   ! Author: Gautam Bisht,LBNL
   ! Date: 08/20/13
-  ! 
+  !
 
   use Option_module
 
@@ -75,12 +75,12 @@ end function SimAuxCreate
 ! ************************************************************************** !
 
 subroutine SimAuxCopyVecScatter(aux, vscat, vscat_index)
-  ! 
+  !
   ! This routine copies VectorScatter to an appropriate context.
-  ! 
+  !
   ! Author: Gautam Bisht,LBNL
   ! Date: 10/02/13
-  ! 
+  !
 
   implicit none
 
@@ -97,19 +97,19 @@ subroutine SimAuxCopyVecScatter(aux, vscat, vscat_index)
     case(GEOMECHANICS_TO_SUBSURF)
       call VecScatterCopy(vscat, aux%geomechanics_to_subsurf,  &
                           ierr);CHKERRQ(ierr)
-  end select  
+  end select
 
 end subroutine SimAuxCopyVecScatter
 
 ! ************************************************************************** !
 
 subroutine SimAuxCopySubsurfVec(aux, subsurf_vec)
-  ! 
+  !
   ! This routine creates 3D vectors related with subsurface-flow.
-  ! 
+  !
   ! Author: Gautam Bisht,LBNL
   ! Date: 10/02/13
-  ! 
+  !
 
   implicit none
 
@@ -124,18 +124,18 @@ subroutine SimAuxCopySubsurfVec(aux, subsurf_vec)
   call VecDuplicate(subsurf_vec,aux%subsurf_por,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_perm0,ierr);CHKERRQ(ierr) !DANNY
   call VecDuplicate(subsurf_vec,aux%subsurf_perm,ierr);CHKERRQ(ierr)
-  
+
 end subroutine SimAuxCopySubsurfVec
 
 ! ************************************************************************** !
 
 subroutine SimAuxCopySubsurfGeomechVec(aux, subsurf_geomech_vec)
-  ! 
+  !
   ! This routine creates vectors associated with geomechanics.
-  ! 
+  !
   ! Author: Gautam Bisht,LBNL
   ! Date: 10/02/13
-  ! 
+  !
   implicit none
 
   type (simulation_aux_type),pointer :: aux
@@ -153,12 +153,12 @@ end subroutine SimAuxCopySubsurfGeomechVec
 ! ************************************************************************** !
 
 subroutine SimAuxDestroy(aux)
-  ! 
+  !
   ! This routine deallocates auxillary object.
-  ! 
+  !
   ! Author: Gautam Bisht,LBNL
   ! Date: 08/20/13
-  ! 
+  !
 
   implicit none
 

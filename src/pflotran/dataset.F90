@@ -1,5 +1,5 @@
 module Dataset_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -9,13 +9,13 @@ module Dataset_module
   use Dataset_Gridded_HDF5_class
   use Dataset_Map_HDF5_class
   use Dataset_Global_HDF5_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-  
+
   public :: DatasetRead, &
             DatasetScreenForNonCellIndexed, &
             DatasetLoad, &
@@ -36,17 +36,17 @@ contains
 ! ************************************************************************** !
 
 subroutine DatasetRead(input,dataset,option)
-  ! 
+  !
   ! Reads a dataset from the input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/26/12
-  ! 
+  !
 
   use Input_Aux_module
   use Option_module
   use String_module
-  
+
   implicit none
 
   type(input_type), pointer :: input
@@ -58,24 +58,24 @@ subroutine DatasetRead(input,dataset,option)
   character(len=MAXWORDLENGTH) :: word, word2
 
   ! read from the buffer on the first line the type of dataset.  If it does
-  ! not match any of type in the select case, assume default and use the 
+  ! not match any of type in the select case, assume default and use the
   ! word as the name.
-  
+
   call InputReadCard(input,option,word)
   word2 = word
   call StringToUpper(word2)
-  
+
   select case(word2)
     case('MAPPED')
       dataset_map_hdf5 => DatasetMapHDF5Create()
       call InputReadWord(input,option,dataset_map_hdf5%name,PETSC_TRUE)
-      call InputDefaultMsg(input,option,'DATASET name') 
+      call InputDefaultMsg(input,option,'DATASET name')
       call DatasetMapHDF5Read(dataset_map_hdf5,input,option)
       dataset => dataset_map_hdf5
     case('GLOBAL')
       dataset_global_hdf5 => DatasetGlobalHDF5Create()
       call InputReadWord(input,option,dataset_global_hdf5%name,PETSC_TRUE)
-      call InputDefaultMsg(input,option,'DATASET name') 
+      call InputDefaultMsg(input,option,'DATASET name')
       call DatasetCommonHDF5Read(dataset_global_hdf5,input,option)
       dataset => dataset_global_hdf5
     case default ! CELL_INDEXED, GLOBAL, GRIDDED
@@ -88,7 +88,7 @@ subroutine DatasetRead(input,dataset,option)
             dataset%name = trim(word)
           endif
       end select
-      call InputDefaultMsg(input,option,'DATASET name') 
+      call InputDefaultMsg(input,option,'DATASET name')
       call DatasetCommonHDF5Read(DatasetCommonHDF5Cast(dataset),input, &
                                  option)
   end select
@@ -98,26 +98,26 @@ end subroutine DatasetRead
 ! ************************************************************************** !
 
 subroutine DatasetScreenForNonCellIndexed(datasets,option)
-  ! 
+  !
   ! Recasts datasets of dataset_common_hdf5_type
   ! to dataset_gridded_hdf5_type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/26/12
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_base_type), pointer :: datasets
   type(option_type) :: option
-  
+
   class(dataset_base_type), pointer :: cur_dataset
   class(dataset_base_type), pointer :: prev_dataset
   class(dataset_gridded_hdf5_type), pointer :: dataset_gridded_hdf5
   PetscBool :: swapped
-  
+
   cur_dataset => datasets
   nullify(prev_dataset)
   do
@@ -135,7 +135,7 @@ subroutine DatasetScreenForNonCellIndexed(datasets,option)
       class is(dataset_global_hdf5_type)
         ! do nothing
       class is(dataset_common_hdf5_type)
-        ! if class is dataset_common_hdf5_type, the dataset should really 
+        ! if class is dataset_common_hdf5_type, the dataset should really
         ! be dataset_gridded_hdf5 unless cell indexed
         cur_dataset%is_cell_indexed = &
           DatasetCommonHDF5IsCellIndexed(cur_dataset,option)
@@ -168,18 +168,18 @@ subroutine DatasetScreenForNonCellIndexed(datasets,option)
     prev_dataset => cur_dataset
     cur_dataset => cur_dataset%next
   enddo
-  
+
 end subroutine DatasetScreenForNonCellIndexed
 
 ! ************************************************************************** !
 
 subroutine DatasetVerify(dataset,default_time_storage,header,option)
-  ! 
+  !
   ! Verifies that a dataset is intact and useable.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/08/13
-  ! 
+  !
 
   use Time_Storage_module
   use Option_module
@@ -191,11 +191,11 @@ subroutine DatasetVerify(dataset,default_time_storage,header,option)
   character(len=MAXSTRINGLENGTH) :: header
   type(option_type) :: option
 
-  PetscBool :: dataset_error 
+  PetscBool :: dataset_error
 
   if (.not.associated(dataset)) return
 
-  dataset_error = PETSC_FALSE 
+  dataset_error = PETSC_FALSE
   dataset%header = trim(header)
   call TimeStorageVerify(0.d0,dataset%time_storage,default_time_storage, &
                          header,option)
@@ -213,28 +213,28 @@ subroutine DatasetVerify(dataset,default_time_storage,header,option)
   if (dataset_error) then
     option%io_buffer = 'Dataset errors in ' // trim(dataset%header)
     if (len_trim(dataset%name) > 0) then
-      option%io_buffer = trim(option%io_buffer) // '/' // trim(dataset%name) 
+      option%io_buffer = trim(option%io_buffer) // '/' // trim(dataset%name)
     endif
     option%io_buffer = trim(option%io_buffer) // '.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine DatasetVerify
 
 ! ************************************************************************** !
 
 recursive subroutine DatasetUpdate(dataset,option)
-  ! 
+  !
   ! Updates a dataset based on type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/09/13
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
   type(option_type) :: option
 
@@ -255,24 +255,24 @@ recursive subroutine DatasetUpdate(dataset,option)
         call DatasetLoad(dataset,option)
       endif
   end select
-  
+
 end subroutine DatasetUpdate
 
 ! ************************************************************************** !
 
 recursive subroutine DatasetLoad(dataset,option)
-  ! 
+  !
   ! Loads a dataset based on type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/03/13
-  ! 
+  !
 
   use DM_Kludge_module
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
   type(option_type) :: option
 
@@ -309,20 +309,20 @@ recursive subroutine DatasetLoad(dataset,option)
       option%io_buffer = 'DatasetLoad not yet supported for base dataset class.'
       call PrintErrMsg(option)
   end select
-  
+
 end subroutine DatasetLoad
 
 ! ************************************************************************** !
 
 subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
                              error_string,option)
-  ! 
+  !
   ! Uses a dummy dataset with name to find the actual
   ! dataset in a list of datasets
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/13
-  ! 
+  !
 
   use Dataset_Base_class
   use Dataset_Ascii_class
@@ -336,7 +336,7 @@ subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
   type(time_storage_type), pointer :: default_time_storage
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: dataset_name
   PetscReal, parameter :: time = 0.d0
 
@@ -360,7 +360,7 @@ subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
         ! must update after DatasetVerify since the time interpolation method
         ! may not have been properly set during the load! Force the update.
         if (associated(dataset_base%time_storage)) then
-          dataset_base%time_storage%force_update = PETSC_TRUE  
+          dataset_base%time_storage%force_update = PETSC_TRUE
         endif
         option%time = time
         call DatasetUpdate(dataset_base,option)
@@ -372,19 +372,19 @@ end subroutine DatasetFindInList
 ! ************************************************************************** !
 
 function DatasetIsTransient(dataset)
-  ! 
+  !
   ! Determines whether a dataset is transient
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/10/13
-  ! 
+  !
 
   use Time_Storage_module
 
   implicit none
 
   class(dataset_base_type), pointer :: dataset
-  
+
   PetscBool :: DatasetIsTransient
 
   DatasetIsTransient = PETSC_FALSE
@@ -392,24 +392,24 @@ function DatasetIsTransient(dataset)
     if (associated(dataset%time_storage)) then
       DatasetIsTransient = PETSC_TRUE
     endif
-  endif 
-  
+  endif
+
 end function DatasetIsTransient
 
 ! ************************************************************************** !
 
 subroutine DatasetPrint(this,option)
-  ! 
+  !
   ! Prints dataset info
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_base_type) :: this
   type(option_type) :: option
 
@@ -417,7 +417,7 @@ subroutine DatasetPrint(this,option)
   write(option%fid_out,'(10x,''Type: '',a)') trim(DatasetGetClass(this))
 
   call DatasetBasePrint(this,option)
-  
+
   select type (d=>this)
     class is (dataset_ascii_type)
       call DatasetAsciiPrint(d,option)
@@ -433,27 +433,27 @@ subroutine DatasetPrint(this,option)
       option%io_buffer = 'Unknown dataset type for dataset "' // &
         trim(this%name) // '" in DatasetPrint()'
   end select
-            
+
 end subroutine DatasetPrint
 
 ! ************************************************************************** !
 
 function DatasetGetClass(dataset)
-  ! 
+  !
   ! Returns a string defining the class of dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/10/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_base_type) :: dataset
 
   character(len=MAXSTRINGLENGTH) :: DatasetGetClass
-  
+
   select type (dataset)
     class is (dataset_ascii_type)
       DatasetGetClass = 'dataset_ascii_type'
@@ -470,33 +470,33 @@ function DatasetGetClass(dataset)
     class default
       DatasetGetClass = 'dataset class unknown'
   end select
-  
+
 end function DatasetGetClass
 
 ! ************************************************************************** !
 
 subroutine DatasetReadDoubleOrDataset(input,double_value,dataset, &
                                       error_variable,error_card,option)
-  ! 
+  !
   ! Prints dataset info
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/13
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
   use String_module
 
   implicit none
-  
+
   type(input_type), pointer :: input
   PetscReal :: double_value
   class(dataset_base_type), pointer :: dataset
   character(len=*) :: error_variable
   character(len=*) :: error_card
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: buffer_save
 
@@ -508,29 +508,29 @@ subroutine DatasetReadDoubleOrDataset(input,double_value,dataset, &
     dataset => DatasetBaseCreate()
     call InputReadWord(input,option,dataset%name,PETSC_TRUE)
     string = trim(error_card) // ',' // trim(error_variable)
-    call InputErrorMsg(input,option,'DATASET,NAME',string)   
+    call InputErrorMsg(input,option,'DATASET,NAME',string)
   else
     input%buf = buffer_save
     call InputReadDouble(input,option,double_value)
     call InputErrorMsg(input,option,error_variable,error_card)
   endif
-  
+
 end subroutine DatasetReadDoubleOrDataset
 
 ! ************************************************************************** !
 
 function DatasetGetMinRValue(dataset,option)
-  ! 
+  !
   ! Returns the minimum value in a dataset.  Considers distributed datasets.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/19/19
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_base_type) :: dataset
   type(option_type) :: option
 
@@ -545,7 +545,7 @@ function DatasetGetMinRValue(dataset,option)
   if (associated(dataset%rarray)) then
     DatasetGetMinRValue =  minval(dataset%rarray)
   endif
-  
+
   select type (dataset)
     class is (dataset_ascii_type)
     class is (dataset_global_hdf5_type)
@@ -563,23 +563,23 @@ function DatasetGetMinRValue(dataset,option)
     call MPI_Allreduce(MPI_IN_PLACE,DatasetGetMinRValue,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
   endif
-  
+
 end function DatasetGetMinRValue
 
 ! ************************************************************************** !
 
 subroutine DatasetUnknownClass(this,option,string)
-  ! 
+  !
   ! Prints dataset info
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_base_type) :: this
   type(option_type) :: option
   character(len=*) :: string
@@ -589,24 +589,24 @@ subroutine DatasetUnknownClass(this,option,string)
     trim(DatasetGetClass(this)) // '" is not recognized in "' // &
     trim(string) // '".'
   call PrintErrMsg(option)
-            
+
 end subroutine DatasetUnknownClass
 
 ! ************************************************************************** !
 
 subroutine DatasetStrip(dataset)
-  ! 
+  !
   ! Deallocates the dynamic memory (e.g. buffers) associated with a dataset
   ! This routine is NOT recursve.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/29/21
-  ! 
+  !
 
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
-  
+
   class(dataset_global_hdf5_type), pointer :: dataset_global_hdf5
   class(dataset_gridded_hdf5_type), pointer :: dataset_gridded_hdf5
   class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
@@ -615,7 +615,7 @@ subroutine DatasetStrip(dataset)
   class(dataset_base_type), pointer :: dataset_base
 
   if (.not.associated(dataset)) return
-  
+
   select type (selector => dataset)
     class is (dataset_ascii_type)
       dataset_ascii => selector
@@ -636,23 +636,23 @@ subroutine DatasetStrip(dataset)
       dataset_base => selector
       call DatasetBaseStrip(dataset_base)
   end select
-  
+
 end subroutine DatasetStrip
 
 ! ************************************************************************** !
 
 recursive subroutine DatasetDestroy(dataset)
-  ! 
+  !
   ! Destroys a dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/11
-  ! 
+  !
 
   implicit none
-  
+
   class(dataset_base_type), pointer :: dataset
-  
+
   class(dataset_global_hdf5_type), pointer :: dataset_global_hdf5
   class(dataset_gridded_hdf5_type), pointer :: dataset_gridded_hdf5
   class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
@@ -661,11 +661,11 @@ recursive subroutine DatasetDestroy(dataset)
   class(dataset_base_type), pointer :: dataset_base
 
   if (.not.associated(dataset)) return
-  
+
   if (associated(dataset%next)) then
     call DatasetDestroy(dataset%next)
   endif
-  
+
   select type (selector => dataset)
     class is (dataset_ascii_type)
       dataset_ascii => selector
@@ -686,7 +686,7 @@ recursive subroutine DatasetDestroy(dataset)
       dataset_base => selector
       call DatasetBaseDestroy(dataset_base)
   end select
-  
+
 end subroutine DatasetDestroy
 
 end module Dataset_module

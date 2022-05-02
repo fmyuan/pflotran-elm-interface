@@ -2946,13 +2946,13 @@ end subroutine InputRewind
 ! ************************************************************************** !
 
 subroutine InputCheckKeywordBlockCount(option)
-  ! 
-  ! Checks to ensure that the number of entered blocks due to nesting of 
+  !
+  ! Checks to ensure that the number of entered blocks due to nesting of
   ! keyword blocks in the input file is zero at the end of reading.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/17/21
-  ! 
+  !
   use Option_module
 
   implicit none

@@ -29,7 +29,7 @@ module PM_Material_Transform_class
 ! realization: pointer to subsurface realization object
 ! material_transform_list: pointer to linked list of material transforms in the
 !   pm block
-! --------------------------------------------------------------------------  
+! --------------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_material_transform_type
     class(realization_subsurface_type), pointer :: realization
     type(material_transform_type), pointer :: material_transform_list
@@ -186,7 +186,7 @@ subroutine PMMaterialTransformSetup(this)
   do
     if (.not. associated(cur_material_property)) exit
 
-    ! material transform function id 
+    ! material transform function id
     if (associated(patch%material_transform_array)) then
       if (len(trim(cur_material_property%material_transform_name)) > 0) then
         ! find ID
@@ -259,7 +259,7 @@ subroutine PMMaterialTransformSetup(this)
 
     ! initialize the material transform auxiliary variable object
     call MaterialTransformAuxVarInit(m_transform_auxvars(ghosted_id))
-    
+
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
       material_transform => &
@@ -349,21 +349,21 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
   ! ----------------------------------
 
   option => this%option
-  
+
   option%io_buffer = 'pflotran card:: MATERIAL_TRANSFORM_GENERAL'
   call PrintMsg(option)
-  
+
   input%ierr = 0
-  
+
   nullify(prev_material_transform)
   call InputPushBlock(input,option)
   do
     error_string = 'MATERIAL_TRANSFORM_GENERAL'
-    
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
@@ -375,22 +375,22 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
         material_transform => MaterialTransformCreate()
         call InputReadWord(input,option,material_transform%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name',error_string)
-        
+
         option%io_buffer = '  MATERIAL_TRANSFORM :: ' // &
                              trim(material_transform%name)
         call PrintMsg(option)
-        
+
         error_string = 'MATERIAL_TRANSFORM, ' // trim(material_transform%name)
-        
+
         call MaterialTransformRead(material_transform,input,option)
-        
+
         if (associated(prev_material_transform)) then
           prev_material_transform%next => material_transform
         else
           this%material_transform_list => material_transform
         endif
         prev_material_transform => material_transform
-        
+
         nullify(material_transform)
     !-------------------------------------
       case default
@@ -398,7 +398,7 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
     !-------------------------------------
     end select
   enddo
-  
+
   call InputPopBlock(input,option)
 
 end subroutine PMMaterialTransformReadPMBlock
@@ -497,7 +497,7 @@ recursive subroutine PMMaterialTransformFinalizeRun(this)
 
   if (associated(this%next)) then
     call this%next%FinalizeRun()
-  endif  
+  endif
 
 end subroutine PMMaterialTransformFinalizeRun
 
@@ -671,7 +671,7 @@ end subroutine PMMaterialTransformSolve
 ! ************************************************************************** !
 
 subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
-  ! 
+  !
   ! Checkpoints data associated with the material transform process model
   !
   ! Author: Alex Salazar III
@@ -716,8 +716,8 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
   ! check_vars: array of checkpointed values
   ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
-  ! global_vec: global discretization PETSc vector 
-  ! natural_vec: local discretization PETSc vector 
+  ! global_vec: global discretization PETSc vector
+  ! natural_vec: local discretization PETSc vector
   ! check_il: logical check for presence of illitization functions in the
   !   material transform objects so auxiliary variables can be checkpointed
   ! check_be: logical check for presence of buffer erosion models in the
@@ -764,9 +764,9 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
   ! current information in PM Material Transform that is checkpointed:
   !   (1) num_aux
   n_check_vars = 1 !number of scalar checkpoint variables
-  
+
   cur_m_transform => this%material_transform_list
-  do 
+  do
     if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
@@ -791,10 +791,10 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
   call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
                      MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
   call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)   
+                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
 
   ! create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, & 
+  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
   call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
          CHKERRQ(ierr)
@@ -831,14 +831,14 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
 
   enddo
 
-  !Create map and add values from the sequential vector to the global 
+  !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
                      PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
   call VecScatterCreate(local_mt_vec, PETSC_NULL_IS, global_mt_vec, &
                         is, scatter_ctx, ierr); CHKERRQ(ierr)
-  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &  
+  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &
                        INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, & 
+  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, &
                      INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
 
   ! write the checkpoint file
@@ -892,9 +892,9 @@ end subroutine PMMTransformCheckpointHDF5
 ! ************************************************************************** !
 
 subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
-  ! 
+  !
   ! Restarts data associated with material transform process model
-  ! 
+  !
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
   !
@@ -938,8 +938,8 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   ! local_mt_array: data converted into a Fortran array
   ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
-  ! global_vec: global discretization PETSc vector 
-  ! natural_vec: local discretization PETSc vector 
+  ! global_vec: global discretization PETSc vector
+  ! natural_vec: local discretization PETSc vector
   ! check_il: logical check for presence of illitization functions in the
   !   material transform objects so auxiliary variables can be checkpointed
   ! check_be: logical check for presence of buffer erosion models in the
@@ -989,7 +989,7 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   n_check_vars = 1 !number of scalar checkpoint variables
 
   cur_m_transform => this%material_transform_list
-  do 
+  do
     if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
@@ -1014,11 +1014,11 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
                      MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
   call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)   
+                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
 
   ! create MPI vector for HDF5 reading and sequential vector for mt information
   !   stored in the process
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, & 
+  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
   call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
          CHKERRQ(ierr)
@@ -1037,9 +1037,9 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
                         PETSC_NULL_IS, scatter_ctx, ierr); CHKERRQ(ierr)
 
   ! obtain data from the MPI vector
-  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &  
+  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &
                        INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, & 
+  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, &
                      INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
 
   ! convert the data into a Fortran array
@@ -1105,12 +1105,12 @@ end subroutine PMMaterialTransformRestartHDF5
 ! ************************************************************************** !
 
 subroutine PMMTransformCheckpointBinary(this, viewer)
-  ! 
+  !
   ! Checkpoints data associated with the material transform process model
   !
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
-  ! 
+  !
 
   use petscvec
   use Option_module
@@ -1119,9 +1119,9 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   use Field_module
   use Discretization_module
   use Variables_module, only: SMECTITE
-  
+
   implicit none
-  
+
   ! INPUT ARGUMENTS:
   ! ================
   ! this (input/output): material transform process model object
@@ -1149,8 +1149,8 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   ! check_vars: array of checkpointed values
   ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
-  ! global_vec: global discretization PETSc vector 
-  ! natural_vec: local discretization PETSc vector 
+  ! global_vec: global discretization PETSc vector
+  ! natural_vec: local discretization PETSc vector
   ! check_il: logical check for presence of illitization functions in the
   !   material transform objects so auxiliary variables can be checkpointed
   ! check_be: logical check for presence of buffer erosion models in the
@@ -1197,9 +1197,9 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   ! current information in PM Material Transform that is checkpointed:
   !   (1) num_aux
   n_check_vars = 1 !number of scalar checkpoint variables
-  
+
   cur_m_transform => this%material_transform_list
-  do 
+  do
     if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
@@ -1224,10 +1224,10 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
                      MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
   call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)   
+                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
 
   ! create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, & 
+  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
   call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
          CHKERRQ(ierr)
@@ -1264,19 +1264,19 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
 
   enddo
 
-  !Create map and add values from the sequential vector to the global 
+  !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
                      PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
   call VecScatterCreate(local_mt_vec, PETSC_NULL_IS, global_mt_vec, &
                         is, scatter_ctx, ierr); CHKERRQ(ierr)
-  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &  
+  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &
                        INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, & 
+  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, &
                      INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
 
   ! write the checkpoint file
   dataset_name='material transform model info'
-  call VecView(global_mt_vec,viewer,ierr); CHKERRQ(ierr)   
+  call VecView(global_mt_vec,viewer,ierr); CHKERRQ(ierr)
   call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
   call ISDestroy(is, ierr); CHKERRQ(ierr)
   call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
@@ -1319,7 +1319,7 @@ end subroutine PMMTransformCheckpointBinary
 subroutine PMMTransformRestartBinary(this, viewer)
   !
   ! Restarts data associated with material transform process model
-  ! 
+  !
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
 
@@ -1359,8 +1359,8 @@ subroutine PMMTransformRestartBinary(this, viewer)
   ! local_mt_array: data converted into a Fortran array
   ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
-  ! global_vec: global discretization PETSc vector 
-  ! natural_vec: local discretization PETSc vector 
+  ! global_vec: global discretization PETSc vector
+  ! natural_vec: local discretization PETSc vector
   ! check_il: logical check for presence of illitization functions in the
   !   material transform objects so auxiliary variables can be checkpointed
   ! check_be: logical check for presence of buffer erosion models in the
@@ -1410,7 +1410,7 @@ subroutine PMMTransformRestartBinary(this, viewer)
   n_check_vars = 1 !number of scalar checkpoint variables
 
   cur_m_transform => this%material_transform_list
-  do 
+  do
     if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
@@ -1435,11 +1435,11 @@ subroutine PMMTransformRestartBinary(this, viewer)
   call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
                      MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
   call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)   
+                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
 
   ! create MPI vector for HDF5 reading and sequential vector for mt information
   !   stored in the process
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, & 
+  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
   call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
          CHKERRQ(ierr)
@@ -1456,9 +1456,9 @@ subroutine PMMTransformRestartBinary(this, viewer)
                         PETSC_NULL_IS, scatter_ctx, ierr); CHKERRQ(ierr)
 
   ! obtain data from the MPI vector
-  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &  
+  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &
                        INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, & 
+  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, &
                      INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
 
   ! convert the data into a Fortran array

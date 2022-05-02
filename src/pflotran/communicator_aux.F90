@@ -28,19 +28,19 @@ module Communicator_Aux_module
             CommPopulate, &
             CommCreateProcessorGroups, &
             CommDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function CommCreate()
   !
-  ! Creates a comm object that holds global and local communicators, sizes 
+  ! Creates a comm object that holds global and local communicators, sizes
   ! and ranks
   !
   ! Author: Glenn Hammond
   ! Date: 05/12/21
-  
+
   implicit none
 
   type(comm_type), pointer :: comm
@@ -108,13 +108,13 @@ end subroutine CommPopulate
 ! ************************************************************************** !
 
 subroutine CommCreateProcessorGroups(comm,num_groups)
-  ! 
+  !
   ! Splits MPI_COMM_WORLD into N separate
   ! processor groups
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/11/09
-  ! 
+  !
   implicit none
 
   type(comm_type) :: comm

@@ -19,12 +19,12 @@ contains
 ! ************************************************************************** !
 
 subroutine InitReadInputFilenames(option,filenames)
-  ! 
+  !
   ! Reads filenames for multi-simulation runs
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/11/09
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
@@ -41,7 +41,7 @@ subroutine InitReadInputFilenames(option,filenames)
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
   string = "FILENAMES"
-  call InputFindStringInFile(input,option,string) 
+  call InputFindStringInFile(input,option,string)
 
   card_found = PETSC_FALSE
   if (InputError(input)) then
@@ -51,30 +51,30 @@ subroutine InitReadInputFilenames(option,filenames)
   else
     card_found = PETSC_TRUE
   endif
-    
-  filename_count = 0     
+
+  filename_count = 0
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
     call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
   enddo
-  
+
   allocate(filenames(filename_count))
   filenames = ''
   call InputRewind(input)
 
   if (card_found) then
     string = "FILENAMES"
-    call InputFindStringInFile(input,option,string) 
+    call InputFindStringInFile(input,option,string)
   endif
-  
-  filename_count = 0     
+
+  filename_count = 0
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
     call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
     filenames(filename_count) = filename
@@ -87,12 +87,12 @@ end subroutine InitReadInputFilenames
 ! ************************************************************************** !
 
 subroutine InitCommonVerifyAllCouplers(realization)
-  ! 
+  !
   ! Verifies the connectivity of a coupler
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 1/8/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Patch_module
@@ -101,7 +101,7 @@ subroutine InitCommonVerifyAllCouplers(realization)
   implicit none
 
   class(realization_subsurface_type) :: realization
-  
+
   type(patch_type), pointer :: cur_patch
 
   cur_patch => realization%patch_list%first
@@ -117,27 +117,27 @@ subroutine InitCommonVerifyAllCouplers(realization)
 
     cur_patch => cur_patch%next
   enddo
-  
+
 end subroutine InitCommonVerifyAllCouplers
 
 ! ************************************************************************** !
 
 subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
-  ! 
+  !
   ! Verifies the connectivity of a coupler
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 1/8/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Discretization_module
-  use Option_module 
+  use Option_module
   use Coupler_module
   use Condition_module
   use Grid_module
   use Output_module
-  use Output_Tecplot_module, only : OutputVectorTecplot  
+  use Output_Tecplot_module, only : OutputVectorTecplot
   use Patch_module
 
   implicit none
@@ -147,7 +147,7 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
 
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch  
+  type(patch_type), pointer :: patch
   type(coupler_type), pointer :: coupler
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: filename
@@ -213,12 +213,12 @@ end subroutine InitCommonVerifyCoupler
 ! ************************************************************************** !
 
 subroutine InitCommonReadRegionFiles(realization)
-  ! 
+  !
   ! Reads in grid cell ids stored in files
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 1/03/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Region_module
@@ -234,10 +234,10 @@ subroutine InitCommonReadRegionFiles(realization)
   PetscBool :: cell_ids_exists
   PetscBool :: face_ids_exists
   PetscBool :: vert_ids_exists
- 
+
   option => realization%option
   region => realization%region_list%first
-  do 
+  do
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
@@ -283,12 +283,12 @@ end subroutine InitCommonReadRegionFiles
 ! ************************************************************************** !
 
 subroutine readVectorFromFile(realization,vector,filename,vector_type)
-  ! 
+  !
   ! Reads data from a file into an associated vector
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/18/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Discretization_module
@@ -299,19 +299,19 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
   use Logging_module
 
   use HDF5_module
-  
+
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
   Vec :: vector
   character(len=MAXWORDLENGTH) :: filename
   PetscInt :: vector_type
-  
+
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch   
+  type(patch_type), pointer :: patch
   PetscInt :: ghosted_id, natural_id, material_id
   PetscInt :: fid = 86
   PetscInt :: status
@@ -399,34 +399,34 @@ end subroutine readVectorFromFile
 ! ************************************************************************** !
 
 subroutine InitCommonPrintPFLOTRANHeader(option,fid)
-  ! 
+  !
   ! Initializes pflotran
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   PetscInt :: fid
-  
+
   type(option_type) :: option
-  
-  write(fid,'(" PFLOTRAN Header")') 
-  
+
+  write(fid,'(" PFLOTRAN Header")')
+
 end subroutine InitCommonPrintPFLOTRANHeader
 
 ! ************************************************************************** !
 
 subroutine InitCommonReadVelocityField(realization)
-  ! 
+  !
   ! Reads fluxes in for transport with no flow.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/13
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Patch_module
@@ -440,10 +440,10 @@ subroutine InitCommonReadVelocityField(realization)
   use HDF5_Aux_module
 
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
-  
+
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -454,19 +454,19 @@ subroutine InitCommonReadVelocityField(realization)
   PetscInt :: idir, iconn, sum_connection
   PetscInt :: ghosted_id_up, local_id
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: vec_loc_p(:)
   PetscReal, pointer :: vec_p(:)
-  type(coupler_type), pointer :: boundary_condition  
+  type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  
+
   field => realization%field
   patch => realization%patch
   grid => patch%grid
   option => realization%option
   discretization => realization%discretization
-  
+
   filename = realization%nonuniform_velocity_filename
 
   group_name = ''
@@ -492,8 +492,8 @@ subroutine InitCommonReadVelocityField(realization)
     call VecGetArrayF90(field%work_loc,vec_loc_p,ierr);CHKERRQ(ierr)
     connection_set_list => grid%internal_connection_set_list
     cur_connection_set => connection_set_list%first
-    sum_connection = 0  
-    do 
+    sum_connection = 0
+    do
       if (.not.associated(cur_connection_set)) exit
       do iconn = 1, cur_connection_set%num_connections
         sum_connection = sum_connection + 1
@@ -506,10 +506,10 @@ subroutine InitCommonReadVelocityField(realization)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_loc_p,ierr);CHKERRQ(ierr)
   enddo
-  
+
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
     dataset_name = boundary_condition%name
     if (.not.HDF5DatasetExists(filename,group_name,dataset_name,option)) then
@@ -530,29 +530,29 @@ subroutine InitCommonReadVelocityField(realization)
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
     boundary_condition => boundary_condition%next
   enddo
-  
+
 end subroutine InitCommonReadVelocityField
 
 ! ************************************************************************** !
 
 subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
-  ! 
+  !
   ! Adds waypoints associated with output options to waypoint list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/04/16
-  ! 
+  !
   use Output_Aux_module
   use Waypoint_module
   use Option_module
   use Utility_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   type(output_option_type) :: output_option
   type(waypoint_list_type) :: waypoint_list
-  
+
   type(waypoint_type), pointer :: waypoint
   character(len=MAXWORDLENGTH) :: word
   PetscReal :: temp_real
@@ -560,14 +560,14 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
   PetscReal :: num_waypoints, warning_num_waypoints
   PetscInt :: k
 
-  !geh: The repetitive summation of a time increment can result in slight 
-  !     error.   The perturbation is designed to allow for a slight shift 
+  !geh: The repetitive summation of a time increment can result in slight
+  !     error.   The perturbation is designed to allow for a slight shift
   !     beyond the final time.
   final_time = WaypointListGetFinalTime(waypoint_list)
   temp_real = final_time * 1.d-10
   final_time = final_time + temp_real
   warning_num_waypoints = 15000.0
-  
+
   ! Add waypoints for periodic snapshot output
   if (output_option%periodic_snap_output_time_incr > 0.d0) then
     temp_real = 0.d0
@@ -650,8 +650,8 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
         call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
       endif
     enddo
-  endif 
-  
+  endif
+
 end subroutine InitCommonAddOutputWaypoints
 
 end module Init_Common_module

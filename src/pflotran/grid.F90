@@ -722,7 +722,7 @@ subroutine GridLocalizeRegions(grid,region_list,option)
               call PrintErrMsg(option)
             endif
             allocate(region%faces(size(region%cell_ids)))
-            region%faces = region%iface 
+            region%faces = region%iface
           case(IMPLICIT_UNSTRUCTURED_GRID)
             call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
                                             region%polygonal_volume, &

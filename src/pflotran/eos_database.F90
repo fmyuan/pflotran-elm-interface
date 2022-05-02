@@ -139,7 +139,7 @@ function EOSPropPresent(this,prop_iname)
               associated(this%lookup_table_uni%var_array(prop_iname)%ptr)
     class is(eos_table_type)
       EOSPropPresent = &
-            associated(this%lookup_table_gen%var_array(prop_iname)%ptr) 
+            associated(this%lookup_table_gen%var_array(prop_iname)%ptr)
   end select
 
 
@@ -168,7 +168,7 @@ subroutine ReadUserUnits(this,input,option)
   type(lookup_table_var_ptr_type), pointer :: prop_array(:)
   PetscInt :: prop_idx
   prop_idx = 0
-  
+
   select type(this)
     class is(eos_database_type)
       prop_array =>  this%lookup_table_uni%var_array
@@ -202,7 +202,7 @@ subroutine ReadUserUnits(this,input,option)
         prop_array(EOS_DENSITY)%ptr%user_units = trim(user_units)
       case('ENTHALPY')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
-        prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)        
+        prop_array(EOS_ENTHALPY)%ptr%user_units = trim(user_units)
       case('INTERNAL_ENERGY')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
         prop_array(EOS_INTERNAL_ENERGY)%ptr%user_units = trim(user_units)
@@ -257,14 +257,14 @@ subroutine UnitConversionFactors(this,option)
                                   this%press_internal_units, option)
 
   !no temperature conversion - currently allowed only C
-  
-  !EOS properties conversion factors 
+
+  !EOS properties conversion factors
   select type(this)
     class is(eos_database_type)
       call this%lookup_table_uni%LookupTableVarConvFactors(option)
     class is(eos_table_type)
       call this%lookup_table_gen%LookupTableVarConvFactors(option)
-  end select    
+  end select
 
 end subroutine UnitConversionFactors
 
@@ -289,17 +289,17 @@ subroutine SetDefaultInternalUnits(this,option)
 
   this%press_internal_units = 'Pa'
   this%temp_internal_units = 'C'
- 
+
   nullify(prop_array)
 
-  !EOS properties conversion factors 
+  !EOS properties conversion factors
   select type(this)
     class is(eos_database_type)
       prop_array => this%lookup_table_uni%var_array
     class is(eos_table_type)
       prop_array => this%lookup_table_gen%var_array
   end select
- 
+
   do prop_idx = 1,size(prop_array(:))
     if ( associated(prop_array(prop_idx)%ptr) ) then
       select case (prop_array(prop_idx)%ptr%iname)
@@ -350,15 +350,15 @@ subroutine SetMetricUnits(this,option)
   this%temp_user_units = 'C'
 
   nullify(prop_array)
-  
-  !EOS properties conversion factors 
+
+  !EOS properties conversion factors
   select type(this)
     class is(eos_database_type)
       prop_array => this%lookup_table_uni%var_array
     class is(eos_table_type)
       prop_array => this%lookup_table_gen%var_array
   end select
-  
+
   do prop_idx = 1,size(prop_array(:))
     if ( associated(prop_array(prop_idx)%ptr) ) then
       select case (prop_array(prop_idx)%ptr%iname)
@@ -380,7 +380,7 @@ subroutine SetMetricUnits(this,option)
           prop_array(prop_idx)%ptr%user_units = '1/Bar'
       end select
     end if
-  end do  
+  end do
 
   nullify(prop_array)
 
@@ -395,7 +395,7 @@ subroutine AddEOSProp(this,new_var,option)
   ! Author: Paolo Orsini
   ! Date: 05/04/18
   !
-  ! Add new var eos properties to eos data (to variable list) 
+  ! Add new var eos properties to eos data (to variable list)
 
   use Option_module
 
@@ -407,10 +407,10 @@ subroutine AddEOSProp(this,new_var,option)
 
   type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()
   type(lookup_table_var_list_type), pointer :: vars => null()
-  character(len=MAXSTRINGLENGTH) :: string 
+  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word_error
 
-  !EOS properties conversion factors 
+  !EOS properties conversion factors
   select type(this)
     class is(eos_database_type)
       vars => this%lookup_table_uni%vars
@@ -439,9 +439,9 @@ subroutine AddEOSProp(this,new_var,option)
   end if
 
   call LookupTableVarAddToList(new_var,vars)
-    
+
   var_array(new_var%iname)%ptr => new_var
-  
+
   nullify(vars)
   nullify(var_array)
 
@@ -462,13 +462,13 @@ subroutine EOSSetConstGradExtrap(this,option)
 
   class(eos_data_base_type) :: this
   type(option_type) :: option
-  !EOS properties conversion factors 
+  !EOS properties conversion factors
   select type(this)
     class is(eos_database_type)
       call this%lookup_table_uni%SetupConstGradExtrap(option)
     class is(eos_table_type)
       call this%lookup_table_gen%SetupConstGradExtrap(option)
-  end select    
+  end select
 
 end subroutine EOSSetConstGradExtrap
 
@@ -480,15 +480,15 @@ function EOSPropExistInDictionary(property_iname)
   ! Date: 05/05/18
   !
   ! Check if the EOS property integer name exist in the dictionary
-  ! defined at the beginning of the module 
+  ! defined at the beginning of the module
 
   implicit none
 
   PetscBool :: EOSPropExistInDictionary
   PetscInt, intent(in) :: property_iname
-  
+
   EOSPropExistInDictionary = .false.
-  
+
   select case(property_iname)
     case(EOS_DENSITY)
       EOSPropExistInDictionary = .true.
@@ -501,11 +501,11 @@ function EOSPropExistInDictionary(property_iname)
     case(EOS_FVF)
       EOSPropExistInDictionary = .true.
     case(EOS_RS)
-      EOSPropExistInDictionary = .true.      
+      EOSPropExistInDictionary = .true.
     case(EOS_COMPRESSIBILITY)
       EOSPropExistInDictionary = .true.
     case(EOS_VISCOSIBILITY)
-      EOSPropExistInDictionary = .true.      
+      EOSPropExistInDictionary = .true.
   end select
 
 end function EOSPropExistInDictionary
@@ -517,7 +517,7 @@ subroutine SetupVarLinLogInterp(this,var_iname,option)
   ! Author: Paolo Orsini
   ! Date: 05/04/18
   !
-  ! Add new var eos properties to eos data (to variable list) 
+  ! Add new var eos properties to eos data (to variable list)
 
   use Option_module
 
@@ -550,12 +550,12 @@ subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
   class(eos_data_base_type) :: this
   PetscReal, intent(in) :: FMW
   PetscReal, intent(in) :: reference_density_kg
- 
+
   PetscInt :: data_idx
   PetscReal, pointer :: var_data(:,:) => null()
   type(lookup_table_var_ptr_type), pointer :: var_array(:) => null()
 
-  !EOS properties conversion factors 
+  !EOS properties conversion factors
   select type(this)
     class is(eos_database_type)
       var_array => this%lookup_table_uni%var_array
@@ -563,8 +563,8 @@ subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
     class is(eos_table_type)
       var_array => this%lookup_table_gen%var_array
       var_data => this%lookup_table_gen%var_data
-  end select  
- 
+  end select
+
   data_idx = var_array(EOS_FVF)%ptr%data_idx
   !          kmol/rm^3 = kg/sm^3 * kmol/kg * sm^3/rm^3
   var_data(data_idx,:) = reference_density_kg / FMW / var_data(data_idx,:)
@@ -578,7 +578,7 @@ subroutine ConvertFVFtoMolarDensity(this,FMW,reference_density_kg)
   var_array(EOS_DENSITY)%ptr => var_array(EOS_FVF)%ptr
   !FVF not available any longer
   nullify(var_array(EOS_FVF)%ptr)
-  
+
   nullify(var_array)
   nullify(var_data)
 
@@ -609,7 +609,7 @@ function EOSDatabaseCreate(filename,dbase_name)
   class(eos_database_type), pointer :: EOSDatabaseCreate
   character(len=MAXWORDLENGTH) :: filename
   character(len=*) :: dbase_name
-  
+
   PetscInt :: i_var
 
   allocate(EOSDatabaseCreate)
@@ -621,7 +621,7 @@ function EOSDatabaseCreate(filename,dbase_name)
   !initialize new data structure
   EOSDatabaseCreate%lookup_table_uni => LookupTableCreateUniform(TWO_INTEGER)
   call EOSDatabaseCreate%lookup_table_uni%LookupTableVarsInit(EOS_MAX_PROP_NUM)
-  
+
 
 end function EOSDatabaseCreate
 
@@ -698,7 +698,7 @@ subroutine EOSDatabaseRead(this,option)
 
   !set deafult user units - identical to internal units
   this%press_user_units = 'Pa'
-  this%temp_user_units = 'C'  
+  this%temp_user_units = 'C'
 
   !as default the viscosity is interpolated like other vars
   set_visc_lin_log = PETSC_FALSE
@@ -734,7 +734,7 @@ subroutine EOSDatabaseRead(this,option)
           call PrintErrMsg(option)
         end if
       case('DATA_LIST_ORDER')
-        pres_present = PETSC_FALSE; 
+        pres_present = PETSC_FALSE;
         temp_present = PETSC_FALSE;
         prop_count = 0
         call InputPushBlock(input_table,option)
@@ -754,7 +754,7 @@ subroutine EOSDatabaseRead(this,option)
               db_var => CreateLookupTableVar(EOS_DENSITY,internal_units, &
                                   user_units,prop_count)
               call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
-              this%lookup_table_uni%var_array(EOS_DENSITY)%ptr => db_var              
+              this%lookup_table_uni%var_array(EOS_DENSITY)%ptr => db_var
             case('ENTHALPY')
               prop_count = prop_count + 1
               internal_units = 'J/kg'
@@ -767,7 +767,7 @@ subroutine EOSDatabaseRead(this,option)
               prop_count = prop_count + 1
               internal_units = 'J/kg'
               user_units = 'J/kg'
-              db_var => CreateLookupTableVar(EOS_INTERNAL_ENERGY, & 
+              db_var => CreateLookupTableVar(EOS_INTERNAL_ENERGY, &
                                         internal_units,user_units,prop_count)
               call LookupTableVarAddToList(db_var,this%lookup_table_uni%vars)
               this%lookup_table_uni%var_array(EOS_INTERNAL_ENERGY)%ptr => &
@@ -912,7 +912,7 @@ subroutine EOSDatabaseRead(this,option)
   call this%lookup_table_uni%VarPointAndUnitConv(option)
   !setup constant gradient extrapolation
   call this%EOSSetConstGradExtrap(option)
-  !allocate lookup var gradients 
+  !allocate lookup var gradients
   call this%lookup_table_uni%LookupTableVarInitGradients(option)
 
   if (set_visc_lin_log) then
@@ -1006,8 +1006,8 @@ subroutine EOSPropGradDatabase(this,T,P,prop_iname,sample,dSampledT, &
   ! Author: Paolo Orsini
   ! Date: 06/04/18
   !
-  ! interpolates a single EOS property from the EOS database 
-  ! and compute its gradient with respect to the P and T of the database 
+  ! interpolates a single EOS property from the EOS database
+  ! and compute its gradient with respect to the P and T of the database
   ! (i.e. raw table gradients)
 
   implicit none
@@ -1018,7 +1018,7 @@ subroutine EOSPropGradDatabase(this,T,P,prop_iname,sample,dSampledT, &
   PetscInt, intent(in) :: prop_iname
   PetscReal, intent(out) :: sample ! PFLOTRAN intenral units (SI)
   PetscReal, intent(out) :: dSampledT ! internal PFLOTRAN units ([Sample]/[C])
-  PetscReal, intent(out) :: dSampledP ! internal PFLOTRAN units ([Sample]/[Pa])  
+  PetscReal, intent(out) :: dSampledP ! internal PFLOTRAN units ([Sample]/[Pa])
   PetscErrorCode, intent(out) :: ierr
 
   ierr = 0
@@ -1028,7 +1028,7 @@ subroutine EOSPropGradDatabase(this,T,P,prop_iname,sample,dSampledT, &
   !could be done in auxvra compute using a reusable table list specific func
 
   call this%lookup_table_uni%SampleAndGradient(prop_iname,T,P)
-  
+
   sample = this%lookup_table_uni%var_array(prop_iname)%ptr%sample
   dSampledT = this%lookup_table_uni%var_array(prop_iname)%ptr%sample_grad(1)
   dSampledP = this%lookup_table_uni%var_array(prop_iname)%ptr%sample_grad(2)
@@ -1084,7 +1084,7 @@ function EOSTableCreate(table_name,option)
   EOSTableCreate%first_index = 0
   nullify(EOSTableCreate%lookup_table_gen)
 
-  !create table without dimensions 
+  !create table without dimensions
   EOSTableCreate%lookup_table_gen => LookupTableCreateGeneral()
   call EOSTableCreate%lookup_table_gen%LookupTableVarsInit(EOS_MAX_PROP_NUM)
 
@@ -1225,16 +1225,16 @@ subroutine EOSTableRead(this,input,option)
   if (this%num_t ==1) then !isothermal press_data_array
     this%temperature = temp_array(1)
     ! create general 1D lookup table
-    !this%lookup_table_gen => LookupTableCreateGeneral(ONE_INTEGER) 
-    allocate(axis1)   
-    allocate(axis1%values(this%num_p))  
+    !this%lookup_table_gen => LookupTableCreateGeneral(ONE_INTEGER)
+    allocate(axis1)
+    allocate(axis1%values(this%num_p))
     do i_press = 1,this%num_p
        axis1%values(i_press) = press_data_array(1,i_press) * &
                                this%press_unit_conv_factor
     end do
       this%lookup_table_gen%dim = 1
-      this%lookup_table_gen%dims(1) = this%num_p 
-      this%lookup_table_gen%axis1 => axis1  
+      this%lookup_table_gen%dims(1) = this%num_p
+      this%lookup_table_gen%axis1 => axis1
     nullify(axis1)
     this%n_indices = 1
 
@@ -1248,8 +1248,8 @@ subroutine EOSTableRead(this,input,option)
     end do
     allocate(this%lookup_table_gen%axis2)
     call LookupTableAxisInit(this%lookup_table_gen%axis2)
-    this%lookup_table_gen%axis2%saved_index2 = 1    
-    allocate(this%lookup_table_gen%axis2%values(this%num_p))      
+    this%lookup_table_gen%axis2%saved_index2 = 1
+    allocate(this%lookup_table_gen%axis2%values(this%num_p))
     do i_press = 1,this%num_p
       this%lookup_table_gen%axis2%values(i_press) = &
           press_data_array(1,i_press) * this%press_unit_conv_factor
@@ -1257,9 +1257,9 @@ subroutine EOSTableRead(this,input,option)
     this%lookup_table_gen%axis1 => axis1
     this%lookup_table_gen%dim = 2
     this%lookup_table_gen%dims(1) = this%num_t
-    this%lookup_table_gen%dims(2) = n_press_count_first      
+    this%lookup_table_gen%dims(2) = n_press_count_first
     this%n_indices = 3
-    nullify(axis1) 
+    nullify(axis1)
   end if
 
   !check if the P and T increase strictly monotinically
@@ -1271,7 +1271,7 @@ subroutine EOSTableRead(this,input,option)
      option%io_buffer =  'PVT table = ' // trim(this%name) // &
                          ", Pressure not Monotonically increasing"
      call PrintErrMsg(option)
-   end if 
+   end if
   else if ( this%lookup_table_gen%dim == 2) then
     if ( .not. AxisIsSMInc(ONE_INTEGER) ) then
      option%io_buffer =  'PVT table = ' // trim(this%name) // &
@@ -1289,18 +1289,18 @@ subroutine EOSTableRead(this,input,option)
   nullify(var_data)
   allocate(var_data(this%num_prop,n_press_count))
   do i_press = 1,n_press_count
-    do i_prop=1,this%num_prop      
-      !the conversion is done later - 
-      var_data(i_prop,i_press) = press_data_array(i_prop+1,i_press)  
+    do i_prop=1,this%num_prop
+      !the conversion is done later -
+      var_data(i_prop,i_press) = press_data_array(i_prop+1,i_press)
     end do
   end do
-  
+
   this%lookup_table_gen%var_data => var_data
   !convert units
   call this%lookup_table_gen%VarPointAndUnitConv(option)
   !setup constant gradient extrapolation method
   call this%EOSSetConstGradExtrap(option)
-  !allocate lookup var gradients 
+  !allocate lookup var gradients
   call this%lookup_table_gen%LookupTableVarInitGradients(option)
 
   if (set_visc_lin_log) then
@@ -1310,7 +1310,7 @@ subroutine EOSTableRead(this,input,option)
   nullify(var_data)
 
   call DeallocateArray(press_data_array)
-  call DeallocateArray(temp_array) 
+  call DeallocateArray(temp_array)
 
 
 end subroutine EOSTableRead
@@ -1511,7 +1511,7 @@ subroutine EOSPropGradTable(this,T,P,prop_iname,sample,dSampledT,dSampledP, &
   ! Author: Paolo Orsini
   ! Date: 10/20/17
   !
-  ! interpolates a single EOS property from a PVT Table and computes its 
+  ! interpolates a single EOS property from a PVT Table and computes its
   ! gradient with respect to T and P as given in the PVT table
   !
   ! if table%dim == 1, only pressure lookup
@@ -1709,7 +1709,7 @@ subroutine EOSTableDestroyList()
   class(eos_table_type), pointer :: eos_table, prev_eos_table
 
   list => eos_table_list
-  
+
   if (.not.associated(list)) return
 
   eos_table => list%first

@@ -410,8 +410,8 @@ subroutine OutputFileRead(input,realization,output_option, &
               case('OBSERVATION_FILE')
                 string = trim(string) // ',HDF5'
                 output_option%print_obs_hdf5 = PETSC_TRUE
-            
-              case default  ! SNAPSHOT 
+
+              case default  ! SNAPSHOT
                 string = trim(string) // ',HDF5'
                 output_option%print_hdf5 = PETSC_TRUE
                 call InputReadCard(input,option,word)
@@ -454,7 +454,7 @@ subroutine OutputFileRead(input,realization,output_option, &
 
         !.................
           case ('TECPLOT')
-            
+
             ! error if in OBSERVATION_FILE block
             if (trim(block_name) == 'OBSERVATION_FILE') then
               option%io_buffer = 'TECPLOT is not a FORMAT option for &

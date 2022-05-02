@@ -11,8 +11,8 @@ module Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
-  private 
+
+  private
 
   PetscReal, public :: rt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
@@ -21,7 +21,7 @@ module Reactive_Transport_Aux_module
   type, public :: reactive_transport_auxvar_type
     ! molality
     PetscReal, pointer :: pri_molal(:)     ! mol/kg water
-    
+
     ! phase dependent totals
     PetscReal, pointer :: total(:,:)       ! mol solute/L water
     type(matrix_block_auxvar_type), pointer :: aqueous
@@ -29,13 +29,13 @@ module Reactive_Transport_Aux_module
     ! sorbed totals
     PetscReal, pointer :: total_sorb_eq(:)    ! mol/m^3 bulk
     PetscReal, pointer :: dtotal_sorb_eq(:,:) ! kg water/m^3 bulk
-    
+
     ! aqueous complexes
     PetscReal, pointer :: sec_molal(:)
-    
+
     ! gases
     PetscReal, pointer :: gas_pp(:) ! gas partial pressure in bars
-    
+
     ! sorption reactions
     PetscReal, pointer :: srfcplxrxn_free_site_conc(:)
     PetscReal, pointer :: kinsrfcplx_conc(:,:) ! S_{i\alpha}^k
@@ -44,35 +44,35 @@ module Reactive_Transport_Aux_module
     PetscReal, pointer :: eqsrfcplx_conc(:)
     PetscReal, pointer :: eqionx_ref_cation_sorbed_conc(:)
     PetscReal, pointer :: eqionx_conc(:,:)
-    
+
     ! mineral reactions
     PetscReal, pointer :: mnrl_volfrac0(:)
     PetscReal, pointer :: mnrl_volfrac(:)
     PetscReal, pointer :: mnrl_area0(:)
     PetscReal, pointer :: mnrl_area(:)
     PetscReal, pointer :: mnrl_rate(:)
-    
+
     ! activity coefficients
 !   PetscReal :: act_h2o
     PetscReal, pointer :: pri_act_coef(:)
     PetscReal, pointer :: sec_act_coef(:)
 
     PetscReal :: ln_act_h2o
-    
+
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
-    
+
     PetscReal, pointer :: kinmr_total_sorb(:,:,:)
 
     type(colloid_auxvar_type), pointer :: colloid
-    
+
     ! immobile species such as biomass
     PetscReal, pointer :: immobile(:) ! mol/m^3 bulk
 
-    ! auxiliary array to store miscellaneous data (e.g. reaction rates, 
+    ! auxiliary array to store miscellaneous data (e.g. reaction rates,
     ! cumulative mass, etc.
     PetscReal, pointer :: auxiliary_data(:)
-    
+
   end type reactive_transport_auxvar_type
 
   type, public :: reactive_transport_param_type
@@ -102,7 +102,7 @@ module Reactive_Transport_Aux_module
     PetscReal :: sum_newton_iterations
     PetscInt :: max_newton_iterations
     PetscInt :: overall_max_newton_iterations
-#endif    
+#endif
     PetscReal :: newton_inf_rel_update_tol
     PetscReal :: newton_inf_scaled_res_tol
     PetscBool :: check_post_converged
@@ -121,7 +121,7 @@ module Reactive_Transport_Aux_module
     type(matrix_block_auxvar_type), pointer :: dRic_dCj
     type(matrix_block_auxvar_type), pointer :: dRic_dSic
   end type colloid_auxvar_type
-  
+
   type, public :: colloid_param_type
     PetscInt :: num_colloids
     PetscInt :: num_colloid_comp
@@ -141,33 +141,33 @@ module Reactive_Transport_Aux_module
     module procedure RTAuxVarSingleDestroy
     module procedure RTAuxVarArrayDestroy
   end interface RTAuxVarDestroy
-  
+
   public :: RTAuxCreate, RTAuxDestroy, &
             RTAuxVarInit, RTAuxVarCopy, RTAuxVarDestroy, &
             RTAuxVarStrip, RTAuxVarCopyInitialGuess
-            
+
 contains
 
 ! ************************************************************************** !
 
 function RTAuxCreate(naqcomp,nphase)
-  ! 
+  !
   ! Allocate and initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
   PetscInt :: naqcomp
   PetscInt :: nphase
   type(reactive_transport_type), pointer :: RTAuxCreate
-  
+
   type(reactive_transport_type), pointer :: aux
 
-  allocate(aux)  
+  allocate(aux)
   aux%num_aux = 0      ! number of rt_auxvars objects for local and ghosted cells
   aux%num_aux_bc = 0   ! number of rt_auxvars objects for boundary connections
   aux%num_aux_ss = 0   ! number of rt_auxvars objects for source/sinks
@@ -207,36 +207,36 @@ function RTAuxCreate(naqcomp,nphase)
   aux%rt_parameter%sum_newton_iterations = 0.d0
   aux%rt_parameter%max_newton_iterations = 0
   aux%rt_parameter%overall_max_newton_iterations = 0
-#endif  
+#endif
 
   RTAuxCreate => aux
-  
+
 end function RTAuxCreate
 
 ! ************************************************************************** !
 
 subroutine RTAuxVarInit(auxvar,reaction,option)
-  ! 
+  !
   ! Initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
 
   use Option_module
   use Reaction_Aux_module
   use Reaction_Surface_Complexation_Aux_module
 
   implicit none
-  
+
   type(reactive_transport_auxvar_type) :: auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  
+
   type(surface_complexation_type), pointer :: surface_complexation
-  
+
   surface_complexation => reaction%surface_complexation
-  
+
   allocate(auxvar%pri_molal(reaction%naqcomp))
   auxvar%pri_molal = 0.d0
 
@@ -245,7 +245,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   auxvar%aqueous => MatrixBlockAuxVarCreate(option)
   call MatrixBlockAuxVarInit(auxvar%aqueous,reaction%naqcomp, &
                              reaction%naqcomp,reaction%nphase,option)
-  
+
   if (reaction%neqcplx > 0) then
     allocate(auxvar%sec_molal(reaction%neqcplx))
     auxvar%sec_molal = 0.d0
@@ -268,8 +268,8 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   else
     nullify(auxvar%total_sorb_eq)
     nullify(auxvar%dtotal_sorb_eq)
-  endif    
-  
+  endif
+
   ! surface complexation
   nullify(auxvar%eqsrfcplx_conc)
   nullify(auxvar%srfcplxrxn_free_site_conc)
@@ -293,7 +293,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
       auxvar%kinsrfcplx_conc_kp1 = 0.d0
     endif
     if (surface_complexation%nkinmrsrfcplxrxn > 0) then
-      ! the zeroth entry here stores the equilibrium concentration used in the 
+      ! the zeroth entry here stores the equilibrium concentration used in the
       ! update
       ! the zeroth entry of kinmr_nrate holds the maximum number of rates
       ! prescribed in a multirate reaction...required for appropriate sizing
@@ -303,14 +303,14 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
       auxvar%kinmr_total_sorb = 0.d0
     endif
   endif
-  
+
   if (reaction%neqionxrxn > 0) then
     allocate(auxvar%eqionx_ref_cation_sorbed_conc(reaction%neqionxrxn))
     auxvar%eqionx_ref_cation_sorbed_conc = 1.d-9 ! initialize to guess
-    
+
     allocate(auxvar%eqionx_conc(reaction%neqionxcation,reaction%neqionxrxn))
     auxvar%eqionx_conc = 1.d-9
-    
+
 !   allocate(auxvar%eqionx_cec(reaction%neqionxcation))
 !   auxvar%eqionx_cec = 0.d0
   else
@@ -318,7 +318,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
     nullify(auxvar%eqionx_conc)
 !   nullify(auxvar%eqionx_cec)
   endif
-  
+
   if (associated(reaction%mineral)) then
     if (reaction%mineral%nkinmnrl > 0) then
       allocate(auxvar%mnrl_volfrac0(reaction%mineral%nkinmnrl))
@@ -339,7 +339,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
       nullify(auxvar%mnrl_rate)
     endif
   endif
-  
+
   allocate(auxvar%pri_act_coef(reaction%naqcomp))
   auxvar%pri_act_coef = 1.d0
   if (reaction%neqcplx > 0) then
@@ -351,7 +351,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
 
 ! initialize ln activity H2O
   auxvar%ln_act_h2o = 0.d0
-  
+
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
     allocate(auxvar%mass_balance(reaction%ncomp,reaction%nphase))
     auxvar%mass_balance = 0.d0
@@ -361,7 +361,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
     nullify(auxvar%mass_balance)
     nullify(auxvar%mass_balance_delta)
   endif
-  
+
   if (reaction%ncollcomp > 0) then
     allocate(auxvar%colloid)
     allocate(auxvar%colloid%conc_mob(reaction%ncoll))
@@ -387,7 +387,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   else
     nullify(auxvar%colloid)
   endif
-  
+
   if (reaction%immobile%nimmobile > 0) then
     allocate(auxvar%immobile(reaction%immobile%nimmobile))
     auxvar%immobile = 0.d0
@@ -407,58 +407,58 @@ end subroutine RTAuxVarInit
 ! ************************************************************************** !
 
 subroutine RTAuxVarCopy(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copys an auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/05/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_auxvar_type) :: auxvar, auxvar2
-  type(option_type) :: option  
-  
+  type(option_type) :: option
+
   auxvar%pri_molal = auxvar2%pri_molal
 
   auxvar%total = auxvar2%total
 
   call MatrixBlockAuxVarCopy(auxvar%aqueous,auxvar2%aqueous,option)
-  
+
   if (associated(auxvar%sec_molal)) &
     auxvar%sec_molal = auxvar2%sec_molal
-  if (associated(auxvar%total_sorb_eq)) then  
+  if (associated(auxvar%total_sorb_eq)) then
     auxvar%total_sorb_eq = auxvar2%total_sorb_eq
   endif
-  if (associated(auxvar%dtotal_sorb_eq)) then  
+  if (associated(auxvar%dtotal_sorb_eq)) then
     auxvar%dtotal_sorb_eq = auxvar2%dtotal_sorb_eq
   endif
-  
+
   if (associated(auxvar%gas_pp)) &
     auxvar%gas_pp = auxvar2%gas_pp
-  
+
   if (associated(auxvar%srfcplxrxn_free_site_conc)) then
     auxvar%srfcplxrxn_free_site_conc = auxvar2%srfcplxrxn_free_site_conc
   endif
-  
+
   if (associated(auxvar%eqsrfcplx_conc)) then
     auxvar%eqsrfcplx_conc = auxvar2%eqsrfcplx_conc
   endif
-  
+
   if (associated(auxvar%kinsrfcplx_conc)) then
     auxvar%kinsrfcplx_conc = auxvar2%kinsrfcplx_conc
     auxvar%kinsrfcplx_conc_kp1 = auxvar2%kinsrfcplx_conc_kp1
     auxvar%kinsrfcplx_free_site_conc = auxvar2%kinsrfcplx_free_site_conc
   endif
-  
+
   if (associated(auxvar%eqionx_ref_cation_sorbed_conc)) then
     auxvar%eqionx_ref_cation_sorbed_conc = &
       auxvar2%eqionx_ref_cation_sorbed_conc
     auxvar%eqionx_conc = auxvar2%eqionx_conc
-  endif  
-  
+  endif
+
   if (associated(auxvar%mnrl_volfrac)) then
     auxvar%mnrl_volfrac0 = auxvar2%mnrl_volfrac0
     auxvar%mnrl_volfrac = auxvar2%mnrl_volfrac
@@ -466,9 +466,9 @@ subroutine RTAuxVarCopy(auxvar,auxvar2,option)
     auxvar%mnrl_area = auxvar2%mnrl_area
     auxvar%mnrl_rate = auxvar2%mnrl_rate
   endif
-  
+
   auxvar%ln_act_h2o = auxvar2%ln_act_h2o
-  
+
   auxvar%pri_act_coef = auxvar2%pri_act_coef
   if (associated(auxvar%sec_act_coef)) &
     auxvar%sec_act_coef = auxvar2%sec_act_coef
@@ -504,38 +504,38 @@ subroutine RTAuxVarCopy(auxvar,auxvar2,option)
   if (associated(auxvar%immobile)) then
     auxvar%immobile = auxvar2%immobile
   endif
-  
+
   if (associated(auxvar%auxiliary_data)) then
     auxvar%auxiliary_data = auxvar2%auxiliary_data
   endif
-  
+
 end subroutine RTAuxVarCopy
 
 ! ************************************************************************** !
 
 subroutine RTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies select entries in rt_auxvar that serve as an initial guess when
   ! equilibrating constraints
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/18/17
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_auxvar_type) :: auxvar, auxvar2
-  type(option_type) :: option  
-  
+  type(option_type) :: option
+
   auxvar%pri_molal = auxvar2%pri_molal
 
 #if 0
   if (associated(auxvar%srfcplxrxn_free_site_conc)) then
     auxvar%srfcplxrxn_free_site_conc = auxvar2%srfcplxrxn_free_site_conc
   endif
-  
+
   auxvar%pri_act_coef = auxvar2%pri_act_coef
   if (associated(auxvar%sec_act_coef)) &
     auxvar%sec_act_coef = auxvar2%sec_act_coef
@@ -544,51 +544,51 @@ subroutine RTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
     auxvar%immobile = auxvar2%immobile
   endif
 #endif
-  
+
 end subroutine RTAuxVarCopyInitialGuess
 
 ! ************************************************************************** !
 
 subroutine RTAuxVarSingleDestroy(auxvar)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/10/12
-  ! 
+  !
 
   implicit none
 
   type(reactive_transport_auxvar_type), pointer :: auxvar
-  
+
   if (associated(auxvar)) then
     call RTAuxVarStrip(auxvar)
     deallocate(auxvar)
   endif
-  nullify(auxvar)  
+  nullify(auxvar)
 
 end subroutine RTAuxVarSingleDestroy
 
 ! ************************************************************************** !
 
 subroutine RTAuxVarArrayDestroy(auxvars)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/10/12
-  ! 
+  !
 
   implicit none
 
   type(reactive_transport_auxvar_type), pointer :: auxvars(:)
-  
+
   PetscInt :: iaux
-  
+
   if (associated(auxvars)) then
     do iaux = 1, size(auxvars)
       call RTAuxVarStrip(auxvars(iaux))
-    enddo  
+    enddo
     deallocate(auxvars)
   endif
   nullify(auxvars)
@@ -598,52 +598,52 @@ end subroutine RTAuxVarArrayDestroy
 ! ************************************************************************** !
 
 subroutine RTAuxVarStrip(auxvar)
-  ! 
+  !
   ! Deallocates all members of single auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
 
   implicit none
 
   type(reactive_transport_auxvar_type) :: auxvar
-  
+
   call DeallocateArray(auxvar%pri_molal)
   call DeallocateArray(auxvar%total)
-  
+
   call MatrixBlockAuxVarDestroy(auxvar%aqueous)
 
   call DeallocateArray(auxvar%sec_molal)
   call DeallocateArray(auxvar%gas_pp)
   call DeallocateArray(auxvar%total_sorb_eq)
   call DeallocateArray(auxvar%dtotal_sorb_eq)
-  
+
   call DeallocateArray(auxvar%eqsrfcplx_conc)
   call DeallocateArray(auxvar%srfcplxrxn_free_site_conc)
   call DeallocateArray(auxvar%kinsrfcplx_conc)
   call DeallocateArray(auxvar%kinsrfcplx_conc_kp1)
   call DeallocateArray(auxvar%kinsrfcplx_free_site_conc)
-  
+
   call DeallocateArray(auxvar%eqionx_ref_cation_sorbed_conc)
   call DeallocateArray(auxvar%eqionx_conc)
-  
+
   call DeallocateArray(auxvar%mnrl_volfrac0)
   call DeallocateArray(auxvar%mnrl_volfrac)
   call DeallocateArray(auxvar%mnrl_area0)
   call DeallocateArray(auxvar%mnrl_area)
   call DeallocateArray(auxvar%mnrl_rate)
-  
+
   call DeallocateArray(auxvar%pri_act_coef)
   call DeallocateArray(auxvar%sec_act_coef)
-  
+
   call DeallocateArray(auxvar%mass_balance)
   call DeallocateArray(auxvar%mass_balance_delta)
-  
+
   call DeallocateArray(auxvar%kinmr_total_sorb)
-  
+
   if (associated(auxvar%colloid)) then
     call DeallocateArray(auxvar%colloid%conc_mob)
     call DeallocateArray(auxvar%colloid%conc_imb)
@@ -660,31 +660,31 @@ subroutine RTAuxVarStrip(auxvar)
     deallocate(auxvar%colloid)
     nullify(auxvar%colloid)
   endif
-  
+
   call DeallocateArray(auxvar%immobile)
   call DeallocateArray(auxvar%auxiliary_data)
-  
+
 end subroutine RTAuxVarStrip
 
 ! ************************************************************************** !
 
 subroutine RTAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a reactive transport auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
-  
+
   implicit none
 
   type(reactive_transport_type), pointer :: aux
   PetscInt :: iaux
-  
+
   if (.not.associated(aux)) return
-  
+
   call RTAuxVarDestroy(aux%auxvars)
   call RTAuxVarDestroy(aux%auxvars_bc)
   call RTAuxVarDestroy(aux%auxvars_ss)

@@ -11,18 +11,18 @@ module Solver_CPR_module
   private
 
   public :: SolverCPRInit, &
-            SolverCPRRead, & 
+            SolverCPRRead, &
             SolverCPRInitializeStorage
 
 contains
 
 subroutine SolverCPRRead(stash, input, option, ierr)
-  ! 
+  !
   ! Reads the CPR_OPTIONS card
   !
   ! Author: Daniel Stone
   ! Date: March 2018
-  ! 
+  !
   use Input_Aux_module
   use String_module
 
@@ -38,15 +38,15 @@ subroutine SolverCPRRead(stash, input, option, ierr)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','CPR OPTIONS')
-    call StringToUpper(keyword)   
-      
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
       case('CPR_TYPE')
         call InputReadCard(input,option,word)
@@ -187,7 +187,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
 
       case('T1_SCALE')
         stash%T1_scale = PETSC_TRUE
-      
+
       case('T3_NO_SCALE')
         stash%T3_scale = PETSC_FALSE
 
@@ -200,7 +200,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
       ! here is a sub card for setting boomeramg options for within
       ! the CPR PC, ONLY.
       ! Note the lack of a flow/transport prefix.
-      !TODO(geh): many of these are redundant with solver.F90. resolve by 
+      !TODO(geh): many of these are redundant with solver.F90. resolve by
       !           placing in a separate routine where non-common settings
       !           are passed in (e.g. prefix)
       case('CPR_HYPRE_OPTIONS')
@@ -472,13 +472,13 @@ end subroutine SolverCPRRead
 ! ************************************************************************** !
 
 subroutine SolverCPRInit(J, stash, pcin, ierr, option)
-  ! 
-  ! Do needed set up and call routine to build a CPR 
+  !
+  ! Do needed set up and call routine to build a CPR
   ! preconditioner.
   !
   ! Author: Daniel Stone
   ! Date: Oct 2017 - March 2018
-  ! 
+  !
   implicit none
   !type(solver_type) :: solver
   Mat :: J
@@ -491,7 +491,7 @@ subroutine SolverCPRInit(J, stash, pcin, ierr, option)
 
   ! Unfortunately we cannot guarantee currently compatibilty with AIJ type
   ! matrices. For most modes there will already be an error thrown
-  ! if type is set to AIJ *by the infile* but it is possible to 
+  ! if type is set to AIJ *by the infile* but it is possible to
   ! get around this with a command line option, which causes assorted
   ! problems. For CPR specifically we have that the indexing calculations
   ! for extracting the pressure subsystem break with AIJ so for now just
@@ -520,13 +520,13 @@ end subroutine SolverCPRInit
 subroutine SolverCPRInitializeStorage(ctx)
   ! MUST CALL THIS before doing anything with a cpr_pc_type
 
-  ! 
+  !
   ! initialize all the noncomplicated members of an
   ! cpr_pc_type object
   !
-  ! Author:  Daniel Stone 
+  ! Author:  Daniel Stone
   ! Date: Oct 2017 - March 2018
-  ! 
+  !
 
   implicit none
 
@@ -542,7 +542,7 @@ subroutine SolverCPRInitializeStorage(ctx)
   ctx%CPR_type = "COMBINATIVE"
   ctx%T1_type = "NONE"
   ! typically scaling pressure blocks will help
-  ctx%T1_scale = PETSC_TRUE  
+  ctx%T1_scale = PETSC_TRUE
   ctx%T2_type = "Jacobi"
   ctx%T3_type = "NONE"
   ! typically scaling saturation block won't help
@@ -572,7 +572,7 @@ subroutine SolverCPRInitializeStorage(ctx)
   nullify(ctx%option)
 
 
-end subroutine SolverCPRInitializeStorage 
+end subroutine SolverCPRInitializeStorage
 
 ! ************************************************************************** !
 

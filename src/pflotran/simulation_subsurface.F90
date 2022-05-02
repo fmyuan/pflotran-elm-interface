@@ -392,7 +392,7 @@ subroutine SimSubsurfJumpStart(this)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   PetscErrorCode :: ierr
   PetscBool :: bypass_final_time_check
-  
+
   bypass_final_time_check = PETSC_FALSE
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
