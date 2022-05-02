@@ -848,7 +848,7 @@ subroutine PMUFDDecayInit(this)
     do d = 1, this%isotope_daughters(0,iisotope)
       id = this%isotope_daughters(d,iisotope)
       if (Uninitialized(this%isotope_daughter_stoich(d,iisotope))) then
-        option%io_buffer = 'A stoichiomtry must be defined for isotope ' // &
+        option%io_buffer = 'A stoichiometry must be defined for isotope ' // &
           trim(this%isotope_name(iisotope)) // "'s daughter " // '"' // &
           trim(this%isotope_name(id)) // '".'
         call PrintErrMsg(option)
@@ -937,6 +937,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   use Patch_module
   use Grid_module
   use Reactive_Transport_Aux_module
+  use Material_Aux_module
+  use Material_Transform_module
   use Secondary_Continuum_Aux_module
   implicit none
 
@@ -955,6 +957,10 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 !    stores the total sorbed species concentration [mol-species/m3-bulk],
 !    and the primary species molality [mol-species/kg-water], and is
 !    indexed by the ghosted grid cell id
+! material_transform: pointer to material transform object
+! m_transform_auxvars: pointer to auxiliary variables for material transform,
+!   which are used to modify the sorption distribution coefficients and are
+!   indexed by the ghosted grid cell id
 ! kd_kgw_m3b: [kg-water/m3-bulk] Kd value
 ! local_id: [-] local grid cell id
 ! ghosted_id: [-] ghosted grid cell id
@@ -967,6 +973,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  class(material_transform_type), pointer :: material_transform
+  class(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: kd_kgw_m3b
   PetscInt :: local_id, ghosted_id
@@ -977,14 +985,46 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   grid => patch%grid
   rt_auxvars => patch%aux%RT%auxvars
   
-  
+  if (associated(patch%aux%MTransform)) then
+    m_transform_auxvars => patch%aux%MTransform%auxvars
+  endif
+  nullify(material_transform)
+
   ! set initial sorbed concentration in equilibrium with aqueous phase
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     imat = patch%imat(ghosted_id) 
     if (imat <= 0) cycle
+
+    if (associated(patch%material_transform_array) .and. &
+        Initialized(patch%mtf_id(ghosted_id))) then
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+      if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
+          associated(material_transform)) then
+        call material_transform%illitization%illitization_function% &
+               CheckElements(this%element_name, &
+                             this%num_elements, &
+                             this%option)
+      endif
+    endif
+
     do iele = 1, this%num_elements
       kd_kgw_m3b = this%element_Kd(iele,imat,1)
+
+      ! modify kd if needed
+      if (associated(patch%aux%MTransform)) then
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
+          if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
+            call material_transform%illitization%illitization_function% &
+                   ShiftKd(kd_kgw_m3b, &
+                           this%element_name(iele), &
+                           m_transform_auxvars(ghosted_id)%il_aux, &
+                           this%option)
+          endif
+        endif
+      endif
+
       do i = 1, this%element_isotopes(0,iele)
         iiso = this%element_isotopes(i,iele)
         ipri = this%isotope_to_primary_species(iiso)
@@ -1298,6 +1338,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   use Global_Aux_module
   use Material_Aux_module
   use Utility_module
+  use Material_Transform_module
 
   implicit none
   
@@ -1324,6 +1365,11 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   PetscBool :: above_solubility
   PetscReal :: xx_p(:)
   PetscReal :: element_Kd(:,:)
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  class(material_transform_type), pointer :: material_transform
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   ! implicit solution:
   PetscReal :: norm
   PetscReal :: residual(this%num_isotopes)
@@ -1339,7 +1385,25 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
 
   
   one_over_dt = 1.d0 / dt
-  
+
+  option => this%realization%option
+  patch => this%realization%patch
+  grid => patch%grid
+
+  if (associated(patch%aux%MTransform)) then
+    ! pointer to auxiliary variables for material transform,
+    !   which are used to modify the sorption distribution coefficients
+    m_transform_auxvars => patch%aux%MTransform%auxvars
+  endif
+  nullify(material_transform)
+
+  if (associated(patch%material_transform_array) .and. &
+      Initialized(patch%mtf_id(grid%nL2G(local_id)))) then
+    ! pointer to material transform object
+    material_transform => &
+      patch%material_transform_array(patch%mtf_id(grid%nL2G(local_id)))%ptr
+  endif
+
   do iele = 1, this%num_elements
     do i = 1, this%element_isotopes(0,iele)
       iiso = this%element_isotopes(i,iele)
@@ -1505,6 +1569,21 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
 
     ! split mass between phases
     kd_kgw_m3b = element_Kd(iele,imat)
+
+    ! modify kd if needed
+    if (associated(patch%aux%MTransform)) then
+      if (associated(m_transform_auxvars(grid%nL2G(local_id))%il_aux) .and. &
+          associated(material_transform)) then
+        if (option%dt > 0.d0) then
+          call material_transform%illitization%illitization_function% &
+                 ShiftKd(kd_kgw_m3b, &
+                         this%element_name(iele), &
+                         m_transform_auxvars(grid%nL2G(local_id))%il_aux, &
+                         option)
+        endif
+      endif
+    endif
+
     conc_ele_aq1 = mass_ele_tot1 / (1.d0+kd_kgw_m3b/(den_w_kg*por*sat)) / &
                        (vps*1.d3)
     above_solubility = conc_ele_aq1 > this%element_solubility(iele)

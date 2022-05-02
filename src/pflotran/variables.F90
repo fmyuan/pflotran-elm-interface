@@ -172,4 +172,6 @@ module Variables_module
 
   PetscInt, parameter, public :: NWT_AUXILIARY = 139
 
+  PetscInt, parameter, public :: SMECTITE                = 140
+
 end module Variables_module

@@ -1158,6 +1158,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Electrical Jacobian'
       category = OUTPUT_GENERIC
       id = ELECTRICAL_JACOBIAN      
+    case ('SMECTITE')
+      units = ''
+      name = 'Smectite'
+      category = OUTPUT_GENERIC
+      id = SMECTITE
     case ('ELECTRICAL_POTENTIAL_DIPOLE')
       if (option%ngeopdof <= 0) then
         call PrintErrMsg(option,trim(word)//' output only &

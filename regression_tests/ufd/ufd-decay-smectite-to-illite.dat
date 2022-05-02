@@ -1,0 +1,12 @@
+'temperature points' 8 0. 25. 60. 100. 150. 200. 250. 300.
+'Cs137' 3.0 0.0 136.91
+'Sr90'  3.0 0.0 89.91
+'Daugh' 3.0 0.0 100.  ! generic daughter product
+'null' ! aqueous complexes
+'null' ! gases
+'null' ! minerals
+'Cs137(s)' 1. 1 1.0 'Cs137' 0. 0. 0. 0. 0. 0. 0. 0. 0.
+'Sr90(s)' 1. 1 1.0 'Sr90' 0. 0. 0. 0. 0. 0. 0. 0. 0.
+'Daugh(s)' 1. 1 1.0 'Daugh' 0. 0. 0. 0. 0. 0. 0. 0. 0.
+'null' ! surface complexes
+'null' ! end of file

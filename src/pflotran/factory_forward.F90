@@ -289,6 +289,8 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         call FactorySubsurfaceReadUFDDecayPM(input,option,new_pm)
       case('UFD_BIOSPHERE')
         call FactorySubsurfReadUFDBiospherePM(input,option,new_pm)
+      case('MATERIAL_TRANSFORM')
+        call FactorySubsurfaceReadMTPM(input,option,new_pm)
       case('WIPP_SOURCE_SINK')
         option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
           &unless you are running in WIPP_FLOW mode and intend to &

@@ -73,6 +73,7 @@ mode_process_model_obj = \
 	${common_src}pm_wipp_srcsink.o \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}pm_zflow.o \
+	${common_src}pm_material_transform.o \
 
 mode_obj = \
 	${common_src}general.o \
@@ -171,6 +172,7 @@ relations_obj = \
 	${common_src}characteristic_curves_common.o \
 	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_thermal.o \
+	${common_src}material_transform.o \
 	${common_src}characteristic_curves_loop_invariant.o \
 	${common_src}characteristic_curves_wipp_invariant.o \
 	${common_src}mphase_pckr_mod.o
