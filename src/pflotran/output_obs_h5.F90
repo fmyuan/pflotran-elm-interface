@@ -6,7 +6,7 @@ module Output_Obs_H5_module
   use Logging_module
   use PFLOTRAN_Constants_module
   use Output_Aux_module
-  use Output_common_module
+  use Output_Common_module
   use Region_module
 
   implicit none

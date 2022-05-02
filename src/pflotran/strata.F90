@@ -25,6 +25,7 @@ module Strata_module
     type(region_type), pointer :: region                ! pointer to region in region array/list
     PetscReal :: start_time
     PetscReal :: final_time
+    PetscBool :: well
     type(strata_type), pointer :: next            ! pointer to next strata
   end type strata_type
   
@@ -45,6 +46,7 @@ module Strata_module
   end interface
   
   public :: StrataCreate, &
+            StrataCreateFromStrata, &
             StrataDestroy, &
             StrataInitList, &
             StrataAddToList, &
@@ -82,6 +84,7 @@ function StrataCreate1()
   strata%imaterial_property = 0
   strata%start_time = UNINITIALIZED_DOUBLE
   strata%final_time = UNINITIALIZED_DOUBLE
+  strata%well = PETSC_FALSE
   nullify(strata%region)
   nullify(strata%material_property)
   nullify(strata%next)
@@ -118,6 +121,7 @@ function StrataCreateFromStrata(strata)
   new_strata%iregion = strata%iregion
   new_strata%start_time = strata%start_time
   new_strata%final_time = strata%final_time
+  new_strata%well = strata%well
   ! keep these null
   nullify(new_strata%region)
   nullify(new_strata%material_property)
@@ -218,6 +222,8 @@ subroutine StrataRead(strata,input,option)
           strata%final_time = strata%final_time * &
                        UnitsConvertToInternal(word,internal_units,option)
         endif
+      case('WELL')
+        strata%well = PETSC_TRUE
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default

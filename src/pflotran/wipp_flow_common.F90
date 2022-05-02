@@ -14,7 +14,7 @@ module WIPP_Flow_Common_module
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
+  PetscReal, parameter :: floweps   = 0.d0 !1.d-24
 
   procedure(FluxDummy), pointer :: XXFlux => null()
   procedure(BCFluxDummy), pointer :: XXBCFlux => null()
@@ -272,7 +272,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
       
   iphase = LIQUID_PHASE
   if (wippflo_auxvar_up%mobility(iphase) + &
-      wippflo_auxvar_dn%mobility(iphase) > eps) then
+      wippflo_auxvar_dn%mobility(iphase) > floweps) then
     
     density_kg_ave = WIPPFloAverageDensity(iphase, &
                                            global_auxvar_up%istate, &
@@ -324,7 +324,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
 
   iphase = GAS_PHASE
   if (wippflo_auxvar_up%mobility(iphase) + &
-      wippflo_auxvar_dn%mobility(iphase) > eps) then
+      wippflo_auxvar_dn%mobility(iphase) > floweps) then
     
     density_kg_ave = WIPPFloAverageDensity(iphase, &
                                            global_auxvar_up%istate, &
@@ -726,7 +726,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
          HYDROSTATIC_CONDUCTANCE_BC)
       if (wippflo_auxvar_up%mobility(iphase) + &
-          wippflo_auxvar_dn%mobility(iphase) > eps) then
+          wippflo_auxvar_dn%mobility(iphase) > floweps) then
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
@@ -833,7 +833,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,&
          HYDROSTATIC_CONDUCTANCE_BC)
       if (wippflo_auxvar_up%mobility(iphase) + &
-          wippflo_auxvar_dn%mobility(iphase) > eps) then
+          wippflo_auxvar_dn%mobility(iphase) > floweps) then
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)

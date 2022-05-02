@@ -246,6 +246,7 @@ module EOS_Water_module
             EOSWaterSaturationTemperature, &
             EOSWaterDensityIce, &
             EOSWaterDensityTGDPB01, &
+            EOSWaterDensityBRAGFLO, &
             EOSWaterSaturationPressureExt, &
             EOSWaterViscosityExt, &
             EOSWaterDensityExt, &
