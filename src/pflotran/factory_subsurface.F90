@@ -20,7 +20,7 @@ module Factory_Subsurface_module
             FactorySubsurfaceReadWasteFormPM, &
             FactorySubsurfaceReadUFDDecayPM, &
             FactorySubsurfReadUFDBiospherePM, &
-            FactorySubsurfReadWellPM
+            FactorySubsurfReadWellPM, &
             FactorySubsurfaceReadMTPM, &
             FactorySubsurfReadGeophysicsPM
 
@@ -120,7 +120,6 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   ! Setup linkages between PMCs
   call SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
                         pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
-                        pm_auxiliary,pm_well,realization)
                         pm_auxiliary,pm_well,pm_material_transform,&
                         realization)
 
