@@ -365,6 +365,11 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE COMPOSITE THERMAL CONDUCTIVITY MODEL',option)
         end select
+      case('BC_REFERENCE_PRESSURE')
+        call InputReadDouble(input,option,hydrate_bc_reference_pressure)
+        call InputErrorMsg(input,option,'BC Reference Pressure',error_string)
+      case default
+        call InputKeywordUnrecognized(input,word,'HYDRATE block',option)
     end select
 
   enddo
@@ -519,6 +524,8 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('CALCULATE_SURFACE_TENSION')
+        hydrate_compute_surface_tension = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select

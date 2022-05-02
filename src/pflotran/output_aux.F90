@@ -38,6 +38,7 @@ module Output_Aux_module
     PetscBool :: print_ss_massbal
 
     PetscBool :: print_hdf5
+    PetscBool :: print_obs_hdf5
     PetscBool :: extend_hdf5_time_format
     PetscBool :: print_hdf5_vel_cent
     PetscBool :: print_hdf5_vel_face
@@ -201,6 +202,7 @@ function OutputOptionCreate()
 
   allocate(output_option)
   output_option%print_hdf5 = PETSC_FALSE
+  output_option%print_obs_hdf5 = PETSC_FALSE
   output_option%extend_hdf5_time_format = PETSC_FALSE
   output_option%print_hdf5_vel_cent = PETSC_FALSE
   output_option%print_hdf5_vel_face = PETSC_FALSE
@@ -1156,6 +1158,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Electrical Jacobian'
       category = OUTPUT_GENERIC
       id = ELECTRICAL_JACOBIAN      
+    case ('SMECTITE')
+      units = ''
+      name = 'Smectite'
+      category = OUTPUT_GENERIC
+      id = SMECTITE
     case ('ELECTRICAL_POTENTIAL_DIPOLE')
       if (option%ngeopdof <= 0) then
         call PrintErrMsg(option,trim(word)//' output only &

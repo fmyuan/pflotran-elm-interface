@@ -171,10 +171,9 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    LIQUID_PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE DIRICHLET
   /
-  DATUM 0.d0 0.d0 35.d0
-  LIQUID_PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 3.d5 ! Pa
 END
 
 #=========================== transport conditions =============================

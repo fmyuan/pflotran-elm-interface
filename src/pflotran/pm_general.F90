@@ -270,6 +270,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('CALCULATE_SURFACE_TENSION')
+        general_compute_surface_tension = PETSC_TRUE
+      case('VAPOR_PRESSURE_KELVIN')
+        general_kelvin_equation = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select

@@ -15,6 +15,9 @@ module Lookup_Table_module
   ! Variable interpolation types
   PetscInt, parameter :: VAR_INTERP_LINEAR = 1
   PetscInt, parameter :: VAR_INTERP_X_LINLOG = 2
+  ! 3D Interpolation options
+  PetscInt, parameter :: INTERP_3D_LP = 1 ! Lagrange polynomials
+  PetscInt, parameter :: INTERP_3D_TL = 2 ! Trilinear
   
   type, abstract, public :: lookup_table_base_type
     PetscInt :: dim
@@ -51,9 +54,18 @@ module Lookup_Table_module
     procedure, public :: SampleAndGradient => ValAndGradUniform
     procedure, public :: AxesAreSMInc => AxesAreSMIncUniform
   end type lookup_table_uniform_type
+
+  type, public :: lookup_irregular_array_type
+    ! implements an irregular (or jagged) array
+    PetscReal, pointer :: data(:)
+  end type lookup_irregular_array_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
     class(lookup_table_axis2_general_type), pointer :: axis2
+    class(lookup_table_axis3_general_type), pointer :: axis3
+    PetscInt :: mode ! interpolation mode
+    PetscReal, pointer :: data_references(:,:,:) ! reference data values from interpolation indices
+    type(lookup_irregular_array_type), allocatable :: partition(:) ! if allocated, data is partitioned
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
@@ -63,12 +75,22 @@ module Lookup_Table_module
   type, public :: lookup_table_axis_type
     PetscInt :: itype
     PetscInt :: saved_index
+    PetscInt :: saved_index1
     PetscReal, pointer :: values(:)
   end type lookup_table_axis_type
   
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis2_general_type
     PetscInt :: saved_index2
   end type lookup_table_axis2_general_type
+
+  type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
+    PetscBool :: extrapolate ! extrapolation from axis3 required
+    PetscInt :: num_partitions ! number of axis3 partitions
+    PetscInt, allocatable :: bounds(:) ! bounds of axis3 partitions
+    PetscInt, allocatable :: saved_index_partition(:,:) ! index of partition per i, j coordinate
+    PetscInt, allocatable :: saved_indices3(:,:,:) ! left/right index k per i, j coordinate
+    type(lookup_irregular_array_type), allocatable :: partition(:) ! if allocated, axis 3 is partitioned
+  end type lookup_table_axis3_general_type
 
   type, public :: lookup_table_var_type
     PetscInt :: id
@@ -227,6 +249,8 @@ function LookupTableCreateGeneralDim(dim)
   ! Date: 10/15/14 - 
   ! Modified by Paolo Orsini: change of function name to add new constructor
   ! Date: 05/02/18
+  ! Modified by Alex Salazar: accommodate 3D interpolation
+  ! Date: 02/16/2022
   ! 
 
   implicit none
@@ -241,12 +265,21 @@ function LookupTableCreateGeneralDim(dim)
   call LookupTableBaseInit(lookup_table)
   lookup_table%dim = dim
   nullify(lookup_table%axis2)
+  nullify(lookup_table%axis3)
   allocate(lookup_table%axis1)
   call LookupTableAxisInit(lookup_table%axis1)
   if (dim > 1) then
     allocate(lookup_table%axis2)
     call LookupTableAxisInit(lookup_table%axis2)
     lookup_table%axis2%saved_index2 = 1
+  endif
+  if (dim > 2) then
+    allocate(lookup_table%axis3)
+    call LookupTableAxisInit(lookup_table%axis3)
+    lookup_table%mode = INTERP_3D_LP
+    lookup_table%axis3%num_partitions = UNINITIALIZED_INTEGER
+    lookup_table%axis3%extrapolate = PETSC_FALSE
+    nullify(lookup_table%data_references)
   endif
   
   LookupTableCreateGeneralDim => lookup_table
@@ -271,6 +304,7 @@ function LookupTableCreateGeneralNoDim()
   allocate(lookup_table)
   call LookupTableBaseInit(lookup_table)
   nullify(lookup_table%axis2)
+  nullify(lookup_table%axis3)
   
   LookupTableCreateGeneralNoDim => lookup_table
 
@@ -389,6 +423,7 @@ subroutine LookupTableAxisInit(axis)
   
   axis%itype = 0
   axis%saved_index = 1
+  axis%saved_index1 = 1
   nullify(axis%values)
   
 end subroutine LookupTableAxisInit
@@ -490,7 +525,19 @@ function LookupTableEvaluateGeneral(this,lookup1,lookup2,lookup3)
 
   call LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   if (present(lookup3)) then
+    select case(this%mode)
+    !-------------------------------------
+      case(INTERP_3D_LP)
+        call LookupTableInterpolate3DLP(this,lookup1,lookup2,lookup3, &
+                                          LookupTableEvaluateGeneral)
+    !-------------------------------------
+      case(INTERP_3D_TL)
+        call LookupTableInterpolate3DTrilinear(this,lookup1,lookup2,lookup3, &
+                                                 LookupTableEvaluateGeneral)
+    !-------------------------------------
+      case default 
 !    call LookupTableInterpolate3DGeneral(this,lookup1,lookup2,lookup3,LookupTableEvaluateGeneral)
+    end select
   else if (present(lookup2)) then
     call LookupTableInterpolate2DGeneral(this,lookup1,lookup2,LookupTableEvaluateGeneral)
   else
@@ -592,6 +639,9 @@ subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   ! Author: Glenn Hammond
   ! Date: 10/15/14
   ! 
+  ! Modified by: Alex Salazar III
+  ! Date: 02/18/2022
+  !
   implicit none
   
   class(lookup_table_general_type) :: this
@@ -602,37 +652,276 @@ subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   PetscInt :: ja, jb
   PetscInt :: istart, iend
   class(lookup_table_axis2_general_type), pointer :: axis2
+  class(lookup_table_axis3_general_type), pointer :: axis3
   
   ! axis 1 corresponds to the j dim below
   call LookupTableAxisIndexGeneral(lookup1,this%axis1%values, &
                                    this%axis1%saved_index)
   
-  if (.not. associated(this%axis2)) return
-  
-  axis2 => this%axis2
- 
-  ja = this%axis1%saved_index
-  if (ja > 0) then
-    jb = max(min(ja+1,this%dims(1)),1)
-  else
-    ja = 1
-    jb = 1
-  endif
-  
-  iend = ja*this%dims(2)
-  istart = iend - this%dims(2) + 1
-  call LookupTableAxisIndexGeneral(lookup2,axis2%values(istart:iend), &
-                                   axis2%saved_index)
-  if (ja /= jb) then
-    iend = jb*this%dims(2)
+  if (associated(this%axis3)) then
+
+    call LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
+
+  elseif (associated(this%axis2)) then
+
+    axis2 => this%axis2
+
+    ja = this%axis1%saved_index
+    if (ja > 0) then
+      jb = max(min(ja+1,this%dims(1)),1)
+    else
+      ja = 1
+      jb = 1
+    endif
+
+    iend = ja*this%dims(2)
     istart = iend - this%dims(2) + 1
     call LookupTableAxisIndexGeneral(lookup2,axis2%values(istart:iend), &
-                                     axis2%saved_index2)
-  else 
-    axis2%saved_index2 = axis2%saved_index
+                                     axis2%saved_index)
+    if (ja /= jb) then
+      iend = jb*this%dims(2)
+      istart = iend - this%dims(2) + 1
+      call LookupTableAxisIndexGeneral(lookup2,axis2%values(istart:iend), &
+                                       axis2%saved_index2)
+    else 
+      axis2%saved_index2 = axis2%saved_index
+    endif
   endif
 
 end subroutine LookupTableIndexGeneral
+
+! ************************************************************************** !
+
+subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
+  !
+  ! Identifies indices for 3D interpolation for given lookups
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/21/2022
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type) :: this
+  PetscReal :: lookup1
+  PetscReal :: lookup2
+  PetscReal :: lookup3
+  ! ----------------------------------
+  class(lookup_table_axis_type), pointer :: axis1
+  class(lookup_table_axis2_general_type), pointer :: axis2
+  class(lookup_table_axis3_general_type), pointer :: axis3
+  PetscInt :: i, j, k, m ! iterators
+  PetscInt :: li, lj, lk ! array lengths
+  PetscInt :: i1, j1, k1 ! left bounds
+  PetscInt :: i2, j2, k2 ! right bounds
+  PetscBool :: iextrp ! lookup1 requires extrapolation from axis 1
+  PetscBool :: jextrp ! lookup2 requires extrapolation from axis 2
+  PetscBool :: kextrp ! lookup3 requires extrapolation from axis 3
+  PetscInt :: pselect ! relevant partition of axis3
+  PetscReal, pointer :: v3(:) ! subset of axis3 values
+  PetscInt :: kstart, kend    ! start and end of axis3 array to interpolate
+  PetscInt :: indices1(4,2) ! first set of indices used for axis3 indexing
+  PetscInt :: indices2(8,3) ! second set of indices used for data indexing
+  ! ----------------------------------
+
+  axis1 => this%axis1
+  axis2 => this%axis2
+  axis3 => this%axis3
+
+  iextrp = PETSC_FALSE
+  jextrp = PETSC_FALSE
+  kextrp = PETSC_FALSE
+
+  li = size(axis1%values)
+  lj = size(axis2%values)
+  lk = size(axis3%values)
+
+  ! axis1 indices (pivot variable)
+  if (li == 1) then
+    ! only one value given for axis1
+    i1 = 1
+    i2 = 1
+  else
+    if(lookup1 <= axis1%values(1)) then
+      i2 = 2   ! extrapolation - use first and second points
+    elseif (lookup1 > axis1%values(li)) then
+      i2 = li  ! extrapolation - use final and penultimate points
+      iextrp = PETSC_TRUE
+    else
+      ! interpolation
+      do i = 2, li
+        if (axis1%values(i - 1) < lookup1 .and. axis1%values(i) >= lookup1) then
+          i2 = i
+          exit
+        endif
+      enddo
+    endif
+    i1 = i2 - 1
+  endif
+
+  ! axis2 indices (pivot variable)
+  if (lj == 1) then
+    ! only one value given for axis2
+    j1 = 1
+    j2 = 1
+  else
+    if(lookup2 <= axis2%values(1)) then
+      j2 = 2   ! extrapolation - first and second points will be used
+    elseif (lookup2 > axis2%values(lj)) then
+      j2 = lj  ! extrapolation - final and penultimate points will be used
+      jextrp = PETSC_TRUE
+    else
+      ! interpolation
+      do j = 2, lj
+        if (axis2%values(j - 1) < lookup2 .and. axis2%values(j) >= lookup2) then
+          j2 = j
+          exit
+        endif
+      enddo
+    endif
+    j1 = j2 - 1
+  endif
+
+  ! save i, j indices
+  axis1%saved_index  = i1
+  axis1%saved_index1 = i2
+  axis2%saved_index  = j1
+  axis2%saved_index2 = j2
+
+  ! list i, j combinations
+  indices1(1,:) = (/i1, j1/)
+  indices1(2,:) = (/i1, j2/)
+  indices1(3,:) = (/i2, j1/)
+  indices1(4,:) = (/i2, j2/)
+
+  ! axis3 (independent variables) 
+  !   indexing is based on i, j combinations
+  if (.not. allocated(axis3%saved_indices3)) then
+    allocate(axis3%saved_indices3(li,lj,2))
+    axis3%saved_indices3 = 0
+  endif
+  kstart = 0
+  kend = 0
+  pselect = 0
+  if (allocated(axis3%bounds)) then
+    ! ---> axis3 is has defined partitions (non-rectangular)
+    ! allocate saved partition indices if needed
+    if (.not. allocated(axis3%saved_index_partition)) then
+      allocate(axis3%saved_index_partition(li,lj))
+      axis3%saved_index_partition = 0
+    endif
+
+    ! loop through i, j coordinates
+    do m = 1, 4
+      i = indices1(m,1)
+      j = indices1(m,2)
+
+      pselect = this%dims(2)*(i - 1) + j
+
+      axis3%saved_index_partition(i, j) = pselect
+
+      v3 => axis3%partition(pselect)%data
+      lk = size(v3) ! redfine length
+
+      ! axis3 indices
+      if (lk == 1) then
+        ! only one value given for axis3
+        k1 = 1
+        k2 = 1
+      else
+        if(lookup3 <= v3(1)) then
+          k2 = 2   ! extrapolation - first and second points will be used
+        elseif (lookup3 > v3(lk)) then
+          k2 = lk  ! extrapolation - final and penultimate points will be used
+          kextrp = PETSC_TRUE
+        else
+          ! interpolation
+          do k = 2, lk
+            if (v3(k - 1) < lookup3 .and. v3(k) >= lookup3) then
+              k2 = k
+              exit
+            endif
+          enddo
+        endif
+        k1 = k2 - 1
+      endif
+
+      indices2(m,:)   = (/i, j, k1/)
+      indices2(m+4,:) = (/i, j, k2/)
+
+      axis3%saved_indices3(i, j, 1) = k1
+      axis3%saved_indices3(i, j, 2) = k2
+
+      if (associated(v3)) nullify(v3)
+    enddo
+
+  else
+    ! ---> axis3 is described by the dim(3) value (rectangular)
+    ! loop through i, j coordinates
+    do m = 1, 4
+      i = indices1(m,1)
+      j = indices1(m,2)
+
+      kstart = (((this%dims(2)*(i - 1) + j) - 1) * this%dims(3)) + 1
+      kend = ((this%dims(2)*(i - 1) + j)) * this%dims(3)
+
+      ! axis3 indices
+      if (lk == 1) then
+        ! only one value given for axis3
+        k1 = 1
+        k2 = 1
+      else
+        if(lookup3 <= axis3%values(1)) then
+          k2 = 2   ! extrapolation - first and second points will be used
+        elseif (lookup3 > axis3%values(lk)) then
+          k2 = lk  ! extrapolation - final and penultimate points will be used
+          kextrp = PETSC_TRUE
+        else
+          ! interpolation
+          do k = kstart + 1, kend
+            if (axis3%values(k - 1) < lookup3 .and. &
+                axis3%values(k) >= lookup3) then
+              k2 = k
+              exit
+            endif
+          enddo
+        endif
+        k1 = k2 - 1
+      endif
+
+      indices2(m,:)   = (/i, j, k1/)
+      indices2(m+4,:) = (/i, j, k2/)
+
+      axis3%saved_indices3(i, j, 1) = k1
+      axis3%saved_indices3(i, j, 2) = k2
+
+    enddo
+
+  endif
+
+  ! assign reference data points to the indices
+  nullify(this%data_references)
+  allocate(this%data_references(li,lj,lk))
+  this%data_references = 0.0d0
+  if (allocated(this%partition)) then
+    do m = 1, 8
+      i = indices2(m,1)
+      j = indices2(m,2)
+      k = indices2(m,3)
+      pselect = axis3%saved_index_partition(i, j)
+      this%data_references(i, j, k) = this%partition(pselect)%data(k)
+    enddo
+  else
+    do m = 1, 8
+      i = indices2(m,1)
+      j = indices2(m,2)
+      k = indices2(m,3)
+      this%data_references(i, j, k) = this%data(k)
+    enddo
+  endif
+
+  if (kextrp) this%axis3%extrapolate = PETSC_TRUE
+
+end subroutine LookupTableIndexAxis3
 
 ! ************************************************************************** !
 
@@ -1336,6 +1625,351 @@ end subroutine LookupTableInterpolate2DGeneral
 
 ! ************************************************************************** !
 
+subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
+  !
+  ! Interpolation in three dimensions via Lagrange polynomials
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/22/2022
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type) :: this   ! lookup table
+  PetscReal, intent(in) :: lookup1           ! lookup1 value
+  PetscReal, intent(in) :: lookup2           ! lookup2 value
+  PetscReal, intent(in) :: lookup3           ! lookup3 value
+  PetscReal, intent(out) :: result           ! interpolated value
+  ! ----------------------------------
+  PetscReal, pointer :: x(:)  ! lookup1 table
+  PetscReal, pointer :: y(:)  ! lookup2 table
+  PetscReal, pointer :: z(:)  ! lookup3 table (full)
+  type(lookup_irregular_array_type) :: za(4)  ! axis3 of interest (partitions)
+  PetscReal :: F(8)  ! reference data
+  PetscInt  :: i, j, k, m
+  PetscInt  :: i1, i2
+  PetscInt  :: j1, j2
+  PetscInt  :: k1, k2
+  PetscInt  :: pselect
+  PetscInt  :: k11, k12, k13, k14, k21, k22, k23, k24
+  PetscReal :: a1, a2, a3, a4, a51, a52, a53, a54, a61, a62, a63, a64
+  PetscInt :: indices1(4,2) ! first set of indices used for axis3 indexing
+  PetscInt :: indices2(8,3) ! second set of indices used for data indexing
+  ! ----------------------------------
+  !  METHOD
+  !
+  !  The lookup value (x, y, z) is bounded from x1 to x2, y1 to y2, and z1 to z2
+  !
+  !  Eight points form the basis of polynomial interpolation
+  !    p1: (x1,y1,z1,u1)
+  !    p2: (x1,y2,z1,u2)
+  !    p3: (x2,y1,z1,u3)
+  !    p4: (x2,y2,z1,u4)
+  !    p5: (x1,y1,z2,u5)
+  !    p6: (x1,y2,z2,u6)
+  !    p7: (x2,y1,z2,u7)
+  !    p8: (x2,y2,z2,u8)
+  !
+  !  Polynomial P(x,y,z) is defined that has roots at each point
+  !    P(x,y,z) = (x - x1)(x - x2)(y - y1)(y - y2)(z - z1)(z - z2)
+  !
+  !  Constituent polynomials fi(x,y,z) are defined such that
+  !    f1(x,y,z) = P(x,y,z)/(x - x1)(y - y1)(z - z1)
+  !    f2(x,y,z) = P(x,y,z)/(x - x1)(y - y2)(z - z1)
+  !    f3(x,y,z) = P(x,y,z)/(x - x2)(y - y1)(z - z1)
+  !    f4(x,y,z) = P(x,y,z)/(x - x2)(y - y2)(z - z1)
+  !    f5(x,y,z) = P(x,y,z)/(x - x1)(y - y1)(z - z2)
+  !    f6(x,y,z) = P(x,y,z)/(x - x1)(y - y2)(z - z2)
+  !    f7(x,y,z) = P(x,y,z)/(x - x2)(y - y1)(z - z2)
+  !    f8(x,y,z) = P(x,y,z)/(x - x2)(y - y2)(z - z2)
+  !
+  !  Function U(x,y,z) defined that uses constituent polynomials to go through
+  !    all eight points
+  !    U(x,y,z) = u1*f1(x,y,z)/f1(x1,y1,z1) +
+  !               u2*f2(x,y,z)/f2(x1,y2,z1) +
+  !               u3*f3(x,y,z)/f3(x2,y1,z1) +
+  !               u4*f4(x,y,z)/f4(x2,y2,z1) +
+  !               u5*f5(x,y,z)/f5(x1,y1,z2) +
+  !               u6*f6(x,y,z)/f6(x1,y2,z2) +
+  !               u7*f7(x,y,z)/f7(x2,y1,z2) +
+  !               u8*f8(x,y,z)/f8(x2,y2,z2)
+
+  x  => this%axis1%values ! axis1 values
+  y  => this%axis2%values ! axis2 values
+  z  => this%axis3%values ! axis3 values (full)
+
+  ! retrieve i and j indices (pivot variables)
+  i1 = this%axis1%saved_index
+  i2 = this%axis1%saved_index1
+  j1 = this%axis2%saved_index
+  j2 = this%axis2%saved_index2
+
+  ! (i, j) combinations
+  indices1(1,:) = (/i1, j1/) ! a*1 coefficients
+  indices1(2,:) = (/i1, j2/) ! a*2 coefficients
+  indices1(3,:) = (/i2, j1/) ! a*3 coefficients
+  indices1(4,:) = (/i2, j2/) ! a*4 coefficients
+
+  ! retrieve k indices (independent variables)
+  do m = 1, 4
+    i = indices1(m,1)
+    j = indices1(m,2)
+    k1 = this%axis3%saved_indices3(i, j, 1)
+    k2 = this%axis3%saved_indices3(i, j, 2)
+    indices2(m,:)   = (/i, j, k1/) ! a5* coefficients
+    indices2(m+4,:) = (/i, j, k2/) ! a6* coefficients
+    ! redefine z-axis as-needed
+    if (allocated(this%axis3%partition)) then
+      pselect = this%axis3%saved_index_partition(i, j)
+      za(m)%data => this%axis3%partition(pselect)%data
+    else
+      za(m)%data => z
+    endif
+  enddo
+
+  ! retrieve data
+  do m = 1, 8
+    i = indices2(m,1)
+    j = indices2(m,2)
+    k = indices2(m,3)
+    F(m) = this%data_references(i, j, k)
+  enddo
+
+  ! define coefficients of polymomial based on lookups
+  !   lookups are compared to opposite i, j, and k indices
+  a1  = (lookup1 - x(i2)) / ( x(i1) - x(i2) ) ! a1 -> i1
+  a2  = (lookup1 - x(i1)) / ( x(i2) - x(i1) ) ! a2 -> i2
+  a3  = (lookup2 - y(j2)) / ( y(j1) - y(j2) ) ! a3 -> j1
+  a4  = (lookup2 - y(j1)) / ( y(j2) - y(j1) ) ! a4 -> j2
+
+  k11 = this%axis3%saved_indices3(i1, j1, 1) ! k11 -> i1,j1,k1
+  k12 = this%axis3%saved_indices3(i1, j2, 1) ! k12 -> i1,j2,k1
+  k13 = this%axis3%saved_indices3(i2, j1, 1) ! k13 -> i2,j1,k1
+  k14 = this%axis3%saved_indices3(i2, j2, 1) ! k14 -> i2,j2,k1
+  k21 = this%axis3%saved_indices3(i1, j1, 2) ! k21 -> i1,j1,k2
+  k22 = this%axis3%saved_indices3(i1, j2, 2) ! k22 -> i1,j2,k2
+  k23 = this%axis3%saved_indices3(i2, j1, 2) ! k23 -> i2,j1,k2
+  k24 = this%axis3%saved_indices3(i2, j2, 2) ! k24 -> i2,j2,k2
+
+  a51 = (lookup3 - za(1)%data(k21)) / (za(1)%data(k11) - za(1)%data(k21)) ! a51 -> i1,j1,k1
+  a52 = (lookup3 - za(2)%data(k22)) / (za(2)%data(k12) - za(2)%data(k22)) ! a52 -> i1,j2,k1
+  a53 = (lookup3 - za(3)%data(k23)) / (za(3)%data(k13) - za(3)%data(k23)) ! a53 -> i2,j1,k1
+  a54 = (lookup3 - za(4)%data(k24)) / (za(4)%data(k14) - za(4)%data(k24)) ! a54 -> i2,j2,k1
+  a61 = (lookup3 - za(1)%data(k11)) / (za(1)%data(k21) - za(1)%data(k11)) ! a61 -> i1,j1,k2
+  a62 = (lookup3 - za(2)%data(k12)) / (za(2)%data(k22) - za(2)%data(k12)) ! a62 -> i1,j2,k2
+  a63 = (lookup3 - za(3)%data(k13)) / (za(3)%data(k23) - za(3)%data(k13)) ! a63 -> i2,j1,k2
+  a64 = (lookup3 - za(4)%data(k14)) / (za(4)%data(k24) - za(4)%data(k14)) ! a64 -> i2,j2,k2
+  
+  ! product operator bypasses identical indices --> pick one term to cancel
+  if (i1 == i2) then
+    a1 = 1
+    a2 = 0
+  endif
+  if (j1 == j2) then
+    a3 = 1
+    a4 = 0
+  endif
+  if (k11 == k21) then
+    a51 = 1
+    a61 = 0
+  endif
+  if (k12 == k22) then
+    a52 = 1
+    a62 = 0
+  endif
+  if (k13 == k23) then
+    a53 = 1
+    a63 = 0
+  endif
+  if (k14 == k24) then
+    a54 = 1
+    a64 = 0
+  endif
+
+  ! obtain result from interpolating polynomial
+  result = a1*a3*a51*F(1) + & ! F and a51 -> i1,j1,k1 ! a1 -> i1 ! a3 -> j1
+           a1*a4*a52*F(2) + & ! F and a52 -> i1,j2,k1 ! a1 -> i1 ! a4 -> j2
+           a2*a3*a53*F(3) + & ! F and a53 -> i2,j1,k1 ! a2 -> i2 ! a3 -> j1
+           a2*a4*a54*F(4) + & ! F and a54 -> i2,j2,k1 ! a2 -> i2 ! a4 -> j2
+           a1*a3*a61*F(5) + & ! F and a61 -> i1,j1,k2 ! a1 -> i1 ! a3 -> j1
+           a1*a4*a62*F(6) + & ! F and a62 -> i1,j2,k2 ! a1 -> i1 ! a4 -> j2
+           a2*a3*a63*F(7) + & ! F and a63 -> i2,j1,k2 ! a2 -> i2 ! a3 -> j1
+           a2*a4*a64*F(8)     ! F and a64 -> i2,j2,k2 ! a2 -> i2 ! a4 -> j2
+
+  if (associated(x)) nullify(x)
+  if (associated(y)) nullify(y)
+  if (associated(z)) nullify(z)
+
+end subroutine LookupTableInterpolate3DLP
+
+! ************************************************************************** !
+
+subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
+                                             result)
+  !
+  ! Trilinear interpolation of lookup values
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/22/2022
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type) :: this   ! lookup table
+  PetscReal, intent(in) :: lookup1           ! lookup1 value
+  PetscReal, intent(in) :: lookup2           ! lookup2 value
+  PetscReal, intent(in) :: lookup3           ! lookup3 value
+  PetscReal, intent(out) :: result ! interpolated value
+  ! ----------------------------------
+  PetscReal, pointer :: x(:)  ! lookup1 table
+  PetscReal, pointer :: y(:)  ! lookup2 table
+  PetscReal, pointer :: z(:)  ! lookup3 table (full)
+  type(lookup_irregular_array_type) :: za(4)  ! axis3 of interest (partitions)
+  PetscReal :: F(8)  ! reference data
+  PetscInt  :: i, j, k, m ! iterators
+  PetscInt  :: i1, i2
+  PetscInt  :: j1, j2
+  PetscInt  :: k1, k2
+  PetscInt  :: pselect
+  PetscInt :: indices1(4,2) ! first set of indices used for axis3 indexing
+  PetscInt :: indices2(8,3) ! second set of indices used for data indexing
+  PetscReal :: xd, yd, zd   ! axial differences
+  PetscReal :: zmin, zmax
+  PetscReal :: zlog(8)
+  PetscReal :: c000   ! data point cube vertex (x1,y1,z1)
+  PetscReal :: c010   ! data point cube vertex (x1,y2,z1)
+  PetscReal :: c100   ! data point cube vertex (x2,y1,z1)
+  PetscReal :: c110   ! data point cube vertex (x2,y2,z1)
+  PetscReal :: c001   ! data point cube vertex (x1,y1,z2)
+  PetscReal :: c011   ! data point cube vertex (x1,y2,z2)
+  PetscReal :: c101   ! data point cube vertex (x2,y1,z2)
+  PetscReal :: c111   ! data point cube vertex (x2,y2,z2)
+  PetscReal :: c00    ! data point plane vertex
+  PetscReal :: c01    ! data point plane vertex
+  PetscReal :: c10    ! data point plane vertex
+  PetscReal :: c11    ! data point plane vertex
+  PetscReal :: c0     ! data point line vertex
+  PetscReal :: c1     ! data point line vertex
+  ! ----------------------------------
+  !  METHOD
+  !
+  !  The lookup value (x, y, z) is bounded from x1 to x2, y1 to y2, and z1 to z2
+  !
+  !  Eight points form vertices of cube around the lookup value
+  !    p1: (x1,y1,z1,u1)
+  !    p2: (x1,y2,z1,u2)
+  !    p3: (x2,y1,z1,u3)
+  !    p4: (x2,y2,z1,u4)
+  !    p5: (x1,y1,z2,u5)
+  !    p6: (x1,y2,z2,u6)
+  !    p7: (x2,y1,z2,u7)
+  !    p8: (x2,y2,z2,u8)
+  !
+  !  Determine differences along x, y, and z between the lookup values and
+  !    vertices, where the minimum-bounding vertex serves as the origin.
+  !
+  !  Marching along x direction beginning at origin, find intermediate
+  !    interpolated data values using data from all vertices
+  !    -- this forms a yz plane.
+  !
+  !  Marching along y direction on the yz plane defined earlier, find
+  !    intermediate interpolated data values using four points of the yz plane
+  !    -- this forms a line parallel with the z axis.
+  !
+  !  Marching along the z line defined earlier, find final interpolated data
+  !    value.
+
+  x  => this%axis1%values ! axis1 values
+  y  => this%axis2%values ! axis2 values
+  z  => this%axis3%values ! axis3 values (full)
+
+  ! retrieve i and j indices (pivot variables)
+  i1 = this%axis1%saved_index
+  i2 = this%axis1%saved_index1
+  j1 = this%axis2%saved_index
+  j2 = this%axis2%saved_index2
+
+  ! x and y differences
+  xd = (lookup1 - x(i1))/(x(i2) - x(i1))
+  yd = (lookup2 - y(j1))/(y(j2) - y(j1))
+
+  if (i1 == i2) then
+    xd = 1
+  endif
+  if (j1 == j2) then
+    yd = 1
+  endif
+
+  ! (i, j) combinations
+  indices1(1,:) = (/i1, j1/) ! x1, y1 per z
+  indices1(2,:) = (/i1, j2/) ! x1, y2 per z
+  indices1(3,:) = (/i2, j1/) ! x2, y1 per z
+  indices1(4,:) = (/i2, j2/) ! x2, y2 per z
+
+  ! retrieve k indices (independent variables)
+  do m = 1, 4
+    i = indices1(m,1)
+    j = indices1(m,2)
+    k1 = this%axis3%saved_indices3(i, j, 1)
+    k2 = this%axis3%saved_indices3(i, j, 2)
+    indices2(m,:)   = (/i, j, k1/) ! z1
+    indices2(m+4,:) = (/i, j, k2/) ! z2
+    ! redefine z-axis as-needed
+    if (allocated(this%axis3%partition)) then
+      pselect = this%axis3%saved_index_partition(i, j)
+      za(m)%data => this%axis3%partition(pselect)%data
+    else
+      za(m)%data => z
+    endif
+    zlog(m)   = za(m)%data(k1)
+    zlog(m+4) = za(m)%data(k2)
+  enddo
+
+  ! retrieve data
+  do m = 1, 8
+    i = indices2(m,1)
+    j = indices2(m,2)
+    k = indices2(m,3)
+    F(m) = this%data_references(i, j, k)
+  enddo
+
+  ! z difference
+  zmin = minval(zlog)
+  zmax = maxval(zlog)
+  zd = (lookup3 - zmin)/(zmax - zmin)
+  if (zmax == zmin) then
+    zd = 1
+  endif
+
+  ! define cube vertex data values
+  c000 = F(1)
+  c010 = F(2)
+  c100 = F(3)
+  c110 = F(4)
+  c001 = F(5)
+  c011 = F(6)
+  c101 = F(7)
+  c111 = F(8)
+
+  ! interpolate along x-axis
+  c00 = c000*(1 - xd) + c100*xd
+  c01 = c001*(1 - xd) + c101*xd
+  c10 = c010*(1 - xd) + c110*xd
+  c11 = c011*(1 - xd) + c111*xd
+
+  ! interpolate along y-axis
+  c0 = c00*(1 - yd) + c10*yd
+  c1 = c01*(1 - yd) + c11*yd
+
+  ! interpolate along z-axis
+  result = c0*(1- zd) + c1*zd
+  
+  if (associated(x)) nullify(x)
+  if (associated(y)) nullify(y)
+  if (associated(z)) nullify(z)
+
+end subroutine LookupTableInterpolate3DTrilinear
+
+! ************************************************************************** !
+
 subroutine InterpExtrapGradGeneral2D(this,var_iname,lookup1,lookup2)
   ! 
   ! Author: Paolo Orsini
@@ -1866,6 +2500,12 @@ subroutine LookupTableGeneralDestroy(lookup_table)
     call DeallocateArray(lookup_table%axis2%values)
     deallocate(lookup_table%axis2)
     nullify(lookup_table%axis2)
+  endif
+  ! axis3 is different type
+  if (associated(lookup_table%axis3)) then
+    call DeallocateArray(lookup_table%axis3%values)
+    deallocate(lookup_table%axis3)
+    nullify(lookup_table%axis3)
   endif
   deallocate(lookup_table)
   nullify(lookup_table)

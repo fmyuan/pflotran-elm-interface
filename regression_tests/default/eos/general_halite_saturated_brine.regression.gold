@@ -1,0 +1,63 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   1.5000000000000E+05
+      Min:   1.5000000000000E+05
+     Mean:   1.5000000000000E+05
+        1:   1.5000000000000E+05
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        1:   1.0000000000000E+00
+-- SATURATION: Gas Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- PRESSURE: Vapor Pressure --
+      Max:   1.4965228003362E+05
+      Min:   1.4965228003362E+05
+     Mean:   1.4965228003362E+05
+        1:   1.4965228003362E+05
+-- PRESSURE: Saturation Pressure --
+      Max:   5.5919904259570E+04
+      Min:   5.5919904259570E+04
+     Mean:   5.5919904259570E+04
+        1:   5.5919904259570E+04
+-- GENERIC: Liquid Density --
+      Max:   1.0029874592243E+03
+      Min:   1.0029874592243E+03
+     Mean:   1.0029874592243E+03
+        1:   1.0029874592243E+03
+-- GENERIC: Liquid Viscosity --
+      Max:   3.7135992483292E-04
+      Min:   3.7135992483292E-04
+     Mean:   3.7135992483292E-04
+        1:   3.7135992483292E-04
+-- GENERIC: X_g^l --
+      Max:   3.0000000000000E-08
+      Min:   3.0000000000000E-08
+     Mean:   3.0000000000000E-08
+        1:   3.0000000000000E-08
+-- GENERIC: X_l^l --
+      Max:   9.9999997000000E-01
+      Min:   9.9999997000000E-01
+     Mean:   9.9999997000000E-01
+        1:   9.9999997000000E-01
+-- GENERIC: Temperature --
+      Max:   8.5000000000000E+01
+      Min:   8.5000000000000E+01
+     Mean:   8.5000000000000E+01
+        1:   8.5000000000000E+01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Flow --
+   Time (seconds):   3.9021968841553E-03
+   Time Steps:           22
+   Newton Iterations:           22
+   Linear Solver Iterations:            0
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.5000002408333E+05
+   Residual 2-Norm:   0.0000000000000E+00

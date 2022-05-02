@@ -3,6 +3,7 @@ module Inversion_Measurement_Aux_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Geometry_module
 
   implicit none
 
@@ -17,6 +18,7 @@ module Inversion_Measurement_Aux_module
     PetscReal :: simulated_value
     PetscBool :: first_lambda
     PetscBool :: measured
+    type(point3d_type) :: coordinate
     type(inversion_measurement_aux_type), pointer :: next
   end type inversion_measurement_aux_type
 
@@ -75,6 +77,8 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%first_lambda = PETSC_FALSE
   measurement%measured = PETSC_FALSE
 
+  call GeometryInitCoordinate(measurement%coordinate)
+
   nullify(measurement%next)
 
 end subroutine InversionMeasurementAuxInit
@@ -98,6 +102,7 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%cell_id = measurement%cell_id
   measurement2%value = measurement%value
   measurement2%simulated_value = measurement%simulated_value
+  call GeometryCopyCoordinate(measurement%coordinate,measurement2%coordinate)
 
 end subroutine InversionMeasurementAuxCopy
 
@@ -190,6 +195,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
   type(inversion_measurement_aux_type), pointer :: new_measurement
   PetscReal :: units_conversion
   character(len=MAXWORDLENGTH) :: internal_units, word
+  character(len=MAXSTRINGLENGTH) :: string
 
   new_measurement => InversionMeasurementAuxCreate()
 
@@ -218,6 +224,10 @@ function InversionMeasurementAuxRead(input,error_string,option)
       case('CELL_ID')
         call InputReadInt(input,option,new_measurement%cell_id)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('COORDINATE')
+        string = trim(error_string) // ',' // keyword
+        call GeometryReadCoordinate(input,option,new_measurement%coordinate, &
+                                    string)
       case('VALUE')
         call InputReadDouble(input,option,new_measurement%value)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -228,8 +238,9 @@ function InversionMeasurementAuxRead(input,error_string,option)
   enddo
   call InputPopBlock(input,option)
 
-  if (UnInitialized(new_measurement%cell_id)) then
-    option%io_buffer = 'CELL_ID not specified for measurement.'
+  if (UnInitialized(new_measurement%cell_id) .and. &
+      UnInitialized(new_measurement%coordinate%x)) then
+    option%io_buffer = 'CELL_ID or COORDINATE not specified for measurement.'
     call PrintErrMsg(option)
   endif
   if (UnInitialized(new_measurement%value)) then

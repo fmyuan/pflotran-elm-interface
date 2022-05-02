@@ -24,6 +24,8 @@ module Option_Flow_module
     PetscBool :: fracture_on
     PetscBool :: only_vertical_flow
     PetscBool :: density_depends_on_salinity
+    PetscBool :: enthalpy_depends_on_salinity
+    PetscBool :: sat_pres_depends_on_salinity
     PetscBool :: quasi_3d
     PetscBool :: numerical_derivatives
     PetscBool :: numerical_derivatives_compare
@@ -50,6 +52,7 @@ module Option_Flow_module
 
     ! If true, velocity is calculated to be used in reactions
     PetscBool :: store_darcy_vel
+
 
   end type flow_option_type
   
@@ -139,6 +142,8 @@ subroutine OptionFlowInitRealization(option)
   option%fracture_on = PETSC_FALSE
   option%only_vertical_flow = PETSC_FALSE
   option%density_depends_on_salinity = PETSC_FALSE
+  option%enthalpy_depends_on_salinity = PETSC_FALSE
+  option%sat_pres_depends_on_salinity = PETSC_FALSE
   option%quasi_3d = PETSC_FALSE
   option%numerical_derivatives = PETSC_FALSE
   option%numerical_derivatives_compare = petsc_false

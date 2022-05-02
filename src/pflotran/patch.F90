@@ -20,6 +20,7 @@ module Patch_module
   use Saturation_Function_module
   use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_module
+  use Material_Transform_module
   use Auxiliary_module
 
   use General_Aux_module
@@ -40,6 +41,7 @@ module Patch_module
     PetscInt, pointer :: imat_internal_to_external(:)
     PetscInt, pointer :: cc_id(:)    ! characteristic curves id
     PetscInt, pointer :: cct_id(:)   ! thermal characteristic curves id
+    PetscInt, pointer :: mtf_id(:)   ! material transform id
 
     PetscReal, pointer :: internal_velocities(:,:)
     PetscReal, pointer :: boundary_velocities(:,:)
@@ -75,6 +77,8 @@ module Patch_module
     type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
     class(cc_thermal_type), pointer :: characteristic_curves_thermal
     type(cc_thermal_ptr_type), pointer :: char_curves_thermal_array(:)
+    class(material_transform_type), pointer :: material_transform
+    type(material_transform_ptr_type), pointer :: material_transform_array(:)
 
     type(strata_list_type), pointer :: strata_list
     type(observation_list_type), pointer :: observation_list
@@ -161,6 +165,7 @@ function PatchCreate()
   nullify(patch%imat_internal_to_external)
   nullify(patch%cc_id)
   nullify(patch%cct_id)
+  nullify(patch%mtf_id)
   nullify(patch%internal_velocities)
   nullify(patch%boundary_velocities)
   nullify(patch%internal_tran_coefs)
@@ -196,6 +201,8 @@ function PatchCreate()
   nullify(patch%characteristic_curves_array)
   nullify(patch%characteristic_curves_thermal)
   nullify(patch%char_curves_thermal_array)
+  nullify(patch%material_transform)
+  nullify(patch%material_transform_array)
 
   allocate(patch%observation_list)
   call ObservationInitList(patch%observation_list)
@@ -2319,7 +2326,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           else
           ! liquid pressure; 1st dof --------------------- !
             select case(hydrate%liquid_pressure%itype)
-              case(DIRICHLET_BC)
+              case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,hydrate%liquid_pressure%dataset,iconn,liq_pressure)
                 coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_pressure
@@ -2371,12 +2378,13 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           temperature = UNINITIALIZED_DOUBLE
           ! gas pressure; 1st dof ------------------------ !
           select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
               dof1 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = &
+                      hydrate%gas_pressure%itype !DIRICHLET_BC
             case default
               string = GetSubConditionName(hydrate%gas_pressure%itype)
               option%io_buffer = &
@@ -2568,7 +2576,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
         case(GA_STATE, HG_STATE)
           ! gas pressure; 1st dof ------------------------ !
           select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                      patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
@@ -6272,6 +6280,20 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         call PatchGetKOrthogonalityError(grid, material_auxvars, vec_ptr)
         !vec_ptr(:) = UNINITIALIZED_DOUBLE
       endif
+    ! PM Material Transform
+    case(SMECTITE)
+      if (associated(patch%aux%MTransform)) then
+        select case(ivar)
+          case(SMECTITE)
+            do local_id=1,grid%nlmax
+              if (associated(patch%aux%MTransform% &
+                  auxvars(grid%nL2G(local_id))%il_aux)) then
+                vec_ptr(local_id) = &
+                  patch%aux%MTransform%auxvars(grid%nL2G(local_id))%il_aux%fs
+              endif
+            enddo
+        end select
+      endif
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -6890,7 +6912,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
     ! NUCLEAR_WASTE_TRANSPORT:
     case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
-         MNRL_VOLUME_FRACTION)
+         MNRL_VOLUME_FRACTION,NWT_AUXILIARY)
       select case(ivar)
         case(TOTAL_BULK_CONC)
           value = patch%aux%NWT%auxvars(ghosted_id)%total_bulk_conc(isubvar)
@@ -6902,6 +6924,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = patch%aux%NWT%auxvars(ghosted_id)%sorb_eq_conc(isubvar)
         case(MNRL_VOLUME_FRACTION)
           value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_vol_frac(isubvar)
+        case(NWT_AUXILIARY)
+          value = patch%aux%NWT%auxvars(ghosted_id)%auxiliary_data(isubvar)
       end select
       if ( (patch%aux%NWT%truncate_output) .and. &
            ((value < 1.d-99) .and. (value > 0.d0)) ) then
@@ -9543,6 +9567,7 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%imat_internal_to_external)
   call DeallocateArray(patch%cc_id)
   call DeallocateArray(patch%cct_id)
+  call DeallocateArray(patch%mtf_id)
   call DeallocateArray(patch%internal_velocities)
   call DeallocateArray(patch%boundary_velocities)
   call DeallocateArray(patch%internal_tran_coefs)
@@ -9580,6 +9605,11 @@ subroutine PatchDestroy(patch)
   nullify(patch%char_curves_thermal_array)
   nullify(patch%characteristic_curves_thermal)
 
+  if (associated(patch%material_transform_array)) &
+    deallocate(patch%material_transform_array)
+  nullify(patch%material_transform_array)
+  nullify(patch%material_transform)
+  
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
   call RegionDestroyList(patch%region_list)

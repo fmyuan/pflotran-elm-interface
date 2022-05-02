@@ -162,7 +162,16 @@ module Variables_module
   PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 132
   PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 133
 
+
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
   PetscInt, parameter, public :: MATRIX_LENGTH    = 135
+
+  PetscInt, parameter, public :: VG_ALPHA                = 136
+  PetscInt, parameter, public :: VG_M                    = 137
+  PetscInt, parameter, public :: VG_SR                   = 138
+
+  PetscInt, parameter, public :: NWT_AUXILIARY = 139
+
+  PetscInt, parameter, public :: SMECTITE                = 140
 
 end module Variables_module
