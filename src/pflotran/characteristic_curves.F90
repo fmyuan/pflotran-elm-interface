@@ -987,7 +987,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
       sf_swap => SFSplineCtor(saturation_function, spline)
     end if
     ! The calling CCRead will deallocated saturation_function
-    sf_swap%calc_int_tension = tension
   end if
 
 end function SaturationFunctionRead
