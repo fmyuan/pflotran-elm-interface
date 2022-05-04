@@ -1,6 +1,8 @@
 SIMULATION
   SIMULATION_TYPE INVERSE
-  INVERSION PERTURBATION
+  INVERSION TEST_SENSITIVITY_JACOBIAN
+    PERTURBATION
+    /
     EXTERNAL_FILE inverse_3x1x3_transport.txt
     # OBSERVATION_FUNCTION is set to LIQUID_PRESSURE in 
     # inverse_3x1x3_transport.txt. The below overrides it.

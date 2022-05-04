@@ -75,7 +75,7 @@ module PM_UFD_Decay_class
     PetscInt, pointer :: isotope_parents(:,:)
     PetscReal, pointer :: isotope_tot_mass(:)
     PetscReal, pointer :: element_solubility(:)
-    PetscReal, pointer :: element_Kd(:,:)
+    PetscReal, pointer :: element_Kd(:,:,:)
     PetscInt :: num_elements
     PetscInt :: num_isotopes
     PetscBool :: implicit_solution
@@ -167,7 +167,7 @@ module PM_UFD_Decay_class
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: ielement
     PetscReal :: solubility
-    PetscReal, pointer :: Kd(:)
+    PetscReal, pointer :: Kd(:,:)
     character(len=MAXWORDLENGTH), pointer :: Kd_material_name(:)
     type(element_type), pointer :: next
   end type
@@ -278,11 +278,14 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   type(isotope_type), pointer :: isotope, prev_isotope
   type(daughter_type), pointer :: daughter, prev_daughter
   type(element_type), pointer :: element, prev_element
-  PetscInt :: i
+  PetscInt :: i,j
   PetscInt, parameter :: MAX_KD_SIZE = 100
+  PetscInt, parameter :: MAX_CONTINUUM_SIZE = 3
   character(len=MAXWORDLENGTH) :: Kd_material_name(MAX_KD_SIZE)
-  PetscReal :: Kd(MAX_KD_SIZE)
+  PetscReal :: Kd(MAX_KD_SIZE,MAX_CONTINUUM_SIZE)
   PetscReal :: tempreal
+  PetscReal, pointer :: temp_real_array(:)
+  character(len=MAXSTRINGLENGTH) :: kd_string
 ! -------------------------------------------------------------
 
   option => this%option
@@ -325,8 +328,9 @@ subroutine PMUFDDecayReadPMBlock(this,input)
               call InputErrorMsg(input,option,'solubility',error_string)
             case('KD')
               i = 0
-              Kd(:) = UNINITIALIZED_DOUBLE
+              Kd(:,:) = UNINITIALIZED_DOUBLE
               Kd_material_name(:) = ''
+              kd_string = 'Kd'
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
@@ -342,16 +346,27 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                 call InputErrorMsg(input,option,'Kd material name', &
                                    error_string)
                 Kd_material_name(i) = word
-                call InputReadDouble(input,option,Kd(i))
-                call InputErrorMsg(input,option,'Kd',error_string)
+                nullify(temp_real_array)
+                
+                call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER,kd_string,input,option)
+                if (i == 1) then
+                  j = size(temp_real_array)
+                else
+                  if (j /= size(temp_real_array)) then
+                    option%io_buffer = 'must be same size'
+                    call PrintErrMsg(option)
+                  endif
+                endif
+                Kd(i,:) = temp_real_array(1:j)
               enddo
               if (i == 0) then
                 option%io_buffer = 'No KD/material combinations specified &
                   &under ' // trim(error_string) // '.'
                 call PrintErrMsg(option)
               endif
-              allocate(element%Kd(i))
-              element%Kd = Kd(1:i)
+
+              allocate(element%Kd(i,j))
+              element%Kd = Kd(1:i,1:j)
               allocate(element%Kd_material_name(i))
               element%Kd_material_name = Kd_material_name(1:i)
             case default
@@ -537,6 +552,7 @@ subroutine PMUFDDecayInit(this)
   use Reaction_Mineral_Aux_module
   use Reactive_Transport_Aux_module
   use Material_module
+  use Secondary_Continuum_Aux_module
   
   implicit none
   
@@ -583,13 +599,14 @@ subroutine PMUFDDecayInit(this)
   character(len=MAXWORDLENGTH) :: word
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(material_property_type), pointer :: material_property
-  PetscInt :: icount
+  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
+  PetscInt :: icount, jcount, num_continuum
   PetscInt :: ghosted_id
   PetscInt :: max_daughters_per_isotope
   PetscInt :: max_parents_per_isotope
   PetscBool :: found
   PetscInt :: iisotope, ielement
-  PetscInt :: g, ig, p, ip, d, id
+  PetscInt :: g, ig, p, ip, d, id,cell
 ! -----------------------------------------------------------------------
   
   option => this%realization%option
@@ -601,6 +618,13 @@ subroutine PMUFDDecayInit(this)
   do ghosted_id = 1, grid%ngmax
     allocate(rt_auxvars(ghosted_id)%total_sorb_eq(reaction%naqcomp))
     rt_auxvars(ghosted_id)%total_sorb_eq = 0.d0
+    if (option%use_mc) then
+       rt_sec_transport_vars =>  this%realization%patch%aux%SC_RT%sec_transport_vars
+      do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
+         allocate(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq(reaction%naqcomp))
+         rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq = 0.d0
+      enddo
+    endif
   enddo
   
   max_daughters_per_isotope = 0
@@ -623,7 +647,13 @@ subroutine PMUFDDecayInit(this)
   this%element_solubility = 0.d0
   allocate(this%element_name(this%num_elements))
   this%element_name = ''
-  allocate(this%element_Kd(this%num_elements,size(material_property_array)))
+  if (option%use_mc) then
+     allocate(this%element_Kd(this%num_elements,size(material_property_array),2))
+     num_continuum = 2
+  else
+     allocate(this%element_Kd(this%num_elements,size(material_property_array),1))
+     num_continuum = 1
+  endif
   this%element_Kd = UNINITIALIZED_DOUBLE
   element => this%element_list
   do
@@ -643,8 +673,8 @@ subroutine PMUFDDecayInit(this)
         &MATERIAL_PROPERTY in the format "<string> <double>".'
       call PrintErrMsg(option)
     endif
-    if (size(element%Kd) /= size(material_property_array)) then
-      write(word,*) size(element%Kd)
+    if (size(element%Kd(:,1)) /= size(material_property_array)) then
+      write(word,*) size(element%Kd(:,1))
       option%io_buffer = 'Incorrect number of Kds (' // &
         trim(adjustl(word)) // ') specified for number of materials ('
       write(word,*) size(material_property_array)
@@ -653,20 +683,28 @@ subroutine PMUFDDecayInit(this)
         trim(element%name) // '".'
       call PrintErrMsg(option)
     endif
+    if (size(element%Kd(1,:)) /= num_continuum) then
+       option%io_buffer = 'Incorrect number of Kds'
+       call PrintErrMsg(option)
+    endif
     do icount = 1, size(element%Kd_material_name)
+       do jcount = 1, num_continuum
       material_property => &
         MaterialPropGetPtrFromArray(element%Kd_material_name(icount), &
                                     material_property_array)
-      this%element_Kd(element%ielement,material_property%internal_id) = &
-        element%Kd(icount)
+      this%element_Kd(element%ielement,material_property%internal_id,jcount) = &
+           element%Kd(icount,jcount)
+      enddo
     enddo
     do icount = 1, size(material_property_array)
-      if (UnInitialized(this%element_Kd(element%ielement,icount))) then
-        option%io_buffer = 'Uninitialized KD in UFD Decay element "' // &
+      do jcount = 1, num_continuum
+        if (UnInitialized(this%element_Kd(element%ielement,icount,jcount))) then
+          option%io_buffer = 'Uninitialized KD in UFD Decay element "' // &
           trim(element%name) // '" for material "' // &
           trim(material_property_array(icount)%ptr%name) // '".'
-        call PrintErrMsg(option)
-      endif
+          call PrintErrMsg(option)
+        endif
+      enddo
     enddo
     element => element%next
   enddo  
@@ -810,7 +848,7 @@ subroutine PMUFDDecayInit(this)
     do d = 1, this%isotope_daughters(0,iisotope)
       id = this%isotope_daughters(d,iisotope)
       if (Uninitialized(this%isotope_daughter_stoich(d,iisotope))) then
-        option%io_buffer = 'A stoichiomtry must be defined for isotope ' // &
+        option%io_buffer = 'A stoichiometry must be defined for isotope ' // &
           trim(this%isotope_name(iisotope)) // "'s daughter " // '"' // &
           trim(this%isotope_name(id)) // '".'
         call PrintErrMsg(option)
@@ -899,7 +937,9 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   use Patch_module
   use Grid_module
   use Reactive_Transport_Aux_module
-  
+  use Material_Aux_module
+  use Material_Transform_module
+  use Secondary_Continuum_Aux_module
   implicit none
 
 ! INPUT ARGUMENTS:
@@ -917,6 +957,10 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 !    stores the total sorbed species concentration [mol-species/m3-bulk],
 !    and the primary species molality [mol-species/kg-water], and is
 !    indexed by the ghosted grid cell id
+! material_transform: pointer to material transform object
+! m_transform_auxvars: pointer to auxiliary variables for material transform,
+!   which are used to modify the sorption distribution coefficients and are
+!   indexed by the ghosted grid cell id
 ! kd_kgw_m3b: [kg-water/m3-bulk] Kd value
 ! local_id: [-] local grid cell id
 ! ghosted_id: [-] ghosted grid cell id
@@ -929,28 +973,72 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  class(material_transform_type), pointer :: material_transform
+  class(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
+  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: kd_kgw_m3b
   PetscInt :: local_id, ghosted_id
-  PetscInt :: iele, iiso, ipri, i, imat
+  PetscInt :: iele, iiso, ipri, i, imat, cell
 ! --------------------------------------------------------------
   
   patch => this%realization%patch
   grid => patch%grid
   rt_auxvars => patch%aux%RT%auxvars
   
+  if (associated(patch%aux%MTransform)) then
+    m_transform_auxvars => patch%aux%MTransform%auxvars
+  endif
+  nullify(material_transform)
+
   ! set initial sorbed concentration in equilibrium with aqueous phase
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     imat = patch%imat(ghosted_id) 
     if (imat <= 0) cycle
+
+    if (associated(patch%material_transform_array) .and. &
+        Initialized(patch%mtf_id(ghosted_id))) then
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+      if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
+          associated(material_transform)) then
+        call material_transform%illitization%illitization_function% &
+               CheckElements(this%element_name, &
+                             this%num_elements, &
+                             this%option)
+      endif
+    endif
+
     do iele = 1, this%num_elements
-      kd_kgw_m3b = this%element_Kd(iele,imat)
+      kd_kgw_m3b = this%element_Kd(iele,imat,1)
+
+      ! modify kd if needed
+      if (associated(patch%aux%MTransform)) then
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
+          if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
+            call material_transform%illitization%illitization_function% &
+                   ShiftKd(kd_kgw_m3b, &
+                           this%element_name(iele), &
+                           m_transform_auxvars(ghosted_id)%il_aux, &
+                           this%option)
+          endif
+        endif
+      endif
+
       do i = 1, this%element_isotopes(0,iele)
         iiso = this%element_isotopes(i,iele)
         ipri = this%isotope_to_primary_species(iiso)
         rt_auxvars(ghosted_id)%total_sorb_eq(ipri) = &   ! [mol/m3-bulk]
             rt_auxvars(ghosted_id)%pri_molal(ipri) * &   ! [mol/kg-water]
             kd_kgw_m3b                                   ! [kg-water/m3-bulk]
+        if (this%option%use_mc) then
+          rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
+          kd_kgw_m3b = this%element_Kd(iele,imat,2)
+          do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
+             rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq(ipri) = &
+                  rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal(ipri) *  kd_kgw_m3b
+          enddo
+        endif
       enddo
     enddo      
   enddo
@@ -1039,6 +1127,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   use Global_Aux_module
   use Material_Aux_module
   use Utility_module
+  use Secondary_Continuum_Aux_module
   
   implicit none
 
@@ -1129,6 +1218,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   type(field_type), pointer :: field
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(sec_transport_type) :: rt_sec_transport_vars
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -1159,7 +1249,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   PetscReal :: rate, rate_constant, stoich, one_over_dt
   PetscReal, parameter :: tolerance = 1.d-6
   PetscInt :: idaughter
-  PetscInt :: it
+  PetscInt :: it, istart, iend, cell
 ! -----------------------------------------------------------------------
 
   ierr = 0
@@ -1175,6 +1265,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   
   dt = option%tran_dt
   one_over_dt = 1.d0 / dt
+!  epsilon = 1.d0
   call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
@@ -1184,216 +1275,36 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     if (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) < rt_min_saturation) then
       cycle
     endif
-    vol = material_auxvars(ghosted_id)%volume
     den_w_kg = global_auxvars(ghosted_id)%den_kg(1)
+    if (option%use_mc) then
+      rt_sec_transport_vars =  patch%aux%SC_RT%sec_transport_vars(ghosted_id)
+      sat = global_auxvars(ghosted_id)%sat(1)
+      por = patch%material_property_array(1)%ptr%multicontinuum%porosity      
+      do cell = 1, rt_sec_transport_vars%ncells
+        vol = rt_sec_transport_vars%vol(cell)
+        vps = vol * por * sat
+        call PMUFDDecaySolveISPDIAtCell(this,rt_sec_transport_vars%sec_rt_auxvar(cell),&
+                               reaction,vol,den_w_kg,por,sat,vps,dt,&
+                               rt_sec_transport_vars%sec_rt_auxvar(cell)%pri_molal(:),&
+                               local_id,imat,this%element_Kd(:,:,2))
+      enddo
+      vol = material_auxvars(ghosted_id)%volume * material_auxvars(ghosted_id)% &
+              soil_properties(epsilon_index)
+    else
+      vol = material_auxvars(ghosted_id)%volume
+    endif
+    
     por = material_auxvars(ghosted_id)%porosity
     sat = global_auxvars(ghosted_id)%sat(1)
-    vps = vol * por * sat ! m^3 water
+    vps = vol * por * sat  ! m^3 water
+
+    istart = (local_id-1) * reaction%ncomp + 1
+    iend = istart + reaction%naqcomp - 1
     
-    ! sum up mass of each isotope across phases and decay
-    do iele = 1, this%num_elements
-      do i = 1, this%element_isotopes(0,iele)
-        iiso = this%element_isotopes(i,iele)
-        ipri = this%isotope_to_primary_species(iiso)
-        imnrl = this%isotope_to_mineral(iiso)
-        ! # indicated time level (0 = prev time level, 1 = new time level) 
-        conc_iso_aq0 = xx_p((local_id-1)*reaction%ncomp+ipri) * &
-                       den_w_kg / 1000.d0  ! mol/L
-        !conc_iso_aq0 = rt_auxvars(ghosted_id)%total(ipri,1) ! mol/L
-        conc_iso_sorb0 = rt_auxvars(ghosted_id)%total_sorb_eq(ipri) ! mol/m^3 bulk
-        conc_iso_ppt0 = rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) ! m^3 mnrl/m^3 bulk
-        mass_iso_aq0 = conc_iso_aq0*vps*1.d3 ! mol/L * m^3 water * 1000 L /m^3 = mol
-        mass_iso_sorb0 = conc_iso_sorb0 * vol ! mol/m^3 bulk * m^3 bulk = mol
-        mass_iso_ppt0 = conc_iso_ppt0 * vol / &  ! m^3 mnrl/m^3 bulk * m^3 bulk / (m^3 mnrl/mol mnrl) = mol
-                        reaction%mineral%kinmnrl_molar_vol(imnrl)
-        mass_iso_tot0(iiso) = mass_iso_aq0 + mass_iso_sorb0 + mass_iso_ppt0
-      enddo
-    enddo 
-    
-    ! save the mass from the previous time step:
-    mass_old(:) = mass_iso_tot0(:)
-
-    if (.not.this%implicit_solution) then
-
-    ! 3-generation analytical solution derived for multiple parents and
-    ! grandparents and non-zero initial daughter concentrations (see Section
-    ! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
-    ! obtained explicitly in time
-
-      ! FIRST PASS decay ==============================================
-      do i = 1,this%num_isotopes
-        ! update the initial value of the isotope coefficient:
-        coeff(i) = mass_old(i)
-        ! loop through the isotope's parents:
-        do p = 1,this%isotope_parents(0,i)
-          ip = this%isotope_parents(p,i)
-          coeff(i) = coeff(i) - (this%isotope_decay_rate(ip) * mass_old(ip)) / &
-            (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip))
-          ! loop through the isotope's parent's parents:
-          do g = 1,this%isotope_parents(0,ip)
-            ig = this%isotope_parents(g,ip)
-            coeff(i) = coeff(i) - &
-              ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &        
-              mass_old(ig)) / ((this%isotope_decay_rate(ip) - &
-              this%isotope_decay_rate(ig)) * (this%isotope_decay_rate(i) - &
-              this%isotope_decay_rate(ig)))) + ((this%isotope_decay_rate(ip) * &
-              this%isotope_decay_rate(ig) * mass_old(ig)) / &
-              ((this%isotope_decay_rate(ip) - this%isotope_decay_rate(ig)) * &
-              (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip))))
-          enddo ! grandparent loop
-        enddo ! parent loop
-      enddo ! isotope loop
-      ! SECOND PASS decay =============================================
-      do i = 1,this%num_isotopes
-        ! decay the isotope species:
-        mass_iso_tot1(i) = coeff(i)*exp(-1.d0*this%isotope_decay_rate(i)*dt)
-        ! loop through the isotope's parents:
-        do p = 1,this%isotope_parents(0,i)
-          ip = this%isotope_parents(p,i)
-          mass_iso_tot1(i) = mass_iso_tot1(i) + &
-                (((this%isotope_decay_rate(ip) * mass_old(ip)) / &
-                (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip))) * &
-                 exp(-1.d0 * this%isotope_decay_rate(ip) * dt))
-          ! loop through the isotope's parent's parents:
-          do g = 1,this%isotope_parents(0,ip)
-            ig = this%isotope_parents(g,ip)
-            mass_iso_tot1(i) = mass_iso_tot1(i) - &
-              ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &
-              mass_old(ig) * exp(-1.d0 * this%isotope_decay_rate(ip) * dt)) / &
-              ((this%isotope_decay_rate(ip) - this%isotope_decay_rate(ig)) * &
-              (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip)))) + &
-              ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &
-              mass_old(ig) * exp(-1.d0 * this%isotope_decay_rate(ig) * dt)) / &
-            ((this%isotope_decay_rate(ip) - this%isotope_decay_rate(ig)) * &
-            (this%isotope_decay_rate(i) - this%isotope_decay_rate(ig))))
-          enddo ! grandparent loop
-        enddo ! parent loop
-      enddo ! isotope loop
-
-    else
-      ! implicit solution approach
-      prev_solution = 1.d0 ! to start, must set bigger than tolerance
-      solution = mass_iso_tot0 ! to start, set solution to initial mass
-      it = 0
-      do ! nonlinear loop
-        ! inf norm relative change in concentration
-        if (maxval(abs(solution-prev_solution)/prev_solution) < tolerance) exit
-        prev_solution = solution
-        it = it + 1
-        residual = 0.d0 ! set to zero because we are summing
-        ! f(M_e^{k+1,p}) = (M_e^{k+1,p} - M_e^k)/dt -R(M_e^{k+1,p})
-        Jacobian = 0.d0 ! set to zero because we are summing
-        ! J_ij = del[f_i(M_e^{k+1,p})]/del[M_ej^{k+1,p}]
-        ! isotope loop
-        do iiso = 1, this%num_isotopes
-          ! ----accumulation term for isotope------------------------!-units--
-          ! dM_e/dt = (M_e^{k+1,p} - M_e^k)/dt
-          residual(iiso) = residual(iiso) + &                        ! mol/sec
-                           (solution(iiso) - mass_iso_tot0(iiso)) * &! mol
-                           one_over_dt                               ! 1/sec
-          ! d[(M_e^{k+1,p} - M_e^k)/dt]/d[M_e^{k+1,p}] = 1/dt
-          Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &              ! 1/sec
-                                one_over_dt                          ! 1/sec
-          ! ----source/sink term for isotope-------------------------!-units--
-          ! -R(M_e^{k+1,p}) = -(-L*(M_e^{k+1,p}))    L=lambda
-          rate_constant = this%isotope_decay_rate(iiso)              ! 1/sec
-          rate = rate_constant * solution(iiso)                      ! mol/sec
-          residual(iiso) = residual(iiso) + rate                     ! mol/sec
-          ! d[-(-L*(M_e^{k+1,p}))]/d[M_e^{k+1,p}] = L
-          Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant  ! 1/sec
-          ! daughter loop
-          do i = 1, this%isotope_daughters(0,iiso)
-            ! ----source/sink term for daughter----------------------!-units--
-            idaughter = this%isotope_daughters(i,iiso)
-            stoich = this%isotope_daughter_stoich(i,iiso)            ! -
-            ! -R(M_e^{k+1,p}) = -(L*S*(M_e^{k+1,p}))    L=lambda
-            residual(idaughter) = residual(idaughter) - &            ! mol/sec
-                                  (rate * stoich)                    ! mol/sec
-            ! d[-(L*S*(M_e^{k+1,p}))]/d[M_e^{k+1,p}] = -L*S
-            Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
-                                       (rate_constant * stoich)      ! 1/sec
-          enddo
-          ! k=time, p=iterate, M_e=element mass
-        enddo
-        ! scale Jacobian
-        do iiso = 1, this%num_isotopes
-          norm = max(1.d0,maxval(abs(Jacobian(iiso,:))))
-          norm = 1.d0/norm
-          rhs(iiso) = residual(iiso)*norm
-          ! row scaling
-          Jacobian(iiso,:) = Jacobian(iiso,:)*norm
-        enddo 
-        ! log formulation for derivatives, column scaling
-        do iiso = 1, this%num_isotopes
-          Jacobian(:,iiso) = Jacobian(:,iiso)*solution(iiso)
-        enddo
-        ! linear solve steps
-        ! solve step 1/2: get LU decomposition
-        call LUDecomposition(Jacobian,this%num_isotopes,indices,i)
-        ! solve step 2/2: LU back substitution linear solve
-        call LUBackSubstitution(Jacobian,this%num_isotopes,indices,rhs)
-        rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
-        ! update the solution
-        solution = solution*exp(-rhs)
-      enddo
-      mass_iso_tot1 = solution 
-    endif
-
-    mass_iso_tot1 = max(mass_iso_tot1,1.d-90)
-    this%isotope_tot_mass = mass_iso_tot1
-
-    do iele = 1, this%num_elements
-      ! calculate mole fractions
-      mass_ele_tot1 = 0.d0
-      mol_fraction_iso = 0.d0
-      do i = 1, this%element_isotopes(0,iele)
-        iiso = this%element_isotopes(i,iele)
-        mass_ele_tot1 = mass_ele_tot1 + mass_iso_tot1(iiso)
-      enddo
-      do i = 1, this%element_isotopes(0,iele)
-        iiso = this%element_isotopes(i,iele)
-        mol_fraction_iso(i) = mass_iso_tot1(iiso) / mass_ele_tot1
-      enddo
-
-      ! split mass between phases
-      kd_kgw_m3b = this%element_Kd(iele,imat)
-      conc_ele_aq1 = mass_ele_tot1 / (1.d0+kd_kgw_m3b/(den_w_kg*por*sat)) / &
-                         (vps*1.d3)
-      above_solubility = conc_ele_aq1 > this%element_solubility(iele)
-      if (above_solubility) then
-        conc_ele_aq1 = this%element_solubility(iele)
-      endif
-      ! assume identical sorption for all isotopes in element
-      conc_ele_sorb1 = conc_ele_aq1 / den_w_kg * 1.d3 * kd_kgw_m3b
-      mass_ele_aq1 = conc_ele_aq1*vps*1.d3
-      mass_ele_sorb1 = conc_ele_sorb1 * vol
-      ! roundoff can erroneously result in precipitate. this conditional avoids
-      ! such an issue
-      if (above_solubility) then
-        mass_ele_ppt1 = max(mass_ele_tot1 - mass_ele_aq1 - mass_ele_sorb1,0.d0)
-      else
-        mass_ele_ppt1 = 0.d0
-      endif
-      conc_ele_ppt1 = mass_ele_ppt1 * &
-                      reaction%mineral%kinmnrl_molar_vol(imnrl) / vol
-      ! store mass in data structures
-      do i = 1, this%element_isotopes(0,iele)
-        iiso = this%element_isotopes(i,iele)
-        ipri = this%isotope_to_primary_species(iiso)
-        imnrl = this%isotope_to_mineral(iiso)
-        rt_auxvars(ghosted_id)%total(ipri,1) = &
-          conc_ele_aq1 * mol_fraction_iso(i)
-        rt_auxvars(ghosted_id)%pri_molal(ipri) = &
-          conc_ele_aq1 / den_w_kg * 1.d3 * mol_fraction_iso(i)
-        rt_auxvars(ghosted_id)%total_sorb_eq(ipri) = &
-          conc_ele_sorb1 * mol_fraction_iso(i)
-        rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) = &
-          conc_ele_ppt1 * mol_fraction_iso(i)
-        ! need to copy primary molalities back into transport solution Vec
-        xx_p((local_id-1)*reaction%ncomp+ipri) = &
-          rt_auxvars(ghosted_id)%pri_molal(ipri)
-      enddo
-    enddo      
+    ! sum up mass of each isotope across phases and decay      
+    call PMUFDDecaySolveISPDIAtCell(this,rt_auxvars(ghosted_id),reaction, &
+                           vol,den_w_kg,por,sat,vps,dt,xx_p(istart:iend), &
+                           local_id,imat,this%element_Kd(:,:,1))    
   enddo
 
   call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -1407,10 +1318,311 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   if (this%print_output) then
     ! write data to *.dcy output files from current time step
     call PMUFDDecayOutput(this)
-  endif
+ endif
   
 end subroutine PMUFDDecaySolve
 
+! ************************************************************************** !
+
+subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por, &
+                             sat,vps,dt,xx_p,local_id,imat,element_Kd)
+
+
+  use petscvec
+  use Option_module
+  use Reaction_Aux_module
+  use Patch_module
+  use Grid_module
+  use Field_module
+  use Reactive_Transport_Aux_module
+  use Global_Aux_module
+  use Material_Aux_module
+  use Utility_module
+  use Material_Transform_module
+
+  implicit none
+  
+  class(pm_ufd_decay_type) :: this
+  type(reactive_transport_auxvar_type) :: rt_auxvars
+  class(reaction_rt_type), pointer :: reaction
+
+  PetscReal :: vol, por, sat, den_w_kg, vps
+  PetscReal :: dt
+  PetscInt :: local_id
+  
+  PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
+    PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
+  PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
+  PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
+  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
+  PetscReal :: mass_iso_tot0(this%num_isotopes) 
+  PetscReal :: mass_iso_tot1(this%num_isotopes)
+  PetscReal :: mass_ele_tot1
+  PetscReal :: coeff(this%num_isotopes)
+  PetscReal :: mass_old(this%num_isotopes)
+  PetscReal :: mol_fraction_iso(this%num_isotopes)
+  PetscReal :: kd_kgw_m3b
+  PetscBool :: above_solubility
+  PetscReal :: xx_p(:)
+  PetscReal :: element_Kd(:,:)
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  class(material_transform_type), pointer :: material_transform
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
+  ! implicit solution:
+  PetscReal :: norm
+  PetscReal :: residual(this%num_isotopes)
+  PetscReal :: solution(this%num_isotopes)
+  PetscReal :: prev_solution(this%num_isotopes)
+  PetscReal :: rhs(this%num_isotopes)
+  PetscInt :: indices(this%num_isotopes)
+  PetscReal :: Jacobian(this%num_isotopes,this%num_isotopes)
+  PetscReal :: rate, rate_constant, stoich, one_over_dt
+  PetscReal, parameter :: tolerance = 1.d-6
+  PetscInt :: idaughter
+  PetscInt :: it
+
+  
+  one_over_dt = 1.d0 / dt
+
+  option => this%realization%option
+  patch => this%realization%patch
+  grid => patch%grid
+
+  if (associated(patch%aux%MTransform)) then
+    ! pointer to auxiliary variables for material transform,
+    !   which are used to modify the sorption distribution coefficients
+    m_transform_auxvars => patch%aux%MTransform%auxvars
+  endif
+  nullify(material_transform)
+
+  if (associated(patch%material_transform_array) .and. &
+      Initialized(patch%mtf_id(grid%nL2G(local_id)))) then
+    ! pointer to material transform object
+    material_transform => &
+      patch%material_transform_array(patch%mtf_id(grid%nL2G(local_id)))%ptr
+  endif
+
+  do iele = 1, this%num_elements
+    do i = 1, this%element_isotopes(0,iele)
+      iiso = this%element_isotopes(i,iele)
+      ipri = this%isotope_to_primary_species(iiso)
+      imnrl = this%isotope_to_mineral(iiso)
+      ! # indicated time level (0 = prev time level, 1 = new time level) 
+      conc_iso_aq0 = xx_p(ipri) * den_w_kg / 1000.d0  ! mol/L
+      !conc_iso_aq0 = rt_auxvars(ghosted_id)%total(ipri,1) ! mol/L
+      conc_iso_sorb0 = rt_auxvars%total_sorb_eq(ipri) ! mol/m^3 bulk
+      conc_iso_ppt0 = rt_auxvars%mnrl_volfrac(imnrl) ! m^3 mnrl/m^3 bulk
+      mass_iso_aq0 = conc_iso_aq0*vps*1.d3 ! mol/L * m^3 water * 1000 L /m^3 = mol
+      mass_iso_sorb0 = conc_iso_sorb0 * vol ! mol/m^3 bulk * m^3 bulk = mol
+      mass_iso_ppt0 = conc_iso_ppt0 * vol / &  ! m^3 mnrl/m^3 bulk * m^3 bulk / (m^3 mnrl/mol mnrl) = mol
+                      reaction%mineral%kinmnrl_molar_vol(imnrl)
+      mass_iso_tot0(iiso) = mass_iso_aq0 + mass_iso_sorb0 + mass_iso_ppt0
+    enddo
+  enddo 
+    
+  ! save the mass from the previous time step:
+  mass_old(:) = mass_iso_tot0(:)
+
+  if (.not.this%implicit_solution) then
+
+  ! 3-generation analytical solution derived for multiple parents and
+  ! grandparents and non-zero initial daughter concentrations (see Section
+  ! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
+  ! obtained explicitly in time
+
+    ! FIRST PASS decay ==============================================
+    do i = 1,this%num_isotopes
+      ! update the initial value of the isotope coefficient:
+      coeff(i) = mass_old(i)
+      ! loop through the isotope's parents:
+      do p = 1,this%isotope_parents(0,i)
+        ip = this%isotope_parents(p,i)
+        coeff(i) = coeff(i) - (this%isotope_decay_rate(ip) * mass_old(ip)) / &
+          (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip))
+        ! loop through the isotope's parent's parents:
+        do g = 1,this%isotope_parents(0,ip)
+          ig = this%isotope_parents(g,ip)
+          coeff(i) = coeff(i) - &
+            ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &        
+            mass_old(ig)) / ((this%isotope_decay_rate(ip) - &
+            this%isotope_decay_rate(ig)) * (this%isotope_decay_rate(i) - &
+            this%isotope_decay_rate(ig)))) + ((this%isotope_decay_rate(ip) * &
+            this%isotope_decay_rate(ig) * mass_old(ig)) / &
+            ((this%isotope_decay_rate(ip) - this%isotope_decay_rate(ig)) * &
+            (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip))))
+        enddo ! grandparent loop
+      enddo ! parent loop
+    enddo ! isotope loop
+    ! SECOND PASS decay =============================================
+    do i = 1,this%num_isotopes
+      ! decay the isotope species:
+      mass_iso_tot1(i) = coeff(i)*exp(-1.d0*this%isotope_decay_rate(i)*dt)
+      ! loop through the isotope's parents:
+      do p = 1,this%isotope_parents(0,i)
+        ip = this%isotope_parents(p,i)
+        mass_iso_tot1(i) = mass_iso_tot1(i) + &
+              (((this%isotope_decay_rate(ip) * mass_old(ip)) / &
+              (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip))) * &
+              exp(-1.d0 * this%isotope_decay_rate(ip) * dt))
+        ! loop through the isotope's parent's parents:
+        do g = 1,this%isotope_parents(0,ip)
+          ig = this%isotope_parents(g,ip)
+          mass_iso_tot1(i) = mass_iso_tot1(i) - &
+            ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &
+            mass_old(ig) * exp(-1.d0 * this%isotope_decay_rate(ip) * dt)) / &
+            ((this%isotope_decay_rate(ip) - this%isotope_decay_rate(ig)) * &
+            (this%isotope_decay_rate(i) - this%isotope_decay_rate(ip)))) + &
+            ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &
+            mass_old(ig) * exp(-1.d0 * this%isotope_decay_rate(ig) * dt)) / &
+          ((this%isotope_decay_rate(ip) - this%isotope_decay_rate(ig)) * &
+          (this%isotope_decay_rate(i) - this%isotope_decay_rate(ig))))
+        enddo ! grandparent loop
+      enddo ! parent loop
+    enddo ! isotope loop
+
+  else
+    ! implicit solution approach
+    prev_solution = 1.d0 ! to start, must set bigger than tolerance
+    solution = mass_iso_tot0 ! to start, set solution to initial mass
+    it = 0
+    do ! nonlinear loop
+      ! inf norm relative change in concentration
+      if (maxval(abs(solution-prev_solution)/prev_solution) < tolerance) exit
+      prev_solution = solution
+      it = it + 1
+      residual = 0.d0 ! set to zero because we are summing
+      ! f(M_e^{k+1,p}) = (M_e^{k+1,p} - M_e^k)/dt -R(M_e^{k+1,p})
+      Jacobian = 0.d0 ! set to zero because we are summing
+      ! J_ij = del[f_i(M_e^{k+1,p})]/del[M_ej^{k+1,p}]
+      ! isotope loop
+      do iiso = 1, this%num_isotopes
+        ! ----accumulation term for isotope------------------------!-units--
+        ! dM_e/dt = (M_e^{k+1,p} - M_e^k)/dt
+        residual(iiso) = residual(iiso) + &                        ! mol/sec
+                         (solution(iiso) - mass_iso_tot0(iiso)) * &! mol
+                         one_over_dt                               ! 1/sec
+        ! d[(M_e^{k+1,p} - M_e^k)/dt]/d[M_e^{k+1,p}] = 1/dt
+        Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + &              ! 1/sec
+                              one_over_dt                          ! 1/sec
+        ! ----source/sink term for isotope-------------------------!-units--
+        ! -R(M_e^{k+1,p}) = -(-L*(M_e^{k+1,p}))    L=lambda
+        rate_constant = this%isotope_decay_rate(iiso)              ! 1/sec
+        rate = rate_constant * solution(iiso)                      ! mol/sec
+        residual(iiso) = residual(iiso) + rate                     ! mol/sec
+        ! d[-(-L*(M_e^{k+1,p}))]/d[M_e^{k+1,p}] = L
+        Jacobian(iiso,iiso) = Jacobian(iiso,iiso) + rate_constant  ! 1/sec
+        ! daughter loop
+        do i = 1, this%isotope_daughters(0,iiso)
+          ! ----source/sink term for daughter----------------------!-units--
+          idaughter = this%isotope_daughters(i,iiso)
+          stoich = this%isotope_daughter_stoich(i,iiso)            ! -
+          ! -R(M_e^{k+1,p}) = -(L*S*(M_e^{k+1,p}))    L=lambda
+          residual(idaughter) = residual(idaughter) - &            ! mol/sec
+                                (rate * stoich)                    ! mol/sec
+          ! d[-(L*S*(M_e^{k+1,p}))]/d[M_e^{k+1,p}] = -L*S
+          Jacobian(idaughter,iiso) = Jacobian(idaughter,iiso) - &  ! 1/sec
+                                     (rate_constant * stoich)      ! 1/sec
+        enddo
+        ! k=time, p=iterate, M_e=element mass
+      enddo
+      ! scale Jacobian
+      do iiso = 1, this%num_isotopes
+        norm = max(1.d0,maxval(abs(Jacobian(iiso,:))))
+        norm = 1.d0/norm
+        rhs(iiso) = residual(iiso)*norm
+        ! row scaling
+        Jacobian(iiso,:) = Jacobian(iiso,:)*norm
+      enddo 
+      ! log formulation for derivatives, column scaling
+      do iiso = 1, this%num_isotopes
+        Jacobian(:,iiso) = Jacobian(:,iiso)*solution(iiso)
+      enddo
+      ! linear solve steps
+      ! solve step 1/2: get LU decomposition
+      call LUDecomposition(Jacobian,this%num_isotopes,indices,i)
+      ! solve step 2/2: LU back substitution linear solve
+      call LUBackSubstitution(Jacobian,this%num_isotopes,indices,rhs)
+      rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
+      ! update the solution
+      solution = solution*exp(-rhs)
+    enddo
+    mass_iso_tot1 = solution 
+  endif
+
+  mass_iso_tot1 = max(mass_iso_tot1,1.d-90)
+  this%isotope_tot_mass = mass_iso_tot1
+
+  do iele = 1, this%num_elements
+    ! calculate mole fractions
+    mass_ele_tot1 = 0.d0
+    mol_fraction_iso = 0.d0
+    do i = 1, this%element_isotopes(0,iele)
+      iiso = this%element_isotopes(i,iele)
+      mass_ele_tot1 = mass_ele_tot1 + mass_iso_tot1(iiso)
+    enddo
+    do i = 1, this%element_isotopes(0,iele)
+      iiso = this%element_isotopes(i,iele)
+      mol_fraction_iso(i) = mass_iso_tot1(iiso) / mass_ele_tot1
+    enddo
+
+    ! split mass between phases
+    kd_kgw_m3b = element_Kd(iele,imat)
+
+    ! modify kd if needed
+    if (associated(patch%aux%MTransform)) then
+      if (associated(m_transform_auxvars(grid%nL2G(local_id))%il_aux) .and. &
+          associated(material_transform)) then
+        if (option%dt > 0.d0) then
+          call material_transform%illitization%illitization_function% &
+                 ShiftKd(kd_kgw_m3b, &
+                         this%element_name(iele), &
+                         m_transform_auxvars(grid%nL2G(local_id))%il_aux, &
+                         option)
+        endif
+      endif
+    endif
+
+    conc_ele_aq1 = mass_ele_tot1 / (1.d0+kd_kgw_m3b/(den_w_kg*por*sat)) / &
+                       (vps*1.d3)
+    above_solubility = conc_ele_aq1 > this%element_solubility(iele)
+    if (above_solubility) then
+      conc_ele_aq1 = this%element_solubility(iele)
+    endif
+    ! assume identical sorption for all isotopes in element
+    conc_ele_sorb1 = conc_ele_aq1 / den_w_kg * 1.d3 * kd_kgw_m3b
+    mass_ele_aq1 = conc_ele_aq1*vps*1.d3
+    mass_ele_sorb1 = conc_ele_sorb1 * vol
+    ! roundoff can erroneously result in precipitate. this conditional avoids
+    ! such an issue
+    if (above_solubility) then
+      mass_ele_ppt1 = max(mass_ele_tot1 - mass_ele_aq1 - mass_ele_sorb1,0.d0)
+    else
+      mass_ele_ppt1 = 0.d0
+    endif
+    conc_ele_ppt1 = mass_ele_ppt1 * &
+                    reaction%mineral%kinmnrl_molar_vol(imnrl) / vol
+    ! store mass in data structures
+    do i = 1, this%element_isotopes(0,iele)
+      iiso = this%element_isotopes(i,iele)
+      ipri = this%isotope_to_primary_species(iiso)
+      imnrl = this%isotope_to_mineral(iiso)
+      rt_auxvars%total(ipri,1) = &
+        conc_ele_aq1 * mol_fraction_iso(i)
+      rt_auxvars%pri_molal(ipri) = &
+        conc_ele_aq1 / den_w_kg * 1.d3 * mol_fraction_iso(i)
+      rt_auxvars%total_sorb_eq(ipri) = &
+        conc_ele_sorb1 * mol_fraction_iso(i)
+      rt_auxvars%mnrl_volfrac(imnrl) = &
+        conc_ele_ppt1 * mol_fraction_iso(i)
+      ! need to copy primary molalities back into transport solution Vec
+      xx_p(ipri) = rt_auxvars%pri_molal(ipri)
+    enddo
+  enddo      
+
+end subroutine PMUFDDecaySolveISPDIAtCell
+ 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayPostSolve(this)
@@ -1804,7 +2016,7 @@ subroutine PMUFDDecayInputRecord(this)
     write(id,'(4x,"KDs")')
     do i = 1, size(this%element_Kd,2)
       write(id,'(6x,a32,es13.5)') material_property_array(i)%ptr%name, &
-        this%element_Kd(iele,i)
+        this%element_Kd(iele,i,1)
     enddo 
     write(id,'(4x,"Isotopes")')
     do i = 1, this%element_isotopes(0,iele)

@@ -108,12 +108,12 @@ module Grid_module
             GridCopyVecToRealArray, &
             GridCreateNaturalToGhostedHash, &
             GridDestroyHashTable, &
+            GridGetLocalIDFromCoordinate, &
             GridGetLocalGhostedIdFromHash, &
             GridIndexToCellID, &
             GridGetGhostedNeighbors, &
             GridGetGhostedNeighborsWithCorners, &
             GridMapCellsInPolVol, &
-            GridGetLocalIDFromCoordinate, &
             GridRestrictRegionalConnect, &
             GridPrintExtents, &
             GridSetupCellNeighbors, &

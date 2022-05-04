@@ -16,6 +16,7 @@ module EOS_Water_module
   PetscReal :: constant_viscosity
   PetscReal :: constant_steam_density
   PetscReal :: constant_steam_enthalpy
+  PetscReal :: constant_salinity
   PetscReal :: surface_density_kg
 
   ! exponential pressure
@@ -46,6 +47,9 @@ module EOS_Water_module
   PetscReal :: linear_reference_pressure
   PetscReal :: linear_water_compressibility
 
+  ! halite saturated brine
+  PetscBool :: halite_saturated_brine
+
   ! PVT tables - eos_tables
   class(eos_table_type), pointer :: pvt_table => null()
   
@@ -68,6 +72,8 @@ module EOS_Water_module
   procedure(EOSWaterDensityIceDummy), pointer :: &
     EOSWaterDensityIcePtr => null()
   ! extended versions
+  procedure(EOSWaterSatPressExtDummy), pointer :: &
+    EOSWaterSaturationPressureExtPtr => null()
   procedure(EOSWaterViscosityExtDummy), pointer :: &
     EOSWaterViscosityExtPtr => null()
   procedure(EOSWaterDensityExtDummy), pointer :: &
@@ -136,12 +142,22 @@ module EOS_Water_module
       PetscErrorCode, intent(out) :: ierr
     end subroutine EOSWaterDensityIceDummy
     ! Extended versions
+    subroutine EOSWaterSatPressExtDummy(T, aux, calculate_derivatives,&
+                                        PS, dPS_dT, ierr)
+      implicit none
+      PetscReal, intent(in) :: T
+      PetscBool, intent(in) :: calculate_derivatives
+      PetscReal, intent(in) :: aux(*)
+      PetscReal, intent(out) :: PS, dPS_dT
+      PetscErrorCode, intent(out) :: ierr
+    end subroutine EOSWaterSatPressExtDummy
     subroutine EOSWaterViscosityExtDummy(T, P, PS, dPS_dT, aux, &
                                          calculate_derivatives, VW, &
                                          dVW_dT, dVW_dP, ierr)
       implicit none
-      PetscReal, intent(in) :: T, P, PS, dPS_dT, aux(*)
+      PetscReal, intent(in) :: T, P, PS, dPS_dT
       PetscBool, intent(in) :: calculate_derivatives
+      PetscReal, intent(in) :: aux(*)
       PetscReal, intent(out) :: VW
       PetscReal, intent(out) :: dVW_dT, dVW_dP
       PetscErrorCode, intent(out) :: ierr
@@ -196,6 +212,10 @@ module EOS_Water_module
     procedure EOSWaterDensityIceDerive
   end interface
   ! Extended versions
+  interface EOSWaterSaturationPressureExt
+    procedure EOSWaterSatPresExtNoDerive
+    procedure EOSWaterSatPresExtDerive
+  end interface
   interface EOSWaterViscosityExt
     procedure EOSWaterViscosityExtNoDerive
     procedure EOSWaterViscosityExtDerive
@@ -226,10 +246,15 @@ module EOS_Water_module
             EOSWaterSaturationTemperature, &
             EOSWaterDensityIce, &
             EOSWaterDensityTGDPB01, &
+            EOSWaterDensityBRAGFLO, &
+            EOSWaterSaturationPressureExt, &
             EOSWaterViscosityExt, &
             EOSWaterDensityExt, &
             EOSWaterEnthalpyExt, &
-            EOSWaterInputRecord
+            EOSWaterInputRecord, &
+            EOSWaterSetSalinity, &
+            EOSWaterSolubility, &
+            EOSWaterComputeSalinity
 
   public :: EOSWaterSetDensity, &
             EOSWaterSetEnthalpy, &
@@ -240,7 +265,9 @@ module EOS_Water_module
             EOSWaterSetWaterTab, &
             EOSWaterSetSurfaceDensity, &
             EOSWaterGetSurfaceDensity, &
-            EOSWaterTableProcess
+            EOSWaterTableProcess, &
+            EOSWaterSurfaceTension, &
+            EOSWaterKelvin
 
   public :: TestEOSWaterBatzleAndWang, &
             EOSWaterTest, &
@@ -259,6 +286,7 @@ subroutine EOSWaterInit()
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_steam_density = UNINITIALIZED_DOUBLE
   constant_steam_enthalpy = UNINITIALIZED_DOUBLE
+  constant_salinity = UNINITIALIZED_DOUBLE
   surface_density_kg = UNINITIALIZED_DOUBLE
   exp_p_reference_density = UNINITIALIZED_DOUBLE
   exp_p_reference_pressure = UNINITIALIZED_DOUBLE
@@ -270,6 +298,7 @@ subroutine EOSWaterInit()
   quadratic_reference_density = UNINITIALIZED_DOUBLE
   quadratic_reference_pressure = UNINITIALIZED_DOUBLE
   quadratic_wat_compressibility = UNINITIALIZED_DOUBLE
+  halite_saturated_brine = PETSC_FALSE
   
   ! standard versions  
   EOSWaterDensityPtr => EOSWaterDensityIFC67
@@ -280,8 +309,10 @@ subroutine EOSWaterInit()
   EOSWaterDensityIcePtr => EOSWaterDensityIcePainter
   
   ! extended versions
+  EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
   EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
   EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
+  EOSWaterEnthalpyExtPtr => EOSWaterEnthalpyDriesnerExt
   
 end subroutine EOSWaterInit
 
@@ -449,13 +480,47 @@ subroutine EOSWaterSetDensity(keyword,aux)
     case('BATZLE_AND_WANG')
       EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
       EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
+    case('SPARROW')
+      EOSWaterDensityExtPtr => EOSWaterDensitySparrowExt
+    case('DRIESNER')
+      EOSWaterDensityExtPtr => EOSWaterDensityDriesnerExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
-        '" in EOSWaterSetDensity().'      
+        '" in EOSWaterSetDensity().'
       stop
   end select
   
 end subroutine EOSWaterSetDensity
+
+! ************************************************************************** !
+
+subroutine EOSWaterSetSalinity(input,word,option)
+
+  use Input_Aux_module
+  use Option_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  character(len=*) :: word
+  type(option_type) :: option
+
+  select case (word)
+    case('CONSTANT')
+      call InputReadDouble(input,option,constant_salinity)
+      call InputErrorMsg(input,option,'CONSTANT','EOS WATER, SALINITY')
+      call InputReadAndConvertUnits(input,constant_salinity,'g/g',&
+                         'EOS,WATER,HALITE_SATURATED_BRINE,SALINITY,CONSTANT',&
+                          option)
+    case('TEMPERATURE_CONTROLLED')
+      halite_saturated_brine = PETSC_TRUE
+      constant_salinity = 0.d0 ! Initialize it
+    case default
+      call InputKeywordUnrecognized(input,word,'EOS,WATER,SALINITY',option)
+  end select
+  option%flow%density_depends_on_salinity = PETSC_TRUE
+
+end subroutine EOSWaterSetSalinity
 
 ! ************************************************************************** !
 
@@ -478,7 +543,11 @@ subroutine EOSWaterSetEnthalpy(keyword,aux)
       EOSWaterEnthalpyPtr => EOSWaterEnthalpyTPPlanar  
       call EOSWaterEnthalpyTPPlanarSetup()
     case('PAINTER')
-      EOSWaterEnthalpyPtr => EOSWaterEnthalpyPainter      
+      EOSWaterEnthalpyPtr => EOSWaterEnthalpyPainter
+    case('SPARROW')
+      EOSWaterEnthalpyExtPtr => EOSWaterEnthalpySparrowExt
+    case('DRIESNER')
+      EOSWaterEnthalpyExtPtr => EOSWaterEnthalpyDriesnerExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetEnthalpy().'
@@ -507,6 +576,8 @@ subroutine EOSWaterSetViscosity(keyword,aux)
     case('BATZLE_AND_WANG')
       EOSWaterViscosityPtr => EOSWaterViscosityBatzleAndWang
       EOSWaterViscosityExtPtr => EOSWaterViscosityBatzleAndWangExt
+    case('KESTIN')
+      EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
     case('GRABOWSKI')
       EOSWaterViscosityPtr => EOSWaterViscosityGrabowski
     case default
@@ -533,6 +604,10 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
       EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIF97
     case('WAGNER_AND_PRUSS')
       EOSWaterSaturationPressurePtr => EOSWaterSatPresWagnerPruss
+    case('HAAS')
+      EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
+    case('SPARROW')
+      EOSWaterSaturationPressureExtPtr => EOSWaterSatPressSparrowExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSaturationPressure().'
@@ -778,7 +853,6 @@ subroutine EOSWaterViscosityNoDerive(T, P, PS, VW, ierr, table_idxs)
   dPS_dT = 0.d0
   call EOSWaterViscosityPtr(T, P, PS, dPS_dT, PETSC_FALSE, VW, &
                             dum1, dum2, ierr, table_idxs)
-  
 end subroutine EOSWaterViscosityNoDerive
 
 ! ************************************************************************** !
@@ -798,7 +872,7 @@ subroutine EOSWaterViscosityDerive(T, P, PS, dPS_dT, VW, dVW_dT, &
   ierr = 0
   call EOSWaterViscosityPtr(T, P, PS, dPS_dT, PETSC_TRUE, VW, &
                             dVW_dT, dVW_dP, ierr, table_idxs)
-  
+
 end subroutine EOSWaterViscosityDerive
 
 ! ************************************************************************** !
@@ -815,7 +889,7 @@ subroutine EOSWaterSatPresNoDerive(T, PS, ierr)
   
   ierr = 0
   call EOSWaterSaturationPressurePtr(T, PETSC_FALSE, PS, dummy, ierr)
-  
+
 end subroutine EOSWaterSatPresNoDerive
 
 ! ************************************************************************** !
@@ -830,8 +904,42 @@ subroutine EOSWaterSatPresDerive(T, PS, dPS_dT, ierr)
   
   ierr = 0
   call EOSWaterSaturationPressurePtr(T, PETSC_TRUE, PS, dPS_dT, ierr)
-  
+
 end subroutine EOSWaterSatPresDerive
+
+! ************************************************************************** !
+
+subroutine EOSWaterSatPresExtNoDerive(T, aux, PS, ierr)
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(out) :: PS ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: dummy
+
+  ierr = 0
+  call EOSWaterSaturationPressureExtPtr(T, aux, PETSC_FALSE, PS, dummy, ierr)
+
+end subroutine EOSWaterSatPresExtNoDerive
+
+! ************************************************************************** !
+
+subroutine EOSWaterSatPresExtDerive(T, aux, PS, dPS_dT, ierr)
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  ierr = 0
+  call EOSWaterSaturationPressureExtPtr(T, aux, PETSC_TRUE, PS, dPS_dT, ierr)
+
+end subroutine EOSWaterSatPresExtDerive
 
 ! ************************************************************************** !
 
@@ -863,10 +971,10 @@ subroutine EOSWaterDensityDerive(t,p,dw,dwmol,dwp,dwt,ierr,table_idxs)
   PetscReal, intent(out) :: dw,dwmol,dwp,dwt
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
-  
+
   ierr = 0
   call EOSWaterDensityPtr(t,p,PETSC_TRUE,dw,dwmol,dwp,dwt,ierr,table_idxs)
-  
+
 end subroutine EOSWaterDensityDerive
 
 ! ************************************************************************** !
@@ -1161,6 +1269,8 @@ subroutine EOSWaterSaturationPressureIFC67(T, calculate_derivatives, &
 
 end subroutine EOSWaterSaturationPressureIFC67
 
+! ************************************************************************** !
+
 subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
                                            PS, dPS_dT, ierr)
 
@@ -1222,6 +1332,87 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
 end subroutine EOSWaterSaturationPressureIF97
 
 
+! ************************************************************************** !
+subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, &
+                                          dPS_dT, ierr)
+
+  ! Water saturation pressure with dissolved halite
+  ! Haas, 1976
+  ! Physical properties of the coexisting phases and thermochemical properties of
+  ! the H2O component in boiling NaCl solutions
+  !
+  ! Author: David Fukuyama
+  ! Date: 12/20/21
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(out) :: PS, dPS_dT
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: ln_p !bars
+  PetscReal :: T0, Tx, x
+  PetscReal :: dT0_dT,da_dT,db_dT,dm_dT,dln_T0_dT,dz_dT,dy_dT,dw_dT
+  PetscReal :: dln_p_dT
+  PetscReal :: ln_T0, p
+  PetscReal :: a, b, m
+  PetscReal :: w, y, z
+  PetscReal, parameter :: a1 = 5.93582d-6
+  PetscReal, parameter :: a2 = -5.19386d-5
+  PetscReal, parameter :: a3 = 1.23156d-5
+  PetscReal, parameter :: b1 = 1.15420d-6
+  PetscReal, parameter :: b2 = 1.141254d-7
+  PetscReal, parameter :: b3 = -1.92476d-8
+  PetscReal, parameter :: b4 = -1.70717d-9
+  PetscReal, parameter :: b5 = 1.05390d-10
+  PetscReal, parameter :: e0 = 12.50849d0
+  PetscReal, parameter :: e1 = -4.616913d3
+  PetscReal, parameter :: e2 = 3.193455d-4
+  PetscReal, parameter :: e3 = 1.1965d-11
+  PetscReal, parameter :: e4 = -1.013137d-2
+  PetscReal, parameter :: e5 = -5.7148d-3
+  PetscReal, parameter :: e6 = 2.9370d5
+
+  Tx = T+273.15d0
+
+  x = aux(1) ! mass fraction
+  x = 1.d3*(x*1.d2)/(58.442d0*(1.d2-(x*1.d2))) !mol/kg
+  ! ln(T0) = m*ln(Tx)
+  ! Tx: brine temperature
+  ! T0: temperature of H2O at 0 molal, at the same pressure as Tx
+
+  a = 1.d0 + x*(a1 + x*(a2 + a3*x))
+  b = x*(b1 + x*(b2 + x*(b3 + x*(b4 + b5*x))))
+  m = 1.d0/(a+b*Tx)
+  ln_T0 = m*log(Tx)
+  T0 = exp(ln_T0)
+
+  z = T0 + 1.d-2
+  y = 647.27d0 - T0
+  w = z**2 - e6
+
+  ! Note- there is a typo in Eq. 6 of Haas (1976) that adds the third and
+  ! fourth term instead of multiplying.
+  ln_p = e0+e1/z+e2*w/z*(1.d1**(e3*w**2)-1.d0)+e4*1.d1**(e5*y**1.25d0)
+  PS = exp(ln_p)*1.d5
+
+  if (calculate_derivatives) then
+    da_dT = 0.d0
+    db_dT = 0.d0
+    dm_dT = -(b)/(a+b*Tx)**2
+    dln_T0_dT = m/Tx+dm_dT*log(Tx)
+    dT0_dT = exp(ln_T0)*dln_T0_dT
+    dz_dT = dT0_dT
+    dy_dT = -dT0_dT
+    dw_dT = 2*z*dZ_dT
+    dln_p_dT = -e1*z**-2.d0*dz_dT+(e2*1.d1**(e3*w**2-1.d0)*(z*dw_dT*e3*log(100.d0)*w**2+1.d0)-w*dz_dT)/(z**2)+&
+         e2*w/z*(e3*5.d0**(3.d0*w**2-1.d0)*8.d0**(w**2.d0)*dw_dT*log(10.d0))+2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
+    dPS_dT = 1.d5*exp(ln_p)*dln_p_dT
+  endif
+
+end subroutine EOSWaterSaturationPressureHaasExt
 ! ************************************************************************** !
 
 subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
@@ -1822,6 +2013,198 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   endif
 
 end subroutine EOSWaterEnthalpyIF97
+
+! ************************************************************************** !
+subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
+     hwt,ierr)
+  !
+  ! Calculates brine enthalpy based on the formuatlion in Driesner, 2007.
+  !
+  ! Author: David Fukuyama
+  ! Date: 05/31/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: P
+  PetscReal, intent(in) :: aux(*)
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: hw,hwp,hwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: Pa_to_bar = 1.d-5
+
+  PetscReal :: T_h, p_bar, t_c
+  PetscReal :: q1,q2, q1x1, q2x1
+  PetscReal :: q10,q11,q12,q20,q21,q22,q23
+  PetscReal :: dq1_dp,dq2_dp,dq1x1_dp,dq2x1_dp
+  PetscReal :: dq10_dp,dq11_dp,dq12_dp,dq20_dp,dq21_dp,dq22_dp,dq23_dp,dT_h_dp
+  PetscReal :: molal,s,x
+
+  t_c = T
+  p_bar = P*Pa_to_bar
+
+  s = aux(1) !mass fraction
+  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
+
+  q11 = -32.1724d0 + 0.0621255d0 * p_bar  ! table 5
+  q21 = -1.69513d0 - 4.52781d-4 * p_bar - 6.04279d-8  * p_bar**2
+  q22 = 0.0612567d0 + 1.88082d-5 * p_bar
+
+  q1x1 = 47.9048d0 - 9.36994d-3 * p_bar + 6.51059d-6 * p_bar**2 ! eq 25
+  q2x1 = 0.241022d0 + 3.45087d-5 * p_bar - 4.28356d-9 * p_bar**2 ! eq 26
+
+  q12 = -q11 - q1x1
+  q10 = q1x1
+
+  q20 = 1.d0 - q21 * sqrt(q22)
+  q23 = q2x1 - q20 - q21 * sqrt(1.d0 + q22)
+
+  q1 = q10 + q11 * (1.d0 - x) + q12 * (1.d0 - x)**2  ! eq 23
+  q2 = q20 + q21 * sqrt(x + q22) + (q23 * x)       ! eq 24
+  T_h = q1 + q2 * t_c                              ! eq 22
+
+  call EOSWaterEnthalpyIF97(T_h,P,calculate_derivatives,hw,hwp,hwt,ierr)
+
+  if (calculate_derivatives) then
+    dq11_dp = 0.0621255d0
+    dq21_dp = -4.52781d-4 - 2.d0 * 6.04279d-8  * p_bar
+    dq22_dp = 1.88082d-5
+
+    dq1x1_dp = -9.36994d-3 + 2.d0*6.51059d-6 * p_bar
+    dq2x1_dp = 3.45087d-5 -2.d0 * 4.28356d-9 * p_bar
+
+    dq12_dp = -dq11_dp - dq1x1_dp
+    dq10_dp = dq1x1_dp
+
+    dq20_dp = -q21 * dq22_dp/(2.d0*sqrt(q22)) - dq21_dp
+    dq23_dp = dq2x1_dp - dq20_dp - dq21_dp - q21*dq22_dp/(2.d0*sqrt(q22)) - dq21_dp*sqrt(q22)
+
+    dq1_dp = dq10_dp + dq11_dp * (1.d0 - x) + dq12_dp * (1.d0 - x)**2
+    dq2_dp = dq20_dp + dq21_dp * sqrt(x + q22) + q21 * (dq22_dp)/(2.d0*sqrt(x+q22)) + dq23_dp * x
+    dT_h_dp = dq1_dp + dq2_dp * t_c
+    ! d(h_if97)/dT*dT/dP+d(h_if97)/dP
+    hwp = hwt*dT_h_dp+hwp
+    ! d(h_if97/dP*dP/dT+d(h_if97)/dT
+    hwt = hwp/dT_h_dp+hwt
+
+  endif
+end subroutine EOSWaterEnthalpyDriesnerExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
+                                   calculate_derivatives, &
+                                   dw, dwmol, dwp, dwt, ierr)
+  !
+  ! Water density calculation from Driesner (2007)
+  ! doi:10.1016/j.gca.2007.05.026
+  !
+  ! Author: David Fukuyama
+  ! Date: 05/26/21
+  ! 
+  implicit none
+
+  PetscReal, intent(in) :: T   ! Temperature in centigrade
+  PetscReal, intent(in) :: P   ! Pressure in Pascal
+  PetscReal, intent(in) :: aux(*)    ! solute mole fraction
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw ! kg/m^3
+  PetscReal, intent(out) :: dwmol ! kmol/m^3
+  PetscReal, intent(out) :: dwp ! kmol/m^3-Pa
+  PetscReal, intent(out) :: dwt ! kmol/m^3-C
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: g_cm3_to_kg_m3 = 1.d3
+  PetscReal, parameter :: Pa_to_bar = 1.d-5
+
+  PetscReal :: T_v ! Scaled temperature for volumetric correlation
+  PetscReal :: x,molal,s
+  PetscReal :: n1,n2,n11,n12,n20,n21,n22,n23,n1x1,n2x1
+
+  PetscReal :: t_C ! temperature in Celcius
+  PetscReal :: p_bar
+
+  t_C = T
+  p_bar = P*Pa_to_bar
+
+  x = aux(1) !mass fraction
+  molal = (1.d3*x/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
+
+  n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
+  n21 = -2.6142d0 - 0.000239092d0 * p_bar
+  n22 = 0.0356828d0 + (4.37235d-6 + 2.0566d-9 * p_bar) * p_bar
+  n1x1 = 330.47d0 + 0.942876d0 * sqrt(p_bar) + p_bar * (0.0817193d0 &
+         + p_bar * (-2.47556d-8 + p_bar * 3.45052d-10)) ! eq 11
+  n2x1 = -0.0370751 + 0.00237723 * sqrt(p_bar) + p_bar * (5.42049d-5 &
+        + p_bar * (5.84709d-9 - p_bar * 5.99373d-13))  ! eq 12
+  n12 = -n1x1 - n11
+  n20 = 1.d0 - n21 * sqrt(n22)
+  n23 = n2x1 - n20 - n21 * sqrt(1.d0 + n22)
+  n1  = n1x1 + (1.d0 - x) * n11  + n12 * (1.d0 - x)**2 ! eq 9
+  n2  = n20 + n21 * sqrt(x + n22) + n23 * x            ! eq 10
+  T_v = n1 + n2 * t_c ! doesn't include D(T) correction
+  call EOSWaterDensityIF97(T_v,P,calculate_derivatives,dw,dwmol,dwp,dwt,ierr)
+  if (calculate_derivatives) then
+    ! calculate derivatives
+
+  else
+     dwp = UNINITIALIZED_DOUBLE
+     dwt = UNINITIALIZED_DOUBLE
+  endif
+  dw = dw * (molal+55.508435d0)/55.508435d0
+
+end subroutine EOSWaterDensityDriesnerExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
+     hwt,ierr)
+  !
+  ! Calculates brine enthalpy based on Sparrow, 2003.
+  ! Valid from 0<T<300C
+  !
+  ! Author: David Fukuyama
+  ! Date: 06/01/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: P
+  PetscReal, intent(in) :: aux(*)
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: hw,hwp,hwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: A, B, C, D, E
+  PetscReal :: s, molal
+  PetscReal, parameter :: g_to_kg = 1.d-3
+  PetscReal, parameter :: mol_to_kmol = 1.d-3
+  PetscReal, parameter :: kJ_to_J = 1.d3
+
+  s = aux(1)
+  ! eq 8
+  A = (0.0005d0  +s*(0.0378d0  +s*(-0.3682d0 +s*(-0.6529d0 +s*2.89d0))))*1.d3
+  B = 4.145d0    +s*(-4.973d0  +s*(4.482d0   +s*(18.31d0   +s*(-46.41d0))))
+  C = 0.0007d0   +s*(-0.0059d0 +s*(0.0854d0  +s*(-0.4951d0 +s*0.8255d0)))
+  D = (-0.0048d0 +s*(0.0639d0  +s*(-0.714d0  +s*(3.273d0   +s*(-4.85d0)))))*1.d-3
+  E = (0.0202d0  +s*(-0.2432d0 +s*(2.054d0   +s*(-8.211d0  +s*11.43d0))))*1.d-6
+  hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
+
+  hw = hw*kJ_to_J/((molal+55.508435d0)*mol_to_kmol) !J/kmol
+  if (calculate_derivatives) then
+    hwt = (B+T*(C+T*(D+T*E)))*kJ_to_J/((molal+55.508435d0)*mol_to_kmol)
+    hwp = 0.d0
+  else
+    hwt = UNINITIALIZED_DOUBLE
+    hwp = UNINITIALIZED_DOUBLE
+  endif
+
+end subroutine EOSWaterEnthalpySparrowExt
 
 ! ************************************************************************** !
 
@@ -2954,10 +3337,9 @@ subroutine EOSWaterViscosityKestinExt(T, P, PS, dPS_dT, aux, &
 
   !convert pressure to GPa
   p_GPa = P*1.d-9
+
   xnacl = aux(1)
-
   mnacl = xnacl/(1.d0-xnacl)/wnacl
-
   tt = 20.d0-t
   ck = (c1 + (c2 + (c3+c4*tt)*tt)*tt)*tt/(96.d0+t)
   ak = (a1 + (a2 + a3*mnacl)*mnacl)*mnacl
@@ -3439,8 +3821,8 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
   
   t_C = tin
   p_MPa = pin*Pa_to_MPa
+
   s = aux(1)
-  
   call EOSWaterDensityPtr(tin, pin, calculate_derivatives, &
                           dw, dwmol, dwp, dwt, ierr)
   
@@ -3453,7 +3835,9 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
                  t_C*(80.d0 + 3.d0*t_C - 3300.d0*s - 13.d0*p_MPa + &
                       47.d0*p_Mpa*s))) * &
        g_cm3_to_kg_m3
-  dwmol = dw/FMWH2O ! kmol/m^3 
+
+  ! molar density H2O = solution density (kg/m3) * (1-mass frac salt) / (kg/kmol water)
+  dwmol = dw * (1-s) / (FMWH2O)
   
   if (calculate_derivatives) then
         ! v - this dwp is in the correct units of kmol/m^3-Pa
@@ -3573,7 +3957,139 @@ end subroutine EOSWaterViscosityBatzleAndWangExt
 
 ! ************************************************************************** !
 
-subroutine TestEOSWaterBatzleAndWang()
+subroutine EOSWaterSatPressSparrowExt(T,aux,calculate_derivatives, &
+                                   PS, dPS_dT, ierr)
+  !
+  ! Calculates water saturation pressure based on Sparrow, 2003.
+  ! Valid from 0<T<300 C
+  !
+  ! Author: David Fukuyama
+  ! 06/01/21
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T  ! Temperature
+  PetscReal, intent(in) :: aux(*) ! NaCl mole fraction
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: MPa_to_Pa = 1.d6
+  PetscReal :: A,B,C,D,E,s
+
+  s = aux(1)
+  if (T <= 150.d0) then ! eq 6
+    A = (0.9083d0  +s*(-0.569d0 +s*(0.1945d0  +s*(-3.736d0 +s*2.82d0))))*1.d-3
+    B = (-0.0669d0 +s*(0.0582d0 +s*(-0.1668d0 +s*(0.6761d0 +s*(-2.091d0)))))*1.d-3
+    C = (7.541d0   +s*(-5.143d0 +s*(6.482d0   +s*(-52.62d0 +s*115.7d0))))*1.d-6
+    D = (-0.0922d0 +s*(0.0649d0 +s*(-0.1313d0 +s*(0.8024d0 +s*(-1.986d0)))))*1.d-6
+    E = (1.237d0   +s*(-0.753d0 +s*(0.1448d0  +s*(-6.964d0 +s*14.61d0))))*1.d-9
+  elseif (T > 150.d0) then
+    A = -3.248d0   +s*(7.081d0   +s*(-49.93d0 +s*(219.6d0  +s*(-308.5d0))))
+    B = 0.0610d0   +s*(-0.1185d0 +s*(0.7916d0 +s*(-3.474d0 +s*4.882d0)))
+    C = (-0.4109d0 +s*(0.6789d0  +s*(-4.155d0 +s*(18.34d0  +s*(-25.89d0)))))*1.d-3
+    D = (1.13d0    +s*(-1.432d0  +s*(7.169d0  +s*(-33.17d0 +s*47.45d0))))*1.d-6
+    E = 0.d0
+  endif
+
+  PS = A+T*(B+T*(C+T*(D+T*E)))
+  PS = PS*MPa_to_Pa
+
+  if (calculate_derivatives) then
+    dPS_dT = B+T*(C+T*(D+T*E)) * MPa_to_Pa
+  endif
+
+end subroutine EOSWaterSatPressSparrowExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensitySparrowExt(T,P, aux, &
+                                  calculate_derivatives, &
+                                  dw, dwmol, dwp, dwt, ierr)
+  !
+  ! Brine density calculation from Sparrow (2003)
+  ! Values valid from 0<T<300 C
+  !
+  ! Author: David Fukuyama
+  ! Date: 05/31/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! Celsius
+  PetscReal, intent(in) :: P ! Pa
+  PetscReal, intent(in) :: aux(*)
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: A, B, C, D, E, s
+
+  s = aux(1)
+  ! eq 7 (0 C <= T <= 300 C)
+  A = (1.001d0   +s*(0.7666d0 +s*(-0.0149d0 +s*(0.2663d0 +s*0.8845d0))))*1.d3
+  B = -0.0214d0  +s*(-3.496d0 +s*(10.02d0   +s*(-6.56d0  +s*(-31.37d0))))
+  C = (-5.263d0  +s*(39.87d0  +s*(-176.2d0  +s*(363.5d0  +s*(-7.784d0)))))*1.d-3
+  D = (15.42d0   +s*(-167.d0  +s*(980.7d0   +s*(-2573.d0 +s*876.6d0))))*1.d-6
+  E = (-0.0276d0 +s*(0.2978d0 +s*(-2.017d0  +s*(6.345d0  +s*(-3.914d0)))))*1.d-6
+
+  dw = A+T*(B+T*(C+T*(D+E*T))) !kg/m^3
+  dwmol = dw*(1-s)/FMWH2O ! kmol/m^3 
+
+end subroutine EOSWaterDensitySparrowExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterSolubility(T, solubility)
+  !
+  ! Determines solubility of NaCl in water based on Sparrow, 2003
+  ! https://doi.org/10.1016/S0011-9164(03)90068-3
+  ! returns solubility (mass fraction [g NaCl/g H2O])
+  !
+  ! Author: David Fukuyama
+  ! Date: 12/17/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: solubility
+
+  ! 0 C <= T <= 450 C
+  solubility = 0.2628d0 + 62.75d-6 * T  + 1.084d-6 * T**2 ! eq 5
+
+end subroutine EOSWaterSolubility
+
+! ************************************************************************** !
+
+subroutine EOSWaterComputeSalinity(T, x)
+  !
+  ! Computes salinity of NaCl in water based on EOS block inputs
+  !
+  ! Author: David Fukuyama
+  ! Date: 4/6/22
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: x
+  
+  if (.not. halite_saturated_brine) then
+     ! salinity [mass %]
+    if (Initialized(constant_salinity)) then
+      x = constant_salinity
+    else
+      x = 0.d0
+    endif
+  else !compute solubility
+    call EOSWaterSolubility(T,x)
+  endif
+
+end subroutine EOSWaterComputeSalinity
+
+! ************************************************************************** !
+  subroutine TestEOSWaterBatzleAndWang()
   ! 
   ! From Batlze M. and Z. Wang (1992) Seismic properties of fluids, Geophysics,
   ! Vol. 57, No. 11, Pg. 1396-1408.
@@ -4287,6 +4803,80 @@ subroutine EOSWaterSteamTest(temp_low,temp_high,pres_low,pres_high, &
   deallocate(saturation_pressure_array)
 
 end subroutine EOSWaterSteamTest
+
+! ************************************************************************** !
+
+subroutine EOSWaterSurfaceTension(T,sigma)
+  !
+  ! Surface tension of water equation from Revised Release on Surface
+  ! Tension of Ordinary Water Substance, June 2014. Valid from -25C to
+  ! 373 C
+  !
+  ! Author: Michael Nole
+  ! 
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: sigma
+
+  PetscReal, parameter :: Tc = 647.096d0
+  PetscReal, parameter :: B = 235.8d0
+  PetscReal, parameter :: b_2 = -0.625d0
+  PetscReal, parameter :: mu = 1.256d0
+  PetscReal, parameter :: sigma_base = 0.073d0
+  PetscReal :: Temp
+  PetscReal :: tao
+
+  Temp=T+273.15d0
+
+  if (T <= 373.d0) then
+    tao = 1.d0-Temp/Tc
+    sigma = B*(tao**mu)*(1+b_2*tao)
+    sigma = sigma * 1.d-3
+  else
+    sigma = 0.d0
+  endif
+  sigma= sigma/sigma_base
+
+  !TOUGH3 way (not pressure-dependent)
+  !if (Temp >= 101) sigma = 0
+
+end subroutine EOSWaterSurfaceTension
+
+
+
+! ************************************************************************** !
+
+subroutine EOSWaterKelvin(Pc,rhow,T,Psat,Pv)
+  !
+  ! Kelvin equation for vapor pressure lowering
+  ! vis-a-vis the Young-Laplace equation where
+  ! Kelvin Eqn: ln(P/P_sat) = 2*sigma*Vm/(rRT)
+  ! Y-L Eqn: Pc = 2*sigma*cos(theta)/r
+  ! cos(theta) -> 1
+  !
+  ! Author: Michael Nole
+  ! Date: 02/04/22
+  !
+
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  PetscReal, intent(in) :: Pc, T, Psat, rhow
+  PetscReal, intent(out) :: Pv
+
+  PetscReal :: sigma, vp_factor, T_temp
+
+  T_temp = T + 273.15d0
+
+  ! For water:
+  vp_factor = Pc / (rhow * 1000.d0 * IDEAL_GAS_CONSTANT * T_temp)
+
+  Pv = exp(vp_factor) * Psat
+
+end subroutine EOSWaterKelvin
 
 ! ************************************************************************** !
 
