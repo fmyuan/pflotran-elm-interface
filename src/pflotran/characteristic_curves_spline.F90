@@ -44,8 +44,6 @@ public RPFSplineCtor
 type, public, extends(rel_perm_func_base_type) :: rpf_spline_type
   private
     PetscInt  :: N ! Number of splines
-    PetscReal :: h ! Saturation interval width
-    PetscReal :: span
   contains
     procedure, public :: Init                 => RPFSplineInit
     procedure, public :: RelativePermeability => RPFSplineRelativePermeability
@@ -71,8 +69,8 @@ function SFSplineCtor(sf_analytic, N) result (new)
   class(sf_spline_type), pointer :: new
   class(sat_func_base_type), intent(in) :: sf_analytic
   PetscInt, intent(in) :: N
-  PetscInt  :: I
-  PetscReal :: dy1, dyn
+  PetscInt  :: I, ierr
+  PetscReal :: dy1, dyn, delta, del1, del2, h
   type(option_type) :: option
 
   ! Validate the number of knots - could set a default here
@@ -105,15 +103,24 @@ function SFSplineCtor(sf_analytic, N) result (new)
   new%N = N
   new%spline(1)%x = 0d0
   call sf_analytic%CapillaryPressure(new%spline(1)%x, new%spline(1)%y, dy1, option)
-  do I = 2, N
+  do I = 2, N-1
     new%spline(i)%x = dble(I-1)/dble(N-1)
     call sf_analytic%CapillaryPressure(new%spline(i)%x, new%spline(i)%y, dyn, option)
   end do
+  new%spline(N)%x = 1d0
+  call sf_analytic%CapillaryPressure(new%spline(N)%x, new%spline(N)%y, dyn, option)
+  
+  call PCHIM(N, new%spline%x, new%spline%y, new%spline%dy, 1, ierr)
 
-  ! Calculate 2nd derivatives assuming "natural" splines
-  ! Considered using derivatives at end points, but some "analytic" functions
-  ! have singularities and/or errors at end points
-  call spline(new%spline%x, new%spline%y, new%N, new%spline%d2y)
+! do i = 1, N-1
+!   h = new%spline(i+1)%x - new%spline(i)%x
+!   delta = (new%spline(i+1)%y  - new%spline(i)%y)/h
+!   del1  = (new%spline(i  )%dy - delta)/h
+!   del2  = (new%spline(i+1)%dy - delta)/h
+
+!   new%spline(i)%c2 = -(del1+del1+del2)
+!   new%spline(i)%c3 =  (del1+del2)/h
+! end do
 
 end function SFSplineCtor
 
@@ -128,33 +135,37 @@ subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
   PetscInt :: i, j, k
-  PetscReal :: h, a, b
   PetscReal :: x, y, dy
+  PetscReal :: h, delta, del1, del2
+  PetscReal :: c2, c3
+  PetscReal :: c2t2, c3t3
 
   x = min(max(liquid_saturation,0d0),1d0)
 
-! Consider replacing with hash function
-! i = 1
-! j = this%n
-! do while (j - i > 1)
-!   k = (i + j)/2
-!   if (this%spline(k)%x > x) then
-!     j = k
-!   else
-!     i = k
-!   end if
-! end do
-  i = min(max(ceiling(x * dble(this%N-1)),1),this%N-1)
-  j = i + 1
+  i = 1
+  j = this%n
+  do while (j - i > 1)
+    k = (i + j)/2
+    if (this%spline(k)%x > x) then
+      j = k
+    else
+      i = k
+    end if
+  end do
 
-  h = this%spline(j)%x - this%spline(i)%x
-  a = (this%spline(j)%x-x)/h
-  b = (x-this%spline(i)%x)/h
-  y = a*this%spline(i)%y + b*this%spline(j)%y &
-    + ((a**3-a)*this%spline(i)%d2y + (b**3-b)*this%spline(j)%d2y)*h**2/6d0
+  h = this%spline(i+1)%x - this%spline(i)%x
+  delta = (this%spline(i+1)%y  - this%spline(i)%y)/h
+  del1  = (this%spline(i  )%dy - delta)/h
+  del2  = (this%spline(i+1)%dy - delta)/h
 
-  dy = (this%spline(j)%y - this%spline(i)%y)/h &
-     + (-(3d0*a**2-1d0)*this%spline(i)%d2y + (3d0*b**2-1d0)*this%spline(j)%d2y)*h/6d0
+  c2 = -(del1+del1+del2)
+  c3 =  (del1+del2)/h
+  c2t2 = c2 + c2
+  c3t3 = c3+c3+c3
+
+  x = x - this%spline(i)%x
+  y = this%spline(i)%y + x*(this%spline(i)%dy + x*(c2 + x*c3))
+  dy = this%spline(i)%dy + x*(c2t2 + x*c3t3)
 
   capillary_pressure = y
   dPc_dSatl = dy
@@ -189,6 +200,16 @@ subroutine SFSplineTest(this,cc_name,option)
     write(86,*) Sw, Pc, dPc_dSw
   enddo
   close(86)
+
+
+  write(string,*) cc_name
+  string = trim(cc_name) // '_Pc_spline.dat'
+  open(unit=87,file=string)
+  write(86,*) '#Index, x, y, dy'
+  do i = 1, this%N
+    write(87,*) this%spline(i)%x, this%spline(i)%y, this%spline(i)%dy
+  end do
+
 end subroutine SFSplineTest
 
 ! **************************************************************************** !
@@ -208,9 +229,10 @@ function RPFSplineCtor(rpf_analytic, N) result (new)
   class(rpf_spline_type), pointer :: new
   class(rel_perm_func_base_type), intent(in) :: rpf_analytic
   PetscInt, intent(in) :: N
-  PetscInt  :: I
-  PetscReal :: dy1, dyn
+  PetscInt  :: I, ierr
+  PetscReal :: buffer
   PetscReal :: span
+  PetscReal :: delta, del1, del2, h
   type(option_type) :: option
 
   ! Validate the number of knots - could set a default here
@@ -240,20 +262,31 @@ function RPFSplineCtor(rpf_analytic, N) result (new)
 
   ! N knots
   new%N = N
-  new%span = 1d0 - new%Sr - new%Srg
+  span = 1d0 - new%Srg - new%Sr
 
   ! Generate N knots between Sr and 1-Srg, saving derivatives at endpoints
+  ! Ensure endpoints are exactly on the residual gas saturation
   new%spline(1)%x = new%Sr
-  call rpf_analytic%RelativePermeability(new%spline(1)%x, new%spline(1)%y, dy1, option)
-  do I = 2, N - 1
-    new%spline(i)%x = new%Sr + new%span*dble(I-1)/dble(N-1)
-    call rpf_analytic%RelativePermeability(new%spline(I)%x, new%spline(I)%y, dyn, option)
+  call rpf_analytic%RelativePermeability(new%spline(1)%x, new%spline(1)%y, buffer, option)
+  do I = 2, N-1
+    new%spline(i)%x = new%Sr + span*dble(I-1)/dble(N-1)
+    call rpf_analytic%RelativePermeability(new%spline(I)%x, new%spline(I)%y, buffer, option)
   end do
-  ! Need to be certain this point is exact
   new%spline(N)%x = 1d0 - new%Srg
-  call rpf_analytic%RelativePermeability(new%spline(N)%x, new%spline(N)%y, dyn, option)
+  call rpf_analytic%RelativePermeability(new%spline(N)%x, new%spline(N)%y, buffer, option)
 
-  call spline(new%spline%x, new%spline%y, N, new%spline%d2y)
+  ! Find derivatives of internal splines
+  call PCHIM(N, new%spline%x, new%spline%y, new%spline%dy, 1, ierr)
+
+! do i = 1, N-1
+!   h = new%spline(i+1)%x - new%spline(i)%x
+!   delta = (new%spline(i+1)%y  - new%spline(i)%y)/h
+!   del1  = (new%spline(i  )%dy - delta)/h
+!   del2  = (new%spline(i+1)%dy - delta)/h
+
+!   new%spline(i)%c2 = -(del1+del1+del2)
+!   new%spline(i)%c3 =  (del1+del2)/h
+! end do
 
 end function RPFSplineCtor
 
@@ -268,42 +301,48 @@ subroutine RPFSplineRelativePermeability(this, liquid_saturation, &
   PetscReal, intent(out)  :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
   PetscInt :: i, j, k
-  PetscReal :: h, a, b
+  PetscReal :: h, delta, del1, del2
+  PetscReal :: c2, c3, c2t2, c3t3
   PetscReal :: x, y, dy
 
 ! If provided with an array, these functions can be done in parallel
 ! Ceiling, min, and max are hardware instructions
 
 ! Aliases because dummy variable names are absurdly long. Compiler should inline
-! Cut liquid saturation off at residuals
 
-  x = min(max(liquid_saturation,this%Sr),1d0-this%Srg)
+! Cut saturation off at residuals
 
-!  i = 1
-!  j = this%n
-!  do while (j - i > 1)
-!    k = (i + j)/2
-!   if (this%spline(k)%x > x) then
-!     j = k
-!   else
-!     i = k
-!   end if
-! end do
+  x = min(max(liquid_saturation,this%spline(1)%x), this%spline(this%N)%x)
 
-  i = min(max(ceiling((x-this%Sr)*dble(this%N-1)/this%span), 1), this%N-1)
-  j = i + 1
+  i = 1
+  j = this%n
+  do while (j - i > 1)
+    k = (i + j)/2
+   if (this%spline(k)%x > x) then
+     j = k
+   else
+     i = k
+   end if
+  end do
 
-  h = this%spline(j)%x - this%spline(i)%x
-  a = (this%spline(j)%x-x)/h
-  b = (x-this%spline(i)%x)/h
-  y = a*this%spline(i)%y + b*this%spline(j)%y &
-    + ((a**3-a)*this%spline(i)%d2y + (b**3-b)*this%spline(j)%d2y)*h**2/6d0
-  dy = (this%spline(j)%y - this%spline(i)%y)/h &
-     + (-(3d0*a**2-1d0)*this%spline(i)%d2y + (3d0*b**2-1d0)*this%spline(j)%d2y)*h/6d0
+!  i = min(max(ceiling(x - this%Sr * dble(this%N-1)),1),this%N-1)
 
-  relative_permeability = y
+  h = this%spline(i+1)%x - this%spline(i)%x
+  delta = (this%spline(i+1)%y  - this%spline(i)%y)/h
+  del1  = (this%spline(i  )%dy - delta)/h
+  del2  = (this%spline(i+1)%dy - delta)/h
+
+  c2 = -(del1+del1+del2)
+  c2t2 = c2 + c2
+  c3 = (del1+del2)/h
+  c3t3 = c3+c3+c3
+
+  x = x - this%spline(i)%x
+  y = this%spline(i)%y + x*(this%spline(i)%dy + x*(c2 + x*c3))
+  dy = this%spline(i)%dy + x*(c2t2 + x*c3t3)
+
+  relative_permeability= y
   dkr_sat = dy
-
 end subroutine RPFSplineRelativePermeability
 
 ! **************************************************************************** !
@@ -341,7 +380,7 @@ subroutine RPFSplineTest(this,cc_name,phase,option)
   open(unit=87,file=string)
   write(86,*) '#Index, x_max, A, B, C, D'
   do i = 1, this%N
-    write(87,*) this%spline(i)%x, this%spline(i)%y, this%spline(i)%d2y
+    write(87,*) this%spline(i)%x, this%spline(i)%y, this%spline(i)%dy
   end do
   close(87)
     

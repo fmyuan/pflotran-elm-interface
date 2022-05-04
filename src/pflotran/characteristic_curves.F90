@@ -368,7 +368,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
-  PetscBool :: spline
 
   ! Lexicon of compiled parameters
   character(len=MAXWORDLENGTH) :: unsat_ext
@@ -380,6 +379,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscReal :: wipp_expon, wipp_pct_alpha, wipp_pct_expon
   PetscReal :: wipp_s_min, wipp_s_effmin
   PetscBool :: wipp_pct_ignore
+  PetscInt :: spline
 
   nullify(sf_swap)
   ! Default values for unspecified parameters
@@ -399,7 +399,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   input%ierr = 0
   smooth = PETSC_FALSE
-  spline = PETSC_FALSE
+  spline = 0
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -464,7 +464,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       case('SMOOTH')
         smooth = PETSC_TRUE
       case('SPLINE')
-        spline = PETSC_TRUE
+        call InputReadInt(input, option, spline)
+        call InputErrorMsg(input,option,'SPLINE', error_string)
       case default
         found = PETSC_FALSE
     end select
@@ -990,13 +991,13 @@ function SaturationFunctionRead(saturation_function,input,option) &
   !------------------------------------------
   end select
 
-  if (spline) then ! Create cubic approximation for any saturation function
+  if (spline > 0) then ! Create cubic approximation for any saturation function
     if (associated(sf_swap)) then ! Splining a loop-invariant replacement
-      sf_swap2 => SFSplineCtor(sf_swap, 101)
+      sf_swap2 => SFSplineCtor(sf_swap, spline)
       deallocate(sf_swap)
       sf_swap => sf_swap2
     else
-      sf_swap => SFSplineCtor(saturation_function, 101)
+      sf_swap => SFSplineCtor(saturation_function, spline)
     end if
     ! The calling CCRead will deallocated saturation_function
     sf_swap%calc_int_tension = tension
@@ -1030,7 +1031,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXSTRINGLENGTH) :: table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
-  PetscBool :: spline
+  PetscInt  :: spline
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
@@ -1039,7 +1040,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   nullify(rpf_swap)
 
   ! Default values for unspecified parameters
-  spline = PETSC_FALSE
+  spline = 0
   loop_invariant = PETSC_FALSE
   m = 0d0
   Srg = 0d0
@@ -1151,7 +1152,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       case('SMOOTH')
         smooth = PETSC_TRUE
       case('SPLINE')
-        spline = PETSC_TRUE
+        call InputReadInt(input, option, spline)
+        call InputErrorMsg(input,option,'SPLINE', error_string)
       case default
         found = PETSC_FALSE
     end select
@@ -1804,7 +1806,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     call permeability_function%SetupPolynomials(option,error_string)
   endif
 
-  if (spline) then ! Create cubic approximation for any saturation function
+  if (spline > 0) then ! Create cubic approximation for any saturation function
     if (associated(rpf_swap)) then ! Splining a loop-invariant replacement
       rpf_swap2 => RPFSplineCtor(permeability_function, 101)
       deallocate(rpf_swap)
