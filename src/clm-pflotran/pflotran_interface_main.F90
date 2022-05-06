@@ -47,7 +47,7 @@ program pflotran_interface_main
   PetscInt                                  :: PRINT_RANK
   PRINT_RANK = 0
 
-  call MPI_Init(ierr)
+  call MPI_Init(ierr);CHKERRQ(ierr)
 
   ! Create the model
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
@@ -149,6 +149,6 @@ program pflotran_interface_main
 
   call pflotranModelDestroy(pflotran_m)
 
-  call MPI_Finalize(ierr)
+  call MPI_Finalize(ierr);CHKERRQ(ierr)
 
 end program pflotran_interface_main

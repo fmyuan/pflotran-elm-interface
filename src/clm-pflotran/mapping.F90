@@ -249,7 +249,8 @@ contains
 
     ! Sort cell_ids_ghd
     index = index - 1 ! Needs to be 0-based
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index, &
+                                     ierr);CHKERRQ(ierr)
     index = index + 1
 
     do ii=1,ncells_loc+ncells_gh
@@ -259,7 +260,8 @@ contains
 
     ! Sort the index
     rev_index = rev_index - 1
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index, &
+                                     ierr);CHKERRQ(ierr)
     map%d_nSor2Ghd = rev_index
 
     ! Free memory
@@ -435,13 +437,13 @@ contains
 
           ! Otherwise communicate data to other ranks
           call MPI_Send(nread,1,MPI_INTEGER,irank,option%myrank,option%mycomm, &
-                        ierr)
+                        ierr);CHKERRQ(ierr)
           call MPI_Send(wts_row_tmp,nread,MPI_INTEGER,irank,option%myrank, &
-                        option%mycomm,ierr)
+                        option%mycomm,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_col_tmp,nread,MPI_INTEGER,irank,option%myrank, &
-                        option%mycomm,ierr)
-          call MPI_Send(wts_tmp,nread,MPI_DOUBLE_PRECISION,irank,option%myrank, &
-                        option%mycomm,ierr)
+                        option%mycomm,ierr);CHKERRQ(ierr)
+          call MPI_Send(wts_tmp,nread,MPI_DOUBLE_PRECISION,irank, &
+                        option%myrank,option%mycomm,ierr);CHKERRQ(ierr)
 
         endif
 
@@ -457,7 +459,7 @@ contains
 
       ! Get the number of data
       call MPI_Recv(map%s2d_nwts,1,MPI_INTEGER,option%driver%io_rank, &
-                    MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+                    MPI_ANY_TAG,option%mycomm,status_mpi,ierr);CHKERRQ(ierr)
 
       ! Allocate memory
       allocate(map%s2d_icsr(map%s2d_nwts))
@@ -465,14 +467,14 @@ contains
       allocate(map%s2d_wts( map%s2d_nwts))
 
       call MPI_Recv(map%s2d_icsr,map%s2d_nwts,MPI_INTEGER, &
-                    option%driver%io_rank,MPI_ANY_TAG, &
-                    option%mycomm,status_mpi,ierr)
+                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
+                    status_mpi,ierr);CHKERRQ(ierr)
       call MPI_Recv(map%s2d_jcsr,map%s2d_nwts,MPI_INTEGER, &
-                    option%driver%io_rank,MPI_ANY_TAG, &
-                    option%mycomm,status_mpi,ierr)
+                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
+                    status_mpi,ierr);CHKERRQ(ierr)
       call MPI_Recv(map%s2d_wts,map%s2d_nwts,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank,MPI_ANY_TAG, &
-                    option%mycomm,status_mpi,ierr)
+                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
+                    status_mpi,ierr);CHKERRQ(ierr)
 
     endif
 
@@ -484,8 +486,7 @@ contains
   temp_int_array(5) = map%pflotran_nlev_mapped
 
   call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER, &
-                 option%driver%io_rank, &
-                 option%mycomm,ierr)
+                 option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
 
   map%clm_nlevsoi = temp_int_array(1)
   map%clm_nlevgrnd = temp_int_array(2)
@@ -611,10 +612,10 @@ contains
     ! Find istart and iend
     istart = 0
     iend   = 0
-    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI, &
-                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -685,10 +686,10 @@ contains
     ! Find istart and iend
     istart = 0
     iend   = 0
-    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI, &
-                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -756,10 +757,10 @@ contains
     ! Find istart and iend
     istart = 0
     iend   = 0
-    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI, &
-                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -850,13 +851,16 @@ contains
     character(len=MAXSTRINGLENGTH):: string
 
     ! 0) Save dataset related to wts in MPI-Vecs
-    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,row_vec,ierr)
-    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,col_vec,ierr)
-    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,wts_vec,ierr)
+    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,row_vec, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,col_vec, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,wts_vec, &
+                      ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(row_vec,vloc1,ierr)
-    call VecGetArrayF90(col_vec,vloc2,ierr)
-    call VecGetArrayF90(wts_vec,vloc3,ierr)
+    call VecGetArrayF90(row_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(col_vec,vloc2,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(wts_vec,vloc3,ierr);CHKERRQ(ierr)
 
     do ii = 1,map%s2d_nwts
        vloc1(ii) = map%s2d_icsr(ii)
@@ -864,9 +868,9 @@ contains
        vloc3(ii) = map%s2d_wts(ii)
     enddo
 
-    call VecRestoreArrayF90(row_vec,vloc1,ierr)
-    call VecRestoreArrayF90(col_vec,vloc2,ierr)
-    call VecRestoreArrayF90(wts_vec,vloc3,ierr)
+    call VecRestoreArrayF90(row_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(col_vec,vloc2,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(wts_vec,vloc3,ierr);CHKERRQ(ierr)
 
     ! 1) For each cell of destination mesh, find the number of source mesh cells
     !    overlapped.
@@ -875,9 +879,9 @@ contains
 
     ! Create a MPI vector
     call VecCreateMPI(mycomm,map%d_ncells_loc,PETSC_DECIDE, &
-                      nonzero_row_count_vec,ierr)
+                      nonzero_row_count_vec,ierr);CHKERRQ(ierr)
 
-    call VecSet(nonzero_row_count_vec,0.d0,ierr)
+    call VecSet(nonzero_row_count_vec,0.d0,ierr);CHKERRQ(ierr)
 
     ! Find non-zero entries for each of the W matrix with the locally saved data
     allocate(row_count(map%s2d_nwts))
@@ -899,24 +903,27 @@ contains
     enddo
 
     ! Save values in the MPI vector
-    call VecSetValues(nonzero_row_count_vec,nrow,row,row_count,ADD_VALUES,ierr)
-    call VecAssemblyBegin(nonzero_row_count_vec,ierr)
-    call VecAssemblyEnd(nonzero_row_count_vec,ierr)
+    call VecSetValues(nonzero_row_count_vec,nrow,row,row_count,ADD_VALUES, &
+                      ierr);CHKERRQ(ierr)
+    call VecAssemblyBegin(nonzero_row_count_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(nonzero_row_count_vec,ierr);CHKERRQ(ierr)
     deallocate(row)
     deallocate(row_count)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'nonzero_row_count_vec.out', viewer, ierr)
-    call VecView(nonzero_row_count_vec, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'nonzero_row_count_vec.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecView(nonzero_row_count_vec,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! 2) Find cummulative sum of the nonzero_row_count_vec
 
     ! Create a MPI vector
     call VecCreateMPI(mycomm,map%d_ncells_loc,PETSC_DECIDE, &
-                      cumsum_nonzero_row_count_vec,ierr)
-    call VecGetArrayF90(nonzero_row_count_vec,vloc1,ierr)
-    call VecGetArrayF90(cumsum_nonzero_row_count_vec,vloc2,ierr)
+                      cumsum_nonzero_row_count_vec,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(nonzero_row_count_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(cumsum_nonzero_row_count_vec,vloc2, &
+                        ierr);CHKERRQ(ierr)
 
     ii = 1
     vloc2(ii) = vloc1(ii)
@@ -926,19 +933,21 @@ contains
 
     cumsum_start = 0
     call MPI_Exscan(INT(vloc2(map%d_ncells_loc)),cumsum_start,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,mycomm,ierr)
+                    MPIU_INTEGER,MPI_SUM,mycomm,ierr);CHKERRQ(ierr)
 
     do ii = 1,map%d_ncells_loc
       vloc2(ii) = vloc2(ii) + cumsum_start
     enddo
 
-    call VecRestoreArrayF90(nonzero_row_count_vec,vloc1,ierr)
-    call VecRestoreArrayF90(cumsum_nonzero_row_count_vec,vloc2,ierr)
+    call VecRestoreArrayF90(nonzero_row_count_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(cumsum_nonzero_row_count_vec,vloc2, &
+                            ierr);CHKERRQ(ierr)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'cumsum_nonzero_row_count_vec.out', viewer, ierr)
-    call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'cumsum_nonzero_row_count_vec.out', &
+                              viewer,ierr);CHKERRQ(ierr)
+    call VecView(cumsum_nonzero_row_count_vec,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! 3) On a given processor, in order to map a variable from source mesh to
@@ -952,9 +961,9 @@ contains
 
     !
     call VecCreateSeq(PETSC_COMM_SELF,map%d_ncells_ghd, &
-                      nonzero_row_count_loc_vec,ierr)
+                      nonzero_row_count_loc_vec,ierr);CHKERRQ(ierr)
     call VecCreateSeq(PETSC_COMM_SELF,map%d_ncells_ghd, &
-                      cumsum_nonzero_row_count_loc_vec,ierr)
+                      cumsum_nonzero_row_count_loc_vec,ierr);CHKERRQ(ierr)
 
     ! Create index sets (IS) for VecScatter()
     allocate(tmp_int_array(map%d_ncells_ghd))
@@ -962,53 +971,55 @@ contains
       tmp_int_array(ii) = ii - 1
     enddo
     call ISCreateBlock(mycomm,1,map%d_ncells_ghd,tmp_int_array, &
-                       PETSC_COPY_VALUES,is_to,ierr)
+                       PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
     deallocate(tmp_int_array)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_to.out', viewer, ierr)
-    call ISView(is_to,viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_to.out',viewer,ierr);CHKERRQ(ierr)
+    call ISView(is_to,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-    call ISCreateBlock(mycomm,1,map%d_ncells_ghd, &
-                      map%d_ids_ghd_nidx, PETSC_COPY_VALUES,is_from,ierr)
+    call ISCreateBlock(mycomm,1,map%d_ncells_ghd,map%d_ids_ghd_nidx, &
+                       PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_from.out', viewer, ierr)
-    call ISView(is_from, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_from.out',viewer,ierr);CHKERRQ(ierr)
+    call ISView(is_from,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Create VecScatter()
     call VecScatterCreate(nonzero_row_count_vec,is_from, &
-                          nonzero_row_count_loc_vec,is_to, &
-                          vec_scat,ierr)
-    call ISDestroy(is_from,ierr)
-    call ISDestroy(is_to,ierr)
+                          nonzero_row_count_loc_vec,is_to,vec_scat, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'vec_scat.out', viewer, ierr)
-    call VecScatterView(vec_scat, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'vec_scat.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecScatterView(vec_scat,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Scatter the data
     call VecScatterBegin(vec_scat,nonzero_row_count_vec, &
-                        nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
-                        ierr)
+                         nonzero_row_count_loc_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterEnd(vec_scat,nonzero_row_count_vec, &
-                      nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
-                      ierr)
+                       nonzero_row_count_loc_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterBegin(vec_scat,cumsum_nonzero_row_count_vec, &
-                        cumsum_nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
-                        ierr)
+                         cumsum_nonzero_row_count_loc_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterEnd(vec_scat,cumsum_nonzero_row_count_vec, &
-                      cumsum_nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
-                      ierr)
-    call VecScatterDestroy(vec_scat,ierr)
+                       cumsum_nonzero_row_count_loc_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(nonzero_row_count_loc_vec,vloc1,ierr)
-    call VecGetArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2,ierr)
+    call VecGetArrayF90(nonzero_row_count_loc_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2, &
+                        ierr);CHKERRQ(ierr)
 
     allocate(map%s2d_nonzero_rcount_csr(map%d_ncells_ghd))
 
@@ -1040,11 +1051,12 @@ contains
 
     ! Create an index set to scatter from
     call ISCreateBlock(mycomm,1,map%s2d_s_ncells,tmp_int_array, &
-         PETSC_COPY_VALUES,is_from,ierr)
+                       PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_from2.out', viewer, ierr)
-    call ISView(is_from,viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_from2.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call ISView(is_from,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     do ii=1,map%s2d_s_ncells
@@ -1052,40 +1064,45 @@ contains
     enddo
 
     call ISCreateBlock(mycomm,1,map%s2d_s_ncells,tmp_int_array, &
-         PETSC_COPY_VALUES,is_to,ierr)
+                       PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
     deallocate(tmp_int_array)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_to2.out', viewer, ierr)
-    call ISView(is_to,viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_to2.out',viewer,ierr);CHKERRQ(ierr)
+    call ISView(is_to,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Allocate memory
-    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,row_loc_vec,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,col_loc_vec,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,wts_loc_vec,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,row_loc_vec, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,col_loc_vec, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,wts_loc_vec, &
+                      ierr);CHKERRQ(ierr)
 
     ! Create scatter context
-    call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat,ierr)
+    call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat, &
+                          ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'scatter_wts_data.out', viewer, ierr)
-    call VecScatterView(vec_scat, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'scatter_wts_data.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecScatterView(vec_scat,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Scatter the data
-    call VecScatterBegin(vec_scat,col_vec,col_loc_vec, INSERT_VALUES, &
-         SCATTER_FORWARD,ierr)
-    call VecScatterEnd(vec_scat,col_vec,col_loc_vec, INSERT_VALUES, &
-         SCATTER_FORWARD,ierr)
-    call VecScatterBegin(vec_scat,wts_vec,wts_loc_vec, INSERT_VALUES, &
-         SCATTER_FORWARD,ierr)
-    call VecScatterEnd(vec_scat,wts_vec,wts_loc_vec, INSERT_VALUES, &
-         SCATTER_FORWARD,ierr)
+    call VecScatterBegin(vec_scat,col_vec,col_loc_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vec_scat,col_vec,col_loc_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterBegin(vec_scat,wts_vec,wts_loc_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vec_scat,wts_vec,wts_loc_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
     ! Attach to the local copy of the scatterd data
-    call VecGetArrayF90(col_loc_vec,vloc3,ierr)
-    call VecGetArrayF90(wts_loc_vec,vloc4,ierr)
+    call VecGetArrayF90(col_loc_vec,vloc3,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(wts_loc_vec,vloc4,ierr);CHKERRQ(ierr)
 
     ! Save the scattered data
     do ii = 1,map%s2d_s_ncells
@@ -1094,23 +1111,25 @@ contains
     enddo
 
     ! Restore data
-    call VecRestoreArrayF90(col_loc_vec,vloc3,ierr)
-    call VecRestoreArrayF90(wts_loc_vec,vloc4,ierr)
+    call VecRestoreArrayF90(col_loc_vec,vloc3,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(wts_loc_vec,vloc4,ierr);CHKERRQ(ierr)
 
     ! Free memory
-    call VecDestroy(row_loc_vec,ierr)
-    call VecDestroy(col_loc_vec,ierr)
-    call VecDestroy(wts_loc_vec,ierr)
+    call VecDestroy(row_loc_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(col_loc_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(wts_loc_vec,ierr);CHKERRQ(ierr)
 
     ! Restore data
-    call VecRestoreArrayF90(nonzero_row_count_loc_vec,vloc1,ierr)
-    call VecRestoreArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2,ierr)
+    call VecRestoreArrayF90(nonzero_row_count_loc_vec,vloc1, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2, &
+                            ierr);CHKERRQ(ierr)
 
     ! Free memory
-    call VecDestroy(nonzero_row_count_vec,ierr)
-    call VecDestroy(cumsum_nonzero_row_count_vec,ierr)
-    call VecDestroy(nonzero_row_count_loc_vec,ierr)
-    call VecDestroy(cumsum_nonzero_row_count_loc_vec,ierr)
+    call VecDestroy(nonzero_row_count_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(cumsum_nonzero_row_count_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(nonzero_row_count_loc_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(cumsum_nonzero_row_count_loc_vec,ierr);CHKERRQ(ierr)
 
   end subroutine MappingDecompose
 
@@ -1141,7 +1160,8 @@ contains
     ! No overlapped cells with Source Mesh, then return
     if(map%s2d_s_ncells == 0) then
        map%s2d_s_ncells_dis = 0
-       call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells_dis, map%s_disloc_vec, ierr)
+       call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells_dis, &
+                         map%s_disloc_vec,ierr);CHKERRQ(ierr)
        return
     end if
 
@@ -1178,7 +1198,8 @@ contains
     enddo
 
     int_array2 = int_array2 - 1
-    call PetscSortIntWithPermutation(map%s2d_s_ncells,int_array,int_array2,ierr)
+    call PetscSortIntWithPermutation(map%s2d_s_ncells,int_array,int_array2, &
+                                     ierr);CHKERRQ(ierr)
     int_array2 = int_array2 + 1
 
     int_array3 = 0
@@ -1207,7 +1228,8 @@ contains
     map%s2d_jcsr = int_array4
 
     ! Create a sequential vector
-    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells_dis, map%s_disloc_vec, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells_dis,map%s_disloc_vec, &
+                      ierr);CHKERRQ(ierr)
 
     ! Free memory
     deallocate(int_array)
@@ -1256,28 +1278,27 @@ contains
     !
     ! size(wts_mat) = [d_ncells_ghd x s2d_s_ncells_dis]
     !
-    call MatCreateSeqAIJ(PETSC_COMM_SELF, &
-         map%d_ncells_ghd,                & ! m
-         map%s2d_s_ncells_dis,            & ! n
-         PETSC_DEFAULT_INTEGER,           & ! nz
-         map%s2d_nonzero_rcount_csr,      & ! nnz
-         map%wts_mat, ierr)
+    call MatCreateSeqAIJ(PETSC_COMM_SELF,map%d_ncells_ghd, &
+                         map%s2d_s_ncells_dis,PETSC_DEFAULT_INTEGER, &
+                         map%s2d_nonzero_rcount_csr,map%wts_mat, &
+                         ierr);CHKERRQ(ierr)
 
     do ii = 1,map%s2d_s_ncells
        call MatSetValues(map%wts_mat,1,index(ii),1,map%s2d_jcsr(ii), &
-          map%s2d_wts(ii),INSERT_VALUES,ierr)
+                         map%s2d_wts(ii),INSERT_VALUES,ierr);CHKERRQ(ierr)
     enddo
-    call MatAssemblyBegin(map%wts_mat,MAT_FINAL_ASSEMBLY,ierr)
-    call MatAssemblyEnd(  map%wts_mat,MAT_FINAL_ASSEMBLY,ierr)
+    call MatAssemblyBegin(map%wts_mat,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(map%wts_mat,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
     deallocate(index)
 
 #ifdef MAP_DEBUG
     write(string,*) myrank
     string = 'mat_wts' // trim(adjustl(string)) // '.out'
-    call PetscViewerASCIIOpen(PETSC_COMM_SELF, trim(string), viewer, ierr)
-    call MatView(map%wts_mat, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(PETSC_COMM_SELF,trim(string),viewer, &
+                              ierr);CHKERRQ(ierr)
+    call MatView(map%wts_mat,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
   end subroutine MappingCreateWeightMatrix
@@ -1338,10 +1359,14 @@ contains
     !                [  7  1  3 ]   | [7  6  5  0  1  2  4]  : pindex_req
 
     ! Create the vectors
-    call VecCreateMPI(mycomm, map%s_ncells_loc, PETSC_DECIDE, pindex, ierr)
-    call VecCreateMPI(mycomm, map%s_ncells_loc, PETSC_DECIDE, nindex, ierr)
-    call VecCreateMPI(mycomm, map%s_ncells_loc, PETSC_DECIDE, N2P  , ierr)
-    call VecCreateMPI(mycomm, map%s2d_s_ncells_dis, PETSC_DECIDE, pindex_req, ierr)
+    call VecCreateMPI(mycomm,map%s_ncells_loc,PETSC_DECIDE,pindex, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,map%s_ncells_loc,PETSC_DECIDE,nindex, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,map%s_ncells_loc,PETSC_DECIDE,N2P, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,map%s2d_s_ncells_dis,PETSC_DECIDE,pindex_req, &
+                      ierr);CHKERRQ(ierr)
 
 
     ! STEP-1 -
@@ -1365,28 +1390,28 @@ contains
     !
 
     ! Initialize 'nindex' vector
-    call VecGetArrayF90(nindex,v_loc,ierr)
+    call VecGetArrayF90(nindex,v_loc,ierr);CHKERRQ(ierr)
     do ii=1,map%s_ncells_loc
        v_loc(ii) = map%s_ids_loc_nidx(ii)
     enddo
-    call VecRestoreArrayF90(nindex,v_loc,ierr)
+    call VecRestoreArrayF90(nindex,v_loc,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'nindex.out',viewer,ierr)
-    call VecView(nindex,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'nindex.out',viewer,ierr);CHKERRQ(ierr)
+    call VecView(nindex,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Initialize 'pindex' vector
-    call VecGetOwnershipRange(pindex,istart,iend,ierr)
-    call VecGetArrayF90(pindex,v_loc,ierr)
+    call VecGetOwnershipRange(pindex,istart,iend,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(pindex,v_loc,ierr);CHKERRQ(ierr)
     do ii=1,map%s_ncells_loc
        v_loc(ii) = istart + ii - 1
     enddo
-    call VecRestoreArrayF90(pindex,v_loc,ierr)
+    call VecRestoreArrayF90(pindex,v_loc,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'pindex.out',viewer,ierr)
-    call VecView(pindex,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'pindex.out',viewer,ierr);CHKERRQ(ierr)
+    call VecView(pindex,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Create 'is_from'
@@ -1394,47 +1419,47 @@ contains
     do ii=1,map%s_ncells_loc
        tmp_int_array(ii) = istart + ii - 1
     enddo
-    call ISCreateBlock(mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
-         is_from, ierr)
+    call ISCreateBlock(mycomm,1,map%s_ncells_loc,tmp_int_array, &
+                       PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'is_from.out', &
-                              viewer,ierr)
-    call ISView(is_from,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_from.out',viewer,ierr);CHKERRQ(ierr)
+    call ISView(is_from,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Create 'is_to'
     do ii=1,map%s_ncells_loc
        tmp_int_array(ii) = map%s_ids_loc_nidx(ii)
     enddo
-    call ISCreateBlock(mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
-         is_to, ierr)
+    call ISCreateBlock(mycomm,1,map%s_ncells_loc,tmp_int_array, &
+                       PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
     deallocate(tmp_int_array)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'is_to.out', &
-                              viewer,ierr)
-    call ISView(is_to,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_to.out',viewer,ierr);CHKERRQ(ierr)
+    call ISView(is_to,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Create 'vscat'
-    call VecScatterCreate(nindex, is_from, N2P, is_to, vscat, ierr)
-    call ISDestroy(is_to,ierr)
-    call ISDestroy(is_from,ierr)
+    call VecScatterCreate(nindex,is_from,N2P,is_to,vscat,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'vscat.out', viewer, ierr)
-    call VecScatterView(vscat, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'vscat.out',viewer,ierr);CHKERRQ(ierr)
+    call VecScatterView(vscat,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Scatter data
-    call VecScatterBegin(vscat, pindex, N2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterEnd(  vscat, pindex, N2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vscat,ierr)
+    call VecScatterBegin(vscat,pindex,N2P,INSERT_VALUES,SCATTER_FORWARD, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vscat,pindex,N2P,INSERT_VALUES,SCATTER_FORWARD, &
+                       ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vscat,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'N2P.out',viewer,ierr)
-    call VecView(N2P,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'N2P.out',viewer,ierr);CHKERRQ(ierr)
+    call VecView(N2P,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! STEP-2 -
@@ -1462,47 +1487,52 @@ contains
     !
 
     ! Create 'is_to'
-    call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, map%s2d_s_ids_nidx_dis, &
-         PETSC_COPY_VALUES, is_to, ierr)
+    call ISCreateBlock(mycomm,1,map%s2d_s_ncells_dis,map%s2d_s_ids_nidx_dis, &
+                       PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_to1.out', viewer, ierr)
-    call ISView(is_to, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_to1.out',viewer,ierr);CHKERRQ(ierr)
+    call ISView(is_to,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Create 'is_from'
-    call VecGetOwnershipRange(pindex_req, istart, iend, ierr)
+    call VecGetOwnershipRange(pindex_req,istart,iend,ierr);CHKERRQ(ierr)
     allocate(tmp_int_array(map%s2d_s_ncells_dis))
     do ii = 1,map%s2d_s_ncells_dis
        tmp_int_array(ii) = istart + ii - 1
     enddo
-    call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
-         PETSC_COPY_VALUES, is_from, ierr)
+    call ISCreateBlock(mycomm,1,map%s2d_s_ncells_dis,tmp_int_array, &
+                       PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
     deallocate(tmp_int_array)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm, 'is_from1.out', viewer, ierr)
-    call ISView(is_from, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(mycomm,'is_from1.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call ISView(is_from,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Create vector scatter
-    call VecScatterCreate(N2P, is_to, pindex_req, is_from, vscat, ierr)
-    call ISDestroy(is_to,ierr)
-    call ISDestroy(is_from, ierr)
+    call VecScatterCreate(N2P,is_to,pindex_req,is_from,vscat, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'vscat.out',viewer,ierr)
-    call VecScatterView(vscat,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'vscat.out',viewer,ierr);CHKERRQ(ierr)
+    call VecScatterView(vscat,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Scatter data
-    call VecScatterBegin(vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterEnd(  vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
+    call VecScatterBegin(vscat,N2P,pindex_req,INSERT_VALUES,SCATTER_FORWARD, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vscat,N2P,pindex_req,INSERT_VALUES,SCATTER_FORWARD, &
+                       ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'pindex_req.out',viewer,ierr)
-    call VecView(pindex_req,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'pindex_req.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecView(pindex_req,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     !
@@ -1510,23 +1540,25 @@ contains
     ! Using 'pindex_req' create and save a vector-scatter from MPI source vector
     ! to sequential source vectors
 
-    call VecGetArrayF90(pindex_req,v_loc,ierr)
-    call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, INT(v_loc),&
-         PETSC_COPY_VALUES, is_to, ierr)
-    call VecRestoreArrayF90(pindex_req,v_loc,ierr)
+    call VecGetArrayF90(pindex_req,v_loc,ierr);CHKERRQ(ierr)
+    call ISCreateBlock(mycomm,1,map%s2d_s_ncells_dis,INT(v_loc), &
+                       PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(pindex_req,v_loc,ierr);CHKERRQ(ierr)
 
-    call VecScatterCreate(N2P, is_to, pindex_req, is_from, map%s2d_scat_s_gb2disloc, ierr)
+    call VecScatterCreate(N2P,is_to,pindex_req,is_from, &
+                          map%s2d_scat_s_gb2disloc,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(mycomm,'s2d_scat_s_gb2disloc.out',viewer,ierr)
-    call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(mycomm,'s2d_scat_s_gb2disloc.out',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! Free-memory
-    call VecDestroy(pindex, ierr)
-    call VecDestroy(nindex, ierr)
-    call VecDestroy(N2P  , ierr)
-    call VecScatterDestroy(vscat,ierr)
+    call VecDestroy(pindex,ierr);CHKERRQ(ierr)
+    call VecDestroy(nindex,ierr);CHKERRQ(ierr)
+    call VecDestroy(N2P,ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vscat,ierr);CHKERRQ(ierr)
 
   end subroutine MappingCreateScatterOfSourceMesh
 
@@ -1552,18 +1584,18 @@ contains
 
     if (map%s2d_s_ncells > 0) then
        ! Initialize local vector
-       call VecSet(map%s_disloc_vec, 0.d0, ierr)
+       call VecSet(map%s_disloc_vec,0.d0,ierr);CHKERRQ(ierr)
     end if
 
     ! Scatter the source vector
-    call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
-         INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
-         INSERT_VALUES, SCATTER_FORWARD, ierr)
+    call VecScatterBegin(map%s2d_scat_s_gb2disloc,s_vec,map%s_disloc_vec, &
+                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(map%s2d_scat_s_gb2disloc,s_vec,map%s_disloc_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
     if (map%s2d_s_ncells > 0) then
        ! Perform Matrix-Vector product
-       call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
+       call MatMult(map%wts_mat,map%s_disloc_vec,d_vec,ierr);CHKERRQ(ierr)
     end if
   end subroutine
 
