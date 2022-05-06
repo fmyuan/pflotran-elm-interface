@@ -480,14 +480,15 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
 
   if (size_flag /= 0) then
     call MPI_Allreduce(size_flag,max_local_size,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,option%mycomm,ierr)
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
     local_size_mpi = size_flag
   else
   ! if first time, determine the maximum size of any local array across
   ! all procs
     if (max_local_size_saved < 0) then
       call MPI_Allreduce(grid%nlmax,max_local_size,ONE_INTEGER_MPI, &
-                         MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+                         MPIU_INTEGER,MPI_MAX,option%mycomm, &
+                         ierr);CHKERRQ(ierr)
       max_local_size_saved = max_local_size
       if (OptionPrintToScreen(option)) print *, 'max_local_size_saved: ', &
                                                  max_local_size
@@ -553,14 +554,17 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
       endif
 #endif
-      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                     ierr);CHKERRQ(ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == 0) then
         call MPI_Recv(integer_data_recv,recv_size_mpi,MPIU_INTEGER,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+                      MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           integer_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              integer_data_recv(1:recv_size_mpi)
@@ -578,8 +582,9 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
           num_in_array = num_in_array-iend
         endif
       else
-        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION, &
+                      iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           real_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              real_data_recv(1:recv_size_mpi)
@@ -602,7 +607,7 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
       call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     option%driver%io_rank,option%mycomm,ierr)
+                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
 #endif
     ! Print the remaining values, if they exist
@@ -620,24 +625,26 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
       do
         if (option%myrank < max_proc) exit
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
       enddo
     endif
 #endif
     if (datatype == VTK_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     else
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     endif
 #ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
         if (max_proc < 0) exit
       enddo
     endif

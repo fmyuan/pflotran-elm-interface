@@ -490,10 +490,10 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   ! Find istart and iend
   istart = 0
   iend   = 0
-  call MPI_Exscan(nids_local, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
-  call MPI_Scan(nids_local, iend, ONE_INTEGER_MPI, &
-                MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(nids_local,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Scan(nids_local,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                option%mycomm,ierr);CHKERRQ(ierr)
 
   ! Determine the length and offset of data to be read by each processor
   length(1) = dims_h5(1)

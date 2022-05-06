@@ -265,8 +265,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
       call VecSetSizes(geomechanics_regression%natural_vertex_id_vec, &
-                       ZERO_INTEGER, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+                       ZERO_INTEGER,PETSC_DECIDE,ierr);CHKERRQ(ierr)
     endif
     call VecSetFromOptions(geomechanics_regression%natural_vertex_id_vec, &
                            ierr);CHKERRQ(ierr)
@@ -293,31 +292,30 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
 
 #ifdef GEOMECHANICS_REGRESSION_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, &
-                              'geomech_is_petsc_natural_vertex_id.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+                              'geomech_is_petsc_natural_vertex_id.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call ISView(is_petsc,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     ! create scatter context
-    call VecScatterCreate(geomechanics_realization%geomech_field% &
-                          press,is_petsc, &
+    call VecScatterCreate(geomechanics_realization%geomech_field%press, &
+                          is_petsc, &
                           geomechanics_regression%natural_vertex_id_vec, &
                           PETSC_NULL_IS, &
                           geomechanics_regression% &
-                          scatter_natural_vertex_id_gtos, &
+                            scatter_natural_vertex_id_gtos, &
                           ierr);CHKERRQ(ierr)
 
     call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
 
 #ifdef GEOMECHANICS_REGRESSION_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, &
-                      'geomechanics_regression_scatter_nat_vertex_ids.out', &
-                      viewer, &
-                      ierr);CHKERRQ(ierr)
+                        'geomechanics_regression_scatter_nat_vertex_ids.out', &
+                              viewer,ierr);CHKERRQ(ierr)
     call VecScatterView(geomechanics_regression% &
-                        scatter_natural_vertex_id_gtos,viewer, &
-                        ierr);CHKERRQ(ierr)
+                          scatter_natural_vertex_id_gtos, &
+                        viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
@@ -327,7 +325,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     ! determine minimum number of vertices per process
     i = grid%nlmax_node
     call MPI_Allreduce(i,count,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
     if (count < geomechanics_regression%num_vertices_per_process) then
       option%io_buffer = 'Number of vertices per process for ' // &
         'GeomechanicsRegression exceeds minimum number of vertices ' // &
@@ -342,13 +340,12 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
                    ierr);CHKERRQ(ierr)
     if (OptionIsIORank(option)) then
       call VecSetSizes(geomechanics_regression%vertices_per_process_vec, &
-                       geomechanics_regression%num_vertices_per_process* &
-                       option%comm%mycommsize, &
+                       geomechanics_regression% &
+                         num_vertices_per_process*option%comm%mycommsize, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
-      call VecSetSizes(geomechanics_regression% &
-                       vertices_per_process_vec,ZERO_INTEGER, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(geomechanics_regression%vertices_per_process_vec, &
+                       ZERO_INTEGER,PETSC_DECIDE,ierr);CHKERRQ(ierr)
     endif
     call VecSetFromOptions(geomechanics_regression%vertices_per_process_vec, &
                            ierr);CHKERRQ(ierr)
@@ -384,14 +381,12 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
       count = 0
       allocate(int_array(count))
     endif
-    call ISCreateGeneral(option%mycomm,count, &
-                         int_array,PETSC_COPY_VALUES,temp_is, &
-                         ierr);CHKERRQ(ierr)
+    call ISCreateGeneral(option%mycomm,count,int_array,PETSC_COPY_VALUES, &
+                         temp_is,ierr);CHKERRQ(ierr)
 
     call VecScatterCreate(temp_vec,temp_is, &
                           geomechanics_regression%vertices_per_process_vec, &
-                          PETSC_NULL_IS, &
-                          temp_scatter,ierr);CHKERRQ(ierr)
+                          PETSC_NULL_IS,temp_scatter,ierr);CHKERRQ(ierr)
     call ISDestroy(temp_is,ierr);CHKERRQ(ierr)
 
     ! scatter ids to io_rank
@@ -414,15 +409,14 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
         int_array(i) = int(vec_ptr(i)+0.1d0) ! tolerance to ensure int value
       enddo
       call VecRestoreArrayF90(geomechanics_regression% &
-                              vertices_per_process_vec,vec_ptr, &
-                              ierr);CHKERRQ(ierr)
+                                vertices_per_process_vec, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
       ! convert to zero based
       int_array = int_array - 1
     endif
 
-    call ISCreateGeneral(option%mycomm,count, &
-                         int_array,PETSC_COPY_VALUES,is_petsc, &
-                         ierr);CHKERRQ(ierr)
+    call ISCreateGeneral(option%mycomm,count,int_array,PETSC_COPY_VALUES, &
+                         is_petsc,ierr);CHKERRQ(ierr)
     deallocate(int_array)
 
 #ifdef GEOMECHANICS_REGRESSION_DEBUG
@@ -433,22 +427,22 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-    call VecScatterCreate(geomechanics_realization%geomech_field% &
-                          press,is_petsc, &
+    call VecScatterCreate(geomechanics_realization%geomech_field%press, &
+                          is_petsc, &
                           geomechanics_regression%vertices_per_process_vec, &
                           PETSC_NULL_IS, &
                           geomechanics_regression% &
-                          scatter_vertices_per_process_gtos, &
+                            scatter_vertices_per_process_gtos, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
 
 #ifdef GEOMECHANICS_REGRESSION_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, &
-                  'geomechanics_regression_scatter_vertices_per_process.out', &
-                  viewer,ierr);CHKERRQ(ierr)
+                              'geomechanics_regression_scatter_vertice&
+                                &s_per_process.out',viewer,ierr);CHKERRQ(ierr)
     call VecScatterView(geomechanics_regression% &
-                        scatter_vertices_per_process_gtos,viewer, &
-                        ierr);CHKERRQ(ierr)
+                          scatter_vertices_per_process_gtos, &
+                        viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
@@ -468,25 +462,24 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
                             vec_ptr,ierr);CHKERRQ(ierr)
 
     call VecScatterBegin(geomechanics_regression% &
-                         scatter_vertices_per_process_gtos, &
+                           scatter_vertices_per_process_gtos, &
                          geomechanics_realization%geomech_field%press, &
                          geomechanics_regression%vertices_per_process_vec, &
                          INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterEnd(geomechanics_regression% &
-                       scatter_vertices_per_process_gtos, &
+                         scatter_vertices_per_process_gtos, &
                        geomechanics_realization%geomech_field%press, &
                        geomechanics_regression%vertices_per_process_vec, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
     if (OptionIsIORank(option)) then
-      call VecGetArrayF90(geomechanics_regression% &
-                          vertices_per_process_vec,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(geomechanics_regression%vertices_per_process_vec, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
       geomechanics_regression%vertices_per_process_natural_ids(:) = &
                                                         int(vec_ptr(:)+0.1)
       call VecRestoreArrayF90(geomechanics_regression% &
-                              vertices_per_process_vec,vec_ptr, &
-                              ierr);CHKERRQ(ierr)
+                                vertices_per_process_vec, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
     endif
 
   endif
@@ -579,22 +572,29 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
 
       ! list of natural ids
       if (associated(geomechanics_regression%natural_vertex_ids)) then
-        call VecScatterBegin(geomechanics_regression%scatter_natural_vertex_id_gtos, &
+        call VecScatterBegin(geomechanics_regression% &
+                               scatter_natural_vertex_id_gtos, &
                              global_vec, &
                              geomechanics_regression%natural_vertex_id_vec, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-        call VecScatterEnd(geomechanics_regression%scatter_natural_vertex_id_gtos, &
+                             INSERT_VALUES,SCATTER_FORWARD, &
+                             ierr);CHKERRQ(ierr)
+        call VecScatterEnd(geomechanics_regression% &
+                             scatter_natural_vertex_id_gtos, &
                            global_vec, &
                            geomechanics_regression%natural_vertex_id_vec, &
                            INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
       endif
       if (geomechanics_regression%num_vertices_per_process > 0) then
         ! vertices per process
-        call VecScatterBegin(geomechanics_regression%scatter_vertices_per_process_gtos, &
+        call VecScatterBegin(geomechanics_regression% &
+                               scatter_vertices_per_process_gtos, &
                              global_vec, &
-                             geomechanics_regression%vertices_per_process_vec, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-        call VecScatterEnd(geomechanics_regression%scatter_vertices_per_process_gtos, &
+                             geomechanics_regression% &
+                               vertices_per_process_vec, &
+                             INSERT_VALUES,SCATTER_FORWARD, &
+                             ierr);CHKERRQ(ierr)
+        call VecScatterEnd(geomechanics_regression% &
+                             scatter_vertices_per_process_gtos, &
                            global_vec, &
                            geomechanics_regression%vertices_per_process_vec, &
                            INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
@@ -621,8 +621,9 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
         ! natural vertex ids
         if (associated(geomechanics_regression%natural_vertex_ids)) then
           if (size(geomechanics_regression%natural_vertex_ids) > 0) then
-            call VecGetArrayF90(geomechanics_regression%natural_vertex_id_vec,vec_ptr, &
-                                ierr);CHKERRQ(ierr)
+            call VecGetArrayF90(geomechanics_regression% &
+                                  natural_vertex_id_vec, &
+                                vec_ptr,ierr);CHKERRQ(ierr)
             if (cur_variable%iformat == 0) then
               do i = 1, size(geomechanics_regression%natural_vertex_ids)
                 write(OUTPUT_UNIT,100) &
@@ -634,15 +635,17 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
                   geomechanics_regression%natural_vertex_ids(i),int(vec_ptr(i))
               enddo
             endif
-            call VecRestoreArrayF90(geomechanics_regression%natural_vertex_id_vec,vec_ptr, &
-                                    ierr);CHKERRQ(ierr)
+            call VecRestoreArrayF90(geomechanics_regression% &
+                                      natural_vertex_id_vec, &
+                                    vec_ptr,ierr);CHKERRQ(ierr)
           endif
         endif
 
         ! vertex ids per process
         if (geomechanics_regression%num_vertices_per_process > 0) then
-          call VecGetArrayF90(geomechanics_regression%vertices_per_process_vec,vec_ptr, &
-                              ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(geomechanics_regression% &
+                                vertices_per_process_vec, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
           if (cur_variable%iformat == 0) then
             do i = 1, geomechanics_regression%num_vertices_per_process*option%comm%mycommsize
               write(OUTPUT_UNIT,100) &
@@ -654,8 +657,9 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
                 geomechanics_regression%vertices_per_process_natural_ids(i),int(vec_ptr(i))
             enddo
           endif
-          call VecRestoreArrayF90(geomechanics_regression%vertices_per_process_vec,vec_ptr, &
-                                  ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(geomechanics_regression% &
+                                    vertices_per_process_vec, &
+                                  vec_ptr,ierr);CHKERRQ(ierr)
         endif
       endif
     endif
@@ -665,10 +669,10 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
 
   ! timestep, newton iteration, solver iteration output
   if (associated(geomechanics_timestepper)) then
-    call VecNorm(geomechanics_realization%geomech_field%disp_xx, &
-                 NORM_2,x_norm,ierr);CHKERRQ(ierr)
-    call VecNorm(geomechanics_realization%geomech_field%disp_r, &
-                 NORM_2,r_norm,ierr);CHKERRQ(ierr)
+    call VecNorm(geomechanics_realization%geomech_field%disp_xx,NORM_2,x_norm, &
+                 ierr);CHKERRQ(ierr)
+    call VecNorm(geomechanics_realization%geomech_field%disp_r,NORM_2,r_norm, &
+                 ierr);CHKERRQ(ierr)
     if (OptionIsIORank(option)) then
       write(OUTPUT_UNIT,'(''-- SOLUTION: Geomechanics --'')')
       write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
@@ -750,14 +754,14 @@ subroutine GeomechanicsRegressionDestroy(geomechanics_regression)
                     ierr);CHKERRQ(ierr)
   endif
   if (geomechanics_regression%scatter_natural_vertex_id_gtos /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy( &
-                    geomechanics_regression%scatter_natural_vertex_id_gtos, &
-                    ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(geomechanics_regression% &
+                             scatter_natural_vertex_id_gtos, &
+                           ierr);CHKERRQ(ierr)
   endif
   if (geomechanics_regression%scatter_vertices_per_process_gtos /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy( &
-                  geomechanics_regression%scatter_vertices_per_process_gtos, &
-                  ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(geomechanics_regression% &
+                             scatter_vertices_per_process_gtos, &
+                           ierr);CHKERRQ(ierr)
   endif
 
   deallocate(geomechanics_regression)

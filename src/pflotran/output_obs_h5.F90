@@ -97,9 +97,9 @@ contains
     if (observation_hdf5_first) then
 
       ! duplicate and save the usual communicator
-      call MPI_Comm_dup(option%mycomm, obs_h5_comm, mpi_err)
-      call MPI_Comm_size(obs_h5_comm, comm_size, mpi_err)
-      call MPI_Comm_rank(obs_h5_comm, comm_rank, mpi_err)
+      call MPI_Comm_dup(option%mycomm,obs_h5_comm,mpi_err);CHKERRQ(mpi_err)
+      call MPI_Comm_size(obs_h5_comm,comm_size,mpi_err);CHKERRQ(mpi_err)
+      call MPI_Comm_rank(obs_h5_comm,comm_rank,mpi_err);CHKERRQ(mpi_err)
 
       ! create empty hdf5 file for output
       call CreateH5ObservationFile(realization_base)
@@ -209,8 +209,8 @@ contains
     num_regions = region_list%num_regions
     num_obs = patch%observation_list%num_observations
 
-    call MPI_Allreduce(MPI_IN_PLACE, num_obs, comm_size, &
-                       MPI_INTEGER, MPI_MAX, obs_h5_comm, mpi_err)
+    call MPI_Allreduce(MPI_IN_PLACE,num_obs,comm_size,MPI_INTEGER,MPI_MAX, &
+                       obs_h5_comm,mpi_err);CHKERRQ(mpi_err)
 
     ! total number of elements in 2D arrays
     !    - required for MPI_Allreduce
@@ -265,11 +265,11 @@ contains
     enddo
 
     ! reduce so all processes have the same information
-    call MPI_Allreduce(MPI_IN_PLACE, obs_region_numcells, arr_size,  &
-                       MPI_INTEGER, MPI_SUM, obs_h5_comm, mpi_err)
+    call MPI_Allreduce(MPI_IN_PLACE,obs_region_numcells,arr_size,MPI_INTEGER, &
+                       MPI_SUM,obs_h5_comm,mpi_err);CHKERRQ(mpi_err)
 
-    call MPI_Allreduce(MPI_IN_PLACE, obs_region_ids, num_regions,  &
-                       MPI_INTEGER, MPI_MAX, obs_h5_comm, mpi_err)
+    call MPI_Allreduce(MPI_IN_PLACE,obs_region_ids,num_regions,MPI_INTEGER, &
+                       MPI_MAX,obs_h5_comm,mpi_err);CHKERRQ(mpi_err)
 
 
     ! after MPI_Allreduce, every MPI process that is part

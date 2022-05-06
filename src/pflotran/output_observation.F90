@@ -147,7 +147,8 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   PetscReal :: temp_real_comp, temp_real
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_output_observation, &
+                          ierr);CHKERRQ(ierr)
 
   patch => realization_base%patch
   grid => patch%grid
@@ -321,7 +322,8 @@ subroutine OutputAggregateToFile(realization_base)
   PetscInt :: icolumn
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_output_observation_agg, &
+                          ierr);CHKERRQ(ierr)
 
   patch => realization_base%patch
   option => realization_base%option
@@ -420,7 +422,8 @@ subroutine OutputAggregateToFile(realization_base)
   enddo
 
   observation_aggregate_first = PETSC_FALSE
-  call PetscLogEventEnd(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_output_observation_agg, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine OutputAggregateToFile
 
@@ -645,7 +648,8 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   PetscInt :: icolumn
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_output_observation, &
+                          ierr);CHKERRQ(ierr)
 
   patch => realization_base%patch
   grid => patch%grid
@@ -1096,7 +1100,8 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
   select case(aggregate%metric)
     case(OBSERVATION_AGGREGATE_MAX)
       call MPI_Allreduce(local_metric,global_metric,ONE_INTEGER, &
-                         MPI_2DOUBLE_PRECISION,MPI_MAXLOC,option%mycomm,ierr)
+                         MPI_2DOUBLE_PRECISION,MPI_MAXLOC,option%mycomm, &
+                         ierr);CHKERRQ(ierr)
   end select
 
   agg_rank = global_metric(2)
@@ -1372,7 +1377,8 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
         int_mpi = option%nphase
         call MPI_Reduce(sum_volumetric_flux,sum_volumetric_flux_global, &
                         int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%driver%io_rank,option%mycomm,ierr)
+                        option%driver%io_rank,option%mycomm, &
+                        ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           do i = 1, option%nphase
             write(fid,110,advance="no") sum_volumetric_flux_global(i)
@@ -1390,9 +1396,9 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
         enddo
       endif
       int_mpi = option%ntrandof
-      call MPI_Reduce(sum_solute_flux,sum_solute_flux_global, &
-                      int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%driver%io_rank,option%mycomm,ierr)
+      call MPI_Reduce(sum_solute_flux,sum_solute_flux_global,int_mpi, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                      option%mycomm,ierr);CHKERRQ(ierr)
       if (OptionIsIORank(option)) then
         !we currently only print the aqueous components
         do i = 1, reaction%naqcomp
@@ -2243,9 +2249,8 @@ subroutine OutputIntegralFlux(realization_base)
         instantaneous_array(1:option%ntrandof)
     endif
     int_mpi = size(array)
-    call MPI_Reduce(array,array_global, &
-                    int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%driver%io_rank,option%mycomm,ierr)
+    call MPI_Reduce(array,array_global,int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                    option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     ! time units conversion
     array_global(:,2) = array_global(:,2) * output_option%tconv
     if (OptionIsIORank(option)) then
@@ -2773,16 +2778,15 @@ subroutine OutputMassBalance(realization_base)
     end select
 
     int_mpi = option%nflowspec*option%nphase
-    call MPI_Reduce(sum_kg,sum_kg_global, &
-                    int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%driver%io_rank,option%mycomm,ierr)
+    call MPI_Reduce(sum_kg,sum_kg_global,int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                    option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
 
     if (option%iflowmode == MPH_MODE) then
 !     call MPI_Barrier(option%mycomm,ierr)
       int_mpi = option%nphase
-      call MPI_Reduce(sum_trapped,sum_trapped_global, &
-                    int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%driver%io_rank,option%mycomm,ierr)
+      call MPI_Reduce(sum_trapped,sum_trapped_global,int_mpi, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                      option%mycomm,ierr);CHKERRQ(ierr)
     endif
 
     if (OptionIsIORank(option)) then
@@ -2837,9 +2841,9 @@ subroutine OutputMassBalance(realization_base)
             call PrintErrMsg(option)
         end select
         int_mpi = max_tran_size*8
-        call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                        MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%driver%io_rank,option%mycomm,ierr)
+        call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                        MPI_SUM,option%driver%io_rank,option%mycomm, &
+                        ierr);CHKERRQ(ierr)
 
         if (OptionIsIORank(option)) then
           do icomp = 1, reaction%naqcomp
@@ -2888,9 +2892,9 @@ subroutine OutputMassBalance(realization_base)
             call PrintErrMsg(option)
         end select
         int_mpi = max_tran_size*4
-        call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                        MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%driver%io_rank,option%mycomm,ierr)
+        call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                        MPI_SUM,option%driver%io_rank,option%mycomm, &
+                        ierr);CHKERRQ(ierr)
         if (option%myrank == option%driver%io_rank) then
           do icomp = 1, reaction_nw%params%nspecies
             write(fid,110,advance="no") sum_mol_global(icomp,1)
@@ -2961,9 +2965,9 @@ subroutine OutputMassBalance(realization_base)
             global_auxvars_bc_or_ss(offset+iconn)%sat(1)
         enddo
 
-        call MPI_Reduce(sum_area,sum_area_global, &
-                        FOUR_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%driver%io_rank,option%mycomm,ierr)
+        call MPI_Reduce(sum_area,sum_area_global,FOUR_INTEGER_MPI, &
+                        MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                        option%mycomm,ierr);CHKERRQ(ierr)
 
         if (OptionIsIORank(option)) then
           print *
@@ -2995,9 +2999,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg,sum_kg_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3014,9 +3018,9 @@ subroutine OutputMassBalance(realization_base)
           sum_kg = sum_kg*FMWH2O
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg,sum_kg_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3031,9 +3035,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg,sum_kg_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3049,9 +3053,9 @@ subroutine OutputMassBalance(realization_base)
           sum_kg = sum_kg*FMWH2O
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg,sum_kg_global, &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg,sum_kg_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3068,9 +3072,10 @@ subroutine OutputMassBalance(realization_base)
             enddo
 !geh            int_mpi = option%nphase
             int_mpi = 1
-            call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+            call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1),int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM, &
+                            option%driver%io_rank,option%mycomm, &
+                            ierr);CHKERRQ(ierr)
 
             if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3091,9 +3096,10 @@ subroutine OutputMassBalance(realization_base)
 
 !geh            int_mpi = option%nphase
             int_mpi = 1
-            call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+            call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1),int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM, &
+                            option%driver%io_rank,option%mycomm, &
+                            ierr);CHKERRQ(ierr)
 
             if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3109,9 +3115,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1),int_mpi, &
+                          MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                          option%mycomm,ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3128,9 +3134,9 @@ subroutine OutputMassBalance(realization_base)
           sum_kg(2,1) = sum_kg(2,1)*general_fmw(2)
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1),int_mpi, &
+                          MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                          option%mycomm,ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3144,9 +3150,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1),int_mpi, &
+                          MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                          option%mycomm,ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3163,9 +3169,9 @@ subroutine OutputMassBalance(realization_base)
           sum_kg(2,1) = sum_kg(2,1)*wipp_flow_fmw(2)
 
           int_mpi = option%nphase
-          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
-                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1),int_mpi, &
+                          MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                          option%mycomm,ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3188,9 +3194,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = nmobilecomp
-          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3209,9 +3215,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = nmobilecomp
-          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
@@ -3234,9 +3240,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = nspecies
-          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (option%myrank == option%driver%io_rank) then
             ! change sign for positive in / negative out
@@ -3253,9 +3259,9 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           int_mpi = nspecies
-          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%driver%io_rank,option%mycomm,ierr)
+          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                          MPI_SUM,option%driver%io_rank,option%mycomm, &
+                          ierr);CHKERRQ(ierr)
 
           if (option%myrank == option%driver%io_rank) then
             ! change sign for positive in / negative out
@@ -3299,8 +3305,8 @@ subroutine OutputMassBalance(realization_base)
         end select
         int_mpi = max_tran_size*8
         call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
-                      MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%driver%io_rank,option%mycomm,ierr)
+                        MPI_DOUBLE_PRECISION,MPI_SUM,option%driver%io_rank, &
+                        option%mycomm,ierr);CHKERRQ(ierr)
         global_total_mass_sum = 0.d0
         do i =1, size(global_total_mass(:,1))
             global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)

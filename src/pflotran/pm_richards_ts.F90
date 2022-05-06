@@ -117,7 +117,8 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   ! 2. Update auxvars based on new value of dpressure_dtime, mass, and
   !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
+                          ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -132,7 +133,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
                                        option)
   enddo
 
-  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
                               ierr);CHKERRQ(ierr)
 
@@ -170,7 +171,7 @@ subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
   field => realization%field
   discretization => realization%discretization
 
-  call VecZeroEntries(F, ierr); CHKERRQ(ierr)
+  call VecZeroEntries(F,ierr);CHKERRQ(ierr)
 
   call DiscretizationGlobalToLocal(discretization,U,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationGlobalToLocal(discretization,Udot,field%flow_xxdot_loc, &
@@ -227,7 +228,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(F,f_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
 
@@ -263,7 +264,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
   enddo
 
-  call VecRestoreArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(F,f_p,ierr);CHKERRQ(ierr)
 
 end subroutine IFunctionAccumulation
 
@@ -309,8 +310,8 @@ subroutine PMRichardsTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   call IJacobianAccumulation(J,shift,realization,ierr)
 
   if (A /= B) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine PMRichardsTSIJacobian

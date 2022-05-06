@@ -111,7 +111,7 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   call SolverCreateKSP(solver,option%mycomm)
 
   call PrintMsg(option,"  Beginning setup of TRAN KSP")
-  call KSPSetOptionsPrefix(solver%ksp, "tran_",ierr);CHKERRQ(ierr)
+  call KSPSetOptionsPrefix(solver%ksp,"tran_",ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
   solver%M_mat_type = MATAIJ
@@ -127,8 +127,8 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   ! verbosity > 0.
   if (option%verbosity >= 2) then
     string = '-tran_ksp_view'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                  ierr);CHKERRQ(ierr)
   endif
 
   call SolverSetKSPOptions(solver,option)
@@ -286,7 +286,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%immobile
     endif
   enddo
-  call VecRestoreArrayF90(process_model%fixed_accum,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(process_model%fixed_accum,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
 #endif
 
   do
@@ -302,7 +303,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     call RTUpdateTransportCoefs(realization)
     ! RTCalculateRHS_t1() updates aux vars (cell and boundary) to k+1
     ! and calculates RHS fluxes and src/sinks
-    call VecCopy(process_model%fixed_accum,process_model%rhs,ierr);CHKERRQ(ierr)
+    call VecCopy(process_model%fixed_accum,process_model%rhs, &
+                 ierr);CHKERRQ(ierr)
     tempreal = 1.d0/option%tran_dt
     call VecScale(process_model%rhs,tempreal,ierr);CHKERRQ(ierr)
     call RTCalculateRHS_t1(realization,process_model%rhs)
@@ -321,8 +323,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     do idof = 1, rt_parameter%naqcomp
 
       tempint = idof-1
-      call VecStrideGather(process_model%rhs,tempint,field%work, &
-                           INSERT_VALUES,ierr);CHKERRQ(ierr)
+      call VecStrideGather(process_model%rhs,tempint,field%work,INSERT_VALUES, &
+                           ierr);CHKERRQ(ierr)
 
 !debug      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 !debug      print *, 'Trhs: ', trim(StringWrite(vec_ptr))
@@ -349,8 +351,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
         rt_auxvars(ghosted_id)%total(idof,iphase) = vec_ptr(local_id)
       enddo
       call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-      call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
-      call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
+      call KSPGetIterationNumber(solver%ksp,num_linear_iterations, &
+                                 ierr);CHKERRQ(ierr)
+      call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr);CHKERRQ(ierr)
       sum_linear_iterations_temp = sum_linear_iterations_temp + &
         num_linear_iterations
     enddo
@@ -393,9 +396,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
 
-    call MPI_Allreduce(MPI_IN_PLACE,rreact_error,ONE_INTEGER_MPI, &
-                       MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
-    call MPI_Barrier(option%mycomm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,rreact_error,ONE_INTEGER_MPI,MPI_INTEGER, &
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_reaction_time = &
       process_model%cumulative_reaction_time + log_end_time - log_start_time

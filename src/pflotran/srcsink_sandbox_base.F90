@@ -91,8 +91,8 @@ subroutine SSSandboxBaseSetup(this,grid,option)
     iflag = 1
     this%local_cell_id = local_id
   endif
-  call MPI_Allreduce(MPI_IN_PLACE,iflag,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,iflag,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                     option%mycomm,ierr);CHKERRQ(ierr)
   if (iflag > 1) then
     option%io_buffer = 'More than one grid cell mapped in SSSandboxBaseSetup.'
     call PrintErrMsg(option)

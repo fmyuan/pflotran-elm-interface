@@ -557,7 +557,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
                                    realization%field%work_loc, &
                                    ONEDOF)
   call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
-                          ierr); CHKERRQ(ierr)
+                          ierr);CHKERRQ(ierr)
 
   ref_pres_set_by_initial = PETSC_FALSE
   ! read in any user-defined property fields
@@ -571,7 +571,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
                                            realization%field%work_loc, &
                                            dataset_vec)
       endif
-      call VecZeroEntries(realization%field%work,ierr)
+      call VecZeroEntries(realization%field%work,ierr);CHKERRQ(ierr)
       vec_int_ptr = dataset_vec
       select type(dataset => material_property%soil_reference_pressure_dataset)
         class is(dataset_gridded_hdf5_type)
@@ -600,7 +600,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
     else
       cycle
     endif
-    call VecGetArrayReadF90(vec_int_ptr,vec_loc_p,ierr); CHKERRQ(ierr)
+    call VecGetArrayReadF90(vec_int_ptr,vec_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax
       if (patch%imat(ghosted_id) /= material_property%internal_id) cycle
       if (associated(material_auxvars(ghosted_id)%fracture)) then
@@ -611,7 +611,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
                                   SOIL_REFERENCE_PRESSURE, &
                                   vec_loc_p(ghosted_id))
     enddo
-    call VecRestoreArrayReadF90(vec_int_ptr,vec_loc_p,ierr); CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(vec_int_ptr,vec_loc_p,ierr);CHKERRQ(ierr)
   enddo
 
   if (ref_pres_set_by_initial .and. option%time > 0.d0) then
@@ -724,8 +724,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
 
 #ifdef GEOMECH_DEBUG
     call PetscViewerASCIIOpen(PETSC_COMM_SELF, &
-                              'porosity_geomech_store_timestep.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+                              'porosity_geomech_store_timestep.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(this%realization%field%porosity_geomech_store,viewer, &
                  ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -880,8 +880,8 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   PetscErrorCode :: ierr
 
   this%option%flow_dt = this%option%dt
-  call VecCopy(this%realization%field%flow_yy, &
-               this%realization%field%flow_xx,ierr);CHKERRQ(ierr)
+  call VecCopy(this%realization%field%flow_yy,this%realization%field%flow_xx, &
+               ierr);CHKERRQ(ierr)
   if (this%store_porosity_for_transport) then
     ! store base properties for reverting at time step cut
     call this%comm1%GlobalToLocal(this%realization%field%porosity_base_store, &
@@ -981,8 +981,8 @@ subroutine PMSubsurfaceFlowUpdateSolution(this)
   PetscBool :: force_update_flag = PETSC_FALSE
   PetscErrorCode :: ierr
 
-  call VecCopy(this%realization%field%flow_xx, &
-               this%realization%field%flow_yy,ierr);CHKERRQ(ierr)
+  call VecCopy(this%realization%field%flow_xx,this%realization%field%flow_yy, &
+               ierr);CHKERRQ(ierr)
 
   ! begin from RealizationUpdate()
   call FlowConditionUpdate(this%realization%flow_conditions, &

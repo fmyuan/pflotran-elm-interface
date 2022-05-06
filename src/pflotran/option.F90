@@ -548,42 +548,36 @@ subroutine OptionCheckCommandLine(option)
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: string
 
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-buffer_matrix", &
-                           option%use_matrix_buffer, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-snes_mf", &
-                           option%use_matrix_free, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_isothermal", &
-                           option%use_isothermal, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mc", &
-                           option%use_mc, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-buffer_matrix",option%use_matrix_buffer, &
+                           ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-snes_mf", &
+                           option%use_matrix_free,ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-use_isothermal",option%use_isothermal, &
+                           ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_mc", &
+                           option%use_mc,ierr);CHKERRQ(ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
-                             '-restart', option%restart_filename, &
-                             option%restart_flag, ierr);CHKERRQ(ierr)
+                             '-restart',option%restart_filename, &
+                             option%restart_flag,ierr);CHKERRQ(ierr)
   ! check on possible modes
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_richards", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-use_richards",option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "richards"
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_thc", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_thc", &
+                           option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "thc"
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mph", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_mph", &
+                           option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "mph"
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_flash2", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-use_flash2",option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "flash2"
 
 end subroutine OptionCheckCommandLine
@@ -631,8 +625,8 @@ subroutine PrintErrMsg2(option,string)
     print *, 'Stopping!'
   endif
   if (option%blocking) then
-    call MPI_Barrier(option%mycomm,ierr)
-    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+    call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
@@ -667,11 +661,11 @@ subroutine OptionCheckNonBlockingError(option)
   PetscErrorCode :: ierr
 
   mpi_int = 1
-  call MPI_Allreduce(MPI_IN_PLACE,option%error_while_nonblocking, &
-                     mpi_int,MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,option%error_while_nonblocking,mpi_int, &
+                     MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (option%error_while_nonblocking) then
-    call MPI_Barrier(option%mycomm,ierr)
-    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+    call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
@@ -1062,7 +1056,7 @@ function OptionCheckTouch(option,filename)
 
   if (is_io_rank) open(unit=fid,file=trim(filename),status='old',iostat=ios)
   call MPI_Bcast(ios,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
-                 option%mycomm,ierr)
+                 option%mycomm,ierr);CHKERRQ(ierr)
 
   if (ios == 0) then
     if (is_io_rank) close(fid,status='delete')
@@ -1187,8 +1181,8 @@ subroutine OptionMaxMinMeanVariance(value,max,min,mean,variance, &
   temp_real_in(1) = value
   temp_real_in(2) = -1.d0*value
   call MPI_Allreduce(temp_real_in,temp_real_out,TWO_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION, &
-                     MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   max = temp_real_out(1)
   min = -1.d0*temp_real_out(2)
 
@@ -1219,15 +1213,15 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
   PetscErrorCode :: ierr
 
   call MPI_Allreduce(value,temp_real,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                     MPI_SUM,option%mycomm,ierr)
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   mean = temp_real / dble(option%comm%mycommsize)
 
   if (calculate_variance) then
     temp_real = value-mean
     temp_real = temp_real*temp_real
     call MPI_Allreduce(temp_real,variance,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION, &
-                       MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     variance = variance / dble(option%comm%mycommsize)
   endif
 

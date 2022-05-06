@@ -388,8 +388,8 @@ subroutine GeomechDiscretizationLocalToGlobalAdd(geomech_discretization, &
 
   call VecScatterBegin(dm_ptr%gmdm%scatter_ltog,local_vec,global_vec, &
                        ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(dm_ptr%gmdm%scatter_ltog,local_vec,global_vec, &
-                     ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(dm_ptr%gmdm%scatter_ltog,local_vec,global_vec,ADD_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechDiscretizationLocalToGlobalAdd
 

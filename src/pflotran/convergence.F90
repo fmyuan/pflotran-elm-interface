@@ -168,8 +168,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 
   !geh: We must check the convergence here as i_iteration initializes
   !     snes->ttol for subsequent iterations.
-  call SNESConvergedDefault(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
-                            0,ierr);CHKERRQ(ierr)
+  call SNESConvergedDefault(snes_,i_iteration,xnorm,unorm,fnorm,reason,0, &
+                            ierr);CHKERRQ(ierr)
 #if 0
   if (i_iteration == 0 .and. &
       option%print_screen_flag .and. solver%print_convergence) then
@@ -222,7 +222,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     call SNESGetFunction(snes_,residual_vec,PETSC_NULL_FUNCTION, &
                          PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
 
-    call VecNorm(residual_vec,NORM_INFINITY,inorm_residual,ierr);CHKERRQ(ierr)
+    call VecNorm(residual_vec,NORM_INFINITY,inorm_residual, &
+                 ierr);CHKERRQ(ierr)
 
     if (i_iteration > 0) then
       call SNESGetSolutionUpdate(snes_,update_vec,ierr);CHKERRQ(ierr)
@@ -406,14 +407,15 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     call SNESGetSolution(snes_,solution_vec,ierr);CHKERRQ(ierr)
     ! the ctx object should really be PETSC_NULL_OBJECT.  A bug in petsc
     call SNESGetFunction(snes_,residual_vec,PETSC_NULL_FUNCTION, &
-                         PETSC_NULL_INTEGER, &
-                         ierr);CHKERRQ(ierr)
+                         PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
     call SNESGetSolutionUpdate(snes_,update_vec,ierr);CHKERRQ(ierr)
 
     ! infinity norms
-    call VecNorm(solution_vec,NORM_INFINITY,inorm_solution,ierr);CHKERRQ(ierr)
+    call VecNorm(solution_vec,NORM_INFINITY,inorm_solution, &
+                 ierr);CHKERRQ(ierr)
     call VecNorm(update_vec,NORM_INFINITY,inorm_update,ierr);CHKERRQ(ierr)
-    call VecNorm(residual_vec,NORM_INFINITY,inorm_residual,ierr);CHKERRQ(ierr)
+    call VecNorm(residual_vec,NORM_INFINITY,inorm_residual, &
+                 ierr);CHKERRQ(ierr)
 
     call VecNorm(solution_vec,NORM_1,norm1_solution,ierr);CHKERRQ(ierr)
     call VecNorm(update_vec,NORM_1,norm1_update,ierr);CHKERRQ(ierr)

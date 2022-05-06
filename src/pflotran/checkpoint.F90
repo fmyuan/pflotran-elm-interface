@@ -235,10 +235,10 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%version,0, &
-                           "checkpoint_version","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%test_header_size,0, &
-                           "test_header_size","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%version,0,"checkpoint_version","", &
+                           ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%test_header_size,0,"test_header_size", &
+                           "",ierr);CHKERRQ(ierr)
   header%version = CHECKPOINT_REVISION_NUMBER
   header%test_header_size = size(transfer(test_header,dummy_char))
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
@@ -290,10 +290,10 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%version,0, &
-                           "checkpoint_version","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%test_header_size,0, &
-                           "test_header_size","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%version,0,"checkpoint_version","", &
+                           ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%test_header_size,0,"test_header_size", &
+                           "",ierr);CHKERRQ(ierr)
   call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
 
   ! check compatibility
@@ -364,7 +364,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
                                     global_vec,GLOBAL,option)
     ! grid%flow_xx is the vector into which all of the primary variables are
     ! packed for the SNESSolve().
-    call VecView(field%flow_xx, viewer, ierr);CHKERRQ(ierr)
+    call VecView(field%flow_xx,viewer,ierr);CHKERRQ(ierr)
 
 
     ! If we are running with multiple phases, we need to dump the vector
@@ -379,7 +379,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
         call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
+        call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
     end select
 
     ! Porosity and permeability.
@@ -1067,7 +1067,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     dataset_name = "Primary_Variables" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
          pm_grp_id, H5T_NATIVE_DOUBLE)
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL,option)
@@ -1133,8 +1133,8 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
                                              pm_grp_id, H5T_NATIVE_DOUBLE)
 
-    call VecDestroy(global_vec, ierr);CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine CheckpointFlowProcessModelHDF5
@@ -1196,7 +1196,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
                                      field%flow_xx_loc,NFLOWDOF)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL,option)
@@ -1263,8 +1263,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
                                  field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
 
-    call VecDestroy(global_vec, ierr);CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine RestartFlowProcessModelHDF5

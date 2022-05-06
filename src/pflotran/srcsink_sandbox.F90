@@ -272,9 +272,8 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
                               material_auxvars(ghosted_id), &
                               aux_real,option)
     if (compute_derivative) then
-      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1, &
-                                    ghosted_id-1,Jac,ADD_VALUES, &
-                                    ierr);CHKERRQ(ierr)
+      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
+                                    Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
     else
       iend = local_id*option%nflowdof
       istart = iend - option%nflowdof + 1

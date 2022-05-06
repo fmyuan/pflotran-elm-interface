@@ -746,14 +746,14 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                                          LIQUID_PHASE)
 
     ! open the vectors
-    call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
-    call VecGetArrayF90(vec_y, vec_y_ptr,ierr)
-    call VecGetArrayF90(vec_z, vec_z_ptr,ierr)
-    call VecGetArrayF90(vec_calc, vec_calc_ptr,ierr)
+    call VecGetArrayF90(vec_x,vec_x_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(vec_y,vec_y_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(vec_z,vec_z_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(vec_calc,vec_calc_ptr,ierr);CHKERRQ(ierr)
 
     ! the local size of the velocity vector
     ! local size = the number of cells calculated on the processor
-    call VecGetLocalSize(vec_x, local_id_max, ierr)
+    call VecGetLocalSize(vec_x,local_id_max,ierr);CHKERRQ(ierr)
 
     ! for each local(!) calculation calculate the velocity and store it
     do local_id=1, local_id_max
@@ -764,10 +764,10 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
     enddo
 
     ! close the vectors
-    call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr)
-    call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr)
-    call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr)
-    call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr)
+    call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr);CHKERRQ(ierr)
 
     ! Set the auxvar variable for the DARCY_VELOCITY
     call realization%comm1%GlobalToLocal(vec_calc,field%work_loc)

@@ -319,7 +319,8 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_tran_constraint_read, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine TranConstraintNWTRead
 

@@ -548,8 +548,7 @@ subroutine WriteTecplotGeomechGridVertices(fid,geomech_realization)
   grid => patch%geomech_grid
   option => geomech_realization%option
 
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%nmax_node, &
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,grid%nmax_node, &
                     global_vertex_vec,ierr);CHKERRQ(ierr)
   call VecGetLocalSize(global_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call OutputGetVertexCoordinatesGeomech(grid,global_vertex_vec,X_COORDINATE,option)
@@ -640,8 +639,8 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
         enddo
     end select
     indices(:) = grid%node_ids_local_natural(:)-1
-    call VecSetValues(vec,grid%nlmax_node, &
-                      indices,values,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(vec,grid%nlmax_node,indices,values,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
     call VecAssemblyBegin(vec,ierr);CHKERRQ(ierr)
     deallocate(values)
     deallocate(indices)
@@ -812,14 +811,15 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
 
   if (size_flag /= 0) then
     call MPI_Allreduce(size_flag,max_local_size,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,option%mycomm,ierr)
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
     local_size_mpi = size_flag
   else
   ! if first time, determine the maximum size of any local array across
   ! all procs
     if (max_local_node_size_saved < 0) then
       call MPI_Allreduce(grid%nlmax_node,max_local_size,ONE_INTEGER_MPI, &
-                         MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+                         MPIU_INTEGER,MPI_MAX,option%mycomm, &
+                         ierr);CHKERRQ(ierr)
       max_local_node_size_saved = max_local_size
       write(option%io_buffer,'("max_local_node_size_saved: ",i9)') &
           max_local_size
@@ -889,14 +889,17 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
       endif
 #endif
-      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                     ierr);CHKERRQ(ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == TECPLOT_INTEGER) then
         call MPI_Recv(integer_data_recv,recv_size_mpi,MPIU_INTEGER,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+                      MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           integer_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              integer_data_recv(1:recv_size_mpi)
@@ -925,9 +928,9 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
           num_in_array = num_in_array-iend
         endif
       else
-        call MPI_Recv(real_data_recv,recv_size_mpi, &
-                      MPI_DOUBLE_PRECISION,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION, &
+                      iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           real_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              real_data_recv(1:recv_size_mpi)
@@ -951,7 +954,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
       call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     option%driver%io_rank,option%mycomm,ierr)
+                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
 #endif
     ! Print the remaining values, if they exist
@@ -979,26 +982,25 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm, &
-                       ierr)
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+                       option%mycomm,ierr);CHKERRQ(ierr)
       enddo
     endif
 #endif
     if (datatype == TECPLOT_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     else
-      call MPI_Send(real_data,local_size_mpi, &
-                    MPI_DOUBLE_PRECISION,option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+      call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     endif
 #ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
         call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
         if (max_proc < 0) exit
       enddo
     endif
@@ -1515,14 +1517,11 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
 
   grid => geomech_realization%geomech_patch%geomech_grid
 
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%nmax_node, &
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,grid%nmax_node, &
                     global_x_vertex_vec,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%nmax_node, &
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,grid%nmax_node, &
                     global_y_vertex_vec,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%nmax_node, &
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,grid%nmax_node, &
                     global_z_vertex_vec,ierr);CHKERRQ(ierr)
 
   call VecGetLocalSize(global_x_vertex_vec,local_size,ierr);CHKERRQ(ierr)
@@ -1571,8 +1570,8 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(2) = istart
   start(1) = 0
@@ -1666,8 +1665,8 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   dims(1) = vert_count
   call h5screate_simple_f(rank_mpi,dims,memory_space_id,hdf5_err,dims)
 
-  call MPI_Allreduce(vert_count,dims(1),ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(vert_count,dims(1),ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                     option%mycomm,ierr);CHKERRQ(ierr)
   geomech_realization%output_option%xmf_vert_len=int(dims(1))
 
   ! file space which is a 2D block
@@ -1692,8 +1691,8 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(vert_count, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(vert_count,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(1) = istart
   length(1) = vert_count

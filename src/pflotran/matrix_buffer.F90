@@ -284,9 +284,8 @@ subroutine MatrixBufferSetValuesHypre(A,matrix_buffer)
   PetscErrorCode :: ierr
 
   do icol = 1, 7
-    call MatSetValuesLocal(A,1,0,1,icol-1, &
-                           matrix_buffer%values(icol,1),INSERT_VALUES, &
-                           ierr);CHKERRQ(ierr)
+    call MatSetValuesLocal(A,1,0,1,icol-1,matrix_buffer%values(icol,1), &
+                           INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
 end subroutine MatrixBufferSetValuesHypre

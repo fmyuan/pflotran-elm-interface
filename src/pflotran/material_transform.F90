@@ -1964,7 +1964,7 @@ subroutine MTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
   ! ----------------------------------
 
   m_transform_auxvars => material_transform%auxvars
-  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
   !-----------------------------
@@ -1978,7 +1978,7 @@ subroutine MTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
       enddo
   end select
 
-  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine MTransformGetAuxVarVecLoc
 
@@ -2009,7 +2009,7 @@ subroutine MTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
   ! ----------------------------------
 
   m_transform_auxvars => material_transform%auxvars
-  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
   !-----------------------------
@@ -2021,7 +2021,7 @@ subroutine MTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
       enddo
   end select
 
-  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine MTransformSetAuxVarVecLoc
 

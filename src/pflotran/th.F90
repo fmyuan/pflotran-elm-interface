@@ -317,7 +317,7 @@ subroutine THSetupPatch(realization)
   enddo
 
   call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
-                     MPI_LOR,option%mycomm,ierr)
+                     MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (error_found) then
     option%io_buffer = 'Material property errors found in THSetup.'
     call PrintErrMsg(option)
@@ -780,7 +780,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -938,7 +938,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   enddo
   deallocate(xx)
 
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%TH%auxvars_up_to_date = PETSC_TRUE
 
@@ -1162,9 +1162,9 @@ subroutine THUpdateFixedAccumPatch(realization)
   TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 
   vol_frac_prim = 1.d0
@@ -1210,9 +1210,9 @@ subroutine THUpdateFixedAccumPatch(realization)
                         option,vol_frac_prim,accum_p(istart:iend))
   enddo
 
-  call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 #if 0
    call THNumericalJacobianTest(field%flow_xx,realization)
@@ -3665,7 +3665,7 @@ subroutine THResidualPreliminaries(xx,r,realization,ierr)
   patch => realization%patch
   option => realization%option
 
-  call VecZeroEntries(r, ierr); CHKERRQ(ierr)
+  call VecZeroEntries(r,ierr);CHKERRQ(ierr)
 
   call THUpdateLocalVecs(xx,realization,ierr)
 
@@ -3938,7 +3938,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
 
 end subroutine THResidualInternalConn
@@ -4116,7 +4116,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
 end subroutine THResidualBoundaryConn
 
@@ -4191,8 +4191,8 @@ subroutine THResidualAccumulation(r,realization,ierr)
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
 
   ! Calculating volume fractions for primary and secondary continua
@@ -4245,8 +4245,8 @@ subroutine THResidualAccumulation(r,realization,ierr)
   endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 
 end subroutine THResidualAccumulation
@@ -4358,8 +4358,8 @@ subroutine THResidualSourceSink(r,realization,ierr)
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
 
 
@@ -4514,9 +4514,9 @@ subroutine THResidualSourceSink(r,realization,ierr)
     enddo
   endif
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
 
 end subroutine THResidualSourceSink
 
@@ -4691,7 +4691,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -4798,22 +4798,26 @@ subroutine THJacobianInternalConn(A,realization,ierr)
 
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                  Jup/material_auxvars(ghosted_id_up)%volume, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jup/material_auxvars(ghosted_id_up)% &
+                                        volume, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                                  Jdn/material_auxvars(ghosted_id_up)%volume, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jdn/material_auxvars(ghosted_id_up)% &
+                                        volume, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
       if (local_id_dn > 0) then
         Jup = -Jup
         Jdn = -Jdn
 
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                   Jdn/material_auxvars(ghosted_id_dn)%volume, &
-                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jdn/material_auxvars(ghosted_id_dn)% &
+                                        volume, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                                   Jup/material_auxvars(ghosted_id_dn)%volume, &
-                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      Jup/material_auxvars(ghosted_id_dn)% &
+                                        volume, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
     enddo
     cur_connection_set => cur_connection_set%next
@@ -4926,7 +4930,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
 
-  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
@@ -5006,7 +5010,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine THJacobianBoundaryConn
 
@@ -5098,7 +5102,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
   sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
-  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   vol_frac_prim = 1.d0
 
@@ -5161,7 +5165,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   endif
 
 
-  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine THJacobianAccumulation
 
@@ -5252,7 +5256,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -5335,7 +5339,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   endif
 
 
-  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -5345,8 +5349,8 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   zero = 0.d0
   call MatZeroRowsLocal(A,patch%aux%%matrix_zeroing%n_inactive_rows, &
                         patch%aux%%matrix_zeroing% &
-                          inactive_rows_local_ghosted,zero, &
-                        PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          inactive_rows_local_ghosted, &
+                        zero,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   do i=1, patch%aux%TH%matrix_zeroing%n_inactive_rows
     ii = mod(patch%aux%TH%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
@@ -5369,8 +5373,8 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     f_up = 1.d0
     call MatZeroRowsLocal(A,patch%aux%TH%matrix_zeroing%n_inactive_rows, &
                           patch%aux%TH%matrix_zeroing% &
-                            inactive_rows_local_ghosted,f_up, &
-                          PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                            inactive_rows_local_ghosted, &
+                          f_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 #endif
@@ -5459,7 +5463,7 @@ subroutine THResidualToMass(realization)
     grid => cur_patch%grid
     auxvars => cur_patch%aux%TH%auxvars
 
-    call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p,  &
+    call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
                         ierr);CHKERRQ(ierr)
 
     do local_id = 1, grid%nlmax
@@ -5472,7 +5476,7 @@ subroutine THResidualToMass(realization)
                                 global_auxvars(ghosted_id)%den_kg(1)
     enddo
 
-    call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p,  &
+    call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
                             ierr);CHKERRQ(ierr)
 
     cur_patch => cur_patch%next
@@ -5933,20 +5937,20 @@ function THInitGuessCheck(xx, option)
     return
   endif
 
-  call VecStrideMin(xx,ZERO_INTEGER,idx,pres_min,ierr)
-  call VecStrideMin(xx,ONE_INTEGER ,idx,temp_min,ierr)
-  call VecStrideMax(xx,ZERO_INTEGER,idx,pres_max,ierr)
-  call VecStrideMax(xx,ONE_INTEGER ,idx,temp_max,ierr)
+  call VecStrideMin(xx,ZERO_INTEGER,idx,pres_min,ierr);CHKERRQ(ierr)
+  call VecStrideMin(xx,ONE_INTEGER,idx,temp_min,ierr);CHKERRQ(ierr)
+  call VecStrideMax(xx,ZERO_INTEGER,idx,pres_max,ierr);CHKERRQ(ierr)
+  call VecStrideMax(xx,ONE_INTEGER,idx,temp_max,ierr);CHKERRQ(ierr)
 
   if (pres_min < -1.d10 .or. pres_min > 1.d10 .or. &
       temp_min < -100.d0 .or. temp_max > 100.d0) then
       ipass = -1
   endif
 
-   call MPI_Barrier(option%mycomm,ierr)
+   call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
    if (option%comm%mycommsize>1)then
       call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                         option%mycomm,ierr)
+                         option%mycomm,ierr);CHKERRQ(ierr)
       if (ipass0 < option%comm%mycommsize) ipass=-1
    endif
    THInitGuessCheck = ipass

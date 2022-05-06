@@ -337,7 +337,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   temp_int = h5fopen_err
   int_mpi = 1
   call MPI_Bcast(temp_int,int_mpi,MPI_INTEGER,option%driver%io_rank, &
-                 option%mycomm,ierr)
+                 option%mycomm,ierr);CHKERRQ(ierr)
   if (temp_int < 0) then ! actually h5fopen_err
     option%io_buffer = 'Error opening file: ' // trim(filename)
     call PrintErrMsg(option)
@@ -345,7 +345,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 
   int_mpi = 1
   call MPI_Bcast(num_times_read_by_iorank,int_mpi,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+                 option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   num_times = num_times_read_by_iorank
 
   if (num_times == -1) then
@@ -387,10 +387,10 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 
   int_mpi = int(num_times)
   call MPI_Bcast(time_storage%times,int_mpi,MPI_DOUBLE_PRECISION, &
-                 option%driver%io_rank,option%mycomm,ierr)
+                 option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
 
 #ifdef TIME_READING_TIMES
-  call MPI_Barrier(option%mycomm,ierr)
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to read dataset times",a,".")') &
     tend-tstart, trim(dataset_name) // ' (' // trim(option%group_prefix) // &

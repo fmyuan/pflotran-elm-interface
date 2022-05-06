@@ -312,8 +312,8 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
 
     call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
-    call SNESSolve(solver%snes,PETSC_NULL_VEC, &
-                   process_model%solution_vec,ierr);CHKERRQ(ierr)
+    call SNESSolve(solver%snes,PETSC_NULL_VEC,process_model%solution_vec, &
+                   ierr);CHKERRQ(ierr)
 
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
@@ -393,7 +393,7 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
               ! attempt to find cells with NaNs.
               call SNESGetFunction(solver%snes,residual_vec, &
                                    PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
-                                 ierr);CHKERRQ(ierr)
+                                   ierr);CHKERRQ(ierr)
               call OutputFindNaNOrInfInVec(residual_vec, &
                                            process_model%realization_base% &
                                              discretization%grid,option)

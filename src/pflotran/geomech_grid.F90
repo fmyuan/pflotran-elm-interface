@@ -276,8 +276,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   call MatAssemblyEnd(Rank_Mat,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
 #ifdef GEOMECH_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'Rank_Mat.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'Rank_Mat.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call MatView(Rank_Mat,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -330,7 +330,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   enddo
   call MPI_Allreduce(vertex_count_array,vertex_count_array2, &
                      option%comm%mycommsize,MPIU_INTEGER,MPI_SUM, &
-                     option%mycomm,ierr)
+                     option%mycomm,ierr);CHKERRQ(ierr)
 
   do int_rank = 0, option%comm%mycommsize
     if (option%myrank == int_rank) geomech_grid%nlmax_node = &
@@ -347,9 +347,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   if (allocated(vertex_count_array2)) deallocate(vertex_count_array2)
 
   ! Add a check on nlmax_node to see if there are too many processes
-  call MPI_Allreduce(geomech_grid%nlmax_node,nlmax_node, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
-                     option%mycomm,ierr)
+  call MPI_Allreduce(geomech_grid%nlmax_node,nlmax_node,ONE_INTEGER_MPI, &
+                     MPIU_INTEGER,MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
 
   if (nlmax_node < 1) then
     option%io_buffer = 'Error: Too many processes for the size of the domain.'
@@ -361,8 +360,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
                        is_rank,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_rank_nodes.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_rank_nodes.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_rank,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -370,8 +369,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
   allocate(int_array(count))
   global_offset_old = 0
-  call MPI_Exscan(count,global_offset_old, &
-                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Exscan(count,global_offset_old,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                  MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   do local_id = 1, count
     int_array(local_id) = (local_id-1) + global_offset_old
   enddo
@@ -380,16 +379,16 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   deallocate(int_array)
 
 #if GEOMECH_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_natural.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_natural.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_natural,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
   ! Find the global_offset for vertices on this rank
   global_offset_old = 0
-  call MPI_Exscan(geomech_grid%nlmax_node,global_offset_old, &
-                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Exscan(geomech_grid%nlmax_node,global_offset_old,ONE_INTEGER_MPI, &
+                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   geomech_grid%global_offset = global_offset_old
 
@@ -421,8 +420,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_ao_natural_to_petsc_nodes.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_ao_natural_to_petsc_nodes.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call AOView(ao_natural_to_petsc_nodes,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -432,14 +431,13 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   do local_id = 1, geomech_grid%nlmax_node
     int_array(local_id) = (local_id-1) + geomech_grid%global_offset
   enddo
-  call ISCreateGeneral(option%mycomm,geomech_grid%nlmax_node, &
-                       int_array,PETSC_COPY_VALUES,is_natural, &
-                       ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,geomech_grid%nlmax_node,int_array, &
+                       PETSC_COPY_VALUES,is_natural,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
 #if GEOMECH_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_petsc.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_petsc.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_natural,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -451,8 +449,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   ! These are the natural ids of the vertices local to each process
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_is_natural_after_ordering.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_is_natural_after_ordering.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_natural,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -520,9 +518,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
      int_array2 = int_array2 - 1
 
   ! Create a new IS with local PETSc numbering
-  call ISCreateGeneral(option%mycomm,geomech_grid%num_ghost_nodes, &
-                       int_array2,PETSC_COPY_VALUES,is_ghost_petsc, &
-                       ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,geomech_grid%num_ghost_nodes,int_array2, &
+                       PETSC_COPY_VALUES,is_ghost_petsc,ierr);CHKERRQ(ierr)
 
   ! Natural ids of ghost vertices on each rank
 #if GEOMECH_DEBUG
@@ -538,8 +535,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
   ! Petsc ids of ghost vertices on each rank
 #if GEOMECH_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_ghost_petsc.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'geomech_is_ghost_petsc.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_ghost_petsc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -720,8 +717,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   call VecCreate(PETSC_COMM_SELF,geomech_grid%no_elems_sharing_node_loc, &
                  ierr);CHKERRQ(ierr)
   call VecSetSizes(geomech_grid%no_elems_sharing_node_loc, &
-                   geomech_grid%ngmax_node, &
-                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
+                   geomech_grid%ngmax_node,PETSC_DECIDE,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_grid%no_elems_sharing_node_loc, &
                          ierr);CHKERRQ(ierr)
 
@@ -730,8 +726,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   ! global vector
   call VecCreate(option%mycomm,geomech_grid%no_elems_sharing_node, &
                  ierr);CHKERRQ(ierr)
-  call VecSetSizes(geomech_grid%no_elems_sharing_node, &
-                   geomech_grid%nlmax_node, &
+  call VecSetSizes(geomech_grid%no_elems_sharing_node,geomech_grid%nlmax_node, &
                    PETSC_DECIDE,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_grid%no_elems_sharing_node, &
                          ierr);CHKERRQ(ierr)
@@ -836,7 +831,7 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   if (associated(geomech_region%vertex_ids)) then
     call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
                       vec_vertex_ids,ierr);CHKERRQ(ierr)
-    call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE,&
+    call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
                       vec_vertex_ids_loc,ierr);CHKERRQ(ierr)
     call VecZeroEntries(vec_vertex_ids,ierr);CHKERRQ(ierr)
 
@@ -852,8 +847,8 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
     enddo
 
 #ifdef GEOMECH_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'vec_vertex_ids_bef.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vec_vertex_ids_bef.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(vec_vertex_ids,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -868,8 +863,8 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
     call VecAssemblyEnd(vec_vertex_ids,ierr);CHKERRQ(ierr)
 
 #ifdef GEOMECH_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'vec_vertex_ids_aft.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vec_vertex_ids_aft.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(vec_vertex_ids,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -887,11 +882,11 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   enddo
 
   tmp_int_array = tmp_int_array - 1
-  call ISCreateBlock(option%mycomm,1,geomech_grid%nlmax_node, &
-                     tmp_int_array,PETSC_COPY_VALUES,is_from, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,geomech_grid%nlmax_node,tmp_int_array, &
+                     PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
 
-  call VecGetOwnershipRange(vec_vertex_ids_loc,istart,iend,ierr);CHKERRQ(ierr)
+  call VecGetOwnershipRange(vec_vertex_ids_loc,istart,iend, &
+                            ierr);CHKERRQ(ierr)
   do ii = 1,geomech_grid%nlmax_node
     tmp_int_array(ii) = ii + istart
   enddo
@@ -900,8 +895,8 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   ! is_to is PETSc_numbering
 
   tmp_int_array = tmp_int_array - 1
-  call ISCreateBlock(option%mycomm,1,geomech_grid%nlmax_node,&
-                     tmp_int_array,PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,geomech_grid%nlmax_node,tmp_int_array, &
+                     PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
 
   deallocate(tmp_int_array)
 
@@ -913,13 +908,13 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
 
   call VecScatterBegin(vec_scat,vec_vertex_ids,vec_vertex_ids_loc, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(vec_scat,vec_vertex_ids,vec_vertex_ids_loc, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(vec_scat,vec_vertex_ids,vec_vertex_ids_loc,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'vec_vertex_ids_loc.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vec_vertex_ids_loc.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(vec_vertex_ids_loc,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -1187,10 +1182,9 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
     istart = 0
     iend   = 0
     call MPI_Exscan(grid%mapping_num_cells,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER, &
-                    MPI_SUM,option%mycomm,ierr)
+                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Scan(grid%mapping_num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                   MPI_SUM,option%mycomm,ierr)
+                  MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Allocate memory and save the data
     allocate(grid%mapping_cell_ids_flow(grid%mapping_num_cells))

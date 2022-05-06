@@ -12,7 +12,8 @@ petsc_prefix_list = ['Petsc',
                      'TS',
                      'SNES',
                      'KSP',
-                     'PC']
+                     'PC',
+                     'MPI']
 
 not_petsc_prefix_list = ['Material',
                          'Matrix',
@@ -30,7 +31,7 @@ test = False
 overwrite_files = True
 
 petsc_call = False
-petsc_call = True
+#petsc_call = True
 
 error_check_string = 'PetscCall'
 error_check_string = 'CHKERRQ'
@@ -129,7 +130,6 @@ def function_sub(match):
         list.append(')')
     return ''.join(list)
 
-    
 def count_parentheses(string):
     icount = 0
     s = string.split('!')
@@ -184,20 +184,47 @@ def refactor_petsc_function(f,line):
             line += chkerrq_swap.sub(chkerrq_sub,s[1])
         else:
             missing_chkerr = True
-            arg = line.split(',')[-1].split(')')[0]
+            args = line.split(',')
+            if len(args) > 1:
+                arg = args[-1].split(')')[0]
+            else:
+                arg = line.split('(')[-1].split(')')[0]
             line += get_petsc_error_check(arg)
     indentation = ' '*indentation_parentheses(line)
     indent_count = len(indentation)
     print(line)
-    w = line.split(',')
+    # break line into call statement and arguments
+    w0 = line.split(',')
+    w1 = w0[0].split('(',1)
+    w1[0] = w1[0].rstrip()+'('
+    w = w1+w0[1:]
+    # if any of the words have an open or close parenthese without a
+    # match, we have to merge
+    for i in range(1,len(w)):
+        icount, s = count_parentheses(w[i])
+        j = i+1
+        if icount > 0 and j < len(w):
+            jcount = 0
+            new_word = w[i]
+            while not icount + jcount == 0:
+                jcount, s = count_parentheses(w[j])
+                new_word += ',' + w[j]
+                w[j] = ''
+            w[i] = new_word
+    # remove empty words
+    ww = []
+    for word in w:
+        if len(word) > 0:
+            ww.append(word)
+    w = ww
     line = w[0]
     icount = len(w[0])
     max_char = 76
-    wrap_flag = False
+    wrap_flag = True
     for word in w[1:]:
         lenw = len(word)
         if icount + lenw > max_char:
-            max_char = 77
+            max_char = 76
             if not wrap_flag:
                 line += ', &\n'+ indentation
             icount = indent_count
@@ -216,6 +243,24 @@ def refactor_petsc_function(f,line):
                     icount = indent_count
                     wrap_flag = True
                     continue
+                else:
+                    deindent = 0
+                    for i in range(2,8,2):
+                        if icount + lenw <= max_char + i:
+                            deindent = i
+                    if icount + lenw > max_char + deindent:
+                        ichar = icount + lenw - max_char
+                        ichar -= indent_count
+                        word1 = word[:ichar]
+                        word2 = word[ichar:]
+                        line += word1 + '&\n' + indentation
+                        line += '  &' + word2
+                        icount = indent_count + len(word2)
+                    else:
+                        line = line[:-deindent]
+                        line += word + ', &\n'+ indentation
+                        wrap_flag = True
+                    continue
         else:
             if not wrap_flag:
                 line += ','
@@ -223,6 +268,7 @@ def refactor_petsc_function(f,line):
             wrap_flag = False
         line += word
         icount += lenw
+#        print(line)
     return line,missing_chkerr
 
 
@@ -242,6 +288,8 @@ sys.exit(0)
 '''
 
 def refactor_file(filename):
+    num_petsc_functions = 0
+    num_unchanged = 0
     num_updates = 0
     num_missing_chkerrq = 0
     f = open_f(filename)
@@ -255,8 +303,13 @@ def refactor_file(filename):
         if len(line) < 1:
             break
         if is_petsc_function(line):
+            num_petsc_functions += 1
+            orig_line = line.rstrip('\n')
             line,missing_chkerr = refactor_petsc_function(f,line)
-            num_updates += 1
+            if line == orig_line:
+                num_unchanged += 1
+            else:
+                num_updates += 1
             if missing_chkerr:
                 num_missing_chkerrq += 1
             line = line.rstrip()+'\n'
@@ -268,7 +321,7 @@ def refactor_file(filename):
         f2.close()
         if not test:
             mv_file(filename)
-    return num_updates, num_missing_chkerrq
+    return num_petsc_functions, num_unchanged, num_updates, num_missing_chkerrq
 
 # Obtain list of source files
 source_file_roots = []
@@ -291,6 +344,8 @@ print(source_file_roots)
 if test:
     source_file_roots=['test']
 file_count = 0
+num_petsc_functions = 0
+num_unchanged = 0
 num_updates = 0
 num_missing_chkerr = 0
 for root in source_file_roots:
@@ -300,11 +355,15 @@ for root in source_file_roots:
     else:
         filename = root
 #    print(filename)
-    n1, n2 = refactor_file(filename)
-    num_updates += n1
-    num_missing_chkerr += n2
+    n0, n1, n2, n3 = refactor_file(filename)
+    num_petsc_functions += n0
+    num_unchanged += n1
+    num_updates += n2
+    num_missing_chkerr += n3
 
 print('Number of files: {}'.format(file_count))
+print('Number of PETSc functions: {}'.format(num_petsc_functions))
+print('Number unchanged {}'.format(num_unchanged))
 print('Number of updates {}'.format(num_updates))
 print('Number of missing CHKERRQ: {}'.format(num_missing_chkerr))
 print('done!')

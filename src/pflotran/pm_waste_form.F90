@@ -1385,18 +1385,18 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         case('FMDM_SURROGATE')
           error_string = trim(error_string) // ' FMDM_SURROGATE'
           allocate(new_mechanism)
-          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+          call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
           new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
-          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
           this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
       !---------------------------------
         case('FMDM_SURROGATE_KNNR')
           FMDM_surrogate_knnr = PETSC_TRUE
           error_string = trim(error_string) // ' FMDM_SURROGATE_KNNR'
           allocate(new_mechanism)
-          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+          call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
           new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
-          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
           this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
       !---------------------------------
         case('CUSTOM')
@@ -2818,7 +2818,7 @@ subroutine PMWFSetup(this)
       ranks(option%myrank+1) = 0
     endif
     call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
-                       MPI_SUM,option%mycomm,ierr)
+                       MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_form%rank_list(newcomm_size))
     j = 0
@@ -3042,10 +3042,11 @@ end subroutine PMWFSetup
       cur_waste_form => cur_waste_form%next
     enddo
 
-    call VecCreateSeq(PETSC_COMM_SELF, size_of_vec,this%criticality_mediator% &
-                      data_mediator%vec,ierr);CHKERRQ(ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,size_of_vec, &
+                      this%criticality_mediator%data_mediator%vec, &
+                      ierr);CHKERRQ(ierr)
     call VecSetFromOptions(this%criticality_mediator%data_mediator%vec, &
-                           ierr); CHKERRQ(ierr)
+                           ierr);CHKERRQ(ierr)
 
     cur_waste_form => this%waste_form_list
     allocate(energy_indices_in_residual(size_of_vec))
@@ -3067,12 +3068,13 @@ end subroutine PMWFSetup
     this%criticality_mediator%total_num_cells = j
 
     call ISCreateGeneral(this%option%mycomm,size_of_vec, &
-                         energy_indices_in_residual, &
-                         PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+                         energy_indices_in_residual,PETSC_COPY_VALUES,is, &
+                         ierr);CHKERRQ(ierr)
     call VecScatterCreate(this%criticality_mediator%data_mediator%vec, &
-                         PETSC_NULL_IS,this%realization%field%flow_r, is, &
-                          this%criticality_mediator%data_mediator%scatter_ctx, &
-                          ierr); CHKERRQ(ierr)
+                          PETSC_NULL_IS,this%realization%field%flow_r,is, &
+                          this%criticality_mediator%data_mediator% &
+                            scatter_ctx, &
+                          ierr);CHKERRQ(ierr)
     if (allocated(energy_indices_in_residual)) then
         deallocate(energy_indices_in_residual)
     endif
@@ -3097,8 +3099,8 @@ end subroutine PMWFSetup
     num_waste_form_cells = num_waste_form_cells + 1
     cur_waste_form => cur_waste_form%next
   enddo
-  call VecCreateSeq(PETSC_COMM_SELF,size_of_vec, &
-                    this%data_mediator%vec,ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,size_of_vec,this%data_mediator%vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetFromOptions(this%data_mediator%vec,ierr);CHKERRQ(ierr)
 
   if (num_waste_form_cells > 0) then
@@ -3124,8 +3126,8 @@ end subroutine PMWFSetup
       this%realization%patch%grid%global_offset*this%option%ntrandof
   endif
   call ISCreateGeneral(this%option%mycomm,size_of_vec, &
-                       species_indices_in_residual, &
-                       PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+                       species_indices_in_residual,PETSC_COPY_VALUES,is, &
+                       ierr);CHKERRQ(ierr)
   if (allocated(species_indices_in_residual)) &
     deallocate(species_indices_in_residual)
   call VecScatterCreate(this%data_mediator%vec,PETSC_NULL_IS, &
@@ -3894,7 +3896,7 @@ subroutine PMWFSolve(this,time,ierr)
   type(option_type), pointer :: option
 ! -----------------------------------------------------------
 
-  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   fmdm_count_global = 0
   fmdm_count_local = 0
@@ -3912,7 +3914,7 @@ subroutine PMWFSolve(this,time,ierr)
   call VecGetArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   if (associated(this%criticality_mediator)) then
     call VecGetArrayF90(this%criticality_mediator%data_mediator%vec, &
-                          heat_source,ierr);CHKERRQ(ierr)
+                        heat_source,ierr);CHKERRQ(ierr)
   endif
 
   cur_waste_form => this%waste_form_list
@@ -4085,7 +4087,8 @@ subroutine PMWFSolve(this,time,ierr)
 
   ! ideally, this print statement would go inside the dissolution subroutine
   call MPI_Allreduce(fmdm_count_local,fmdm_count_global,ONE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,this%realization%option%mycomm,ierr)
+                     MPI_INTEGER,MPI_SUM,this%realization%option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   if ((fmdm_count_global > 0) .and. &
       this%realization%option%print_screen_flag) then
     write(word,'(i5)') fmdm_count_global
@@ -4096,12 +4099,13 @@ subroutine PMWFSolve(this,time,ierr)
 
   if (associated(this%criticality_mediator)) then
     call VecRestoreArrayF90(this%criticality_mediator%data_mediator%vec, &
-                              heat_source,ierr);CHKERRQ(ierr)
+                            heat_source,ierr);CHKERRQ(ierr)
   endif
-  call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p, &
+                          ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
 
-  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
   this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
 
@@ -5093,21 +5097,20 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
 
 
   !Gather relevant information from all processes
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   !Create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
-                    n_wf_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,n_wf_global*stride, &
                     global_wf_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wf_local*stride,local_wf_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wf_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec,stride,ierr);CHKERRQ(ierr)
 
 
   allocate(check_vars(stride))
@@ -5140,23 +5143,23 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
     enddo
     j=j+1
 
-    call VecSetValues(local_wf_vec,stride,indices,check_vars, &
-                     INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(local_wf_vec,stride,indices,check_vars,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
     cur_waste_form => cur_waste_form%next
 
   enddo
 
   !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec, &
-                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(scatter_ctx, local_wf_vec, global_wf_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_wf_vec, global_wf_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,local_wf_vec,global_wf_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,local_wf_vec,global_wf_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   dataset_name='canister_properties'
 
@@ -5164,10 +5167,10 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   call HDF5WriteDataSetFromVec(dataset_name, this%option, global_wf_vec,&
            pm_grp_id, H5T_NATIVE_DOUBLE)
 
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec,ierr);CHKERRQ(ierr)
 
 end subroutine PMWFCheckpointHDF5
 
@@ -5246,22 +5249,21 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   enddo
 
   !Gather relevant information
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   !Create MPI vector into which HDF5 will read, and sequential vector
   !for wf information on a given process.
-  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
-                    n_wf_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,n_wf_global*stride, &
                     global_wf_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wf_local*stride,local_wf_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wf_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec,stride,ierr);CHKERRQ(ierr)
 
   !Read the data
   dataset_name = 'canister_properties'
@@ -5270,19 +5272,19 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
 
   !Create map between MPI and sequential vectors
   call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(global_wf_vec,is,local_wf_vec, &
-                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_wf_vec,is,local_wf_vec,PETSC_NULL_IS, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
   !Get the data from the MPI vector
-  call VecScatterBegin(scatter_ctx, global_wf_vec, local_wf_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_wf_vec, local_wf_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,global_wf_vec,local_wf_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,global_wf_vec,local_wf_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Convert the data to a Fortran array
-  call VecGetArrayF90(local_wf_vec, local_wf_array, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(local_wf_vec,local_wf_array,ierr);CHKERRQ(ierr)
 
   !Assign checkpointed waste form attribute values
   i=1
@@ -5312,11 +5314,11 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
     i=i+stride
   enddo
 
-  call VecRestoreArrayF90(local_wf_vec, local_wf_array, ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(local_wf_vec,local_wf_array,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec,ierr);CHKERRQ(ierr)
 
 end subroutine PMWFRestartHDF5
 
@@ -5398,21 +5400,20 @@ subroutine PMWFCheckpointBinary(this, viewer)
 
 
   !Gather relevant information from all processes
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   !Create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
-                    n_wf_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,n_wf_global*stride, &
                     global_wf_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wf_local*stride,local_wf_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wf_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec,stride,ierr);CHKERRQ(ierr)
 
 
   allocate(check_vars(stride))
@@ -5445,32 +5446,32 @@ subroutine PMWFCheckpointBinary(this, viewer)
     enddo
     j=j+1
 
-    call VecSetValues(local_wf_vec,stride,indices,check_vars, &
-                     INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(local_wf_vec,stride,indices,check_vars,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
     cur_waste_form => cur_waste_form%next
 
   enddo
 
   !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec, &
-                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(scatter_ctx, local_wf_vec, global_wf_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_wf_vec, global_wf_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,local_wf_vec,global_wf_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,local_wf_vec,global_wf_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Write the checkpoint file
 
   call VecView(global_wf_vec,viewer,ierr);CHKERRQ(ierr)
 
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec,ierr);CHKERRQ(ierr)
 
 
 
@@ -5549,41 +5550,40 @@ subroutine PMWFRestartBinary(this, viewer)
   enddo
 
   !Gather relevant information
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   !Create MPI vector into which HDF5 will read, and sequential vector
   !for wf information on a given process.
-  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
-                    n_wf_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,n_wf_global*stride, &
                     global_wf_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wf_local*stride,local_wf_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wf_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec,stride,ierr);CHKERRQ(ierr)
 
   !Read the data
-  call VecLoad(global_wf_vec,viewer, ierr);CHKERRQ(ierr)
+  call VecLoad(global_wf_vec,viewer,ierr);CHKERRQ(ierr)
 
   !Create map between MPI and sequential vectors
   call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(global_wf_vec,is,local_wf_vec, &
-                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_wf_vec,is,local_wf_vec,PETSC_NULL_IS, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
   !Get the data from the MPI vector
-  call VecScatterBegin(scatter_ctx, global_wf_vec, local_wf_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_wf_vec, local_wf_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,global_wf_vec,local_wf_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,global_wf_vec,local_wf_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Convert the data to a Fortran array
-  call VecGetArrayF90(local_wf_vec, local_wf_array, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(local_wf_vec,local_wf_array,ierr);CHKERRQ(ierr)
 
   !Assign checkpointed waste form attribute values
   i=1
@@ -5613,11 +5613,11 @@ subroutine PMWFRestartBinary(this, viewer)
     i=i+stride
   enddo
 
-  call VecRestoreArrayF90(local_wf_vec, local_wf_array, ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(local_wf_vec,local_wf_array,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec,ierr);CHKERRQ(ierr)
 
 
 end subroutine PMWFRestartBinary

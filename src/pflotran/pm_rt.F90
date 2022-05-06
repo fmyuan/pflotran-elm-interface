@@ -928,7 +928,8 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
       ! get global minimum
       call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                         MPI_MIN,this%realization%option%mycomm,ierr)
+                         MPI_MIN,this%realization%option%mycomm, &
+                         ierr);CHKERRQ(ierr)
 
       ! scale if necessary
       if (min_ratio < 1.d0) then
@@ -1042,7 +1043,8 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
 
   ! get global minimum
   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,this%realization%option%mycomm,ierr)
+                     MPI_MIN,this%realization%option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   option%converged = PETSC_FALSE
   if (temp_int == 1) then
@@ -1071,7 +1073,8 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     mpi_int = option%ntrandof
     call MPI_Allreduce(MPI_IN_PLACE,max_relative_change_by_dof,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     if (OptionPrintToFile(option)) then
 100 format("REACTIVE TRANSPORT  NEWTON_ITERATION ",30es16.8)
       write(IUNIT_EKG,100) max_relative_change_by_dof(:)
@@ -1372,8 +1375,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
                            "checkpoint_activity_coefs","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0,"ndof","",ierr);CHKERRQ(ierr)
   if (associated(realization%reaction)) then
     if (realization%reaction%checkpoint_activity_coefs .and. &
         realization%reaction%act_coef_update_frequency /= &
@@ -1392,7 +1394,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
   if (option%ntrandof > 0) then
-    call VecView(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
+    call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
     ! create a global vec for writing below
     if (global_vec == PETSC_NULL_VEC) then
       call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -1555,13 +1557,12 @@ subroutine PMRTRestartBinary(this,viewer)
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
-  call PetscBagCreate(this%option%mycomm, bagsize, bag, ierr);CHKERRQ(ierr)
-  call PetscBagGetData(bag, header, ierr);CHKERRQ(ierr)
+  call PetscBagCreate(this%option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
+  call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
                            "checkpoint_activity_coefs","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr);CHKERRQ(ierr)
-  call PetscBagLoad(viewer, bag, ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0,"ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
   option%ntrandof = header%ndof
 
   call VecLoad(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
@@ -1793,7 +1794,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     dataset_name = "Primary_Variable" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
            pm_grp_id, H5T_NATIVE_DOUBLE)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     ! create a global vec for writing below
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -2044,7 +2045,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                     field%tran_xx_loc,NTRANDOF)
     call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     ! create a global vec for reading
     call DiscretizationCreateVector(discretization,ONEDOF, &

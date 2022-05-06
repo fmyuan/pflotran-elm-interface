@@ -218,8 +218,8 @@ subroutine OutputConvertArrayToNatural(indices,array,local_size,global_size,opti
   allocate(indices_zero_based(local_size))
   indices_zero_based(1:local_size) = indices(1:local_size)-1
 
-  call VecSetValues(natural_vec,local_size,indices_zero_based, &
-                    array,INSERT_VALUES,ierr);CHKERRQ(ierr)
+  call VecSetValues(natural_vec,local_size,indices_zero_based,array, &
+                    INSERT_VALUES,ierr);CHKERRQ(ierr)
 
   call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
@@ -494,8 +494,8 @@ subroutine OutputGetVertexCoordinates(grid,vec,direction,option)
         enddo
     end select
     indices(:) = grid%unstructured_grid%vertex_ids_natural(:)-1
-    call VecSetValues(vec,grid%unstructured_grid%num_vertices_local, &
-                      indices,values,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(vec,grid%unstructured_grid%num_vertices_local,indices, &
+                      values,INSERT_VALUES,ierr);CHKERRQ(ierr)
     call VecAssemblyBegin(vec,ierr);CHKERRQ(ierr)
     deallocate(values)
     deallocate(indices)
@@ -535,7 +535,7 @@ subroutine OutputGetCellVertices(grid, vec)
 
   ugrid => grid%unstructured_grid
 
-  call VecGetArrayF90( vec, vec_ptr, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 
   ! initialize
@@ -592,7 +592,7 @@ subroutine OutputGetCellVertices(grid, vec)
     end select
   enddo
 
-  call VecRestoreArrayF90( vec, vec_ptr, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine OutputGetCellVertices
 
@@ -627,7 +627,7 @@ subroutine OutputGetCellVerticesExplicit(grid, vec)
   ugrid => grid%unstructured_grid
   explicit_grid => ugrid%explicit_grid
 
-  call VecGetArrayF90( vec, vec_ptr, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! initialize
   vec_ptr = UNINITIALIZED_DOUBLE
@@ -688,7 +688,7 @@ subroutine OutputGetCellVerticesExplicit(grid, vec)
     end select
   enddo
 
-  call VecRestoreArrayF90( vec, vec_ptr, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine OutputGetCellVerticesExplicit
 
@@ -1130,19 +1130,19 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
   ! Scatter flowrate from Global --> Natural order
   call VecScatterBegin(ugdm%scatter_gton,field%vx_face_inst,natural_vx_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm%scatter_gton,field%vx_face_inst,natural_vx_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(ugdm%scatter_gton,field%vy_face_inst,natural_vy_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm%scatter_gton,field%vy_face_inst,natural_vy_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(ugdm%scatter_gton,field%vz_face_inst,natural_vz_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm%scatter_gton,field%vz_face_inst,natural_vz_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! X-direction
   call VecGetArrayF90(natural_vx_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1389,10 +1389,12 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
   call VecRestoreArrayF90(field%flowrate_inst,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! Scatter flowrate from Global --> Natural order
-  call VecScatterBegin(ugdm%scatter_gton,field%flowrate_inst,natural_flowrates_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(ugdm%scatter_gton,field%flowrate_inst,natural_flowrates_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(ugdm%scatter_gton,field%flowrate_inst, &
+                       natural_flowrates_vec,INSERT_VALUES,SCATTER_FORWARD, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(ugdm%scatter_gton,field%flowrate_inst, &
+                     natural_flowrates_vec,INSERT_VALUES,SCATTER_FORWARD, &
+                     ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(natural_flowrates_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flowrate_inst,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -1491,10 +1493,10 @@ subroutine OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
   vec_ptr = option%myrank
   call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(ugdm%scatter_gtol,global_vec,local_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(ugdm%scatter_gtol,global_vec,local_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(ugdm%scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(ugdm%scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(local_vec,vec_ptr2,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)

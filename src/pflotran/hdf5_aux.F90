@@ -138,8 +138,8 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   endif
   if (option%comm%mycommsize > 1) then
     int_mpi = num_reals_in_dataset
-    call MPI_Bcast(real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                   option%io_rank,option%mycomm,ierr)
+    call MPI_Bcast(real_array,int_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+                   option%mycomm,ierr);CHKERRQ(ierr)
   endif
 #endif
 
@@ -643,15 +643,15 @@ subroutine HDF5ReadDbase(filename,option)
       if (option%comm%mycommsize > 1) then
         int_mpi = num_values_in_dataset
         if (class_id == H5T_INTEGER_F) then
-          call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER, &
-                         option%io_rank,option%mycomm,ierr)
+          call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER,option%io_rank, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
         else if (class_id == H5T_FLOAT_F) then
-          call MPI_Bcast(rbuffer,int_mpi,MPI_DOUBLE_PRECISION, &
-                         option%io_rank,option%mycomm,ierr)
+          call MPI_Bcast(rbuffer,int_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
         else if (class_id == H5T_STRING_F) then
           int_mpi = MAXWORDLENGTH
-          call MPI_Bcast(wbuffer_word,int_mpi,MPI_CHARACTER, &
-                         option%io_rank,option%mycomm,ierr)
+          call MPI_Bcast(wbuffer_word,int_mpi,MPI_CHARACTER,option%io_rank, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
         endif
       endif
 #endif

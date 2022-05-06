@@ -824,7 +824,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
     call PrintErrMsg(option)
   endif
 
-  call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_tran_constraint_read, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine TranConstraintRTRead
 

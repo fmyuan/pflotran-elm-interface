@@ -2265,9 +2265,8 @@ subroutine FactorySubsurfaceJumpStart(simulation)
   realization => simulation%realization
   option => realization%option
 
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-vecload_block_size", &
-                           failure, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
 
   if (option%transport%jumpstart_kinetic_sorption .and. &
       option%time < 1.d-40) then

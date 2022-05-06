@@ -272,7 +272,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
 
   istart = 0
   call MPI_Exscan(this%local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%mycomm,ierr)
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
@@ -359,9 +359,10 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
     !call PetscViewerDestroy(viewer,ierr)
 
     call DMDANaturalToGlobalBegin(this%dm_wrapper%dm,natural_vec, &
-                                  INSERT_VALUES,global_vec,ierr);CHKERRQ(ierr)
-    call DMDANaturalToGlobalEnd(this%dm_wrapper%dm,natural_vec, &
-                                INSERT_VALUES,global_vec,ierr);CHKERRQ(ierr)
+                                  INSERT_VALUES,global_vec, &
+                                  ierr);CHKERRQ(ierr)
+    call DMDANaturalToGlobalEnd(this%dm_wrapper%dm,natural_vec,INSERT_VALUES, &
+                                global_vec,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
     this%rbuffer(istart+1:istart+this%local_size) = vec_ptr(:)
     call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)

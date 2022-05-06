@@ -1077,7 +1077,8 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 
     if (realization_base%output_option%print_tecplot) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
+      call PetscLogEventBegin(logging%event_output_tecplot, &
+                              ierr);CHKERRQ(ierr)
       select case(realization_base%output_option%tecplot_format)
         case (TECPLOT_POINT_FORMAT)
           call OutputTecplotPoint(realization_base)
@@ -1093,7 +1094,8 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 
     if (realization_base%output_option%print_explicit_flowrate) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
+      call PetscLogEventBegin(logging%event_output_tecplot, &
+                              ierr);CHKERRQ(ierr)
       call OutputPrintExplicitFlowrates(realization_base)
       call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
@@ -2579,8 +2581,8 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
   call VecRestoreArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
 
   exscan_count = 0
-  call MPI_Exscan(local_count,exscan_count,ONE_INTEGER_MPI, &
-                MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Exscan(local_count,exscan_count,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                  MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   do i = 1, min(max_number_to_print-exscan_count,local_count)
     idof = iarray(2,i)
     if (idof > 0) then

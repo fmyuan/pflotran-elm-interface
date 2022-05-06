@@ -698,9 +698,9 @@ subroutine WaypointListFindDuplicateTimes(list,option)
 
   fix_duplicate_waypoints = PETSC_FALSE
 
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-fix_duplicate_waypoints", &
-                           fix_duplicate_waypoints, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-fix_duplicate_waypoints",fix_duplicate_waypoints, &
+                           ierr);CHKERRQ(ierr)
 
   first_duplicate_found = PETSC_FALSE
   duplicate_removed = PETSC_FALSE

@@ -788,18 +788,18 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
   enddo
 
   ! gather relevant information from all processes
-  call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
-  call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_mt_local,n_mt_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   ! create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
-                    global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+  call VecCreateMPI(this%option%mycomm,n_mt_local*stride,n_mt_global*stride, &
+                    global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_mt_local*stride,local_mt_vec, &
                     ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
-  call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
+  call VecSetBlockSize(global_mt_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_mt_vec,stride,ierr);CHKERRQ(ierr)
 
   allocate(check_vars(stride))
   allocate(indices(stride))
@@ -824,31 +824,31 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
     enddo
     j = j + 1
 
-    call VecSetValues(local_mt_vec, stride, indices, check_vars, &
-                     INSERT_VALUES, ierr); CHKERRQ(ierr)
+    call VecSetValues(local_mt_vec,stride,indices,check_vars,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
 
     cur_m_transform => cur_m_transform%next
 
   enddo
 
   !Create map and add values from the sequential vector to the global
-  call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
-                     PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
-  call VecScatterCreate(local_mt_vec, PETSC_NULL_IS, global_mt_vec, &
-                        is, scatter_ctx, ierr); CHKERRQ(ierr)
-  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call ISCreateBlock(this%option%mycomm,stride,n_mt_local,int_array, &
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+  call VecScatterCreate(local_mt_vec,PETSC_NULL_IS,global_mt_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,local_mt_vec,global_mt_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,local_mt_vec,global_mt_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! write the checkpoint file
   dataset_name='material transform model info'
   call HDF5WriteDataSetFromVec(dataset_name, this%option, global_mt_vec,&
                                pm_grp_id, H5T_NATIVE_DOUBLE)
-  call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
-  call ISDestroy(is, ierr); CHKERRQ(ierr)
-  call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
-  call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_mt_vec,ierr);CHKERRQ(ierr)
 
   ! checkpoint the auxiliary variables
   check_il = PETSC_FALSE
@@ -881,8 +881,8 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
     dataset_name = "Smectite" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
                                  pm_grp_id, H5T_NATIVE_DOUBLE)
-    call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
   ! if (check_be) then
   ! endif
@@ -1011,19 +1011,19 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   enddo
 
   ! gather relevant information from all processes
-  call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
-  call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_mt_local,n_mt_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   ! create MPI vector for HDF5 reading and sequential vector for mt information
   !   stored in the process
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
-                    global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+  call VecCreateMPI(this%option%mycomm,n_mt_local*stride,n_mt_global*stride, &
+                    global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_mt_local*stride,local_mt_vec, &
                     ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
-  call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
+  call VecSetBlockSize(global_mt_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_mt_vec,stride,ierr);CHKERRQ(ierr)
 
   ! read data from HDF5
   dataset_name='material transform model info'
@@ -1031,19 +1031,19 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
                             pm_grp_id, H5T_NATIVE_DOUBLE)
 
   ! create mapping between MPI and sequential vectors
-  call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
-                     PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
-  call VecScatterCreate(global_mt_vec, is, local_mt_vec, &
-                        PETSC_NULL_IS, scatter_ctx, ierr); CHKERRQ(ierr)
+  call ISCreateBlock(this%option%mycomm,stride,n_mt_local,int_array, &
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_mt_vec,is,local_mt_vec,PETSC_NULL_IS, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
   ! obtain data from the MPI vector
-  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,global_mt_vec,local_mt_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,global_mt_vec,local_mt_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! convert the data into a Fortran array
-  call VecGetArrayF90(local_mt_vec, local_mt_array, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(local_mt_vec,local_mt_array,ierr);CHKERRQ(ierr)
 
   ! assign checkpointed material transform information
   i = 1
@@ -1057,11 +1057,11 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
     i = i + stride
   enddo
 
-  call VecRestoreArrayF90(local_mt_vec, local_mt_array, ierr); CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
-  call ISDestroy(is, ierr); CHKERRQ(ierr)
-  call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
-  call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayF90(local_mt_vec,local_mt_array,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_mt_vec,ierr);CHKERRQ(ierr)
 
   ! retrieve the auxiliary variables
   check_il = PETSC_FALSE
@@ -1094,8 +1094,8 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
     call MTransformSetAuxVarVecLoc(this%realization%patch%aux%MTransform, &
                                    field%work_loc, SMECTITE, &
                                    ZERO_INTEGER)
-    call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
   ! if (check_be) then
   ! endif
@@ -1221,18 +1221,18 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   enddo
 
   ! gather relevant information from all processes
-  call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
-  call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_mt_local,n_mt_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   ! create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
-                    global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+  call VecCreateMPI(this%option%mycomm,n_mt_local*stride,n_mt_global*stride, &
+                    global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_mt_local*stride,local_mt_vec, &
                     ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
-  call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
+  call VecSetBlockSize(global_mt_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_mt_vec,stride,ierr);CHKERRQ(ierr)
 
   allocate(check_vars(stride))
   allocate(indices(stride))
@@ -1257,30 +1257,30 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
     enddo
     j = j + 1
 
-    call VecSetValues(local_mt_vec, stride, indices, check_vars, &
-                     INSERT_VALUES, ierr); CHKERRQ(ierr)
+    call VecSetValues(local_mt_vec,stride,indices,check_vars,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
 
     cur_m_transform => cur_m_transform%next
 
   enddo
 
   !Create map and add values from the sequential vector to the global
-  call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
-                     PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
-  call VecScatterCreate(local_mt_vec, PETSC_NULL_IS, global_mt_vec, &
-                        is, scatter_ctx, ierr); CHKERRQ(ierr)
-  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call ISCreateBlock(this%option%mycomm,stride,n_mt_local,int_array, &
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+  call VecScatterCreate(local_mt_vec,PETSC_NULL_IS,global_mt_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,local_mt_vec,global_mt_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,local_mt_vec,global_mt_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! write the checkpoint file
   dataset_name='material transform model info'
-  call VecView(global_mt_vec,viewer,ierr); CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
-  call ISDestroy(is, ierr); CHKERRQ(ierr)
-  call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
-  call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+  call VecView(global_mt_vec,viewer,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_mt_vec,ierr);CHKERRQ(ierr)
 
   ! checkpoint the auxiliary variables
   check_il = PETSC_FALSE
@@ -1306,8 +1306,8 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
                                    ZERO_INTEGER)
     call DiscretizationLocalToGlobal(discretization, field%work_loc, &
                                      global_vec, ONEDOF)
-    call VecView(global_vec, viewer, ierr); CHKERRQ(ierr)
-    call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
+    call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
   ! if (check_be) then
   ! endif
@@ -1432,37 +1432,37 @@ subroutine PMMTransformRestartBinary(this, viewer)
   enddo
 
   ! gather relevant information from all processes
-  call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
-  call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_mt_local,n_mt_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   ! create MPI vector for HDF5 reading and sequential vector for mt information
   !   stored in the process
-  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
-                    global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+  call VecCreateMPI(this%option%mycomm,n_mt_local*stride,n_mt_global*stride, &
+                    global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_mt_local*stride,local_mt_vec, &
                     ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
-  call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
+  call VecSetBlockSize(global_mt_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_mt_vec,stride,ierr);CHKERRQ(ierr)
 
   ! read data from HDF5
-  call VecLoad(global_mt_vec, viewer, ierr);CHKERRQ(ierr)
+  call VecLoad(global_mt_vec,viewer,ierr);CHKERRQ(ierr)
 
   ! create mapping between MPI and sequential vectors
-  call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
-                     PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
-  call VecScatterCreate(global_mt_vec, is, local_mt_vec, &
-                        PETSC_NULL_IS, scatter_ctx, ierr); CHKERRQ(ierr)
+  call ISCreateBlock(this%option%mycomm,stride,n_mt_local,int_array, &
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_mt_vec,is,local_mt_vec,PETSC_NULL_IS, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
   ! obtain data from the MPI vector
-  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,global_mt_vec,local_mt_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,global_mt_vec,local_mt_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! convert the data into a Fortran array
-  call VecGetArrayF90(local_mt_vec, local_mt_array, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(local_mt_vec,local_mt_array,ierr);CHKERRQ(ierr)
 
   ! assign checkpointed material transform information
   i = 1
@@ -1476,11 +1476,11 @@ subroutine PMMTransformRestartBinary(this, viewer)
     i = i + stride
   enddo
 
-  call VecRestoreArrayF90(local_mt_vec, local_mt_array, ierr); CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
-  call ISDestroy(is, ierr); CHKERRQ(ierr)
-  call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
-  call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayF90(local_mt_vec,local_mt_array,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_mt_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_mt_vec,ierr);CHKERRQ(ierr)
 
   ! retrieve the auxiliary variables
   check_il = PETSC_FALSE
@@ -1501,13 +1501,13 @@ subroutine PMMTransformRestartBinary(this, viewer)
     global_vec = PETSC_NULL_VEC
     call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL, option)
-    call VecLoad(global_vec, viewer, ierr);CHKERRQ(ierr)
+    call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization, global_vec, &
                                      field%work_loc, ONEDOF)
     call MTransformSetAuxVarVecLoc(this%realization%patch%aux%MTransform, &
                                    field%work_loc, SMECTITE, &
                                    ZERO_INTEGER)
-    call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
   ! if (check_be) then
   ! endif

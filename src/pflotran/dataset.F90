@@ -561,7 +561,8 @@ function DatasetGetMinRValue(dataset,option)
 
   if (global_reduction_flag) then
     call MPI_Allreduce(MPI_IN_PLACE,DatasetGetMinRValue,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
   endif
 
 end function DatasetGetMinRValue

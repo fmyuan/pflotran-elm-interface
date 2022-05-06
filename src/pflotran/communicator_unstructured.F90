@@ -127,8 +127,8 @@ subroutine UnstructuredLocalToGlobal(this,source,destination)
 
   call VecScatterBegin(this%ugdm%scatter_ltog,source,destination, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%ugdm%scatter_ltog,source,destination, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%ugdm%scatter_ltog,source,destination,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
 end subroutine UnstructuredLocalToGlobal
 
@@ -152,8 +152,8 @@ subroutine UnstructuredLocalToLocal(this,source,destination)
 
   call VecScatterBegin(this%ugdm%scatter_ltol,source,destination, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%ugdm%scatter_ltol,source,destination, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%ugdm%scatter_ltol,source,destination,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
 end subroutine UnstructuredLocalToLocal
 
@@ -177,8 +177,8 @@ subroutine UnstructuredGlobalToNatural(this,source,destination)
 
   call VecScatterBegin(this%ugdm%scatter_gton,source,destination, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%ugdm%scatter_gton,source,destination, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%ugdm%scatter_gton,source,destination,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
 end subroutine UnstructuredGlobalToNatural
 
@@ -202,8 +202,8 @@ subroutine UnstructuredNaturalToGlobal(this,source,destination)
 
   call VecScatterBegin(this%ugdm%scatter_gton,source,destination, &
                        INSERT_VALUES,SCATTER_REVERSE,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%ugdm%scatter_gton,source,destination, &
-                     INSERT_VALUES,SCATTER_REVERSE,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%ugdm%scatter_gton,source,destination,INSERT_VALUES, &
+                     SCATTER_REVERSE,ierr);CHKERRQ(ierr)
 
 end subroutine UnstructuredNaturalToGlobal
 

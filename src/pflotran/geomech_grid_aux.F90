@@ -235,8 +235,8 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
 
   ! create global vec
   call VecCreate(option%mycomm,gmdm%global_vec,ierr);CHKERRQ(ierr)
-  call VecSetSizes(gmdm%global_vec,geomech_grid%nlmax_node*ndof,PETSC_DECIDE,&
-                    ierr);CHKERRQ(ierr)
+  call VecSetSizes(gmdm%global_vec,geomech_grid%nlmax_node*ndof,PETSC_DECIDE, &
+                   ierr);CHKERRQ(ierr)
   call VecSetBlockSize(gmdm%global_vec,ndof,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(gmdm%global_vec,ierr);CHKERRQ(ierr)
 
@@ -275,8 +275,8 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   !                      PETSC_OWN_POINTER are supported in this routine
   ! gmdm%is_local_petsc - the new index set
   ! ierr - PETScErrorCode
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_node, &
-                     int_array,PETSC_COPY_VALUES,gmdm%is_local_petsc, &
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_node,int_array, &
+                     PETSC_COPY_VALUES,gmdm%is_local_petsc, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
@@ -344,8 +344,8 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   do local_id = 1, geomech_grid%nlmax_node
     int_array(local_id) = (local_id-1)
   enddo
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_node, &
-                     int_array,PETSC_COPY_VALUES,gmdm%is_local_local, &
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_node,int_array, &
+                     PETSC_COPY_VALUES,gmdm%is_local_local, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
@@ -362,8 +362,8 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   do ghosted_id = 1, geomech_grid%ngmax_node
     int_array(ghosted_id) = (ghosted_id-1)
   enddo
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%ngmax_node, &
-                     int_array,PETSC_COPY_VALUES,gmdm%is_ghosted_local, &
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%ngmax_node,int_array, &
+                     PETSC_COPY_VALUES,gmdm%is_ghosted_local, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
@@ -386,8 +386,8 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
         (geomech_grid%ghosted_node_ids_petsc(ghosted_id)-1)
     enddo
   endif
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%ngmax_node, &
-                     int_array,PETSC_COPY_VALUES,gmdm%is_ghosted_petsc, &
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%ngmax_node,int_array, &
+                     PETSC_COPY_VALUES,gmdm%is_ghosted_petsc, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
@@ -405,14 +405,15 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   call PrintMsg(option,string)
 #endif
 
-  call ISLocalToGlobalMappingCreateIS(gmdm%is_ghosted_petsc, &
-                                      gmdm%mapping_ltog,ierr);CHKERRQ(ierr)
+  call ISLocalToGlobalMappingCreateIS(gmdm%is_ghosted_petsc,gmdm%mapping_ltog, &
+                                      ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
   string = 'geomech_mapping_ltog' // trim(ndof_word) // '.out'
   call PetscViewerASCIIOpen(option%mycomm,trim(string),viewer, &
                             ierr);CHKERRQ(ierr)
-  call ISLocalToGlobalMappingView(gmdm%mapping_ltog,viewer,ierr);CHKERRQ(ierr)
+  call ISLocalToGlobalMappingView(gmdm%mapping_ltog,viewer, &
+                                  ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
@@ -479,12 +480,12 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   do local_id = 1, geomech_grid%nlmax_node
     int_array(local_id) = (local_id-1) + geomech_grid%global_offset
   enddo
-  call ISCreateGeneral(option%mycomm,geomech_grid%nlmax_node, &
-                       int_array,PETSC_COPY_VALUES,is_tmp,ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,geomech_grid%nlmax_node,int_array, &
+                       PETSC_COPY_VALUES,is_tmp,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
-  call AOPetscToApplicationIS(geomech_grid%ao_natural_to_petsc_nodes, &
-                              is_tmp,ierr);CHKERRQ(ierr)
+  call AOPetscToApplicationIS(geomech_grid%ao_natural_to_petsc_nodes,is_tmp, &
+                              ierr);CHKERRQ(ierr)
 
   allocate(int_array(geomech_grid%nlmax_node))
   call ISGetIndicesF90(is_tmp,int_ptr,ierr);CHKERRQ(ierr)
@@ -493,8 +494,8 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   enddo
   call ISRestoreIndicesF90(is_tmp,int_ptr,ierr);CHKERRQ(ierr)
   call ISDestroy(is_tmp,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_node, &
-                     int_array,PETSC_COPY_VALUES,gmdm%is_local_natural, &
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_node,int_array, &
+                     PETSC_COPY_VALUES,gmdm%is_local_natural, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
@@ -532,12 +533,11 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
     int_array(local_id) = (local_id-1) + geomech_grid%global_offset_elem
   enddo
 
-  call ISCreateGeneral(option%mycomm,geomech_grid%nlmax_elem, &
-                       int_array,PETSC_COPY_VALUES,is_tmp_petsc, &
-                       ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,geomech_grid%nlmax_elem,int_array, &
+                       PETSC_COPY_VALUES,is_tmp_petsc,ierr);CHKERRQ(ierr)
 
-  call AOPetscToApplicationIS(geomech_grid%ao_natural_to_petsc, &
-                              is_tmp_petsc,ierr);CHKERRQ(ierr)
+  call AOPetscToApplicationIS(geomech_grid%ao_natural_to_petsc,is_tmp_petsc, &
+                              ierr);CHKERRQ(ierr)
   allocate(int_array2(geomech_grid%nlmax_elem))
   call ISGetIndicesF90(is_tmp_petsc,int_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, geomech_grid%nlmax_elem
@@ -546,12 +546,10 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   call ISRestoreIndicesF90(is_tmp_petsc,int_ptr,ierr);CHKERRQ(ierr)
   call ISDestroy(is_tmp_petsc,ierr);CHKERRQ(ierr)
 
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_elem, &
-                     int_array,PETSC_COPY_VALUES,is_tmp_petsc, &
-                     ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_elem, &
-                     int_array2,PETSC_COPY_VALUES,is_tmp_natural, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_elem,int_array, &
+                     PETSC_COPY_VALUES,is_tmp_petsc,ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_elem,int_array2, &
+                     PETSC_COPY_VALUES,is_tmp_natural,ierr);CHKERRQ(ierr)
 
   ! create global vec
   call VecCreate(option%mycomm,gmdm%global_vec_elem,ierr);CHKERRQ(ierr)
@@ -572,15 +570,13 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   call ISDestroy(is_tmp_petsc,ierr);CHKERRQ(ierr)
   call ISDestroy(is_tmp_natural,ierr);CHKERRQ(ierr)
 
-  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_elem, &
-                     int_array,PETSC_COPY_VALUES,is_tmp_petsc, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,ndof,geomech_grid%nlmax_elem,int_array, &
+                     PETSC_COPY_VALUES,is_tmp_petsc,ierr);CHKERRQ(ierr)
   deallocate(int_array)
   deallocate(int_array2)
 
   ! create a local to global mapping
-  call ISLocalToGlobalMappingCreateIS(is_tmp_petsc, &
-                                      gmdm%mapping_ltog_elem, &
+  call ISLocalToGlobalMappingCreateIS(is_tmp_petsc,gmdm%mapping_ltog_elem, &
                                       ierr);CHKERRQ(ierr)
 !  call ISDestroy(is_tmp_petsc,ierr);CHKERRQ(ierr)
 
@@ -659,11 +655,10 @@ subroutine GMGridDMCreateMatrix(geomech_grid,gmdm,mat_type,J,option)
   call MatSetSizes(J,ndof_local,ndof_local,PETSC_DETERMINE,PETSC_DETERMINE, &
                    ierr);CHKERRQ(ierr)
   call MatSetFromOptions(J,ierr);CHKERRQ(ierr)
-  call MatXAIJSetPreallocation(J,gmdm%ndof,d_nnz,o_nnz, &
-                               PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
-                               ierr); CHKERRQ(ierr)
-  call MatSetLocalToGlobalMapping(J,gmdm%mapping_ltog, &
-                                  gmdm%mapping_ltog,ierr);CHKERRQ(ierr)
+  call MatXAIJSetPreallocation(J,gmdm%ndof,d_nnz,o_nnz,PETSC_NULL_INTEGER, &
+                               PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  call MatSetLocalToGlobalMapping(J,gmdm%mapping_ltog,gmdm%mapping_ltog, &
+                                  ierr);CHKERRQ(ierr)
 
 
   deallocate(d_nnz)
@@ -694,22 +689,22 @@ subroutine GMGridDMCreateVector(geomech_grid,gmdm,vec,vec_type,option)
   select case(vec_type)
     case(GLOBAL)
       call VecCreate(option%mycomm,vec,ierr);CHKERRQ(ierr)
-      call VecSetSizes(vec,geomech_grid%nlmax_node*gmdm%ndof, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(vec,geomech_grid%nlmax_node*gmdm%ndof,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
       call VecSetLocalToGlobalMapping(vec,gmdm%mapping_ltog, &
                                       ierr);CHKERRQ(ierr)
       call VecSetBlockSize(vec,gmdm%ndof,ierr);CHKERRQ(ierr)
       call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
     case(LOCAL)
       call VecCreate(PETSC_COMM_SELF,vec,ierr);CHKERRQ(ierr)
-      call VecSetSizes(vec,geomech_grid%ngmax_node*gmdm%ndof, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(vec,geomech_grid%ngmax_node*gmdm%ndof,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
       call VecSetBlockSize(vec,gmdm%ndof,ierr);CHKERRQ(ierr)
       call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
     case(NATURAL)
       call VecCreate(option%mycomm,vec,ierr);CHKERRQ(ierr)
-      call VecSetSizes(vec,geomech_grid%nlmax_node*gmdm%ndof, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(vec,geomech_grid%nlmax_node*gmdm%ndof,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
       call VecSetBlockSize(vec,gmdm%ndof,ierr);CHKERRQ(ierr)
       call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
   end select
@@ -740,22 +735,22 @@ subroutine GMGridDMCreateVectorElem(geomech_grid,gmdm,vec,vec_type,option)
   select case(vec_type)
     case(GLOBAL)
       call VecCreate(option%mycomm,vec,ierr);CHKERRQ(ierr)
-      call VecSetSizes(vec,geomech_grid%nlmax_elem*gmdm%ndof, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(vec,geomech_grid%nlmax_elem*gmdm%ndof,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
       call VecSetLocalToGlobalMapping(vec,gmdm%mapping_ltog_elem, &
                                       ierr);CHKERRQ(ierr)
       call VecSetBlockSize(vec,gmdm%ndof,ierr);CHKERRQ(ierr)
       call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
     case(LOCAL)
       call VecCreate(PETSC_COMM_SELF,vec,ierr);CHKERRQ(ierr)
-      call VecSetSizes(vec,geomech_grid%nlmax_elem*gmdm%ndof, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(vec,geomech_grid%nlmax_elem*gmdm%ndof,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
       call VecSetBlockSize(vec,gmdm%ndof,ierr);CHKERRQ(ierr)
       call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
     case(NATURAL)
       call VecCreate(option%mycomm,vec,ierr);CHKERRQ(ierr)
-      call VecSetSizes(vec,geomech_grid%nlmax_elem*gmdm%ndof, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(vec,geomech_grid%nlmax_elem*gmdm%ndof,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
       call VecSetBlockSize(vec,gmdm%ndof,ierr);CHKERRQ(ierr)
       call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
   end select
@@ -809,8 +804,7 @@ subroutine GMGridMapIndices(geomech_grid,gmdm,nG2L,nL2G,nG2A,option)
   enddo
   call ISRestoreIndicesF90(gmdm%is_ghosted_petsc,int_ptr,ierr);CHKERRQ(ierr)
   call AOPetscToApplication(geomech_grid%ao_natural_to_petsc_nodes, &
-                            geomech_grid%ngmax_node, &
-                            nG2A,ierr);CHKERRQ(ierr)
+                            geomech_grid%ngmax_node,nG2A,ierr);CHKERRQ(ierr)
   nG2A = nG2A + 1 ! 1-based
 
 end subroutine GMGridMapIndices
@@ -845,7 +839,7 @@ subroutine GMGridDestroy(geomech_grid)
   call DeallocateArray(geomech_grid%ghosted_node_ids_natural)
   call DeallocateArray(geomech_grid%ghosted_node_ids_petsc)
   if (geomech_grid%ao_natural_to_petsc /= 0) &
-    call AODestroy(geomech_grid%ao_natural_to_petsc,ierr)
+    call AODestroy(geomech_grid%ao_natural_to_petsc,ierr);CHKERRQ(ierr)
   if (geomech_grid%ao_natural_to_petsc_nodes /= 0) then
     call AODestroy(geomech_grid%ao_natural_to_petsc_nodes,ierr);CHKERRQ(ierr)
   endif
@@ -864,7 +858,8 @@ subroutine GMGridDestroy(geomech_grid)
   nullify(geomech_grid%gauss_node)
 
   if (geomech_grid%no_elems_sharing_node_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(geomech_grid%no_elems_sharing_node_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(geomech_grid%no_elems_sharing_node_loc, &
+                    ierr);CHKERRQ(ierr)
   endif
   if ( geomech_grid%no_elems_sharing_node /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_grid%no_elems_sharing_node,ierr);CHKERRQ(ierr)

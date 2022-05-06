@@ -1286,7 +1286,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
       ! get global minimum
       call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                         MPI_MIN,this%realization%option%mycomm,ierr)
+                         MPI_MIN,this%realization%option%mycomm, &
+                         ierr);CHKERRQ(ierr)
 
       ! scale if necessary
       if (min_ratio < 1.d0) then
@@ -1393,7 +1394,8 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
-  call SNESGetIterationNumber(this%solver%snes,newton_iter_number,ierr)
+  call SNESGetIterationNumber(this%solver%snes,newton_iter_number, &
+                              ierr);CHKERRQ(ierr)
 
   converged_flag = 0
   if (this%controls%check_post_convergence) then
@@ -1534,7 +1536,8 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
 
   ! get global minimum
   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,this%realization%option%mycomm,ierr)
+                     MPI_MIN,this%realization%option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
     this%realization%option%converged = PETSC_FALSE
@@ -1564,7 +1567,8 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     mpi_int = option%ntrandof
     call MPI_Allreduce(MPI_IN_PLACE,max_relative_change_by_dof,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     if (OptionPrintToFile(option)) then
 100 format("NUCLEAR WASTE TRANSPORT  NEWTON_ITERATION ",30es16.8)
       write(IUNIT_EKG,100) max_relative_change_by_dof(:)
@@ -1798,14 +1802,13 @@ subroutine PMNWTCheckpointBinary(this,viewer)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0,"ndof","",ierr);CHKERRQ(ierr)
   header%ndof = option%ntrandof
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
   if (option%ntrandof > 0) then
-    call VecView(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
+    call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
 
     if (global_vec == PETSC_NULL_VEC) then
       call DiscretizationCreateVector(discretization,ONEDOF, &
@@ -1902,7 +1905,7 @@ subroutine PMNWTCheckpointHDF5(this,pm_grp_id)
     dataset_name = "Primary_Variable" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
                                  pm_grp_id, H5T_NATIVE_DOUBLE)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     ! auxiliary data for reactions (e.g. cumulative mass)
     if (realization%reaction_nw%params%nauxiliary> 0) then
@@ -1985,12 +1988,11 @@ subroutine PMNWTRestartBinary(this,viewer)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0,"ndof","",ierr);CHKERRQ(ierr)
   call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
   option%ntrandof = header%ndof
 
-  call VecLoad(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
+  call VecLoad(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
   call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)

@@ -1198,7 +1198,8 @@ subroutine PMWSSSetRegionScaling(this,waste_panel)
                          + material_auxvars(ghosted_id)%volume          ! [m^3]
   enddo
   call MPI_Allreduce(total_volume_local,total_volume_global,ONE_INTEGER_MPI, &
-              MPI_DOUBLE_PRECISION,MPI_SUM,waste_panel%myMPIcomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_SUM,waste_panel%myMPIcomm, &
+                     ierr);CHKERRQ(ierr)
   waste_panel%scaling_factor = waste_panel%scaling_factor/total_volume_global
   waste_panel%volume = total_volume_global
 
@@ -2606,7 +2607,7 @@ subroutine PMWSSSetup(this)
     endif
     ! count the number of processes that own the waste panel
     call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
-                       MPI_SUM,option%mycomm,ierr)
+                       MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_panel%rank_list(newcomm_size))
     j = 0
@@ -2618,10 +2619,10 @@ subroutine PMWSSSetup(this)
     enddo
     ! create an MPI group and communicator for each waste panel
     call MPI_Group_incl(option%comm%mygroup,newcomm_size, &
-                        cur_waste_panel%rank_list, &
-                        cur_waste_panel%myMPIgroup,ierr)
+                        cur_waste_panel%rank_list,cur_waste_panel%myMPIgroup, &
+                        ierr);CHKERRQ(ierr)
     call MPI_Comm_create(option%mycomm,cur_waste_panel%myMPIgroup, &
-                         cur_waste_panel%myMPIcomm,ierr)
+                         cur_waste_panel%myMPIcomm,ierr);CHKERRQ(ierr)
     if (local) then
       call PMWSSSetRegionScaling(this,cur_waste_panel)
       call PMWSSProcessAfterRead(this,cur_waste_panel)
@@ -5242,10 +5243,10 @@ subroutine PMWSSCheckpointHDF5(this,pm_grp_id)
   enddo
 
   !Gather relevant information from all processes
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   dataset_name = "Fe_s" // CHAR(0)
   call PMWSSWriteVariableHDF5(this,pm_grp_id,FE_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
@@ -5273,7 +5274,8 @@ subroutine PMWSSCheckpointHDF5(this,pm_grp_id)
 
   if (wippflo_radiolysis) then
     call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
-                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     dataset_name ="rad_inventory"
     call PMWSSWriteVariableHDF5(this,pm_grp_id,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array,dataset_name)
   endif
@@ -5310,15 +5312,14 @@ subroutine PMWSSWriteVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp
   class(srcsink_panel_type), pointer :: cwp
 
   !Create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
-                    n_wp_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,n_wp_global*stride, &
                     global_wp_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wp_local*stride,local_wp_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wp_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec,stride,ierr);CHKERRQ(ierr)
 
   allocate(check_var(stride))
   allocate(indices(stride))
@@ -5368,31 +5369,31 @@ subroutine PMWSSWriteVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp
     enddo
     j=j+1
 
-    call VecSetValues(local_wp_vec,stride,indices, &
-                      check_var,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(local_wp_vec,stride,indices,check_var,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
     cwp => cwp%next
   enddo
 
   !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(local_wp_vec,PETSC_NULL_IS,global_wp_vec, &
-                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(local_wp_vec,PETSC_NULL_IS,global_wp_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(scatter_ctx, local_wp_vec, global_wp_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_wp_vec, global_wp_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,local_wp_vec,global_wp_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,local_wp_vec,global_wp_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Write the checkpoint file
   call HDF5WriteDataSetFromVec(dataset_name, this%option, global_wp_vec,&
            pm_grp_id, H5T_NATIVE_DOUBLE)
 
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec,ierr);CHKERRQ(ierr)
 
 end subroutine PMWSSWriteVariableHDF5
 
@@ -5464,10 +5465,10 @@ subroutine PMWSSRestartHDF5(this,pm_grp_id)
   enddo
 
   !Gather relevant information from all processes
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
-                 MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   dataset_name = "Fe_s" // CHAR(0)
   call PMWSSReadVariableHDF5(this,pm_grp_id,FE_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
@@ -5495,7 +5496,8 @@ subroutine PMWSSRestartHDF5(this,pm_grp_id)
 
   if (wippflo_radiolysis) then
     call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
-                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     dataset_name ="rad_inventory"
     call PMWSSReadVariableHDF5(this,pm_grp_id,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array,dataset_name)
   endif
@@ -5531,33 +5533,32 @@ subroutine PMWSSReadVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp_
   class(srcsink_panel_type), pointer :: cwp
 
   !Create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
-                    n_wp_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,n_wp_global*stride, &
                     global_wp_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wp_local*stride,local_wp_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wp_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec,stride,ierr);CHKERRQ(ierr)
 
   call HDF5ReadDataSetInVec(dataset_name, this%option, global_wp_vec, &
                             pm_grp_id, H5T_NATIVE_DOUBLE)
 
   !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(global_wp_vec,PETSC_NULL_IS,local_wp_vec, &
-                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_wp_vec,PETSC_NULL_IS,local_wp_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(scatter_ctx, global_wp_vec, local_wp_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_wp_vec, local_wp_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,global_wp_vec,local_wp_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,global_wp_vec,local_wp_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Convert the data to a Fortran array
-  call VecGetArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
 
   cwp => this%waste_panel_list
   j = 0
@@ -5609,11 +5610,11 @@ subroutine PMWSSReadVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp_
     cwp => cwp%next
   enddo
 
-  call VecRestoreArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec,ierr);CHKERRQ(ierr)
 
 end subroutine PMWSSReadVariableHDF5
 
@@ -5689,10 +5690,10 @@ subroutine PMWSSCheckpointBinary(this,viewer)
   enddo
 
   !Gather relevant information from all processes
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
 
   call PMWSSWriteVariableBinary(this,viewer,FE_S,stride,n_wp_local,n_wp_global,int_array)
@@ -5706,7 +5707,8 @@ subroutine PMWSSCheckpointBinary(this,viewer)
 
   if (wippflo_radiolysis) then
     call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
-                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call PMWSSWriteVariableBinary(this,viewer,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array)
   endif
 
@@ -5744,15 +5746,14 @@ subroutine PMWSSWriteVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_
   class(srcsink_panel_type), pointer :: cwp
 
   !Create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
-                    n_wp_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,n_wp_global*stride, &
                     global_wp_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wp_local*stride,local_wp_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wp_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec,stride,ierr);CHKERRQ(ierr)
 
   allocate(check_var(stride))
   allocate(indices(stride))
@@ -5802,29 +5803,29 @@ subroutine PMWSSWriteVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_
     enddo
     j=j+1
 
-    call VecSetValues(local_wp_vec,stride,indices, &
-                      check_var,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(local_wp_vec,stride,indices,check_var,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
     cwp => cwp%next
   enddo
 
   !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(local_wp_vec,PETSC_NULL_IS,global_wp_vec, &
-                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(local_wp_vec,PETSC_NULL_IS,global_wp_vec,is, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(scatter_ctx, local_wp_vec, global_wp_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, local_wp_vec, global_wp_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,local_wp_vec,global_wp_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,local_wp_vec,global_wp_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   call VecView(global_wp_vec,viewer,ierr);CHKERRQ(ierr)
 
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec,ierr);CHKERRQ(ierr)
 
 end subroutine PMWSSWriteVariableBinary
 
@@ -5895,10 +5896,10 @@ subroutine PMWSSRestartBinary(this,viewer)
   enddo
 
   !Gather relevant information from all processes
-  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
-                  MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &
+                     this%option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,this%option%mycomm,ierr);CHKERRQ(ierr)
 
   call PMWSSReadVariableBinary(this,viewer,FE_S,stride,n_wp_local,n_wp_global,int_array)
   call PMWSSReadVariableBinary(this,viewer,BIODEGS_S,stride,n_wp_local,n_wp_global,int_array)
@@ -5911,7 +5912,8 @@ subroutine PMWSSRestartBinary(this,viewer)
 
   if (wippflo_radiolysis) then
     call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
-                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call PMWSSReadVariableBinary(this,viewer,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array)
   endif
 
@@ -5949,33 +5951,32 @@ subroutine PMWSSReadVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_g
   class(srcsink_panel_type), pointer :: cwp
 
   !Create MPI vector and sequential vector for mapping
-  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
-                    n_wp_global*stride,&
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,n_wp_global*stride, &
                     global_wp_vec,ierr);CHKERRQ(ierr)
 
-  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
-                    ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,n_wp_local*stride,local_wp_vec, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(global_wp_vec,stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec,stride,ierr);CHKERRQ(ierr)
 
   !Read the data
-  call VecLoad(global_wp_vec,viewer, ierr);CHKERRQ(ierr)
+  call VecLoad(global_wp_vec,viewer,ierr);CHKERRQ(ierr)
 
   !Create map and add values from the sequential vector to the global
   call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
-                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(global_wp_vec,is,local_wp_vec, &
-                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_wp_vec,is,local_wp_vec,PETSC_NULL_IS, &
+                        scatter_ctx,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(scatter_ctx, global_wp_vec, local_wp_vec, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-  call VecScatterEnd(scatter_ctx, global_wp_vec, local_wp_vec, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx,global_wp_vec,local_wp_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx,global_wp_vec,local_wp_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Convert the data to a Fortran array
-  call VecGetArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
 
   cwp => this%waste_panel_list
   j = 0
@@ -6027,11 +6028,11 @@ subroutine PMWSSReadVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_g
     cwp => cwp%next
   enddo
 
-  call VecRestoreArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
-  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
-  call ISDestroy(is, ierr);CHKERRQ(ierr)
-  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
-  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec,ierr);CHKERRQ(ierr)
 
 end subroutine PMWSSReadVariableBinary
 

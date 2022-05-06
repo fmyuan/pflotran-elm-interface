@@ -436,7 +436,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 #endif
 
 #ifdef TIME_DATASET
-  call MPI_Barrier(option%mycomm,ierr)
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up dataset ",a,".")') &
     tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
@@ -524,11 +524,11 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   if (associated(this%rbuffer)) then
     mpi_int = size(this%rbuffer)
     call MPI_Bcast(this%rbuffer,mpi_int,MPI_DOUBLE_PRECISION, &
-                   option%driver%io_rank,option%mycomm,ierr)
+                   option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   else
     mpi_int = size(this%rarray)
     call MPI_Bcast(this%rarray,mpi_int,MPI_DOUBLE_PRECISION, &
-                   option%driver%io_rank,option%mycomm,ierr)
+                   option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   endif
 #endif
 
@@ -548,7 +548,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 #endif
 
 #ifdef TIME_DATASET
-  call MPI_Barrier(option%mycomm,ierr)
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to read dataset ",a,".")') &
     tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &

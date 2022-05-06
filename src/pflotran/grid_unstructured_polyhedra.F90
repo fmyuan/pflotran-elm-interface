@@ -96,8 +96,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   num_cells = temp_int
   pgrid%num_cells_global = num_cells
   ugrid%nmax = num_cells
@@ -195,7 +195,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
         ! otherwise communicate to other ranks
         int_mpi = num_to_read*7
         call MPI_Send(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION,irank, &
-                      num_to_read,option%mycomm,ierr)
+                      num_to_read,option%mycomm,ierr);CHKERRQ(ierr)
       endif
     enddo
 
@@ -204,9 +204,9 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       ! other ranks pos the recv
       allocate(temp_real_array(7,num_cells_local))
       int_mpi = num_cells_local*7
-      call MPI_Recv(temp_real_array,int_mpi, &
-                    MPI_DOUBLE_PRECISION,option%driver%io_rank, &
-                    MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+      call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
+                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
+                    status_mpi,ierr);CHKERRQ(ierr)
       num_faces_local = 0
       pgrid%num_cells_local = num_cells_local
       do icell = 1, num_cells_local
@@ -229,7 +229,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   deallocate(temp_real_array)
 
   call MPI_Bcast(max_nvert_per_cell,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+                 option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   ugrid%max_nvert_per_cell = max_nvert_per_cell
   pgrid%max_nvert_per_cell = max_nvert_per_cell
   allocate(pgrid%cell_vertids(max_nvert_per_cell,num_cells_local))
@@ -255,8 +255,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   num_faces = temp_int
   pgrid%num_faces_global = num_faces
 
@@ -339,7 +339,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
         int_mpi = num_to_read*(7+max_nvert_per_cell)
         call MPI_Send(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION,irank, &
-                      num_to_read,option%mycomm,ierr)
+                      num_to_read,option%mycomm,ierr);CHKERRQ(ierr)
       endif
 
     enddo
@@ -347,9 +347,9 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     ! other ranks post the recv
     allocate(temp_real_array(7+max_nvert_per_cell,num_faces_local+1))
     int_mpi = num_faces_local*(7+max_nvert_per_cell)
-    call MPI_Recv(temp_real_array,int_mpi, &
-                  MPI_DOUBLE_PRECISION,option%driver%io_rank, &
-                  MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+    call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
+                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  ierr);CHKERRQ(ierr)
 
     do iface = 1, num_faces_local
       pgrid%face_ids(iface) = int(temp_real_array(1,iface))
@@ -393,8 +393,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   num_vertices = temp_int
   pgrid%num_vertices_global = num_vertices
   ugrid%num_vertices_global = num_vertices
@@ -445,7 +445,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       else
         int_mpi = num_to_read*3
         call MPI_Send(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION,irank, &
-                      num_to_read,option%mycomm,ierr)
+                      num_to_read,option%mycomm,ierr);CHKERRQ(ierr)
       endif
 
     enddo
@@ -454,9 +454,9 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     pgrid%num_vertices_local = num_vertices_local
     allocate(temp_real_array(3,num_vertices_local))
     int_mpi = num_vertices_local*3
-    call MPI_Recv(temp_real_array,int_mpi, &
-                  MPI_DOUBLE_PRECISION,option%driver%io_rank, &
-                  MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+    call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
+                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  ierr);CHKERRQ(ierr)
     do ivert = 1, num_vertices_local
       pgrid%vertex_coordinates(ivert)%x = temp_real_array(1,ivert)
       pgrid%vertex_coordinates(ivert)%y = temp_real_array(2,ivert)
@@ -470,13 +470,13 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   deallocate(nfaces_per_proc)
 
   temp_int = max_nface_per_cell
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   pgrid%max_nface_per_cell = temp_int
 
   temp_int = max_nvert_per_face
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   pgrid%max_nvert_per_face = temp_int
 
   if (OptionIsIORank(option)) then
@@ -621,8 +621,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       int_array1(ivertex) = pgrid%cell_vertids(ivertex,icell)
       int_array2(ivertex) = ivertex - 1
     enddo
-    call PetscSortIntWithPermutation(pgrid%cell_nverts(icell), &
-            int_array1,int_array2,ierr);CHKERRQ(ierr)
+    call PetscSortIntWithPermutation(pgrid%cell_nverts(icell),int_array1, &
+                                     int_array2,ierr);CHKERRQ(ierr)
     int_array2 = int_array2 + 1
     do ivertex = 1, pgrid%cell_nverts(icell)
       pgrid%cell_vertids(ivertex,icell) = &
@@ -632,8 +632,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   deallocate(int_array1)
   deallocate(int_array2)
 
-  call MPI_Allreduce(min_vertex_id,index_format_flag, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN,option%mycomm,ierr)
+  call MPI_Allreduce(min_vertex_id,index_format_flag,ONE_INTEGER_MPI, &
+                     MPIU_INTEGER,MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
 
   if (index_format_flag /= 0 .and. index_format_flag /= 1) then
     call PrintErrMsg(option,'Min. vertex id is neither 0 nor 1. Check input mesh.')
@@ -700,8 +700,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   ! determine the global offset from 0 for cells on this rank
   global_offset_old = 0
-  call MPI_Exscan(num_cells_local_old,global_offset_old, &
-                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Exscan(num_cells_local_old,global_offset_old,ONE_INTEGER_MPI, &
+                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   ! create an adjacency matrix for calculating the duals (connnections)
 #if UGRID_DEBUG
@@ -709,8 +709,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 #endif
 
   call MatCreateMPIAdj(option%mycomm,num_cells_local_old, &
-                       pgrid%num_vertices_global, &
-                       local_vertex_offset, &
+                       pgrid%num_vertices_global,local_vertex_offset, &
                        local_vertices,PETSC_NULL_INTEGER,Adj_mat, &
                        ierr);CHKERRQ(ierr)
 
@@ -785,8 +784,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       max_ndual_per_cell = num_cols
   enddo
   temp_int = max_ndual_per_cell
-  call MPI_Allreduce(temp_int,max_ndual_per_cell, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(temp_int,max_ndual_per_cell,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ugrid%max_ndual_per_cell = max_ndual_per_cell
 
 #if UGRID_DEBUG
@@ -989,9 +988,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   enddo
   call VecRestoreArrayF90(elements_old,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call MatRestoreRowIJF90(Dual_mat, ZERO_INTEGER, PETSC_FALSE, PETSC_FALSE, &
-                          num_rows, ia_ptr, ja_ptr, success,  &
-                          ierr);CHKERRQ(ierr)
+  call MatRestoreRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                          num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   call MatDestroy(Dual_mat,ierr);CHKERRQ(ierr)
 
   call UGridNaturalToPetsc(ugrid, option, &
@@ -1226,14 +1224,14 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   enddo
 
   ! include cell ids (use block ids, not indices)
-  call ISCreateBlock(option%mycomm,3,vertex_count, &
-                     int_array,PETSC_COPY_VALUES,is_gather,ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,3,vertex_count,int_array,PETSC_COPY_VALUES, &
+                     is_gather,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
   ! create a parallel petsc vector with a stride of 3.
   call VecCreate(option%mycomm,vertices_old,ierr);CHKERRQ(ierr)
-  call VecSetSizes(vertices_old,ugrid%num_vertices_local*3, &
-                  PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(vertices_old,ugrid%num_vertices_local*3,PETSC_DECIDE, &
+                   ierr);CHKERRQ(ierr)
   call VecSetBlockSize(vertices_old,3,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(vertices_old,ierr);CHKERRQ(ierr)
 
@@ -1245,8 +1243,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   call VecSetFromOptions(vertices_new,ierr);CHKERRQ(ierr)
 
   call VecCreate(option%mycomm,vertices_old,ierr);CHKERRQ(ierr)
-  call VecSetSizes(vertices_old,ugrid%num_vertices_local*3, &
-                  PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(vertices_old,ugrid%num_vertices_local*3,PETSC_DECIDE, &
+                   ierr);CHKERRQ(ierr)
   call VecSetBlockSize(vertices_old,3,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(vertices_old,ierr);CHKERRQ(ierr)
 
@@ -1274,9 +1272,8 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     int_array(ivertex) = (needed_vertices_petsc(ivertex)-1)
   enddo
   ! include cell ids
-  call ISCreateBlock(option%mycomm,3,vertex_count, &
-                     int_array,PETSC_COPY_VALUES,is_scatter, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,3,vertex_count,int_array,PETSC_COPY_VALUES, &
+                     is_scatter,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
   ! resize vertex array to new size
@@ -1298,19 +1295,23 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
 #if UGRID_DEBUG
   if (ugrid%grid_type == THREE_DIM_GRID) then
-    call PetscViewerASCIIOpen(option%mycomm,'is_scatter_vert_old_to_new_subsurf.out',viewer, &
+    call PetscViewerASCIIOpen(option%mycomm, &
+                              'is_scatter_vert_old_to_new_subsurf.out',viewer, &
                               ierr);CHKERRQ(ierr)
   else
-    call PetscViewerASCIIOpen(option%mycomm,'is_scatter_vert_old_to_new_surf.out',viewer, &
+    call PetscViewerASCIIOpen(option%mycomm, &
+                              'is_scatter_vert_old_to_new_surf.out',viewer, &
                               ierr);CHKERRQ(ierr)
   endif
   call ISView(is_scatter,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   if (ugrid%grid_type == THREE_DIM_GRID) then
-    call PetscViewerASCIIOpen(option%mycomm,'is_gather_vert_old_to_new_subsurf.out',viewer, &
+    call PetscViewerASCIIOpen(option%mycomm, &
+                              'is_gather_vert_old_to_new_subsurf.out',viewer, &
                               ierr);CHKERRQ(ierr)
   else
-    call PetscViewerASCIIOpen(option%mycomm,'is_gather_vert_old_to_new_surf.out',viewer, &
+    call PetscViewerASCIIOpen(option%mycomm, &
+                              'is_gather_vert_old_to_new_surf.out',viewer, &
                               ierr);CHKERRQ(ierr)
   endif
   call ISView(is_gather,viewer,ierr);CHKERRQ(ierr)
@@ -1321,19 +1322,19 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
                         vec_scatter,ierr);CHKERRQ(ierr)
   call ISDestroy(is_scatter,ierr);CHKERRQ(ierr)
   call ISDestroy(is_gather,ierr);CHKERRQ(ierr)
-  call VecScatterBegin(vec_scatter,vertices_old,vertices_new, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(vec_scatter,vertices_old,vertices_new, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(vec_scatter,vertices_old,vertices_new,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(vec_scatter,vertices_old,vertices_new,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(vec_scatter,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
   if (ugrid%grid_type == THREE_DIM_GRID) then
-    call PetscViewerASCIIOpen(option%mycomm,'vertex_coord_old_subsurf.out',viewer, &
-                              ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vertex_coord_old_subsurf.out', &
+                              viewer,ierr);CHKERRQ(ierr)
   else
-    call PetscViewerASCIIOpen(option%mycomm,'vertex_coord_old_surf.out',viewer, &
-                              ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vertex_coord_old_surf.out', &
+                              viewer,ierr);CHKERRQ(ierr)
   endif
   call VecView(vertices_old,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2339,10 +2340,10 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
   enddo
 
   ! Find number of global unique faces. This is required for output
-  call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DETERMINE, nat_cv_proc_rank,  &
-                    ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm, ugrid%ngmax, PETSC_DETERMINE, ghosted_cv_proc_rank,  &
-                    ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,ugrid%nlmax,PETSC_DETERMINE, &
+                    nat_cv_proc_rank,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,ugrid%ngmax,PETSC_DETERMINE, &
+                    ghosted_cv_proc_rank,ierr);CHKERRQ(ierr)
 
   ! Populate a vector that contains rank of procoessor on which a given
   ! control volume is active.
@@ -2354,10 +2355,10 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
   enddo
   int_array = int_array - 1
 
-  call VecSetValues(nat_cv_proc_rank, ugrid%nlmax, int_array, real_array, INSERT_VALUES, &
-                    ierr);CHKERRQ(ierr)
-  call VecAssemblyBegin(nat_cv_proc_rank, ierr);CHKERRQ(ierr)
-  call VecAssemblyEnd(nat_cv_proc_rank, ierr);CHKERRQ(ierr)
+  call VecSetValues(nat_cv_proc_rank,ugrid%nlmax,int_array,real_array, &
+                    INSERT_VALUES,ierr);CHKERRQ(ierr)
+  call VecAssemblyBegin(nat_cv_proc_rank,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(nat_cv_proc_rank,ierr);CHKERRQ(ierr)
   deallocate(int_array)
   deallocate(real_array)
 
@@ -2369,29 +2370,29 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
     int_array(ghosted_id) = nG2A(ghosted_id)
   enddo
   int_array = int_array - 1
-  call ISCreateBlock(option%mycomm, 1, ugrid%ngmax, int_array, PETSC_COPY_VALUES, &
-                      is_scatter, ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,ugrid%ngmax,int_array,PETSC_COPY_VALUES, &
+                     is_scatter,ierr);CHKERRQ(ierr)
 
-  call VecGetOwnershipRange(ghosted_cv_proc_rank, istart, iend,  &
+  call VecGetOwnershipRange(ghosted_cv_proc_rank,istart,iend, &
                             ierr);CHKERRQ(ierr)
   do ghosted_id = 1, ugrid%ngmax
     int_array(ghosted_id) = ghosted_id + istart
   enddo
   int_array = int_array - 1
-  call ISCreateBlock(option%mycomm, 1, ugrid%ngmax, int_array, PETSC_COPY_VALUES, &
-                      is_gather, ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,ugrid%ngmax,int_array,PETSC_COPY_VALUES, &
+                     is_gather,ierr);CHKERRQ(ierr)
 
-  call VecScatterCreate(nat_cv_proc_rank, is_scatter, ghosted_cv_proc_rank, is_gather, &
-                        vec_scat, ierr);CHKERRQ(ierr)
-  call ISDestroy(is_scatter, ierr);CHKERRQ(ierr)
-  call ISDestroy(is_gather, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(nat_cv_proc_rank,is_scatter,ghosted_cv_proc_rank, &
+                        is_gather,vec_scat,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_scatter,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_gather,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
-  call VecScatterBegin(vec_scat, nat_cv_proc_rank, ghosted_cv_proc_rank, &
-                        INSERT_VALUES, SCATTER_FORWARD, ierr);CHKERRQ(ierr)
-  call VecScatterEnd(vec_scat, nat_cv_proc_rank, ghosted_cv_proc_rank, &
-                      INSERT_VALUES, SCATTER_FORWARD, ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(vec_scat, ierr);CHKERRQ(ierr)
+  call VecScatterBegin(vec_scat,nat_cv_proc_rank,ghosted_cv_proc_rank, &
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(vec_scat,nat_cv_proc_rank,ghosted_cv_proc_rank, &
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
   ! Find the number of unique faces
   allocate(pgrid%uface_localids(pgrid%ugrid_num_faces_local))
@@ -2404,7 +2405,7 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
   pgrid%uface_left_natcellids = -1
   pgrid%uface_right_natcellids = -1
 
-  call VecGetArrayF90(ghosted_cv_proc_rank, v_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(ghosted_cv_proc_rank,v_loc_p,ierr);CHKERRQ(ierr)
   pgrid%num_ufaces_local = 0
   pgrid%uface_nverts = 0
   do iface = 1, pgrid%ugrid_num_faces_local
@@ -2444,15 +2445,17 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
       endif
     endif
   enddo
-  call VecRestoreArrayF90(ghosted_cv_proc_rank, v_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(ghosted_cv_proc_rank,v_loc_p,ierr);CHKERRQ(ierr)
 
-  call VecDestroy(ghosted_cv_proc_rank, ierr);CHKERRQ(ierr)
+  call VecDestroy(ghosted_cv_proc_rank,ierr);CHKERRQ(ierr)
 
 
-  call MPI_Allreduce(pgrid%num_ufaces_local, pgrid%num_ufaces_global, &
-                      ONE_INTEGER_MPI, MPI_INTEGER, MPI_SUM, option%mycomm, ierr)
-  call MPI_Allreduce(pgrid%num_verts_of_ufaces_local, pgrid%num_verts_of_ufaces_global, &
-                      ONE_INTEGER_MPI, MPI_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Allreduce(pgrid%num_ufaces_local,pgrid%num_ufaces_global, &
+                     ONE_INTEGER_MPI,MPI_INTEGER,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(pgrid%num_verts_of_ufaces_local, &
+                     pgrid%num_verts_of_ufaces_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   allocate(pgrid%uface_natvertids(pgrid%num_verts_of_ufaces_local))
   count = 0

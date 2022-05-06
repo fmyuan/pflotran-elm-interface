@@ -81,7 +81,7 @@ subroutine ERTSetup(realization)
 
   error_found = error_found .or. (maxval(flag) > 0)
   call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
-                     MPI_LOR,option%mycomm,ierr)
+                     MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (error_found) then
     option%io_buffer = 'Material property errors found in ERTSetup.'
     call PrintErrMsg(option)
@@ -162,7 +162,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   grid => patch%grid
 
   ! Pre-set Matrix to zeros
-  call MatZeroEntries(M,ierr); CHKERRQ(ierr)
+  call MatZeroEntries(M,ierr);CHKERRQ(ierr)
 
   ! Setting matrix enteries for Internal Flux terms/connections
   connection_set_list => grid%internal_connection_set_list
@@ -224,10 +224,10 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 
       if (local_id_up > 0) then
         ! set matrix coefficients for the upwind cell
-        call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                               coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                               coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_up-1,coef_up, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_dn-1,coef_dn, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
 
         if (compute_delM) then
           ! For dM/dcond_up matrix
@@ -257,10 +257,10 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
         dcoef_up =   dcond_avg_dn * area
         dcoef_dn = - dcoef_up               ! - dcond_avg_dn * area
 
-        call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                               coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                               coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1,coef_dn, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1,coef_up, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
 
         if (compute_delM) then
           ! For dM/dcond_dn matrix
@@ -569,8 +569,9 @@ subroutine ERTCalculateAverageConductivity(realization)
   local_average_cond = local_average_cond / grid%nmax
 
   ! get the average conductivity
-  call MPI_Allreduce(MPI_IN_PLACE,local_average_cond,ONE_INTEGER_MPI,   &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,local_average_cond,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   survey%average_conductivity = local_average_cond
 

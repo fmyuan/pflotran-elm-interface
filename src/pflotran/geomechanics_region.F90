@@ -373,10 +373,10 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
     if (option%myrank < remainder) region%num_verts = region%num_verts + 1
     istart = 0
     iend   = 0
-    call MPI_Exscan(region%num_verts, istart, ONE_INTEGER_MPI, MPIU_INTEGER, &
-                    MPI_SUM, option%mycomm, ierr)
-    call MPI_Scan(region%num_verts, iend, ONE_INTEGER_MPI, MPIU_INTEGER, &
-                   MPI_SUM, option%mycomm, ierr)
+    call MPI_Exscan(region%num_verts,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                    MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(region%num_verts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Allocate memory and save the data
     region%num_verts = iend - istart

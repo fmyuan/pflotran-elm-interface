@@ -723,10 +723,10 @@ subroutine RegionReadFromFileId(region,input,option)
     if (option%myrank < remainder) region%num_cells = region%num_cells + 1
     istart = 0
     iend   = 0
-    call MPI_Exscan(region%num_cells, istart, ONE_INTEGER_MPI, MPIU_INTEGER, &
-                    MPI_SUM, option%mycomm, ierr)
-    call MPI_Scan(region%num_cells, iend, ONE_INTEGER_MPI, MPIU_INTEGER, &
-                   MPI_SUM, option%mycomm, ierr)
+    call MPI_Exscan(region%num_cells,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                    MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(region%num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Allocate memory and save the data
     region%num_cells = iend - istart
@@ -776,9 +776,9 @@ subroutine RegionReadFromFileId(region,input,option)
     istart = 0
     iend   = 0
     call MPI_Exscan(region%num_cells,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                    MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(region%num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                   MPI_SUM,option%mycomm,ierr)
+                    MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(region%num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Allocate memory and save the data
     allocate(region%cell_ids(region%num_cells))
@@ -853,9 +853,9 @@ subroutine RegionReadFromFileId(region,input,option)
     istart = 0
     iend   = 0
     call MPI_Exscan(region%num_verts,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                    MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(region%num_verts,iend,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                   MPI_SUM,option%mycomm,ierr)
+                    MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Scan(region%num_verts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Allocate memory and save the data
     region%num_verts = iend - istart
@@ -1032,8 +1032,8 @@ subroutine RegionReadSideSet(sideset,filename,option)
         print *, trim(string)
 #endif
         int_mpi = num_to_read*max_nvert_per_face
-        call MPI_Send(temp_int_array,int_mpi,MPIU_INTEGER,irank, &
-                      num_to_read,option%mycomm,ierr)
+        call MPI_Send(temp_int_array,int_mpi,MPIU_INTEGER,irank,num_to_read, &
+                      option%mycomm,ierr);CHKERRQ(ierr)
       endif
     enddo
     deallocate(temp_int_array)
@@ -1048,9 +1048,9 @@ subroutine RegionReadSideSet(sideset,filename,option)
 #endif
     sideset%nfaces = num_faces_local
     int_mpi = num_faces_local*max_nvert_per_face
-    call MPI_Recv(sideset%face_vertices,int_mpi, &
-                  MPIU_INTEGER,option%driver%io_rank, &
-                  MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+    call MPI_Recv(sideset%face_vertices,int_mpi,MPIU_INTEGER, &
+                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
@@ -1236,8 +1236,8 @@ subroutine RegionCheckCellIndexBounds(region,num_cells,option)
 
   ! invert for MPI max below
   cell_id_extremes(1) = -cell_id_extremes(1)
-  call MPI_Allreduce(MPI_IN_PLACE, cell_id_extremes, TWO_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_MAX, option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,cell_id_extremes,TWO_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ! invert back
   cell_id_extremes(1) = -cell_id_extremes(1)
 

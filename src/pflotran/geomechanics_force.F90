@@ -459,8 +459,7 @@ subroutine GeomechForceResidual(snes,xx,r,geomech_realization,ierr)
 
   if (geomech_realization%geomech_debug%vecview_solution) then
     call PetscViewerASCIIOpen(geomech_realization%option%mycomm, &
-                              'Geomech_xx.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+                              'Geomech_xx.out',viewer,ierr);CHKERRQ(ierr)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -642,11 +641,11 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
 
 #if 0
   call MPI_Allreduce(error_H1_global,error_H1_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION, &
-                     MPI_SUM,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   call MPI_Allreduce(error_L2_global,error_L2_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION, &
-                     MPI_SUM,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   if (OptionIsIORank(option)) then
     print *, 'L2 error:', sqrt(error_L2_global)
@@ -678,8 +677,10 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       if (associated(boundary_condition%geomech_condition%displacement_x)) then
         select case(boundary_condition%geomech_condition%displacement_x%itype)
           case(DIRICHLET_BC)
-            call VecSetValue(r,(petsc_id-1)*option%ngeomechdof + &
-              GEOMECH_DISP_X_DOF-1,0.d0,INSERT_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValue(r, &
+                             (petsc_id-1)*option% &
+                               ngeomechdof+GEOMECH_DISP_X_DOF-1, &
+                             0.d0,INSERT_VALUES,ierr);CHKERRQ(ierr)
           case(ZERO_GRADIENT_BC)
            ! do nothing
           case(NEUMANN_BC)
@@ -692,8 +693,10 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       if (associated(boundary_condition%geomech_condition%displacement_y)) then
         select case(boundary_condition%geomech_condition%displacement_y%itype)
           case(DIRICHLET_BC)
-            call VecSetValue(r,(petsc_id-1)*option%ngeomechdof + &
-              GEOMECH_DISP_Y_DOF-1,0.d0,INSERT_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValue(r, &
+                             (petsc_id-1)*option% &
+                               ngeomechdof+GEOMECH_DISP_Y_DOF-1, &
+                             0.d0,INSERT_VALUES,ierr);CHKERRQ(ierr)
           case(ZERO_GRADIENT_BC)
            ! do nothing
           case(NEUMANN_BC)
@@ -706,8 +709,10 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       if (associated(boundary_condition%geomech_condition%displacement_z)) then
         select case(boundary_condition%geomech_condition%displacement_z%itype)
           case(DIRICHLET_BC)
-            call VecSetValue(r,(petsc_id-1)*option%ngeomechdof + &
-              GEOMECH_DISP_Z_DOF-1,0.d0,INSERT_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValue(r, &
+                             (petsc_id-1)*option% &
+                               ngeomechdof+GEOMECH_DISP_Z_DOF-1, &
+                             0.d0,INSERT_VALUES,ierr);CHKERRQ(ierr)
           case(ZERO_GRADIENT_BC)
            ! do nothing
           case(NEUMANN_BC)
@@ -742,10 +747,12 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       if (associated(boundary_condition%geomech_condition%force_x)) then
         select case(boundary_condition%geomech_condition%force_x%itype)
           case(DIRICHLET_BC)
-            call VecSetValue(r,(petsc_id-1)*option%ngeomechdof + &
-              GEOMECH_DISP_X_DOF-1, &
-              -boundary_condition%geomech_aux_real_var &
-              (GEOMECH_DISP_X_DOF,ivertex),ADD_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValue(r, &
+                             (petsc_id-1)*option% &
+                               ngeomechdof+GEOMECH_DISP_X_DOF-1, &
+                             -boundary_condition% &
+                               geomech_aux_real_var(GEOMECH_DISP_X_DOF,ivertex), &
+                             ADD_VALUES,ierr);CHKERRQ(ierr)
           case(ZERO_GRADIENT_BC)
            ! do nothing
           case(NEUMANN_BC)
@@ -758,10 +765,12 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       if (associated(boundary_condition%geomech_condition%force_y)) then
         select case(boundary_condition%geomech_condition%force_y%itype)
           case(DIRICHLET_BC)
-            call VecSetValue(r,(petsc_id-1)*option%ngeomechdof + &
-              GEOMECH_DISP_Y_DOF-1, &
-              -boundary_condition%geomech_aux_real_var &
-              (GEOMECH_DISP_Y_DOF,ivertex),ADD_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValue(r, &
+                             (petsc_id-1)*option% &
+                               ngeomechdof+GEOMECH_DISP_Y_DOF-1, &
+                             -boundary_condition% &
+                               geomech_aux_real_var(GEOMECH_DISP_Y_DOF,ivertex), &
+                             ADD_VALUES,ierr);CHKERRQ(ierr)
           case(ZERO_GRADIENT_BC)
            ! do nothing
           case(NEUMANN_BC)
@@ -775,10 +784,12 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       if (associated(boundary_condition%geomech_condition%force_z)) then
         select case(boundary_condition%geomech_condition%force_z%itype)
           case(DIRICHLET_BC)
-            call VecSetValue(r,(petsc_id-1)*option%ngeomechdof + &
-              GEOMECH_DISP_Z_DOF-1, &
-              -boundary_condition%geomech_aux_real_var &
-              (GEOMECH_DISP_Z_DOF,ivertex),ADD_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValue(r, &
+                             (petsc_id-1)*option% &
+                               ngeomechdof+GEOMECH_DISP_Z_DOF-1, &
+                             -boundary_condition% &
+                               geomech_aux_real_var(GEOMECH_DISP_Z_DOF,ivertex), &
+                             ADD_VALUES,ierr);CHKERRQ(ierr)
           case(ZERO_GRADIENT_BC)
            ! do nothing
           case(NEUMANN_BC)
@@ -1327,8 +1338,8 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
 
   if (geomech_realization%geomech_debug%matview_Matrix) then
     call PetscViewerASCIIOpen(geomech_realization%option%mycomm, &
-                              'Geomech_jacobian.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+                              'Geomech_jacobian.out',viewer, &
+                              ierr);CHKERRQ(ierr)
 
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -1499,8 +1510,8 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
                    option%ngeomechdof*(id2-1)+GEOMECH_DISP_X_DOF: &
                    option%ngeomechdof*(id2-1)+GEOMECH_DISP_Z_DOF)
 
-        call MatSetValuesBlocked(A,1,petsc_id1-1,1,petsc_id2-1, &
-                                 Jac_sub_mat,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlocked(A,1,petsc_id1-1,1,petsc_id2-1,Jac_sub_mat, &
+                                 ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
     enddo
 
@@ -1587,12 +1598,11 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
     boundary_condition => boundary_condition%next
   enddo
 
-  call MatZeroRowsLocal(A,count,rows,1.d0, &
-                        PETSC_NULL_VEC,PETSC_NULL_VEC, &
+  call MatZeroRowsLocal(A,count,rows,1.d0,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   call MatSetOption(A,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
                     ierr);CHKERRQ(ierr)
-  call MatStoreValues(A,ierr);CHKERRQ(ierr) ! Store the linear part of Jacobian
+  call MatStoreValues(A,ierr);CHKERRQ(ierr)
 
   deallocate(rows)
 
@@ -1663,12 +1673,10 @@ subroutine GeomechUpdateFromSubsurf(realization,geomech_realization)
 
   ! Scatter the data
   call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                       geomech_field%subsurf_vec_1dof, &
-                       geomech_field%press, &
+                       geomech_field%subsurf_vec_1dof,geomech_field%press, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                     geomech_field%subsurf_vec_1dof, &
-                     geomech_field%press, &
+                     geomech_field%subsurf_vec_1dof,geomech_field%press, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! temperature
@@ -1687,12 +1695,10 @@ subroutine GeomechUpdateFromSubsurf(realization,geomech_realization)
 
     ! Scatter the data
     call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                         geomech_field%subsurf_vec_1dof, &
-                         geomech_field%temp, &
+                         geomech_field%subsurf_vec_1dof,geomech_field%temp, &
                          INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterEnd(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                       geomech_field%subsurf_vec_1dof, &
-                       geomech_field%temp, &
+                       geomech_field%subsurf_vec_1dof,geomech_field%temp, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   endif
 
@@ -1756,23 +1762,19 @@ subroutine GeomechUpdateSubsurfFromGeomech(realization,geomech_realization)
 
   ! Scatter the strains
   call VecScatterBegin(dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                       geomech_field%strain, &
-                       geomech_field%strain_subsurf, &
+                       geomech_field%strain,geomech_field%strain_subsurf, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                       geomech_field%strain, &
-                       geomech_field%strain_subsurf, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     geomech_field%strain,geomech_field%strain_subsurf, &
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! Scatter the stresses
   call VecScatterBegin(dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                       geomech_field%stress, &
-                       geomech_field%stress_subsurf, &
+                       geomech_field%stress,geomech_field%stress_subsurf, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                       geomech_field%stress, &
-                       geomech_field%stress_subsurf, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     geomech_field%stress,geomech_field%stress_subsurf, &
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   ! Scatter from global to local vectors
   call DiscretizationGlobalToLocal(realization%discretization, &
@@ -1825,8 +1827,8 @@ subroutine GeomechCreateGeomechSubsurfVec(realization,geomech_realization)
 
   call VecCreate(option%mycomm,geomech_field%subsurf_vec_1dof, &
                  ierr);CHKERRQ(ierr)
-  call VecSetSizes(geomech_field%subsurf_vec_1dof, &
-                   grid%nlmax,PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(geomech_field%subsurf_vec_1dof,grid%nlmax,PETSC_DECIDE, &
+                   ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_field%subsurf_vec_1dof,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechCreateGeomechSubsurfVec
@@ -1871,8 +1873,8 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   ! strain
   call VecCreate(option%mycomm,geomech_field%strain_subsurf, &
                  ierr);CHKERRQ(ierr)
-  call VecSetSizes(geomech_field%strain_subsurf, &
-                   grid%nlmax*SIX_INTEGER,PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(geomech_field%strain_subsurf,grid%nlmax*SIX_INTEGER, &
+                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
   call VecSetBlockSize(geomech_field%strain_subsurf,SIX_INTEGER, &
                        ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_field%strain_subsurf,ierr);CHKERRQ(ierr)
@@ -1880,8 +1882,8 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   ! stress
   call VecCreate(option%mycomm,geomech_field%stress_subsurf, &
                  ierr);CHKERRQ(ierr)
-  call VecSetSizes(geomech_field%stress_subsurf, &
-                   grid%nlmax*SIX_INTEGER,PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(geomech_field%stress_subsurf,grid%nlmax*SIX_INTEGER, &
+                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
   call VecSetBlockSize(geomech_field%stress_subsurf,SIX_INTEGER, &
                        ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_field%stress_subsurf,ierr);CHKERRQ(ierr)
@@ -1889,8 +1891,8 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   ! strain_loc
   call VecCreate(PETSC_COMM_SELF,geomech_field%strain_subsurf_loc, &
                  ierr);CHKERRQ(ierr)
-  call VecSetSizes(geomech_field%strain_subsurf_loc, &
-                   grid%ngmax*SIX_INTEGER,PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(geomech_field%strain_subsurf_loc,grid%ngmax*SIX_INTEGER, &
+                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
   call VecSetBlockSize(geomech_field%strain_subsurf_loc,SIX_INTEGER, &
                        ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_field%strain_subsurf_loc,ierr);CHKERRQ(ierr)
@@ -1898,8 +1900,8 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   ! stress_loc
   call VecCreate(PETSC_COMM_SELF,geomech_field%stress_subsurf_loc, &
                  ierr);CHKERRQ(ierr)
-  call VecSetSizes(geomech_field%stress_subsurf_loc, &
-                   grid%ngmax*SIX_INTEGER,PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(geomech_field%stress_subsurf_loc,grid%ngmax*SIX_INTEGER, &
+                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
   call VecSetBlockSize(geomech_field%stress_subsurf_loc,SIX_INTEGER, &
                        ierr);CHKERRQ(ierr)
   call VecSetFromOptions(geomech_field%stress_subsurf_loc,ierr);CHKERRQ(ierr)

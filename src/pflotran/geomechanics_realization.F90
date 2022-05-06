@@ -379,13 +379,13 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   ! Convert from 1-based to 0-based
   ! Create IS for flow side cell ids
   call ISCreateGeneral(option%mycomm,geomech_grid%mapping_num_cells, &
-                       geomech_grid%mapping_cell_ids_flow-1, &
-                       PETSC_COPY_VALUES,is_subsurf,ierr);CHKERRQ(ierr)
+                       geomech_grid%mapping_cell_ids_flow-1,PETSC_COPY_VALUES, &
+                       is_subsurf,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_is_mapping_cell_ids_flow.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_is_mapping_cell_ids_flow.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_subsurf,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -422,9 +422,8 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   enddo
 
   ! Flow natural numbering IS
-  call ISCreateGeneral(option%mycomm,grid%nlmax, &
-                       int_array,PETSC_COPY_VALUES,is_subsurf_natural, &
-                       ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,grid%nlmax,int_array,PETSC_COPY_VALUES, &
+                       is_subsurf_natural,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
 #if GEOMECH_DEBUG
@@ -440,9 +439,8 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   enddo
 
   ! Flow petsc numbering IS
-  call ISCreateGeneral(option%mycomm,grid%nlmax, &
-                       int_array,PETSC_COPY_VALUES,is_subsurf_petsc, &
-                       ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,grid%nlmax,int_array,PETSC_COPY_VALUES, &
+                       is_subsurf_petsc,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
 #if GEOMECH_DEBUG
@@ -454,19 +452,18 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 
   ! AO for flow natural to petsc numbering
   call AOCreateMappingIS(is_subsurf_natural,is_subsurf_petsc, &
-                         ao_subsurf_natual_to_petsc, &
-                         ierr);CHKERRQ(ierr)
+                         ao_subsurf_natual_to_petsc,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_ao_subsurf_natural_to_petsc.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_ao_subsurf_natural_to_petsc.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call AOView(ao_subsurf_natual_to_petsc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-  call AOApplicationToPetscIS(ao_subsurf_natual_to_petsc, &
-                              is_subsurf,ierr);CHKERRQ(ierr)
+  call AOApplicationToPetscIS(ao_subsurf_natual_to_petsc,is_subsurf, &
+                              ierr);CHKERRQ(ierr)
 
 
   call ISDuplicate(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
@@ -507,8 +504,8 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_scatter_subsurf_to_geomech.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_scatter_subsurf_to_geomech.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call VecScatterView(scatter,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -531,15 +528,15 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
     int_array(local_id) = int_ptr(local_id)
   enddo
   call ISRestoreIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
-                     int_array,PETSC_COPY_VALUES,is_geomech_petsc_block, &
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr,int_array, &
+                     PETSC_COPY_VALUES,is_geomech_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_is_geomech_petsc_block.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_is_geomech_petsc_block.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_geomech_petsc_block,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -551,15 +548,15 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
     int_array(local_id) = int_ptr(local_id)
   enddo
   call ISRestoreIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
-                     int_array,PETSC_COPY_VALUES,is_subsurf_petsc_block, &
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr,int_array, &
+                     PETSC_COPY_VALUES,is_subsurf_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
-                            'geomech_is_subsurf_petsc_block.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+                            'geomech_is_subsurf_petsc_block.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_subsurf_petsc_block,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -665,12 +662,12 @@ subroutine GeomechGridElemSharedByNodes(geomech_realization,option)
   write(string,*) option%myrank
   string = 'no_elems_sharing_node_loc_' // trim(adjustl(string)) // '.out'
 
-  call PetscViewerASCIIOpen(PETSC_COMM_SELF,trim(string), &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(PETSC_COMM_SELF,trim(string),viewer, &
+                            ierr);CHKERRQ(ierr)
   call VecView(grid%no_elems_sharing_node_loc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerASCIIOpen(option%mycomm,'no_elems_sharing_node.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'no_elems_sharing_node.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call VecView(grid%no_elems_sharing_node,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif

@@ -64,11 +64,9 @@ recursive subroutine DataMediatorVecUpdate(this,data_mediator_vec,option)
 
   PetscErrorCode :: ierr
 
-  call VecScatterBegin(this%scatter_ctx,this%vec, &
-                       data_mediator_vec,ADD_VALUES, &
+  call VecScatterBegin(this%scatter_ctx,this%vec,data_mediator_vec,ADD_VALUES, &
                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_ctx,this%vec, &
-                     data_mediator_vec,ADD_VALUES, &
+  call VecScatterEnd(this%scatter_ctx,this%vec,data_mediator_vec,ADD_VALUES, &
                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
 end subroutine DataMediatorVecUpdate

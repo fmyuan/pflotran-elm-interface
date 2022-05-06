@@ -144,7 +144,8 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   ! 2. Update auxvars based on new value of dpressure_dtime, mass, and
   !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
+                          ierr);CHKERRQ(ierr)
 
 
   do ghosted_id = 1, grid%ngmax
@@ -206,7 +207,7 @@ subroutine PMTHTSIFunction(this,ts,time,U,Udot,F,ierr)
   field => realization%field
   discretization => realization%discretization
 
-  call VecZeroEntries(F, ierr); CHKERRQ(ierr)
+  call VecZeroEntries(F,ierr);CHKERRQ(ierr)
 
   call THUpdateLocalVecs(U,realization,ierr)
 
@@ -279,7 +280,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
 
-  call VecGetArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(F,f_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -347,7 +348,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
   enddo
 
-  call VecRestoreArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(F,f_p,ierr);CHKERRQ(ierr)
 
 end subroutine IFunctionAccumulation
 
@@ -398,8 +399,8 @@ subroutine PMTHTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   call IJacobianAccumulation(J,shift,realization,ierr)
 
   if (A /= B) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   endif
 
 

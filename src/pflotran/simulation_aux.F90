@@ -92,10 +92,10 @@ subroutine SimAuxCopyVecScatter(aux, vscat, vscat_index)
 
   select case (vscat_index)
     case(SUBSURF_TO_GEOMECHANICS)
-      call VecScatterCopy(vscat, aux%subsurf_to_geomechanics,  &
+      call VecScatterCopy(vscat,aux%subsurf_to_geomechanics, &
                           ierr);CHKERRQ(ierr)
     case(GEOMECHANICS_TO_SUBSURF)
-      call VecScatterCopy(vscat, aux%geomechanics_to_subsurf,  &
+      call VecScatterCopy(vscat,aux%geomechanics_to_subsurf, &
                           ierr);CHKERRQ(ierr)
   end select
 
@@ -122,7 +122,7 @@ subroutine SimAuxCopySubsurfVec(aux, subsurf_vec)
   call VecDuplicate(subsurf_vec,aux%subsurf_temp,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por0,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por,ierr);CHKERRQ(ierr)
-  call VecDuplicate(subsurf_vec,aux%subsurf_perm0,ierr);CHKERRQ(ierr) !DANNY
+  call VecDuplicate(subsurf_vec,aux%subsurf_perm0,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_perm,ierr);CHKERRQ(ierr)
 
 end subroutine SimAuxCopySubsurfVec
@@ -143,9 +143,9 @@ subroutine SimAuxCopySubsurfGeomechVec(aux, subsurf_geomech_vec)
 
   PetscErrorCode :: ierr
 
-  call VecDuplicate(subsurf_geomech_vec, aux%subsurf_stress,  &
+  call VecDuplicate(subsurf_geomech_vec,aux%subsurf_stress, &
                     ierr);CHKERRQ(ierr)
-  call VecDuplicate(subsurf_geomech_vec, aux%subsurf_strain,  &
+  call VecDuplicate(subsurf_geomech_vec,aux%subsurf_strain, &
                     ierr);CHKERRQ(ierr)
 
 end subroutine SimAuxCopySubsurfGeomechVec
@@ -194,10 +194,10 @@ subroutine SimAuxDestroy(aux)
   endif
 
   if (aux%subsurf_to_geomechanics /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(aux%subsurf_to_geomechanics, ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(aux%subsurf_to_geomechanics,ierr);CHKERRQ(ierr)
   endif
   if (aux%geomechanics_to_subsurf /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(aux%geomechanics_to_subsurf, ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(aux%geomechanics_to_subsurf,ierr);CHKERRQ(ierr)
   endif
 
   deallocate(aux)

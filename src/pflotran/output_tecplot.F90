@@ -1262,7 +1262,8 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
   Vec :: global_vec
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_vec_tecplot,ierr);CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_output_vec_tecplot, &
+                          ierr);CHKERRQ(ierr)
 
   option => realization_base%option
   patch => realization_base%patch
@@ -1496,8 +1497,8 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
   select case (grid%itype)
     case (IMPLICIT_UNSTRUCTURED_GRID, POLYHEDRA_UNSTRUCTURED_GRID)
       call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-      grid%unstructured_grid%num_vertices_global, &
-      global_vertex_vec,ierr);CHKERRQ(ierr)
+                        grid%unstructured_grid%num_vertices_global, &
+                        global_vertex_vec,ierr);CHKERRQ(ierr)
       call VecGetLocalSize(global_vertex_vec,local_size,ierr);CHKERRQ(ierr)
       call OutputGetVertexCoordinates(grid, global_vertex_vec,X_COORDINATE,option)
       call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1523,7 +1524,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
       local_size)
       call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-      call VecDestroy(global_vertex_vec, ierr);CHKERRQ(ierr)
+      call VecDestroy(global_vertex_vec,ierr);CHKERRQ(ierr)
     case (EXPLICIT_UNSTRUCTURED_GRID)
       if (OptionIsIORank(option)) then
         if (output_option%print_explicit_primal_grid) then
@@ -1724,9 +1725,9 @@ subroutine WriteTecplotUGridElements(fid,realization_base)
                            NATURAL,option)
   call OutputGetCellVerticesTecplot(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetNumPerLine(fid,realization_base,vec_ptr, &
                                      TECPLOT_INTEGER, &
@@ -1768,7 +1769,7 @@ subroutine OutputGetCellVerticesTecplot(grid, vec)
 
   ugrid => grid%unstructured_grid
 
-  call VecGetArrayF90( vec, vec_ptr, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! initialize
   vec_ptr = UNINITIALIZED_DOUBLE
@@ -1845,7 +1846,7 @@ subroutine OutputGetCellVerticesTecplot(grid, vec)
     end select
   enddo
 
-  call VecRestoreArrayF90( vec, vec_ptr, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine OutputGetCellVerticesTecplot
 
@@ -1979,14 +1980,15 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
 
   if (size_flag /= 0) then
     call MPI_Allreduce(size_flag,max_local_size,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,option%mycomm,ierr)
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
     local_size_mpi = size_flag
   else
   ! if first time, determine the maximum size of any local array across
   ! all procs
     if (max_local_size_saved < 0) then
       call MPI_Allreduce(grid%nlmax,max_local_size,ONE_INTEGER_MPI, &
-                         MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+                         MPIU_INTEGER,MPI_MAX,option%mycomm, &
+                         ierr);CHKERRQ(ierr)
       max_local_size_saved = max_local_size
       write(option%io_buffer,'("max_local_size_saved: ",i9)') max_local_size
       call PrintMsg(option)
@@ -2055,14 +2057,17 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
       endif
 #endif
-      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                     ierr);CHKERRQ(ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == TECPLOT_INTEGER) then
         call MPI_Recv(integer_data_recv,recv_size_mpi,MPIU_INTEGER,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+                      MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           integer_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              integer_data_recv(1:recv_size_mpi)
@@ -2091,8 +2096,9 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
           num_in_array = num_in_array-iend
         endif
       else
-        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION, &
+                      iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           real_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              real_data_recv(1:recv_size_mpi)
@@ -2116,7 +2122,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
       call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     option%driver%io_rank,option%mycomm,ierr)
+                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
 #endif
     ! Print the remaining values, if they exist
@@ -2145,24 +2151,24 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       do
         if (option%myrank < max_proc) exit
         call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
       enddo
     endif
 #endif
     if (datatype == TECPLOT_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     else
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     endif
 #ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
         call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
         if (max_proc < 0) exit
       enddo
     endif
@@ -2176,7 +2182,8 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
     deallocate(real_data)
   endif
 
-  call PetscLogEventEnd(logging%event_output_write_tecplot,ierr);CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_output_write_tecplot, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine WriteTecplotDataSetNumPerLine
 

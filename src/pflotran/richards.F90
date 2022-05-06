@@ -183,7 +183,7 @@ subroutine RichardsSetupPatch(realization)
 
   error_found = error_found .or. (maxval(flag) > 0)
   call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
-                     MPI_LOR,option%mycomm,ierr)
+                     MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (error_found) then
     option%io_buffer = 'Material property errors found in RichardsSetup.'
     call PrintErrMsg(option)
@@ -620,7 +620,7 @@ subroutine RichardsUpdatePermPatch(realization)
   call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -650,7 +650,7 @@ subroutine RichardsUpdatePermPatch(realization)
   call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
@@ -755,7 +755,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Compute auxvars for the accumulation term that corresponding
   ! to values for the current time step
@@ -900,7 +900,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
     source_sink => source_sink%next
   enddo
 
-  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%Richards%auxvars_up_to_date = PETSC_TRUE
   if (option%flow%inline_surface_flow) then
@@ -1078,9 +1078,9 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 !  numfaces = 6     ! hex only
 !  allocate(sq_faces(numfaces))
@@ -1125,8 +1125,8 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
     enddo
   endif
 
-  call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 end subroutine RichardsUpdateFixedAccumPatch
 
@@ -1180,8 +1180,7 @@ subroutine RichardsNumericalJacTest(xx,realization)
 
   call MatCreate(option%mycomm,A,ierr);CHKERRQ(ierr)
   call MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%nflowdof, &
-                   grid%nlmax*option%nflowdof, &
-                   ierr);CHKERRQ(ierr)
+                   grid%nlmax*option%nflowdof,ierr);CHKERRQ(ierr)
   call MatSetType(A,MATAIJ,ierr);CHKERRQ(ierr)
   call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
 
@@ -1327,7 +1326,7 @@ subroutine RichardsResidualPreliminaries(xx,r,realization,ierr)
   patch => realization%patch
   option => realization%option
 
-  call VecZeroEntries(r, ierr); CHKERRQ(ierr)
+  call VecZeroEntries(r,ierr);CHKERRQ(ierr)
 
   call RichardsUpdateLocalVecs(xx,realization,ierr)
 
@@ -1466,7 +1465,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
     insurf_auxvars => patch%aux%InlineSurface%auxvars
   endif
 
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -1570,7 +1569,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
 end subroutine RichardsResidualInternalConn
 
@@ -1634,7 +1633,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
@@ -1734,7 +1733,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
 
   endif
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
 end subroutine RichardsResidualBoundaryConn
 
@@ -1809,9 +1808,9 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
   ! now assign access pointer to local variables
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_p,ierr);CHKERRQ(ierr)
 #endif
 
   ! Source/sink terms -------------------------------------
@@ -1923,13 +1922,13 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
     enddo
   endif
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
   call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                          global_auxvars,rich_auxvars,option)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayF90(clm_pf_idata%qflx_pf,qflx_pf_p,ierr);CHKERRQ(ierr)
 #endif
 
   ! Mass Transfer
@@ -1999,9 +1998,9 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   endif
 
   ! now assign access pointer to local variables
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%flow%steady_state) then
@@ -2036,9 +2035,9 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
 
   endif
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
 
 end subroutine RichardsResidualAccumulation
 
@@ -2100,7 +2099,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
     ! If the Jacobian and preconditioner matrices are different (and not
     ! because we are using a "matrix free" Jacobian), then we need to
     ! copy the computed Jacobian into the preconditioner matrix.
-    call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr);
+    call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr)
   endif
 
   if (realization%debug%matview_Matrix) then
@@ -2125,15 +2124,15 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   endif
 
 #if 0
-    call PetscViewerASCIIOpen(realization%option%mycomm,'flow_dxx.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(realization%option%mycomm,'flow_dxx.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(realization%field%flow_dxx,viewer,ierr);CHKERRQ(ierr)
 
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
 
-    call PetscViewerASCIIOpen(realization%option%mycomm,'flow_yy.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerASCIIOpen(realization%option%mycomm,'flow_yy.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(realization%field%flow_yy,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -2279,10 +2278,10 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
           istart_up = (ghosted_id_up-1)*option%nflowdof + 1
           istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
 
-          call MatSetValuesLocal(A,1,istart_up-1,1,istart_up-1, &
-                                        Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesLocal(A,1,istart_up-1,1,istart_dn-1, &
-                                        Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,istart_up-1,1,istart_up-1,Jup,ADD_VALUES, &
+                                 ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,istart_up-1,1,istart_dn-1,Jdn,ADD_VALUES, &
+                                 ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
         endif
 #endif
@@ -2302,10 +2301,10 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
           istart_up = (ghosted_id_up-1)*option%nflowdof + 1
           istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
 
-          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_dn-1, &
-                                        Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_up-1, &
-                                        Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_dn-1,Jdn,ADD_VALUES, &
+                                 ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_up-1,Jup,ADD_VALUES, &
+                                 ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
         endif
 #endif
@@ -2350,19 +2349,19 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
       if (local_id_up>0) then
         istart_up = (ghosted_id_up-1)*option%nflowdof + 1
         istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
-        call MatSetValuesLocal(A,1,istart_up-1,1,istart_up-1, &
-             Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesLocal(A,1,istart_up-1,1,istart_dn-1, &
-             Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart_up-1,1,istart_up-1,Jup,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart_up-1,1,istart_dn-1,Jdn,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
       endif
 
       if (local_id_dn>0) then
         istart_up = (ghosted_id_up-1)*option%nflowdof + 1
         istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
-        call MatSetValuesLocal(A,1,istart_dn-1,1,istart_dn-1, &
-             -Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesLocal(A,1,istart_dn-1,1,istart_up-1, &
-             -Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart_dn-1,1,istart_dn-1,-Jdn,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart_dn-1,1,istart_up-1,-Jup,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
       endif
     enddo
     cur_connection_set => cur_connection_set%next
@@ -2493,8 +2492,8 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
 #endif
         istart = (ghosted_id-1)*option%nflowdof + 1
 
-        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jdn, &
-                               ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jdn,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
       endif
 #endif
@@ -2542,8 +2541,8 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
           Jdn = -Jdn
 
           istart = (ghosted_id-1)*option%nflowdof + 1
-          call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jdn, &
-               ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jdn,ADD_VALUES, &
+                                 ierr);CHKERRQ(ierr)
 
         enddo
       endif
@@ -2644,8 +2643,8 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
 #endif
         istart = (ghosted_id-1)*option%nflowdof + 1
 
-        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup, &
-             ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
       endif
 #endif
@@ -2659,8 +2658,8 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
         call InlineSurfaceAccumulationJac(inlinesurface_auxvars(region_id), &
              material_auxvars(ghosted_id),option,Jup)
         istart = (ghosted_id-1)*option%nflowdof + 1
-        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup, &
-             ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup,ADD_VALUES, &
+                               ierr);CHKERRQ(ierr)
       enddo
     endif
 
@@ -2862,7 +2861,8 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 #endif
     if (patch%aux%Richards%inactive_cells_exist) then
       qsrc = 1.d0 ! solely a temporary variable in this conditional
-      call MatZeroRowsLocal(A,patch%aux%Richards%matrix_zeroing% &
+      call MatZeroRowsLocal(A, &
+                            patch%aux%Richards%matrix_zeroing% &
                               n_inactive_rows, &
                             patch%aux%Richards%matrix_zeroing% &
                               inactive_rows_local_ghosted, &
@@ -2906,8 +2906,8 @@ subroutine RichardsMaxChange(realization,dpmax)
   dpmax = 0.d0
   call VecWAXPY(field%flow_dxx,-1.d0,field%flow_xx,field%flow_yy, &
                 ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY, &
-                     dpmax,ierr);CHKERRQ(ierr)
+  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,dpmax, &
+                     ierr);CHKERRQ(ierr)
 
 end subroutine RichardsMaxChange
 
@@ -3045,9 +3045,8 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
       call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
                                 material_auxvars(ghosted_id), &
                                 aux_real,option)
-      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1, &
-                                    ghosted_id-1,Jac,ADD_VALUES, &
-                                    ierr);CHKERRQ(ierr)
+      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
+                                    Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
     else
       iend = local_id*option%nflowdof
       istart = iend - option%nflowdof + 1
@@ -3116,12 +3115,12 @@ subroutine RichardsComputeLateralMassFlux(realization)
 
   call RichardsUpdateAuxVarsPatch(realization)
 
-  call VecZeroEntries(field%flow_mass_transfer, ierr); CHKERRQ(ierr)
+  call VecZeroEntries(field%flow_mass_transfer,ierr);CHKERRQ(ierr)
 
   call RichardsResidualInternalConn(field%flow_mass_transfer, &
                                     realization, VERT_CONN, ierr)
 
-  call VecScale(field%flow_mass_transfer, -1.d0, ierr); CHKERRQ(ierr)
+  call VecScale(field%flow_mass_transfer,-1.d0,ierr);CHKERRQ(ierr)
 
 end subroutine RichardsComputeLateralMassFlux
 

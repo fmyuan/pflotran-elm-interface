@@ -115,8 +115,8 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
   endif
   istart = 0
   iend   = 0
-  call MPI_Exscan(read_block_size, istart, ONE_INTEGER_MPI, MPIU_INTEGER, &
-                  MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(read_block_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   rank_mpi = 1
   offset = 0
@@ -364,7 +364,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
 
   ! first determine upper and lower bound on PETSc global array
   call MPI_Scan(grid%nlmax,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                option%mycomm,ierr)
+                option%mycomm,ierr);CHKERRQ(ierr)
   istart = iend - grid%nlmax
 
   call h5dopen_f(file_id,dataset_name,data_set_id,hdf5_err)
@@ -439,8 +439,8 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   cell_id_bounds(1) = minval(indices(1:iend-istart))
   cell_id_bounds(2) = maxval(indices(1:iend-istart))
   cell_id_bounds(1) = -cell_id_bounds(1)
-  call MPI_Allreduce(MPI_IN_PLACE,cell_id_bounds,TWO_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,cell_id_bounds,TWO_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   cell_id_bounds(1) = -cell_id_bounds(1)
   if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > grid%nmax) then
     option%io_buffer = 'One or more "Cell Ids" in HDF5 dataset &
@@ -584,8 +584,8 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
     ! must convert indices to zero based for VecSetValues
     allocate(indices0(iend-istart))
     indices0 = indices(1:iend-istart)-1
-    call VecSetValues(natural_vec,iend-istart,indices0, &
-                      real_buffer,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValues(natural_vec,iend-istart,indices0,real_buffer, &
+                      INSERT_VALUES,ierr);CHKERRQ(ierr)
     deallocate(indices0)
     deallocate(real_buffer)
 
@@ -893,10 +893,10 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   ! Find istart and iend
   istart = 0
   iend   = 0
-  call MPI_Exscan(sideset%nfaces,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                  MPI_SUM,option%mycomm,ierr)
-  call MPI_Scan(sideset%nfaces,iend,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                MPI_SUM,option%mycomm,ierr)
+  call MPI_Exscan(sideset%nfaces,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Scan(sideset%nfaces,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                option%mycomm,ierr);CHKERRQ(ierr)
 
   ! Determine the length and offset of data to be read by each processor
   length(1) = dims_h5(1)
@@ -1351,8 +1351,8 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(1) = istart
   length(1) = local_size
@@ -1489,8 +1489,8 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(1) = istart
   length(1) = local_size

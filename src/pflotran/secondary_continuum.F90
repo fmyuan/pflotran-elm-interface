@@ -1588,9 +1588,9 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
 
       max_inf_norm_sec = max(max_inf_norm_sec,inf_norm_sec)
     enddo
-    call MPI_Allreduce(max_inf_norm_sec,option%infnorm_res_sec,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION, &
-                       MPI_MAX,option%mycomm,ierr)
+    call MPI_Allreduce(max_inf_norm_sec,option%infnorm_res_sec, &
+                       ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MAX, &
+                       option%mycomm,ierr);CHKERRQ(ierr)
   endif
 
 

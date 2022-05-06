@@ -226,21 +226,20 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
   !-----------------------------------------------------------------------
   ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
   call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
-                    DM_BOUNDARY_NONE,stencil_type, &
-                    structured_grid%nx,structured_grid%ny,structured_grid%nz, &
-                    structured_grid%npx,structured_grid%npy, &
-                    structured_grid%npz,ndof,stencil_width, &
-                    PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
-                    da,ierr);CHKERRQ(ierr)
+                    DM_BOUNDARY_NONE,stencil_type,structured_grid%nx, &
+                    structured_grid%ny,structured_grid%nz,structured_grid%npx, &
+                    structured_grid%npy,structured_grid%npz,ndof, &
+                    stencil_width,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
+                    PETSC_NULL_INTEGER,da,ierr);CHKERRQ(ierr)
   call DMSetFromOptions(da,ierr);CHKERRQ(ierr)
   call DMSetup(da,ierr);CHKERRQ(ierr)
   call DMDAGetInfo(da,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                    PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                    structured_grid%npx_final,structured_grid%npy_final, &
-                   structured_grid%npz_final, &
+                   structured_grid%npz_final,PETSC_NULL_INTEGER, &
                    PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                    PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
-                   PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+                   ierr);CHKERRQ(ierr)
 
 end subroutine StructGridCreateDM
 
@@ -268,9 +267,10 @@ subroutine StructGridComputeLocalBounds(structured_grid,da,option)
   PetscErrorCode :: ierr
 
   ! get corner information
-  call DMDAGetCorners(da, structured_grid%lxs, &
-      structured_grid%lys, structured_grid%lzs, structured_grid%nlx, &
-      structured_grid%nly, structured_grid%nlz, ierr);CHKERRQ(ierr)
+  call DMDAGetCorners(da,structured_grid%lxs,structured_grid%lys, &
+                      structured_grid%lzs,structured_grid%nlx, &
+                      structured_grid%nly,structured_grid%nlz, &
+                      ierr);CHKERRQ(ierr)
 
   structured_grid%lxe = structured_grid%lxs + structured_grid%nlx
   structured_grid%lye = structured_grid%lys + structured_grid%nly
@@ -281,9 +281,10 @@ subroutine StructGridComputeLocalBounds(structured_grid,da,option)
   structured_grid%nlmax = structured_grid%nlx * structured_grid%nly * structured_grid%nlz
 
   ! get ghosted corner information
-  call DMDAGetGhostCorners(da, structured_grid%gxs, &
-      structured_grid%gys, structured_grid%gzs, structured_grid%ngx, &
-      structured_grid%ngy, structured_grid%ngz, ierr);CHKERRQ(ierr)
+  call DMDAGetGhostCorners(da,structured_grid%gxs,structured_grid%gys, &
+                           structured_grid%gzs,structured_grid%ngx, &
+                           structured_grid%ngy,structured_grid%ngz, &
+                           ierr);CHKERRQ(ierr)
 
   structured_grid%gxe = structured_grid%gxs + structured_grid%ngx
   structured_grid%gye = structured_grid%gys + structured_grid%ngy
@@ -295,7 +296,8 @@ subroutine StructGridComputeLocalBounds(structured_grid,da,option)
 
   structured_grid%global_offset = 0
   call MPI_Exscan(structured_grid%nlmax,structured_grid%global_offset, &
-                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                  ierr);CHKERRQ(ierr)
 
 end subroutine StructGridComputeLocalBounds
 
@@ -1337,7 +1339,7 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
   PetscReal :: r1, r2
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(volume,volume_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(volume,volume_p,ierr);CHKERRQ(ierr)
 
   select case(structured_grid%itype)
     case(CARTESIAN_GRID)
@@ -1366,7 +1368,7 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
       enddo
   end select
 
-  call VecRestoreArrayF90(volume,volume_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(volume,volume_p,ierr);CHKERRQ(ierr)
 
   if (option%driver%print_to_screen .and. &
       option%comm%mycommsize > 1 .and. &
@@ -1957,33 +1959,31 @@ subroutine StructGridCreateTVDGhosts(structured_grid,ndof,global_vec, &
   endif
 
   ! since global_indices_from was base-zero, global_indices_from is base-zero.
-  call ISCreateBlock(option%mycomm,ndof,vector_size, &
-                      global_indices_from,PETSC_COPY_VALUES,is_petsc, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,ndof,vector_size,global_indices_from, &
+                     PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
   deallocate(global_indices_from)
 
 #if TVD_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'is_petsc_tvd.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'is_petsc_tvd.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_petsc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
   ! already zero-based
-  call ISCreateBlock(option%mycomm,ndof,vector_size, &
-                      tvd_ghost_indices_to,PETSC_COPY_VALUES,is_ghost, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,ndof,vector_size,tvd_ghost_indices_to, &
+                     PETSC_COPY_VALUES,is_ghost,ierr);CHKERRQ(ierr)
   deallocate(tvd_ghost_indices_to)
 
 #if TVD_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'is_ghost_tvd.out', &
-                            viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'is_ghost_tvd.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call ISView(is_ghost,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-  call VecScatterCreate(global_vec,is_petsc,ghost_vec,is_ghost, &
-                        scatter_ctx,ierr);CHKERRQ(ierr)
+  call VecScatterCreate(global_vec,is_petsc,ghost_vec,is_ghost,scatter_ctx, &
+                        ierr);CHKERRQ(ierr)
 
 #if TVD_DEBUG
   call PetscViewerASCIIOpen(option%mycomm,'tvd_ghost_scatter.out',viewer, &

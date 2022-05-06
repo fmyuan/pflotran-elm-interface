@@ -614,7 +614,7 @@ subroutine EOSRead(input,option)
             if (OptionIsIORank(option)) then
               call co2_span_wagner_db_write(temparray,subkeyword,option)
             end if
-            call MPI_Barrier(option%mycomm,ierr)
+            call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
             call EOSGasSetEOSDBase(subkeyword,option)
           case('DATABASE')
             call InputReadWord(input,option,word,PETSC_TRUE)

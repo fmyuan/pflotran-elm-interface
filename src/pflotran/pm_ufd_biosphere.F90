@@ -869,7 +869,7 @@ subroutine PMUFDBAssociateRegion(this,region_list)
           enddo
           call MPI_Allreduce(total_volume_local,total_volume_global, &
                              ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                             option%mycomm,ierr)
+                             option%mycomm,ierr);CHKERRQ(ierr)
           cur_ERB%region_scaling_factor = cur_ERB%region_scaling_factor / &
                                           total_volume_global
           exit
@@ -930,8 +930,9 @@ subroutine PMUFDBSetup(this)
     newcomm_size = 0
     if (local) ranks(this%option%myrank+1) = 1
     if (.not.local) ranks(this%option%myrank+1) = 0
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,this%option%comm%mycommsize,MPI_INTEGER, &
-                       MPI_SUM,this%option%mycomm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,this%option%comm%mycommsize, &
+                       MPI_INTEGER,MPI_SUM,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_ERB%rank_list(newcomm_size))
     j = 0

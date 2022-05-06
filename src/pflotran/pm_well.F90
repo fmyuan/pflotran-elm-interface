@@ -745,8 +745,8 @@ subroutine PMWellSetup(this)
   ! count1_local is the number of unique reservoir grid cells that the well has
   ! a connection to per MPI process. Next, all of the MPI processes need to
   ! sum up their counts and place the total in count1_global.
-  call MPI_Allreduce(count1_local,count1_global,ONE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(count1_local,count1_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   write(string,'(I0.5)') count1_global
 
   ! Next, sum up how many grid cells the well passes thru.
@@ -795,8 +795,8 @@ subroutine PMWellSetup(this)
   enddo
   ! All of the MPI processes need to sum up their counts and place the
   ! total in count2_global.
-  call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI, &
-                    MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   write(string2,'(I0.5)') count2_global
 
   ! The only way we can ensure that the well discretization did not skip a
@@ -3516,7 +3516,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   flow_soln => this%flow_soln
 
   ierr = 0
-  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   ts_cut = 0
   easy_converge_count = 0
@@ -3657,7 +3657,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ! update the Darcy fluxes within the well
   call PMWellCalcVelocity(this)
 
-  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
 end subroutine PMWellSolveFlow
 
@@ -3685,7 +3685,7 @@ subroutine PMWellSolveTran(this,time,ierr)
   soln => this%tran_soln
 
   ierr = 0
-  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   ts_cut = 0
   easy_converge_count = 0
@@ -3747,7 +3747,7 @@ subroutine PMWellSolveTran(this,time,ierr)
 
   call PMWellPostSolveTran(this)
 
-  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
 end subroutine PMWellSolveTran
 

@@ -59,7 +59,8 @@ subroutine NWTMaxChange(realization,dcmax)
   call VecWAXPY(field%tran_dxx,-1.d0,field%tran_xx,field%tran_yy, &
                 ierr);CHKERRQ(ierr)
 
-  call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
+  call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine NWTMaxChange
 
@@ -449,7 +450,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
   endif
 
-  call VecRestoreArrayReadF90(field%tran_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   icall = icall+ 1
 
 end subroutine NWTUpdateAuxVars
@@ -652,8 +653,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   endif
 
   ! Get pointer to residual Vector data
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%tran_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
 
   ! Zero out the residual pointer
   r_p(:) = 0.d0
@@ -895,8 +896,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   !WRITE(*,*)  '       r_p(6) = ', r_p(:)
 
   ! Restore residual Vector data
-  call VecRestoreArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%tran_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
   if (realization%debug%vecview_residual) then
     string = 'NWTresidual'
@@ -957,9 +958,9 @@ subroutine NWTUpdateFixedAccumulation(realization)
   reaction_nw => realization%reaction_nw
 
   ! cannot use tran_xx_loc vector here as it has not yet been updated.
-  call VecGetArrayReadF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%tran_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
 
 ! Do not use NWTUpdateAuxVars() as it loops over ghosted ids
 
@@ -1477,8 +1478,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
   ! For debugging viewer:
   call MatCreate(option%mycomm,J_ana,ierr);CHKERRQ(ierr)
-  call MatSetSizes(J_ana,PETSC_DECIDE,PETSC_DECIDE, &
-                   grid%nlmax*option%ntrandof, &
+  call MatSetSizes(J_ana,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%ntrandof, &
                    grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
   call MatSetType(J_ana,MATAIJ,ierr);CHKERRQ(ierr)
   call MatSetFromOptions(J_ana,ierr);CHKERRQ(ierr)
@@ -1487,8 +1487,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   ! For debugging jacobian entries:
   call MatCreate(option%mycomm,J_flux,ierr);CHKERRQ(ierr)
   call MatSetSizes(J_flux,PETSC_DECIDE,PETSC_DECIDE, &
-                   grid%nlmax*option%ntrandof, &
-                   grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
+                   grid%nlmax*option%ntrandof,grid%nlmax*option%ntrandof, &
+                   ierr);CHKERRQ(ierr)
   call MatSetType(J_flux,MATAIJ,ierr);CHKERRQ(ierr)
   call MatSetFromOptions(J_flux,ierr);CHKERRQ(ierr)
   call MatSetUp(J_flux,ierr);CHKERRQ(ierr)
@@ -1537,10 +1537,11 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       !WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
 
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_srcsink, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_srcsink, &
-                               ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1, &
+                                    Jac_srcsink,ADD_VALUES, &
+                                    ierr);CHKERRQ(ierr)
+      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1, &
+                               Jac_srcsink,ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
 
@@ -1692,7 +1693,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
         work_loc_p(istart:iend) = nwt_auxvars(ghosted_id)%total_bulk_conc(:)
       endif
     enddo
-    call VecRestoreArrayF90(realization%field%tran_work_loc, work_loc_p,  &
+    call VecRestoreArrayF90(realization%field%tran_work_loc,work_loc_p, &
                             ierr);CHKERRQ(ierr)
   endif
 
@@ -1719,8 +1720,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   ! for debugging ONLY!! assumes no decay, and single processor
 #if 0
   call MatCreate(option%mycomm,J_num,ierr);CHKERRQ(ierr)
-  call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE, &
-                   grid%nlmax*option%ntrandof, &
+  call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%ntrandof, &
                    grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
   call MatSetType(J_num,MATAIJ,ierr);CHKERRQ(ierr)
   call MatSetFromOptions(J_num,ierr);CHKERRQ(ierr)
@@ -2026,7 +2026,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
           k = k + 1
           !WRITE(*,*) 'Adding value', JacUp(k,k), 'in diagonal position', i-1
           ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-          call MatSetValues(J_flux,1,i-1,1,i-1,JacUp(k,k),ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValues(J_flux,1,i-1,1,i-1,JacUp(k,k),ADD_VALUES, &
+                            ierr);CHKERRQ(ierr)
         enddo
       endif
       k = 0
@@ -2038,7 +2039,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
           k = k + 1
           !WRITE(*,*) 'Adding value', JacUp(k,k), 'in diagonal position', i-1
           ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-          call MatSetValues(J_flux,1,i-1,1,i-1,JacDn(k,k),ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValues(J_flux,1,i-1,1,i-1,JacDn(k,k),ADD_VALUES, &
+                            ierr);CHKERRQ(ierr)
         enddo
       endif
 
