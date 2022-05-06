@@ -796,8 +796,8 @@ subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
   ! create MPI vector and sequential vector for mapping
   call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
-         CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
   call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
 
@@ -1020,8 +1020,8 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   !   stored in the process
   call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
-         CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
   call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
 
@@ -1229,8 +1229,8 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   ! create MPI vector and sequential vector for mapping
   call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
-         CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
   call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
 
@@ -1441,8 +1441,8 @@ subroutine PMMTransformRestartBinary(this, viewer)
   !   stored in the process
   call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, &
                     global_mt_vec,ierr); CHKERRQ(ierr)
-  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
-         CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
   call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
 

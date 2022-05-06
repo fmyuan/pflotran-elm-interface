@@ -1020,8 +1020,8 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     j_pp = ctx%vals(diag_row_index)
     j_ps = ctx%vals(diag_row_index+1)
 
-    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
-    CHKERRQ(ierr)
+    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, &
+                       ierr);CHKERRQ(ierr)
 
     ! b) extract second row
     call MatGetRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, ctx%vals, &
@@ -1048,10 +1048,10 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     end if
     fac0 = lambda_inv*j_ss*scaling_factor
     fac1 = -lambda_inv*j_ps*scaling_factor
-    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
-    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
 
     if (ctx%CPR_type == "ADDITIVE") then
       ! this is effective when you expect saturation to be
@@ -1063,10 +1063,10 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
       end if
       fac3 = -lambda_inv*j_sp*scaling_factor2
       fac4 = lambda_inv*j_pp*scaling_factor2
-      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
-      CHKERRQ(ierr)
-      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
-      CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
     end if
 
     num_col_blocks = num_cols/block_size
@@ -1093,14 +1093,14 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     ! e) set values
     call MatSetValues(App, 1, insert_rows, num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
-                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
 
     if (ctx%CPR_type == "ADDITIVE") then
       call MatSetValues(Ass, 1, insert_rows, num_col_blocks, &
                         ctx%insert_colIdx(0:num_col_blocks-1), &
-                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, ierr)
-      CHKERRQ(ierr)
+                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, &
+                        ierr);CHKERRQ(ierr)
     end if
 
   end do
@@ -1207,8 +1207,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     ! a.2) extract j_pp,j_ps
     j_pp = ctx%vals(diag_row_index)
     j_ps = ctx%vals(diag_row_index+1)
-    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
-    CHKERRQ(ierr)
+    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, &
+                       ierr);CHKERRQ(ierr)
 
     ! b) extract second row
     call MatGetRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, ctx%vals, &
@@ -1235,10 +1235,10 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
     fac0 = 1.d0
     fac1 = -j_ps_j_ss_inv
-    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
-    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
     if (ctx%CPR_type == "ADDITIVE") then
       ! -D_sp*inv(D_pp)*r_p + r_s -> fac3*r_p + fac4*r_s
       ! this is effective when you expect saturation to be
@@ -1251,10 +1251,10 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
       end if
       fac3 = -j_sp_j_pp_inv
       fac4 = 1.d0
-      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
-      CHKERRQ(ierr)
-      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
-      CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
     end if
 
     ! d) prepare to set values
@@ -1277,13 +1277,13 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     ! e) set values
     call MatSetValues(App, 1, insert_rows, num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
-                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
     if (ctx%CPR_type == "ADDITIVE") then
       call MatSetValues(Ass, 1, insert_rows, num_col_blocks, &
                         ctx%insert_colIdx(0:num_col_blocks-1), &
-                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, ierr)
-      CHKERRQ(ierr)
+                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, &
+                        ierr);CHKERRQ(ierr)
     end if
   end do
 
@@ -1384,8 +1384,8 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     bb = ctx%vals(firstrowdex+1)
     cc = ctx%vals(firstrowdex+2)
     ! restore
-    call MatRestoreRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, ierr)
-    CHKERRQ(ierr)
+    call MatRestoreRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, &
+                       ierr);CHKERRQ(ierr)
 
     ! c) second row
     call MatGetRow(a, firstRow+1, numcols, PETSC_NULL_INTEGER, ctx%vals, &
@@ -1420,12 +1420,12 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     fac2 = sm*(bb*ff-cc*ee)/det
 
     ! f) store vectors
-    call VecSetValue(factors1Vec, firstRow, fac0, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
-    call VecSetValue(factors1Vec, firstRow+1, fac1, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
-    call VecSetValue(factors1Vec, firstRow+2, fac2, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, firstRow, fac0, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, firstRow+1, fac1, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, firstRow+2, fac2, INSERT_VALUES, &
+                     ierr);CHKERRQ(ierr)
 
     ! g) prepare to set values
     insert_rows(0) = i + r_st/b
@@ -1443,8 +1443,8 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     ! h) set values
     call MatSetValues(ap, 1, insert_rows, ncolblks, &
                       ctx%insert_colIdx(0:ncolblks-1), &
-                      ctx%insert_vals(0:ncolblks-1), INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+                      ctx%insert_vals(0:ncolblks-1), INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
 
 
   end do
@@ -1537,8 +1537,8 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
     endif
     numcols_keep = numcols
     ! restore first row
-    call MatRestoreRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, ierr)
-    CHKERRQ(ierr)
+    call MatRestoreRow(a, firstRow, numcols, ctx%colIdx, ctx%vals, &
+                       ierr);CHKERRQ(ierr)
 
     ! loop over remaining rows
     do j = 1,b-1
@@ -1612,8 +1612,8 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
     ! set values
     call MatSetValues(ap, 1, insert_rows, ncolblks, &
                       ctx%insert_colIdx(0:ncolblks-1), &
-                      ctx%insert_vals(0:ncolblks-1), INSERT_VALUES, ierr)
-     CHKERRQ(ierr)
+                      ctx%insert_vals(0:ncolblks-1), INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
 
   end do
   call MatAssemblyBegin(ap,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
