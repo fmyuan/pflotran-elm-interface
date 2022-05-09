@@ -36,7 +36,6 @@ subroutine ZFlowSetup(realization)
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
-
   use Realization_Subsurface_class
   use Patch_module
   use Option_module
