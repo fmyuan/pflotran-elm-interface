@@ -437,8 +437,9 @@ subroutine RealizationCreateDiscretization(realization)
      realization%output_option%print_hdf5_aveg_mass_flowrate.or. &
      realization%output_option%print_hdf5_aveg_energy_flowrate) then
     call VecCreateMPI(option%mycomm, &
-        (option%nflowdof*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
-        PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
+                      (option%nflowdof*MAX_FACE_PER_CELL+1)*realization% &
+                        patch%grid%nlmax, &
+                      PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%flowrate_inst,0.d0,ierr);CHKERRQ(ierr)
   endif
 
@@ -447,8 +448,9 @@ subroutine RealizationCreateDiscretization(realization)
 
     ! vx
     call VecCreateMPI(option%mycomm, &
-        (option%nflowspec*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
-        PETSC_DETERMINE,field%vx_face_inst,ierr);CHKERRQ(ierr)
+                      (option%nflowspec*MAX_FACE_PER_CELL+1)*realization% &
+                        patch%grid%nlmax, &
+                      PETSC_DETERMINE,field%vx_face_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%vx_face_inst,0.d0,ierr);CHKERRQ(ierr)
 
     ! vy and vz
@@ -460,8 +462,9 @@ subroutine RealizationCreateDiscretization(realization)
 
   if (realization%output_option%print_explicit_flowrate) then
     call VecCreateMPI(option%mycomm, &
-         size(grid%unstructured_grid%explicit_grid%connections,2), &
-         PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
+                      size(grid%unstructured_grid%explicit_grid% &
+                        connections,2), &
+                      PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%flowrate_inst,0.d0,ierr);CHKERRQ(ierr)
   endif
 
@@ -469,8 +472,9 @@ subroutine RealizationCreateDiscretization(realization)
   if (realization%output_option%print_hdf5_aveg_mass_flowrate.or. &
       realization%output_option%print_hdf5_aveg_energy_flowrate) then
     call VecCreateMPI(option%mycomm, &
-        (option%nflowdof*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
-        PETSC_DETERMINE,field%flowrate_aveg,ierr);CHKERRQ(ierr)
+                      (option%nflowdof*MAX_FACE_PER_CELL+1)*realization% &
+                        patch%grid%nlmax, &
+                      PETSC_DETERMINE,field%flowrate_aveg,ierr);CHKERRQ(ierr)
     call VecSet(field%flowrate_aveg,0.d0,ierr);CHKERRQ(ierr)
   endif
 
@@ -2112,7 +2116,8 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
 
   if (reaction%update_tortuosity) then
-    call VecGetArrayReadF90(field%tortuosity0,tortuosity0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tortuosity0,tortuosity0_p, &
+                            ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -2123,8 +2128,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
         tortuosity0_p(local_id)*scale
     enddo
     call VecRestoreArrayReadF90(field%tortuosity0,tortuosity0_p, &
-                            ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
+                                ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)
     call DiscretizationLocalToLocal(discretization,field%work_loc, &
@@ -2177,11 +2183,15 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
     if (option%flow%full_perm_tensor) then
-      call VecRestoreArrayReadF90(field%perm0_xy,perm0_xy_p,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(field%perm0_xz,perm0_xz_p,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(field%perm0_yz,perm0_yz_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_xy,perm0_xy_p, &
+                                  ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_xz,perm0_xz_p, &
+                                  ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_yz,perm0_yz_p, &
+                                  ierr);CHKERRQ(ierr)
     endif
-    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
@@ -2478,7 +2488,7 @@ subroutine RealizationCountCells(realization,global_total_count, &
   temp_int_in(1) = total_count
   temp_int_in(2) = active_count
   call MPI_Allreduce(temp_int_in,temp_int_out,TWO_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,realization%option%mycomm,ierr)
+                     MPI_SUM,realization%option%mycomm,ierr);CHKERRQ(ierr)
   global_total_count = temp_int_out(1)
   global_active_count = temp_int_out(2)
 
@@ -2558,7 +2568,7 @@ subroutine RealizationPrintGridStatistics(realization)
   endif
 
   call MPI_Allreduce(inactive_histogram,temp_int_out,TWELVE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   ! why I cannot use *100, I do not know....geh
   inactive_percentages = dble(temp_int_out)/dble(option%comm%mycommsize)*10.d0

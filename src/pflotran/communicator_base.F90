@@ -11,19 +11,19 @@ module Communicator_Base_class
 
   type, abstract, public :: communicator_type
   contains
-    procedure(SetDM), public, deferred :: SetDM 
-    procedure(VecToVec), public, deferred :: GlobalToLocal 
+    procedure(SetDM), public, deferred :: SetDM
+    procedure(VecToVec), public, deferred :: GlobalToLocal
     procedure(VecToVec), public, deferred :: LocalToGlobal
-    procedure(VecToVec), public, deferred :: LocalToLocal 
-    procedure(VecToVec), public, deferred :: GlobalToNatural 
-    procedure(VecToVec), public, deferred :: NaturalToGlobal 
-    procedure(MapArray), public, deferred :: AONaturalToPetsc 
-    procedure(BaseDestroy), public, deferred :: Destroy 
+    procedure(VecToVec), public, deferred :: LocalToLocal
+    procedure(VecToVec), public, deferred :: GlobalToNatural
+    procedure(VecToVec), public, deferred :: NaturalToGlobal
+    procedure(MapArray), public, deferred :: AONaturalToPetsc
+    procedure(BaseDestroy), public, deferred :: Destroy
   end type communicator_type
-  
+
   abstract interface
-  
-#ifdef SIMPLIFY    
+
+#ifdef SIMPLIFY
     subroutine SetDM(this)
       import communicator_type
       implicit none
@@ -37,9 +37,9 @@ module Communicator_Base_class
       implicit none
       class(communicator_type) :: this
       type(dm_ptr_type) :: dm_ptr
-#endif    
+#endif
     end subroutine
-  
+
     subroutine VecToVec(this,source,destination)
 #include "petsc/finclude/petscvec.h"
       use petscvec

@@ -5,9 +5,9 @@ module Geomechanics_Debug_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public :: geomech_debug_type
     PetscBool :: vecview_residual
     PetscBool :: vecview_solution
@@ -19,29 +19,29 @@ module Geomechanics_Debug_module
     character(len=MAXSTRINGLENGTH) :: coupler_string
     PetscBool :: print_waypoints
   end type geomech_debug_type
-   
+
   public :: GeomechDebugCreate, GeomechDebugRead
-  
+
 contains
 
 ! ************************************************************************** !
 
 function GeomechDebugCreate()
-  ! 
+  !
   ! Create object that stores debugging options
   ! for geomechanics
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/06/13
-  ! 
+  !
 
   implicit none
-  
+
   type(geomech_debug_type), pointer :: GeomechDebugCreate
   type(geomech_debug_type), pointer :: debug
-  
+
   allocate(debug)
-  
+
   debug%vecview_residual = PETSC_FALSE
   debug%vecview_solution = PETSC_FALSE
   debug%matview_Matrix = PETSC_FALSE
@@ -59,37 +59,37 @@ end function GeomechDebugCreate
 ! ************************************************************************** !
 
 subroutine GeomechDebugRead(debug,input,option)
-  ! 
+  !
   ! Reads debugging data from the input file
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/06/13
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
-  
+
   implicit none
-    
+
   type(geomech_debug_type) :: debug
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','GEOMECHANICS_DEBUG')   
-      
+    call InputErrorMsg(input,option,'keyword','GEOMECHANICS_DEBUG')
+
     select case(trim(keyword))
-    
+
       case('PRINT_SOLUTION','VECVIEW_SOLUTION','VIEW_SOLUTION')
         debug%vecview_solution = PETSC_TRUE
       case('PRINT_RESIDUAL','VECVIEW_RESIDUAL','VIEW_RESIDUAL')
@@ -111,9 +111,9 @@ subroutine GeomechDebugRead(debug,input,option)
       case default
         call InputKeywordUnrecognized(input,keyword, &
                                       'GEOMECHANICS_DEBUG',option)
-    end select 
-  
-  enddo  
+    end select
+
+  enddo
   call InputPopBlock(input,option)
 
 end subroutine GeomechDebugRead

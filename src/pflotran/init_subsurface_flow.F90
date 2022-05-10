@@ -214,7 +214,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     grid => cur_patch%grid
 
       ! assign initial conditions values to domain
-    call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
     ! Pressure for all modes
     offset = 1
@@ -235,7 +235,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     enddo
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
     cur_patch => cur_patch%next
   enddo
@@ -243,7 +243,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
                                    field%flow_xx_loc,NFLOWDOF)
-  call VecCopy(field%flow_xx, field%flow_yy, ierr);CHKERRQ(ierr)
+  call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
 end subroutine InitSubsurfFlowReadInitCond
 

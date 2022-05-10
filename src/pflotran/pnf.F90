@@ -342,7 +342,7 @@ subroutine PNFUpdateAuxVars(realization)
 
   call DiscretizationGlobalToLocal(realization%discretization,field%flow_xx, &
                                    field%flow_xx_loc,NFLOWDOF)
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -393,7 +393,7 @@ subroutine PNFUpdateAuxVars(realization)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%PNF%auxvars_up_to_date = PETSC_TRUE
 

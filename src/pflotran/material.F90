@@ -2078,9 +2078,9 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
 
   PetscErrorCode :: ierr
 
-  call VecCopy(field%porosity_t,field%work,ierr)
-  call VecAXPBY(field%work,weight,1.d0-weight, &
-                field%porosity_tpdt,ierr);CHKERRQ(ierr)
+  call VecCopy(field%porosity_t,field%work,ierr);CHKERRQ(ierr)
+  call VecAXPBY(field%work,weight,1.d0-weight,field%porosity_tpdt, &
+                ierr);CHKERRQ(ierr)
   call comm1%GlobalToLocal(field%work,field%work_loc)
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_CURRENT)

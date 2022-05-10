@@ -401,12 +401,12 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
                                 inversion_forward_aux%iobsfunc,ZERO_INTEGER)
     call VecScatterBegin(inversion_forward_aux%scatter_global_to_measurement, &
                          this%realization%field%work, &
-                         inversion_forward_aux%measurement_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                         inversion_forward_aux%measurement_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterEnd(inversion_forward_aux%scatter_global_to_measurement, &
                        this%realization%field%work, &
-                       inversion_forward_aux%measurement_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       inversion_forward_aux%measurement_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call InversionForwardAuxStep(this%realization%patch%aux% &
                                  inversion_forward_aux,time)
   endif

@@ -728,10 +728,11 @@ subroutine InversionERTInitialize(this)
     iqoi = InversionParameterIntToQOIArray(this%parameters(1))
     if (this%app_cond_start_model) then
       ! non-ghosted Vec
-      call VecDuplicate(this%realization%field%work, &
-                        this%quantity_of_interest,ierr);CHKERRQ(ierr)
+      call VecDuplicate(this%realization%field%work,this%quantity_of_interest, &
+                        ierr);CHKERRQ(ierr)
       call VecSet(this%quantity_of_interest, &
-              this%realization%survey%apparent_conductivity,ierr);CHKERRQ(ierr)
+                  this%realization%survey%apparent_conductivity, &
+                  ierr);CHKERRQ(ierr)
       call DiscretizationGlobalToLocal(this%realization%discretization, &
                                       this%quantity_of_interest, &
                                       this%realization%field%work_loc,ONEDOF)
@@ -740,8 +741,8 @@ subroutine InversionERTInitialize(this)
                                   iqoi(1),iqoi(2))
     else
       ! non-ghosted Vec
-      call VecDuplicate(this%realization%field%work, &
-                        this%quantity_of_interest,ierr);CHKERRQ(ierr)
+      call VecDuplicate(this%realization%field%work,this%quantity_of_interest, &
+                        ierr);CHKERRQ(ierr)
       ! ghosted Vec
       call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                   this%realization%field%work_loc, &
@@ -958,7 +959,8 @@ subroutine InvERTEvaluateCostFunction(this)
 
   this%phi_model = this%beta * dot_product(model_vector,model_vector)
   call MPI_Allreduce(MPI_IN_PLACE,this%phi_model,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   deallocate(model_vector)
 
   this%phi_total = this%phi_data + this%phi_model
@@ -1090,7 +1092,7 @@ subroutine InversionERTCalculateUpdate(this)
       if (vec_ptr(local_id) < this%mincond) vec_ptr(local_id) = this%mincond
     enddo
     call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
-                                                          ierr);CHKERRQ(ierr)
+                            ierr);CHKERRQ(ierr)
     call InversionERTDeallocateWorkArrays(this)
   endif
 
@@ -1155,8 +1157,8 @@ subroutine InversionERTCGLSSolve(this)
   this%p = this%s
 
   gamma = dot_product(this%s,this%s)
-  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   norms0 = sqrt(gamma)
   xmax = 0.d0
@@ -1175,7 +1177,8 @@ subroutine InversionERTCGLSSolve(this)
     delta1 = dot_product(this%q(1:nm),this%q(1:nm))
     delta2 = dot_product(this%q(nm+1:nm+ncons),this%q(nm+1:nm+ncons))
     call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     delta = delta1 + delta2
 
     if (delta < 0) indefinite = PETSC_TRUE
@@ -1192,7 +1195,8 @@ subroutine InversionERTCGLSSolve(this)
     gamma1 = gamma
     gamma = dot_product(this%s,this%s)
     call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
 
     norms = sqrt(gamma)
     gbeta = gamma / gamma1
@@ -1200,7 +1204,8 @@ subroutine InversionERTCGLSSolve(this)
 
     normx = dot_product(this%del_cond,this%del_cond)
     call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     normx = sqrt(normx)
     if (xmax < normx) xmax = normx
     if ( (norms <= norms0 * initer_conv) .or. (normx * initer_conv >= 1)) &
@@ -1573,7 +1578,8 @@ subroutine InversionERTAllocateWm(this)
 
   this%num_constraints_local = num_constraints
   call MPI_Allreduce(num_constraints,this%num_constraints_total, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   allocate(this%Wm(num_constraints))
   allocate(this%rblock(num_constraints,THREE_INTEGER))
   this%Wm = 0.d0
@@ -1694,7 +1700,8 @@ subroutine InversionERTComputeMatVecProductJp(this)
     enddo
 
     call MPI_Allreduce(MPI_IN_PLACE,this%q(idata),ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
   enddo
 
   call VecRestoreArrayF90(field%work,pvec_ptr,ierr);CHKERRQ(ierr)

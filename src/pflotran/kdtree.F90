@@ -9,16 +9,16 @@
 module Kdtree_module
 
 #include "petsc/finclude/petscsys.h"
- 
+
   use petscsnes
 
   implicit none
 
-  PetscInt :: bucket_size = 12   
+  PetscInt :: bucket_size = 12
 
   type, public :: kdtree_result
     PetscReal :: dis
-    PetscInt :: idx 
+    PetscInt :: idx
   end type kdtree_result
 
   ! The priority queue consists of elements
@@ -31,9 +31,9 @@ module Kdtree_module
     PetscInt :: heap_size != 0
     type(kdtree_result), pointer :: elems(:)
    end type pq
-   
+
   type, public :: interval
-    PetscReal :: lower, upper 
+    PetscReal :: lower, upper
   end type interval
 
   ! an internal tree node
@@ -52,25 +52,25 @@ module Kdtree_module
   ! Global information about the tree, one per tree
   type, public :: kdtree
     ! dimensionality and total # of points
-    PetscInt :: dimen, n 
+    PetscInt :: dimen, n
     ! pointer to the actual data array
     PetscReal, pointer :: the_data(:,:)
     ! permuted index into the data, so that indexes[l..u] of some
     ! bucket represent the indexes of the actual points in that
     ! bucket.
     PetscInt, pointer :: ind(:)
-    PetscBool :: sort 
-    PetscBool :: rearrange 
+    PetscBool :: sort
+    PetscBool :: rearrange
     ! if (rearrange .eqv. .true.) then rearranged_data has been
     ! created so that rearranged_data(:,i) = the_data(:,ind(i)),
     ! permitting search to use more cache-friendly rearranged_data, at
     ! some initial computation and storage cost.
-    PetscReal, pointer :: rearranged_data(:,:) 
+    PetscReal, pointer :: rearranged_data(:,:)
     ! root pointer of the tree
     type (tree_node), pointer :: root
   end type kdtree
 
-  type, public :: tree_search_record    
+  type, public :: tree_search_record
     ! One of these is created for each search.
     ! Many fields are copied from the tree structure, in order to
     ! speed up the search.
@@ -88,7 +88,7 @@ module Kdtree_module
   end type tree_search_record
 
   ! A GLOBAL VARIABLE for search
-  type(tree_search_record),target :: sr   
+  type(tree_search_record),target :: sr
 
 contains
 
@@ -99,7 +99,7 @@ function KdtreeCreate()
   implicit none
 
   type(kdtree), pointer :: KdtreeCreate
-  
+
   type(kdtree), pointer :: aux
 
   allocate(aux)
@@ -113,14 +113,14 @@ function KdtreeCreate()
   nullify(aux%root)
 
   KdtreeCreate => aux
-  
+
 end function KdtreeCreate
 
 ! ************************************************************************** !
 
-subroutine KdtreeConstruct(kdtree_aux,input_data,dim,sort,rearrange)  
-  
-  implicit none  
+subroutine KdtreeConstruct(kdtree_aux,input_data,dim,sort,rearrange)
+
+  implicit none
 
   type(kdtree), pointer :: kdtree_aux !mr
   PetscInt, optional :: dim
@@ -131,7 +131,7 @@ subroutine KdtreeConstruct(kdtree_aux,input_data,dim,sort,rearrange)
  ! allocate(mr)
 
   kdtree_aux%the_data => input_data
-    
+
   if (present(dim)) then
     kdtree_aux%dimen = dim
   else
@@ -170,7 +170,7 @@ end subroutine KdtreeConstruct
 subroutine BuildTree(tp)
 
   implicit none
-  
+
   type(kdtree), pointer :: tp
   PetscInt :: j
   type(tree_node), pointer :: dummy => null()
@@ -182,19 +182,19 @@ subroutine BuildTree(tp)
   end forall
 
   call BuildTreeForRange(tp,1,tp%n,dummy,tp%root)
-  
+
 end subroutine BuildTree
 
 ! ************************************************************************** !
 
 recursive subroutine BuildTreeForRange(tp,l,u,parent,res)
-  
+
   implicit none
-  
-  ! Function Return Cut_value 
+
+  ! Function Return Cut_value
   type(tree_node), pointer :: res
 
-  ! Structure Arguments 
+  ! Structure Arguments
   type(kdtree), pointer :: tp
   type(tree_node),pointer :: parent
 
@@ -222,8 +222,8 @@ recursive subroutine BuildTreeForRange(tp,l,u,parent,res)
   endif
 
   if ((u - l) <= bucket_size) then
-         
-    ! always compute true bounding box for terminal nodes.        
+
+    ! always compute true bounding box for terminal nodes.
     do i=1,dimen
       call SpreadInCoordinate(tp,i,l,u,res%box(i))
     enddo
@@ -235,7 +235,7 @@ recursive subroutine BuildTreeForRange(tp,l,u,parent,res)
     res%left => null()
     res%right => null()
   else
-         
+
     ! modify approximate bounding box.  This will be an
     ! overestimate of the true bounding box, as we are only recomputing
     ! the bounding box for the dimension that the parent split on.
@@ -244,7 +244,7 @@ recursive subroutine BuildTreeForRange(tp,l,u,parent,res)
     ! increase the time necessary to build the tree, and usually
     ! has only a very small difference.  This box is not used
     ! for searching but only for deciding which coordinate to split on.
-         
+
     do i=1,dimen
       recompute= PETSC_TRUE !.true.
       if (associated(parent)) then
@@ -258,16 +258,16 @@ recursive subroutine BuildTreeForRange(tp,l,u,parent,res)
         res%box(i) = parent%box(i)
       endif
     enddo
-  
+
     c = maxloc(res%box(1:dimen)%upper-res%box(1:dimen)%lower,1)
-         
+
     ! c is the identity of which coordinate has the greatest spread.
     if (PETSC_FALSE) then
-      ! select exact median to have fully balanced tree.      
+      ! select exact median to have fully balanced tree.
       m = (l+u)/2
       call SelectOnCoordinate(tp%the_data,tp%ind,c,m,l,u)
     else
-            
+
       ! select point halfway between min and max, as per A. Moore,
       ! who says this helps in some degenerate cases, or
       ! actual arithmetic average.
@@ -314,7 +314,7 @@ recursive subroutine BuildTreeForRange(tp,l,u,parent,res)
       res%box%lower = min(res%left%box%lower,res%right%box%lower)
      endif
   endif
-  
+
 end subroutine BuildTreeForRange
 
 ! ************************************************************************** !
@@ -399,7 +399,7 @@ subroutine SelectOnCoordinate(v,ind,c,k,li,ui)
     if (m <= k) l = m + 1
     if (m >= k) u = m - 1
   enddo
- 
+
 end subroutine SelectOnCoordinate
 
 ! ************************************************************************** !
@@ -410,7 +410,7 @@ subroutine SpreadInCoordinate(tp,c,l,u,interv)
   ! Return lower bound in 'smin', and upper in 'smax',
 
   implicit none
-  
+
   type(kdtree), pointer :: tp
   type(interval), intent(out) :: interv
 
@@ -440,7 +440,7 @@ subroutine SpreadInCoordinate(tp,c,l,u,interv)
     if (smin > lmin) smin = lmin
     if (smax < lmax) smax = lmax
   enddo
- 
+
   if (i == ulocal + 1) then
     last = v(c,ind(ulocal))
     if (smin > last) smin = last
@@ -491,24 +491,24 @@ recursive subroutine KdtreeDestroyNode(np)
   endif
   if (associated(np%box)) deallocate(np%box)
   deallocate(np)
-  
+
 end subroutine KdtreeDestroyNode
 
 ! ************************************************************************** !
 
 subroutine KdtreeNNearest(tp,qv,nn,results)
-  
+
   ! Find the 'nn' vectors in the tree nearest to 'qv' in euclidean norm
   ! returning their indexes and distances in 'indexes' and 'distances'
   ! arrays already allocated passed to this subroutine.
 
   implicit none
-  
+
   type(kdtree), pointer :: tp
   PetscReal, target :: qv(:)
   PetscInt :: nn
   type(kdtree_result), target :: results(:)
-   
+
   sr%ballsize = huge(1.0)
   sr%qv => qv
   sr%nn = nn
@@ -519,7 +519,7 @@ subroutine KdtreeNNearest(tp,qv,nn,results)
 
   sr%results => results
 
-  sr%nalloc = nn 
+  sr%nalloc = nn
 
   sr%ind => tp%ind
   sr%rearrange = tp%rearrange
@@ -532,13 +532,13 @@ subroutine KdtreeNNearest(tp,qv,nn,results)
 
   sr%pq = KdtreeCreatePQ(results)
 
-  call KdtreeSearch(tp%root)   
+  call KdtreeSearch(tp%root)
 
   if (tp%sort) then
     call KdtreeSortResults(nn, results)
   endif
 
-  
+
 end subroutine KdtreeNNearest
 
 ! ************************************************************************** !
@@ -553,7 +553,7 @@ recursive subroutine KdtreeSearch(node)
   !
 
   implicit none
-  
+
   type(tree_node), pointer :: node
   type(tree_node), pointer :: ncloser, nfarther
 
@@ -592,11 +592,11 @@ recursive subroutine KdtreeSearch(node)
     if (associated(nfarther)) then
       ballsize = sr%ballsize
       if (dis <= ballsize) then
-             
+
         ! we do this separately as going on the first cut dimen is often
         ! a good idea.
         ! note that if extra**2 < sr%ballsize, then the next
-        ! check will also be false.             
+        ! check will also be false.
         box => node%box(1:)
         do i=1,sr%dimen
           if (i /= cut_dim) then
@@ -611,7 +611,7 @@ recursive subroutine KdtreeSearch(node)
       endif
     endif
   endif
- 
+
 end subroutine KdtreeSearch
 
 ! ************************************************************************** !
@@ -619,10 +619,10 @@ end subroutine KdtreeSearch
 function KdtreeDisFromBnd(x,amin,amax) result (res)
 
   implicit none
-  
+
   PetscReal :: x, amin, amax
   PetscReal :: res
-  
+
   if (x > amax) then
     res = (x - amax)**2;
     return
@@ -636,18 +636,18 @@ function KdtreeDisFromBnd(x,amin,amax) result (res)
     endif
   endif
   return
-  
+
 end function KdtreeDisFromBnd
 
 ! ************************************************************************** !
 
 subroutine ProcessTerminalNode(node)
-    
+
   ! Look for actual near neighbors in 'node', and update
   ! the search results on the sr data structure.
 
   implicit none
-  
+
   type (tree_node), pointer :: node
   !
   PetscReal, pointer :: qv(:), data(:,:)
@@ -657,7 +657,7 @@ subroutine ProcessTerminalNode(node)
   PetscReal :: ballsize, sd, newpri
   PetscBool :: rearrange
   type(pq), pointer :: pqp
-    
+
   qv => sr%qv(1:)
   pqp => sr%pq
   dimen = sr%dimen
@@ -676,32 +676,32 @@ subroutine ProcessTerminalNode(node)
         if (sd>ballsize) exit
       enddo
       if (sd>ballsize) cycle
-      indexofi = ind(i)  
+      indexofi = ind(i)
     else
       indexofi = ind(i)
       sd = 0.0
       do k = 1,dimen
         sd = sd + (data(k,indexofi) - qv(k))**2
-        if (sd > ballsize) exit 
+        if (sd > ballsize) exit
       enddo
       if (sd > ballsize) cycle
     endif
 
-    if (centeridx > 0) then 
+    if (centeridx > 0) then
       if (abs(indexofi - centeridx) < correltime) cycle
     endif
 
     if (sr%nfound < sr%nn) then
-          
+
       sr%nfound = sr%nfound + 1
       newpri = KdtreePQInsert(pqp,sd,indexofi)
       if (sr%nfound == sr%nn) ballsize = newpri
     else
-          
+
       ballsize = KdtreePQReplaceMax(pqp,sd,indexofi)
     endif
-  enddo 
-    
+  enddo
+
   sr%ballsize = ballsize
 
 end subroutine ProcessTerminalNode
@@ -709,13 +709,13 @@ end subroutine ProcessTerminalNode
 ! ************************************************************************** !
 
 subroutine ProcessTerminalNodeFixedBall(node)
-    
+
   ! Look for actual near neighbors in 'node', and update
   ! the search results on the sr data structure, i.e.
   ! save all within a fixed ball.
 
   implicit none
-  
+
   type(tree_node), pointer :: node
 
   PetscReal, pointer :: qv(:), data(:,:)
@@ -725,9 +725,9 @@ subroutine ProcessTerminalNodeFixedBall(node)
   PetscInt :: centeridx, correltime, nn
   PetscReal :: ballsize, sd
   PetscBool :: rearrange
-    
+
   ! copy values from sr to local variables
-    
+
   qv => sr%qv(1:)
   dimen = sr%dimen
   ballsize = sr%ballsize
@@ -736,7 +736,7 @@ subroutine ProcessTerminalNodeFixedBall(node)
   data => sr%Data(1:,1:)
   centeridx = sr%centeridx
   correltime = sr%correltime
-  nn = sr%nn 
+  nn = sr%nn
   nfound = sr%nfound
 
   ! search through terminal bucket.
@@ -746,22 +746,22 @@ subroutine ProcessTerminalNodeFixedBall(node)
       sd = 0.0
       do k = 1,dimen
         sd = sd + (data(k,i) - qv(k))**2
-        if (sd > ballsize) exit 
+        if (sd > ballsize) exit
       enddo
       if (sd > ballsize) cycle
-      indexofi = ind(i) 
+      indexofi = ind(i)
     else
       indexofi = ind(i)
       sd = 0.0
       do k = 1,dimen
         sd = sd + (data(k,indexofi) - qv(k))**2
-        if (sd>ballsize) exit 
+        if (sd>ballsize) exit
       enddo
       if (sd > ballsize) cycle
     endif
 
-    if (centeridx > 0) then 
-      if (abs(indexofi - centeridx) < correltime) cycle 
+    if (centeridx > 0) then
+      if (abs(indexofi - centeridx) < correltime) cycle
     endif
 
     nfound = nfound+1
@@ -772,9 +772,9 @@ subroutine ProcessTerminalNodeFixedBall(node)
       sr%results(nfound)%idx = indexofi
     endif
   enddo
-     
+
   sr%nfound = nfound
-  
+
 end subroutine ProcessTerminalNodeFixedBall
 
 ! ************************************************************************** !
@@ -796,11 +796,11 @@ end subroutine KdtreeSortResults
 ! ************************************************************************** !
 
 subroutine KdtreeHeapsortStruct(a,n)
-  
+
   ! Sort a(1:n) in ascending order
 
   implicit none
-               
+
   PetscInt :: n
   type(kdtree_result),intent(inout) :: a(:)
   type(kdtree_result) :: value
@@ -841,7 +841,7 @@ subroutine KdtreeHeapsortStruct(a,n)
     enddo
     a(i) = value
   enddo
- 
+
 end subroutine KdtreeHeapsortStruct
 
 !************************************************************************** !
@@ -856,7 +856,7 @@ function KdtreeCreatePQ(results_in)
   !
 
   implicit none
-  
+
   type(kdtree_result), target:: results_in(:)
   type(pq) :: KdtreeCreatePQ
   PetscInt :: nalloc
@@ -864,7 +864,7 @@ function KdtreeCreatePQ(results_in)
   nalloc = size(results_in,1)
   KdtreeCreatePQ%elems => results_in
   KdtreeCreatePQ%heap_size = 0
-  
+
 end function KdtreeCreatePQ
 
 !************************************************************************** !
@@ -875,7 +875,7 @@ subroutine KdtreeHeapify(a,i_in)
   ! heap canonical form.   This is performance critical
   ! and has been tweaked a little to reflect this.
   !
-  
+
   type(pq), pointer :: a
   PetscInt :: i_in
   PetscInt :: i, l, r, largest
@@ -915,10 +915,10 @@ subroutine KdtreeHeapify(a,i_in)
       a%elems(i) = a%elems(largest)
       a%elems(largest) = temp
 
-      i = largest   
+      i = largest
     endif
-  enddo 
-  
+  enddo
+
 end subroutine KdtreeHeapify
 
 !************************************************************************** !
@@ -931,7 +931,7 @@ subroutine KdtreePQExtractMax(a,e)
   !
 
   implicit none
-  
+
   type(pq),pointer :: a
   type(kdtree_result), intent(out) :: e
 
@@ -953,7 +953,7 @@ function KdtreePQInsert(a,dis,idx)
   ! which may or may not be the same as the old maximum priority.
   !
   implicit none
-  
+
   type(pq), pointer :: a
   PetscReal :: dis
   PetscInt :: idx
@@ -995,7 +995,7 @@ function KdtreePQReplaceMax(a,dis,idx)
   !
 
   implicit none
-  
+
   type(pq), pointer :: a
   PetscReal :: dis
   PetscInt :: idx
@@ -1023,13 +1023,13 @@ function KdtreePQReplaceMax(a,dis,idx)
       endif
 
       if (dis >= prichild) then
-        exit 
+        exit
       else
         a%elems(parent) = a%elems(child)
         parent = child
         child = 2 * parent
       endif
-    enddo 
+    enddo
     a%elems(parent)%dis = dis
     a%elems(parent)%idx = idx
     KdtreePQReplaceMax = a%elems(1)%dis
@@ -1040,7 +1040,7 @@ function KdtreePQReplaceMax(a,dis,idx)
   endif
 
   return
-  
+
 end function KdtreePQReplaceMax
 
 end module Kdtree_module

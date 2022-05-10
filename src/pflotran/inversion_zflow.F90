@@ -849,7 +849,8 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
     this%phi_model = this%beta * dot_product(model_vector,model_vector)
     call MPI_Allreduce(MPI_IN_PLACE,this%phi_model,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     deallocate(model_vector)
   endif
 
@@ -943,7 +944,8 @@ subroutine InversionZFlowCalculateUpdate(this)
                                         this%realization%field%work, &
                                         del_param_vec, &
                                         INVSUBSCATREVERSE)
-    call VecDuplicate(this%realization%field%work,work_dup,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%realization%field%work,work_dup, &
+                      ierr);CHKERRQ(ierr)
     ! dist_parameter_vec holds the original value
     call InvSubsurfScatGlobalToDistParam(this, &
                                         work_dup, &
@@ -963,8 +965,7 @@ subroutine InversionZFlowCalculateUpdate(this)
       if (vec_ptr(iparameter) > this%maxperm) vec_ptr(iparameter) = this%maxperm
       if (vec_ptr(iparameter) < this%minperm) vec_ptr(iparameter) = this%minperm
     enddo
-    call VecRestoreArrayF90(work_dup,vec_ptr, &
-                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(work_dup,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(this%realization%field%work,vec2_ptr, &
                             ierr);CHKERRQ(ierr)
     call InversionZFlowDeallocateWorkArrays(this)
@@ -1061,8 +1062,8 @@ subroutine InversionZFlowCGLSSolve(this)
   this%p = this%s
 
   gamma = dot_product(this%s,this%s)
-  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   norms0 = sqrt(gamma)
   xmax = 0.d0
@@ -1083,7 +1084,8 @@ subroutine InversionZFlowCGLSSolve(this)
       delta2 = dot_product(this%q(nm+1:nm+ncons),this%q(nm+1:nm+ncons))
 
     call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     delta = delta1 + delta2
 
     if (delta < 0) indefinite = PETSC_TRUE
@@ -1100,7 +1102,8 @@ subroutine InversionZFlowCGLSSolve(this)
     gamma1 = gamma
     gamma = dot_product(this%s,this%s)
     call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
 
     norms = sqrt(gamma)
     gbeta = gamma / gamma1
@@ -1108,7 +1111,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
     normx = dot_product(this%del_perm,this%del_perm)
     call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     normx = sqrt(normx)
     if (xmax < normx) xmax = normx
     if ( (norms <= norms0 * initer_conv) .or. (normx * initer_conv >= 1)) &
@@ -1491,7 +1495,8 @@ subroutine InversionZFlowAllocateWm(this)
 
     this%num_constraints_local = num_constraints
     call MPI_Allreduce(num_constraints,this%num_constraints_total, &
-                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     allocate(this%Wm(num_constraints))
     allocate(this%rblock(num_constraints,THREE_INTEGER))
     this%Wm = 0.d0
@@ -1779,11 +1784,12 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
                                     this%dist_measurement_vec, &
                                     INVSUBSCATFORWARD)
   call VecGetArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%dist_measurement_vec,r1vec_ptr, &
+                          ierr);CHKERRQ(ierr)
 
   ! s = J^T*r -> data part
-  call MatMult(inversion_aux%JsensitivityT,this%dist_measurement_vec, &
-               s1,ierr);CHKERRQ(ierr)
+  call MatMult(inversion_aux%JsensitivityT,this%dist_measurement_vec,s1, &
+               ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(s1,s1vec_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%dist_parameter_tmp_vec,s2vec_ptr, &
@@ -1941,14 +1947,11 @@ subroutine InversionZFlowScaleSensitivity(this)
                                     INVSUBSCATFORWARD)
 
   ! Column Scale with wd
-  call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        PETSC_NULL_VEC, & ! scales rows
-                        this%dist_measurement_vec, &  ! scales columns
-                        ierr);CHKERRQ(ierr)
+  call MatDiagonalScale(this%inversion_aux%JsensitivityT,PETSC_NULL_VEC, &
+                        this%dist_measurement_vec,ierr);CHKERRQ(ierr)
   ! Row scale with perm
   call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        this%dist_parameter_vec, & ! scales rows
-                        PETSC_NULL_VEC, &  ! scales columns
+                        this%dist_parameter_vec,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   call VecDestroy(wd_vec,ierr);CHKERRQ(ierr)
 

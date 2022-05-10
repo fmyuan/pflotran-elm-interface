@@ -9,9 +9,9 @@ module PM_UFD_Decay_class
 ! 3.2.3 of Mariner et al. (2016), SAND2016-9610R), where the solution is
 ! obtained explicitly in time, or (b) a fully implicit solution for decay
 ! and ingrowth for any number of generations.
-! For phase partitioning, first all isotope mass is summed up and decayed. 
+! For phase partitioning, first all isotope mass is summed up and decayed.
 ! Then, the updated isotope mass is partitioned into aqueous, sorbed, and
-! precipitated phases according to the elemental solubility limit, and the 
+! precipitated phases according to the elemental solubility limit, and the
 ! elemental Kd value.
 ! ===========================================================================
 
@@ -20,7 +20,7 @@ module PM_UFD_Decay_class
   use PM_Base_class
   use Realization_Subsurface_class
   use Option_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -30,10 +30,10 @@ module PM_UFD_Decay_class
 ! OBJECT pm_ufd_decay_type:
 ! =========================
 ! ---------------------------------------------------------------------------
-! Description:  This is the UFD Decay process model object. It has a list of 
+! Description:  This is the UFD Decay process model object. It has a list of
 ! isotopes, elements, and several arrays that store relevant parameters
-! associated with the decay, ingrowth, and partitioning calculation. Several 
-! procedures allow interfacing with the process model structure and extend the 
+! associated with the decay, ingrowth, and partitioning calculation. Several
+! procedures allow interfacing with the process model structure and extend the
 ! pm_base_type procedures. This is the highest level object in this module.
 ! ---------------------------------------------------------------------------
 ! realization: pointer to subsurface realization object
@@ -47,12 +47,12 @@ module PM_UFD_Decay_class
 ! isotope_daughters(:,:): [-] matrix that stores the isotope daughters, sized
 !    by the max number of daughters per isotope X number of isotopes
 ! isotope_daughter_stoich(:,:): [-] matrix that stores the isotope daughter
-!    stoichiometry factors, sized by the max number of daughters per isotope 
+!    stoichiometry factors, sized by the max number of daughters per isotope
 !    X number of isotopes
 ! isotope_parents(:,:): [-] matrix that stores the isotope parents, sized by
 !    the maximum number of parents per isotope X number of isotopes
 ! element_solubility(:): [mol/L] elemental solubility limit array
-! element_Kd(:,:): [kg-water/m3-bulk] matrix that stores the elemental Kd 
+! element_Kd(:,:): [kg-water/m3-bulk] matrix that stores the elemental Kd
 !    values, sized by the number of elements X number of materials
 ! num_elements: [-] number of elements
 ! num_isotopes: [-] number of isotopes
@@ -63,7 +63,7 @@ module PM_UFD_Decay_class
 ! isotope_name(:): array of isotope name strings
 ! element_list: pointer to element linked list
 ! isotope_list: pointer to isotope linked list
-! --------------------------------------------------------------------------  
+! --------------------------------------------------------------------------
   type, public, extends(pm_base_type) :: pm_ufd_decay_type
     class(realization_subsurface_type), pointer :: realization
     PetscInt, pointer :: element_isotopes(:,:)
@@ -100,14 +100,14 @@ module PM_UFD_Decay_class
 !    procedure, public :: TimeCut => PMUFDDecayTimeCut
 !    procedure, public :: UpdateSolution => PMUFDDecayUpdateSolution
 !    procedure, public :: UpdateAuxVars => PMUFDDecayUpdateAuxVars
-!    procedure, public :: Checkpoint => PMUFDDecayCheckpoint    
-!    procedure, public :: Restart => PMUFDDecayRestart  
+!    procedure, public :: Checkpoint => PMUFDDecayCheckpoint
+!    procedure, public :: Restart => PMUFDDecayRestart
     procedure, public :: Output => PMUFDDecayOutput
     procedure, public :: InputRecord => PMUFDDecayInputRecord
     procedure, public :: Destroy => PMUFDDecayDestroy
   end type pm_ufd_decay_type
-! --------------------------------------------------------------------------  
-  
+! --------------------------------------------------------------------------
+
 ! OBJECT isotope_type:
 ! ====================
 ! ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ module PM_UFD_Decay_class
     type(isotope_type), pointer :: next
   end type isotope_type
 ! -----------------------------------------------
-  
+
 ! OBJECT daughter_type:
 ! =====================
 ! ---------------------------------------------------------------------------
@@ -142,14 +142,14 @@ module PM_UFD_Decay_class
 ! name: daughter name string
 ! stoichiometry: [-] daughter to parent isotope stoichiometry factor
 ! next: pointer to the next daughter in a linked list
-! -------------------------------------- 
+! --------------------------------------
   type :: daughter_type
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: stoichiometry
     type(daughter_type), pointer :: next
   end type
 ! --------------------------------------
-  
+
 ! OBJECT element_type:
 ! ====================
 ! ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ module PM_UFD_Decay_class
     type(element_type), pointer :: next
   end type
 ! --------------------------------------------------------------
-  
+
   public :: PMUFDDecayCreate, &
             PMUFDDecayInit !, &
 !            PMUFDDecayInitializeTimestepA, &
@@ -182,27 +182,27 @@ module PM_UFD_Decay_class
 !            PMUFDDecayUpdatePropertiesNI, &
 !            PMUFDDecayTimeCut, &
 !            PMUFDDecayDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMUFDDecayCreate()
-  ! 
+  !
   ! Creates the UFD decay process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! PMUFDDecayCreate (output): new UFD Decay process model object
 ! -----------------------------------------------------
   class(pm_ufd_decay_type), pointer :: PMUFDDecayCreate
 ! -----------------------------------------------------
-  
+
   allocate(PMUFDDecayCreate)
   call PMBaseInit(PMUFDDecayCreate)
 
@@ -232,9 +232,9 @@ end function PMUFDDecayCreate
 ! ************************************************************************** !
 
 subroutine PMUFDDecayReadPMBlock(this,input)
-  ! 
+  !
   ! Reads input file parameters associated with the ufd decay process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
@@ -242,9 +242,9 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   use String_module
   use Utility_module
   use Option_module
-  
+
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -253,7 +253,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   class(pm_ufd_decay_type) :: this
   type(input_type), pointer :: input
 ! ----------------------------------
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! option: pointer to option object
@@ -289,20 +289,20 @@ subroutine PMUFDDecayReadPMBlock(this,input)
 ! -------------------------------------------------------------
 
   option => this%option
-  
+
   option%io_buffer = 'pflotran card:: UFD_Decay'
   call PrintMsg(option)
-  
+
   input%ierr = 0
   nullify(prev_isotope)
   nullify(prev_element)
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
@@ -347,7 +347,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                                    error_string)
                 Kd_material_name(i) = word
                 nullify(temp_real_array)
-                
+
                 call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER,kd_string,input,option)
                 if (i == 1) then
                   j = size(temp_real_array)
@@ -450,19 +450,19 @@ subroutine PMUFDDecayReadPMBlock(this,input)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine PMUFDDecayReadPMBlock
 
 
 ! ************************************************************************** !
 
 function ElementCreate()
-  ! 
+  !
   ! Creates isotope object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/20/15
-  
+
   implicit none
 
 ! LOCAL VARIABLES:
@@ -471,7 +471,7 @@ function ElementCreate()
 ! --------------------------------------------
   type(element_type), pointer :: ElementCreate
 ! --------------------------------------------
-  
+
   allocate(ElementCreate)
   ElementCreate%name = ''
   ElementCreate%ielement = UNINITIALIZED_INTEGER
@@ -479,18 +479,18 @@ function ElementCreate()
   nullify(ElementCreate%Kd)
   nullify(ElementCreate%Kd_material_name)
   nullify(ElementCreate%next)
-  
+
 end function ElementCreate
 
 ! ************************************************************************** !
 
 function IsotopeCreate()
-  ! 
+  !
   ! Creates isotope object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/20/15
-  
+
   implicit none
 
 ! LOCAL VARIABLES:
@@ -499,7 +499,7 @@ function IsotopeCreate()
 ! --------------------------------------------
   type(isotope_type), pointer :: IsotopeCreate
 ! --------------------------------------------
-  
+
   allocate(IsotopeCreate)
   IsotopeCreate%name = ''
   IsotopeCreate%element = ''
@@ -508,18 +508,18 @@ function IsotopeCreate()
   IsotopeCreate%decay_rate = UNINITIALIZED_DOUBLE
   nullify(IsotopeCreate%daughter_list)
   nullify(IsotopeCreate%next)
-  
+
 end function IsotopeCreate
 
 ! ************************************************************************** !
 
 function IsotopeDaughterCreate()
-  ! 
+  !
   ! Creates daughter object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/20/15
-  
+
   implicit none
 
 ! LOCAL VARIABLES:
@@ -528,7 +528,7 @@ function IsotopeDaughterCreate()
 ! -----------------------------------------------------
   type(daughter_type), pointer :: IsotopeDaughterCreate
 ! -----------------------------------------------------
-  
+
   allocate(IsotopeDaughterCreate)
   IsotopeDaughterCreate%name = ''
   IsotopeDaughterCreate%stoichiometry = UNINITIALIZED_DOUBLE
@@ -539,9 +539,9 @@ end function IsotopeDaughterCreate
 ! ************************************************************************** !
 
 subroutine PMUFDDecayInit(this)
-  ! 
+  !
   ! Initializes variables associated with the UFD decay process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
@@ -553,16 +553,16 @@ subroutine PMUFDDecayInit(this)
   use Reactive_Transport_Aux_module
   use Material_module
   use Secondary_Continuum_Aux_module
-  
+
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! option: pointer to option object
@@ -608,13 +608,13 @@ subroutine PMUFDDecayInit(this)
   PetscInt :: iisotope, ielement
   PetscInt :: g, ig, p, ip, d, id,cell
 ! -----------------------------------------------------------------------
-  
+
   option => this%realization%option
   grid => this%realization%patch%grid
   reaction => this%realization%reaction
   rt_auxvars => this%realization%patch%aux%RT%auxvars
   material_property_array => this%realization%patch%material_property_array
-  
+
   do ghosted_id = 1, grid%ngmax
     allocate(rt_auxvars(ghosted_id)%total_sorb_eq(reaction%naqcomp))
     rt_auxvars(ghosted_id)%total_sorb_eq = 0.d0
@@ -626,12 +626,12 @@ subroutine PMUFDDecayInit(this)
       enddo
     endif
   enddo
-  
+
   max_daughters_per_isotope = 0
   max_parents_per_isotope = 0
 
   ! sum the number of isotopes, elements, max number of isotopes per element
-  
+
   element => this%element_list
   icount = 0
   do
@@ -707,8 +707,8 @@ subroutine PMUFDDecayInit(this)
       enddo
     enddo
     element => element%next
-  enddo  
-  
+  enddo
+
   this%num_isotopes = 0
   isotope => this%isotope_list
   do
@@ -744,7 +744,7 @@ subroutine PMUFDDecayInit(this)
     max_daughters_per_isotope = max(max_daughters_per_isotope,icount)
     isotope => isotope%next
   enddo
-  
+
   allocate(this%isotope_name(this%num_isotopes))
   this%isotope_name = ''
   allocate(this%isotope_to_primary_species(this%num_isotopes))
@@ -766,7 +766,7 @@ subroutine PMUFDDecayInit(this)
   allocate(this%isotope_daughter_stoich(max_daughters_per_isotope, &
                                         this%num_isotopes))
   this%isotope_daughter_stoich(:,:) = UNINITIALIZED_DOUBLE
-  
+
   isotope => this%isotope_list
   do
     if (.not.associated(isotope)) exit
@@ -811,7 +811,7 @@ subroutine PMUFDDecayInit(this)
     enddo
     isotope => isotope%next
   enddo
-  
+
   allocate(this%isotope_parents(1,this%num_isotopes))
   this%isotope_parents = 0
   do iisotope = 1, this%num_isotopes
@@ -854,7 +854,7 @@ subroutine PMUFDDecayInit(this)
         call PrintErrMsg(option)
       endif
     enddo
-    ! ensure that a daughter is not the same as a parent or grandparent. this 
+    ! ensure that a daughter is not the same as a parent or grandparent. this
     ! will produce NaNs through a divide by zero.
     do p = 1, this%isotope_parents(0,iisotope)
       ip = this%isotope_parents(p,iisotope)
@@ -875,8 +875,8 @@ subroutine PMUFDDecayInit(this)
       enddo
     enddo
   enddo
-  
-#if 0  
+
+#if 0
   this%num_elements = 3
   max_num_isotopes_per_element = 3
   this%num_isotopes = 6
@@ -903,14 +903,14 @@ end subroutine PMUFDDecayInit
 ! ************************************************************************** !
 
 subroutine PMUFDDecaySetRealization(this,realization)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   use Realization_Subsurface_class
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -919,7 +919,7 @@ subroutine PMUFDDecaySetRealization(this,realization)
   class(pm_ufd_decay_type) :: this
   class(realization_subsurface_type), pointer :: realization
 ! ----------------------------------------------------------
-  
+
   this%realization => realization
   this%realization_base => realization
 
@@ -928,9 +928,9 @@ end subroutine PMUFDDecaySetRealization
 ! ************************************************************************** !
 
 recursive subroutine PMUFDDecayInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
@@ -948,7 +948,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! patch: pointer to the patch object
@@ -980,11 +980,11 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   PetscInt :: local_id, ghosted_id
   PetscInt :: iele, iiso, ipri, i, imat, cell
 ! --------------------------------------------------------------
-  
+
   patch => this%realization%patch
   grid => patch%grid
   rt_auxvars => patch%aux%RT%auxvars
-  
+
   if (associated(patch%aux%MTransform)) then
     m_transform_auxvars => patch%aux%MTransform%auxvars
   endif
@@ -993,7 +993,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   ! set initial sorbed concentration in equilibrium with aqueous phase
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
-    imat = patch%imat(ghosted_id) 
+    imat = patch%imat(ghosted_id)
     if (imat <= 0) cycle
 
     if (associated(patch%material_transform_array) .and. &
@@ -1040,7 +1040,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
           enddo
         endif
       enddo
-    enddo      
+    enddo
   enddo
 
   if (maxval(this%isotope_daughter_stoich) > 1.d0) then
@@ -1048,26 +1048,26 @@ recursive subroutine PMUFDDecayInitializeRun(this)
       &in pm_ufd_decay.F90.'
     call PrintErrMsg(this%option)
   endif
-  
+
   if (this%print_output) then
     ! write header in the *.dcy files
     call PMUFDDecayOutputHeader(this)
     call PMUFDDecayOutput(this)
   endif
-  
+
 end subroutine PMUFDDecayInitializeRun
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayInitializeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   use Global_module
-  
+
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -1080,7 +1080,7 @@ end subroutine PMUFDDecayInitializeTimestep
 ! ************************************************************************** !
 
 subroutine PMUFDDecayPreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
@@ -1089,30 +1089,30 @@ subroutine PMUFDDecayPreSolve(this)
   use Reactive_Transport_Aux_module
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  
+
   grid => this%realization%patch%grid
   global_auxvars => this%realization%patch%aux%Global%auxvars
   rt_auxvars => this%realization%patch%aux%RT%auxvars
-  
+
 end subroutine PMUFDDecayPreSolve
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecaySolve(this,time,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
   !
@@ -1128,7 +1128,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   use Material_Aux_module
   use Utility_module
   use Secondary_Continuum_Aux_module
-  
+
   implicit none
 
 ! INPUT ARGUMENTS:
@@ -1141,7 +1141,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 ! --------------------------------
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! option: pointer to option object
@@ -1158,7 +1158,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 !    access liquid density [kg/m3] and liquid saturation, and is indexed by
 !    the ghosted grid cell id
 ! material_auxvars(:): pointer to the material auxvars object, which is used
-!    to access the grid cell volume [m3] and porosity, and is indexed by  
+!    to access the grid cell volume [m3] and porosity, and is indexed by
 !    the ghosted grid cell id
 ! local_id: [-] local grid cell id
 ! ghosted_id: [-] ghosted grid cell id
@@ -1175,11 +1175,11 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! vps: [m3] liquid volume (e.g. por*sat*vol)
 ! conc_iso_aq0: [mol/L] aqueous isotope concentration, previous dt
 ! conc_iso_sorb0: [mol/m3-bulk] sorbed isotope concentration, previous dt
-! conc_iso_ppt0: [m3-mnrl/m3-bulk] precipitate isotope concentration, 
+! conc_iso_ppt0: [m3-mnrl/m3-bulk] precipitate isotope concentration,
 !    previous dt
 ! conc_ele_aq1: [mol/L] aqueous element concentration, current dt
 ! conc_ele_sorb1: [mol/m3-bulk] sorbed element concentration, current dt
-! conc_ele_ppt1: [m3-mnrl/m3-bulk] precipitate element concentration, 
+! conc_ele_ppt1: [m3-mnrl/m3-bulk] precipitate element concentration,
 !    current dt
 ! mass_iso_aq0: [mol] isotope mass in aqueous phase, current dt
 ! mass_iso_sorb0: [mol] isotope mass in sorbed phase, current dt
@@ -1229,7 +1229,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
   PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
   PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
-  PetscReal :: mass_iso_tot0(this%num_isotopes) 
+  PetscReal :: mass_iso_tot0(this%num_isotopes)
   PetscReal :: mass_iso_tot1(this%num_isotopes)
   PetscReal :: mass_ele_tot1
   PetscReal :: coeff(this%num_isotopes)
@@ -1253,7 +1253,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! -----------------------------------------------------------------------
 
   ierr = 0
-  
+
   option => this%realization%option
   reaction => this%realization%reaction
   patch => this%realization%patch
@@ -1262,7 +1262,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   rt_auxvars => patch%aux%RT%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  
+
   dt = option%tran_dt
   one_over_dt = 1.d0 / dt
 !  epsilon = 1.d0
@@ -1279,7 +1279,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     if (option%use_mc) then
       rt_sec_transport_vars =  patch%aux%SC_RT%sec_transport_vars(ghosted_id)
       sat = global_auxvars(ghosted_id)%sat(1)
-      por = patch%material_property_array(1)%ptr%multicontinuum%porosity      
+      por = patch%material_property_array(1)%ptr%multicontinuum%porosity
       do cell = 1, rt_sec_transport_vars%ncells
         vol = rt_sec_transport_vars%vol(cell)
         vps = vol * por * sat
@@ -1293,25 +1293,25 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     else
       vol = material_auxvars(ghosted_id)%volume
     endif
-    
+
     por = material_auxvars(ghosted_id)%porosity
     sat = global_auxvars(ghosted_id)%sat(1)
     vps = vol * por * sat  ! m^3 water
 
     istart = (local_id-1) * reaction%ncomp + 1
     iend = istart + reaction%naqcomp - 1
-    
-    ! sum up mass of each isotope across phases and decay      
+
+    ! sum up mass of each isotope across phases and decay
     call PMUFDDecaySolveISPDIAtCell(this,rt_auxvars(ghosted_id),reaction, &
                            vol,den_w_kg,por,sat,vps,dt,xx_p(istart:iend), &
-                           local_id,imat,this%element_Kd(:,:,1))    
+                           local_id,imat,this%element_Kd(:,:,1))
   enddo
 
   call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   if (reaction%use_log_formulation) then
     call VecCopy(field%tran_xx,field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(field%tran_log_xx,ierr);CHKERRQ(ierr)
-  endif  
+  endif
 !  call DiscretizationGlobalToLocal(this%realization%discretization, &
 !                                   field%tran_xx,field%tran_xx_loc,NTRANDOF)
 
@@ -1319,7 +1319,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     ! write data to *.dcy output files from current time step
     call PMUFDDecayOutput(this)
  endif
-  
+
 end subroutine PMUFDDecaySolve
 
 ! ************************************************************************** !
@@ -1341,7 +1341,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   use Material_Transform_module
 
   implicit none
-  
+
   class(pm_ufd_decay_type) :: this
   type(reactive_transport_auxvar_type) :: rt_auxvars
   class(reaction_rt_type), pointer :: reaction
@@ -1349,13 +1349,13 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   PetscReal :: vol, por, sat, den_w_kg, vps
   PetscReal :: dt
   PetscInt :: local_id
-  
+
   PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
     PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
   PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
   PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
   PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
-  PetscReal :: mass_iso_tot0(this%num_isotopes) 
+  PetscReal :: mass_iso_tot0(this%num_isotopes)
   PetscReal :: mass_iso_tot1(this%num_isotopes)
   PetscReal :: mass_ele_tot1
   PetscReal :: coeff(this%num_isotopes)
@@ -1383,7 +1383,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   PetscInt :: idaughter
   PetscInt :: it
 
-  
+
   one_over_dt = 1.d0 / dt
 
   option => this%realization%option
@@ -1409,7 +1409,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
       iiso = this%element_isotopes(i,iele)
       ipri = this%isotope_to_primary_species(iiso)
       imnrl = this%isotope_to_mineral(iiso)
-      ! # indicated time level (0 = prev time level, 1 = new time level) 
+      ! # indicated time level (0 = prev time level, 1 = new time level)
       conc_iso_aq0 = xx_p(ipri) * den_w_kg / 1000.d0  ! mol/L
       !conc_iso_aq0 = rt_auxvars(ghosted_id)%total(ipri,1) ! mol/L
       conc_iso_sorb0 = rt_auxvars%total_sorb_eq(ipri) ! mol/m^3 bulk
@@ -1420,8 +1420,8 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
                       reaction%mineral%kinmnrl_molar_vol(imnrl)
       mass_iso_tot0(iiso) = mass_iso_aq0 + mass_iso_sorb0 + mass_iso_ppt0
     enddo
-  enddo 
-    
+  enddo
+
   ! save the mass from the previous time step:
   mass_old(:) = mass_iso_tot0(:)
 
@@ -1445,7 +1445,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
         do g = 1,this%isotope_parents(0,ip)
           ig = this%isotope_parents(g,ip)
           coeff(i) = coeff(i) - &
-            ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &        
+            ((this%isotope_decay_rate(ip) * this%isotope_decay_rate(ig) * &
             mass_old(ig)) / ((this%isotope_decay_rate(ip) - &
             this%isotope_decay_rate(ig)) * (this%isotope_decay_rate(i) - &
             this%isotope_decay_rate(ig)))) + ((this%isotope_decay_rate(ip) * &
@@ -1534,7 +1534,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
         rhs(iiso) = residual(iiso)*norm
         ! row scaling
         Jacobian(iiso,:) = Jacobian(iiso,:)*norm
-      enddo 
+      enddo
       ! log formulation for derivatives, column scaling
       do iiso = 1, this%num_isotopes
         Jacobian(:,iiso) = Jacobian(:,iiso)*solution(iiso)
@@ -1548,7 +1548,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
       ! update the solution
       solution = solution*exp(-rhs)
     enddo
-    mass_iso_tot1 = solution 
+    mass_iso_tot1 = solution
   endif
 
   mass_iso_tot1 = max(mass_iso_tot1,1.d-90)
@@ -1619,87 +1619,87 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
       ! need to copy primary molalities back into transport solution Vec
       xx_p(ipri) = rt_auxvars%pri_molal(ipri)
     enddo
-  enddo      
+  enddo
 
 end subroutine PMUFDDecaySolveISPDIAtCell
- 
+
 ! ************************************************************************** !
 
 subroutine PMUFDDecayPostSolve(this)
-  ! 
+  !
   ! PMUFDDecayUpdatePostSolve:
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 end subroutine PMUFDDecayPostSolve
 
 ! ************************************************************************** !
 
 function PMUFDDecayAcceptSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! PMUFDDecayAcceptSolution: Boolean helper
 ! -------------------------------------
   PetscBool :: PMUFDDecayAcceptSolution
 ! -------------------------------------
-  
+
   ! do nothing
   PMUFDDecayAcceptSolution = PETSC_TRUE
-  
+
 end function PMUFDDecayAcceptSolution
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayUpdatePropertiesNI(this)
-  ! 
+  !
   ! Updates parameters/properties at each Newton iteration
   !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 end subroutine PMUFDDecayUpdatePropertiesNI
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
-  
+
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -1707,36 +1707,36 @@ subroutine PMUFDDecayTimeCut(this)
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
 
-  
+
 end subroutine PMUFDDecayTimeCut
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayFinalizeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 end subroutine PMUFDDecayFinalizeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayUpdateSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -1744,17 +1744,17 @@ subroutine PMUFDDecayUpdateSolution(this)
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
 
-end subroutine PMUFDDecayUpdateSolution  
+end subroutine PMUFDDecayUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -1765,19 +1765,19 @@ subroutine PMUFDDecayUpdateAuxVars(this)
   this%option%io_buffer = 'PMUFDDecayUpdateAuxVars() must be extended.'
   call PrintErrMsg(this%option)
 
-end subroutine PMUFDDecayUpdateAuxVars   
+end subroutine PMUFDDecayUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayCheckpoint(this,viewer)
-  ! 
+  !
   ! Checkpoints data associated with UFD Decay process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
 ! INPUT ARGUMENTS:
 ! ================
@@ -1787,20 +1787,20 @@ subroutine PMUFDDecayCheckpoint(this,viewer)
   class(pm_ufd_decay_type) :: this
   PetscViewer :: viewer
 ! --------------------------------
-  
+
 end subroutine PMUFDDecayCheckpoint
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayRestart(this,viewer)
-  ! 
+  !
   ! Restarts data associated with UFD Decay process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
 ! INPUT ARGUMENTS:
 ! ================
@@ -1810,51 +1810,51 @@ subroutine PMUFDDecayRestart(this,viewer)
   class(pm_ufd_decay_type) :: this
   PetscViewer :: viewer
 ! --------------------------------
-  
+
 end subroutine PMUFDDecayRestart
 
 ! *************************************************************************** !
 
 subroutine PMUFDDecayOutput(this)
-  ! 
+  !
   ! Sets up output for the process model to the *.dcy file.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 08/18/2017
   !
-  
+
   use Option_module
   use Output_Aux_module
-  
+
   implicit none
 
   class(pm_ufd_decay_type) :: this
-  
+
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
   PetscInt :: k
-  
+
 100 format(100es18.8)
 
   option => this%realization%option
   output_option => this%realization%output_option
-  
+
   fid = 223
   filename = PMUFDDecayOutputFilename(option)
   open(unit=fid,file=filename,action="write",status="old", &
        position="append")
-       
+
   ! this time is set at the end of the reactive transport step
   write(fid,100,advance="no") option%time / output_option%tconv
-  
+
   do k = 1,this%num_isotopes
     write(fid,100,advance="no") this%isotope_tot_mass(k)
   enddo
- 
+
   close(fid)
-  
+
 end subroutine PMUFDDecayOutput
 
 ! *************************************************************************** !
@@ -1866,14 +1866,14 @@ subroutine PMUFDDecayOutputHeader(this)
   ! Author: Jenn Frederick
   ! Date: 08/18/2017
   !
-  
+
   use Output_Aux_module
   use Utility_module
-  
+
   implicit none
-  
+
   class(pm_ufd_decay_type) :: this
-  
+
   type(output_option_type), pointer :: output_option
   character(len=MAXWORDLENGTH) :: units_string
   character(len=MAXWORDLENGTH) :: variable_string
@@ -1882,23 +1882,23 @@ subroutine PMUFDDecayOutputHeader(this)
   PetscInt :: fid, i
   PetscInt :: icolumn
   PetscBool :: exist
-  
+
   output_option => this%realization%output_option
-  
+
   fid = 91
   filename = PMUFDDecayOutputFilename(this%option)
   exist = FileExists(trim(filename))
   if (this%option%restart_flag .and. exist) return
-  open(unit=fid,file=filename,action="write",status="replace")  
-  
+  open(unit=fid,file=filename,action="write",status="replace")
+
   if (output_option%print_column_ids) then
     icolumn = 1
   else
     icolumn = -1
-  endif 
-  
+  endif
+
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
-  
+
   do i = 1,this%num_isotopes
     variable_string = 'Total Mass'
     units_string = 'mol'
@@ -1906,17 +1906,17 @@ subroutine PMUFDDecayOutputHeader(this)
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
   enddo
-  
+
   close(fid)
-  
+
 end subroutine PMUFDDecayOutputHeader
 
 ! ************************************************************************** !
 
 function PMUFDDecayOutputFilename(option)
-  ! 
+  !
   ! Generates filename for ufd_decay output file, *.dcy.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 08/18/2017
   !
@@ -1924,9 +1924,9 @@ function PMUFDDecayOutputFilename(option)
   use Option_module
 
   implicit none
-  
+
   type(option_type), pointer :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: PMUFDDecayOutputFilename
   character(len=MAXWORDLENGTH) :: word
 
@@ -1934,48 +1934,48 @@ function PMUFDDecayOutputFilename(option)
   PMUFDDecayOutputFilename = trim(option%global_prefix) // &
                              trim(option%group_prefix) // &
                              '-' // trim(adjustl(word)) // '.dcy'
-  
+
 end function PMUFDDecayOutputFilename
 
 ! ************************************************************************** !
 
 recursive subroutine PMUFDDecayFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
-  
+
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
   ! do something here
-  
+
   if (associated(this%next)) then
     call this%next%FinalizeRun()
-  endif  
-  
+  endif
+
 end subroutine PMUFDDecayFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine PMUFDDecayInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
+  !
   use Material_module
-  
+
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
@@ -2017,7 +2017,7 @@ subroutine PMUFDDecayInputRecord(this)
     do i = 1, size(this%element_Kd,2)
       write(id,'(6x,a32,es13.5)') material_property_array(i)%ptr%name, &
         this%element_Kd(iele,i,1)
-    enddo 
+    enddo
     write(id,'(4x,"Isotopes")')
     do i = 1, this%element_isotopes(0,iele)
       iiso = this%element_isotopes(i,iele)
@@ -2057,9 +2057,9 @@ end subroutine PMUFDDecayInputRecord
 ! ************************************************************************** !
 
 subroutine PMUFDDecayDestroy(this)
-  ! 
+  !
   ! Destroys UFD Decay process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
   !
@@ -2067,14 +2067,14 @@ subroutine PMUFDDecayDestroy(this)
   use Option_module
 
   implicit none
-  
+
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
 ! --------------------------------
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
-  
+
 ! LOCAL VARIABLES:
 ! ================
 ! cur_element: pointer to current element object in linked list
@@ -2088,7 +2088,7 @@ subroutine PMUFDDecayDestroy(this)
   type(isotope_type), pointer :: cur_isotope, prev_isotope
   type(daughter_type), pointer :: cur_daughter, prev_daughter
 ! -----------------------------------------------------------
-    
+
   call PMBaseDestroy(this)
 
   call DeallocateArray(this%element_isotopes)
@@ -2102,7 +2102,7 @@ subroutine PMUFDDecayDestroy(this)
   call DeallocateArray(this%element_solubility)
   call DeallocateArray(this%element_Kd)
   call DeallocateArray(this%element_name)
-  
+
   cur_isotope => this%isotope_list
   do
     if (.not.associated(cur_isotope)) exit
@@ -2121,7 +2121,7 @@ subroutine PMUFDDecayDestroy(this)
     deallocate(prev_isotope)
     nullify(prev_isotope)
   enddo
-  
+
   cur_element => this%element_list
   do
     if (.not.associated(cur_element)) exit
@@ -2133,7 +2133,7 @@ subroutine PMUFDDecayDestroy(this)
     deallocate(prev_element)
     nullify(prev_element)
   enddo
-  
+
 end subroutine PMUFDDecayDestroy
-  
+
 end module PM_UFD_Decay_class

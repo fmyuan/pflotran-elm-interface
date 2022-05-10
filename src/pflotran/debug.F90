@@ -186,18 +186,18 @@ subroutine DebugCreateViewer(debug,viewer_name_prefix,option,viewer)
                                 ierr);CHKERRQ(ierr)
     case(DEBUG_BINARY_FORMAT)
       viewer_name = trim(adjustl(viewer_name_prefix)) // '.bin'
-      call PetscViewerBinaryOpen(option%mycomm,viewer_name, &
-                                 FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerBinaryOpen(option%mycomm,viewer_name,FILE_MODE_WRITE, &
+                                 viewer,ierr);CHKERRQ(ierr)
     case(DEBUG_MATLAB_FORMAT)
       viewer_name = trim(viewer_name_prefix) // '.mat'
-      call PetscViewerASCIIOpen(option%mycomm,viewer_name, &
-                                 viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerASCIIOpen(option%mycomm,viewer_name,viewer, &
+                                ierr);CHKERRQ(ierr)
       call PetscViewerPushFormat(viewer,PETSC_VIEWER_ASCII_MATLAB, &
                                  ierr);CHKERRQ(ierr)
     case(DEBUG_NATIVE_FORMAT)
       viewer_name = trim(viewer_name_prefix) // '.bin'
-      call PetscViewerBinaryOpen(option%mycomm,viewer_name, &
-                                 FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerBinaryOpen(option%mycomm,viewer_name,FILE_MODE_WRITE, &
+                                 viewer,ierr);CHKERRQ(ierr)
       call PetscViewerPushFormat(viewer,PETSC_VIEWER_NATIVE, &
                                  ierr);CHKERRQ(ierr)
   end select

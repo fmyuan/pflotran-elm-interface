@@ -131,7 +131,7 @@ contains
 
   @Test
   subroutine testEOSGas_DensityRKS(this)
-    ! 
+    !
     ! verify that the EOSGasSetDensity() followed by
     ! EOSGasDensityRKS() correctly returns the correct_density
     ! the derivatives are calculated in the Jacobian step.
@@ -172,7 +172,7 @@ contains
     use_effective_properties = PETSC_FALSE
     use_cubic_root_solution = PETSC_FALSE
 
-    correct_density1 = 7.6982161383611136d-2 
+    correct_density1 = 7.6982161383611136d-2
     correct_density2 = 0.22974126063080880d0
     correct_density3 = 0.85516684075321425d0
 

@@ -7,9 +7,9 @@ module Reaction_Sandbox_Simple_class
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_simple_type
     ! Aqueous species
@@ -34,27 +34,27 @@ contains
 ! ************************************************************************** !
 
 function SimpleCreate()
-  ! 
+  !
   ! Allocates simple reaction object.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/03/15
 
   implicit none
-  
+
   class(reaction_sandbox_simple_type), pointer :: SimpleCreate
 
   allocate(SimpleCreate)
-  nullify(SimpleCreate%next)  
-      
+  nullify(SimpleCreate%next)
+
 end function SimpleCreate
 
 ! ************************************************************************** !
 
 subroutine SimpleSetup(this,reaction,option)
-  ! 
+  !
   ! Sets up the simple reaction with hardwired parameters
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/03/15
 
@@ -63,11 +63,11 @@ subroutine SimpleSetup(this,reaction,option)
   use Option_module
 
   implicit none
-  
+
   class(reaction_sandbox_simple_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: word
 
   ! Aqueous species
@@ -98,7 +98,7 @@ subroutine SimpleSetup(this,reaction,option)
   this%species_Yim_id = &
     GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
 
-      
+
 end subroutine SimpleSetup
 
 ! ************************************************************************** !
@@ -106,21 +106,21 @@ end subroutine SimpleSetup
 subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
                           rt_auxvar,global_auxvar,material_auxvar,reaction, &
                           option)
-  ! 
+  !
   ! Evaluates reaction storing residual and/or Jacobian
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/03/15
-  ! 
+  !
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Material_Aux_module
-  
+
   implicit none
-  
-  class(reaction_sandbox_simple_type) :: this  
+
+  class(reaction_sandbox_simple_type) :: this
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -136,7 +136,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: porosity               ! m^3 pore / m^3 bulk volume
   PetscReal :: liquid_saturation      ! m^3 water / m^3 pore space
   PetscReal :: L_water                ! L water
-  
+
   PetscReal :: Aaq, Baq, Caq, Daq, Eaq, Faq  ! mol/L water
   PetscReal :: Xim, Yim  ! mol/m^3 bulk volume
   PetscReal :: Rate,Rate1,Rate2
@@ -145,20 +145,20 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: stoichX, stoichY
   PetscReal :: k, kr, k1, k2  ! units are problem specific
   PetscReal :: K_Aaq, K_Baq ! [mol/L water]
-  
+
   porosity = material_auxvar%porosity               ! [m^3 pore/m^3 bulk volume]
   liquid_saturation = global_auxvar%sat(iphase)     ! [m^3 water/m^3 pore]
   volume = material_auxvar%volume                   ! [m^3 bulk volume]
             ! multiplying by 1.d3 converts m^3 water -> L water
-  L_water = porosity*liquid_saturation*volume*1.d3  
-  
+  L_water = porosity*liquid_saturation*volume*1.d3
+
   Aaq = rt_auxvar%total(this%species_Aaq_id,iphase) ! [mol/L water]
   Baq = rt_auxvar%total(this%species_Baq_id,iphase) ! [mol/L water]
   Caq = rt_auxvar%total(this%species_Caq_id,iphase) ! [mol/L water]
   Daq = rt_auxvar%total(this%species_Daq_id,iphase) ! [mol/L water]
   Eaq = rt_auxvar%total(this%species_Eaq_id,iphase) ! [mol/L water]
   Faq = rt_auxvar%total(this%species_Faq_id,iphase) ! [mol/L water]
-  
+
   Xim = rt_auxvar%immobile(this%species_Xim_id)     ! [mol/m^3 bulk volume]
   Yim = rt_auxvar%immobile(this%species_Yim_id)     ! [mol/m^3 bulk volume]
 
@@ -185,7 +185,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   stoichF = 0.d0
   stoichX = 0.d0
   stoichY = 0.d0
-  
+
   ! kinetic rate constants
   k = 0.d0
   kr = 0.d0
@@ -206,7 +206,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: Rate = k * L_water  ! mol/sec
   !uncomment: RateA = stoichA * Rate
   !uncomment: RateC = stoichC * Rate
-  
+
   !----------------------------------------------------------------------------
   ! first-order (A -> C)
   !uncomment: k = 1.d-9  ! [1/sec]
@@ -215,7 +215,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: Rate = k * Aaq * L_water  ! [mol/sec]
   !uncomment: RateA = stoichA * Rate
   !uncomment: RateC = stoichC * Rate
-  
+
   !----------------------------------------------------------------------------
   ! second-order (A + B -> C)
   !uncomment: k = 1.d-6  ! [L water/mol-sec]
@@ -226,7 +226,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: RateA = stoichA * Rate
   !uncomment: RateB = stoichB * Rate
   !uncomment: RateC = stoichC * Rate
-  
+
   !----------------------------------------------------------------------------
   ! Monod (A -> C)
   !uncomment: k = 1.d-12  ! [mol/L water-sec]
@@ -236,7 +236,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: Rate = k * Aaq / (K_Aaq + Aaq) * L_water  ! [mol/sec]
   !uncomment: RateA = stoichA * Rate
   !uncomment: RateC = stoichC * Rate
-  
+
   !----------------------------------------------------------------------------
   ! multiplicative Monod w/biomass (A + 2B -> C)
   !uncomment: k = 1.d-6  ! [mol /mol biomass-sec]
@@ -250,7 +250,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: RateA = stoichA * Rate
   !uncomment: RateB = stoichB * Rate
   !uncomment: RateC = stoichC * Rate
-  
+
   !----------------------------------------------------------------------------
   ! decay and ingrowth (A -> B -> C)
   ! first-order rate constants
@@ -295,10 +295,10 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: Rate = k * Baq * L_water - kr * Yim * volume  ! [mol/sec]
   !uncomment: RateB = stoichB * Rate
   !uncomment: RateY = stoichY * Rate
-  
+
   ! NOTES
   ! 1. Always subtract contribution from residual
-  ! 2. Units of residual are moles/second  
+  ! 2. Units of residual are moles/second
   Residual(this%species_Aaq_id) = Residual(this%species_Aaq_id) - RateA
   Residual(this%species_Baq_id) = Residual(this%species_Baq_id) - RateB
   Residual(this%species_Caq_id) = Residual(this%species_Caq_id) - RateC
@@ -315,7 +315,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
                        &derivatives.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine SimpleEvaluate
 
 end module Reaction_Sandbox_Simple_class

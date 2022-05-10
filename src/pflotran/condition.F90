@@ -1531,7 +1531,7 @@ subroutine FlowConditionRead(condition,input,option)
       call DeallocateArray(condition%itype)
 
       ! IMPORTANT - at this point zflow_liq_flow_eq, zflow_heat_tran_eq and
-      ! zflow_sol_tran_eq are solely flags set to 0 or 1. They cannot 
+      ! zflow_sol_tran_eq are solely flags set to 0 or 1. They cannot
       ! index any arrays
 
       if (zflow_liq_flow_eq > 0) then

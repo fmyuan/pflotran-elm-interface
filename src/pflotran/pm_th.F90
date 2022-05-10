@@ -9,7 +9,7 @@ module PM_TH_class
   use Realization_Subsurface_class
   use Communicator_Base_class
   use Option_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -52,25 +52,25 @@ module PM_TH_class
     procedure, public :: InputRecord => PMTHInputRecord
     procedure, public :: Destroy => PMTHDestroy
   end type pm_th_type
-  
+
   public :: PMTHCreate, &
             PMTHDestroy, &
             PMTHCheckConvergence
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMTHCreate()
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_th_type), pointer :: PMTHCreate
 
   class(pm_th_type), pointer :: this
@@ -85,10 +85,10 @@ function PMTHCreate()
                             [pres_rel_inf_tol,temp_rel_inf_tol]
   PetscReal, parameter :: residual_abs_inf_tol(2) = 1.d-5
   PetscReal, parameter :: residual_scaled_inf_tol(2) = 1.d-5
-  
+
 #ifdef PM_TH_DEBUG
   print *, 'PMTHCreate()'
-#endif  
+#endif
 
   allocate(this)
 
@@ -104,30 +104,30 @@ function PMTHCreate()
   this%rel_update_inf_tol = rel_update_inf_tol
 
   PMTHCreate => this
-  
+
 end function PMTHCreate
 
 ! ************************************************************************** !
 
 subroutine PMTHReadSimOptionsBlock(this,input)
-  ! 
+  !
   ! Reads input file parameters associated with the TH process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/29/15
 
   use Input_Aux_module
   use String_module
   use Utility_module
-  use EOS_Water_module  
+  use EOS_Water_module
   use Option_module
   use TH_Aux_module
- 
+
   implicit none
-  
+
   class(pm_th_type) :: this
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
@@ -137,15 +137,15 @@ subroutine PMTHReadSimOptionsBlock(this,input)
   option => this%option
 
   error_string = 'TH Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
@@ -154,7 +154,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                        error_string,option)
     if (found) cycle
-    
+
     select case(trim(keyword))
       case('FREEZING')
         option%flow%th_freezing = PETSC_TRUE
@@ -189,16 +189,16 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine PMTHReadSimOptionsBlock
 
 ! ************************************************************************** !
 
 subroutine PMTHReadNewtonSelectCase(this,input,keyword,found, &
                                     error_string,option)
-  ! 
+  !
   ! Reads input file parameters associated with the TH process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
 
@@ -207,9 +207,9 @@ subroutine PMTHReadNewtonSelectCase(this,input,keyword,found, &
   use Utility_module
   use Option_module
   use TH_Aux_module
- 
+
   implicit none
-  
+
   class(pm_th_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -224,14 +224,14 @@ subroutine PMTHReadNewtonSelectCase(this,input,keyword,found, &
 
   lid = option%liquid_phase
   eid = option%energy_id
-  
+
   error_string = 'TH Newton Solver'
-  
+
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                             error_string,option)
   if (found) return
-    
+
   found = PETSC_TRUE
   select case(trim(keyword))
 
@@ -307,30 +307,30 @@ subroutine PMTHReadNewtonSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
 
   end select
-  
+
 end subroutine PMTHReadNewtonSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMTHSetup(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use Discretization_module
   use Communicator_Structured_class
   use Communicator_Unstructured_class
-  use Grid_module 
+  use Grid_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
 
   call PMSubsurfaceFlowSetup(this)
-  
+
   ! set up communicator
   select case(this%realization%discretization%itype)
     case(STRUCTURED_GRID)
@@ -345,18 +345,18 @@ end subroutine PMTHSetup
 ! ************************************************************************** !
 
 subroutine PMTHInitializeTimestep(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THInitializeTimestep
   use Option_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
@@ -365,23 +365,23 @@ subroutine PMTHInitializeTimestep(this)
 
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
-  
+
 end subroutine PMTHInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMTHPreSolve(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use Global_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
 
   call PMSubsurfaceFlowPreSolve(this)
@@ -391,16 +391,16 @@ end subroutine PMTHPreSolve
 ! ************************************************************************** !
 
 subroutine PMTHPostSolve(this)
-  ! 
+  !
   ! Date: 03/14/13
-  ! 
+  !
 
   use Global_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
-  
+
 end subroutine PMTHPostSolve
 
 ! ************************************************************************** !
@@ -408,16 +408,16 @@ end subroutine PMTHPostSolve
 subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                               num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
-  
+
   class(pm_th_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
@@ -425,7 +425,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
-  
+
   PetscReal :: fac
   PetscReal :: ut
   PetscReal :: up
@@ -434,11 +434,11 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dt_u
   PetscReal :: dt_tfac
   PetscInt :: ifac
-  
+
 #ifdef PM_TH_DEBUG
   call PrintMsg(this%option,'PMTH%UpdateTimestep()')
 #endif
-  
+
   if (iacceleration > 0) then
     fac = 0.5d0
     if (num_newton_iterations >= iacceleration) then
@@ -473,29 +473,29 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
-  
+
 end subroutine PMTHUpdateTimestep
 
 ! ************************************************************************** !
 
 subroutine PMTHResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THResidual
 
   implicit none
-  
+
   class(pm_th_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
+
   call THResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMTHResidual
@@ -503,23 +503,23 @@ end subroutine PMTHResidual
 ! ************************************************************************** !
 
 subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THJacobian
 
   implicit none
-  
+
   class(pm_th_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   call THJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMTHJacobian
@@ -527,12 +527,12 @@ end subroutine PMTHJacobian
 ! ************************************************************************** !
 
 subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Grid_module
@@ -544,14 +544,14 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Global_Aux_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
   SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: X_p(:)
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
@@ -560,12 +560,12 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscReal :: P0, P1, P_R, delP, delP_old
   PetscReal :: scale, press_limit, temp_limit
   PetscInt :: iend, istart
-  
+
   patch => this%realization%patch
   grid => patch%grid
   option => this%realization%option
@@ -587,21 +587,21 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
       P0 = X_p(istart)
       delP = dX_p(istart)
       if (press_limit < dabs(delP)) then
-        write(option%io_buffer,'("dP_trunc:",1i7,2es15.7)') &         
+        write(option%io_buffer,'("dP_trunc:",1i7,2es15.7)') &
           grid%nG2A(grid%nL2G(local_id)),press_limit,dabs(delP)
         call PrintMsgAnyRank(option)
       endif
       delP = sign(min(dabs(delP),press_limit),delP)
       dX_p(istart) = delP
     enddo
-    
+
     call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
 
   endif
-  
+
   if (dabs(this%temperature_change_limit) > 0.d0) then
-      
+
     call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
 
@@ -620,10 +620,10 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
       delP = sign(min(dabs(delP),temp_limit),delP)
       dX_p(iend) = delP
     enddo
-    
+
     call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
-    
+
   endif
 
 
@@ -643,7 +643,7 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
       P1 = P0 - delP
       if (P0 < P_R .and. P1 > P_R) then
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
-          grid%nG2A(grid%nL2G(local_id)),P0,P1 
+          grid%nG2A(grid%nL2G(local_id)),P0,P1
         call PrintMsgAnyRank(option)
 #if 0
         ghosted_id = grid%nL2G(local_id)
@@ -680,10 +680,10 @@ end subroutine PMTHCheckUpdatePre
 
 subroutine PMTHCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/21/18
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Grid_module
@@ -692,7 +692,7 @@ subroutine PMTHCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Patch_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
   SNES :: snes
   Vec :: X0
@@ -701,7 +701,7 @@ subroutine PMTHCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: dX_changed
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: dX_p(:)
   type(grid_type), pointer :: grid
@@ -899,8 +899,9 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       enddo
     enddo
     call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  
+    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
+                                ierr);CHKERRQ(ierr)
+
     this%converged_flag(:,RESIDUAL_INDEX) = converged_abs_residual_flag(:)
     this%converged_real(:,RESIDUAL_INDEX) = converged_abs_residual_real(:)
     this%converged_cell(:,RESIDUAL_INDEX) = converged_abs_residual_cell(:)
@@ -911,12 +912,13 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     this%converged_cell(:,SCALED_RESIDUAL_INDEX) = &
                                          converged_scaled_residual_cell(:)
     mpi_int = 2*MAX_INDEX
-    ! do not perform an all reduce on cell id as this info is not printed 
+    ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
-                       MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int,MPI_INTEGER, &
+                       MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
 
     option%convergence = CONVERGENCE_CONVERGED
     do itol = 1, MAX_INDEX
@@ -962,19 +964,19 @@ end subroutine PMTHCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMTHTimeCut(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THTimeCut
 
   implicit none
-  
+
   class(pm_th_type) :: this
-  
+
   call PMSubsurfaceFlowTimeCut(this)
   call THTimeCut(this%realization)
 
@@ -983,59 +985,59 @@ end subroutine PMTHTimeCut
 ! ************************************************************************** !
 
 subroutine PMTHUpdateSolution(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THUpdateSolution
 
   implicit none
-  
+
   class(pm_th_type) :: this
-  
+
   call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
 
-end subroutine PMTHUpdateSolution     
+end subroutine PMTHUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMTHUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use TH_module, only : THUpdateAuxVars
-  
+
   implicit none
-  
+
   class(pm_th_type) :: this
 
   call THUpdateAuxVars(this%realization)
 
-end subroutine PMTHUpdateAuxVars   
+end subroutine PMTHUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMTHMaxChange(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THMaxChange
   use Option_module
 
   implicit none
-  
+
   class(pm_th_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
   write(string,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
@@ -1047,20 +1049,20 @@ end subroutine PMTHMaxChange
 ! ************************************************************************** !
 
 subroutine PMTHComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THComputeMassBalance
 
   implicit none
-  
+
   class(pm_th_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   call THComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMTHComputeMassBalance
@@ -1068,15 +1070,15 @@ end subroutine PMTHComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMTHInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_th_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -1094,19 +1096,19 @@ end subroutine PMTHInputRecord
 ! ************************************************************************** !
 
 subroutine PMTHDestroy(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/90/13
-  ! 
+  !
 
   use TH_module, only : THDestroy
 
   implicit none
-  
+
   class(pm_th_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif

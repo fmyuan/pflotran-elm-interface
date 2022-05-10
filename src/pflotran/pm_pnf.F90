@@ -378,14 +378,14 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
                   cur_connection_set%dist(0,iconn)
       endif
       if (local_id_up > 0) then
-        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                               tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1,tempreal, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
       if (local_id_dn > 0) then
-        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                               tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1,tempreal, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
@@ -417,8 +417,8 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
             tempreal = g_sup_h_constant * area**2 / &  ! w^3*b
                       cur_connection_set%dist(0,iconn)
           endif
-          call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1, &
-                                 tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,tempreal, &
+                                 ADD_VALUES,ierr);CHKERRQ(ierr)
           tempreal = tempreal * rvalue
         case(NEUMANN_BC)
           if (this%use_darcy) then
@@ -539,8 +539,8 @@ subroutine PMPNFCalculateVelocities(this)
 
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(this%realization%field%flow_xx_loc, &
-                          vec_loc_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(this%realization%field%flow_xx_loc,vec_loc_ptr, &
+                          ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -599,8 +599,8 @@ subroutine PMPNFCalculateVelocities(this)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayReadF90(this%realization%field%flow_xx_loc, &
-                              vec_loc_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(this%realization%field%flow_xx_loc,vec_loc_ptr, &
+                              ierr);CHKERRQ(ierr)
 
 end subroutine PMPNFCalculateVelocities
 
@@ -782,7 +782,8 @@ subroutine PMPNFMaxChange(this)
                           ierr);CHKERRQ(ierr)
   call VecCopy(field%work,this%max_pressure_change_vec,ierr);CHKERRQ(ierr)
   call MPI_Allreduce(max_change_local,max_change_global,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then
     write(*,'("  --> max chng: dpl= ",1pe12.4)') &

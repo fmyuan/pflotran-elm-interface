@@ -155,7 +155,7 @@ subroutine PMCLinearSetupSolvers(this)
       option%io_buffer = 'Process model not supported by PMCLinearSetupSolvers'
       call PrintErrMsg(option)
   end select
-  ! have to set operators so that any KSPSetup() calls within 
+  ! have to set operators so that any KSPSetup() calls within
   ! SolverSetKSPOptions have access to Mats and Vecs
   call KSPSetOperators(solver%ksp,solver%M,solver%Mpre,ierr);CHKERRQ(ierr)
   call SolverSetKSPOptions(solver,option)

@@ -727,12 +727,12 @@ subroutine InputReadPflotranString(input, option)
       call InputReadPflotranStringSlave(input, option)
     endif
     flag = input%ierr
-    call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                   option%driver%io_rank,option%mycomm,ierr)
+    call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
+                   option%mycomm,ierr);CHKERRQ(ierr)
     input%ierr = flag
     if (.not.InputError(input)) then
       call MPI_Bcast(input%buf,MAXSTRINGLENGTH,MPI_CHARACTER, &
-                     option%driver%io_rank,option%mycomm,ierr)
+                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
   else
     call InputReadPflotranStringSlave(input, option)
@@ -2946,13 +2946,13 @@ end subroutine InputRewind
 ! ************************************************************************** !
 
 subroutine InputCheckKeywordBlockCount(option)
-  ! 
-  ! Checks to ensure that the number of entered blocks due to nesting of 
+  !
+  ! Checks to ensure that the number of entered blocks due to nesting of
   ! keyword blocks in the input file is zero at the end of reading.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/17/21
-  ! 
+  !
   use Option_module
 
   implicit none

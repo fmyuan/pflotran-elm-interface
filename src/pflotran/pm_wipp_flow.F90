@@ -5,7 +5,7 @@ module PM_WIPP_Flow_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_WIPP_SrcSink_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -36,7 +36,7 @@ module PM_WIPP_Flow_class
     PetscReal :: max_allow_rel_liq_pres_chang_ni
     PetscReal :: max_allow_rel_gas_sat_change_ni
     ! the below is set automatically to -log10(max_allow_rel_gas_sat_change_ni)
-    PetscReal :: neg_log10_rel_gas_sat_change_ni 
+    PetscReal :: neg_log10_rel_gas_sat_change_ni
     PetscReal :: gas_sat_thresh_force_ts_cut
     PetscReal :: min_liq_pres_force_ts_cut
     PetscReal :: gas_sat_thresh_force_extra_ni
@@ -74,7 +74,7 @@ module PM_WIPP_Flow_class
     ! pressure, satruation, or both to be zerod in the residual
     PetscInt, pointer :: dirichlet_dofs_ints(:,:)
     PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
- 
+
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMWIPPFloReadSimOptionsBlock
@@ -103,57 +103,57 @@ module PM_WIPP_Flow_class
     procedure, public :: RestartHDF5 => PMWIPPFloRestartHDF5
     procedure, public :: Destroy => PMWIPPFloDestroy
   end type pm_wippflo_type
-  
+
   public :: PMWIPPFloCreate, &
             PMWIPPFloInitObject, &
             PMWIPPFloInitializeRun, &
             PMWIPPFloFinalizeTimestep, &
             PMWIPPFloCheckUpdatePre, &
             PMWIPPFloDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMWIPPFloCreate()
-  ! 
+  !
   ! Creates WIPPFlo process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                GAS_SATURATION
   implicit none
-  
+
   class(pm_wippflo_type), pointer :: PMWIPPFloCreate
 
   class(pm_wippflo_type), pointer :: wippflo_pm
-  
+
   allocate(wippflo_pm)
   call PMWIPPFloInitObject(wippflo_pm)
 
   PMWIPPFloCreate => wippflo_pm
-  
+
 end function PMWIPPFloCreate
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloInitObject(this)
-  ! 
+  !
   ! Creates WIPPFlo process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/17
-  ! 
+  !
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                GAS_SATURATION
   implicit none
-  
+
   class(pm_wippflo_type) :: this
-  
+
   allocate(this%max_change_ivar(3))
   call PMSubsurfaceFlowInit(this)
   this%name = 'WIPP Immiscible Multiphase Flow'
@@ -213,9 +213,9 @@ end subroutine PMWIPPFloInitObject
 ! ************************************************************************** !
 
 subroutine PMWIPPFloReadSimOptionsBlock(this,input)
-  ! 
+  !
   ! Read WIPP FLOW options input block
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   !
@@ -227,7 +227,7 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   use Utility_module
 
   implicit none
-  
+
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
@@ -241,29 +241,29 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   ! temp_int_array has a natural_id and 1,2, or 3 that indicates
   ! pressure, satruation, or both to be zerod in the residual
   PetscInt, parameter :: max_dirichlet_bc = 1000 ! capped at 1000
-  PetscInt :: temp_int_array(2,max_dirichlet_bc) 
-  
+  PetscInt :: temp_int_array(2,max_dirichlet_bc)
+
   option => this%option
 
   error_string = 'WIPP Flow Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     found = PETSC_FALSE
     call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                        error_string,option)
     if (found) cycle
-    
+
     select case(trim(keyword))
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         call InputReadDouble(input,option,fmw_comp(2))
@@ -388,7 +388,7 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
           call InputReadStringErrorMsg(input,option,keyword)
           if (InputCheckExit(input,option)) exit
           if (icount+1 > max_dirichlet_bc) then
-            option%io_buffer = 'Must increase size of "max_dirichlet_bc" & 
+            option%io_buffer = 'Must increase size of "max_dirichlet_bc" &
               &in PMWIPPFloRead'
             call PrintErrMsg(option)
           endif
@@ -399,7 +399,7 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
           call InputReadWord(input,option,word2,PETSC_TRUE)
           call InputErrorMsg(input,option,'saturation', &
                              '2D_FLARED_DIRICHLET_BCS')
-                             
+
           if (StringYesNoOther(word) == STRING_YES .and. &
               StringYesNoOther(word2) == STRING_YES) then
             icount = icount + 1
@@ -422,10 +422,10 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
-  enddo  
+  enddo
   call InputPopBlock(input,option)
-  
-  ! Check that gas_sat_thresh_force_extra_ni is smaller than 
+
+  ! Check that gas_sat_thresh_force_extra_ni is smaller than
   ! gas_sat_thresh_force_ts_cut
   if (this%gas_sat_thresh_force_extra_ni > &
       this%gas_sat_thresh_force_ts_cut) then
@@ -452,25 +452,25 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   ! always calculate neg_log10_rel_gas_sat_change_ni automatically
   this%neg_log10_rel_gas_sat_change_ni = &
     -1.d0*log10(this%max_allow_rel_gas_sat_change_ni)
- 
+
 end subroutine PMWIPPFloReadSimOptionsBlock
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloReadTSSelectCase(this,input,keyword,found, &
                                      error_string,option)
-  ! 
+  !
   ! Read timestepper settings specific to the WIPP_FLOW process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/23/20
 
   use Input_Aux_module
   use String_module
   use Option_module
- 
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -504,18 +504,18 @@ subroutine PMWIPPFloReadTSSelectCase(this,input,keyword,found, &
                                     'sec',keyword,option)
     case default
       found = PETSC_FALSE
-  end select  
-  
+  end select
+
 end subroutine PMWIPPFloReadTSSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
                                          error_string,option)
-  ! 
+  !
   ! Reads input file parameters associated with the WIPP_FLOW process model
   ! Newton solver convergence
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/23/20
 
@@ -524,9 +524,9 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
   use Utility_module
   use Option_module
   use WIPP_Flow_Aux_module
- 
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -545,12 +545,12 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
   eid = 3 !option%energy_id
 
   error_string = 'WIPP_FLOW Newton Solver'
-  
+
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                             error_string,option)
   if (found) return
-    
+
   found = PETSC_TRUE
   select case(trim(keyword))
     case('LIQUID_RESIDUAL_INFINITY_TOL')
@@ -625,15 +625,15 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
 
   end select
-  
+
 end subroutine PMWIPPFloReadNewtonSelectCase
 
 ! ************************************************************************** !
 
 recursive subroutine PMWIPPFloInitializeRun(this)
-  ! 
+  !
   ! Initializes the WIPP_FLOW mode run.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
@@ -650,11 +650,11 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   use Option_module
   use Discretization_module
   use Region_module
-  
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
-  
+
   PetscInt :: i
   PetscErrorCode :: ierr
   class(dataset_base_type), pointer :: dataset
@@ -705,7 +705,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
-  
+
   ! call setup/initialization of all WIPP process models
   if (associated(this%pmwss_ptr)) then
     call this%pmwss_ptr%InitializeRun()
@@ -735,8 +735,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
             wippflo_auxvars(idof,ghosted_id)%alpha = work_loc_p(ghosted_id)
           enddo
         enddo
-        call VecRestoreArrayReadF90(field%work_loc, &
-                                    work_loc_p,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayReadF90(field%work_loc,work_loc_p, &
+                                    ierr);CHKERRQ(ierr)
       class default
         option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
         call PrintErrMsg(option)
@@ -773,8 +773,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
         enddo
-        call VecRestoreArrayReadF90(field%work_loc, &
-                                    work_loc_p,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayReadF90(field%work_loc,work_loc_p, &
+                                    ierr);CHKERRQ(ierr)
       class default
         option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
           &Elevation.'
@@ -828,7 +828,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     call VecRestoreArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
     call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
-    do ghosted_id = 1, grid%ngmax 
+    do ghosted_id = 1, grid%ngmax
       do idof = 0, option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
       enddo
@@ -866,7 +866,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
     zref2 = this%auto_press_shallow_origin(3)
     Phiref2 =  zref2 + 0  ! the second term is always zero because Pbref = Pb02
-    call VecGetArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     nmat_id = size(this%auto_pressure_material_ids)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -886,7 +886,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           h = z - zref  ! PA.33 without rotation using rotation origin
           ze = zref + h                                                ! PA.57
           rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
-        else  
+        else
           h = (x-this%rotation_origin(1))* &  ! PA.33
               sin(this%rotation_angle) + &
               (z-this%rotation_origin(3))* &
@@ -899,7 +899,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         flow_xx_p((local_id-1)*ndof+WIPPFLO_GAS_SATURATION_DOF) = 0.d0
       endif
     enddo
-    call VecRestoreArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     ! have to ensure the auxvars are updated for initial condition output
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      field%flow_xx,field%flow_xx_loc,NFLOWDOF)
@@ -928,8 +928,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
             jcount = jcount + 1
           endif
           exit
-        endif   
-      enddo 
+        endif
+      enddo
     enddo
     allocate(this%dirichlet_dofs_ghosted(jcount))
     allocate(this%dirichlet_dofs_local(jcount))
@@ -955,20 +955,20 @@ recursive subroutine PMWIPPFloInitializeRun(this)
             this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2+1
           endif
           EXIT
-        endif   
-      enddo 
+        endif
+      enddo
     enddo
     call MatSetOption(this%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-         PETSC_FALSE,ierr);CHKERRQ(ierr)
+                      PETSC_FALSE,ierr);CHKERRQ(ierr)
     deallocate(this%dirichlet_dofs_ints)
   endif
 
   ! prevent use of block Jacobi preconditioning in parallel
   if (this%solver%pc_type == PCILU .or. &
       this%solver%pc_type == PCBJACOBI) then
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                             PETSC_NULL_CHARACTER,"-bypass_wipp_pc_check", &
-                             found,ierr);CHKERRQ(ierr)
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                             "-bypass_wipp_pc_check",found, &
+                             ierr);CHKERRQ(ierr)
     if (.not.found) then
       option%io_buffer = 'Block Jacobi or ILU preconditioning is not allowed &
         &with WIPP_FLOW due to excessive error in the solvers. Please use &
@@ -984,16 +984,16 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine PMWIPPFloInitializeRun
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloInitializeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use WIPP_Flow_module, only : WIPPFloInitializeTimestep
   use WIPP_Flow_Aux_module
@@ -1001,15 +1001,15 @@ subroutine PMWIPPFloInitializeTimestep(this)
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
   call WIPPFloInitializeTimestep(this%realization)
-  call PMSubsurfaceFlowInitializeTimestepB(this)  
-  
+  call PMSubsurfaceFlowInitializeTimestepB(this)
+
   ! initialize timestep of all WIPP process models
   if (associated(this%pmwss_ptr)) then
     call this%pmwss_ptr%InitializeTimestep()
@@ -1019,18 +1019,18 @@ subroutine PMWIPPFloInitializeTimestep(this)
   this%convergence_reals = 0.d0
   wippflo_prev_liq_res_cell = 0
   wippflo_print_oscillatory_behavior = PETSC_FALSE
-  
+
 end subroutine PMWIPPFloInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloFinalizeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/21/17
-  ! 
+  !
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   if (associated(this%pmwss_ptr)) then
@@ -1043,7 +1043,7 @@ end subroutine PMWIPPFloFinalizeTimestep
 ! ************************************************************************** !
 
 subroutine PMWIPPFloPreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
@@ -1058,10 +1058,10 @@ end subroutine PMWIPPFloPreSolve
 ! ************************************************************************** !
 
 subroutine PMWIPPFloPostSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  
+
   use Upwind_Direction_module
   use Option_module
 
@@ -1111,10 +1111,10 @@ end subroutine PMWIPPFloPostSolve
 subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Option_module
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
@@ -1125,7 +1125,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Utility_module, only : Equal
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
@@ -1135,14 +1135,14 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   PetscReal :: dtime(2)
   type(field_type), pointer :: field
 
   PetscReal :: dt_prev
 
   dt_prev = dt
-  
+
   ! calculate the time step ramping factor
   dtime(1) = (2.d0*this%gas_sat_change_ts_governor)/ &
              (this%gas_sat_change_ts_governor+this%max_saturation_change)
@@ -1166,7 +1166,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     call OptionPrint(string,this%option)
   endif
   ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
-  ! within timestepper_BE. use %minimum_timestep_size, which is specific to 
+  ! within timestepper_BE. use %minimum_timestep_size, which is specific to
   ! wipp_flow.
   dt = max(dt,this%minimum_timestep_size)
 
@@ -1199,16 +1199,16 @@ end subroutine PMWIPPFloUpdateTimestep
 ! ************************************************************************** !
 
 subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use WIPP_Flow_module, only : WIPPFloResidual
   use Debug_module
   use Grid_module
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   SNES :: snes
   Vec :: xx
@@ -1220,7 +1220,7 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   type(grid_type), pointer :: grid
   PetscReal, pointer :: r_p(:)
   PetscInt :: i, idof
-  
+
   grid => this%realization%patch%grid
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
@@ -1230,11 +1230,11 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
 
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_local)) then
-    call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
     do i = 1, size(this%dirichlet_dofs_local)
       r_p(this%dirichlet_dofs_local(i)) = 0.d0
     enddo
-    call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
   endif
   call VecCopy(r,this%stored_residual_vec,ierr);CHKERRQ(ierr)
 
@@ -1258,17 +1258,17 @@ end subroutine PMWIPPFloResidual
 ! ************************************************************************** !
 
 subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use WIPP_Flow_module, only : WIPPFloJacobian
   use Debug_module
   use Option_module
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   SNES :: snes
   Vec :: xx
@@ -1292,7 +1292,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_ghosted)) then
     allocate(diagonal_values(size(this%dirichlet_dofs_local)))
-    call VecDuplicate(this%stored_residual_vec,diagonal_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%stored_residual_vec,diagonal_vec, &
+                      ierr);CHKERRQ(ierr)
     call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
     do i = 1, size(this%dirichlet_dofs_local)
@@ -1304,9 +1305,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     norm = 1.d0
     ! replace all the rows with zero and the diagonals to 1
     ! on the location of dirchlet_dofs_ghosted indices
-    call MatZeroRowsLocal(A,i,this%dirichlet_dofs_ghosted,norm, &
-                          PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
+    call MatZeroRowsLocal(A,i,this%dirichlet_dofs_ghosted,norm,PETSC_NULL_VEC, &
+                          PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
     do i = 1, size(this%dirichlet_dofs_ghosted)
       irow = this%dirichlet_dofs_ghosted(i)
       array(1,1) = diagonal_values(i)
@@ -1340,7 +1340,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
       vec_p(irow) = this%linear_system_scaling_factor
     enddo
     call VecRestoreArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
-    call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec,ierr);CHKERRQ(ierr)
+    call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec, &
+                          ierr);CHKERRQ(ierr)
     call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
                          ierr);CHKERRQ(ierr)
 
@@ -1348,8 +1349,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
 
     call MatDiagonalScale(A,this%scaling_vec,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
-    call VecPointwiseMult(residual_vec,residual_vec, &
-                          this%scaling_vec,ierr);CHKERRQ(ierr)
+    call VecPointwiseMult(residual_vec,residual_vec,this%scaling_vec, &
+                          ierr);CHKERRQ(ierr)
 
     if (this%realization%debug%matview_Matrix) then
       string = 'WFscale_vec'
@@ -1386,10 +1387,10 @@ end subroutine PMWIPPFloJacobian
 ! ************************************************************************** !
 
 subroutine PMWIPPFloCheckUpdatePre(this,snes,X,dX,changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
@@ -1398,16 +1399,16 @@ subroutine PMWIPPFloCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Patch_module
   use WIPP_Flow_Aux_module
   use Global_Aux_module
-  
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  
+
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
   changed = PETSC_FALSE
@@ -1417,17 +1418,17 @@ subroutine PMWIPPFloCheckUpdatePre(this,snes,X,dX,changed,ierr)
     call VecStrideScale(dX,ZERO_INTEGER,this%linear_system_scaling_factor, &
                         ierr);CHKERRQ(ierr)
   endif
-  
+
 end subroutine PMWIPPFloCheckUpdatePre
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Grid_module
   use Option_module
   use Realization_Subsurface_class
@@ -1435,11 +1436,11 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Field_module
   use Patch_module
   use Option_module
-  use Material_Aux_module  
+  use Material_Aux_module
   use WIPP_Flow_Aux_module
-  
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   SNES :: snes
   Vec :: X0
@@ -1494,10 +1495,10 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: max_gas_sat_outside_lim
   PetscInt :: max_gas_sat_outside_lim_cell
   PetscInt :: i
-  ! dX_p is subtracted to update the solution.  The max values need to be 
+  ! dX_p is subtracted to update the solution.  The max values need to be
   ! scaled by this delta_scale for proper screen output.
   PetscReal, parameter :: delta_scale = -1.d0
-  
+
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
@@ -1508,7 +1509,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   ! PETSc will throw an error in debug mode or ignore the error in optimized.
   dX_changed = PETSC_TRUE
   X1_changed = PETSC_TRUE
-  
+
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   if (wippflo_print_update) then
     open(IUNIT_TEMP,file='pf_update.txt')
@@ -1527,8 +1528,10 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
   call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr, &
+                          ierr);CHKERRQ(ierr)
   converged_liquid_pressure = PETSC_TRUE
   converged_gas_saturation = PETSC_TRUE
   cut_timestep = PETSC_FALSE
@@ -1556,7 +1559,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     pressure_index = offset + WIPPFLO_LIQUID_PRESSURE_DOF
     saturation_index = offset + WIPPFLO_GAS_SATURATION_DOF
 
-    !NOTE: store the actual value, not the absolute value, better enabling the 
+    !NOTE: store the actual value, not the absolute value, better enabling the
     !      pinpointing of oscillatory behavior.
 
     !TODO(geh): switch to flow_yy as it is cleaner and more precise.
@@ -1578,7 +1581,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       max_abs_pressure_change_NI_cell = local_id
       max_abs_pressure_change_NI = delta_scale*dX_p(pressure_index)
     endif
-    
+
     ! EPS_SAT maximum gas saturation change "digits of accuracy"
     abs_dX = dabs(dX_p(saturation_index))
     if (abs_dX > 0.d0) then
@@ -1598,11 +1601,11 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     if (abs_dX_TS > 0.d0) then
       if (dabs(max_gas_sat_change_TS) < abs_dX_TS) then
         max_gas_sat_change_TS_cell = local_id
-        max_gas_sat_change_TS = delta_scale * & 
+        max_gas_sat_change_TS = delta_scale * &
           (sat_ptr(local_id)-X1_p(saturation_index))
       endif
     endif
-    
+
     ! DPRE_MAX maximum absolute liquid pressure change over time step
     abs_dX_TS = dabs(press_ptr(local_id)-X1_p(pressure_index))
     if (abs_dX_TS > 0.d0) then
@@ -1612,7 +1615,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
           (press_ptr(local_id)-X1_p(pressure_index))
       endif
     endif
-    
+
     ! EPS_PRES maximum relative liquid pressure change over time step
     !geh: BRAGFLO divides by DEPOUT(L), which is the updated solution (X1_p)
     abs_rel_dX_TS = dabs((press_ptr(local_id)-X1_p(pressure_index))/ &
@@ -1642,7 +1645,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       if (X1_p(saturation_index) < &
           (-1.d0*this%gas_sat_thresh_force_ts_cut)) then  ! DEPLIMIT(1)
         saturation_outside_limits = X1_p(saturation_index)
-      else 
+      else
         if (X1_p(saturation_index) < &
             (-1.d0*this%gas_sat_thresh_force_extra_ni)) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
@@ -1661,7 +1664,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       if (X1_p(saturation_index) > &
           1.d0 + this%gas_sat_thresh_force_ts_cut) then  ! DEPLIMIT(1)
         saturation_outside_limits = X1_p(saturation_index)
-      else 
+      else
         if (X1_p(saturation_index) > &
             1.d0 + this%gas_sat_thresh_force_extra_ni) then  ! SATLIMIT
           force_another_iteration = PETSC_TRUE
@@ -1692,11 +1695,11 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   if (wippflo_debug_first_iteration) stop
 
   ! the following flags are used in detemining convergence
-  if (.not.converged_liquid_pressure) then 
+  if (.not.converged_liquid_pressure) then
     this%convergence_flags(MAX_REL_CHANGE_LIQ_PRES_NI) = &
       max_liq_pres_rel_change_cell
   endif
-  if (.not.converged_gas_saturation) then 
+  if (.not.converged_gas_saturation) then
     this%convergence_flags(MAX_CHANGE_GAS_SAT_NI) = max_gas_sat_change_NI_cell
   endif
   if (max_abs_pressure_change_TS > this%max_allow_liq_pres_change_ts) then
@@ -1735,7 +1738,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                               ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr, &
                               ierr);CHKERRQ(ierr)
-                               
+
 end subroutine PMWIPPFloCheckUpdatePost
 
 ! ************************************************************************** !
@@ -1744,7 +1747,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
                                      fnorm,reason,ierr)
   ! Author: Glenn Hammond
   ! Date: 11/15/17
-  ! 
+  !
   use Grid_module
   use Option_module
   use Realization_Subsurface_class
@@ -1752,7 +1755,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   use Field_module
   use Patch_module
   use Option_module
-  use Material_Aux_module  
+  use Material_Aux_module
   use WIPP_Flow_Aux_module
   use Convergence_module
 
@@ -1781,7 +1784,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  type(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
@@ -1815,7 +1818,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: i
   PetscMPIInt :: int_mpi
   PetscBool :: cell_id_match
-  
+
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
@@ -1827,9 +1830,9 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   if (this%stored_residual_vec == PETSC_NULL_VEC) then
     residual_vec = field%flow_r
   else
-    ! this vector is to be used if linear system scaling is employed when 
-    ! the residual is altered by scaling.  This vector stores the original 
-    ! residual. 
+    ! this vector is to be used if linear system scaling is employed when
+    ! the residual is altered by scaling.  This vector stores the original
+    ! residual.
     residual_vec = this%stored_residual_vec
   endif
   call VecGetArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
@@ -1857,7 +1860,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     liquid_equation_index = offset + WIPPFLO_LIQUID_EQUATION_INDEX
     gas_equation_index = offset + WIPPFLO_GAS_EQUATION_INDEX
 
-    
+
     bragflo_residual = r_p(liquid_equation_index:gas_equation_index)
     bragflo_accum = accum2_p(liquid_equation_index:gas_equation_index)
     if (.not.wippflo_use_bragflo_units) then
@@ -1866,14 +1869,14 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       bragflo_residual = bragflo_residual * pflotran_to_bragflo
       bragflo_accum = bragflo_accum * pflotran_to_bragflo
     else
-      
+
     endif
 
     if (wippflo_debug) then
       ! in bragflo gas is first.
       print *, local_id, bragflo_residual(2), bragflo_residual(1)
     endif
-    
+
     ! liquid component equation
     residual = bragflo_residual(WIPPFLO_LIQUID_EQUATION_INDEX)
     accumulation = bragflo_accum(WIPPFLO_LIQUID_EQUATION_INDEX)
@@ -1885,7 +1888,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     endif
 
     ! normalized residual
-    if (dabs(accumulation) > zero_accumulation) then 
+    if (dabs(accumulation) > zero_accumulation) then
       abs_residual_over_accumulation = dabs(residual / accumulation)
       if (dabs(residual) > this%liquid_residual_infinity_tol) then
         if (abs_residual_over_accumulation > &
@@ -1924,7 +1927,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     if (dabs(accumulation) > zero_accumulation .and. &
         X1_p(gas_equation_index) > zero_saturation) then
       abs_residual_over_accumulation = abs(residual / accumulation)
-      if (dabs(residual) > this%gas_equation_infinity_tol) then 
+      if (dabs(residual) > this%gas_equation_infinity_tol) then
         if (abs_residual_over_accumulation > &
             this%gas_equation_infinity_tol) then
           converged_gas_equation = PETSC_FALSE
@@ -1975,8 +1978,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   this%convergence_reals(MIN_GAS_PRES) = min_gas_pressure
 
   int_mpi = size(this%convergence_flags)
-  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi, &
-                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ! if running in parallel, we can no longer report the sign on the maximum
   ! change variables as the sign may differ across processes.
   if (option%comm%mycommsize > 1) then
@@ -1990,7 +1993,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     -1.d0 * this%convergence_reals(MIN_GAS_PRES)
   int_mpi = size(this%convergence_reals)
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_reals,int_mpi, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   ! flip sign back
   this%convergence_reals(MIN_LIQ_PRES) = &
     -1.d0 * this%convergence_reals(MIN_LIQ_PRES)
@@ -2169,10 +2173,10 @@ end subroutine PMWIPPFloCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMWIPPFloTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use WIPP_Flow_module, only : WIPPFloTimeCut
   use WIPP_Flow_Aux_module, only : wippflo_prev_liq_res_cell, &
@@ -2180,7 +2184,7 @@ subroutine PMWIPPFloTimeCut(this)
                                    wippflo_match_bragflo_output
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   if (wippflo_match_bragflo_output) then
@@ -2198,7 +2202,7 @@ subroutine PMWIPPFloTimeCut(this)
       dabs(this%convergence_reals(MAX_NORMAL_RES_LIQ)/ &
            this%liquid_residual_infinity_tol)
   endif
-  
+
   call PMSubsurfaceFlowTimeCut(this)
   call WIPPFloTimeCut(this%realization)
 
@@ -2212,17 +2216,17 @@ end subroutine PMWIPPFloTimeCut
 ! ************************************************************************** !
 
 subroutine PMWIPPFloUpdateSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use WIPP_Flow_module, only : WIPPFloUpdateSolution, &
                                WIPPFloMapBCAuxVarsToGlobal
   use WIPP_Flow_Aux_module, only : wippflo_debug
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   if (wippflo_debug) then
@@ -2231,38 +2235,38 @@ subroutine PMWIPPFloUpdateSolution(this)
       this%realization%patch%aux%WIPPFlo%auxvars(0,1)%effective_porosity, &
       this%realization%patch%aux%WIPPFlo%auxvars(0,1)%sat(1)
   endif
-  
+
   call PMSubsurfaceFlowUpdateSolution(this)
   call WIPPFloUpdateSolution(this%realization)
   call WIPPFloMapBCAuxVarsToGlobal(this%realization)
 
-end subroutine PMWIPPFloUpdateSolution     
+end subroutine PMWIPPFloUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   use WIPP_Flow_module, only : WIPPFloUpdateAuxVars
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   call WIPPFloUpdateAuxVars(this%realization)
 
-end subroutine PMWIPPFloUpdateAuxVars   
+end subroutine PMWIPPFloUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloMaxChange(this)
-  ! 
+  !
   ! Not needed given WIPPFloMaxChange is called in PostSolve
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Realization_Base_class
   use Realization_Subsurface_class
@@ -2274,9 +2278,9 @@ subroutine PMWIPPFloMaxChange(this)
                                TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
                                GAS_SATURATION
   implicit none
-  
+
   class(pm_wippflo_type) :: this
-  
+
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -2286,7 +2290,7 @@ subroutine PMWIPPFloMaxChange(this)
   PetscReal :: max_change_global(6)
   PetscReal :: max_change, change
   PetscInt :: i, j
-  
+
   PetscErrorCode :: ierr
 
   realization => this%realization
@@ -2296,7 +2300,7 @@ subroutine PMWIPPFloMaxChange(this)
 
   max_change_global = 0.d0
   max_change_local = 0.d0
-  
+
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   ! these are values from the previous time step
   do i = 1, 3
@@ -2305,7 +2309,8 @@ subroutine PMWIPPFloMaxChange(this)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
     call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+                        ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
@@ -2319,7 +2324,7 @@ subroutine PMWIPPFloMaxChange(this)
             change = dabs(change/vec_new_ptr(j))
           endif
         endif
-        max_change = max(max_change,change)  
+        max_change = max(max_change,change)
       endif
     enddo
     max_change_local(i) = max_change
@@ -2329,7 +2334,8 @@ subroutine PMWIPPFloMaxChange(this)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
   call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then
     write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4, &
@@ -2345,24 +2351,24 @@ subroutine PMWIPPFloMaxChange(this)
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   this%max_pressure_change = max_change_global(1)
   this%max_saturation_change = max_change_global(3)
-  
+
 end subroutine PMWIPPFloMaxChange
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use WIPP_Flow_module, only : WIPPFloComputeMassBalance
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   call WIPPFloComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMWIPPFloComputeMassBalance
@@ -2370,15 +2376,15 @@ end subroutine PMWIPPFloComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMWIPPFloInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 07/11/17
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -2396,9 +2402,9 @@ end subroutine PMWIPPFloInputRecord
 ! ************************************************************************** !
 
 subroutine PMWIPPFloCheckpointBinary(this,viewer)
-  ! 
+  !
   ! Checkpoints data associated with WIPPFlo PM
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
@@ -2407,25 +2413,25 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
   use Variables_module, only : STATE
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_wippflo_type) :: this
   PetscViewer :: viewer
-  
+
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
 
   if (associated(this%pmwss_ptr)) then
     call PMWSSCheckpointBinary(this%pmwss_ptr,viewer)
   endif
-  
+
 end subroutine PMWIPPFloCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloCheckpointHDF5(this,pm_grp_id)
-  ! 
+  !
   ! Checkpoints data associated with WIPPFlo PM
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
@@ -2433,13 +2439,13 @@ subroutine PMWIPPFloCheckpointHDF5(this,pm_grp_id)
   use Global_module
   use hdf5
 
-  implicit none    
+  implicit none
 
   class(pm_wippflo_type) :: this
   integer(HID_T) :: pm_grp_id
 
-  call PMSubsurfaceFlowCheckpointHDF5(this,pm_grp_id)  
-  
+  call PMSubsurfaceFlowCheckpointHDF5(this,pm_grp_id)
+
   if (associated(this%pmwss_ptr)) then
     call PMWSSCheckpointHDF5(this%pmwss_ptr,pm_grp_id)
   endif
@@ -2448,9 +2454,9 @@ end subroutine PMWIPPFloCheckpointHDF5
 ! ************************************************************************** !
 
 subroutine PMWIPPFloRestartBinary(this,viewer)
-  ! 
+  !
   ! Restarts data associated with WIPPFlo PM
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
@@ -2459,27 +2465,27 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
   use Variables_module, only : STATE
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_wippflo_type) :: this
   PetscViewer :: viewer
-  
+
   call PMSubsurfaceFlowRestartBinary(this,viewer)
 
   if (associated(this%pmwss_ptr)) then
-    if (.not.this%pmwss_ptr%skip_restart) then       
+    if (.not.this%pmwss_ptr%skip_restart) then
       call PMWSSRestartBinary(this%pmwss_ptr,viewer)
     endif
   endif
-  
+
 end subroutine PMWIPPFloRestartBinary
 
 ! ************************************************************************** !
 
 subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
-  ! 
+  !
   ! Checkpoints data associated with WIPPFlo PM
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
 
@@ -2487,15 +2493,15 @@ subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
   use Global_module
   use hdf5
 
-  implicit none 
+  implicit none
 
   class(pm_wippflo_type) :: this
   integer(HID_T) :: pm_grp_id
 
-  call PMSubsurfaceFlowRestartHDF5(this,pm_grp_id)  
-  
+  call PMSubsurfaceFlowRestartHDF5(this,pm_grp_id)
+
   if (associated(this%pmwss_ptr)) then
-    if (.not.this%pmwss_ptr%skip_restart) then  
+    if (.not.this%pmwss_ptr%skip_restart) then
       call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
     endif
   endif
@@ -2504,22 +2510,22 @@ end subroutine PMWIPPFloRestartHDF5
 ! ************************************************************************** !
 
 subroutine PMWIPPFloDestroy(this)
-  ! 
+  !
   ! Destroys WIPPFlo process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use WIPP_Flow_module, only : WIPPFloDestroy
   use Utility_module, only : DeallocateArray
 
   implicit none
-  
+
   class(pm_wippflo_type) :: this
 
   PetscErrorCode :: ierr
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -2550,7 +2556,7 @@ subroutine PMWIPPFloDestroy(this)
   endif
   call WIPPFloDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
-  
+
 end subroutine PMWIPPFloDestroy
-  
+
 end module PM_WIPP_Flow_class

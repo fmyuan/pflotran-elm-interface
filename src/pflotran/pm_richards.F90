@@ -4,7 +4,7 @@ module PM_Richards_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -46,31 +46,31 @@ module PM_Richards_class
     procedure, public :: InputRecord => PMRichardsInputRecord
     procedure, public :: Destroy => PMRichardsDestroy
   end type pm_richards_type
-  
+
   public :: PMRichardsCreate, &
             PMRichardsInit, &
             PMRichardsDestroy, &
             PMRichardsCheckConvergence
 
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMRichardsCreate()
-  ! 
+  !
   ! Creates Richards process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_richards_type), pointer :: PMRichardsCreate
 
   class(pm_richards_type), pointer :: this
-  
+
   allocate(this)
   call PMRichardsInit(this)
   this%name = 'Richards Flow'
@@ -82,33 +82,33 @@ function PMRichardsCreate()
   this%rel_update_inf_tol = 1.d-5
 
   PMRichardsCreate => this
-  
+
 end function PMRichardsCreate
 
 ! ************************************************************************** !
 
 subroutine PMRichardsInit(this)
-  ! 
+  !
   ! Initializes Richards process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/18
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_richards_type) :: this
-  
+
   call PMSubsurfaceFlowInit(this)
-  
+
 end subroutine PMRichardsInit
 
 ! ************************************************************************** !
 
 subroutine PMRichardsReadSimOptionsBlock(this,input)
-  ! 
+  !
   ! Reads input file parameters associated with the Richards process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
 
@@ -117,12 +117,12 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
   use Utility_module
   use Option_module
   use Richards_Aux_module
- 
+
   implicit none
-  
+
   class(pm_richards_type) :: this
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
@@ -130,17 +130,17 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
   PetscReal :: tempreal
 
   option => this%option
-  
+
   error_string = 'Richards Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
@@ -149,7 +149,7 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
     call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                        error_string,option)
     if (found) cycle
-    
+
     select case(trim(keyword))
       case('INLINE_SURFACE_REGION')
         option%flow%inline_surface_flow = PETSC_TRUE
@@ -163,17 +163,17 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine PMRichardsReadSimOptionsBlock
 
 ! ************************************************************************** !
 
 subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
                                           error_string,option)
-  ! 
+  !
   ! Reads input file parameters associated with the Richards process model
   ! Newton solver convergence
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
 
@@ -182,9 +182,9 @@ subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
   use Utility_module
   use Option_module
   use Richards_Aux_module
- 
+
   implicit none
-  
+
   class(pm_richards_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -195,14 +195,14 @@ subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
   PetscReal :: tempreal
 
   option => this%option
-  
+
   error_string = 'Richards Newton Solver'
-  
+
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                             error_string,option)
   if (found) return
-    
+
   found = PETSC_TRUE
   select case(trim(keyword))
 ! Tolerances
@@ -242,42 +242,42 @@ subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
 
   end select
-  
+
 end subroutine PMRichardsReadNewtonSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMRichardsInitializeTimestep(this)
-  ! 
+  !
   ! Should not need this as it is called in PreSolve.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsInitializeTimestep
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_richards_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
   call RichardsInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
-  
+
 end subroutine PMRichardsInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMRichardsPreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
 
   implicit none
-  
+
   class(pm_richards_type) :: this
 
   call PMSubsurfaceFlowPreSolve(this)
@@ -287,14 +287,14 @@ end subroutine PMRichardsPreSolve
 ! ************************************************************************** !
 
 subroutine PMRichardsPostSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
 
   implicit none
-  
+
   class(pm_richards_type) :: this
-  
+
 end subroutine PMRichardsPostSolve
 
 ! ************************************************************************** !
@@ -302,14 +302,14 @@ end subroutine PMRichardsPostSolve
 subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac, &
                                     time_step_max_growth_factor)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
-  
+
   class(pm_richards_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
@@ -317,7 +317,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
-  
+
   PetscReal :: fac
   PetscReal :: ut
   PetscReal :: up
@@ -325,7 +325,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dt_p
   PetscReal :: dt_tfac
   PetscInt :: ifac
-  
+
   if (iacceleration > 0) then
     fac = 0.5d0
     if (num_newton_iterations >= iacceleration) then
@@ -346,7 +346,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
 
     dtt = min(dt_tfac,dt_p)
   endif
-  
+
   dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
@@ -355,27 +355,27 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
-  
+
 end subroutine PMRichardsUpdateTimestep
 
 ! ************************************************************************** !
 
 subroutine PMRichardsResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsResidual
 
   implicit none
-  
+
   class(pm_richards_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
   call RichardsResidual(snes,xx,r,this%realization,ierr)
 
@@ -384,21 +384,21 @@ end subroutine PMRichardsResidual
 ! ************************************************************************** !
 
 subroutine PMRichardsJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsJacobian
 
   implicit none
-  
+
   class(pm_richards_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   call RichardsJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMRichardsJacobian
@@ -406,10 +406,10 @@ end subroutine PMRichardsJacobian
 ! ************************************************************************** !
 
 subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Grid_module
@@ -420,16 +420,16 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Richards_Aux_module
   use Global_Aux_module
   use Patch_module
-  
+
   implicit none
-  
+
   class(pm_richards_type) :: this
   SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: X_p(:)
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
@@ -438,12 +438,12 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscReal :: P_R, P0, P1, delP
   PetscReal :: scale, sat, sat_pert, pert, pc_pert, press_pert, delP_pert
   PetscReal :: dpc_dsatl
-  
+
   patch => this%realization%patch
   grid => patch%grid
   option => this%realization%option
@@ -478,7 +478,7 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
       delP = sign(min(dabs(delP),delP_pert),delP)
       dX_p(local_id) = delP
     enddo
-    
+
     call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
 
@@ -499,7 +499,7 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
       P1 = P0 - delP
       if (P0 < P_R .and. P1 > P_R) then
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
-          grid%nG2A(grid%nL2G(local_id)),P0,P1 
+          grid%nG2A(grid%nL2G(local_id)),P0,P1
         call PrintMsgAnyRank(option)
 #if 0
         ghosted_id = grid%nL2G(local_id)
@@ -536,10 +536,10 @@ end subroutine PMRichardsCheckUpdatePre
 
 subroutine PMRichardsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                      X1_changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/21/18
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Grid_module
@@ -548,7 +548,7 @@ subroutine PMRichardsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Patch_module
 
   implicit none
-  
+
   class(pm_richards_type) :: this
   SNES :: snes
   Vec :: X0
@@ -557,7 +557,7 @@ subroutine PMRichardsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: dX_changed
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: dX_p(:)
   type(grid_type), pointer :: grid
@@ -746,8 +746,9 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       endif
     enddo
     call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  
+    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
+                                ierr);CHKERRQ(ierr)
+
     this%converged_flag(RESIDUAL_INDEX) = converged_abs_residual_flag
     this%converged_real(RESIDUAL_INDEX) = converged_abs_residual_real
     this%converged_cell(RESIDUAL_INDEX) = converged_abs_residual_cell
@@ -755,12 +756,13 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     this%converged_real(SCALED_RESIDUAL_INDEX) = converged_scaled_residual_real
     this%converged_cell(SCALED_RESIDUAL_INDEX) = converged_scaled_residual_cell
     mpi_int = MAX_INDEX
-    ! do not perform an all reduce on cell id as this info is not printed 
+    ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
-                       MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int,MPI_INTEGER, &
+                       MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
 
     option%convergence = CONVERGENCE_CONVERGED
 
@@ -804,17 +806,17 @@ end subroutine PMRichardsCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMRichardsTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsTimeCut
 
   implicit none
-  
+
   class(pm_richards_type) :: this
-  
+
   call PMSubsurfaceFlowTimeCut(this)
   call RichardsTimeCut(this%realization)
   call PMSubsurfaceFlowTimeCutPostInit(this)
@@ -824,57 +826,57 @@ end subroutine PMRichardsTimeCut
 ! ************************************************************************** !
 
 subroutine PMRichardsUpdateSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsUpdateSolution
 
   implicit none
-  
+
   class(pm_richards_type) :: this
-  
+
   call PMSubsurfaceFlowUpdateSolution(this)
   call RichardsUpdateSolution(this%realization)
 
-end subroutine PMRichardsUpdateSolution     
+end subroutine PMRichardsUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMRichardsUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Richards_module, only : RichardsUpdateAuxVars
-  
+
   implicit none
-  
+
   class(pm_richards_type) :: this
 
   call RichardsUpdateAuxVars(this%realization)
 
-end subroutine PMRichardsUpdateAuxVars   
+end subroutine PMRichardsUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMRichardsMaxChange(this)
-  ! 
+  !
   ! Not needed given RichardsMaxChange is called in PostSolve
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsMaxChange
   use Option_module
 
   implicit none
-  
+
   class(pm_richards_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   call RichardsMaxChange(this%realization,this%max_pressure_change)
   write(string,'("  --> max chng: dpmx= ",1pe12.4)') this%max_pressure_change
   call OptionPrint(string,this%option)
@@ -884,18 +886,18 @@ end subroutine PMRichardsMaxChange
 ! ************************************************************************** !
 
 subroutine PMRichardsComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsComputeMassBalance
 
   implicit none
-  
+
   class(pm_richards_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   call RichardsComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMRichardsComputeMassBalance
@@ -903,15 +905,15 @@ end subroutine PMRichardsComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMRichardsInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_richards_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -935,19 +937,19 @@ end subroutine PMRichardsInputRecord
 ! ************************************************************************** !
 
 subroutine PMRichardsDestroy(this)
-  ! 
+  !
   ! Destroys Richards process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Richards_module, only : RichardsDestroy
 
   implicit none
-  
+
   class(pm_richards_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -955,7 +957,7 @@ subroutine PMRichardsDestroy(this)
   ! preserve this ordering
   call RichardsDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
-  
+
 end subroutine PMRichardsDestroy
-  
+
 end module PM_Richards_class

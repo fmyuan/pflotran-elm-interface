@@ -4,12 +4,12 @@ module Reaction_Immobile_module
   use petscsys
 
   use Reaction_Immobile_Aux_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
-  
-  private 
+
+  private
 
   public :: ImmobileRead, &
             ImmobileDecayRxnRead, &
@@ -21,26 +21,26 @@ contains
 ! ************************************************************************** !
 
 subroutine ImmobileRead(immobile,input,option)
-  ! 
+  !
   ! Reads immobile species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/02/13
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
   use Utility_module
-  
+
   implicit none
-  
+
   type(immobile_type) :: immobile
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   type(immobile_species_type), pointer :: new_immobile_species, &
                                           prev_immobile_species
-           
+
   ! find end of list if it exists
   if (associated(immobile%list)) then
     new_immobile_species => immobile%list
@@ -59,7 +59,7 @@ subroutine ImmobileRead(immobile,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     ! this count is required for comparisons prior to BasisInit()
-    immobile%nimmobile = immobile%nimmobile + 1          
+    immobile%nimmobile = immobile%nimmobile + 1
     new_immobile_species => ImmobileSpeciesCreate()
     call InputReadCard(input,option,new_immobile_species%name)
     call InputErrorMsg(input,option,'keyword', &
@@ -73,7 +73,7 @@ subroutine ImmobileRead(immobile,input,option)
     endif
     prev_immobile_species => new_immobile_species
     nullify(new_immobile_species)
-  enddo   
+  enddo
   call InputPopBlock(input,option)
 
 end subroutine ImmobileRead
@@ -81,43 +81,43 @@ end subroutine ImmobileRead
 ! ************************************************************************** !
 
 subroutine ImmobileDecayRxnRead(immobile,input,option)
-  ! 
+  !
   ! Reads chemical species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/16/12
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
   use Utility_module
   use Units_module
-  
+
   implicit none
-  
+
   type(immobile_type) :: immobile
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string
   type(immobile_decay_rxn_type), pointer :: immobile_decay_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
 
   error_string = 'CHEMISTRY,IMMOBILE_DECAY_REACTION'
-  
+
   immobile%ndecay_rxn = immobile%ndecay_rxn + 1
-        
+
   immobile_decay_rxn => ImmobileDecayRxnCreate()
   call InputPushBlock(input,option)
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(word)   
+    call StringToUpper(word)
 
     select case(trim(word))
       case('SPECIES_NAME')
@@ -126,9 +126,9 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
         immobile_decay_rxn%species_name = word
       case('RATE_CONSTANT')
         internal_units = '1/sec'
-        call InputReadDouble(input,option,immobile_decay_rxn%rate_constant)  
+        call InputReadDouble(input,option,immobile_decay_rxn%rate_constant)
         call InputErrorMsg(input,option,'rate cosntant', &
-                             'CHEMISTRY,IMMOBILE_DECAY_REACTION') 
+                             'CHEMISTRY,IMMOBILE_DECAY_REACTION')
         call InputReadAndConvertUnits(input,immobile_decay_rxn%rate_constant, &
                                       internal_units, &
                                       trim(error_string)//',rate constant', &
@@ -175,35 +175,35 @@ end subroutine ImmobileDecayRxnRead
 
 subroutine ImmobileProcessConstraint(immobile,constraint_name, &
                                     constraint,option)
-  ! 
+  !
   ! Initializes constraints based on immobile
   ! species in system
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/07/13
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
-  use Utility_module  
-  
+  use Utility_module
+
   implicit none
-  
+
   type(immobile_type), pointer :: immobile
   character(len=MAXWORDLENGTH) :: constraint_name
   type(immobile_constraint_type), pointer :: constraint
   type(option_type) :: option
-  
+
   PetscBool :: found
   PetscInt :: iimmobile, jimmobile
-  
+
   character(len=MAXWORDLENGTH) :: immobile_name(immobile%nimmobile)
   character(len=MAXWORDLENGTH) :: constraint_aux_string(immobile%nimmobile)
   PetscReal :: constraint_conc(immobile%nimmobile)
   PetscBool :: external_dataset(immobile%nimmobile)
-  
+
   if (.not.associated(constraint)) return
-  
+
   immobile_name = ''
   constraint_aux_string = ''
   external_dataset = PETSC_FALSE
@@ -230,7 +230,7 @@ subroutine ImmobileProcessConstraint(immobile,constraint_name, &
       constraint_aux_string(jimmobile) = &
         constraint%constraint_aux_string(iimmobile)
       external_dataset(jimmobile) = constraint%external_dataset(iimmobile)
-    endif  
+    endif
   enddo
   constraint%names = immobile_name
   constraint%constraint_conc = constraint_conc
@@ -244,20 +244,20 @@ end subroutine ImmobileProcessConstraint
 subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
                           global_auxvar,material_auxvar,reaction, &
                           option)
-  ! 
-  ! Computes decay of biomass species 
-  ! 
+  !
+  ! Computes decay of biomass species
+  !
   ! Author: Glenn Hammond
   ! Date: 03/31/15
-  ! 
+  !
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Material_Aux_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -266,7 +266,7 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
-  
+
   PetscInt :: icomp, irxn, immobile_id
   PetscReal :: rate_constant, rate, volume
 
@@ -275,7 +275,7 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
   volume = material_auxvar%volume
 
   do irxn = 1, reaction%immobile%ndecay_rxn ! for each reaction
-    
+
     ! we assume only one chemical component involved in decay reaction
     icomp = reaction%immobile%decayspecid(irxn)
     ! units = m^3 bulk/sec = [1/sec] * [m^3 bulk]
@@ -283,16 +283,16 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
     ! rate [mol/sec] = [m^3 bulk/sec] * [mol/m^3 bulk]
     rate = rate_constant*rt_auxvar%immobile(icomp)
     immobile_id = reaction%offset_immobile + icomp
-    
+
     ! units = mol/sec              ! implicit stoichiometry of -1.d0 (- -1.d0*)
     Res(immobile_id) = Res(immobile_id) + rate
 
     if (.not. compute_derivative) cycle
     ! units = (mol/sec)*(m^3/mol) = m^3/sec
     Jac(immobile_id,immobile_id) = Jac(immobile_id,immobile_id) + rate_constant
-    
+
   enddo  ! loop over reactions
-    
+
 end subroutine RImmobileDecay
 
 end module Reaction_Immobile_module

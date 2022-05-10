@@ -4,7 +4,7 @@ module PM_Hydrate_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use Hydrate_Aux_module  
+  use Hydrate_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -55,23 +55,23 @@ module PM_Hydrate_class
     procedure, public :: RestartBinary => PMHydrateRestartBinary
     procedure, public :: Destroy => PMHydrateDestroy
   end type pm_hydrate_type
-  
+
   public :: PMHydrateCreate, &
             PMHydrateSetFlowMode, &
             PMHydrateReadParameters, &
             PMHydrateAssignParameters
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMHydrateCreate()
-  ! 
+  !
   ! Creates Hydrate process models shell
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                GAS_SATURATION, HYDRATE_SATURATION, &
@@ -79,36 +79,36 @@ function PMHydrateCreate()
   use Upwind_Direction_module
 
   implicit none
-  
+
   class(pm_hydrate_type), pointer :: PMHydrateCreate
 
   class(pm_hydrate_type), pointer :: this
-  
+
   PetscReal, parameter :: ref_temp = 20.d0 !degrees C
   PetscReal, parameter :: ref_pres = 101325.d0 !Pa
   PetscReal, parameter :: ref_sat = 0.5
   PetscReal, parameter :: ref_xmol = 1.d-6
-                                             
+
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
   PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
   PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
-  
+
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
   PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
   PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
-  
+
   PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
   PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
   PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
-  
+
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
   PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
   PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
-                                          
+
   PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
@@ -158,12 +158,12 @@ function PMHydrateCreate()
                                 GAS_SATURATION, HYDRATE_SATURATION, &
                                 LIQUID_SATURATION, ICE_SATURATION]
   allocate(this%max_change_isubvar(9))
-                                   ! UNINITIALIZED_INTEGER avoids zeroing of 
+                                   ! UNINITIALIZED_INTEGER avoids zeroing of
                                    ! pressures not represented in phase
                                        ! 2 = air in xmol(air,liquid)
   this%max_change_isubvar = [0,0,0,2,0,0,0,0,0]
   this%damping_factor = -1.d0
-  
+
   call PMSubsurfaceFlowInit(this)
   this%name = 'Hydrate Multiphase Flow'
   this%header = 'GAS HYDRATE + MULTIPHASE FLOW'
@@ -172,7 +172,7 @@ function PMHydrateCreate()
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
 
-! this should be set explicitly in input file using 
+! this should be set explicitly in input file using
 ! USE_INFINITY_NORM_CONVERGENCE specified in input block
 !  this%check_post_convergence = PETSC_TRUE
   this%residual_abs_inf_tol = residual_abs_inf_tol
@@ -188,7 +188,7 @@ function PMHydrateCreate()
   nullify(this%hydrate_parameters%methanogenesis)
 
   PMHydrateCreate => this
-  
+
 end function PMHydrateCreate
 
 ! ************************************************************************** !
@@ -353,7 +353,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         end select
       case('SALINITY')
         call InputReadDouble(input,option,hydrate_xmol_nacl)
-        call InputErrorMsg(input,option,'SALINITY',error_string)        
+        call InputErrorMsg(input,option,'SALINITY',error_string)
       case('THERMAL_CONDUCTIVITY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','thermal_conductivity_func')
@@ -382,7 +382,7 @@ end subroutine PMHydrateReadParameters
 subroutine PMHydrateAssignParameters(realization, pm)
 
   ! Points hydrate parameters to those read into the PM.
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 11/20/19
   !
@@ -426,16 +426,16 @@ subroutine PMHydrateAssignParameters(realization, pm)
     call PrintErrMsg(option)
   endif
 
-  realization%patch%aux%hydrate%hydrate_parameter => pm%hydrate_parameters 
+  realization%patch%aux%hydrate%hydrate_parameter => pm%hydrate_parameters
 
 end subroutine PMHydrateAssignParameters
 
 ! ************************************************************************** !
 
 subroutine PMHydrateReadSimOptionsBlock(this,input)
-  ! 
+  !
   ! Sets up SNES solvers.
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 07/23/19
   !
@@ -444,11 +444,11 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
   use String_module
   use Option_module
 
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: keyword, word
   class(pm_hydrate_type) :: this
   type(option_type), pointer :: option
@@ -464,24 +464,24 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
   eid = 3 !option%energy_id
 
   error_string = 'Hydrate Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     found = PETSC_FALSE
     call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
-                                       error_string,option)    
+                                       error_string,option)
     if (found) cycle
-    
+
     select case(trim(keyword))
       case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
         hydrate_harmonic_diff_density = PETSC_FALSE
@@ -521,7 +521,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call HydrateAuxSetEnergyDOF(word,option)
-      case('WINDOW_EPSILON') 
+      case('WINDOW_EPSILON')
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CALCULATE_SURFACE_TENSION')
@@ -529,8 +529,8 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
       case default
         call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select
-    
-  enddo  
+
+  enddo
   call InputPopBlock(input,option)
 
 end subroutine PMHydrateReadSimOptionsBlock
@@ -539,10 +539,10 @@ end subroutine PMHydrateReadSimOptionsBlock
 
 subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
                                          error_string,option)
-  ! 
+  !
   ! Reads input file parameters associated with the HYDRATE process model
   ! Newton solver convergence
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/23/20
 
@@ -551,9 +551,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
   use Utility_module
   use Option_module
   use Hydrate_Aux_module
- 
+
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -571,12 +571,12 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
   eid = 3 !option%energy_id
 
   error_string = 'HYDRATE Newton Solver'
-  
+
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                             error_string,option)
   if (found) return
-    
+
   found = PETSC_TRUE
   select case(trim(keyword))
       case('CENTRAL_DIFFERENCE_JACOBIAN')
@@ -595,7 +595,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         this%abs_update_inf_tol(1:2,13) = tempreal
         this%abs_update_inf_tol(2:3,14) = tempreal
         this%abs_update_inf_tol(:,15) = tempreal
-        
+
       !man: phase change
       case('MAX_NEWTON_ITERATIONS')
         call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
@@ -763,7 +763,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
 
   end select
-  
+
 end subroutine PMHydrateReadNewtonSelectCase
 
 ! ************************************************************************** !
@@ -790,18 +790,18 @@ end subroutine PMHydrateInitializeSolver
 ! ************************************************************************** !
 
 recursive subroutine PMHydrateInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
 
   use Realization_Base_class
-  
+
   implicit none
-  
+
   class(pm_hydrate_type) :: this
-  
+
   PetscInt :: i
   PetscErrorCode :: ierr
 
@@ -825,40 +825,40 @@ end subroutine PMHydrateInitializeRun
 ! ************************************************************************** !
 
 subroutine PMHydrateInitializeTimestep(this)
-  ! 
+  !
   ! Should not need this as it is called in PreSolve.
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateInitializeTimestep
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_hydrate_type) :: this
 
-  call PMSubsurfaceFlowInitializeTimestepA(this)                                 
-!geh:remove   everywhere                                
+  call PMSubsurfaceFlowInitializeTimestepA(this)
+!geh:remove   everywhere
   call MaterialAuxVarCommunicate(this%comm1, &
                                  this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
-                                 
+
   call HydrateInitializeTimestep(this%realization)
-  call PMSubsurfaceFlowInitializeTimestepB(this)                                 
-  
+  call PMSubsurfaceFlowInitializeTimestepB(this)
+
 end subroutine PMHydrateInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMHydratePreSolve(this)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
 
   implicit none
@@ -872,8 +872,8 @@ end subroutine PMHydratePreSolve
 ! ************************************************************************** !
 
 subroutine PMHydratePostSolve(this)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
 
   implicit none
@@ -887,10 +887,10 @@ end subroutine PMHydratePostSolve
 subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
@@ -902,7 +902,7 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use String_module
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
@@ -910,7 +910,7 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
-  
+
   PetscReal :: fac
   PetscInt :: ifac
   PetscReal :: up, ut, ux, us, umin
@@ -921,7 +921,7 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: governor_value
   character(MAXSTRINGLENGTH) :: string
   type(field_type), pointer :: field
-  
+
   fac = 0.5d0
   if (num_newton_iterations >= iacceleration) then
     fac = 0.33d0
@@ -999,21 +999,21 @@ end subroutine PMHydrateUpdateTimestep
 ! ************************************************************************** !
 
 subroutine PMHydrateResidual(this,snes,xx,r,ierr)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateResidual
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
   call HydrateResidual(snes,xx,r,this%realization,ierr)
 
@@ -1022,21 +1022,21 @@ end subroutine PMHydrateResidual
 ! ************************************************************************** !
 
 subroutine PMHydrateJacobian(this,snes,xx,A,B,ierr)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateJacobian
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   call HydrateJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMHydrateJacobian
@@ -1044,11 +1044,11 @@ end subroutine PMHydrateJacobian
 ! ************************************************************************** !
 
 subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
-  
+  !
+
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
@@ -1059,17 +1059,17 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Global_Aux_module
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  
-  type(patch_type), pointer :: patch  
-  type(grid_type), pointer :: grid 
-  type(option_type), pointer :: option 
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
@@ -1104,7 +1104,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscInt :: newton_iteration
   ! MAN: END OLD
 
-  call VecGetArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
   grid => this%realization%patch%grid
@@ -1112,8 +1112,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   option => this%realization%option
   hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
-  
-  changed = PETSC_TRUE 
+
+  changed = PETSC_TRUE
 
   ! MAN: OLD
   field => this%realization%field
@@ -1121,7 +1121,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   spid = option%saturation_pressure_id
   apid = option%air_pressure_id
 
-  call SNESGetIterationNumber(snes,newton_iteration,ierr)
+  call SNESGetIterationNumber(snes,newton_iteration,ierr);CHKERRQ(ierr)
 
   hydrate_allow_state_change = PETSC_FALSE
 
@@ -1177,10 +1177,10 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
       dX_p = dX_p*this%damping_factor
       changed = PETSC_TRUE
     endif
-  
+
 ! MAN OLD
   else
-    
+
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -1216,7 +1216,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
       end select
     enddo
-    
+
     scale = initial_scale
     if (hydrate_max_it_before_damping > 0 .and. &
         newton_iteration > hydrate_max_it_before_damping) then
@@ -1297,16 +1297,15 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
     enddo
 
     temp_scale = scale
-    call MPI_Allreduce(temp_scale,scale,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION, &
-                       MPI_MIN,option%mycomm,ierr)
+    call MPI_Allreduce(temp_scale,scale,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                       MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
 
     if (scale < 0.9999d0) then
       dX_p = scale*dX_p
     endif
   endif
 
-  call VecRestoreArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
+  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMHydrateCheckUpdatePre
@@ -1315,10 +1314,10 @@ end subroutine PMHydrateCheckUpdatePre
 
 subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
   use Hydrate_Aux_module
   use Global_Aux_module
   use Grid_module
@@ -1328,9 +1327,9 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Field_module
   use Patch_module
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   SNES :: snes
   Vec :: X0
@@ -1346,7 +1345,7 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
   PetscReal :: dX_abs, dX_X0
@@ -1359,15 +1358,15 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_relative
-  
+
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
   patch => this%realization%patch
   global_auxvars => patch%aux%Global%auxvars
- 
+
   hydrate_allow_state_change = PETSC_TRUE
- 
+
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
@@ -1379,18 +1378,18 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   converged_rel_update_cell = ZERO_INTEGER
   converged_abs_update_real = 0.d0
   converged_rel_update_real = 0.d0
-  
+
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
     natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
-    
+
     do idof = 1, option%nflowdof
-      
+
       ival = offset+idof
-      
+
       ! infinity norms on update
       converged_absolute = PETSC_TRUE
       converged_relative = PETSC_TRUE
@@ -1400,7 +1399,7 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       else
         dX_X0 = dabs(dX_abs/1.d-40)
       endif
-      
+
       if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
         converged_absolute = PETSC_FALSE
       endif
@@ -1419,7 +1418,7 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
         converged_rel_update_real(idof,istate) = dX_X0
         converged_rel_update_cell(idof,istate) = natural_id
       endif
-      
+
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
         converged_abs_update_flag(idof,istate) = PETSC_FALSE
@@ -1444,7 +1443,7 @@ end subroutine PMHydrateCheckUpdatePost
 subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                      reason,ierr)
   !
-  ! Author: Michael Nole 
+  ! Author: Michael Nole
   ! Date: 07/23/19
   !
   use Convergence_module
@@ -1474,7 +1473,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscInt :: local_id, ghosted_id, natural_id
@@ -1517,7 +1516,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
              shape(dof_string))
   character(len=15), parameter :: tol_string(MAX_INDEX) = &
     ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
-  
+
   patch => this%realization%patch
   option => this%realization%option
   field => this%realization%field
@@ -1547,7 +1546,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         R = dabs(r_p(ival))
         A = dabs(accum2_p(ival))
 !         R_A = R/A
-        
+
         !TOUGH3 way:
         if (A > 1.d0) then
           R_A = R/A
@@ -1558,7 +1557,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         if (R > this%residual_abs_inf_tol(idof)) then
           converged_absolute = PETSC_FALSE
         endif
-        
+
         ! find max value regardless of convergence
         if (converged_abs_residual_real(idof,istate) < R) then
           converged_abs_residual_real(idof,istate) = R
@@ -1582,8 +1581,9 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       enddo
     enddo
     call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  
+    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
+                                ierr);CHKERRQ(ierr)
+
     this%converged_flag(:,:,RESIDUAL_INDEX) = converged_abs_residual_flag(:,:)
     this%converged_real(:,:,RESIDUAL_INDEX) = converged_abs_residual_real(:,:)
     this%converged_cell(:,:,RESIDUAL_INDEX) = converged_abs_residual_cell(:,:)
@@ -1597,19 +1597,20 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     flags(1:45*MAX_INDEX) = reshape(this%converged_flag,(/45*MAX_INDEX/))
     flags(181) = .not.hydrate_high_temp_ts_cut
     mpi_int = 181
-    ! do not perform an all reduce on cell id as this info is not printed 
+    ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
-                       MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int,MPI_LOGICAL,MPI_LAND, &
+                       option%mycomm,ierr);CHKERRQ(ierr)
     this%converged_flag = reshape(flags(1:45*MAX_INDEX),(/3,15,MAX_INDEX/))
     hydrate_high_temp_ts_cut = .not.flags(181)
 
     mpi_int = 45*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-  
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
+
     option%convergence = CONVERGENCE_CONVERGED
-    
+
     do itol = 1, MAX_INDEX
       do istate = 1, 15
         do idof = 1, option%nflowdof
@@ -1618,7 +1619,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             if (this%logging_verbosity > 0) then
               if (trim(tol_string(itol)) == 'Residual' .or. &
                   trim(tol_string(itol)) == 'Scaled Residual') then
-                if (idof == 1) then 
+                if (idof == 1) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Water Mass'
                 elseif (idof == 2) then
@@ -1635,7 +1636,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               if (option%comm%mycommsize == 1) then
                 string = trim(string) // ' (' // &
                   trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
-                  // ')' 
+                  // ')'
               endif
               string = trim(string) // ' : ' // &
                 StringFormatDouble(this%converged_real(idof,istate,itol))
@@ -1661,10 +1662,10 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         this%converged_real(:,:,REL_UPDATE_INDEX)
       call OptionPrint(string,option)
     endif
-  
+
     if (it >= this%solver%newton_max_iterations) then
       option%convergence = CONVERGENCE_CUT_TIMESTEP
-    
+
       if (this%logging_verbosity > 0) then
         string = '    Exceeded Hydrate Mode Max Newton Iterations'
         call OptionPrint(string,option)
@@ -1718,17 +1719,17 @@ end subroutine PMHydrateCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMHydrateTimeCut(this)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateTimeCut
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
-  
+
   call PMSubsurfaceFlowTimeCut(this)
   call HydrateTimeCut(this%realization)
 
@@ -1737,49 +1738,49 @@ end subroutine PMHydrateTimeCut
 ! ************************************************************************** !
 
 subroutine PMHydrateUpdateSolution(this)
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateUpdateSolution, &
                              HydrateMapBCAuxVarsToGlobal
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
-  
+
   call PMSubsurfaceFlowUpdateSolution(this)
   call HydrateUpdateSolution(this%realization)
   call HydrateMapBCAuxVarsToGlobal(this%realization)
 
-end subroutine PMHydrateUpdateSolution     
+end subroutine PMHydrateUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMHydrateUpdateAuxVars(this)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
   use Hydrate_module, only : HydrateUpdateAuxVars
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
 
   call HydrateUpdateAuxVars(this%realization,PETSC_FALSE)
 
-end subroutine PMHydrateUpdateAuxVars   
+end subroutine PMHydrateUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMHydrateMaxChange(this)
-  ! 
+  !
   ! Not needed given HydrateMaxChange is called in PostSolve
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Realization_Base_class
   use Realization_Subsurface_class
@@ -1792,9 +1793,9 @@ subroutine PMHydrateMaxChange(this)
                                TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
                                GAS_SATURATION
   implicit none
-  
+
   class(pm_hydrate_type) :: this
-  
+
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -1807,9 +1808,9 @@ subroutine PMHydrateMaxChange(this)
   PetscInt :: i, j
   PetscInt :: local_id, ghosted_id
 
-  
+
   PetscErrorCode :: ierr
-  
+
   realization => this%realization
   option => realization%option
   field => realization%field
@@ -1819,7 +1820,7 @@ subroutine PMHydrateMaxChange(this)
 
   max_change_global = 0.d0
   max_change_local = 0.d0
-  
+
   !max change variables:[LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
   !                      LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION,
   !                      HYDRATE_SATURATION, LIQUID_SATUARTION, ICE_SATUARTION]
@@ -1840,7 +1841,7 @@ subroutine PMHydrateMaxChange(this)
         endif
       enddo
     endif
-    
+
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
@@ -1855,7 +1856,8 @@ subroutine PMHydrateMaxChange(this)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
   call MPI_Allreduce(max_change_local,max_change_global,NINE_INTEGER, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then
     write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
@@ -1880,24 +1882,24 @@ subroutine PMHydrateMaxChange(this)
   this%max_xmol_change = max_change_global(4)
   this%max_temperature_change = max_change_global(5)
   this%max_saturation_change = maxval(max_change_global(6:9))
-  
+
 end subroutine PMHydrateMaxChange
 
 ! ************************************************************************** !
 
 subroutine PMHydrateComputeMassBalance(this,mass_balance_array)
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateComputeMassBalance
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   call HydrateComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMHydrateComputeMassBalance
@@ -1905,15 +1907,15 @@ end subroutine PMHydrateComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMHydrateInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_hydrate_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -1937,10 +1939,10 @@ end subroutine PMHydrateInputRecord
 ! ************************************************************************** !
 
 subroutine PMHydrateCheckpointBinary(this,viewer)
-  ! 
+  !
   ! Checkpoints data associated with Hydrate PM
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
 
   use Checkpoint_module
@@ -1948,22 +1950,22 @@ subroutine PMHydrateCheckpointBinary(this,viewer)
   use Variables_module, only : STATE
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_hydrate_type) :: this
   PetscViewer :: viewer
-  
+
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
-  
+
 end subroutine PMHydrateCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine PMHydrateRestartBinary(this,viewer)
-  ! 
+  !
   ! Restarts data associated with Hydrate PM
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
 
   use Checkpoint_module
@@ -1971,30 +1973,30 @@ subroutine PMHydrateRestartBinary(this,viewer)
   use Variables_module, only : STATE
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
 
   class(pm_hydrate_type) :: this
   PetscViewer :: viewer
-  
+
   call PMSubsurfaceFlowRestartBinary(this,viewer)
-  
+
 end subroutine PMHydrateRestartBinary
 ! ************************************************************************** !
 
 subroutine PMHydrateDestroy(this)
-  ! 
+  !
   ! Destroys Hydrate process model
-  ! 
-  ! Author: Michael Nole 
+  !
+  ! Author: Michael Nole
   ! Date: 07/23/19
-  ! 
+  !
 
   use Hydrate_module, only : HydrateDestroy
 
   implicit none
-  
+
   class(pm_hydrate_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -2003,13 +2005,13 @@ subroutine PMHydrateDestroy(this)
   nullify(this%max_change_ivar)
   deallocate(this%max_change_isubvar)
   nullify(this%max_change_isubvar)
-  
+
   nullify(this%hydrate_parameters)
 
   ! preserve this ordering
   call HydrateDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
-  
+
 end subroutine PMHydrateDestroy
-  
+
 end module PM_Hydrate_class

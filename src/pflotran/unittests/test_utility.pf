@@ -195,7 +195,7 @@ contains
     PetscReal :: derivative, num_derivative, calc_value2, ppert, pert
     PetscReal, parameter :: tolerance = 1.d-12
     character(len=128) :: string
-  
+
     string = 'InverseNorm(p1) in Test_Utility_module'
     call InverseNorm(p1,calc_value,PETSC_TRUE,derivative)
     value = -2.3263478743880279d0
@@ -251,7 +251,7 @@ contains
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-12
     character(len=128) :: string
-  
+
     string = 'Erf_(x1) in Test_Utility_module'
     calc_value = Erf_(x1)
     value = 0.99999999980338394d0
@@ -304,7 +304,7 @@ contains
     string = 'ReallocateIntArray2 in Test_Utility_module, i'
     @assertTrue(400 == i, string)
     deallocate(intarray)
-     
+
     ! 2D integer
     i = 100
     allocate(intarray2d(100,i))
@@ -321,7 +321,7 @@ contains
     string = 'ReallocateIntArray4 in Test_Utility_module, size1'
     @assertTrue(100 == size(intarray2d,1), string)
     deallocate(intarray2d)
-     
+
     ! 1D double
     i = 100
     allocate(realarray(i))
@@ -336,7 +336,7 @@ contains
     string = 'ReallocateRealArray2 in Test_Utility_module, i'
     @assertTrue(400 == i, string)
     deallocate(realarray)
-     
+
     ! 2D double
     i = 100
     allocate(realarray2d(100,i))
@@ -353,7 +353,7 @@ contains
     string = 'ReallocateRealArray4 in Test_Utility_module, size1'
     @assertTrue(100 == size(realarray2d,1), string)
     deallocate(realarray2d)
-     
+
     ! 1D boolean
     i = 100
     allocate(boolarray(i))

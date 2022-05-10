@@ -1,35 +1,35 @@
 module SrcSink_Sandbox_Downreg_class
 
-! Source/sink Sandbox for downregulating source or sink terms to avoid 
+! Source/sink Sandbox for downregulating source or sink terms to avoid
 ! overpressurization (too big a pressure, + or -)
-! the source is regulated by multiplying it by 
-!   (1 - x^2)^2 
-! with 
+! the source is regulated by multiplying it by
+!   (1 - x^2)^2
+! with
 !   x = (pressure - pref - pressure_max - delta/2)/delta
 ! for pressure in between of x*delta and (x+1)*delta
-! the sink is regulated by multiplying it by 
-!   1 - (1 - x^2)^2 
-! with 
+! the sink is regulated by multiplying it by
+!   1 - (1 - x^2)^2
+! with
 !   x = (pressure - pref - pressure_min - delta/2)/delta
 ! for pressure in between of x*delta and (x+1)*delta
 ! for transpiration sink, the physical interpretation can be that the soil water
-! extration rate is decreased from q to 0 as pressure decreases from 
+! extration rate is decreased from q to 0 as pressure decreases from
 ! pressure_min - delta/2 to pressure_min + delta/2
 
 ! extended from srcsink_sandbox_mass_rate
 ! currently work in RICHARDS mode
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   use Dataset_Base_class
-  
+
   implicit none
-  
+
   private
-  
+
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_downreg_type
     PetscReal :: pressure_min       ! Pa
@@ -51,14 +51,14 @@ contains
 ! ************************************************************************** !
 
 function DownregCreate()
-  ! 
+  !
   ! Allocates mass rate src/sink object.
-  ! 
+  !
   ! Author: Guoping Tang
   ! Date: 06/03/14
 
   implicit none
-  
+
   class(srcsink_sandbox_downreg_type), pointer :: DownregCreate
 
   allocate(DownregCreate)
@@ -67,15 +67,15 @@ function DownregCreate()
   DownregCreate%pressure_max = 1.0d9
   DownregCreate%pressure_delta = 1.0d4
   nullify(DownregCreate%dataset)
-  
+
 end function DownregCreate
 
 ! ************************************************************************** !
 
 subroutine DownregRead(this,input,option)
-  ! 
+  !
   ! Reads input deck for mass rate src/sink parameters
-  ! 
+  !
   ! Author: Guoping Tang
   ! Date: 06/03/14
 
@@ -83,13 +83,13 @@ subroutine DownregRead(this,input,option)
   use String_module
   use Input_Aux_module
   use Units_module, only : UnitsConvertToInternal
-  use Condition_module 
+  use Condition_module
   use Dataset_module
   use Dataset_Ascii_class
   use Time_Storage_module
-  
+
   implicit none
-  
+
   class(srcsink_sandbox_downreg_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -103,7 +103,7 @@ subroutine DownregRead(this,input,option)
   PetscBool :: found
 
   nullify(null_time_storage)
-  
+
   dataset_ascii => DatasetAsciiCreate()
   call DatasetAsciiInit(dataset_ascii)
   dataset_ascii%array_width = option%nflowdof
@@ -112,7 +112,7 @@ subroutine DownregRead(this,input,option)
   nullify(dataset_ascii)
 
   call InputPushBlock(input,option)
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
@@ -120,11 +120,11 @@ subroutine DownregRead(this,input,option)
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SOURCE_SINK_SANDBOX,DOWNREG')
-    call StringToUpper(word)   
+    call StringToUpper(word)
 
     call SSSandboxBaseSelectCase(this,input,option,word,found)
     if (found) cycle
-    
+
     select case(trim(word))
 
       case('RATE')
@@ -165,7 +165,7 @@ subroutine DownregRead(this,input,option)
           option%io_buffer = 'SRCSINK_SANDBOX,DOWNREG,DELTA_REG_PRESSURE' // &
             ': the pressure delta is too close to 0 Pa.'
           call PrintErrMsg(option)
-        endif 
+        endif
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'SRCSINK_SANDBOX,DOWNREG',option)
@@ -177,18 +177,18 @@ subroutine DownregRead(this,input,option)
     ! for now, forcing to step, which makes sense for src/sinks.
     this%dataset%time_storage%time_interpolation_method = INTERPOLATION_STEP
   endif
-  
+
   string = 'Down Regulation Dataset'
   call DatasetVerify(this%dataset,null_time_storage,string,option)
-  
+
 end subroutine DownregRead
 
 ! ************************************************************************** !
 
 subroutine DownregSetup(this,grid,option)
-  ! 
+  !
   ! Sets up the mass rate src/sink
-  ! 
+  !
   ! Author: Guoping Tang
   ! Date: 06/03/14
 
@@ -197,14 +197,14 @@ subroutine DownregSetup(this,grid,option)
   use General_Aux_module, only : general_fmw_com => fmw_comp
 
   implicit none
-  
+
   class(srcsink_sandbox_downreg_type) :: this
   type(grid_type) :: grid
   type(option_type) :: option
-  
+
   call SSSandboxBaseSetup(this,grid,option)
 
-end subroutine DownregSetup 
+end subroutine DownregSetup
 
 ! ************************************************************************** !
 
@@ -226,21 +226,21 @@ end subroutine DownregUpdate
 
 subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
                            material_auxvar,aux_real,option)
-  ! 
+  !
   ! Evaluates src/sink storing residual and/or Jacobian
-  ! 
+  !
   ! Author: Guoping Tang
   ! Date: 06/04/14
-  ! Glenn suggested to use reference pressure for RICHARDS mode 
+  ! Glenn suggested to use reference pressure for RICHARDS mode
   ! Gautam suggested to use Nathan's smooth function (6/8/2014)
 
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module
-  
+
   implicit none
-  
-  class(srcsink_sandbox_downreg_type) :: this  
+
+  class(srcsink_sandbox_downreg_type) :: this
   type(option_type) :: option
   PetscBool :: compute_derivative
   PetscReal :: Residual(option%nflowdof)
@@ -249,20 +249,20 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: aux_real(:)
   PetscReal :: pressure
   PetscReal :: pressure_lower, pressure_upper, x
-  PetscReal :: rate_regulator  
-  PetscReal :: drate_regulator  
+  PetscReal :: rate_regulator
+  PetscReal :: drate_regulator
   PetscReal :: temp_real
   PetscReal :: rate
 
   PetscInt :: idof
-  
+
   do idof = 1, option%nflowdof
     if (option%iflowmode == RICHARDS_MODE .and. idof == ONE_INTEGER) then
       ! regulate liquid pressure in Richards mode
       pressure = aux_real(3)
       rate = this%dataset%rarray(1)
-      rate = rate / FMWH2O        ! from kg/s to kmol/s (for regression tests) 
-      ! rate = rate / aux_real(2) ! from m^3/s to kmol/s (later on, we wll assume m^3/s) 
+      rate = rate / FMWH2O        ! from kg/s to kmol/s (for regression tests)
+      ! rate = rate / aux_real(2) ! from m^3/s to kmol/s (later on, we wll assume m^3/s)
       if (rate > 0.0d0) then
         ! source
         pressure_lower = this%pressure_max - this%pressure_delta/2.0d0 &
@@ -276,7 +276,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
           drate_regulator = 0.0d0
         else
           x = (pressure - pressure_lower)/this%pressure_delta
-          rate_regulator = (1.0d0 - x * x) * (1.0d0 - x * x) 
+          rate_regulator = (1.0d0 - x * x) * (1.0d0 - x * x)
           drate_regulator = 2.0d0 * (1.0d0 - x * x) * (-2.0d0) * x / &
             this%pressure_delta
         endif
@@ -294,7 +294,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
           drate_regulator = 0.0d0
         else
           x = (pressure - pressure_lower)/this%pressure_delta
-          rate_regulator = 1.0d0 - (1.0d0 - x * x) * (1.0d0 - x * x) 
+          rate_regulator = 1.0d0 - (1.0d0 - x * x) * (1.0d0 - x * x)
           drate_regulator = (-2.0d0) * (1.0d0 - x * x) * (-2.0d0) * x / &
             this%pressure_delta
         endif
@@ -306,9 +306,9 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       call PrintErrMsg(option)
     endif
   enddo
-  
+
   if (compute_derivative) then
-    
+
     do idof = 1, option%nflowdof
       if (option%iflowmode == RICHARDS_MODE .and. idof == ONE_INTEGER) then
         ! regulate liquid pressure in Richards mode
@@ -320,15 +320,15 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       endif
     enddo
   endif
-  
+
 end subroutine DownregSrcSink
 
 ! ************************************************************************** !
 
 subroutine DownregDestroy(this)
-  ! 
+  !
   ! Destroys allocatable or pointer objects created in this module
-  ! 
+  !
   ! Author: Guoping Tang
   ! Date: 06/04/14
 
@@ -336,14 +336,14 @@ subroutine DownregDestroy(this)
   use Dataset_Ascii_class
 
   implicit none
-  
+
   class(srcsink_sandbox_downreg_type) :: this
   class(dataset_ascii_type), pointer :: dataset_ascii
-  
+
   dataset_ascii => DatasetAsciiCast(this%dataset)
   call DatasetAsciiDestroy(dataset_ascii)
 
-  call SSSandboxBaseDestroy(this)  
+  call SSSandboxBaseDestroy(this)
 
 end subroutine DownregDestroy
 

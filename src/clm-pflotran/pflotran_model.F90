@@ -20,10 +20,10 @@ module pflotran_model_module
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscviewer.h"
 !#include "finclude/petscvec.h90"
- 
+
   use petscsys
   use petscvec
-  
+
   implicit none
 
 
@@ -78,7 +78,7 @@ module pflotran_model_module
     type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
     type(mapping_type),                pointer :: map_pf_srf_to_clm_srf
-     
+
     PetscLogDouble :: timex(4), timex_wall(4)
 
   end type pflotran_model_type
@@ -110,15 +110,15 @@ contains
 ! ************************************************************************** !
 
   function pflotranModelCreate(mpicomm, pflotran_prefix)
-  ! 
+  !
   ! Allocates and initializes the pflotranModel object.
   ! It performs the same sequence of commands as done in pflotran.F90
   ! before model integration is performed by the call to StepperRun()
   ! routine
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
     use Communicator_Aux_module
     use Option_module
@@ -198,7 +198,7 @@ contains
 ! ************************************************************************** !
 
   subroutine pflotranModelSetupMappingFiles(model)
-  ! 
+  !
   ! pflotranModelSetupMappingFiles
   ! create the mapping objects, reopen the input file and read the file names
   ! before model integration is performed by the call to StepperRun()
@@ -207,10 +207,10 @@ contains
   ! CLM should be responsible for passing data in the correct
   ! format. That may require pflotran to provide a call back function
   ! for grid info.
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
     use String_module
     use Option_module
@@ -261,7 +261,7 @@ contains
     clm2pf_rflux_file  = PETSC_FALSE
     pf2clm_flux_file   = PETSC_FALSE
     pf2clm_surf_file   = PETSC_FALSE
-    
+
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
     call InputPushBlock(input,'MAPPING_FILES',model%option)
@@ -345,7 +345,7 @@ contains
       model%option%io_buffer='One of the mapping files not found'
       call PrintErrMsg(model%option)
     endif
-    
+
     if(model%option%iflowmode==TH_MODE.and.(.not.clm2pf_gflux_file)) then
       model%option%io_buffer='Running in TH_MODE without a CLM2PF_GFLUX_FILE'
       call PrintErrMsg(model%option)
@@ -356,14 +356,14 @@ contains
 ! ************************************************************************** !
 
   subroutine pflotranModelStepperRunInit(model)
-  ! 
+  !
   ! It performs the same execution of commands
   ! that are carried out in StepperRun() before the model integration
   ! begins over the entire simulation time interval
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
     type(pflotran_model_type), pointer, intent(inout) :: model
 
@@ -374,10 +374,10 @@ contains
 ! ************************************************************************** !
 
   subroutine pflotranModelStepperCheckpoint(model, id_stamp)
-  ! 
+  !
   ! wrapper around StepperCheckpoint
   ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
-  ! 
+  !
 
     use Option_module
     use Simulation_Subsurface_class
@@ -398,12 +398,12 @@ contains
 ! ************************************************************************** !
 
 subroutine pflotranModelSetICs(pflotran_model)
-  ! 
+  !
   ! Set initial conditions
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
-  ! 
+  !
 
     use Realization_Subsurface_class
     use Patch_module
@@ -462,8 +462,9 @@ subroutine pflotranModelSetICs(pflotran_model)
         call PrintErrMsg(pflotran_model%option)
     endif
 
-    call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
+    call VecGetArrayF90(field%flow_xx,xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pf,press_pf_loc, &
+                        ierr);CHKERRQ(ierr)
 
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
@@ -473,13 +474,14 @@ subroutine pflotranModelSetICs(pflotran_model)
        xx_loc_p(ghosted_id)=press_pf_loc(local_id)
     enddo
 
-    call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
+    call VecRestoreArrayF90(field%flow_xx,xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pf,press_pf_loc, &
+                            ierr);CHKERRQ(ierr)
 
     ! update dependent vectors: Saturation
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
          field%flow_xx_loc, NFLOWDOF)
-    call VecCopy(field%flow_xx, field%flow_yy, ierr)
+    call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
@@ -497,14 +499,14 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelSetSoilProp(pflotran_model)
-  ! 
+  !
   ! Converts hydraulic properties from CLM units
   ! into PFLOTRAN units.
   ! #ifdef CLM_PFLOTRAN
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
-  ! 
+  !
 
     use Realization_Subsurface_class
     use Patch_module
@@ -602,17 +604,22 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
 
-    call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%hksat_z_pf, hksat_z_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%sucsat_pf,  sucsat_pf_loc,  ierr)
-    call VecGetArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
-    call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_x_pf,hksat_x_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_y_pf,hksat_y_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_z_pf,hksat_z_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%sucsat_pf,sucsat_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%watsat_pf,watsat_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%bsw_pf,bsw_pf_loc,ierr);CHKERRQ(ierr)
 
-    call VecDuplicate(field%work_loc, porosity_loc, ierr)
-    call VecDuplicate(field%work_loc, perm_xx_loc, ierr)
-    call VecDuplicate(field%work_loc, perm_yy_loc, ierr)
-    call VecDuplicate(field%work_loc, perm_zz_loc, ierr)
+    call VecDuplicate(field%work_loc,porosity_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%work_loc,perm_xx_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%work_loc,perm_yy_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%work_loc,perm_zz_loc,ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,porosity_loc, &
                                  POROSITY,ZERO_INTEGER)
@@ -623,10 +630,10 @@ end subroutine pflotranModelSetICs
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
 
-    call VecGetArrayF90(porosity_loc, porosity_loc_p, ierr)
-    call VecGetArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call VecGetArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call VecGetArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecGetArrayF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(perm_xx_loc,perm_xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(perm_yy_loc,perm_yy_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(perm_zz_loc,perm_zz_loc_p,ierr);CHKERRQ(ierr)
 
     do ghosted_id = 1, grid%ngmax
 
@@ -636,7 +643,7 @@ end subroutine pflotranModelSetICs
 
       ! bc_lambda = 1/bsw
       bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)
-      
+
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
           rich_aux_var => rich_aux_vars(ghosted_id)
@@ -658,17 +665,23 @@ end subroutine pflotranModelSetICs
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hksat_z_pf, hksat_z_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sucsat_pf,  sucsat_pf_loc,  ierr)
-    call VecRestoreArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
-    call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_x_pf,hksat_x_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_y_pf,hksat_y_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_z_pf,hksat_z_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sucsat_pf,sucsat_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%watsat_pf,watsat_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%bsw_pf,bsw_pf_loc, &
+                            ierr);CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(porosity_loc, porosity_loc_p, ierr)
-    call VecRestoreArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call VecRestoreArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call VecRestoreArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecRestoreArrayF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(perm_xx_loc,perm_xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(perm_yy_loc,perm_yy_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(perm_zz_loc,perm_zz_loc_p,ierr);CHKERRQ(ierr)
 
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,porosity_loc, &
                                  POROSITY,ZERO_INTEGER)
@@ -679,10 +692,10 @@ end subroutine pflotranModelSetICs
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
 
-    call VecDestroy(porosity_loc, ierr)
-    call VecDestroy(perm_xx_loc, ierr)
-    call VecDestroy(perm_yy_loc, ierr)
-    call VecDestroy(perm_zz_loc, ierr)
+    call VecDestroy(porosity_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(perm_xx_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(perm_yy_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(perm_zz_loc,ierr);CHKERRQ(ierr)
 
   end subroutine pflotranModelSetSoilProp
 
@@ -775,10 +788,10 @@ end subroutine pflotranModelSetICs
           'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
     end select
 
-    call VecDuplicate(field%work_loc, porosity_loc, ierr)
-    call VecDuplicate(field%work_loc, perm_xx_loc, ierr)
-    call VecDuplicate(field%work_loc, perm_yy_loc, ierr)
-    call VecDuplicate(field%work_loc, perm_zz_loc, ierr)
+    call VecDuplicate(field%work_loc,porosity_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%work_loc,perm_xx_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%work_loc,perm_yy_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%work_loc,perm_zz_loc,ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,porosity_loc, &
                                  POROSITY,ZERO_INTEGER)
@@ -789,18 +802,24 @@ end subroutine pflotranModelSetICs
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
 
-    call VecGetArrayF90(clm_pf_idata%hksat_x2_pf, hksat_x2_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%hksat_y2_pf, hksat_y2_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%hksat_z2_pf, hksat_z2_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%sucsat2_pf,  sucsat2_pf_loc,  ierr)
-    call VecGetArrayF90(clm_pf_idata%watsat2_pf,  watsat2_pf_loc,  ierr)
-    call VecGetArrayF90(clm_pf_idata%bsw2_pf,     bsw2_pf_loc,     ierr)
-    call VecGetArrayF90(clm_pf_idata%thetares2_pf,thetares2_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_x2_pf,hksat_x2_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_y2_pf,hksat_y2_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_z2_pf,hksat_z2_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%sucsat2_pf,sucsat2_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%watsat2_pf,watsat2_pf_loc, &
+                        ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%bsw2_pf,bsw2_pf_loc,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%thetares2_pf,thetares2_pf_loc, &
+                        ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(porosity_loc, porosity_loc_p, ierr)
-    call VecGetArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call VecGetArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call VecGetArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecGetArrayF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(perm_xx_loc,perm_xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(perm_yy_loc,perm_yy_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(perm_zz_loc,perm_zz_loc_p,ierr);CHKERRQ(ierr)
 
     hksat_x2_pf_loc(:) = 0.d0
     hksat_y2_pf_loc(:) = 0.d0
@@ -867,18 +886,25 @@ end subroutine pflotranModelSetICs
 
    enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%hksat_x2_pf, hksat_x2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hksat_y2_pf, hksat_y2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hksat_z2_pf, hksat_z2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sucsat2_pf,  sucsat2_pf_loc,  ierr)
-    call VecRestoreArrayF90(clm_pf_idata%watsat2_pf,  watsat2_pf_loc,  ierr)
-    call VecRestoreArrayF90(clm_pf_idata%bsw2_pf,     bsw2_pf_loc,     ierr)
-    call VecRestoreArrayF90(clm_pf_idata%thetares2_pf,thetares2_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_x2_pf,hksat_x2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_y2_pf,hksat_y2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_z2_pf,hksat_z2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sucsat2_pf,sucsat2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%watsat2_pf,watsat2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%bsw2_pf,bsw2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%thetares2_pf,thetares2_pf_loc, &
+                            ierr);CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(porosity_loc, porosity_loc_p, ierr)
-    call VecRestoreArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call VecRestoreArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call VecRestoreArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecRestoreArrayF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(perm_xx_loc,perm_xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(perm_yy_loc,perm_yy_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(perm_zz_loc,perm_zz_loc_p,ierr);CHKERRQ(ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%hksat_x2_pf, &
@@ -908,10 +934,10 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%thetares2_pf, &
                                     clm_pf_idata%thetares2_clm)
 
-    call VecDestroy(porosity_loc, ierr)
-    call VecDestroy(perm_xx_loc, ierr)
-    call VecDestroy(perm_yy_loc, ierr)
-    call VecDestroy(perm_zz_loc, ierr)
+    call VecDestroy(porosity_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(perm_xx_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(perm_yy_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(perm_zz_loc,ierr);CHKERRQ(ierr)
 
   end subroutine pflotranModelGetSoilProp
 
@@ -921,14 +947,14 @@ end subroutine pflotranModelSetICs
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
-  ! 
+  !
   ! #endif
   ! Initialize mapping between the two model grid
   ! (CLM and PFLTORAN)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 03/24/2011
-  ! 
+  !
 
     use Input_Aux_module
     use Option_module
@@ -949,7 +975,7 @@ end subroutine pflotranModelSetICs
     PetscInt, intent(in)                              :: grid_clm_npts_local
     PetscInt, intent(in)                              :: map_id
     character(len=MAXSTRINGLENGTH)                    :: filename
-    
+
     select case (map_id)
       case (CLM_SUB_TO_PF_SUB, CLM_SUB_TO_PF_EXTENDED_SUB, PF_SUB_TO_CLM_SUB)
         call pflotranModelInitMappingSub2Sub(pflotran_model,  &
@@ -975,13 +1001,13 @@ end subroutine pflotranModelSetICs
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
-  ! 
+  !
   ! Initialize mapping between 3D subsurface
   ! CLM grid and 3D subsurface PFLOTRAN grid.
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 11/09/2013
-  ! 
+  !
 
     use Input_Aux_module
     use Option_module
@@ -1128,13 +1154,13 @@ end subroutine pflotranModelSetICs
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
-  ! 
+  !
   ! This routine maps CLM surface grid onto surface of PFLOTRAN 3D subsurface
   ! grid.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/09/13
-  ! 
+  !
 
     use Input_Aux_module
     use Option_module
@@ -1156,7 +1182,7 @@ end subroutine pflotranModelSetICs
     PetscInt, intent(in)                              :: grid_clm_npts_local
     PetscInt, intent(in)                              :: map_id
     character(len=MAXSTRINGLENGTH)                    :: filename
-    
+
     ! local
     PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
@@ -1240,7 +1266,7 @@ end subroutine pflotranModelSetICs
         ! Destination mesh is PF_2DSUB_MESH
         boundary_condition => patch%boundary_condition_list%first
         sum_connection = 0
-        do 
+        do
           if (.not.associated(boundary_condition)) exit
           cur_connection_set => boundary_condition%connection_set
 
@@ -1278,39 +1304,41 @@ end subroutine pflotranModelSetICs
       case default
         option%io_buffer='Unknown source mesh'
         call PrintErrMsg(option)
-      
+
     end select
 
     if(.not.found) then
       pflotran_model%option%io_buffer = 'clm_gflux_bc not found in boundary conditions'
       call PrintErrMsg(pflotran_model%option)
     endif
-    
+
     !
     ! Step-1: Find surface cells-ids of PFLOTRAN subsurface domain
     !
     allocate(v_loc(grid_pf_npts_local))
     v_loc = 1.d0
-    call VecCreateSeq(PETSC_COMM_SELF, grid_pf_npts_local, surf_ids_loc, ierr)
-    call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DECIDE, surf_ids, ierr)
-    call VecSet(surf_ids, -1.d0, ierr)
-    
-    ! Set 1.0 to all cells that make up surface of PFLOTRAN subsurface domain
-    call VecSetValues(surf_ids, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
-                      v_loc, INSERT_VALUES, ierr)
-    deallocate(v_loc)
-    call VecAssemblyBegin(surf_ids, ierr)
-    call VecAssemblyEnd(surf_ids, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,grid_pf_npts_local,surf_ids_loc, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DECIDE,surf_ids, &
+                      ierr);CHKERRQ(ierr)
+    call VecSet(surf_ids,-1.d0,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(surf_ids, v_loc, ierr)
+    ! Set 1.0 to all cells that make up surface of PFLOTRAN subsurface domain
+    call VecSetValues(surf_ids,grid_pf_npts_local,grid_pf_cell_ids_nindex, &
+                      v_loc,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    deallocate(v_loc)
+    call VecAssemblyBegin(surf_ids,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(surf_ids,ierr);CHKERRQ(ierr)
+
+    call VecGetArrayF90(surf_ids,v_loc,ierr);CHKERRQ(ierr)
     count = 0
     do local_id=1,grid%nlmax
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
     istart = 0
-    call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
-                    option%mycomm, ierr)
+    call MPI_Exscan(count,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    option%mycomm,ierr);CHKERRQ(ierr)
 
     count = 0
     do local_id=1,grid%nlmax
@@ -1319,34 +1347,35 @@ end subroutine pflotranModelSetICs
         count = count + 1
       endif
     enddo
-    call VecRestoreArrayF90(surf_ids, v_loc, ierr)
+    call VecRestoreArrayF90(surf_ids,v_loc,ierr);CHKERRQ(ierr)
 
     !
     allocate(int_array(grid_pf_npts_local))
     do iconn = 1, grid_pf_npts_local
       int_array(iconn) = iconn - 1
     enddo
-    call ISCreateGeneral(option%mycomm, grid_pf_npts_local, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
+    call ISCreateGeneral(option%mycomm,grid_pf_npts_local,int_array, &
+                         PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
     deallocate(int_array)
 
-    call ISCreateGeneral(option%mycomm, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
-                         PETSC_COPY_VALUES, is_from, ierr)
+    call ISCreateGeneral(option%mycomm,grid_pf_npts_local, &
+                         grid_pf_cell_ids_nindex,PETSC_COPY_VALUES,is_from, &
+                         ierr);CHKERRQ(ierr)
 
 
     ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    call ISDestroy(is_from, ierr)
-    call ISDestroy(is_to, ierr)
+    call VecScatterCreate(surf_ids,is_from,surf_ids_loc,is_to,vec_scat, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
+    call VecScatterBegin(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
+    call VecGetArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
     count = 0
     do iconn = 1, grid_pf_npts_local
       if (v_loc(iconn)>-1) then
@@ -1354,41 +1383,42 @@ end subroutine pflotranModelSetICs
         grid_pf_cell_ids_nindex(count) = INT(v_loc(iconn))
       endif
     enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    call VecDestroy(surf_ids_loc, ierr)
+    call VecRestoreArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(surf_ids_loc,ierr);CHKERRQ(ierr)
 
     !
     ! Step-2: Recompute 'map%s2d_iscr'
     !
-    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_nwts,surf_ids_loc, &
+                      ierr);CHKERRQ(ierr)
     allocate(int_array(map%s2d_nwts))
     do iconn = 1, map%s2d_nwts
       int_array(iconn) = iconn - 1
     enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
+    call ISCreateGeneral(option%mycomm,map%s2d_nwts,int_array, &
+                         PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
 
 
     do iconn = 1, map%s2d_nwts
       int_array(iconn) = map%s2d_icsr(iconn)
     enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_from, ierr)
+    call ISCreateGeneral(option%mycomm,map%s2d_nwts,int_array, &
+                         PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
     deallocate(int_array)
 
     ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    call ISDestroy(is_from, ierr)
-    call ISDestroy(is_to, ierr)
+    call VecScatterCreate(surf_ids,is_from,surf_ids_loc,is_to,vec_scat, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
+    call VecScatterBegin(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
+    call VecGetArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
     count = 0
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
@@ -1396,42 +1426,45 @@ end subroutine pflotranModelSetICs
         map%s2d_icsr(count) = INT(v_loc(iconn))
       endif
     enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    call VecDestroy(surf_ids_loc, ierr)
-    
+    call VecRestoreArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(surf_ids_loc,ierr);CHKERRQ(ierr)
+
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied.'
       call PrintErrMsg(option)
     endif
-    call VecDestroy(surf_ids, ierr)
+    call VecDestroy(surf_ids,ierr);CHKERRQ(ierr)
 
     !
     ! Step-3: Find surface cells-ids of CLM subsurface domain
     !
     allocate(v_loc(grid_clm_npts_local))
     v_loc = 1.d0
-    call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, surf_ids_loc, ierr)
-    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, surf_ids, ierr)
-    call VecSet(surf_ids, -1.d0, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,grid_clm_npts_local,surf_ids_loc, &
+                      ierr);CHKERRQ(ierr)
+    call VecCreateMPI(option%mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE, &
+                      surf_ids,ierr);CHKERRQ(ierr)
+    call VecSet(surf_ids,-1.d0,ierr);CHKERRQ(ierr)
 
     ! Set 1.0 to all cells that make up surface of CLM subsurface domain
-    call VecSetValues(surf_ids, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
-                      v_loc, INSERT_VALUES, ierr)
+    call VecSetValues(surf_ids,grid_clm_npts_local, &
+                      grid_clm_cell_ids_nindex_copy,v_loc,INSERT_VALUES, &
+                      ierr);CHKERRQ(ierr)
 
     deallocate(v_loc)
-    call VecAssemblyBegin(surf_ids, ierr)
-    call VecAssemblyEnd(surf_ids, ierr)
+    call VecAssemblyBegin(surf_ids,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(surf_ids,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(surf_ids, v_loc, ierr)
+    call VecGetArrayF90(surf_ids,v_loc,ierr);CHKERRQ(ierr)
     count = 0
     do local_id=1,clm_pf_idata%nlclm_sub
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
     istart = 0
-    call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
-                    option%mycomm, ierr)
+    call MPI_Exscan(count,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    option%mycomm,ierr);CHKERRQ(ierr)
 
     count = 0
     do local_id=1,clm_pf_idata%nlclm_sub
@@ -1440,34 +1473,35 @@ end subroutine pflotranModelSetICs
         count = count + 1
       endif
     enddo
-    call VecRestoreArrayF90(surf_ids, v_loc, ierr)
+    call VecRestoreArrayF90(surf_ids,v_loc,ierr);CHKERRQ(ierr)
 
     !
     allocate(int_array(grid_clm_npts_local))
     do iconn = 1, grid_clm_npts_local
       int_array(iconn) = iconn - 1
     enddo
-    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
+    call ISCreateGeneral(option%mycomm,grid_clm_npts_local,int_array, &
+                         PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
     deallocate(int_array)
 
-    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
-                         PETSC_COPY_VALUES, is_from, ierr)
+    call ISCreateGeneral(option%mycomm,grid_clm_npts_local, &
+                         grid_clm_cell_ids_nindex_copy,PETSC_COPY_VALUES, &
+                         is_from,ierr);CHKERRQ(ierr)
 
 
     ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    call ISDestroy(is_from, ierr)
-    call ISDestroy(is_to, ierr)
+    call VecScatterCreate(surf_ids,is_from,surf_ids_loc,is_to,vec_scat, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
+    call VecScatterBegin(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
+    call VecGetArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
     count = 0
     do iconn = 1, grid_clm_npts_local
       if (v_loc(iconn)>-1) then
@@ -1475,42 +1509,43 @@ end subroutine pflotranModelSetICs
         grid_clm_cell_ids_nindex_copy(count) = INT(v_loc(iconn))
       endif
     enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    call VecDestroy(surf_ids_loc, ierr)
+    call VecRestoreArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(surf_ids_loc,ierr);CHKERRQ(ierr)
 
 
     !
     ! Step-4: Recompute 'map%s2d_jscr'
     !
-    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_nwts,surf_ids_loc, &
+                      ierr);CHKERRQ(ierr)
     allocate(int_array(map%s2d_nwts))
     do iconn = 1, map%s2d_nwts
       int_array(iconn) = iconn - 1
     enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
+    call ISCreateGeneral(option%mycomm,map%s2d_nwts,int_array, &
+                         PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
 
 
     do iconn = 1, map%s2d_nwts
       int_array(iconn) = map%s2d_jcsr(iconn)
     enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_from, ierr)
+    call ISCreateGeneral(option%mycomm,map%s2d_nwts,int_array, &
+                         PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
     deallocate(int_array)
 
     ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    call ISDestroy(is_from, ierr)
-    call ISDestroy(is_to, ierr)
+    call VecScatterCreate(surf_ids,is_from,surf_ids_loc,is_to,vec_scat, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
+    call VecScatterBegin(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(vec_scat,surf_ids,surf_ids_loc,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
+    call VecGetArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
     count = 0
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
@@ -1518,15 +1553,15 @@ end subroutine pflotranModelSetICs
         map%s2d_jcsr(count) = INT(v_loc(iconn))
       endif
     enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    call VecDestroy(surf_ids_loc, ierr)
-    
+    call VecRestoreArrayF90(surf_ids_loc,v_loc,ierr);CHKERRQ(ierr)
+    call VecDestroy(surf_ids_loc,ierr);CHKERRQ(ierr)
+
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied.'
       call PrintErrMsg(option)
     endif
-    call VecDestroy(surf_ids, ierr)
+    call VecDestroy(surf_ids,ierr);CHKERRQ(ierr)
 
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
@@ -1563,7 +1598,7 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelStepperRunTillPauseTime(model, pause_time)
-  ! 
+  !
   ! It performs the model integration
   ! till the specified pause_time.
   ! NOTE: It is assumed 'pause_time' is in seconds.
@@ -1571,10 +1606,10 @@ end subroutine pflotranModelSetICs
   ! deletion of t is to ensure that we always have a valid waypoint in
   ! front of us, but pflotran does not delete them, so we don't want
   ! to accumulate too large of a list.
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
 
     implicit none
@@ -1603,15 +1638,15 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelInsertWaypoint(model, waypoint_time)
-  ! 
+  !
   ! Inserts a waypoint within the waypoint list
   ! so that the model integration can be paused when that waypoint is
   ! reached
   ! NOTE: It is assumed the 'waypoint_time' is in seconds
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
@@ -1695,7 +1730,7 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelSetupRestart(model, restart_stamp)
-  ! 
+  !
   ! pflotranModelSetupRestart()
   ! This checks to see if a restart file stamp was provided by the
   ! driver. If so, we set the restart flag and reconstruct the
@@ -1703,7 +1738,7 @@ end subroutine pflotranModelSetICs
   ! pflotran mechanism in TimeStepperInitializeRun()
   ! NOTE: this must be called between pflotranModelCreate() and
   ! pflotranModelStepperRunInit()
-  ! 
+  !
 
     use Option_module
     use String_module
@@ -1728,12 +1763,12 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelUpdateSourceSink(pflotran_model)
-  ! 
+  !
   ! Update the source/sink term
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 11/22/2011
-  ! 
+  !
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -1793,7 +1828,7 @@ end subroutine pflotranModelSetICs
     end select
 
     ! Update the 'clm_et_ss' source/sink term
-    call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr);CHKERRQ(ierr)
     found = PETSC_FALSE
     source_sink => subsurf_realization%patch%source_sink_list%first
     do
@@ -1824,7 +1859,8 @@ end subroutine pflotranModelSetICs
 
       source_sink => source_sink%next
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc, &
+                            ierr);CHKERRQ(ierr)
 
     if(.not.found) &
       call PrintErrMsg(pflotran_model%option,'clm_et_ss not found in ' // &
@@ -1835,13 +1871,13 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelUpdateFlowConds(pflotran_model)
-  ! 
+  !
   ! This routine Updates boundary and source/sink condtions for PFLOTRAN that
   ! are prescribed by CLM
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 4/10/2013
-  ! 
+  !
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -1858,13 +1894,13 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelUpdateSubsurfTCond(pflotran_model)
-  ! 
+  !
   ! This routine updates subsurface boundary condtions of PFLOTRAN related to
   ! energy equation.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 11/08/2013
-  ! 
+  !
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -1905,7 +1941,8 @@ end subroutine pflotranModelSetICs
     end select
 
     ! Update the 'clm_et_ss' source/sink term
-    call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc, &
+                        ierr);CHKERRQ(ierr)
     found = PETSC_FALSE
     boundary_condition => subsurf_realization%patch%boundary_condition_list%first
     do
@@ -1931,7 +1968,8 @@ end subroutine pflotranModelSetICs
 
       boundary_condition => boundary_condition%next
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf, &
+                            gflux_subsurf_pf_loc,ierr);CHKERRQ(ierr)
 
     if(.not.found) &
       call PrintErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
@@ -1942,12 +1980,12 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelGetUpdatedData(pflotran_model)
-  ! 
+  !
   ! This routine get updated states evoloved by PFLOTRAN.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 5/14/2013
-  ! 
+  !
 
     use Option_module
     use Richards_module
@@ -1991,13 +2029,13 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelGetSaturation(pflotran_model)
-  ! 
+  !
   ! Extract soil saturation values simulated by
   ! PFLOTRAN in a PETSc vector.
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 11/22/2011
-  ! 
+  !
 
     use Option_module
     use Realization_Subsurface_class
@@ -2036,14 +2074,14 @@ end subroutine pflotranModelSetICs
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%auxvars
     option          => realization%option
-    
+
     ! Save the saturation values
-    call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%sat_pf,sat_pf_p,ierr);CHKERRQ(ierr)
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
       sat_pf_p(local_id)=global_aux_vars(ghosted_id)%sat(1)
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sat_pf,sat_pf_p,ierr);CHKERRQ(ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%sat_pf, &
@@ -2054,12 +2092,14 @@ end subroutine pflotranModelSetICs
 
       TH_auxvars => patch%aux%TH%auxvars
 
-      call VecGetArrayF90(clm_pf_idata%sat_ice_pf, sat_pf_p, ierr)
+      call VecGetArrayF90(clm_pf_idata%sat_ice_pf,sat_pf_p, &
+                          ierr);CHKERRQ(ierr)
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         sat_pf_p(local_id) = TH_auxvars(ghosted_id)%ice%sat_ice
       enddo
-      call VecGetArrayF90(clm_pf_idata%sat_ice_pf, sat_pf_p, ierr)
+      call VecGetArrayF90(clm_pf_idata%sat_ice_pf,sat_pf_p, &
+                          ierr);CHKERRQ(ierr)
 
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                       clm_pf_idata%sat_ice_pf, &
@@ -2071,12 +2111,12 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelGetTemperature(pflotran_model)
-  ! 
+  !
   ! This routine get updated states evoloved by PFLOTRAN.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 5/14/2013
-  ! 
+  !
 
     use Option_module
     use Realization_Subsurface_class
@@ -2116,7 +2156,7 @@ end subroutine pflotranModelSetICs
     global_aux_vars => patch%aux%Global%auxvars
     th_aux_vars     => patch%aux%TH%auxvars
 
-    call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%temp_pf,temp_pf_p,ierr);CHKERRQ(ierr)
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id>0) then
@@ -2125,7 +2165,8 @@ end subroutine pflotranModelSetICs
         temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp
       endif
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%temp_pf,temp_pf_p, &
+                            ierr);CHKERRQ(ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%temp_pf, &
@@ -2185,7 +2226,8 @@ end subroutine pflotranModelSetICs
     grid            => patch%grid
     th_aux_vars     => patch%aux%TH%auxvars
 
-    call VecGetArrayF90(clm_pf_idata%eff_therm_cond_pf, eff_tc_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%eff_therm_cond_pf,eff_tc_p, &
+                        ierr);CHKERRQ(ierr)
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id > 0) then
@@ -2193,7 +2235,8 @@ end subroutine pflotranModelSetICs
         eff_tc_p(local_id) = th_aux_vars(ghosted_id)%Dk_eff/pflotran_model%option%scale
       endif
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%eff_therm_cond_pf, eff_tc_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%eff_therm_cond_pf,eff_tc_p, &
+                            ierr);CHKERRQ(ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%eff_therm_cond_pf, &
@@ -2204,14 +2247,14 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelStepperRunFinalize(model)
-  ! 
+  !
   ! It performs the same execution of commands
   ! that are carried out in StepperRun() once the model integration is
   ! finished
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
     implicit none
 
@@ -2224,16 +2267,16 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   function pflotranModelNSurfCells3DDomain(pflotran_model)
-  ! 
+  !
   ! This function returns the number of control volumes forming surface of
   ! the sub-surface domain. The subroutines assumes the following boundary
   ! condition is specified in inputdeck:
   ! - 'clm_gflux_bc': when running subsurface only simulation.
   ! - 'from_surface_bc': when running surface-subsurface simulation.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 6/03/2013
-  ! 
+  !
 
     use Option_module
     use Coupler_module
@@ -2289,12 +2332,12 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelGetTopFaceArea(pflotran_model)
-  ! 
+  !
   ! This subroutine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 6/10/2013
-  ! 
+  !
 
     use Option_module
     use Patch_module
@@ -2346,7 +2389,8 @@ end subroutine pflotranModelSetICs
     patch => realization%patch
     grid => patch%grid
 
-    call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pf,area_p, &
+                        ierr);CHKERRQ(ierr)
     if (grid%itype == STRUCTURED_GRID) then
       ! Structured grid
       do ghosted_id=1,grid%ngmax
@@ -2380,7 +2424,8 @@ end subroutine pflotranModelSetICs
         area_p(local_id) = grid%unstructured_grid%face_area(face_id)
       enddo
     endif
-    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pf,area_p, &
+                            ierr);CHKERRQ(ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%area_top_face_pf, &
@@ -2391,12 +2436,12 @@ end subroutine pflotranModelSetICs
 ! ************************************************************************** !
 
   subroutine pflotranModelDestroy(model)
-  ! 
+  !
   ! Deallocates the pflotranModel object
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  ! 
+  !
 
     use Factory_PFLOTRAN_module, only : FactoryPFLOTRANFinalize
     use Mapping_module, only : MappingDestroy
@@ -2449,6 +2494,6 @@ end subroutine pflotranModelSetICs
     call exit(iflag)
 
   end subroutine pflotranModelDestroy
-  
+
 end module pflotran_model_module
 

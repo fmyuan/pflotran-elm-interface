@@ -1083,10 +1083,10 @@ subroutine PMCBaseRegisterHeader(this,bag,header)
   PetscErrorCode :: ierr
 
   ! bagsize = 2 * 8 bytes = 16 bytes
-  call PetscBagRegisterInt(bag,header%plot_number,0, &
-                           "plot number","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%times_per_h5_file,0, &
-                           "times_per_h5_file","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%plot_number,0,"plotnumber","", &
+                           ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%times_per_h5_file,0,"times_per_h5_file", &
+                           "",ierr);CHKERRQ(ierr)
 
 end subroutine PMCBaseRegisterHeader
 
@@ -1150,7 +1150,8 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
 
   ! if the top PMC,
   if (this%is_master) then
-    call PetscTestFile(this%option%restart_filename,'r',flag,ierr);CHKERRQ(ierr)
+    call PetscTestFile(this%option%restart_filename,'r',flag, &
+                       ierr);CHKERRQ(ierr)
     if (.not.flag) then
       this%option%io_buffer = 'Restart file "' // &
         trim(this%option%restart_filename) // '" not found.'
@@ -1162,10 +1163,11 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
     call PetscLogEventBegin(logging%event_restart,ierr);CHKERRQ(ierr)
     call PetscTime(tstart,ierr);CHKERRQ(ierr)
     call PetscViewerBinaryOpen(this%option%mycomm, &
-                               this%option%restart_filename, &
-                               FILE_MODE_READ,viewer,ierr);CHKERRQ(ierr)
+                               this%option%restart_filename,FILE_MODE_READ, &
+                               viewer,ierr);CHKERRQ(ierr)
     ! skip reading info file when loading, but not working
-    call PetscViewerBinarySetSkipOptions(viewer,PETSC_TRUE,ierr);CHKERRQ(ierr)
+    call PetscViewerBinarySetSkipOptions(viewer,PETSC_TRUE, &
+                                         ierr);CHKERRQ(ierr)
     call CheckPointReadCompatibilityBinary(viewer,this%option)
     ! read pmc header
     call PetscBagCreate(this%option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
@@ -1425,7 +1427,7 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call PrintMsg(this%option)
-    call PetscLogEventBegin(logging%event_restart, ierr);CHKERRQ(ierr)
+    call PetscLogEventBegin(logging%event_restart,ierr);CHKERRQ(ierr)
     call PetscTime(tstart,ierr);CHKERRQ(ierr)
 
     call CheckpointOpenFileForReadHDF5(this%option%restart_filename, &

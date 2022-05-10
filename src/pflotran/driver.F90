@@ -104,8 +104,8 @@ subroutine DriverPrintErrorMessage(driver,string)
     print *
     print *, 'Stopping!'
   endif
-  call MPI_Barrier(driver%comm%mycomm,ierr)
-  call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+  call MPI_Barrier(driver%comm%mycomm,ierr);CHKERRQ(ierr)
+  call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
   if (petsc_initialized) then
     call PetscFinalize(ierr);CHKERRQ(ierr)
   endif

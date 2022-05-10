@@ -1,5 +1,5 @@
 module Transport_Constraint_NWT_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -10,7 +10,7 @@ module Transport_Constraint_NWT_module
   implicit none
 
   private
-  
+
  ! constraint on aqueous concentration:
   PetscInt, parameter, public :: CONSTRAINT_AQ_EQUILIBRIUM = 1
   ! constraint on mineral (precipitated) concentration:
@@ -27,7 +27,7 @@ module Transport_Constraint_NWT_module
   contains
     procedure, public :: Strip => TranConstraintNWTStrip
   end type tran_constraint_nwt_type
-  
+
   type, public, extends(tran_constraint_coupler_base_type) :: &
                                            tran_constraint_coupler_nwt_type
    type(nw_transport_auxvar_type), pointer :: nwt_auxvar
@@ -41,33 +41,33 @@ module Transport_Constraint_NWT_module
             TranConstraintNWTRead, &
             NWTSpeciesConstraintCreate, &
             NWTConstraintProcess
-    
+
 contains
 
 ! ************************************************************************** !
 
 function TranConstraintNWTCreate(option)
-  ! 
+  !
   ! Creates a transport constraint (set of concentrations
   ! and constraints for setting boundary or initial
   ! condition).
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/04/19
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   class(tran_constraint_nwt_type), pointer :: TranConstraintNWTCreate
-  
+
   class(tran_constraint_nwt_type), pointer :: constraint
-  
+
   allocate(constraint)
   call TranConstraintBaseInit(constraint,option)
   nullify(constraint%nwt_species)
-  
+
   TranConstraintNWTCreate => constraint
 
 end function TranConstraintNWTCreate
@@ -75,27 +75,27 @@ end function TranConstraintNWTCreate
 ! ************************************************************************** !
 
 function TranConstraintCouplerNWTCreate(option)
-  ! 
+  !
   ! Creates a coupler that ties a constraint to a
   ! transport condition
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/04/19
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   class(tran_constraint_coupler_nwt_type), pointer :: &
                                                 TranConstraintCouplerNWTCreate
-  
+
   class(tran_constraint_coupler_nwt_type), pointer :: coupler
-  
+
   allocate(coupler)
   call TranConstraintCouplerBaseInit(coupler,option)
   nullify(coupler%nwt_auxvar)
-  
+
   TranConstraintCouplerNWTCreate => coupler
 
 end function TranConstraintCouplerNWTCreate
@@ -104,12 +104,12 @@ end function TranConstraintCouplerNWTCreate
 ! ************************************************************************** !
 
 function TranConstraintNWTCast(this)
-  ! 
+  !
   ! Casts a tran_constraint_base_type to tran_constraint_nwt_type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/19
-  ! 
+  !
 
   implicit none
 
@@ -129,13 +129,13 @@ end function TranConstraintNWTCast
 ! ************************************************************************** !
 
 function TranConstraintCouplerNWTCast(this)
-  ! 
-  ! Casts a tran_constraint_coupler_base_type to 
+  !
+  ! Casts a tran_constraint_coupler_base_type to
   ! tran_constraint_coupler_nwt_type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/19
-  ! 
+  !
 
   implicit none
 
@@ -156,12 +156,12 @@ end function TranConstraintCouplerNWTCast
 ! ************************************************************************** !
 
 function TranConstraintNWTGetAuxVar(this)
-  ! 
+  !
   ! Returns the auxvar associated with tran_constraint_coupler_nwt_type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/19
-  ! 
+  !
 
   implicit none
 
@@ -181,12 +181,12 @@ end function TranConstraintNWTGetAuxVar
 ! ************************************************************************** !
 
 subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
-  ! 
+  !
   ! Reads a transport constraint from the input file
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 05/29/2019
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
@@ -194,12 +194,12 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
   use NW_Transport_Aux_module
 
   implicit none
-  
+
   class(tran_constraint_nwt_type) :: constraint
   class(reaction_nw_type) :: reaction_nw
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: block_string
   PetscInt :: icomp
@@ -213,15 +213,15 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CONSTRAINT')
-        
-    if (InputCheckExit(input,option)) exit  
+
+    if (InputCheckExit(input,option)) exit
 
     call InputReadWord(input,option,word,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
-      
+    call InputErrorMsg(input,option,'keyword','CONSTRAINT')
+
     select case(trim(word))
 
       case('CONC','CONCENTRATIONS')
@@ -234,11 +234,11 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
-          
-          if (InputCheckExit(input,option)) exit  
-          
-          icomp = icomp + 1        
-          
+
+          if (InputCheckExit(input,option)) exit
+
+          icomp = icomp + 1
+
           if (icomp > reaction_nw%params%nspecies) then
             option%io_buffer = 'Number of concentration constraints exceeds &
                                &the number of species given in the &
@@ -246,14 +246,14 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
                                &Error in constraint: ' // trim(constraint%name)
             call PrintErrMsg(option)
           endif
-          
+
           call InputReadWord(input,option,nwt_species_constraint%names(icomp), &
                           PETSC_TRUE)
           call InputErrorMsg(input,option,'species name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(nwt_species_constraint%names(icomp))
           call PrintMsg(option)
-          
+
           call InputReadDouble(input,option, &
                                nwt_species_constraint%constraint_conc(icomp))
           call InputErrorMsg(input,option,'concentration',block_string)
@@ -292,8 +292,8 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
               &for species ' // trim(nwt_species_constraint%names(icomp)) // '.'
             call PrintErrMsg(option)
           endif
-        enddo  
-        
+        enddo
+
         if (icomp < reaction_nw%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
@@ -306,33 +306,34 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
                    'number of species in species constraint.'
           call PrintWrnMsg(option)
         endif
-        
+
         if (associated(constraint%nwt_species)) &
           call NWTSpeciesConstraintDestroy(constraint%nwt_species)
-        constraint%nwt_species => nwt_species_constraint 
-               
-        
+        constraint%nwt_species => nwt_species_constraint
+
+
       case default
         call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
-    end select 
-  
-  enddo  
+    end select
+
+  enddo
   call InputPopBlock(input,option)
-  
-  call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
+
+  call PetscLogEventEnd(logging%event_tran_constraint_read, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine TranConstraintNWTRead
 
-! ************************************************************************** ! 
+! ************************************************************************** !
 
 subroutine NWTConstraintProcess(reaction_nw,constraint,option)
-  ! 
+  !
   ! Ensures ordering of species is consistant between the reaction_nw object
-  ! and the constraint object. 
-  ! 
+  ! and the constraint object.
+  !
   ! Author: Jenn Frederick
   ! Date: 03/22/2019
-  ! 
+  !
   use Option_module
   use String_module
   use Utility_module
@@ -392,12 +393,12 @@ end subroutine NWTConstraintProcess
 ! ************************************************************************** !
 
 subroutine NWTSpeciesConstraintDestroy(constraint)
-  ! 
+  !
   ! Deallocates a nuclear waste transport species constraint object
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/21/2019
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
 
@@ -419,17 +420,17 @@ end subroutine NWTSpeciesConstraintDestroy
 ! ************************************************************************** !
 
 subroutine TranConstraintNWTStrip(this)
-  ! 
+  !
   ! Deallocates a constraint
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/04/19
-  ! 
+  !
 
   implicit none
-  
+
   class(tran_constraint_nwt_type) :: this
-  
+
   call TranConstraintBaseStrip(this)
 
   if (associated(this%nwt_species)) &
@@ -440,20 +441,20 @@ end subroutine TranConstraintNWTStrip
 ! ************************************************************************** !
 
 subroutine TranConstraintCouplerNWTStrip(this)
-  ! 
+  !
   ! Deallocate dynamic members of class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/04/19
-  ! 
+  !
   implicit none
-  
+
   class(tran_constraint_coupler_nwt_type) :: this
-  
+
   call TranConstraintCouplerBaseStrip(this)
 
   call NWTAuxVarDestroy(this%nwt_auxvar)
-  
+
 end subroutine TranConstraintCouplerNWTStrip
 
 end module Transport_Constraint_NWT_module

@@ -200,7 +200,7 @@ contains
     @assertEqual(0, ierr)
 
     temperature = 20.d0
-    pressure = 101325.d0 
+    pressure = 101325.d0
     saturation_pressure = 0.d0
     dsaturation_pressure = 0.d0
 
@@ -257,7 +257,7 @@ contains
     @assertEqual(0, ierr)
 
     temperature = 20.d0
-    pressure = 101325.d0 
+    pressure = 101325.d0
     saturation_pressure = 0.d0
     dsaturation_pressure = 0.d0
 

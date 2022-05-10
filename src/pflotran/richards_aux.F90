@@ -11,8 +11,8 @@ module Richards_Aux_module
   use Matrix_Zeroing_module
 
   implicit none
-  
-  private 
+
+  private
 
   PetscReal, public :: richards_itol_scaled_res = 1.d-5
   PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
@@ -24,7 +24,7 @@ module Richards_Aux_module
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_ACCUM = 1
 
   type, public :: richards_auxvar_type
-  
+
     PetscReal :: pc
     PetscReal :: kvr
     PetscReal :: kr
@@ -33,7 +33,7 @@ module Richards_Aux_module
     PetscReal :: dden_dp
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
 #endif
 
     PetscReal :: d2sat_dp2
@@ -43,7 +43,7 @@ module Richards_Aux_module
     PetscReal :: dmass_dtime
 
   end type richards_auxvar_type
-  
+
   type, public :: richards_type
     PetscBool :: auxvars_up_to_date
     PetscBool :: auxvars_cell_pressures_up_to_date
@@ -70,22 +70,22 @@ contains
 ! ************************************************************************** !
 
 function RichardsAuxCreate()
-  ! 
+  !
   ! Allocate and initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(richards_type), pointer :: RichardsAuxCreate
-  
+
   type(richards_type), pointer :: aux
 
-  allocate(aux) 
+  allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
   aux%auxvars_cell_pressures_up_to_date = PETSC_FALSE
   aux%inactive_cells_exist = PETSC_FALSE
@@ -101,26 +101,26 @@ function RichardsAuxCreate()
   nullify(aux%matrix_zeroing)
 
   RichardsAuxCreate => aux
-  
+
 end function RichardsAuxCreate
 
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarInit(auxvar,option)
-  ! 
+  !
   ! Initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(richards_auxvar_type) :: auxvar
   type(option_type) :: option
-  
+
   auxvar%pc = 0.d0
 
   auxvar%kvr = 0.d0
@@ -139,24 +139,24 @@ subroutine RichardsAuxVarInit(auxvar,option)
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar%bc_alpha  = 0.0d0
   auxvar%bc_lambda  = 0.0d0
-#endif 
-  
+#endif
+
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies an auxiliary variable
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/13/07
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(richards_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
@@ -168,7 +168,7 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
 
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
- 
+
   auxvar2%d2sat_dp2 = auxvar%d2sat_dp2
   auxvar2%d2den_dp2 = auxvar%d2den_dp2
   auxvar2%mass = auxvar%mass
@@ -187,21 +187,21 @@ end subroutine RichardsAuxVarCopy
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                  characteristic_curves,natural_id, &
                                  update_porosity,option)
-  ! 
+  !
   ! Computes auxiliary variables for each grid cell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/22/08
-  ! 
+  !
 
   use Option_module
   use Global_Aux_module
-  
+
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
   use Material_Aux_module
-  
+
   implicit none
 
   type(option_type) :: option
@@ -212,7 +212,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   PetscBool :: update_porosity
-  
+
   PetscInt :: i
   PetscBool :: saturated
   PetscErrorCode :: ierr
@@ -226,31 +226,31 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
-  
+
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
   global_auxvar%den_kg = 0.d0
-  
+
   auxvar%kvr = 0.d0
   auxvar%kr = 0.d0
 
   kr = 0.d0
- 
+
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%flow%reference_temperature
 
   if (update_porosity) then
     call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
   endif
- 
-  ! For a very large negative liquid pressure (e.g. -1.d18), the capillary 
-  ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below 
+
+  ! For a very large negative liquid pressure (e.g. -1.d18), the capillary
+  ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below
   ! and flipping the cell to saturated, when it is really far from saturated.
-  ! The large negative liquid pressure is then passed to the EOS causing it 
+  ! The large negative liquid pressure is then passed to the EOS causing it
   ! to blow up.  Therefore, we truncate to the max capillary pressure here.
   auxvar%pc = min(option%flow%reference_pressure - global_auxvar%pres(1), &
                   characteristic_curves%saturation_function%pcmax)
-  
+
 !***************  Liquid phase properties **************************
   pw = option%flow%reference_pressure
   ds_dp = 0.d0
@@ -302,16 +302,16 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     endif
   else
     saturated = PETSC_TRUE
-  endif  
-  
+  endif
+
   ! the purpose for splitting this condition from the 'else' statement
   ! above is due to SaturationFunctionCompute switching a cell to
-  ! saturated to prevent unstable (potentially infinite) derivatives when 
+  ! saturated to prevent unstable (potentially infinite) derivatives when
   ! capillary pressure is very small
   if (saturated) then
     auxvar%pc = 0.d0
-    global_auxvar%sat = 1.d0  
-    kr = 1.d0    
+    global_auxvar%sat = 1.d0
+    kr = 1.d0
     pw = global_auxvar%pres(1)
   endif
 
@@ -326,7 +326,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
     !geh: 0.d0 passed in for derivative of pressure w/respect to temp
     call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,0.d0, &
-                           visl,dvis_dt,dvis_dp,ierr) 
+                           visl,dvis_dt,dvis_dp,ierr)
   else
     if (option%iflag == RICHARDS_UPDATE_FOR_FIXED_ACCUM) then
       ! For the computation of fixed accumulation term use NaCl
@@ -344,14 +344,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
     endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
-                              visl,dvis_dt,dvis_dp,ierr) 
+                              visl,dvis_dt,dvis_dp,ierr)
   endif
   if (.not.saturated) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0
     dw_dp = 0.d0
     hw_dp = 0.d0
   endif
- 
+
   global_auxvar%den = dw_mol
   global_auxvar%den_kg = dw_kg
   auxvar%dsat_dp = ds_dp
@@ -363,7 +363,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (size(global_auxvar%sat) > 1) then
     global_auxvar%sat(2) = 1.d0 - global_auxvar%sat(1)
   endif
-  
+
 end subroutine RichardsAuxVarCompute
 
 ! ************************************************************************** !
@@ -373,19 +373,19 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
                                               option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
-  ! 
+  !
   ! Author: Gautam Bisht, Satish Karra
   ! Date: 07/02/18, 06/26/19
-  ! 
+  !
 
   use Option_module
   use Global_Aux_module
-  
+
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
   use Material_Aux_module
-  
+
   implicit none
 
   type(option_type) :: option
@@ -401,13 +401,13 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   rich_auxvar%d2sat_dp2 = 0.d0
   rich_auxvar%d2den_dp2 = 0.d0
 
-  call GlobalAuxVarInit(global_auxvar_pert,option)  
-  call MaterialAuxVarInit(material_auxvar_pert,option)  
+  call GlobalAuxVarInit(global_auxvar_pert,option)
+  call MaterialAuxVarInit(material_auxvar_pert,option)
   call RichardsAuxVarCopy(rich_auxvar,rich_auxvar_pert,option)
   call GlobalAuxVarCopy(global_auxvar,global_auxvar_pert,option)
   call MaterialAuxVarCopy(material_auxvar,material_auxvar_pert,option)
   x(1) = global_auxvar%pres(1)
-  
+
   ideriv = 1
   pert = max(dabs(x(ideriv)*perturbation_tolerance),0.1d0)
   x_pert = x
@@ -418,7 +418,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
                        material_auxvar_pert, &
                        characteristic_curves, &
                        -999, PETSC_TRUE, &
-                       option)   
+                       option)
 
   rich_auxvar%d2den_dp2 = (rich_auxvar_pert%dden_dp - rich_auxvar%dden_dp)/pert
   if (rich_auxvar%pc > 0.d0) then
@@ -427,68 +427,68 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
                                           rich_auxvar%d2sat_dp2,option)
   endif
 
-    
-  call GlobalAuxVarStrip(global_auxvar_pert)  
-  call MaterialAuxVarStrip(material_auxvar_pert)  
+
+  call GlobalAuxVarStrip(global_auxvar_pert)
+  call MaterialAuxVarStrip(material_auxvar_pert)
 
 end subroutine RichardsAuxVarCompute2ndOrderDeriv
 
 ! ************************************************************************** !
 
 subroutine AuxVarDestroy(auxvar)
-  ! 
+  !
   ! Deallocates a richards auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
 
   implicit none
 
   type(richards_auxvar_type) :: auxvar
-  
+
 end subroutine AuxVarDestroy
 
 ! ************************************************************************** !
 
 subroutine RichardsAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a richards auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/14/08
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
 
   type(richards_type), pointer :: aux
   PetscInt :: iaux
-  
+
   if (.not.associated(aux)) return
-  
+
   if (associated(aux%auxvars)) then
     do iaux = 1, aux%num_aux
       call AuxVarDestroy(aux%auxvars(iaux))
-    enddo  
+    enddo
     deallocate(aux%auxvars)
   endif
   nullify(aux%auxvars)
   if (associated(aux%auxvars_bc)) then
     do iaux = 1, aux%num_aux_bc
       call AuxVarDestroy(aux%auxvars_bc(iaux))
-    enddo  
+    enddo
     deallocate(aux%auxvars_bc)
   endif
   nullify(aux%auxvars_bc)
   if (associated(aux%auxvars_ss)) then
     do iaux = 1, aux%num_aux_ss
       call AuxVarDestroy(aux%auxvars_ss(iaux))
-    enddo  
+    enddo
     deallocate(aux%auxvars_ss)
   endif
   nullify(aux%auxvars_ss)
-  
+
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
 #ifdef BUFFER_MATRIX
@@ -497,10 +497,10 @@ subroutine RichardsAuxDestroy(aux)
   endif
   nullify(aux%matrix_buffer)
 #endif
-  
+
   deallocate(aux)
   nullify(aux)
-    
+
 end subroutine RichardsAuxDestroy
 
 end module Richards_Aux_module

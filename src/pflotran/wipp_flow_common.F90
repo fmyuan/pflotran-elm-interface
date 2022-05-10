@@ -7,8 +7,8 @@ module WIPP_Flow_Common_module
   use petscsys
 
   implicit none
-  
-  private 
+
+  private
 
 #include "petsc/finclude/petscsys.h"
 
@@ -101,55 +101,55 @@ module WIPP_Flow_Common_module
 
   public :: XXFlux, &
             XXBCFlux
-            
+
 contains
 
 ! ************************************************************************** !
 
 subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
                                option,Res,debug_cell)
-  ! 
+  !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
   use Material_Aux_module
-  
+
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  PetscReal :: Res(option%nflowdof) 
+  PetscReal :: Res(option%nflowdof)
   PetscBool :: debug_cell
-  
+
   PetscInt :: icomp, iphase
-  
+
   PetscReal :: porosity
   PetscReal :: volume_over_dt
-  
+
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
-  ! must use wippflo_auxvar%effective porosity here as it enables numerical 
-  ! derivatives to be employed 
+  ! must use wippflo_auxvar%effective porosity here as it enables numerical
+  ! derivatives to be employed
   porosity = wippflo_auxvar%effective_porosity
-  
+
   ! accumulation term units = kmol/s
   Res = 0.d0
   do iphase = 1, option%nphase
-    ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] * 
-    !                           den[kmol phase/m^3 phase] * 
+    ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] *
+    !                           den[kmol phase/m^3 phase] *
     Res(iphase) = Res(iphase) + wippflo_auxvar%sat(iphase) * &
                                 wippflo_auxvar%den(iphase)
   enddo
 
   ! scale by porosity * volume / dt
-  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] * 
+  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] *
   !                 vol[m^3 bulk] / dt[sec]
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
@@ -169,20 +169,20 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
                                    update_upwind_direction_, &
                                    count_upwind_direction_flip_, &
                                    debug_connection)
-  ! 
-  ! Computes the internal flux terms for the residual based on harmonic 
+  !
+  ! Computes the internal flux terms for the residual based on harmonic
   ! intrinsic permeability
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
   use Connection_module
   use Upwind_Direction_module
-  
+
   implicit none
-  
+
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -204,7 +204,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: iphase
   PetscBool :: upwind
-  
+
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: perm_up, perm_dn
@@ -215,13 +215,13 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
-  
+
   PetscReal :: temp_perm_up, temp_perm_dn
 
   PetscReal :: up_scale, dn_scale
   PetscReal :: dummy
   PetscInt :: iabs_upwind_direction1
-  
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
 
@@ -237,16 +237,16 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   iabs_upwind_direction1 = iabs(upwind_direction_(1))
   select case(iabs_upwind_direction1)
     case(X_DIRECTION)
-      perm_up = material_auxvar_up%permeability(perm_xx_index) 
-      perm_dn = material_auxvar_dn%permeability(perm_xx_index) 
+      perm_up = material_auxvar_up%permeability(perm_xx_index)
+      perm_dn = material_auxvar_dn%permeability(perm_xx_index)
     case(Y_DIRECTION)
-      perm_up = material_auxvar_up%permeability(perm_yy_index) 
-      perm_dn = material_auxvar_dn%permeability(perm_yy_index) 
+      perm_up = material_auxvar_up%permeability(perm_yy_index)
+      perm_dn = material_auxvar_dn%permeability(perm_yy_index)
     case(Z_DIRECTION)
-      perm_up = material_auxvar_up%permeability(perm_zz_index) 
-      perm_dn = material_auxvar_dn%permeability(perm_zz_index) 
+      perm_up = material_auxvar_up%permeability(perm_zz_index)
+      perm_dn = material_auxvar_dn%permeability(perm_zz_index)
   end select
-  
+
   ! Fracture permeability change only available for structured grid (Heeho)
   if (associated(material_auxvar_up%fracture) .and. &
       wippflo_use_fracture) then
@@ -260,7 +260,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
       perm_dn = perm_dn * wippflo_auxvar_dn%fracture_perm_scaling_factor
     endif
   endif
-  
+
   perm_ave_over_dist(1) = (perm_up * perm_dn) / &
                           (dist_up*perm_dn + dist_dn*perm_up)
   temp_perm_up = wippflo_auxvar_up% &
@@ -269,11 +269,11 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
                    klinkenberg_scaling_factor(iabs_upwind_direction1)*perm_dn
   perm_ave_over_dist(2) = (temp_perm_up * temp_perm_dn) / &
                           (dist_up*temp_perm_dn + dist_dn*temp_perm_up)
-      
+
   iphase = LIQUID_PHASE
   if (wippflo_auxvar_up%mobility(iphase) + &
       wippflo_auxvar_dn%mobility(iphase) > floweps) then
-    
+
     density_kg_ave = WIPPFloAverageDensity(iphase, &
                                            global_auxvar_up%istate, &
                                            global_auxvar_dn%istate, &
@@ -297,7 +297,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
     else
       dn_scale = 1.d0
       mobility = wippflo_auxvar_dn%mobility(iphase)
-    endif      
+    endif
 
     if (mobility > floweps ) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -310,22 +310,22 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
                                           wippflo_auxvar_dn%den, &
                                           dummy,dummy)
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-      q = v_darcy(iphase) * area  
-      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-      !                             density_ave[kmol phase/m^3 phase]        
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
       tot_mole_flux = q*density_ave
-      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux
       Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-      
-    endif                   
+
+    endif
   endif
 
   iphase = GAS_PHASE
   if (wippflo_auxvar_up%mobility(iphase) + &
       wippflo_auxvar_dn%mobility(iphase) > floweps) then
-    
+
     density_kg_ave = WIPPFloAverageDensity(iphase, &
                                            global_auxvar_up%istate, &
                                            global_auxvar_dn%istate, &
@@ -352,7 +352,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
     else
       dn_scale = 1.d0
       mobility = wippflo_auxvar_dn%mobility(iphase)
-    endif      
+    endif
 
     if (mobility > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -365,16 +365,16 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
                                           wippflo_auxvar_dn%den, &
                                           dummy,dummy)
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-      q = v_darcy(iphase) * area  
-      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-      !                             density_ave[kmol phase/m^3 phase]        
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
       tot_mole_flux = q*density_ave
-      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
       !                                 xmol[kmol comp/kmol phase]
       air_mole_flux = tot_mole_flux
       Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
 
-    endif               
+    endif
   endif
 
 end subroutine WIPPFloFluxHarmonicPermOnly
@@ -392,20 +392,20 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
                                      update_upwind_direction_, &
                                      count_upwind_direction_flip_, &
                                      debug_connection)
-  ! 
+  !
   ! Computes the internal flux terms for the residual using a harmonic mean
-  ! on the lumped density * permeability / viscosity.  The approach used in 
+  ! on the lumped density * permeability / viscosity.  The approach used in
   ! BRAGFLO
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
   use Upwind_Direction_module
-  
+
   implicit none
-  
+
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -427,7 +427,7 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: iphase
   PetscBool :: upwind
-  
+
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: perm_rho_mu_area_ave_over_dist(2)
   PetscReal :: area_up, area_dn, area_ave
@@ -440,14 +440,14 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: wat_mole_flux, air_mole_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
-  
+
   PetscReal :: temp_perm_up, temp_perm_dn
 
   PetscReal :: up_scale, dn_scale
   PetscInt :: iabs_upwind_direction1
   PetscReal :: perm_rho_mu_area_up(2), perm_rho_mu_area_dn(2)
   PetscReal :: gravity_
-  
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
 
@@ -472,16 +472,16 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   iabs_upwind_direction1 = iabs(upwind_direction_(1))
   select case(iabs_upwind_direction1)
     case(X_DIRECTION)
-      perm_up = material_auxvar_up%permeability(perm_xx_index) 
-      perm_dn = material_auxvar_dn%permeability(perm_xx_index) 
+      perm_up = material_auxvar_up%permeability(perm_xx_index)
+      perm_dn = material_auxvar_dn%permeability(perm_xx_index)
     case(Y_DIRECTION)
-      perm_up = material_auxvar_up%permeability(perm_yy_index) 
-      perm_dn = material_auxvar_dn%permeability(perm_yy_index) 
+      perm_up = material_auxvar_up%permeability(perm_yy_index)
+      perm_dn = material_auxvar_dn%permeability(perm_yy_index)
     case(Z_DIRECTION)
-      perm_up = material_auxvar_up%permeability(perm_zz_index) 
-      perm_dn = material_auxvar_dn%permeability(perm_zz_index) 
+      perm_up = material_auxvar_up%permeability(perm_zz_index)
+      perm_dn = material_auxvar_dn%permeability(perm_zz_index)
   end select
-  
+
   ! Fracture permeability change only available for structured grid (Heeho)
   if (associated(material_auxvar_up%fracture) .and. &
       wippflo_use_fracture) then
@@ -495,7 +495,7 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
       perm_dn = perm_dn * wippflo_auxvar_dn%fracture_perm_scaling_factor
     endif
   endif
-  
+
   ! this scale by area
   area_up = wippflo_auxvar_up%alpha * area
   area_dn = wippflo_auxvar_dn%alpha * area
@@ -513,7 +513,7 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   perm_rho_mu_area_ave_over_dist = &
     (perm_rho_mu_area_up * perm_rho_mu_area_dn) / &
     (dist_up*perm_rho_mu_area_dn + dist_dn*perm_rho_mu_area_up)
-      
+
   iphase = LIQUID_PHASE
   density_kg_ave = upweight * wippflo_auxvar_up%den_kg(iphase) + &
                    (1.d0-upweight) * wippflo_auxvar_dn%den_kg(iphase)
@@ -535,16 +535,16 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   else
     dn_scale = 1.d0
     rel_perm = wippflo_auxvar_dn%kr(iphase)
-  endif      
+  endif
 
   ! wat_mole_flux[kmol/sec] = rho[kmol/m^3 phase] *
-  !                           perm_area[m^4] / dist[m] * kr[-] / 
+  !                           perm_area[m^4] / dist[m] * kr[-] /
   !                           mu[Pa-sec] * dP[Pa]]
   wat_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
                   rel_perm * delta_pressure
   density_ave = 0.5d0*(wippflo_auxvar_up%den(iphase) + &
                        wippflo_auxvar_dn%den(iphase))
-  ! v_darcy[m/sec] = wat_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
+  ! v_darcy[m/sec] = wat_mole_flux[kmol/sec] / rho[kmol/m^3 phase] /
   !                  area [m^2]
   v_darcy(iphase) = wat_mole_flux / density_ave / area_ave
   Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
@@ -596,16 +596,16 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   else
     dn_scale = 1.d0
     rel_perm = wippflo_auxvar_dn%kr(iphase)
-  endif      
+  endif
 
   ! air_mole_flux[kmol/sec] = rho[kmol/m^3 phase] *
-  !                           perm_area[m^4] / dist[m] * kr[-] / 
+  !                           perm_area[m^4] / dist[m] * kr[-] /
   !                           mu[Pa-sec] * dP[Pa]]
   air_mole_flux = perm_rho_mu_area_ave_over_dist(iphase) * &
                   rel_perm * delta_pressure
   density_ave = 0.5d0*(wippflo_auxvar_up%den(iphase) + &
                        wippflo_auxvar_dn%den(iphase))
-  ! v_darcy[m/sec] = air_mole_flux[kmol/sec] / rho[kmol/m^3 phase] / 
+  ! v_darcy[m/sec] = air_mole_flux[kmol/sec] / rho[kmol/m^3 phase] /
   !                  area [m^2]
   v_darcy(iphase) = air_mole_flux / density_ave / area_ave
   Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
@@ -635,18 +635,18 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                                      update_upwind_direction_, &
                                      count_upwind_direction_flip_, &
                                      debug_connection)
-  ! 
+  !
   ! Computes the boundary flux terms for the residual
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
-  use Option_module                              
+  !
+  use Option_module
   use Material_Aux_module
   use Upwind_Direction_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   PetscInt :: ibndtype(1:option%nflowdof)
   PetscInt :: auxvar_mapping(WIPPFLO_MAX_INDEX)
@@ -664,7 +664,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: update_upwind_direction_
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
-  
+
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: icomp, iphase
   PetscInt :: bc_type
@@ -674,7 +674,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure
   PetscReal :: gravity_term
-  PetscReal :: mobility, q 
+  PetscReal :: mobility, q
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
@@ -686,12 +686,12 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dn_scale
 
   PetscInt :: idof
-  
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
 
   Res = 0.d0
-  v_darcy = 0.d0  
+  v_darcy = 0.d0
 
 !geh: we do not want to use the dot product with the unit vector, instead
 !     use the principle direction stored in the upwind direction array
@@ -699,11 +699,11 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   iabs_upwind_direction1 = iabs(upwind_direction_(1))
   select case(iabs_upwind_direction1)
     case(X_DIRECTION)
-      perm_dn = material_auxvar_dn%permeability(perm_xx_index) 
+      perm_dn = material_auxvar_dn%permeability(perm_xx_index)
     case(Y_DIRECTION)
-      perm_dn = material_auxvar_dn%permeability(perm_yy_index) 
+      perm_dn = material_auxvar_dn%permeability(perm_yy_index)
     case(Z_DIRECTION)
-      perm_dn = material_auxvar_dn%permeability(perm_zz_index) 
+      perm_dn = material_auxvar_dn%permeability(perm_zz_index)
   end select
 
   ! Fracture permeability change only available for structured grid (Heeho)
@@ -713,11 +713,11 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
       perm_dn = perm_dn * wippflo_auxvar_dn%fracture_perm_scaling_factor
     endif
   endif
-  
+
   perm_dn_adj(1) = perm_dn
   perm_dn_adj(2) = wippflo_auxvar_dn% &
                      klinkenberg_scaling_factor(iabs_upwind_direction1)*perm_dn
-  
+
   iphase = LIQUID_PHASE
   mobility = 0.d0
   bc_type = ibndtype(iphase)
@@ -732,19 +732,19 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
-      
+
         if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
           select case(iphase)
             case(LIQUID_PHASE)
               idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
             case(GAS_PHASE)
               idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
-          end select        
+          end select
           perm_ave_over_dist = auxvars(idof)
         else
           perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
         endif
-        
+
         boundary_pressure = wippflo_auxvar_up%pres(iphase)
         density_kg_ave = WIPPFloAverageDensity(iphase, &
                                                 global_auxvar_up%istate, &
@@ -774,9 +774,9 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         if (upwind) then
           mobility = wippflo_auxvar_up%mobility(iphase)
         else
-          dn_scale = 1.d0        
+          dn_scale = 1.d0
           mobility = wippflo_auxvar_dn%mobility(iphase)
-        endif      
+        endif
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
@@ -801,12 +801,12 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
       !     enthalpy, etc. applies to phase, not pure component.
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
-        if (v_darcy(iphase) > 0.d0) then 
+        if (v_darcy(iphase) > 0.d0) then
           density_ave = wippflo_auxvar_up%den(iphase)
-        else 
+        else
           dn_scale = 1.d0
           density_ave = wippflo_auxvar_dn%den(iphase)
-        endif 
+        endif
       endif
     case default
       option%io_buffer = &
@@ -815,16 +815,16 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   end select
   if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area  
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-    !                             density_ave[kmol phase/m^3 phase]        
+    q = v_darcy(iphase) * area
+    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+    !                             density_ave[kmol phase/m^3 phase]
     tot_mole_flux = q*density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     wat_mole_flux = tot_mole_flux
     Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-   
-  endif                   
+
+  endif
 
   iphase = GAS_PHASE
   mobility = 0.d0
@@ -839,19 +839,19 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
-      
+
         if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
           select case(iphase)
             case(LIQUID_PHASE)
               idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
             case(GAS_PHASE)
               idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
-          end select        
+          end select
           perm_ave_over_dist = auxvars(idof)
         else
           perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
         endif
-        
+
         boundary_pressure = wippflo_auxvar_up%pres(iphase)
         density_kg_ave = WIPPFloAverageDensity(iphase, &
                                                 global_auxvar_up%istate, &
@@ -884,9 +884,9 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         if (upwind) then
           mobility = wippflo_auxvar_up%mobility(iphase)
         else
-          dn_scale = 1.d0        
+          dn_scale = 1.d0
           mobility = wippflo_auxvar_dn%mobility(iphase)
-        endif      
+        endif
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
@@ -896,7 +896,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                                             global_auxvar_dn%istate, &
                                             wippflo_auxvar_up%den, &
                                             wippflo_auxvar_dn%den, &
-                                            dummy,dummy)    
+                                            dummy,dummy)
       endif
     case(NEUMANN_BC)
       dn_scale = 0.d0
@@ -910,12 +910,12 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
       !     enthalpy, etc. applies to phase, not pure component.
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
-        if (v_darcy(iphase) > 0.d0) then 
+        if (v_darcy(iphase) > 0.d0) then
           density_ave = wippflo_auxvar_up%den(iphase)
-        else 
+        else
           dn_scale = 1.d0
           density_ave = wippflo_auxvar_dn%den(iphase)
-        endif 
+        endif
       endif
     case default
       option%io_buffer = &
@@ -925,16 +925,16 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
 
   if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area  
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-    !                             density_ave[kmol phase/m^3 phase]        
+    q = v_darcy(iphase) * area
+    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+    !                             density_ave[kmol phase/m^3 phase]
     tot_mole_flux = q*density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     air_mole_flux = tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-      
-  endif                   
+
+  endif
 
 end subroutine WIPPFloBCFluxHarmonicPermOnly
 
@@ -951,18 +951,18 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
                                        update_upwind_direction_, &
                                        count_upwind_direction_flip_, &
                                        debug_connection)
-  ! 
+  !
   ! Computes the boundary flux terms for the residual
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
-  use Option_module                              
+  !
+  use Option_module
   use Material_Aux_module
   use Upwind_Direction_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   PetscInt :: ibndtype(1:option%nflowdof)
   PetscInt :: auxvar_mapping(WIPPFLO_MAX_INDEX)
@@ -980,7 +980,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: update_upwind_direction_
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
-  
+
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: icomp, iphase
   PetscInt :: bc_type
@@ -990,7 +990,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: delta_pressure
   PetscReal :: gravity_term
   PetscReal :: dist_gravity
-  PetscReal :: rel_perm, viscosity, q 
+  PetscReal :: rel_perm, viscosity, q
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
@@ -1003,12 +1003,12 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dummy
 
   PetscInt :: idof
-  
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
 
   Res = 0.d0
-  v_darcy = 0.d0  
+  v_darcy = 0.d0
   ! to ensure that test values are set.
   perm_dn = 0.d0
   perm_dn = 1.d0/perm_dn
@@ -1021,11 +1021,11 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   iabs_upwind_direction1 = iabs(upwind_direction_(1))
   select case(iabs_upwind_direction1)
     case(X_DIRECTION)
-      perm_dn = material_auxvar_dn%permeability(perm_xx_index) 
+      perm_dn = material_auxvar_dn%permeability(perm_xx_index)
     case(Y_DIRECTION)
-      perm_dn = material_auxvar_dn%permeability(perm_yy_index) 
+      perm_dn = material_auxvar_dn%permeability(perm_yy_index)
     case(Z_DIRECTION)
-      perm_dn = material_auxvar_dn%permeability(perm_zz_index) 
+      perm_dn = material_auxvar_dn%permeability(perm_zz_index)
   end select
 
   ! Fracture permeability change only available for structured grid (Heeho)
@@ -1035,11 +1035,11 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       perm_dn = perm_dn * wippflo_auxvar_dn%fracture_perm_scaling_factor
     endif
   endif
-  
+
   perm_dn_adj(1) = perm_dn
   perm_dn_adj(2) = wippflo_auxvar_dn% &
                      klinkenberg_scaling_factor(iabs_upwind_direction1)*perm_dn
-  
+
   iphase = LIQUID_PHASE
   rel_perm = 0.d0
   bc_type = ibndtype(iphase)
@@ -1059,12 +1059,12 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
             idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
           case(GAS_PHASE)
             idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
-        end select        
+        end select
         perm_ave_over_dist = auxvars(idof)
       else
         perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
       endif
-      
+
       boundary_pressure = wippflo_auxvar_up%pres(iphase)
       !geh: use density and viscosity at boundary
       gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
@@ -1090,9 +1090,9 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       if (upwind) then
         rel_perm = wippflo_auxvar_up%kr(iphase)
       else
-        dn_scale = 1.d0        
+        dn_scale = 1.d0
         rel_perm = wippflo_auxvar_dn%kr(iphase)
-      endif      
+      endif
 
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
@@ -1113,12 +1113,12 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       !     enthalpy, etc. applies to phase, not pure component.
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
-        if (v_darcy(iphase) > 0.d0) then 
+        if (v_darcy(iphase) > 0.d0) then
           density_ave = wippflo_auxvar_up%den(iphase)
-        else 
+        else
           dn_scale = 1.d0
           density_ave = wippflo_auxvar_dn%den(iphase)
-        endif 
+        endif
       endif
     case default
       option%io_buffer = &
@@ -1127,15 +1127,15 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   end select
   if (dabs(v_darcy(iphase)) > 0.d0 .or. rel_perm > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area  
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-    !                             density_ave[kmol phase/m^3 phase]        
+    q = v_darcy(iphase) * area
+    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+    !                             density_ave[kmol phase/m^3 phase]
     tot_mole_flux = q*density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     wat_mole_flux = tot_mole_flux
     Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-  endif                   
+  endif
 
   iphase = GAS_PHASE
   rel_perm = 0.d0
@@ -1149,12 +1149,12 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
             idof = auxvar_mapping(WIPPFLO_LIQUID_CONDUCTANCE_INDEX)
           case(GAS_PHASE)
             idof = auxvar_mapping(WIPPFLO_GAS_CONDUCTANCE_INDEX)
-        end select        
+        end select
         perm_ave_over_dist = auxvars(idof)
       else
         perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
       endif
-      
+
       boundary_pressure = wippflo_auxvar_up%pres(iphase)
       !geh: use density and viscosity at boundary
       gravity_term = wippflo_auxvar_up%den_kg(iphase) * dist_gravity
@@ -1183,9 +1183,9 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       if (upwind) then
         rel_perm = wippflo_auxvar_up%kr(iphase)
       else
-        dn_scale = 1.d0        
+        dn_scale = 1.d0
         rel_perm = wippflo_auxvar_dn%kr(iphase)
-      endif      
+      endif
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist * rel_perm / viscosity * &
@@ -1205,12 +1205,12 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       !     enthalpy, etc. applies to phase, not pure component.
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
-        if (v_darcy(iphase) > 0.d0) then 
+        if (v_darcy(iphase) > 0.d0) then
           density_ave = wippflo_auxvar_up%den(iphase)
-        else 
+        else
           dn_scale = 1.d0
           density_ave = wippflo_auxvar_dn%den(iphase)
-        endif 
+        endif
       endif
     case default
       option%io_buffer = &
@@ -1220,15 +1220,15 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
 
   if (dabs(v_darcy(iphase)) > 0.d0 .or. rel_perm > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area  
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-    !                             density_ave[kmol phase/m^3 phase]        
+    q = v_darcy(iphase) * area
+    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+    !                             density_ave[kmol phase/m^3 phase]
     tot_mole_flux = q*density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     air_mole_flux = tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-  endif                   
+  endif
 
 end subroutine WIPPFloBCFluxLumpedHarmonic
 
@@ -1237,12 +1237,12 @@ end subroutine WIPPFloBCFluxLumpedHarmonic
 subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                           wippflo_auxvar,global_auxvar,material_auxvar, &
                           ss_flow_vol_flux,scale,Res,debug_cell)
-  ! 
+  !
   ! Computes the source/sink terms for the residual
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
   use EOS_Water_module
@@ -1260,7 +1260,7 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
   PetscBool :: debug_cell
-      
+
   PetscReal :: qsrc_mol
   PetscReal :: cell_pressure, dummy_pressure
   PetscInt :: wat_comp_id, air_comp_id, energy_id
@@ -1269,9 +1269,9 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
-  
+
   Res = 0.d0
-  
+
   ! liquid phase
   qsrc_mol = 0.d0
   dden_bool = 0.d0
@@ -1279,7 +1279,7 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
     case(MASS_RATE_SS)
       qsrc_mol = qsrc(wat_comp_id)/fmw_comp(wat_comp_id) ! kg/sec -> kmol/sec
     case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-      qsrc_mol = qsrc(wat_comp_id)/fmw_comp(wat_comp_id)*scale 
+      qsrc_mol = qsrc(wat_comp_id)/fmw_comp(wat_comp_id)*scale
     case(VOLUMETRIC_RATE_SS)  ! assume local density for now
       ! qsrc1 = m^3/sec
       qsrc_mol = qsrc(wat_comp_id)*wippflo_auxvar%den(wat_comp_id) ! den = kmol/m^3
@@ -1299,7 +1299,7 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
     case(MASS_RATE_SS)
       qsrc_mol = qsrc(air_comp_id)/fmw_comp(air_comp_id) ! kg/sec -> kmol/sec
     case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-      qsrc_mol = qsrc(air_comp_id)/fmw_comp(air_comp_id)*scale 
+      qsrc_mol = qsrc(air_comp_id)/fmw_comp(air_comp_id)*scale
     case(VOLUMETRIC_RATE_SS)  ! assume local density for now
       ! qsrc1 = m^3/sec
       qsrc_mol = qsrc(air_comp_id)*wippflo_auxvar%den(air_comp_id) ! den = kmol/m^3
@@ -1325,17 +1325,17 @@ end subroutine WIPPFloSrcSink
 subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
                                   material_auxvar, &
                                   option,J)
-  ! 
+  !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
   use Material_Aux_module
-  
+
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
@@ -1343,7 +1343,7 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: J(option%nflowdof,option%nflowdof)
-     
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
@@ -1351,7 +1351,7 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
                            global_auxvar, &
                            material_auxvar,option, &
                            res,PETSC_FALSE)
-                           
+
   do idof = 1, option%nflowdof
     call WIPPFloAccumulation(wippflo_auxvar(idof), &
                              global_auxvar, &
@@ -1374,19 +1374,19 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                                  upwind_direction_, &
                                  wippflo_parameter, &
                                  option,Jup,Jdn)
-  ! 
+  !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
-  
+
   implicit none
-  
+
   type(wippflo_auxvar_type) :: wippflo_auxvar_up(0:), wippflo_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -1414,7 +1414,7 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                    area,dist,upwind_direction_, &
                    wippflo_parameter, &
                    option,v_darcy,res_up, &
-                   PETSC_TRUE, & ! derivative call 
+                   PETSC_TRUE, & ! derivative call
                    PETSC_FALSE, & ! update the upwind direction
                    ! avoid double counting upwind direction flip
                    PETSC_FALSE, & ! count upwind direction flip
@@ -1425,7 +1425,7 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
     print *, 'res_dn: ', res_dn
     print *, 'res_up: ', res_up
   endif
- 
+
   ! upgradient derivatives
   do idof = 1, option%nflowdof
     call XXFlux(wippflo_auxvar_up(idof),global_auxvar_up, &
@@ -1437,7 +1437,7 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      option,v_darcy,res_pert, &
                      PETSC_TRUE, & ! derivative call
                      PETSC_FALSE, & ! update the upwind direction
-                     count_upwind_direction_flip, & 
+                     count_upwind_direction_flip, &
                      PETSC_FALSE)
     if (wippflo_jacobian_test) then
       if (wippflo_jacobian_test_xdof > 0 .and. &
@@ -1462,7 +1462,7 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
                      option,v_darcy,res_pert, &
                      PETSC_TRUE, & ! derivative call
                      PETSC_FALSE, & ! update the upwind direction
-                     count_upwind_direction_flip, & 
+                     count_upwind_direction_flip, &
                      PETSC_FALSE)
     if (wippflo_jacobian_test) then
       if (wippflo_jacobian_test_xdof > 0 .and. &
@@ -1488,18 +1488,18 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    area,dist,upwind_direction_, &
                                    wippflo_parameter, &
                                    option,Jdn)
-  ! 
+  !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
-  use Option_module 
+  use Option_module
   use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
-  
+
   implicit none
 
   type(option_type) :: option
@@ -1546,8 +1546,8 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        option,v_darcy,res_pert, &
                        PETSC_TRUE, & ! derivative call
                        PETSC_FALSE, & ! update the upwind direction
-                       count_upwind_direction_flip, & 
-                       PETSC_FALSE)   
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
     do irow = 1, option%nflowdof
       Jdn(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar_dn(idof)%pert
     enddo !irow
@@ -1560,12 +1560,12 @@ end subroutine XXBCFluxDerivative
 subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
                                     wippflo_auxvars,global_auxvar, &
                                     material_auxvar,scale,Jac)
-  ! 
+  !
   ! Computes the source/sink terms for the residual
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
 
@@ -1579,7 +1579,7 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
@@ -1589,30 +1589,30 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvars(ZERO_INTEGER),global_auxvar, &
                       material_auxvar,dummy_real,scale,res,PETSC_FALSE)
-                      
+
   ! perturbed wippflo_auxvars values
   do idof = 1, option%nflowdof
     call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvars(idof),global_auxvar, &
                         material_auxvar,dummy_real, &
-                        scale,res_pert,PETSC_FALSE)            
+                        scale,res_pert,PETSC_FALSE)
     do irow = 1, option%nflowdof
       Jac(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvars(idof)%pert
     enddo !irow
   enddo ! idof
-  
+
 end subroutine WIPPFloSrcSinkDerivative
 
 ! ************************************************************************** !
 
 function WIPPFloAverageDensity(iphase,istate_up,istate_dn, &
                                density_up,density_dn,dden_up,dden_dn)
-  ! 
+  !
   ! Averages density, using opposite cell density if phase non-existent
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   implicit none
 
@@ -1633,7 +1633,7 @@ function WIPPFloAverageDensity(iphase,istate_up,istate_dn, &
   else if (iphase == GAS_PHASE) then
     WIPPFloAverageDensity = 0.5d0*(density_up(iphase)+density_dn(iphase))
     dden_up = 0.5d0
-    dden_dn = 0.5d0      
+    dden_dn = 0.5d0
   endif
 
 end function WIPPFloAverageDensity

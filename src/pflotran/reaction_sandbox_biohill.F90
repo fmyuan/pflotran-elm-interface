@@ -7,9 +7,9 @@ module Reaction_Sandbox_BioHill_class
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_biohill_type
     ! Aqueous species
@@ -32,34 +32,34 @@ contains
 ! ************************************************************************** !
 
 function BioHillCreate()
-  ! 
+  !
   ! Allocates biodegradtion reaction object.
-  ! 
+  !
   implicit none
-  
+
   class(reaction_sandbox_biohill_type), pointer :: BioHillCreate
 
   allocate(BioHillCreate)
-  nullify(BioHillCreate%next)  
-      
+  nullify(BioHillCreate%next)
+
 end function BioHillCreate
 
 ! ************************************************************************** !
 
 subroutine BioHillSetup(this,reaction,option)
-  ! 
+  !
   ! Sets up the biodegradation reaction with hardwired parameters
-  ! 
+  !
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
 
   implicit none
-  
+
   class(reaction_sandbox_biohill_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: word
 
   ! Aqueous species
@@ -80,7 +80,7 @@ subroutine BioHillSetup(this,reaction,option)
   word = 'Xim'
   this%species_Xim_id = &
     GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
-      
+
 end subroutine BioHillSetup
 
 ! ************************************************************************** !
@@ -88,18 +88,18 @@ end subroutine BioHillSetup
 subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
                            rt_auxvar,global_auxvar,material_auxvar, &
                            reaction,option)
-  ! 
+  !
   ! Evaluates biodegradation reaction storing residual but no Jacobian
-  ! 
+  !
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Material_Aux_module
-  
+
   implicit none
-  
-  class(reaction_sandbox_biohill_type) :: this  
+
+  class(reaction_sandbox_biohill_type) :: this
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -123,10 +123,10 @@ subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: I                    ! [mole rxn / sec]
   PetscReal :: stoichA, stoichB, stoichC, stoichD ! [mole / mole rxn]
   PetscReal :: RateA, RateB, RateC, RateD, RateX  ! [mole / sec]
-  
+
   volume = material_auxvar%volume        ! den_kg [kg fluid / m^3 fluid]
   molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3
-  
+
   Aaq = rt_auxvar%pri_molal(this%species_Aaq_id)*molality_to_molarity
   Baq = rt_auxvar%pri_molal(this%species_Baq_id)*molality_to_molarity
   Caq = rt_auxvar%pri_molal(this%species_Caq_id)*molality_to_molarity
@@ -157,7 +157,7 @@ subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   RateC = stoichC * I
   RateD = stoichD * I
   RateX = yield * I - k_decay * Xim * volume
-  
+
   ! Note: Always subtract contribution from residual
   Residual(this%species_Aaq_id) = Residual(this%species_Aaq_id) - RateA
   Residual(this%species_Baq_id) = Residual(this%species_Baq_id) - RateB
@@ -165,7 +165,7 @@ subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   Residual(this%species_Daq_id) = Residual(this%species_Daq_id) - RateD
   Residual(this%species_Xim_id + reaction%offset_immobile) = &
     Residual(this%species_Xim_id + reaction%offset_immobile) - RateX
-  
+
 end subroutine BioHillEvaluate
 
 end module Reaction_Sandbox_BioHill_class

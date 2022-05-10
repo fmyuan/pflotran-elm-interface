@@ -559,8 +559,8 @@ subroutine FactoryForwardReadCommandLine(option)
   if (option%verbosity > 0) then
     call PetscLogDefaultBegin(ierr);CHKERRQ(ierr)
     string = '-log_view'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                  ierr);CHKERRQ(ierr)
   endif
 
   string = '-successful_exit_code'

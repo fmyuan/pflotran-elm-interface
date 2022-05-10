@@ -14,7 +14,7 @@ program pflotran_interface_main
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   use Simulation_Base_class         , only : simulation_base_type
   use Simulation_Subsurface_class   , only : simulation_subsurface_type, &
                                              SimSubsurfCast
@@ -29,7 +29,7 @@ program pflotran_interface_main
   type(pflotran_model_type)       , pointer :: pflotran_m
   class(realization_base_type)    , pointer :: realization
   class(simulation_subsurface_type), pointer :: simulation
-  
+
   PetscErrorCode                            :: ierr
   PetscInt                                  :: time
 
@@ -37,18 +37,18 @@ program pflotran_interface_main
   PetscInt                                  :: clm_npts, clm_surf_npts, ii
   PetscInt                                  :: ntimes
 
-  ! To read HDF5 soil properties  
+  ! To read HDF5 soil properties
   character(len=MAXSTRINGLENGTH)            :: filename
   character(len=MAXSTRINGLENGTH)            :: string
   PetscBool                                 :: pflotranin_option_found
   PetscBool                                 :: input_prefix_option_found
   character(len=MAXSTRINGLENGTH)  , pointer :: strings(:)
 
-  PetscInt                                  :: PRINT_RANK    
+  PetscInt                                  :: PRINT_RANK
   PRINT_RANK = 0
 
-  call MPI_Init(ierr)
- 
+  call MPI_Init(ierr);CHKERRQ(ierr)
+
   ! Create the model
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
   simulation => SimSubsurfCast(pflotran_m%simulation)
@@ -122,26 +122,26 @@ program pflotran_interface_main
 
   ! Initialize PFLOTRAN Stepper
   call pflotranModelStepperRunInit(pflotran_m)
-  
+
   ! Run PFLOTRAN 'ntimes'. For each time run PFLOTRAN for 3600s and PFLOTRAN
   ! can take multiple smaller steps to reach the 3600s interval.
   ntimes = 10
   do time = 1, ntimes
-     
+
      ! When coupled with CLM:
      ! GetSourceSinkFromCLM()
-  
+
      ! Run PFLOTRAN
      call pflotranModelStepperRunTillPauseTime(pflotran_m, time * 3600.0d0)
-     
+
      ! When coupled with CLM
      ! PassSaturationValuesToCLM()
-     
+
   enddo
 
   ! flag ensures shutdown due to successful run.
   simulation%stop_flag = TS_STOP_END_SIMULATION
-  
+
   ! Finalize PFLOTRAN Stepper
   !call pflotranModelStepperRunFinalize(pflotran_m)
 
@@ -149,6 +149,6 @@ program pflotran_interface_main
 
   call pflotranModelDestroy(pflotran_m)
 
-  call MPI_Finalize(ierr)
+  call MPI_Finalize(ierr);CHKERRQ(ierr)
 
 end program pflotran_interface_main
