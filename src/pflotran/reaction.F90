@@ -3447,6 +3447,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: residual(reaction%ncomp)
   PetscReal :: dummy_res(reaction%ncomp)
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
+  PetscReal :: dummy_J(reaction%ncomp,reaction%ncomp)
   PetscReal :: one_over_dt
   PetscReal :: prev_solution(reaction%ncomp)
   PetscReal :: new_solution(reaction%ncomp)
@@ -3552,6 +3553,10 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
                      material_auxvar,reaction,option)
     else
+      option%io_buffer = 'Numerical Jacobian needs validation for OSRT'
+      call PrintErrMsg(option)
+      call RReaction(residual,dummy_J,PETSC_FALSE,rt_auxvar,global_auxvar, &
+                     material_auxvar,reaction,option)
       call RReactionDerivative(dummy_res,J,rt_auxvar,global_auxvar, &
                                material_auxvar,reaction,option)
     endif

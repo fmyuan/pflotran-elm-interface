@@ -192,6 +192,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: istart, iend
   PetscInt :: nimmobile
   PetscInt :: num_iterations
+  PetscInt :: sum_iterations
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_linear_iterations_temp
@@ -370,6 +371,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     log_start_time = log_end_time
 
     ! react all chemical components
+    sum_iterations = 0
     call VecGetArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -385,6 +387,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
                   global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
                   num_iterations,reaction,grid%nG2A(ghosted_id),option, &
                   PETSC_TRUE,PETSC_TRUE,rreact_error)
+      sum_iterations = sum_iterations + num_iterations
       if (rreact_error /= 0) exit
       ! set primary dependent var back to free-ion molality
       iend = offset_global + reaction%naqcomp
@@ -402,6 +405,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_reaction_time = &
       process_model%cumulative_reaction_time + log_end_time - log_start_time
+    process_model%sum_iterations = process_model%sum_iterations + sum_iterations
 
     if (rreact_error /= 0) then
       !TODO(geh): move to timestepper base and call from daughters.
