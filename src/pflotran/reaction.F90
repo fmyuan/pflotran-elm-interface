@@ -3445,7 +3445,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: ierror
 
   PetscReal :: residual(reaction%ncomp)
-  PetscReal :: res(reaction%ncomp)
+  PetscReal :: dummy_res(reaction%ncomp)
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   PetscReal :: one_over_dt
   PetscReal :: prev_solution(reaction%ncomp)
@@ -3546,9 +3546,15 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
     ! must come after sorbed accumulation
     residual = (residual-fixed_accum) / option%tran_dt
 
-                         ! derivative
-    call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
-                   material_auxvar,reaction,option)
+    if (.not.option%transport%numerical_derivatives) then
+      ! analytical derivative
+                                ! derivative
+      call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
+                     material_auxvar,reaction,option)
+    else
+      call RReactionDerivative(dummy_res,J,rt_auxvar,global_auxvar, &
+                               material_auxvar,reaction,option)
+    endif
 
     if (option%ierror /= 0) then
       ! errors in function evaluations above will set option%ierror /= 0
