@@ -4,7 +4,7 @@ module PM_OSRT_class
   use petscsnes
 
   use PM_RT_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -27,7 +27,7 @@ module PM_OSRT_class
     procedure, public :: FinalizeRun => PMOSRTFinalizeRun
     procedure, public :: Destroy => PMOSRTDestroy
   end type pm_osrt_type
-  
+
   public :: PMOSRTCreate
 
 contains
@@ -35,19 +35,19 @@ contains
 ! ************************************************************************** !
 
 function PMOSRTCreate()
-  ! 
+  !
   ! Creates operator split reactive transport process model shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_osrt_type), pointer :: PMOSRTCreate
 
   class(pm_osrt_type), pointer :: pm_osrt
-  
+
   allocate(pm_osrt)
   call PMOSRTInit(pm_osrt)
   pm_osrt%name = 'Oper.-Split Reactive Transport'
@@ -56,18 +56,18 @@ function PMOSRTCreate()
   pm_osrt%cumulative_reaction_time = 0.d0
 
   PMOSRTCreate => pm_osrt
-  
+
 end function PMOSRTCreate
 
 ! ************************************************************************** !
 
 subroutine PMOSRTInit(pm_osrt)
-  ! 
+  !
   ! Initializes reactive transport process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   implicit none
 
   class(pm_osrt_type) :: pm_osrt
@@ -76,7 +76,7 @@ subroutine PMOSRTInit(pm_osrt)
 
   pm_osrt%fixed_accum = PETSC_NULL_VEC
   pm_osrt%rhs = PETSC_NULL_VEC
-  
+
   pm_osrt%operator_split = PETSC_TRUE
 
 end subroutine PMOSRTInit
@@ -84,12 +84,12 @@ end subroutine PMOSRTInit
 ! ************************************************************************** !
 
 recursive subroutine PMOSRTInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/10/19
-  ! 
+  !
   use Discretization_module
 
   implicit none
@@ -111,10 +111,10 @@ end subroutine PMOSRTInitializeRun
 ! ************************************************************************** !
 
 subroutine PMOSRTInitializeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Reactive_Transport_module
@@ -125,18 +125,18 @@ subroutine PMOSRTInitializeTimestep(this)
   use Option_module
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
 
   class(realization_subsurface_type), pointer :: realization
   PetscErrorCode :: ierr
 
   realization => this%realization
- 
+
   this%option%tran_dt = this%option%dt
 
   call PMRTWeightFlowParameters(this,TIME_T)
-  
+
   call VecCopy(realization%field%tran_xx,realization%field%tran_yy, &
                ierr);CHKERRQ(ierr)
   ! should I be updating BCs at this point?
@@ -153,22 +153,22 @@ end subroutine PMOSRTInitializeTimestep
 ! ************************************************************************** !
 
 subroutine PMOSRTPreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTUpdateTransportCoefs
-  use Global_module  
+  use Global_module
   use Material_module
   use Data_Mediator_module
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
-  
+
   PetscErrorCode :: ierr
-  
+
   ! set densities and saturations to t+dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
     if (this%option%flow%transient_porosity) then
@@ -186,16 +186,16 @@ subroutine PMOSRTPreSolve(this)
   endif
 
   call RTUpdateTransportCoefs(this%realization)
-  
+
 #if 0
   ! the problem here is that activity coefficients will be updated every time
   ! presolve is called, regardless of TS vs NI.  We need to split this out.
   if (this%realization%reaction%act_coef_update_frequency /= &
       ACT_COEF_FREQUENCY_OFF) then
     call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
-!       The below is set within RTUpdateAuxVarsPatch() when 
+!       The below is set within RTUpdateAuxVarsPatch() when
 !         PETSC_TRUE,PETSC_TRUE,* are passed
-!       patch%aux%RT%auxvars_up_to_date = PETSC_TRUE 
+!       patch%aux%RT%auxvars_up_to_date = PETSC_TRUE
   endif
 #endif
 
@@ -204,45 +204,45 @@ subroutine PMOSRTPreSolve(this)
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
   endif
-  
+
   call DataMediatorUpdate(this%realization%tran_data_mediator_list, &
                           this%realization%field%tran_mass_transfer, &
                           this%realization%option)
-  
+
 end subroutine PMOSRTPreSolve
 
 ! ************************************************************************** !
 
 subroutine PMOSRTPostSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
-  
+
 end subroutine PMOSRTPostSolve
 
 ! ************************************************************************** !
 
 subroutine PMOSRTFinalizeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTMaxChange
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_module, only : POROSITY_BASE 
+  use Material_Aux_module, only : POROSITY_BASE
   use Global_module
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
-  PetscReal :: time  
+  PetscReal :: time
   PetscErrorCode :: ierr
 
 #if 0
@@ -256,7 +256,7 @@ subroutine PMOSRTFinalizeTimestep(this)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
   endif
-  
+
   call RTMaxChange(this%realization,this%max_concentration_change, &
                    this%max_volfrac_change)
   if (this%option%print_screen_flag) then
@@ -271,7 +271,7 @@ subroutine PMOSRTFinalizeTimestep(this)
         maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
-  if (this%option%print_file_flag) then  
+  if (this%option%print_file_flag) then
     write(this%option%fid_out,&
             '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
             &" [mol/s]")') &
@@ -285,27 +285,27 @@ subroutine PMOSRTFinalizeTimestep(this)
     endif
   endif
 #endif
-  
+
 end subroutine PMOSRTFinalizeTimestep
 
 ! ************************************************************************** !
 
 function PMOSRTAcceptSolution(this)
-  ! 
+  !
   ! PMRichardsAcceptSolution:
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
-  
+
   PetscBool :: PMOSRTAcceptSolution
-  
+
   PMOSRTAcceptSolution = PETSC_TRUE
-  
+
 end function PMOSRTAcceptSolution
 
 ! ************************************************************************** !
@@ -313,14 +313,14 @@ end function PMOSRTAcceptSolution
 subroutine PMOSRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   use Realization_Subsurface_class
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
@@ -344,49 +344,49 @@ subroutine PMOSRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! geh: see comment above under flow stepper
   dtt = max(dtt,dt_min)
   dt = dtt
-  
+
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
-  
+
 end subroutine PMOSRTUpdateTimestep
 
 ! ************************************************************************** !
 
 recursive subroutine PMOSRTFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
   class(pm_osrt_type) :: this
 
 
   if (OptionPrintToScreen(this%option)) then
     write(*,'(/," Transport Time: ", es12.4, " [sec]",/,&
                &"  Reaction Time: ", es12.4, " [sec]")') &
-            this%cumulative_transport_time, & 
+            this%cumulative_transport_time, &
             this%cumulative_reaction_time
   endif
-  
+
   if (associated(this%next)) then
     call this%next%FinalizeRun()
-  endif  
-  
+  endif
+
 end subroutine PMOSRTFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine PMOSRTStrip(this)
-  ! 
+  !
   ! Strips members of OSRT process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   implicit none
 
   class(pm_osrt_type) :: this
@@ -407,16 +407,16 @@ end subroutine PMOSRTStrip
 ! ************************************************************************** !
 
 subroutine PMOSRTDestroy(this)
-  ! 
+  !
   ! Destroys OSRT process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   class(pm_osrt_type) :: this
 
   call PMOSRTStrip(this)
 
 end subroutine PMOSRTDestroy
-  
+
 end module PM_OSRT_class

@@ -252,11 +252,11 @@ subroutine RegressionCreateMapping(regression,realization)
                    ierr);CHKERRQ(ierr)
     if (OptionIsIORank(option)) then
       call VecSetSizes(regression%natural_cell_id_vec, &
-                       size(regression%natural_cell_ids), &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+                       size(regression%natural_cell_ids),PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
     else
-      call VecSetSizes(regression%natural_cell_id_vec,0, &
-                       PETSC_DECIDE,ierr);CHKERRQ(ierr)
+      call VecSetSizes(regression%natural_cell_id_vec,0,PETSC_DECIDE, &
+                       ierr);CHKERRQ(ierr)
     endif
     call VecSetFromOptions(regression%natural_cell_id_vec,ierr);CHKERRQ(ierr)
 
@@ -279,8 +279,7 @@ subroutine RegressionCreateMapping(regression,realization)
     deallocate(int_array)
 
 #ifdef REGRESSION_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, &
-                              'is_petsc_natural_cell_id.out', &
+    call PetscViewerASCIIOpen(option%mycomm,'is_petsc_natural_cell_id.out', &
                               viewer,ierr);CHKERRQ(ierr)
     call ISView(is_petsc,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -309,7 +308,7 @@ subroutine RegressionCreateMapping(regression,realization)
     ! determine minimum number of cells per process
     i = grid%nlmax
     call MPI_Allreduce(i,count,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
     if (count < regression%num_cells_per_process) then
       write(word,*) count
       option%io_buffer = 'Number of cells per process for regression file&
@@ -324,7 +323,8 @@ subroutine RegressionCreateMapping(regression,realization)
                    ierr);CHKERRQ(ierr)
     if (OptionIsIORank(option)) then
       call VecSetSizes(regression%cells_per_process_vec, &
-                       regression%num_cells_per_process*option%comm%mycommsize, &
+                       regression%num_cells_per_process*option%comm% &
+                         mycommsize, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
       call VecSetSizes(regression%cells_per_process_vec,ZERO_INTEGER, &
@@ -335,9 +335,8 @@ subroutine RegressionCreateMapping(regression,realization)
 
     ! create temporary vec to transfer down ids of cells
     call VecCreate(option%mycomm,temp_vec,ierr);CHKERRQ(ierr)
-    call VecSetSizes(temp_vec, &
-                     regression%num_cells_per_process, &
-                     PETSC_DECIDE,ierr);CHKERRQ(ierr)
+    call VecSetSizes(temp_vec,regression%num_cells_per_process,PETSC_DECIDE, &
+                     ierr);CHKERRQ(ierr)
     call VecSetFromOptions(temp_vec,ierr);CHKERRQ(ierr)
 
     ! calculate interval
@@ -362,21 +361,18 @@ subroutine RegressionCreateMapping(regression,realization)
       count = 0
       allocate(int_array(count))
     endif
-    call ISCreateGeneral(option%mycomm,count, &
-                         int_array,PETSC_COPY_VALUES,temp_is, &
-                         ierr);CHKERRQ(ierr)
+    call ISCreateGeneral(option%mycomm,count,int_array,PETSC_COPY_VALUES, &
+                         temp_is,ierr);CHKERRQ(ierr)
 
-    call VecScatterCreate(temp_vec,temp_is, &
-                          regression%cells_per_process_vec,PETSC_NULL_IS, &
-                          temp_scatter,ierr);CHKERRQ(ierr)
+    call VecScatterCreate(temp_vec,temp_is,regression%cells_per_process_vec, &
+                          PETSC_NULL_IS,temp_scatter,ierr);CHKERRQ(ierr)
     call ISDestroy(temp_is,ierr);CHKERRQ(ierr)
 
     ! scatter ids to io_rank
     call VecScatterBegin(temp_scatter,temp_vec, &
-                         regression%cells_per_process_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(temp_scatter,temp_vec, &
-                       regression%cells_per_process_vec, &
+                         regression%cells_per_process_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(temp_scatter,temp_vec,regression%cells_per_process_vec, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterDestroy(temp_scatter,ierr);CHKERRQ(ierr)
     call VecDestroy(temp_vec,ierr);CHKERRQ(ierr)
@@ -395,22 +391,19 @@ subroutine RegressionCreateMapping(regression,realization)
       int_array = int_array - 1
     endif
 
-    call ISCreateGeneral(option%mycomm,count, &
-                         int_array,PETSC_COPY_VALUES,is_petsc, &
-                         ierr);CHKERRQ(ierr)
+    call ISCreateGeneral(option%mycomm,count,int_array,PETSC_COPY_VALUES, &
+                         is_petsc,ierr);CHKERRQ(ierr)
     deallocate(int_array)
 
 #ifdef REGRESSION_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, &
-                              'is_petsc_cells_per_process.out', &
+    call PetscViewerASCIIOpen(option%mycomm,'is_petsc_cells_per_process.out', &
                               viewer,ierr);CHKERRQ(ierr)
     call ISView(is_petsc,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
     call VecScatterCreate(realization%field%work,is_petsc, &
-                          regression%cells_per_process_vec, &
-                          PETSC_NULL_IS, &
+                          regression%cells_per_process_vec,PETSC_NULL_IS, &
                           regression%scatter_cells_per_process_gtos, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
@@ -434,16 +427,17 @@ subroutine RegressionCreateMapping(regression,realization)
     do local_id = 1, grid%nlmax
       vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
     enddo
-    call VecRestoreArrayF90(realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(realization%field%work,vec_ptr, &
+                            ierr);CHKERRQ(ierr)
 
     call VecScatterBegin(regression%scatter_cells_per_process_gtos, &
-                          realization%field%work, &
-                          regression%cells_per_process_vec, &
-                          INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                         realization%field%work, &
+                         regression%cells_per_process_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterEnd(regression%scatter_cells_per_process_gtos, &
                        realization%field%work, &
-                       regression%cells_per_process_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       regression%cells_per_process_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
     if (OptionIsIORank(option)) then
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
@@ -541,25 +535,21 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 
     ! list of natural ids
     if (associated(regression%natural_cell_ids)) then
-      call VecScatterBegin(regression%scatter_natural_cell_id_gtos, &
-                           global_vec, &
-                           regression%natural_cell_id_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-      call VecScatterEnd(regression%scatter_natural_cell_id_gtos, &
-                         global_vec, &
-                         regression%natural_cell_id_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecScatterBegin(regression%scatter_natural_cell_id_gtos,global_vec, &
+                           regression%natural_cell_id_vec,INSERT_VALUES, &
+                           SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecScatterEnd(regression%scatter_natural_cell_id_gtos,global_vec, &
+                         regression%natural_cell_id_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     endif
     if (regression%num_cells_per_process > 0) then
       ! cells per process
       call VecScatterBegin(regression%scatter_cells_per_process_gtos, &
-                           global_vec, &
-                           regression%cells_per_process_vec, &
+                           global_vec,regression%cells_per_process_vec, &
                            INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-      call VecScatterEnd(regression%scatter_cells_per_process_gtos, &
-                         global_vec, &
-                         regression%cells_per_process_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecScatterEnd(regression%scatter_cells_per_process_gtos,global_vec, &
+                         regression%cells_per_process_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     endif
 
 100 format(i9,': ',es21.13)
@@ -780,8 +770,10 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   if (associated(flow_timestepper)) then
     select type(flow_stepper => flow_timestepper)
       class is(timestepper_SNES_type)
-        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm, &
+                     ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_r,NORM_2,r_norm, &
+                     ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
@@ -797,8 +789,10 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
           write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
       class is(timestepper_TS_type)
-        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm, &
+                     ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_r,NORM_2,r_norm, &
+                     ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
@@ -814,7 +808,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
           write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
       class is(timestepper_KSP_type)
-        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm, &
+                     ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
@@ -836,8 +831,10 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   if (associated(tran_timestepper)) then
     select type(tran_stepper => tran_timestepper)
       class is(timestepper_SNES_type)
-        call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-        call VecNorm(realization%field%tran_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%tran_xx,NORM_2,x_norm, &
+                     ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%tran_r,NORM_2,r_norm, &
+                     ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
@@ -853,7 +850,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
           write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
       class is(timestepper_KSP_type)
-        call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%tran_xx,NORM_2,x_norm, &
+                     ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &

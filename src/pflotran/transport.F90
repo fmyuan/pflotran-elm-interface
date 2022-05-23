@@ -5,13 +5,13 @@ module Transport_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Material_Aux_module
-  use Matrix_Block_Aux_module  
+  use Matrix_Block_Aux_module
 
   use PFLOTRAN_Constants_module
 
   implicit none
-  
-  private 
+
+  private
 
   public :: TDispersion, &
             TDispersionBC, &
@@ -23,7 +23,7 @@ module Transport_module
             TFluxDerivative_CD, &
             TFluxCoef_CD, &
             TFluxTVD
-  
+
   ! this interface is required for the pointer to procedure employed
   ! for flux limiters below
   interface
@@ -32,7 +32,7 @@ module Transport_module
       PetscReal :: TFluxLimiterDummy
     end function TFluxLimiterDummy
   end interface
-  
+
   public :: TFluxLimiterDummy, &
             TFluxLimiter, &
             TFluxLimitUpwind, &
@@ -40,13 +40,13 @@ module Transport_module
             TFluxLimitMC, &
             TFluxLimitSuperBee, &
             TFluxLimitVanLeer
-  
+
   PetscInt, parameter, public :: TVD_LIMITER_UPWIND = 1
   PetscInt, parameter, public :: TVD_LIMITER_MC = 2
   PetscInt, parameter, public :: TVD_LIMITER_MINMOD = 3
   PetscInt, parameter, public :: TVD_LIMITER_SUPERBEE = 4
   PetscInt, parameter, public :: TVD_LIMITER_VAN_LEER = 5
-              
+
 contains
 
 ! ************************************************************************** !
@@ -57,23 +57,23 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
                       cell_centered_velocity_dn,dispersivity_dn,epsilon_dn, &
                       dist,rt_parameter,option,qdarcy, &
                       harmonic_tran_coefs_over_dist)
-  ! 
+  !
   ! Computes a single coefficient representing:
-  !   (saturation * porosity * 
-  !   (mechanical_dispersion + tortuosity * molecular_diffusion) / 
+  !   (saturation * porosity *
+  !   (mechanical_dispersion + tortuosity * molecular_diffusion) /
   !    distance [between cell centers] through a harmonic average
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/31/16
-  ! 
+  !
 
   use Option_module
   use Connection_module
 
   implicit none
-  
+
   type(option_type) :: option
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscReal :: dispersivity_up(3), dispersivity_dn(3)
   PetscReal :: cell_centered_velocity_up(3,2), &
@@ -84,7 +84,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   type(reactive_transport_param_type) :: rt_parameter
   PetscReal :: harmonic_tran_coefs_over_dist(rt_parameter%naqcomp, &
                                              rt_parameter%nphase)
-  
+
   PetscInt :: iphase, nphase
   PetscReal :: abs_dist(3)
   PetscReal :: dist_up, dist_dn
@@ -106,15 +106,15 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: t_ref_inv
   PetscReal :: v_up, v_dn
   PetscReal :: vi2_over_v_up, vj2_over_v_up, vk2_over_v_up
-  PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn  
+  PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn
 
   PetscReal, parameter :: s_pow = 7.d0/3.d0
   PetscReal, parameter :: por_pow = 1.d0/3.d0
 
   nphase = rt_parameter%nphase
-  
+
   abs_dist(:) = dabs(dist(1:3))
-  harmonic_tran_coefs_over_dist(:,:) = 0.d0    
+  harmonic_tran_coefs_over_dist(:,:) = 0.d0
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up, &
                                     dist_dn,distance_gravity, &
@@ -123,7 +123,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
     ! skip phase if it does not exist on either side of the connection
-    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
+    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
@@ -183,23 +183,23 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
       Dxx_up = dispersivity_up(LONGITUDINAL)*vi2_over_v_up + &
                dispersivity_up(TRANSVERSE_HORIZONTAL)*vj2_over_v_up + &
                dispersivity_up(TRANSVERSE_VERTICAL)*vk2_over_v_up
-      
+
       Dxx_dn = dispersivity_dn(LONGITUDINAL)*vi2_over_v_dn + &
                dispersivity_dn(TRANSVERSE_HORIZONTAL)*vj2_over_v_dn + &
                dispersivity_dn(TRANSVERSE_VERTICAL)*vk2_over_v_dn
-      
+
       Dyy_up = dispersivity_up(TRANSVERSE_HORIZONTAL)*vi2_over_v_up + &
                dispersivity_up(LONGITUDINAL)*vj2_over_v_up + &
                dispersivity_up(TRANSVERSE_VERTICAL)*vk2_over_v_up
-      
+
       Dyy_dn = dispersivity_dn(TRANSVERSE_HORIZONTAL)*vi2_over_v_dn + &
                dispersivity_dn(LONGITUDINAL)*vj2_over_v_dn + &
                dispersivity_dn(TRANSVERSE_VERTICAL)*vk2_over_v_dn
-      
+
       Dzz_up = dispersivity_up(TRANSVERSE_VERTICAL)*vi2_over_v_up + &
                dispersivity_up(TRANSVERSE_VERTICAL)*vj2_over_v_up + &
                dispersivity_up(LONGITUDINAL)*vk2_over_v_up
-      
+
       Dzz_dn = dispersivity_dn(TRANSVERSE_VERTICAL)*vi2_over_v_dn + &
                dispersivity_dn(TRANSVERSE_VERTICAL)*vj2_over_v_dn + &
                dispersivity_dn(LONGITUDINAL)*vk2_over_v_dn
@@ -209,8 +209,8 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
       mechanical_dispersion_dn = &
         max(dist(1)**2*Dxx_dn+dist(2)**2*Dyy_dn+dist(3)**2*Dzz_dn,1.d-40)
     else
-      mechanical_dispersion_up = dispersivity_up(LONGITUDINAL)*dabs(q) 
-      mechanical_dispersion_dn = dispersivity_dn(LONGITUDINAL)*dabs(q) 
+      mechanical_dispersion_up = dispersivity_up(LONGITUDINAL)*dabs(q)
+      mechanical_dispersion_dn = dispersivity_dn(LONGITUDINAL)*dabs(q)
     endif
     ! hydrodynamic dispersion = mechanical disperson + &
     !   saturation * porosity * tortuosity * molecular diffusion
@@ -242,24 +242,24 @@ subroutine TDispersionBC(ibndtype, &
                           epsilon_dn,dist_dn, &
                           rt_parameter,option,qdarcy, &
                           tran_coefs_over_dist)
-  ! 
+  !
   ! Computes a single coefficient representing:
-  !   (saturation * porosity * 
-  !   (mechanical_dispersion + tortuosity * molecular_diffusion) / 
-  !    distance [between cell centers] 
-  ! 
+  !   (saturation * porosity *
+  !   (mechanical_dispersion + tortuosity * molecular_diffusion) /
+  !    distance [between cell centers]
+  !
   ! Author: Glenn Hammond
   ! Date: 08/31/16
-  ! 
+  !
 
   use Option_module
   use Connection_module
 
   implicit none
-  
+
   PetscInt :: ibndtype
   type(option_type) :: option
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: dispersivity_dn(3)
   PetscReal :: cell_centered_velocity_dn(3,2)
@@ -269,7 +269,7 @@ subroutine TDispersionBC(ibndtype, &
   type(reactive_transport_param_type) :: rt_parameter
   PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
                                              rt_parameter%nphase)
-  
+
   PetscInt :: iphase, nphase
   PetscReal :: spD
   PetscReal :: sat_up, sat_dn
@@ -285,22 +285,22 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: molecular_diffusion(rt_parameter%naqcomp)
   PetscReal :: hydrodynamic_dispersion(rt_parameter%naqcomp)
   PetscReal :: v_dn
-  PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn  
+  PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn
   PetscReal :: t_ref_inv
 
   PetscReal, parameter :: s_pow = 7.d0/3.d0
   PetscReal, parameter :: por_pow = 1.d0/3.d0
 
   nphase = rt_parameter%nphase
-  
+
   abs_dist_dn(:) = dabs(dist_dn(1:3))
-  tran_coefs_over_dist(:,:) = 0.d0    
+  tran_coefs_over_dist(:,:) = 0.d0
 
   do iphase = 1, nphase
     ! we use upwind saturation as that is the saturation at the boundary face
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
-    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
+    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
@@ -339,11 +339,11 @@ subroutine TDispersionBC(ibndtype, &
       Dxx = dispersivity_dn(LONGITUDINAL)*vi2_over_v_dn + &
             dispersivity_dn(TRANSVERSE_HORIZONTAL)*vj2_over_v_dn + &
             dispersivity_dn(TRANSVERSE_VERTICAL)*vk2_over_v_dn
-      
+
       Dyy = dispersivity_dn(TRANSVERSE_HORIZONTAL)*vi2_over_v_dn + &
             dispersivity_dn(LONGITUDINAL)*vj2_over_v_dn + &
             dispersivity_dn(TRANSVERSE_VERTICAL)*vk2_over_v_dn
-      
+
       Dzz = dispersivity_dn(TRANSVERSE_VERTICAL)*vi2_over_v_dn + &
             dispersivity_dn(TRANSVERSE_VERTICAL)*vj2_over_v_dn + &
             dispersivity_dn(LONGITUDINAL)*vk2_over_v_dn
@@ -351,7 +351,7 @@ subroutine TDispersionBC(ibndtype, &
       mechanical_dispersion = &
         max(dist_dn(1)**2*Dxx+dist_dn(2)**2*Dyy+dist_dn(3)**2*Dzz,1.d-40)
     else
-      mechanical_dispersion = dispersivity_dn(LONGITUDINAL)*dabs(q) 
+      mechanical_dispersion = dispersivity_dn(LONGITUDINAL)*dabs(q)
     endif
 
     select case(ibndtype)
@@ -380,28 +380,28 @@ end subroutine TDispersionBC
 ! ************************************************************************** !
 
 subroutine TFlux(rt_parameter, &
-                 rt_auxvar_up,global_auxvar_up, & 
-                 rt_auxvar_dn,global_auxvar_dn, & 
+                 rt_auxvar_up,global_auxvar_up, &
+                 rt_auxvar_dn,global_auxvar_dn, &
                  coef_up,coef_dn,option,Res)
-  ! 
+  !
   ! Computes flux term in residual function
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/15/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
-  PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: Res(rt_parameter%ncomp)
-  
+
   PetscInt :: iphase
   PetscInt :: idof
   PetscInt :: ndof
@@ -414,9 +414,9 @@ subroutine TFlux(rt_parameter, &
 
   iphase = 1
   ndof = rt_parameter%naqcomp
-  
+
   Res = 0.d0
-  
+
   ! units = (L water/sec)*(mol/L) = mol/s
   ! total = mol/L water
   Res(1:ndof) = coef_up(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
@@ -455,31 +455,31 @@ end subroutine TFlux
 ! ************************************************************************** !
 
 subroutine TFlux_CD(rt_parameter, &
-                 rt_auxvar_up,global_auxvar_up, & 
-                 rt_auxvar_dn,global_auxvar_dn, & 
+                 rt_auxvar_up,global_auxvar_up, &
+                 rt_auxvar_dn,global_auxvar_dn, &
                  coef_11,coef_12,coef_21,coef_22,option,Res_1,Res_2)
-  ! 
+  !
   ! TFlux: Computes flux term in residual function
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/15/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
-  PetscReal :: coef_11(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_12(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_21(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_22(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_11(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_12(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_21(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_22(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: Res_1(rt_parameter%ncomp)
   PetscReal :: Res_2(rt_parameter%ncomp)
-  
+
   PetscInt :: iphase
   PetscInt :: idof
   PetscInt :: ndof
@@ -492,10 +492,10 @@ subroutine TFlux_CD(rt_parameter, &
 
   iphase = 1
   ndof = rt_parameter%naqcomp
-  
+
   Res_1 = 0.d0
   Res_2 = 0.d0
-  
+
   ! units = (L water/sec)*(mol/L) = mol/s
   ! total(:,1) = mol/L water
   Res_1(1:ndof) = coef_11(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
@@ -535,35 +535,35 @@ subroutine TFlux_CD(rt_parameter, &
     Res_2(1:ndof) = coef_21(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
                     coef_22(1:ndof,iphase)*rt_auxvar_dn%total(1:ndof,iphase)
   endif
-  
+
 end subroutine TFlux_CD
 
 ! ************************************************************************** !
 
 subroutine TFluxDerivative(rt_parameter, &
-                           rt_auxvar_up,global_auxvar_up, & 
-                           rt_auxvar_dn,global_auxvar_dn, & 
+                           rt_auxvar_up,global_auxvar_up, &
+                           rt_auxvar_dn,global_auxvar_dn, &
                            coef_up,coef_dn,option,J_up,J_dn)
-  ! 
+  !
   ! Computes derivatives of flux term in residual function
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/15/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_param_type) :: rt_parameter
   type(option_type) :: option
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
-  PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase) 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
+  PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: J_up(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_dn(rt_parameter%ncomp,rt_parameter%ncomp)
-  
+
   PetscInt :: iphase
   PetscInt :: icomp
   PetscInt :: icoll
@@ -573,9 +573,9 @@ subroutine TFluxDerivative(rt_parameter, &
   PetscInt :: nphase
   PetscInt :: irow
   PetscInt :: neg999
- 
+
   nphase = rt_parameter%nphase
-  
+
   ! units = (m^3 water/sec)*(kg water/L water)*(1000L water/m^3 water)
   !       = kg water/sec
   istart = 1
@@ -594,7 +594,7 @@ subroutine TFluxDerivative(rt_parameter, &
           rt_auxvar_dn%aqueous%dtotal(irow,:,iphase)* &
           coef_dn(irow,iphase)
       enddo
-    else  
+    else
       do icomp = istart, iendaq
         J_up(icomp,icomp) = J_up(icomp,icomp) + coef_up(icomp,iphase)* &
                             global_auxvar_up%den_kg(iphase)*1.d-3
@@ -637,34 +637,34 @@ end subroutine TFluxDerivative
 ! ************************************************************************** !
 
 subroutine TFluxDerivative_CD(rt_parameter, &
-                           rt_auxvar_up,global_auxvar_up, & 
-                           rt_auxvar_dn,global_auxvar_dn, & 
+                           rt_auxvar_up,global_auxvar_up, &
+                           rt_auxvar_dn,global_auxvar_dn, &
                            coef_11,coef_12,coef_21,coef_22,option, &
                            J_11,J_12,J_21,J_22)
-  ! 
+  !
   ! TFluxDerivative: Computes derivatives of flux term in residual function
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/15/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_param_type) :: rt_parameter
   type(option_type) :: option
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
-  PetscReal :: coef_11(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_12(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_21(rt_parameter%naqcomp,rt_parameter%nphase) 
-  PetscReal :: coef_22(rt_parameter%naqcomp,rt_parameter%nphase) 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
+  PetscReal :: coef_11(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_12(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_21(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: coef_22(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: J_11(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_12(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_21(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_22(rt_parameter%ncomp,rt_parameter%ncomp)
-  
+
   PetscInt :: iphase
   PetscInt :: icoll
   PetscInt :: idof
@@ -674,9 +674,9 @@ subroutine TFluxDerivative_CD(rt_parameter, &
   PetscInt :: irow
   PetscInt :: icomp
   PetscInt :: neg999
-  
+
   nphase = rt_parameter%nphase
-  
+
   ! units = (m^3 water/sec)*(kg water/L water)*(1000L water/m^3 water) = kg water/sec
   istart = 1
   iendaq = rt_parameter%naqcomp
@@ -704,7 +704,7 @@ subroutine TFluxDerivative_CD(rt_parameter, &
           rt_auxvar_dn%aqueous%dtotal(irow,:,iphase)* &
           coef_22(irow,iphase)
       enddo
-    else  
+    else
       do icomp = istart, iendaq
         J_11(icomp,icomp) = &
           J_11(icomp,icomp) + &
@@ -770,23 +770,23 @@ subroutine TFluxCoef(rt_parameter, &
                      option,area,velocity, &
                      tran_coefs_over_dist, &
                      fraction_upwind,T_up,T_dn)
-  ! 
+  !
   ! Computes flux coefficients for transport matrix
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/22/10
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
-  type(reactive_transport_param_type) :: rt_parameter  
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+
+  type(reactive_transport_param_type) :: rt_parameter
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
-  ! this is the harmonic mean of saturation * porosity * (mechanical 
+  ! this is the harmonic mean of saturation * porosity * (mechanical
   !   dispersion + tortuosity * molecular_diffusion) / distance
   PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
                                     rt_parameter%nphase)
@@ -798,12 +798,12 @@ subroutine TFluxCoef(rt_parameter, &
   PetscReal :: coef_up(rt_parameter%naqcomp)
   PetscReal :: coef_dn(rt_parameter%naqcomp)
   PetscReal :: q
-  
+
   nphase = rt_parameter%nphase
 
   T_up(:,:) = 0.d0
   T_dn(:,:) = 0.d0
-  
+
   ! as long as gas phase chemistry is a function of aqueous, skip both phases
   if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation .or. &
       global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) return
@@ -824,19 +824,19 @@ subroutine TFluxCoef(rt_parameter, &
     else
       ! central difference, currently assuming uniform grid spacing
       ! units = (m^3 water/m^2 bulk/sec)
-      ! 
+      !
       coef_up(:) =  tran_coefs_over_dist(:,iphase) + &
                     (1.d0-fraction_upwind)*q
       coef_dn(:) = -tran_coefs_over_dist(:,iphase) + &
                     fraction_upwind*q
-    endif  
-  
+    endif
+
     ! units = (m^3 water/m^2 bulk/sec)*(m^2 bulk)*(1000 L water/m^3 water)
     !       = L water/sec
     T_up(:,iphase) = coef_up*area*1000.d0  ! 1000 converts m^3 -> L
     T_dn(:,iphase) = coef_dn*area*1000.d0
   enddo
-    
+
 end subroutine TFluxCoef
 
 ! ************************************************************************** !
@@ -846,23 +846,23 @@ subroutine TFluxCoef_CD(rt_parameter, &
                         option,area,velocity, &
                         tran_coefs_over_dist, &
                         fraction_upwind,T_11,T_12,T_21,T_22)
-  ! 
+  !
   ! Computes flux coefficients for transport matrix
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/22/10
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
-  type(reactive_transport_param_type) :: rt_parameter  
-  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+
+  type(reactive_transport_param_type) :: rt_parameter
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
-  ! this is the harmonic mean of saturation * porosity * (mechanical 
+  ! this is the harmonic mean of saturation * porosity * (mechanical
   !   dispersion + tortuosity * molecular_diffusion) / distance
   PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
                                     rt_parameter%nphase)
@@ -878,7 +878,7 @@ subroutine TFluxCoef_CD(rt_parameter, &
   PetscReal :: advection_upwind(rt_parameter%nphase)
   PetscReal :: advection_downwind(rt_parameter%nphase)
   PetscReal :: q
-  
+
   ! T_11 = diagonal term for upwind cell (row)
   ! T_12 = off diagonal term for upwind cell (row)
   ! T_21 = off diagonal term for downwind cell (row)
@@ -912,7 +912,7 @@ subroutine TFluxCoef_CD(rt_parameter, &
       advection_downwind(iphase) = fraction_upwind*velocity(iphase)
     enddo
   endif
-    
+
   tempreal = area*1000.d0
   do iphase = 1, rt_parameter%nphase
     T_11(:,iphase) = (tran_coefs_over_dist(:,iphase) + &
@@ -933,13 +933,13 @@ end subroutine TFluxCoef_CD
 
 subroutine TSrcSinkCoef(rt_parameter,global_auxvar,qsrc, &
                         tran_src_sink_type,T_in,T_out)
-  ! 
+  !
   ! Computes src/sink coefficients for transport matrix
   ! Here qsrc [m^3/sec] provided by flow.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/11
-  ! 
+  !
 
   use Option_module
 
@@ -951,18 +951,18 @@ subroutine TSrcSinkCoef(rt_parameter,global_auxvar,qsrc, &
   PetscInt :: tran_src_sink_type
   PetscReal :: T_in(2) ! coefficient that scales concentration at cell
   PetscReal :: T_out(2) ! concentration that scales external concentration
-  
+
   PetscInt :: iphase
-      
-  T_in = 0.d0 
+
+  T_in = 0.d0
   T_out = 0.d0
 
   if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
-     
+
   select case(tran_src_sink_type)
     case(EQUILIBRIUM_SS)
       ! units should be mol/sec
-      ! 1.d-3 is a relatively large rate designed to equilibrate 
+      ! 1.d-3 is a relatively large rate designed to equilibrate
       ! the aqueous concentration with the concentrations specified at
       ! the src/sink
       T_in = 1.d-3 ! units L water/sec
@@ -993,21 +993,21 @@ end subroutine TSrcSinkCoef
 ! ************************************************************************** !
 
 subroutine TFluxTVD(rt_parameter,velocity,area,dist, &
-                    total_up2,rt_auxvar_up, & 
-                    rt_auxvar_dn,total_dn2, & 
+                    total_up2,rt_auxvar_up, &
+                    rt_auxvar_dn,total_dn2, &
                     TFluxLimitPtr, &
                     option,flux)
-  ! 
+  !
   ! Computes TVD flux term
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_param_type) :: rt_parameter
   PetscReal :: velocity(:), area
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
@@ -1017,19 +1017,19 @@ subroutine TFluxTVD(rt_parameter,velocity,area,dist, &
   procedure (TFluxLimiterDummy), pointer :: TFluxLimitPtr
   PetscReal :: dist(-1:3)    ! list of distance vectors, size(-1:3,num_connections) where
                             !   -1 = fraction upwind
-                            !   0 = magnitude of distance 
-                            !   1-3 = components of unit vector 
-                            
+                            !   0 = magnitude of distance
+                            !   1-3 = components of unit vector
+
   PetscInt :: iphase
   PetscInt :: idof, ndof
   PetscReal :: dc, theta, correction, nu, velocity_area
-  
+
   ndof = rt_parameter%naqcomp
 
   flux = 0.d0
-  
+
   ! flux should be in mol/sec
-  
+
   do iphase = 1, rt_parameter%nphase
     nu = velocity(iphase)*option%tran_dt/dist(0)
     ! L/sec = m/sec * m^2 * 1000 [L/m^3]
@@ -1082,19 +1082,19 @@ end subroutine TFluxTVD
 ! ************************************************************************** !
 
 function TFluxLimiter(theta)
-  ! 
+  !
   ! Applies flux limiter
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: theta
-  
+
   PetscReal :: TFluxLimiter
-  
+
   ! Linear
   !---------
   ! upwind
@@ -1122,19 +1122,19 @@ end function TFluxLimiter
 ! ************************************************************************** !
 
 function TFluxLimitUpwind(theta)
-  ! 
+  !
   ! Applies an upwind flux limiter
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: theta
-  
+
   PetscReal :: TFluxLimitUpwind
-  
+
   ! upwind
   TFluxLimitUpwind = 0.d0
 
@@ -1143,19 +1143,19 @@ end function TFluxLimitUpwind
 ! ************************************************************************** !
 
 function TFluxLimitMinmod(theta)
-  ! 
+  !
   ! Applies a minmod flux limiter
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: theta
-  
+
   PetscReal :: TFluxLimitMinmod
-  
+
   ! minmod
   TFluxLimitMinmod = max(0.d0,min(1.d0,theta))
 
@@ -1164,19 +1164,19 @@ end function TFluxLimitMinmod
 ! ************************************************************************** !
 
 function TFluxLimitMC(theta)
-  ! 
+  !
   ! Applies an MC flux limiter
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: theta
-  
+
   PetscReal :: TFluxLimitMC
-  
+
  ! MC
   TFluxLimitMC = max(0.d0,min((1.d0+theta)/2.d0,2.d0,2.d0*theta))
 
@@ -1185,19 +1185,19 @@ end function TFluxLimitMC
 ! ************************************************************************** !
 
 function TFluxLimitSuperBee(theta)
-  ! 
+  !
   ! Applies an superbee flux limiter
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: theta
-  
+
   PetscReal :: TFluxLimitSuperBee
-  
+
   ! superbee
   TFluxLimitSuperBee =  max(0.d0,min(1.d0,2.d0*theta),min(2.d0,theta))
 
@@ -1206,19 +1206,19 @@ end function TFluxLimitSuperBee
 ! ************************************************************************** !
 
 function TFluxLimitVanLeer(theta)
-  ! 
+  !
   ! Applies an van Leer flux limiter
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: theta
-  
+
   PetscReal :: TFluxLimitVanLeer
-  
+
   ! superbee
   TFluxLimitVanLeer = (theta+dabs(theta))/(1.d0+dabs(theta))
 

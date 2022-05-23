@@ -667,8 +667,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
           call PrintErrMsg(option)
         endif
         call MPI_Allreduce(observation%region%num_cells,temp_int, &
-                           ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                           option%mycomm,ierr)
+                           ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                           ierr);CHKERRQ(ierr)
         if (temp_int == 0) then
           option%io_buffer = 'Region "' // trim(observation%region%name) // &
             '" is used in an observation point but lies outside the &
@@ -2039,7 +2039,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   if (dof2) dof_count_local(2) = 1
   if (dof3) dof_count_local(3) = 1
   call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
@@ -3097,7 +3097,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   if (dof2) dof_count_local(2) = 1
   if (dof3) dof_count_local(3) = 1
   call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
-                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
@@ -4187,7 +4187,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   scale = 1.d0/scale
   call VecScale(field%work,scale,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%work,vec_ptr, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
   do iconn = 1, cur_connection_set%num_connections
     local_id = cur_connection_set%id_dn(iconn)
     select case(option%iflowmode)
@@ -4365,16 +4365,16 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   ! Step-1: Rearrange map dataset
   max_id_loc = maxval(dataset_map_hdf5%mapping(2,:))
   call MPI_Allreduce(max_id_loc,max_id_global,ONE_INTEGER,MPIU_INTEGER, &
-                     MPI_MAX,option%mycomm,ierr)
-  call VecCreateMPI(option%mycomm,dataset_map_hdf5%map_dims_local(2),&
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,dataset_map_hdf5%map_dims_local(2), &
                     PETSC_DETERMINE,map_ids_1,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,PETSC_DECIDE,max_id_global,map_ids_2, &
                     ierr);CHKERRQ(ierr)
   call VecSet(map_ids_2,0.d0,ierr);CHKERRQ(ierr)
 
   istart = 0
-  call MPI_Exscan(dataset_map_hdf5%map_dims_local(2), istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(dataset_map_hdf5%map_dims_local(2),istart,ONE_INTEGER_MPI, &
+                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   allocate(int_array(dataset_map_hdf5%map_dims_local(2)))
   do ii=1,dataset_map_hdf5%map_dims_local(2)
@@ -4411,10 +4411,10 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   enddo
   call VecRestoreArrayF90(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(vec_scatter,map_ids_1,map_ids_2, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(vec_scatter,map_ids_1,map_ids_2, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(vec_scatter,map_ids_1,map_ids_2,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(vec_scatter,map_ids_1,map_ids_2,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(vec_scatter,ierr);CHKERRQ(ierr)
 
   ! Step-2: Get ids in map dataset for cells
@@ -4422,12 +4422,12 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   allocate(dataset_map_hdf5%cell_ids_local(ncells))
   int_array=cell_ids-1
 
-  call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES,is_from, &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES, &
+                     is_from,ierr);CHKERRQ(ierr)
 
   istart = 0
-  call MPI_Exscan(ncells, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(ncells,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   do local_id=1,ncells
     int_array(local_id)=local_id+istart
@@ -4447,10 +4447,10 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   call ISDestroy(is_from,ierr);CHKERRQ(ierr)
   call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(vec_scatter,map_ids_2,map_ids_3, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(vec_scatter,map_ids_2,map_ids_3, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(vec_scatter,map_ids_2,map_ids_3,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(vec_scatter,map_ids_2,map_ids_3,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(vec_scatter,ierr);CHKERRQ(ierr)
 
   ! Step-3: Save the datatocell_ids
@@ -6261,7 +6261,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(RESIDUAL)
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES,ierr)
+      call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES, &
+                           ierr);CHKERRQ(ierr)
       call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     case(X_COORDINATE)
       do local_id=1,grid%nlmax
@@ -8206,8 +8207,8 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
   tempreal(1) = max_dt_cfl_1
   tempreal(2) = -max_pore_velocity
   call MPI_Allreduce(MPI_IN_PLACE,tempreal,TWO_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN, &
-                     option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   max_dt_cfl_1 = tempreal(1)
   max_pore_velocity = -tempreal(2)
@@ -9026,8 +9027,8 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   if (associated(integral_flux%boundary_connections)) then
     icount = icount + size(integral_flux%boundary_connections)
   endif
-  call MPI_Allreduce(MPI_IN_PLACE,icount,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,icount,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                     option%mycomm,ierr);CHKERRQ(ierr)
   if (icount == 0) then
     option%io_buffer = 'Zero connections found for INTEGRAL_FLUX "' // &
       trim(adjustl(integral_flux%name)) // &
@@ -9214,7 +9215,8 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
 
   ! Sum the local_water_mass across all processes that own the region:
   call MPI_Allreduce(local_water_mass,global_water_mass,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
 end subroutine PatchGetWaterMassInRegion
 
@@ -9609,7 +9611,7 @@ subroutine PatchDestroy(patch)
     deallocate(patch%material_transform_array)
   nullify(patch%material_transform_array)
   nullify(patch%material_transform)
-  
+
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
   call RegionDestroyList(patch%region_list)

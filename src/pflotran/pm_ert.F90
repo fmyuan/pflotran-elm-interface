@@ -463,8 +463,8 @@ recursive subroutine PMERTInitializeRun(this)
       flag = PETSC_TRUE
     endif
   enddo
-  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_LOGICAL, &
-                     MPI_LOR,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_LOGICAL,MPI_LOR, &
+                     option%mycomm,ierr);CHKERRQ(ierr)
   if (flag) then
     option%io_buffer = 'Electrodes in inactive cells (see above).'
     call PrintErrMsg(option)
@@ -515,7 +515,7 @@ subroutine PMERTSetupSolvers(this)
 
   call PrintMsg(option,"  Beginning setup of ERT KSP")
   ! TODO(pj): set ert as prefix
-  call KSPSetOptionsPrefix(solver%ksp, "geop_",ierr);CHKERRQ(ierr)
+  call KSPSetOptionsPrefix(solver%ksp,"geop_",ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
   solver%M_mat_type = MATAIJ
@@ -532,17 +532,17 @@ subroutine PMERTSetupSolvers(this)
   ! verbosity > 0.
   if (option%verbosity >= 2) then
     string = '-geop_ksp_view'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                  ierr);CHKERRQ(ierr)
     string = '-geop_ksp_monitor'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                  ierr);CHKERRQ(ierr)
   endif
 
   call PrintMsg(option,"  Finished setting up ERT KSP")
 
   ! TODO(pj): Whay do I need the follwing call as other pmc don't need?
-  call  KSPSetOperators(solver%ksp,solver%M,solver%Mpre, ierr)
+  call KSPSetOperators(solver%ksp,solver%M,solver%Mpre,ierr);CHKERRQ(ierr)
 
   call SolverSetKSPOptions(solver,option)
 
@@ -778,7 +778,7 @@ subroutine PMERTSolve(this,time,ierr)
     endif
 
     ! Solve system
-    call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr)
+    call PetscTime(log_ksp_start_time,ierr);CHKERRQ(ierr)
     call KSPSolve(solver%ksp,this%rhs,field%work,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     this%ksp_time = this%ksp_time + (log_end_time - log_ksp_start_time)
@@ -800,8 +800,9 @@ subroutine PMERTSolve(this,time,ierr)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
 
-    call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
-    call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
+    call KSPGetIterationNumber(solver%ksp,num_linear_iterations, &
+                               ierr);CHKERRQ(ierr)
+    call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr);CHKERRQ(ierr)
     this%linear_iterations_in_step = this%linear_iterations_in_step + &
                                      num_linear_iterations
   enddo
@@ -891,7 +892,8 @@ subroutine PMERTAssembleSimulatedData(this,time)
 
     ! Reduce/allreduce?
     call MPI_Allreduce(MPI_IN_PLACE,survey%dsim(idata),ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
 
   enddo
 
@@ -957,7 +959,7 @@ subroutine PMERTBuildJacobian(this)
   material_auxvars => patch%aux%Material%auxvars
   cell_neighbors => grid%cell_neighbors_local_ghosted
 
-  call MPI_Barrier(option%mycomm,ierr)
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
   timer => TimerCreate()
   call timer%Start()
 
@@ -1044,7 +1046,7 @@ subroutine PMERTBuildJacobian(this)
   ! I can now deallocate potential and delM (and M just after solving)
   ! But what about potential field output?
 
-  call MPI_Barrier(option%mycomm,ierr)
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
   call timer%Stop()
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) &

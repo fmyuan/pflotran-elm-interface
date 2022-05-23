@@ -301,9 +301,8 @@ subroutine GeomechanicsJumpStart(simulation)
 
   option => geomch_realization%option
 
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-vecload_block_size", &
-                           failure, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
 
   geomech_timestepper%name = 'GEOMECHANICS'
 

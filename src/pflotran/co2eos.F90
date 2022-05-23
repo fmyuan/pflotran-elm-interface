@@ -13,7 +13,7 @@ contains
 ! ************************************************************************** !
 
 subroutine CO2(TX,PCX,DC,FC,PHI,HC)
-  ! 
+  !
   ! VERSION/REVISION HISTORY
   ! $Id: co2eos.F90,v 1.1.1.1 2004/07/30 21:49:42 lichtner Exp $
   ! $Log: co2eos.F90,v $
@@ -40,21 +40,21 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
   ! Added Duan and Weare CO2 eos and new Henry's law.
   ! Revision 1.1  2002/04/12 19:03:10  lichtner
   ! Initial entry
-  ! 
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+  !
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
 
       implicit none
-      
+
       PetscReal :: AT,T,TOL,TX,PCX,DC,DV,FC,PHI,H,HC,XMWC,R,B,V, &
                 Y,Y2,Y3,Z
-      
+
       PetscInt :: KOUNT
 !
-!     This subroutine calculates the specific density, fugacity, and 
+!     This subroutine calculates the specific density, fugacity, and
 !     specific enthalpy of gaseous and supercritical CO2 as a function of
-!     the pressure of CO2 (PCX) and temperature (TX) using a Modified 
+!     the pressure of CO2 (PCX) and temperature (TX) using a Modified
 !     Redlich-Kwong (MRK) equation of state (EOS) and standard thermo-
-!     dynamic equations.  This formulation of the MRK EOS is based on the 
+!     dynamic equations.  This formulation of the MRK EOS is based on the
 !     work of Kerrick and Jacobs (1981) and Weir et al. (1996). Weir et al.
 !     extended the MRK EOS of Kerrick and Jacobs to low temperatures.
 !     Accuracy is suspect outside the temperature and pressure ranges of
@@ -77,17 +77,17 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
 !
 !       Variables:
 !               T    = Temperature in K
-!               V    = Molar volume of CO2 in m3/mol    
+!               V    = Molar volume of CO2 in m3/mol
 !               Y    = Dimensionless variable (B/4V)
 !               Z    = Compressibility factor [-]
-!               PHI  = Fugacity coefficient [-] 
+!               PHI  = Fugacity coefficient [-]
 !               H    = Molar enthalpy in J/mol
 !
 
       PARAMETER(XMWC = 4.40098D-02)
       PARAMETER(R    = IDEAL_GAS_CONSTANT)
       PARAMETER(B    = 5.8D-05)
-!      
+!
 !
       if (PCX.LE..1D6)THEN
         DC=0.D0
@@ -98,7 +98,7 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
 !    Convert temperature from degrees C to K:
       T = TX + 2.7315D+02
 !
-!    First calculate V as a function of T and PCX using Newton Iteration 
+!    First calculate V as a function of T and PCX using Newton Iteration
 !    with tolerance TOL:
       TOL = 1.0D-06
 !
@@ -112,7 +112,7 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
 !
 !    Newton Iteration for V as a function of T and PCX:
       KOUNT = 0
-!--> use the following as a crude method to set up file incon (revise 
+!--> use the following as a crude method to set up file incon (revise
 !--> appropriate boundary cells to have correct pressures); uncomment,
 !--> run model till it stops, then use the SAVE file:
       DO WHILE(DABS(DV/V).GT.TOL)
@@ -129,10 +129,10 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
 !    Calculate Y to the 2nd and 3rd powers for later use:
       Y2 = Y * Y
       Y3 = Y2 * Y
- 
+
 !    Calculate compressibility factor (Z) by substituting MRK EOS
 !    into Z=PV/RT:
-      Z = ((1.D0+Y+Y2-Y3)/((1.D0-Y)**3.D0)) - (AT/(R*T*DSQRT(T)*(V+B)))      
+      Z = ((1.D0+Y+Y2-Y3)/((1.D0-Y)**3.D0)) - (AT/(R*T*DSQRT(T)*(V+B)))
 
 !    Initialize fugacity coefficient (PHI):
       PHI = 0.D0
@@ -154,44 +154,44 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
       PRINT 6
 6     FORMAT('NO CONVERGENCE IN SUBROUTINE CO2')
       print*, PCX,T,V,Y,DV
-      
+
       RETURN
 end subroutine CO2
 
 ! ************************************************************************** !
 
 subroutine MRK(Y,T,PCX,V,DV,AT)
-      
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
 
       implicit none
 
 !     MODIFIED REDLICH-KWONG EQUATION OF STATE FOR CO2
 !     This subroutine is called from subroutine CO2 during the Newton
 !     Iteration for the molar volume (V) of CO2 as function of temperature
-!     (T) and pressure of CO2 (PCX).  This subroutine calculates  
-!     the V for which the MRK EOS is 0 at the given T and PCX, and the 
+!     (T) and pressure of CO2 (PCX).  This subroutine calculates
+!     the V for which the MRK EOS is 0 at the given T and PCX, and the
 !     value of the derivative of the MRK EOS wrt V for the calculated V.
 !
 !       Input:
 !               Y   = Dimensionless variable (B/4V)
 !               T   = Temperature in K
 !               PCX = Pressure of CO2 in Pa
-!               V   = Prev. estimate of molar volume of CO2 in m3/mol   
+!               V   = Prev. estimate of molar volume of CO2 in m3/mol
 !
 !       Output:
-!               DV  = Change in molar volume of CO2 in m3/mol 
+!               DV  = Change in molar volume of CO2 in m3/mol
 !
 !       Constants:
 !               R   = Universal gas constant in m3Pa/molK
 !               B   = Covolume in m3/mol (value from K&J)
-!       Ci thru Fi= Coefficients of the MRK EOS (i=1,2,3)   
+!       Ci thru Fi= Coefficients of the MRK EOS (i=1,2,3)
 !                   Values from Weir et al. (1996)
 !
 !       Variables:
 !       CT thru FT= Temperature-dependent functions for evaluating
 !                     attractive term of MRK EOS
-!               AT  = Attractive term of MRK EOS        
+!               AT  = Attractive term of MRK EOS
 !               FV  = V at which MRK EOS is 0 for T and PCX
 !               DV  = -FV / Value of derivative wrt V of MRK EOS
 
@@ -238,14 +238,14 @@ subroutine MRK(Y,T,PCX,V,DV,AT)
       ET = E1 + (E2*T) + (E3*T2)
       FT = F1 + (F2*T) + (F3*T2)
 !
-!    Calculate attractive term in MRK EOS: 
+!    Calculate attractive term in MRK EOS:
       AT = CT + (DT/V) + (ET/V2) + (FT/V3)
 !
 !    Calculate V at which MRK EOS equals 0:
       FV = PCX - (((R*T*(1.D0+Y+Y2-Y3))/(V*((1.D0-Y)**3.D0)))- &
-           (AT/(DSQRT(T)*V*(V+B))))     
+           (AT/(DSQRT(T)*V*(V+B))))
 !
-!    Calculate -FV / value of derivative wrt V of MRK EOS 
+!    Calculate -FV / value of derivative wrt V of MRK EOS
       DV = -FV / (((-3.D0*B*R*T*(1.D0+Y+Y2-Y3))/(4.D0*V3* &
            ((1.D0-Y)**4.D0)))-((R*T*(1.D0+Y+Y2-Y3))/ &
            (V2*((1.D0-Y)**3.D0)))+((R*T*(((3.D0*B3)/(64.D0*V4)) &
@@ -257,16 +257,16 @@ end subroutine MRK
 ! ************************************************************************** !
 
 subroutine FUGACITY(Y,T,V,Z,PHI)
-      
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
 
       implicit none
 
 !
-!     This subroutine is called from subroutine CO2 during the       
+!     This subroutine is called from subroutine CO2 during the
 !     calculation of fugacity of CO2 as function of temperature (T),
 !     pressure of CO2 (PCX), and molar volume of CO2 (V).  This
-!     subroutine calculates the fugacity coefficient of CO2 (PHI) by   
+!     subroutine calculates the fugacity coefficient of CO2 (PHI) by
 !     substituting the MRK EOS into RTln(PHI)=Integral from V to infinity
 !     of (PCX-RT/V)dV - RTln(Z) + RT(Z-1).  This expression comes from
 !     Prausnitz (1969).
@@ -275,7 +275,7 @@ subroutine FUGACITY(Y,T,V,Z,PHI)
 !               Y   = Dimensionless variable (B/4V)
 !               T   = Temperature in K
 !               V   = Molar volume of CO2 in m3/mol
-!               Z   = Compressibility factor of CO2 [-] 
+!               Z   = Compressibility factor of CO2 [-]
 !
 !       Output:
 !               PHI = Fugacity coefficient of CO2 [-]
@@ -283,7 +283,7 @@ subroutine FUGACITY(Y,T,V,Z,PHI)
 !       Constants:
 !               R   = Universal gas constant in m3Pa/molK
 !               B   = Covolume in m3/mol (value from K&J)
-!       Ci thru Fi= Coefficients of the MRK EOS (i=1,2,3)   
+!       Ci thru Fi= Coefficients of the MRK EOS (i=1,2,3)
 !                     Values from Weir et al. (1996)
 !
 !       Variables:
@@ -293,7 +293,7 @@ subroutine FUGACITY(Y,T,V,Z,PHI)
       PetscReal :: Y,T,V,Z,PHI
       PetscReal :: R,B,C1,C2,C3,D1,D2,D3,E1,E2,E3,F1,F2,F3
       PetscReal :: T2,V2,V3,B2,B3,B4,CT,DT,ET,FT
-      
+
       PARAMETER(R   =  IDEAL_GAS_CONSTANT)
       PARAMETER(B   =  5.8D-05)
       PARAMETER(C1  =  2.39534D+01)
@@ -328,7 +328,7 @@ subroutine FUGACITY(Y,T,V,Z,PHI)
       DT = D1 + (D2*T) + (D3*T2)
       ET = E1 + (E2*T) + (E3*T2)
       FT = F1 + (F2*T) + (F3*T2)
-!      
+!
 !    Calculate fugacity coefficient:
       PHI = Y * (8.D0 + Y * (-9.D0 + 3.D0 * Y))/(1.D0-Y)**3.D0 &
            - DLOG(Z) &
@@ -355,18 +355,18 @@ end subroutine FUGACITY
 
 subroutine ENTHALPY(T,V,Z,H)
 
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
 
       implicit none
 !
-!     This subroutine is called from subroutine CO2 during the       
+!     This subroutine is called from subroutine CO2 during the
 !     calculation of the specific enthalpy of CO2 as function of
-!     temperature (T), pressure of CO2 (PCX), and molar volume 
+!     temperature (T), pressure of CO2 (PCX), and molar volume
 !     of CO2 (V).  This subroutine calculates the molar enthalpy of CO2
 !     using residual properties.  A residual property is defined as the
-!     difference between the real fluid property and the perfect gas   
+!     difference between the real fluid property and the perfect gas
 !     state property.  Following Patel and Eubank (1988) for molar enthalpy:
-!     H-H'ref = H(T,rho) - H'(Tref,Pref/RTref), where ' indicates the 
+!     H-H'ref = H(T,rho) - H'(Tref,Pref/RTref), where ' indicates the
 !     perfect gas state.  Integration is done along the path
 !     H(T,rho)-->H'(T,0)-->H'(Tref,0)-->H'(Tref,Pref/RTref).
 !
@@ -379,7 +379,7 @@ subroutine ENTHALPY(T,V,Z,H)
 !       Input:
 !               T    = Temperature in K
 !               V    = Molar volume of CO2 in m3/mol
-!               Z    = Compressibility factor of CO2 [-] 
+!               Z    = Compressibility factor of CO2 [-]
 !
 !       Output:
 !               H    = Molar enthalpy of CO2 in J/mol
@@ -387,7 +387,7 @@ subroutine ENTHALPY(T,V,Z,H)
 !       Constants:
 !               R    = Universal gas constant in m3Pa/molK
 !               B    = Covolume in m3/mol (value from K&J)
-!       Ci thru Fi = Coefficients of the MRK EOS (i=1,2,3)   
+!       Ci thru Fi = Coefficients of the MRK EOS (i=1,2,3)
 !                      Values from Weir et al. (1996)
 !           Gi   = Coefficients of molar heat capacity
 !                  Values from Angus et al. (1976)
@@ -405,7 +405,7 @@ subroutine ENTHALPY(T,V,Z,H)
                    RHO,RHO2,BETA2,BETA3,BETA4,BETA5,BETA6,BETA7, &
                    TREF2,TREF3,TREF4,TREF5,TREF6,T2,T3,T4,T5,T6, &
                    B2,B3,B4,XI1,XI2,URES
-      
+
       PARAMETER(BETA=  304.21D0)
       PARAMETER(R   =  IDEAL_GAS_CONSTANT)
       PARAMETER(TREF=  2.7316D+02)
@@ -479,11 +479,11 @@ subroutine ENTHALPY(T,V,Z,H)
             +6.D0*(3.D0*F1+T*(F2-F3*T)+B3*(-3.D0*C1+T*(-C2+C3*T)) &
             +B2*(3.D0*D1+T*(D2-D3*T))+B*(-3.D0*E1+T*(-E2+E3*T))) &
             *DLOG(1+B*RHO))/(12*B4*R*T**1.5)
-! 
+!
 !    Calculate 1/T times the integral from Tref to T of Cv/R dT, where Cv
 !    is molar heat capacity in J/(mol K).  The expression for Cv is
 !    derived an expression from Angus et al. (1976) for molar
-!    heat capacity at constant pressure: 
+!    heat capacity at constant pressure:
       XI2 = G0-1.D0+((TREF/T)*(1.D0-G0))+(((BETA*G1)/T)*DLOG &
             (T/TREF))+(((BETA2*G2)/T)*((1.D0/TREF)-(1.D0/T))) &
             +(((BETA3*G3)/(2.D0*T))*((1.D0/TREF2)-(1.D0/T2))) &
@@ -503,7 +503,7 @@ end subroutine ENTHALPY
 ! ************************************************************************** !
 
 subroutine duanco2 (tt,p,dc,fc,phi)
-  ! 
+  !
   ! Subroutine: duanco2.f
   ! Input: tt   [C]        temperature
   ! p    [Pa]       CO2 partial pressure
@@ -513,19 +513,19 @@ subroutine duanco2 (tt,p,dc,fc,phi)
   ! Duan, Z., Moller, N., and Weare, J.H. (1992) An equation of state for
   ! the CH4-CO2-H2O system: I. Pure systems from 0 to 1000 oC and 0 to
   ! 8000 bar. Geochimica Cosmochimica Acta, 56, 2605-2617.
-  ! 
+  !
 
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
 
       implicit none
-      
+
       PetscReal :: a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,alpha,beta,gamma
       PetscReal :: t,tt,tc,pc,tr,tr1,tr2,tr3,pr,p,a,b,c,d,e,rgas,vc
       PetscReal :: epsilon,videal,v,v1,xmwc,vr,vr1,vr2,gamvr,expgam,z,zeq
       PetscReal :: f1,ov,df1,phi,fc,dc
-      
+
       PetscInt :: itmax,iter
-      
+
       data xmwc /4.40098d-02/
 
       data a1    / 8.99288497d-2/
@@ -545,7 +545,7 @@ subroutine duanco2 (tt,p,dc,fc,phi)
       data gamma / 2.96d-2/
 
       t = tt + 273.15d0
-      
+
 
       tc = 31.05d0 + 273.15d0
       pc = 73.825d0
@@ -608,7 +608,7 @@ subroutine duanco2 (tt,p,dc,fc,phi)
 
       v1 = v
       v = v1-f1/df1
-      
+
 !     Protect against negative volume solutions
       if (v < 0) v = v1 /2.d0
 
@@ -671,8 +671,8 @@ end subroutine Henry_duan_sun_0NaCl
 ! ************************************************************************** !
 
 subroutine Henry_duan_sun(tc,p,keqco2,lngamco2,mc,ma,co2_aq_actcoef)
-  
-! t[c], p[bar], mco2[mol/Kg-H2O], mc[cation: mol/kg-H2O], 
+
+! t[c], p[bar], mco2[mol/Kg-H2O], mc[cation: mol/kg-H2O],
 ! ma[anion: mol/kg-H2O], psat[bars]
 
   implicit none
@@ -690,8 +690,8 @@ subroutine Henry_duan_sun(tc,p,keqco2,lngamco2,mc,ma,co2_aq_actcoef)
   33.8126098,     0.,             0., &
   9.04037140e-3,  0.,             0., &
   -1.14934031e-3, 0.,             0., &
-  -0.307405726,  -0.0237622469,   2.12220830e-3, & 
-  -0.0907301486,  0.0170656236,  -5.24873303e-3, & 
+  -0.307405726,  -0.0237622469,   2.12220830e-3, &
+  -0.0907301486,  0.0170656236,  -5.24873303e-3, &
   9.32713393e-4,  0.,             0., &
   0.,             1.41335834e-5,  0./
 
@@ -705,20 +705,20 @@ subroutine Henry_duan_sun(tc,p,keqco2,lngamco2,mc,ma,co2_aq_actcoef)
   call duan_sun_param(t,p,temparray,lamc) ! lambda_CO2-Na Pitzer 2nd order int. param.
   temparray = coef(3,:)
   call duan_sun_param(t,p,temparray,lamca) ! zeta_CO2-Na-Cl Pitzer 3rd order int. param.
-  
+
   !activity coef. aqueous co2
   lngamco2 = 2.d0*lamc*mc + lamca*mc*ma ! = log(gam(jco2))
   if (present(co2_aq_actcoef)) then
     co2_aq_actcoef = exp(lngamco2)
-  endif 
+  endif
   tmp = mu0 + lngamco2 !- ln(phico2) [ln y P/m = mu0 + ln gamma - ln phico2]
-  
+
   ! yco2 = (p-psat)/p ! mole fraction of CO2 in supercritical CO2 phase: based on
                     ! assumption that mole fraction of H2O in SC CO2 = Psat(T)/P.
-  
+
   ! mco2 = molality co2
   ! mco2 = phico2 * yco2 * p * exp(-mu0) / gamma
-  
+
   keqco2 = exp(-tmp) ! = K_co2 / gamco2
   !print *, 'keqco2: ', mu0,lngamco2,tc,p,ma,mc
   return
@@ -727,13 +727,13 @@ end subroutine Henry_duan_sun
 ! ************************************************************************** !
 
 subroutine duan_sun_param(t,p,c,par)
-  
+
   implicit none
-  
+
   PetscReal :: t,p,par,fac,c(11)
-  
+
   fac = 1.d0/(630.d0-t)
-  
+
   par = c(1) + c(2) * t + c(3) / t + c(4) * t * t &
   + c(5) * fac + c(6) * p + c(7) * p * log(t) &
   + c(8) * p / t + c(9) * p * fac &
@@ -745,7 +745,7 @@ end subroutine duan_sun_param
 ! ************************************************************************** !
 
 subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
-  ! 
+  !
   ! Subroutine: henry.f
   ! Input: tx   [C]       temperature
   ! pco2 [Pa]      CO2 partial pressure
@@ -758,7 +758,7 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
   ! Crovetto, R. (1991) Evaluation of solubility data of the system CO2-H2O
   ! from 273�Z K to the critical point of water. Journal of Physical and
   ! Chemical Reference Data, 20(3), 575-589.
-  ! 
+  !
 
 !     input:
 !     tx   [C]  temperature
@@ -770,9 +770,9 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
 !     poyn  [-]  Poynting correction
 !     xmole [-]  mole fraction CO2 in liquid water at t and p
 !     x1m   [-]  mass fraction CO2
-      
+
       implicit none
-      
+
       PetscReal, intent(in) :: tx,xphi,pcx
       PetscReal, intent(out) :: xmole,x1m,rkh,poyn
       PetscReal :: ams,ama,tk,otk
@@ -818,7 +818,7 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
 !-------new fit 1 - fixed Vco2 = 35 cm^3/mol
 !       rkH = 9.38406d0 - (6192.46 + 132377.d0*otk)*otk + &
 !       (5885.39d0*(1.d0 - 0.001545294d0*tk)**0.333333333d0)*otk
-        
+
 !       rkH = 9.38406d0 - (6192.46d0 + 132377.d0*otk - &
 !       5885.39d0*(1.d0 - 0.001545294d0*tk)**0.333333333d0)*otk
 
@@ -834,14 +834,14 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
 !     vid = 3.5d-5
 !     rgas = IDEAL_GAS_CONSTANT
 !     call sat(tx,ps)
- 
+
 !     poyn = exp(-(VID*(PCX-PS))/(Rgas*Tk))
       poyn  = 1.d0
-      
+
 !     xmole = xmole * poyn
 
       x1m = xmole*ama/(xmole*ama+(1.d0-xmole)*ams)
-      
+
 !     print *,'henry_co2_noderiv: ',pcx,tx,xmole,x1m,xphi,rkh
 
       RETURN
@@ -851,23 +851,23 @@ end subroutine HENRY_CO2_NODERIV
 
 subroutine HENRY_sullivan (TX,PCX,PS,FC,X1M,XCO2,HP)
 
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
 
       implicit none
 
-!     This subroutine calculates the mass fraction of CO2 in the liquid 
+!     This subroutine calculates the mass fraction of CO2 in the liquid
 !     phase using an extended Henry's Law relationship from Reid et al.
-!     (1987). The relationship is ln(FC/XCO2) = ln(HP) + VID(PCX-PS)/RT. 
+!     (1987). The relationship is ln(FC/XCO2) = ln(HP) + VID(PCX-PS)/RT.
 !     See below for variable definitions.
 !
 !     The expression for Henry's Constant is from O'Sullivan et al. (1985).
 !     The expression was created using a piece-wise quadratic fit to data
-!     published by Ellis and Goulding (1963), Malinin (1959), Takenouchi 
-!     and Kennedy (1964), and Gibb and Van Ness (1971). 
+!     published by Ellis and Goulding (1963), Malinin (1959), Takenouchi
+!     and Kennedy (1964), and Gibb and Van Ness (1971).
 !
-!     The value for the the partial molar volume of CO2 at infinite 
-!     dilution is assumed to be constant at 30E-6 from the work of 
-!     Takenouchi and Kennedy (1964) (and others). This assumption is 
+!     The value for the the partial molar volume of CO2 at infinite
+!     dilution is assumed to be constant at 30E-6 from the work of
+!     Takenouchi and Kennedy (1964) (and others). This assumption is
 !     reasonable at temperatures below 150 C.
 !
 !       Input:
@@ -896,7 +896,7 @@ subroutine HENRY_sullivan (TX,PCX,PS,FC,X1M,XCO2,HP)
 
       PetscReal :: TX,PCX,PS,FC,X1M,XCO2,HP
       PetscReal :: XMWC,XMWW,R,VID,TAU,TAU2,TAU4,T
-      
+
       PARAMETER(XMWC = 4.40098D-02)
       PARAMETER(XMWW = 1.801534D-02)
       PARAMETER(R    = IDEAL_GAS_CONSTANT)
@@ -923,7 +923,7 @@ subroutine HENRY_sullivan (TX,PCX,PS,FC,X1M,XCO2,HP)
       T = TX + 2.7315D+02
 
 !    Calculate mole fraction of CO2 (XMOLE):
-      XCO2 = DEXP(DLOG(FC/HP)-(VID*(PCX-PS))/(R*T)) 
+      XCO2 = DEXP(DLOG(FC/HP)-(VID*(PCX-PS))/(R*T))
 
 !    Calculate mass fraction of CO2 (XMASS):
       X1M = (XMWC*XCO2) / (((1.D0-XCO2)*XMWW)+(XCO2*XMWC))
@@ -935,7 +935,7 @@ end subroutine HENRY_sullivan
 
 subroutine SOLUT(PCX,TX,HSOL)
       implicit none
-      
+
       PetscReal :: PCX,TX,HSOL
       PetscReal :: T,T2,T3,T4
 
@@ -958,7 +958,7 @@ end subroutine SOLUT
 
 subroutine DENMIX(TX,DW,X1M,D1M)
       implicit none
-      
+
       PetscReal :: TX,DW,X1M,D1M
       PetscReal :: TX2,TX3,TX4,RHO,DC,XMWC,X2M
 
@@ -1014,7 +1014,7 @@ end subroutine DENMIX
 subroutine VISCO2(TX,DC,VC)
       implicit none
 !
-!     This subroutine calculates the viscosity of pure CO2 as a function 
+!     This subroutine calculates the viscosity of pure CO2 as a function
 !     of temperature and density of CO2.  The expressions for calculating
 !     the viscosity come from empirical equations provided in Vesovic et
 !     al.(1990) and Fenghour et al. (1998).
@@ -1027,15 +1027,15 @@ subroutine VISCO2(TX,DC,VC)
 !               DC     = Density of CO2 in kg/m3
 !
 !       Output:
-!               VC     = Viscosity of CO2 in Pa-s       
+!               VC     = Viscosity of CO2 in Pa-s
 !
 !       Constants:
 !               Ai     = Coefficients of the correlation of the
-!                        zero-density viscosity 
+!                        zero-density viscosity
 !               ESCL   = Energy scaling parameter in K
 !                      = epsilon/kappa
 !               Dij    = Coefficients of the correlation of the
-!                        excess viscosity 
+!                        excess viscosity
 !
 !       Variables:
 !               T      = Temperature in K
@@ -1047,7 +1047,7 @@ subroutine VISCO2(TX,DC,VC)
       PetscReal :: A0,A1,A2,A3,A4,ESCL,D11,D21,D64,D81,D82
       PetscReal :: T,DC2,DC6,DC8,TSTAR,TSTAR3,BETA1,BETA2,BETA3,BETA4
       PetscReal :: EXS,ETA0,DETA
-      
+
       PARAMETER(A0   =  2.35156D-01)
       PARAMETER(A1   = -4.91266D-01)
       PARAMETER(A2   =  5.211155D-02)
@@ -1080,11 +1080,11 @@ subroutine VISCO2(TX,DC,VC)
 
 !    Calculate zero-density limit viscosity in muPa-s:
       EXS = DEXP(A0+(A1*BETA1)+(A2*BETA2)+(A3*BETA3)+(A4*BETA4))
-      ETA0 = (1.00697D0 * DSQRT(T)) / EXS 
+      ETA0 = (1.00697D0 * DSQRT(T)) / EXS
 
 !    Calculate excess viscosity in muPa-s:
       DETA = (D11*DC)+(D21*DC2)+((D64*DC6)/TSTAR3)+(D81*DC8)+ &
-             ((D82*DC8)/TSTAR) 
+             ((D82*DC8)/TSTAR)
 
 !    Calculate total viscosity in muPa-s:
       VC = ETA0 + DETA
@@ -1105,7 +1105,7 @@ subroutine SAT(T,P)
 
       PetscReal :: T,P,A1,A2,A3,A4,A5,A6,A7,A8,A9
       PetscReal :: TC,X1,X2,SC,PC_
-      
+
       DATA A1,A2,A3,A4,A5,A6,A7,A8,A9/ &
       -7.691234564,-2.608023696E1,-1.681706546E2,6.423285504E1, &
       -1.189646225E2,4.167117320,2.097506760E1,1.E9,6./
@@ -1136,7 +1136,7 @@ subroutine COWAT0(TF,PP,D,U)
                                             H2O_CRITICAL_TEMPERATURE
 
       implicit none
-      
+
       PetscReal :: TF,PP,D,U
       PetscReal :: A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12, &
                    A13,A14,A15,A16,A17,A18,A19,A20,A21,A22,A23, &
@@ -1240,13 +1240,13 @@ end subroutine COWAT0
 subroutine SUPST(T,P,D,U)
 !--------- Fast SUPST M.J.O'Sullivan - 17 SEPT 1990 ---------
 ! SUPST    1.0 S     1 February  1991
-! VAPOR DENSITY AND INTERNAL ENERGY AS FUNCTION OF TEMPERATURE AND 
+! VAPOR DENSITY AND INTERNAL ENERGY AS FUNCTION OF TEMPERATURE AND
 ! PRESSURE (M. OS.)
       use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
                                             H2O_CRITICAL_TEMPERATURE
-      
+
       implicit none
-      
+
       PetscReal :: T,P,D,U
       PetscReal :: I1
       PetscReal :: B0,B01,B02,B03,B04,B05,B11,B12,B21,B22,B23,B31,B32,B41,B42, &
@@ -1394,11 +1394,11 @@ end subroutine SUPST
 
 subroutine TSAT(PX,TX00,TS)
       implicit none
-      
+
 !     SATURATION TEMPERATURE TS AT PRESSURE PX.
 
       PetscReal :: PX,TX00,TX0,TS,PS,DT,TSD,PSD
-      
+
       TX0=TX00
       if (.not. Equal(TX0,0.d0)) GOTO 2
 !
@@ -1422,7 +1422,7 @@ subroutine TSAT(PX,TX00,TS)
       TS=TS+(PX-PS)*DT/(PSD-PS)
 
       goto 1
-      
+
 end subroutine TSAT
 
 ! ************************************************************************** !
@@ -1436,7 +1436,7 @@ subroutine SIGMA(T,ST)
 !                                               WATER SUBSTANCE" (1975).
 
       PetscReal :: T,ST
-      
+
       if (T.GE.374.15) GOTO 1
       ST=1.-0.625*(374.15-T)/H2O_CRITICAL_TEMPERATURE
       ST=ST*.2358*((374.15-T)/H2O_CRITICAL_TEMPERATURE)**1.256
@@ -1451,13 +1451,13 @@ end subroutine SIGMA
 
 subroutine VIS(T,P,D,VW,VS,PS)
       implicit none
-      
+
 !     VISCOSITY OF LIQUID WATER AND VAPOR AS FUNCTION OF
 !     TEMPERATURE AND PRESSURE
 
       PetscReal :: T,P,D,VW,VS,PS
       PetscReal :: EX,PHI,AM,V1
-      
+
       EX=247.8/(T+133.15)
       PHI=1.0467*(T-31.85)
       AM=1.+PHI*(P-PS)*1.E-11
@@ -1497,7 +1497,7 @@ subroutine VISS(T,P,D,VS)
 !     TEMPERATURE AND PRESSURE
 
       PetscReal :: T,P,D,VS,V1
-      
+
       V1=.407*T+80.4
       if (T.LE.350.) VS=1.E-7*(V1-D*(1858.-5.9*T)*1.E-3)
       if (T.GT.350.) VS=1.E-7*(V1+.353*D+676.5E-6*D**2+102.1E-9*D**3)

@@ -129,12 +129,12 @@ subroutine InversionForwardAuxStep(aux,time)
     aux%last => aux%current
   endif
 
-  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr)
+  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(aux%measurements)
     call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
                                      vec_ptr(imeasurement))
   enddo
-  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr)
+  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InversionForwardAuxStep
 
@@ -204,8 +204,8 @@ subroutine InvTSAuxAllocate(aux,M_ptr,ndof,ncell)
   PetscInt :: ncell
   PetscErrorCode :: ierr
 
-  call MatDuplicate(M_ptr,MAT_SHARE_NONZERO_PATTERN, &
-                    aux%dResdparam,ierr);CHKERRQ(ierr)
+  call MatDuplicate(M_ptr,MAT_SHARE_NONZERO_PATTERN,aux%dResdparam, &
+                    ierr);CHKERRQ(ierr)
   allocate(aux%dRes_du_k(ndof,ndof,ncell))
   aux%dRes_du_k = 0.d0
 
@@ -245,8 +245,8 @@ subroutine InvTSAuxStoreCopyGlobalMatVecs(forward_aux,ts_aux)
 
   PetscErrorCode :: ierr
 
-  call MatDuplicate(forward_aux%M_ptr,MAT_COPY_VALUES, &
-                    ts_aux%dResdu,ierr);CHKERRQ(ierr)
+  call MatDuplicate(forward_aux%M_ptr,MAT_COPY_VALUES,ts_aux%dResdu, &
+                    ierr);CHKERRQ(ierr)
   if (forward_aux%solution_ptr /= PETSC_NULL_VEC) then
     call VecDuplicate(forward_aux%solution_ptr,ts_aux%solution, &
                       ierr);CHKERRQ(ierr)

@@ -38,12 +38,12 @@ contains
   !************************************************************************** !
 
   subroutine InlineSurfaceAuxVarInit(auxvar,option)
-    ! 
+    !
     ! Initialize auxiliary variable
-    ! 
+    !
     ! Author: Nathan Collier
     ! Date: 09/2015
-    ! 
+    !
     use Option_module
     use Utility_module, only : InitToNan
     implicit none
@@ -61,12 +61,12 @@ contains
   !************************************************************************** !
 
   subroutine InlineSurfaceAuxVarCopy(source,copy)
-    ! 
+    !
     ! Copies an auxiliary variable
-    ! 
+    !
     ! Author: Nathan Collier
     ! Date: 09/2015
-    ! 
+    !
     implicit none
     type(inlinesurface_auxvar_type) :: source, copy
 
@@ -80,13 +80,13 @@ contains
   !************************************************************************** !
 
   subroutine InlineSurfaceAuxVarCompute(auxvar,global_auxvar,option)
-    ! 
+    !
     ! Evaluates the auxiliary variable, assumes global_auxvar
     ! has been updated previously
-    ! 
+    !
     ! Author: Nathan Collier
     ! Date: 09/2015
-    ! 
+    !
     use Option_module
     use Global_Aux_module
     implicit none
@@ -109,9 +109,9 @@ contains
   !************************************************************************** !
 
   function InlineSurfaceAuxCreate() result(aux)
-    ! 
+    !
     ! Allocates a inlinesurface auxiliary object
-    ! 
+    !
     ! Author: Nathan Collier
     ! Date: 09/2015
     !
@@ -132,9 +132,9 @@ contains
   !************************************************************************** !
 
   subroutine InlineSurfaceAuxDestroy(aux)
-    ! 
+    !
     ! Deallocates a inlinesurface auxiliary object
-    ! 
+    !
     ! Author: Nathan Collier
     ! Date: 09/2015
     !

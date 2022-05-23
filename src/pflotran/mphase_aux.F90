@@ -1,5 +1,5 @@
 module Mphase_Aux_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Mphase_pckr_module
@@ -8,7 +8,7 @@ module Mphase_Aux_module
   use Matrix_Zeroing_module
 
   implicit none
-  
+
   private
 
 !#define GARCIA 1
@@ -36,7 +36,7 @@ module Mphase_Aux_module
 
   type, public :: mphase_auxvar_type
     PetscInt :: istate_store
-    type(mphase_auxvar_elem_type), pointer :: auxvar_elem(:) 
+    type(mphase_auxvar_elem_type), pointer :: auxvar_elem(:)
 #if 0
     PetscReal , pointer :: davgmw_dx(:)
     PetscReal , pointer :: dden_dp(:)
@@ -54,13 +54,13 @@ module Mphase_Aux_module
     PetscReal , pointer :: du_dx(:)
 #endif
   end type mphase_auxvar_type
-  
+
   type, public :: mphase_parameter_type
     PetscReal, pointer :: dencpr(:)
     PetscReal, pointer :: ckwet(:)
     PetscReal, pointer :: sir(:,:)
   end type mphase_parameter_type
-  
+
   type, public :: mphase_type
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
@@ -69,7 +69,7 @@ module Mphase_Aux_module
     PetscReal, pointer :: res_old_AR(:,:)
     PetscReal, pointer :: res_old_FL(:,:)
     PetscReal, pointer :: delx(:,:)
-  
+
     type(mphase_parameter_type), pointer :: mphase_parameter
     type(mphase_auxvar_type), pointer :: auxvars(:)
     type(mphase_auxvar_type), pointer :: auxvars_bc(:)
@@ -87,20 +87,20 @@ contains
 ! ************************************************************************** !
 
 function MphaseAuxCreate()
-  ! 
+  !
   ! MphaseAuxVarCreate: Allocate and initialize auxiliary object
   ! Author: Chuan Lu
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(mphase_type), pointer :: MphaseAuxCreate
-  
+
   type(mphase_type), pointer :: aux
 
-  allocate(aux) 
+  allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
@@ -117,32 +117,32 @@ function MphaseAuxCreate()
   nullify(aux%res_old_AR)
   nullify(aux%res_old_FL)
   nullify(aux%delx)
-  
+
   MphaseAuxCreate => aux
-  
+
 end function MphaseAuxCreate
 
 ! ************************************************************************** !
 
 subroutine MphaseAuxVarInit(auxvar,option)
-  ! 
+  !
   ! Initialize auxiliary object
   ! Author: Chuan Lu
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(mphase_auxvar_type) :: auxvar
   type(option_type) :: option
 
   PetscInt :: var_elem_size, var_node_size
-  PetscInt :: nvar 
+  PetscInt :: nvar
 
   allocate(auxvar%auxvar_elem(0 : option%nflowdof))
   allocate(auxvar%auxvar_elem(0)%hysdat(4))
- 
+
   do nvar = 0, option%nflowdof
      allocate ( auxvar%auxvar_elem(nvar)%sat(option%nphase))
      allocate ( auxvar%auxvar_elem(nvar)%den(option%nphase))
@@ -182,13 +182,13 @@ end subroutine MphaseAuxVarInit
 ! ************************************************************************** !
 
 subroutine MphaseAuxVarCopy(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies an auxiliary variable
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
   type(mphase_auxvar_elem_type) :: auxvar, auxvar2
   type(option_type) :: option
 
@@ -214,7 +214,7 @@ subroutine MphaseAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dh_dp = auxvar%dh_dp
   auxvar2%dh_dt = auxvar%dh_dt
   auxvar2%du_dp = auxvar%du_dp
-  auxvar2%du_dt = auxvar%du_dt  
+  auxvar2%du_dt = auxvar%du_dt
 #endif
   auxvar2%xmol = auxvar%xmol
   auxvar2%diff = auxvar%diff
@@ -225,11 +225,11 @@ end subroutine MphaseAuxVarCopy
 
 subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_function, &
                                    fluid_properties,option,xphico2)
-  ! 
+  !
   ! MphaseAuxVarCompute_NI: Computes auxiliary variables for each grid cell
   ! No increments
   ! Author: Chuan Lu
-  ! 
+  !
 
   use Option_module
   use Global_Aux_module
@@ -242,7 +242,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
   use Saturation_Function_module
   use Fluid_module
   use Mphase_pckr_module
-  
+
   implicit none
 
   type(option_type) :: option
@@ -263,15 +263,15 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
   PetscReal :: eng, hg, dhdp, dhdt
   PetscReal :: visg, dvdp, dvdt
   PetscReal :: h(option%nphase), u(option%nphase), kr(option%nphase)
-  PetscReal :: xm_nacl, y_nacl, vphi             
-  PetscReal :: tk, xco2, pw_kg, x1, vphi_a1, vphi_a2 
+  PetscReal :: xm_nacl, y_nacl, vphi
+  PetscReal :: tk, xco2, pw_kg, x1, vphi_a1, vphi_a2
   PetscReal :: Qkco2, mco2, xco2eq
   PetscReal :: aux(1)
   PetscInt :: iflag
-  
+
   auxvar%den = 0.d0
   auxvar%sat = 0.d0
-  
+
   auxvar%h = 0.d0
   auxvar%u = 0.d0
   auxvar%avgmw = 0.d0
@@ -280,13 +280,13 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
   auxvar%kvr = 0.d0
   auxvar%diff = 0.d0
   kr = 0.d0
- 
-  auxvar%pres = x(1)  
+
+  auxvar%pres = x(1)
   auxvar%temp = x(2)
 
   p = auxvar%pres
   t = auxvar%temp
-  
+
   select case(iphase)
     case(1)
 !******* aqueous phase exists ***********
@@ -315,7 +315,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
       auxvar%sat(2) = 1.D0
       kr(1)= 0.D0
       kr(2)= 1.D0
-    case(3)    
+    case(3)
 !******* 2-phase phase exists ***********
       auxvar%sat(2) = x(3)
       if (auxvar%sat(2) < 0.D0)then
@@ -335,10 +335,10 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
     p2 = p
 
     if (p2 >= 5.d4) then
-       
+
       if (option%co2eos == EOS_SPAN_WAGNER) then
-! ************ Span-Wagner EOS ********************             
-        select case(option%itable)  
+! ************ Span-Wagner EOS ********************
+        select case(option%itable)
           case(0,1,2,4,5)
             if (option%itable >= 4) then
                 ! print *,' interp', itable
@@ -352,23 +352,23 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
             endif
 
             dg = dg/FMWCO2
-            fg = fg*1.D6 
+            fg = fg*1.D6
             hg = hg*FMWCO2
             xphi = fg/p2
-            
+
 ! ************* Span-Wagner EOS with Bi-Cubic Spline interpolation ********
-          case(3) 
+          case(3)
             call sw_prop(t,p2*1.D-6,dg,hg,eng,fg)
             call visco2(t,dg,visg)
             dg = dg/FMWCO2
-            fg = fg*1.D6 
+            fg = fg*1.D6
             hg = hg*FMWCO2
             xphi = fg/p2
           end select
-          
+
        elseif (option%co2eos == EOS_MRK) then
-       
-! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]     
+
+! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
           call CO2(t,p2,dg,fg,xphi,hg)
           call visco2(t,dg,visg)
           dg = dg/FMWCO2
@@ -377,17 +377,17 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
        else
          call PrintErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
       endif
-    else      
+    else
       call ideal_gaseos_noderiv(p2,t,dg,hg,eng)
       ! J/kmol -> whatever
       hg = hg * option%scale
-      eng = eng * option%scale      
+      eng = eng * option%scale
       call visco2(t,dg*FMWCO2,visg)
       fg = p2
       xphi = 1.D0
     endif
 
-    m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na 
+    m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na
     select case(option%itranmode)
       case(RT_MODE)
         m_na = global_auxvar%m_nacl(1)
@@ -399,23 +399,23 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
     call Henry_duan_sun(t,p2*1.D-5,henry,lngamco2,m_na,m_cl)
     Qkco2 = henry*xphi  ! convert from bar to Pa
-    henry = 1.D0/(FMWH2O*1.D-3)/(henry*1.D-5)/xphi 
+    henry = 1.D0/(FMWH2O*1.D-3)/(henry*1.D-5)/xphi
     if (present(xphico2)) xphico2 = xphi
-   
+
     mco2 = (p - sat_pressure)*1.D-5*Qkco2
     xco2eq = mco2/(1.D3/fmwh2o + mco2 + m_nacl)
 
 !   print *,'mphase_duan_den: ',xco2eq,mco2,m_nacl,qkco2,p,p2,sat_pressure,t
 
 !   question here: m_nacl or m_na+m_cl ?
-   
-    select case(iphase)     
+
+    select case(iphase)
     case(1)
-      auxvar%xmol(4) = auxvar%xmol(2)*henry/p   
+      auxvar%xmol(4) = auxvar%xmol(2)*henry/p
       auxvar%xmol(3) = 1.D0-auxvar%xmol(4)
       if (auxvar%xmol(3) < 0.D0) auxvar%xmol(3) = 0.D0
 !     if (xmol(3) < 0.D0) xmol(3) = 0.D0
-    case(2)   
+    case(2)
       auxvar%xmol(2) = p*auxvar%xmol(4)/henry
       auxvar%xmol(1) = 1.D0 - auxvar%xmol(2)
     case(3)
@@ -423,15 +423,15 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
       auxvar%xmol(2) = xco2eq
       auxvar%xmol(1) = 1.D0 - xco2eq
       auxvar%xmol(3) = temp
-      auxvar%xmol(4) = 1.D0 - temp            
+      auxvar%xmol(4) = 1.D0 - temp
     end select
     auxvar%avgmw(2) = auxvar%xmol(3)*FMWH2O + auxvar%xmol(4)*FMWCO2
     pw = p
-    call EOSWaterDensity(t,pw,dw_kg,dw_mol,ierr) 
-    call EOSWaterEnthalpy(t,pw,hw,ierr) 
+    call EOSWaterDensity(t,pw,dw_kg,dw_mol,ierr)
+    call EOSWaterEnthalpy(t,pw,hw,ierr)
     hw = hw * option%scale ! J/kmol -> whatever units
     auxvar%den(2) = 1.D0/(auxvar%xmol(4)/dg + auxvar%xmol(3)/dw_mol)
-    auxvar%h(2) = hg  
+    auxvar%h(2) = hg
     auxvar%u(2) = hg - p/dg*option%scale
     auxvar%pc(2) = 0.D0
 
@@ -442,20 +442,20 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 !       fluid_properties%diff_base(2)
 
 !   print *,'gas diff: ',fluid_properties%gas_diffusion_coefficient,p,t
-       
-!  z factor    
+
+!  z factor
     auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+273.15D0)*1.D-3)
 
 !***************  Liquid phase properties **************************
- 
-!    avgmw(1)= xmol(1)* FMWH2O + xmol(2) * FMWCO2 
+
+!    avgmw(1)= xmol(1)* FMWH2O + xmol(2) * FMWCO2
     auxvar%h(1) = hw
     auxvar%u(1) = hw - pw/dw_mol*option%scale
 
     auxvar%diff(1:option%nflowspec) = fluid_properties%diffusion_coefficient
   ! fluid_properties%diff_base(1)
 
-  
+
     xm_nacl = m_nacl*FMWNACL
     xm_nacl = xm_nacl/(1.D3 + xm_nacl)
     aux(1) = xm_nacl
@@ -465,8 +465,8 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
 !FEHM mixing ****************************
 !  den(1) = xmol(2)*dg + xmol(1)*dw_mol
-!  ideal mixing    
-!  den(1) = 1.D0/(xmol(2)/dg + xmol(1)/dw_mol) !*c+(1-c)* 
+!  ideal mixing
+!  den(1) = 1.D0/(xmol(2)/dg + xmol(1)/dw_mol) !*c+(1-c)*
 
 !  m_nacl=option%m_nacl
 !  if (reaction%species_idx%na_ion_id /= 0 .and. &
@@ -475,7 +475,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 !    m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
 !    m_nacl = m_na
 !    if (m_cl > m_nacl) m_nacl=m_cl
-!  endif  
+!  endif
 
     y_nacl = m_nacl/(m_nacl + 1.D3/FMWH2O)
 ! **  xmol(1) = xh2o + xnacl
@@ -489,7 +489,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
 #else
   auxvar%den(1) = dw_mol
-#endif 
+#endif
 !print *,'mixture den: ',t,p,auxvar%xmol(2),y_nacl,auxvar%avgmw(1),dw_kg,auxvar%den(1),dw_mol
 
 ! Garcia mixing **************************
@@ -499,22 +499,22 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
   auxvar%den(1) = dw_kg/(1D0-(FMWCO2*1.D-3-dw_kg*vphi) &
        *auxvar%xmol(2)/(auxvar%avgmw(1)*1.D-3))
   auxvar%den(1) = auxvar%den(1)/auxvar%avgmw(1)
-#endif  
-       
+#endif
+
  ! Hebach, J. Chem.Eng.Data 2004 (49),p950 ***********
- !   den(1) = 949.7109D0 + p*(0.559684D-6 - 0.00097D-12*p) &  
- !      + (t+273.15)*(0.883148 - 0.00228*(t+273.15))  
+ !   den(1) = 949.7109D0 + p*(0.559684D-6 - 0.00097D-12*p) &
+ !      + (t+273.15)*(0.883148 - 0.00228*(t+273.15))
  !  den(1) = dw_kg + (den(1)-dw_kg)*xmol(2)/p*henry
  !  den(1) = den(1)/avgmw(1)
 
 !****************************** 2 phase S-Pc-kr relation ************************
     if (option%nphase >= 2) then
-      if (saturation_function%hysteresis_id <= 0.1D0) then 
+      if (saturation_function%hysteresis_id <= 0.1D0) then
         call pckrNH_noderiv(auxvar%sat,auxvar%pc,kr, &
                                    saturation_function, &
                                    option)
         pw=p !-pc(1)
-     
+
       else
         call pckrHY_noderiv(auxvar%sat,auxvar%hysdat,auxvar%pc,kr, &
                                    saturation_function, &
@@ -527,16 +527,16 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 !                                   saturation_function, &
 !                                   por,perm, &
 !                                   option)
-    auxvar%kvr(2) = kr(2)/visg     
+    auxvar%kvr(2) = kr(2)/visg
     auxvar%kvr(1) = kr(1)/visl
-    auxvar%vis(2) = visg     
+    auxvar%vis(2) = visg
     auxvar%vis(1) = visl
     select case(iphase)
       case(1)
         auxvar%pc =0.D0
       case(2)
         auxvar%pc =0.D0
-    end select          
+    end select
 
 end subroutine MphaseAuxVarCompute_NINC
 
@@ -547,10 +547,10 @@ subroutine MphaseAuxVarCompute_WINC(x,delx,auxvar,global_auxvar,iphase,saturatio
 
   use Option_module
   use Global_Aux_module
-  
+
   use Saturation_Function_module
   use Fluid_module
-  
+
   implicit none
 
   type(option_type) :: option
@@ -562,8 +562,8 @@ subroutine MphaseAuxVarCompute_WINC(x,delx,auxvar,global_auxvar,iphase,saturatio
 
   PetscInt :: iphase
 
-  PetscInt :: n 
-  
+  PetscInt :: n
+
   do n=1, option%nflowdof
      xx=x;  xx(n)=x(n)+ delx(n)
 ! ***   note: var_node here starts from 1 to option%flowdof ***
@@ -577,9 +577,9 @@ end subroutine MphaseAuxVarCompute_WINC
 ! ************************************************************************** !
 
 subroutine MphaseAuxVarElemDestroy(auxvar_elem)
-  ! 
+  !
   ! Deallocates a mphase auxiliary elment object
-  ! 
+  !
   implicit none
 
   type(mphase_auxvar_elem_type) :: auxvar_elem
@@ -612,9 +612,9 @@ end subroutine MphaseAuxVarElemDestroy
 ! ************************************************************************** !
 
 subroutine MphaseAuxVarDestroy(auxvar)
-  ! 
+  !
   ! Deallocates a mphase auxiliary object
-  ! 
+  !
   implicit none
 
   type(mphase_auxvar_type) :: auxvar
@@ -626,7 +626,7 @@ subroutine MphaseAuxVarDestroy(auxvar)
 
   ! subtract 1 since indexing from 0
   if (associated(auxvar%auxvar_elem)) then
-    do ielem = 0, size(auxvar%auxvar_elem) - 1 
+    do ielem = 0, size(auxvar%auxvar_elem) - 1
       call MphaseAuxVarElemDestroy(auxvar%auxvar_elem(ielem))
     enddo
     deallocate(auxvar%auxvar_elem)
@@ -638,15 +638,15 @@ end subroutine MphaseAuxVarDestroy
 ! ************************************************************************** !
 
 subroutine MphaseAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a mphase auxiliary object
-  ! 
+  !
   implicit none
 
   type(mphase_type), pointer :: aux
 
   PetscInt :: iaux
-  
+
   if (.not.associated(aux)) return
 
   if (associated(aux%auxvars)) then
@@ -656,7 +656,7 @@ subroutine MphaseAuxDestroy(aux)
     deallocate(aux%auxvars)
     nullify(aux%auxvars)
   endif
-  
+
   if (associated(aux%auxvars_bc)) then
     do iaux = 1, aux%num_aux_bc
       call MphaseAuxVarDestroy(aux%auxvars_bc(iaux))
@@ -664,7 +664,7 @@ subroutine MphaseAuxDestroy(aux)
     deallocate(aux%auxvars_bc)
     nullify(aux%auxvars_bc)
   endif
-  
+
   if (associated(aux%auxvars_ss)) then
     do iaux = 1, aux%num_aux_ss
       call MphaseAuxVarDestroy(aux%auxvars_ss(iaux))
@@ -672,7 +672,7 @@ subroutine MphaseAuxDestroy(aux)
     deallocate(aux%auxvars_ss)
     nullify(aux%auxvars_ss)
   endif
-  
+
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%mphase_parameter)) then
@@ -688,10 +688,10 @@ subroutine MphaseAuxDestroy(aux)
   if (associated(aux%res_old_AR)) deallocate(aux%res_old_AR)
   if (associated(aux%res_old_FL)) deallocate(aux%res_old_FL)
   if (associated(aux%delx)) deallocate(aux%delx)
-  
+
   deallocate(aux)
   nullify(aux)
-  
+
 end subroutine MphaseAuxDestroy
 
 end module Mphase_Aux_module

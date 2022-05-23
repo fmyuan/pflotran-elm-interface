@@ -521,17 +521,23 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
 
   ! compute global max/min from the local max/in
   call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
 end subroutine GridComputeCoordinates
 
@@ -722,7 +728,7 @@ subroutine GridLocalizeRegions(grid,region_list,option)
               call PrintErrMsg(option)
             endif
             allocate(region%faces(size(region%cell_ids)))
-            region%faces = region%iface 
+            region%faces = region%iface
           case(IMPLICIT_UNSTRUCTURED_GRID)
             call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
                                             region%polygonal_volume, &
@@ -761,7 +767,7 @@ subroutine GridLocalizeRegions(grid,region_list,option)
 
     ! check to ensure that there is at least one grid cell in each region
     call MPI_Allreduce(region%num_cells,global_cell_count,ONE_INTEGER_MPI, &
-                       MPI_INTEGER, MPI_SUM, option%mycomm,ierr)
+                       MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     if (global_cell_count == 0) then
       option%io_buffer = 'No cells assigned to REGION "' // &
         trim(region%name) // '".'
@@ -776,17 +782,23 @@ subroutine GridLocalizeRegions(grid,region_list,option)
   if (update_grid_bounds) then
     ! compute global max/min from the local max/in
     call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
   endif
 
 end subroutine GridLocalizeRegions
@@ -832,12 +844,12 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   PetscInt :: istart, iend
   PetscErrorCode :: ierr
 
-  call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DECIDE, &
-                    vec_cell_ids, ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DECIDE, &
-                    vec_cell_ids_loc, ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DECIDE,vec_cell_ids, &
+                    ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DECIDE,vec_cell_ids_loc, &
+                    ierr);CHKERRQ(ierr)
 
-  call VecZeroEntries(vec_cell_ids, ierr);CHKERRQ(ierr)
+  call VecZeroEntries(vec_cell_ids,ierr);CHKERRQ(ierr)
 
   allocate(tmp_int_array(region%num_cells))
   allocate(tmp_scl_array(region%num_cells))
@@ -861,14 +873,14 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
     endif
   enddo
 
-  call VecSetValues(vec_cell_ids, region%num_cells, tmp_int_array, &
-                    tmp_scl_array, ADD_VALUES, ierr);CHKERRQ(ierr)
+  call VecSetValues(vec_cell_ids,region%num_cells,tmp_int_array,tmp_scl_array, &
+                    ADD_VALUES,ierr);CHKERRQ(ierr)
 
   deallocate(tmp_int_array)
   deallocate(tmp_scl_array)
 
-  call VecAssemblyBegin(vec_cell_ids, ierr);CHKERRQ(ierr)
-  call VecAssemblyEnd(vec_cell_ids, ierr);CHKERRQ(ierr)
+  call VecAssemblyBegin(vec_cell_ids,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(vec_cell_ids,ierr);CHKERRQ(ierr)
 
   ! create list of natural ids for local, on-process cells
   allocate(tmp_int_array(grid%nlmax))
@@ -878,9 +890,8 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   enddo
 
   tmp_int_array = tmp_int_array - 1
-  call ISCreateBlock(option%mycomm, 1, grid%nlmax, &
-                     tmp_int_array, PETSC_COPY_VALUES, is_from,  &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,grid%nlmax,tmp_int_array, &
+                     PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
 
   call VecGetOwnershipRange(vec_cell_ids_loc,istart,iend,ierr);CHKERRQ(ierr)
   do ii=1,grid%nlmax
@@ -888,23 +899,22 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   enddo
 
   tmp_int_array = tmp_int_array - 1
-  call ISCreateBlock(option%mycomm, 1, grid%nlmax, &
-                      tmp_int_array, PETSC_COPY_VALUES, is_to,  &
-                     ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,grid%nlmax,tmp_int_array, &
+                     PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
   deallocate(tmp_int_array)
 
-  call VecScatterCreate(vec_cell_ids,is_from,vec_cell_ids_loc,is_to, &
-                        vec_scat, ierr);CHKERRQ(ierr)
-  call ISDestroy(is_from, ierr);CHKERRQ(ierr)
-  call ISDestroy(is_to, ierr);CHKERRQ(ierr)
+  call VecScatterCreate(vec_cell_ids,is_from,vec_cell_ids_loc,is_to,vec_scat, &
+                        ierr);CHKERRQ(ierr)
+  call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
-                       INSERT_VALUES, SCATTER_FORWARD, ierr);CHKERRQ(ierr)
-  call VecScatterEnd(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
-                     INSERT_VALUES, SCATTER_FORWARD, ierr);CHKERRQ(ierr)
-  call VecScatterDestroy(vec_scat, ierr);CHKERRQ(ierr)
+  call VecScatterBegin(vec_scat,vec_cell_ids,vec_cell_ids_loc,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(vec_scat,vec_cell_ids,vec_cell_ids_loc,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(vec_cell_ids_loc, v_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec_cell_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
   count = 0
   setup_faces = PETSC_FALSE
   do local_id=1, grid%nlmax
@@ -1119,9 +1129,9 @@ subroutine GridCopyIntegerArrayToVec(grid, array,vector,num_values)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90( vector,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(1:num_values) = array(1:num_values)
-  call VecRestoreArrayF90( vector,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine GridCopyIntegerArrayToVec
 
@@ -1283,7 +1293,7 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
 
 !  call GridPrintHashTable(grid)
   call MPI_Allreduce(max_num_ids_per_hash,num_in_hash,ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'("max_num_ids_per_hash: ",i5)') num_in_hash
   call PrintMsg(option)
 
@@ -1718,7 +1728,7 @@ function GridIndexToCellID(vec,index,grid,vec_type)
   endif
 
   call MPI_Allreduce(cell_id,GridIndexToCellID,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_MAX,PETSC_COMM_WORLD,ierr)
+                     MPI_MAX,PETSC_COMM_WORLD,ierr);CHKERRQ(ierr)
 
 end function GridIndexToCellID
 
@@ -1950,9 +1960,8 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
       region%num_cells = 0
     endif
     ! the next test as designed will only work on a uniform grid
-    call MPI_Allreduce(region%num_cells,count, &
-                        ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                        option%mycomm,ierr)
+    call MPI_Allreduce(region%num_cells,count,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                       MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     if (count == 0) then
       write(option%io_buffer,*) 'Region: (coord)', &
             region%coordinates(ONE_INTEGER)%x, &
@@ -2163,7 +2172,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
     endif
 
     call MPI_Allreduce(iflag,i,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
     iflag = i
     if (iflag > 0) then
       option%io_buffer = 'GridLocalizeRegions, between two points'
@@ -2299,27 +2308,27 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
                                    grid%unstructured_grid%explicit_grid,&
                                    grid%nG2L, &
                                    option,champion,champion_distance)
-          call MPI_Allreduce(champion_distance,min_distance_global,&
-                     ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MIN,&
-                     option%mycomm,ierr)
+          call MPI_Allreduce(champion_distance,min_distance_global, &
+                             ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MIN, &
+                             option%mycomm,ierr);CHKERRQ(ierr)
           if (champion_distance == min_distance_global) then
             dx = coordinate%x - &
                grid%unstructured_grid%explicit_grid%cell_centroids(champion)%x
           endif
-          call MPI_Allreduce(dx,min_dx,ONE_INTEGER_MPI,&
-                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+          call MPI_Allreduce(dx,min_dx,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                             MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
           if (dx == min_dx) then
             dy = coordinate%y - &
                grid%unstructured_grid%explicit_grid%cell_centroids(champion)%y
           endif
-          call MPI_Allreduce(dy,min_dy,ONE_INTEGER_MPI,&
-                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+          call MPI_Allreduce(dy,min_dy,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                             MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
           if (dy == min_dy) then
             dz = coordinate%z - &
                grid%unstructured_grid%explicit_grid%cell_centroids(champion)%z
           endif
-          call MPI_Allreduce(dz,min_dz,ONE_INTEGER_MPI,&
-                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+          call MPI_Allreduce(dz,min_dz,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                             MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
           if (dz == min_dz) local_id = champion
         endif
       case(POLYHEDRA_UNSTRUCTURED_GRID)

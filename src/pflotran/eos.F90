@@ -614,7 +614,7 @@ subroutine EOSRead(input,option)
             if (OptionIsIORank(option)) then
               call co2_span_wagner_db_write(temparray,subkeyword,option)
             end if
-            call MPI_Barrier(option%mycomm,ierr)
+            call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
             call EOSGasSetEOSDBase(subkeyword,option)
           case('DATABASE')
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -662,14 +662,14 @@ end subroutine EOSRead
 ! **************************************************************************** !
 
 subroutine EOSReferenceDensity(option)
-  ! 
+  !
   ! Calculates reference densities for phases if not specified in input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/08/18
-  ! 
+  !
   use Option_module
-  
+
   implicit none
   type(option_type) :: option
 

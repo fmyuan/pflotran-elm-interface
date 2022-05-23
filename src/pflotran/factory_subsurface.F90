@@ -316,7 +316,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
         call AddPMWippSrcSink(realization,pm_flow,input)
     end select
   endif
- 
+
   call InputDestroy(input)
 
 end subroutine SetupPMCLinkages
@@ -982,7 +982,7 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
     call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
          PMCCastToBase(simulation%flow_process_model_coupler), &
          pmc_dummy,PM_APPEND)
-  endif 
+  endif
 
 end subroutine AddPMCWell
 
@@ -1018,7 +1018,7 @@ subroutine AddPMWippSrcSink(realization,pm_wippflo,input)
 
 end subroutine AddPMWippSrcSink
 ! ************************************************************************** !
-  
+
 subroutine SubsurfInitCommandLineSettings(option)
   !
   ! Initializes PFLTORAN subsurface output
@@ -1493,14 +1493,14 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
               & TYPE GLASS or TYPE FMDM no longer supported.'
             call PrintErrMsg(option)
         end select
-        pm%option => option 
+        pm%option => option
       case('OPTIONS')
         if (.not.associated(pm)) then
           option%io_buffer = 'TYPE keyword must be read first under ' // &
                              trim(error_string)
           call PrintErrMsg(option)
         endif
-        call pm%ReadSimulationOptionsBlock(input)   
+        call pm%ReadSimulationOptionsBlock(input)
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
               ' not recognized for the ' // trim(error_string) // ' block.'
@@ -1761,7 +1761,7 @@ subroutine FactorySubsurfaceReadMTPM(input, option, pm)
 
   pm => PMMaterialTransformCreate()
   pm%option => option
-  
+
   word = ''
   call InputPushBlock(input,option)
   do
@@ -2265,9 +2265,8 @@ subroutine FactorySubsurfaceJumpStart(simulation)
   realization => simulation%realization
   option => realization%option
 
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-vecload_block_size", &
-                           failure, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
 
   if (option%transport%jumpstart_kinetic_sorption .and. &
       option%time < 1.d-40) then

@@ -19,7 +19,7 @@ module HDF5_Aux_module
   PetscMPIInt :: io_rank_mpi
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
-!#define HDF_NATIVE_INTEGER H5T_STD_I64LE  
+!#define HDF_NATIVE_INTEGER H5T_STD_I64LE
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #else
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
@@ -33,54 +33,54 @@ module HDF5_Aux_module
             HDF5OpenFileReadOnly, &
             HDF5GroupOpen, &
             HDF5Init, &
-            HDF5Finalize 
+            HDF5Finalize
 
 contains
 
 ! ************************************************************************** !
 
 subroutine HDF5Init()
-  ! 
+  !
   ! From the HDF5 library documentation:
   !
-  ! When the HDF5 Library is employed in a Fortran90 application, h5open_f 
+  ! When the HDF5 Library is employed in a Fortran90 application, h5open_f
   ! initializes global variables (for example, predefined types) and performs
   ! other tasks required to initialize the HDF5 Fortran Library. h5open_f and
   ! h5close_f are required calls in HDF5 Fortran applications.
-  ! 
+  !
   ! It only needs to be called once, but no damage if more than once
   !
   ! Author: Glenn Hammond
   ! Date: 07/06/20
-  ! 
-  
+  !
+
   integer :: hdf5_err
 
   call h5open_f(hdf5_err)
-  
+
 end subroutine HDF5Init
 
 ! ************************************************************************** !
 
 subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
                                  real_array)
-  ! 
+  !
   ! Read in an n-dimensional array from an hdf5 file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/13/10
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   integer(HID_T) :: file_id
   PetscInt :: ndims
   PetscInt, pointer :: dims(:)
   PetscReal, pointer :: real_array(:)
-  
+
   integer(HID_T) :: file_space_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
@@ -93,14 +93,14 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   PetscInt :: temp_int, i, index
   PetscMPIInt :: int_mpi
   integer :: ndims_hdf5
-  
+
   call PetscLogEventBegin(logging%event_read_ndim_real_array_hdf5, &
                           ierr);CHKERRQ(ierr)
-                          
+
   call h5dopen_f(file_id,dataset_name,data_set_id,hdf5_err)
   call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   ! should be a rank=1 data space
-  
+
   call h5sget_simple_extent_ndims_f(file_space_id,ndims_hdf5,hdf5_err)
   ndims = ndims_hdf5
   allocate(dims_h5(ndims))
@@ -118,7 +118,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   offset = 0
   length = num_reals_in_dataset
   stride = 1
-  
+
   call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err)
@@ -128,7 +128,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   allocate(real_array(num_reals_in_dataset))
   real_array = 0.d0
 #ifdef HDF5_BROADCAST
-  if (OptionIsIORank(option)) then                           
+  if (OptionIsIORank(option)) then
 #endif
     call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
     call h5dread_f(data_set_id,H5T_NATIVE_DOUBLE,real_array,length, &
@@ -138,8 +138,8 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   endif
   if (option%comm%mycommsize > 1) then
     int_mpi = num_reals_in_dataset
-    call MPI_Bcast(real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                   option%io_rank,option%mycomm,ierr)
+    call MPI_Bcast(real_array,int_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+                   option%mycomm,ierr);CHKERRQ(ierr)
   endif
 #endif
 
@@ -147,13 +147,13 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
   call h5dclose_f(data_set_id,hdf5_err)
-  
+
   deallocate(dims_h5)
-  deallocate(max_dims_h5) 
+  deallocate(max_dims_h5)
 
   call PetscLogEventEnd(logging%event_read_ndim_real_array_hdf5, &
                         ierr);CHKERRQ(ierr)
-                          
+
 end subroutine HDF5ReadNDimRealArray
 
 #if defined(PARALLELIO_LIB)
@@ -162,17 +162,17 @@ end subroutine HDF5ReadNDimRealArray
 
 subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 05/13/2010
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
 #if defined(PARALLELIO_LIB)
-  include "piof.h"  
+  include "piof.h"
 #endif
 
   ! in
@@ -180,19 +180,19 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   character(len=MAXSTRINGLENGTH) :: dataset_name
   integer                        :: read_option
   type(option_type)              :: option
-  
+
   ! out
   PetscReal,pointer              :: data(:)
   PetscInt                       :: data_dims(1)
   PetscInt                       :: dataset_dims(1)
-  
+
   ! local
   integer :: file_id
   integer :: ndims
   PetscInt :: ii, remainder
 
   PetscErrorCode :: ierr
-  
+
   ! Open file collectively
   filename = trim(filename) // CHAR(0)
   call parallelIO_open_file(filename, option%ioread_group_id, FILE_READONLY, file_id, ierr)
@@ -204,24 +204,24 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
       filename // ' is not equal to 1.'
     call PrintErrMsg(option)
   endif
-  
+
   ! Get size of each dimension
   call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
-  
+
   data_dims(1) = dataset_dims(1)/option%comm%mycommsize
 
   remainder = dataset_dims(1) - data_dims(1)*option%comm%mycommsize
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
 
-  
+
   allocate(data(data_dims(1)))
-  
+
   !call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
 
   ! Read the dataset collectively
-  call parallelIO_read_dataset( data, PIO_DOUBLE, ndims, dataset_dims, data_dims, & 
+  call parallelIO_read_dataset( data, PIO_DOUBLE, ndims, dataset_dims, data_dims, &
             file_id, dataset_name, option%ioread_group_id, NONUNIFORM_CONTIGUOUS_READ, ierr)
-  
+
   !data_dims(1) = data_dims(1) + data_dims(2)
   !data_dims(2) = data_dims(1) - data_dims(2)
   !data_dims(1) = data_dims(1) - data_dims(2)
@@ -231,27 +231,27 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   !dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
 
   ! Close file
-  call parallelIO_close_file( file_id, option%ioread_group_id, ierr)  
+  call parallelIO_close_file( file_id, option%ioread_group_id, ierr)
 
 end subroutine HDF5ReadDatasetReal1D
 
-#endif 
+#endif
 ! PARALLELIO_LIB
 
 ! ************************************************************************** !
 
 subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
-  ! 
+  !
   ! Opens an HDF5 group with proper error messaging when not found.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/28/18
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   integer(HID_T) :: parent_id
   character(len=*) :: group_name
   integer(HID_T) :: group_id
@@ -272,26 +272,26 @@ end subroutine HDF5GroupOpen
 ! ************************************************************************** !
 
 function HDF5GroupExists(filename,group_name,option)
-  ! 
+  !
   ! Returns true if a group exists
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/26/2012
-  ! 
+  !
   use Option_module
-  
+
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: group_name
   type(option_type) :: option
 
-  integer(HID_T) :: file_id  
-  integer(HID_T) :: grp_id  
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
   integer(HID_T) :: prop_id
-  PetscMPIInt, parameter :: ON=1, OFF=0 
+  PetscMPIInt, parameter :: ON=1, OFF=0
   PetscBool :: group_exists
-  
+
   PetscBool :: HDF5GroupExists
 
   ! set read file access property
@@ -310,11 +310,11 @@ function HDF5GroupExists(filename,group_name,option)
   call h5eset_auto_f(OFF,hdf5_err)
   call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
   group_exists = .not.(hdf5_err < 0)
-  call h5eset_auto_f(ON,hdf5_err)  
+  call h5eset_auto_f(ON,hdf5_err)
 
   if (group_exists) then
     HDF5GroupExists = PETSC_TRUE
-    call h5gclose_f(grp_id,hdf5_err)  
+    call h5gclose_f(grp_id,hdf5_err)
     option%io_buffer = 'Group "' // trim(group_name) // '" in HDF5 file "' // &
       trim(filename) // '" found in file.'
   else
@@ -403,26 +403,26 @@ end function HDF5DatasetExists
 ! ************************************************************************** !
 
 subroutine HDF5MakeStringCompatible(name)
-  ! 
+  !
   ! Replaces '/' in string with '_' for hdf5 names
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
   implicit none
-  
+
   character(len=*) :: name
-  
+
   PetscInt :: len, ichar
-  
+
   len = len_trim(name)
   do ichar = 1, len
     if (name(ichar:ichar) == '/') then
       name(ichar:ichar) = '_'
     endif
   enddo
-  
+
   name = trim(name)
 
 end subroutine HDF5MakeStringCompatible
@@ -430,26 +430,26 @@ end subroutine HDF5MakeStringCompatible
 ! ************************************************************************** !
 
 subroutine HDF5ReadDbase(filename,option)
-  ! 
+  !
   ! Read in an ASCII database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module, only : dbase
   use h5lt
-  
+
   implicit none
-  
+
   character(len=*) :: filename
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH), allocatable :: wbuffer(:)
   character(len=MAXWORDLENGTH) :: wbuffer_word
   PetscReal, allocatable :: rbuffer(:)
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, allocatable :: ibuffer(:)
   PetscInt :: dummy_int
@@ -560,7 +560,7 @@ subroutine HDF5ReadDbase(filename,option)
     call h5gget_obj_info_idx_f(file_id,'.',i_object,object_name, &
                                object_type,hdf5_err)
     if (object_type == H5G_DATASET_F) then
-! use once HDF5 lite is linked in PETSc      
+! use once HDF5 lite is linked in PETSc
 !      call h5ltget_dataset_info_f(file_id,object_name,dims,dummy_int, &
 !                                  type_size,hdf5_err)
 !      allocate(buffer(dims(1)))
@@ -612,7 +612,7 @@ subroutine HDF5ReadDbase(filename,option)
       call h5tget_class_f(datatype_id, class_id, hdf5_err)
       call h5tclose_f(datatype_id, hdf5_err)
 #ifdef HDF5_BROADCAST
-      if (OptionIsIORank(option)) then                           
+      if (OptionIsIORank(option)) then
 #endif
       call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
       if (class_id == H5T_INTEGER_F) then
@@ -643,15 +643,15 @@ subroutine HDF5ReadDbase(filename,option)
       if (option%comm%mycommsize > 1) then
         int_mpi = num_values_in_dataset
         if (class_id == H5T_INTEGER_F) then
-          call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER, &
-                         option%io_rank,option%mycomm,ierr)
+          call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER,option%io_rank, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
         else if (class_id == H5T_FLOAT_F) then
-          call MPI_Bcast(rbuffer,int_mpi,MPI_DOUBLE_PRECISION, &
-                         option%io_rank,option%mycomm,ierr)
+          call MPI_Bcast(rbuffer,int_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
         else if (class_id == H5T_STRING_F) then
           int_mpi = MAXWORDLENGTH
-          call MPI_Bcast(wbuffer_word,int_mpi,MPI_CHARACTER, &
-                         option%io_rank,option%mycomm,ierr)
+          call MPI_Bcast(wbuffer_word,int_mpi,MPI_CHARACTER,option%io_rank, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
         endif
       endif
 #endif
@@ -679,34 +679,34 @@ subroutine HDF5ReadDbase(filename,option)
     endif
   enddo
   call h5fclose_f(file_id,hdf5_err)
-      
+
 end subroutine HDF5ReadDbase
 
 ! ************************************************************************** !
 
 subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,error_string,option)
-  ! 
+  !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/22/15
-  ! 
+  !
   use Option_module
-  
+
   character(len=*) :: filename  ! must be of variable length
   integer(HID_T) :: file_id
   integer(HID_T) :: prop_id
   character(len=*) :: error_string
   type(option_type) :: option
-  
+
   PetscMPIInt, parameter :: ON=1, OFF=0
   integer :: hdf5_err
 
   call h5eset_auto_f(OFF, hdf5_err)
   call h5fopen_f(filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
   if (hdf5_err /= 0) then
-    option%io_buffer = 'HDF5 ' 
+    option%io_buffer = 'HDF5 '
     if (len_trim(error_string) > 0) then
       option%io_buffer = trim(error_string)
     else
@@ -715,21 +715,21 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,error_string,option)
     call PrintErrMsg(option)
   endif
   call h5eset_auto_f(ON, hdf5_err)
-  
+
 end subroutine HDF5OpenFileReadOnly
 
 ! ************************************************************************** !
 
 subroutine HDF5Finalize()
-  ! 
+  !
   ! Closes the HDF5 library interface for Fortran.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/06/20
-  ! 
-  
+  !
+
   call h5close_f(hdf5_err)
-  
+
 end subroutine HDF5Finalize
 
 end module HDF5_Aux_module

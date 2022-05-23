@@ -235,8 +235,9 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call TSGetConvergedReason(solver%ts,ts_reason,ierr);CHKERRQ(ierr)
   call TSGetTime(solver%ts,time,ierr);CHKERRQ(ierr)
   call TSGetTimeStep(solver%ts,dtime,ierr);CHKERRQ(ierr)
-  call TSGetSNESIterations(solver%ts,num_newton_iterations,ierr)
-  call TSGetKSPIterations(solver%ts,num_linear_iterations,ierr)
+  call TSGetSNESIterations(solver%ts,num_newton_iterations, &
+                           ierr);CHKERRQ(ierr)
+  call TSGetKSPIterations(solver%ts,num_linear_iterations,ierr);CHKERRQ(ierr)
 
   this%num_newton_iterations = num_newton_iterations
   this%cumulative_newton_iterations = this%cumulative_newton_iterations + this%num_newton_iterations
@@ -250,7 +251,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   endif
 
   call TSGetRHSFunction(solver%ts,residual_vec,PETSC_NULL_FUNCTION, &
-                       PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
 
@@ -392,7 +393,7 @@ subroutine TimestepperTSRegisterHeader(this,bag,header)
 
   ! bagsize = 2 * 8 bytes = 16 bytes
   call PetscBagRegisterReal(bag,header%dt_max_allowable,0.d0, &
-                           "dt_max_allowable","",ierr);CHKERRQ(ierr)
+                            "dt_max_allowable","",ierr);CHKERRQ(ierr)
 
   call TimestepperBaseRegisterHeader(this,bag,header)
 

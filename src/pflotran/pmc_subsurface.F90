@@ -262,8 +262,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
       if (solver%snes_type == SNESNEWTONLS) then
         ! by default turn off line search
-        call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-        call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
+        call SNESGetLineSearch(solver%snes,linesearch,ierr);CHKERRQ(ierr)
+        call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
                                    ierr);CHKERRQ(ierr)
       endif
 
@@ -284,28 +284,22 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       ! preconditioner is intended only for the flow
       ! solver.  --RTM
       if (pm%realization%discretization%itype == STRUCTURED_GRID) then
-        call PCSetDM(solver%pc, &
-                     pm%realization%discretization%dm_nflowdof%dm, &
+        call PCSetDM(solver%pc,pm%realization%discretization%dm_nflowdof%dm, &
                      ierr);CHKERRQ(ierr)
       endif
 
-      call SNESSetConvergenceTest(solver%snes, &
-                                  PMCheckConvergencePtr, &
-                                  this%pm_ptr, &
-                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+      call SNESSetConvergenceTest(solver%snes,PMCheckConvergencePtr, &
+                                  this%pm_ptr,PETSC_NULL_FUNCTION, &
+                                  ierr);CHKERRQ(ierr)
 
       if (pm%check_post_convergence) then
         select case(solver%snes_type)
           case(SNESNEWTONTR)
-            call SNESNewtonTRSetPostCheck(solver%snes, &
-                                          PMCheckUpdatePostTRPtr, &
-                                          this%pm_ptr, &
-                                          ierr);CHKERRQ(ierr)
+            call SNESNewtonTRSetPostCheck(solver%snes,PMCheckUpdatePostTRPtr, &
+                                          this%pm_ptr,ierr);CHKERRQ(ierr)
           case(SNESNEWTONLS)
-            call SNESLineSearchSetPostCheck(linesearch, &
-                                            PMCheckUpdatePostPtr, &
-                                            this%pm_ptr, &
-                                            ierr);CHKERRQ(ierr)
+            call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
+                                            this%pm_ptr,ierr);CHKERRQ(ierr)
         end select
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
@@ -335,15 +329,11 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       if (add_pre_check) then
         select case(solver%snes_type)
           case(SNESNEWTONTR)
-            call SNESNewtonTRSetPreCheck(solver%snes, &
-                                         PMCheckUpdatePreTRPtr, &
-                                         this%pm_ptr, &
-                                         ierr);CHKERRQ(ierr)
+            call SNESNewtonTRSetPreCheck(solver%snes,PMCheckUpdatePreTRPtr, &
+                                         this%pm_ptr,ierr);CHKERRQ(ierr)
           case(SNESNEWTONLS)
-            call SNESLineSearchSetPreCheck(linesearch, &
-                                           PMCheckUpdatePrePtr, &
-                                           this%pm_ptr, &
-                                           ierr);CHKERRQ(ierr)
+            call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
+                                           this%pm_ptr,ierr);CHKERRQ(ierr)
         end select
       endif
 
@@ -432,18 +422,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     if (transport_coupling == GLOBAL_IMPLICIT) then
 
       if (solver%M_mat_type == MATMFFD) then
-        call MatCreateSNESMF(solver%snes,solver%M, &
-                             ierr);CHKERRQ(ierr)
+        call MatCreateSNESMF(solver%snes,solver%M,ierr);CHKERRQ(ierr)
       endif
 
       ! this could be changed in the future if there is a way to
       ! ensure that the linesearch update does not perturb
       ! concentrations negative.
       if (solver%snes_type == SNESNEWTONLS) then
-        call SNESGetLineSearch(solver%snes, linesearch, &
-                              ierr);CHKERRQ(ierr)
-        call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                                    ierr);CHKERRQ(ierr)
+        call SNESGetLineSearch(solver%snes,linesearch,ierr);CHKERRQ(ierr)
+        call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
+                                   ierr);CHKERRQ(ierr)
       else
         option%io_buffer = 'Only SNES_TYPE LineSearch is supported &
           &for transport'
@@ -454,26 +442,23 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       ! verbosity > 0.
       if (option%verbosity >= 2) then
         string = '-tran_snes_view'
-        call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                      string, ierr);CHKERRQ(ierr)
+        call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                      ierr);CHKERRQ(ierr)
       endif
 
     endif
 
     if (transport_coupling == GLOBAL_IMPLICIT) then
-      call SNESSetConvergenceTest(solver%snes, &
-                                  PMCheckConvergencePtr, &
-                                  this%pm_ptr, &
-                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+      call SNESSetConvergenceTest(solver%snes,PMCheckConvergencePtr, &
+                                  this%pm_ptr,PETSC_NULL_FUNCTION, &
+                                  ierr);CHKERRQ(ierr)
     endif
     if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
         check_post_convergence) then
       select case(solver%snes_type)
         case(SNESNEWTONLS)
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                          PMCheckUpdatePostPtr, &
-                                          this%pm_ptr, &
-                                          ierr);CHKERRQ(ierr)
+          call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
+                                          this%pm_ptr,ierr);CHKERRQ(ierr)
       end select
       if (this%pm_ptr%pm%print_EKG) then
         check_post_convergence = PETSC_TRUE
@@ -482,10 +467,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     if (check_update) then
       select case(solver%snes_type)
         case(SNESNEWTONLS)
-          call SNESLineSearchSetPreCheck(linesearch, &
-                                         PMCheckUpdatePrePtr, &
-                                         this%pm_ptr, &
-                                         ierr);CHKERRQ(ierr)
+          call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
+                                         this%pm_ptr,ierr);CHKERRQ(ierr)
       end select
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")
@@ -493,17 +476,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   endif
 
 
-  call SNESSetFunction(solver%snes, &
-                       this%pm_ptr%pm%residual_vec, &
-                       PMResidualPtr, &
-                       this%pm_ptr, &
-                       ierr);CHKERRQ(ierr)
-  call SNESSetJacobian(solver%snes, &
-                       solver%M, &
-                       solver%Mpre, &
-                       PMJacobianPtr, &
-                       this%pm_ptr, &
-                       ierr);CHKERRQ(ierr)
+  call SNESSetFunction(solver%snes,this%pm_ptr%pm%residual_vec,PMResidualPtr, &
+                       this%pm_ptr,ierr);CHKERRQ(ierr)
+  call SNESSetJacobian(solver%snes,solver%M,solver%Mpre,PMJacobianPtr, &
+                       this%pm_ptr,ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
 
 end subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES
@@ -547,10 +523,9 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
 
   call SolverCreateTS(solver,option%mycomm)
 
-  call TSSetEquationType(solver%ts,TS_EQ_IMPLICIT, &
-                        ierr);CHKERRQ(ierr)
+  call TSSetEquationType(solver%ts,TS_EQ_IMPLICIT,ierr);CHKERRQ(ierr)
 
-  call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
+  call TSSetType(solver%ts,TSBEULER,ierr);CHKERRQ(ierr)
 
   select type(pm => this%pm_ptr%pm)
 
@@ -575,7 +550,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
           end select
         endif
 
-        call TSSetOptionsPrefix(solver%ts, "flow_",ierr);CHKERRQ(ierr)
+        call TSSetOptionsPrefix(solver%ts,"flow_",ierr);CHKERRQ(ierr)
         call TSSetFromOptions(solver%ts,ierr);CHKERRQ(ierr)
 
         call SolverCheckCommandLine(solver)
@@ -594,27 +569,19 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
           solver%M = solver%Mpre
         endif
 
-      call TSSetIFunction(solver%ts, &
-                          this%pm_ptr%pm%residual_vec, &
-                          PMIFunctionPtr, &
-                          this%pm_ptr, &
-                          ierr);CHKERRQ(ierr)
+      call TSSetIFunction(solver%ts,this%pm_ptr%pm%residual_vec, &
+                          PMIFunctionPtr,this%pm_ptr,ierr);CHKERRQ(ierr)
 
-      call TSSetIJacobian(solver%ts, &
-                          solver%M, &
-                          solver%Mpre, &
-                          PMIJacobianPtr, &
-                          this%pm_ptr, &
-                          ierr);CHKERRQ(ierr)
+      call TSSetIJacobian(solver%ts,solver%M,solver%Mpre,PMIJacobianPtr, &
+                          this%pm_ptr,ierr);CHKERRQ(ierr)
 
-      call TSGetSNES(solver%ts,solver%snes,ierr); CHKERRQ(ierr)
+      call TSGetSNES(solver%ts,solver%snes,ierr);CHKERRQ(ierr)
       call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
       call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
 
-      call SNESSetConvergenceTest(solver%snes, &
-                                  PMCheckConvergencePtr, &
-                                  this%pm_ptr, &
-                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+      call SNESSetConvergenceTest(solver%snes,PMCheckConvergencePtr, &
+                                  this%pm_ptr,PETSC_NULL_FUNCTION, &
+                                  ierr);CHKERRQ(ierr)
 
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
       call SolverSetSNESOptions(solver,option)
@@ -711,9 +678,9 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
         if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p, &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(subsurf_field%work_loc,work_loc_p,  &
+          call VecGetArrayF90(subsurf_field%work_loc,work_loc_p, &
                               ierr);CHKERRQ(ierr)
 
           do local_id = 1, subsurf_grid%nlmax
@@ -721,10 +688,10 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
             work_loc_p(ghosted_id) = sim_por_p(local_id)
           enddo
 
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p,  &
-                              ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p, &
+                                  ierr);CHKERRQ(ierr)
 
           call DiscretizationLocalToGlobal(pmc%realization%discretization, &
                                           subsurf_field%work_loc, &
@@ -732,9 +699,10 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
                                           ONEDOF)
 #ifdef GEOMECH_DEBUG
           call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
-                                    'porosity_geomech_store.out', &
-                                    viewer,ierr);CHKERRQ(ierr)
-          call VecView(subsurf_field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
+                                    'porosity_geomech_store.out',viewer, &
+                                    ierr);CHKERRQ(ierr)
+          call VecView(subsurf_field%porosity_geomech_store,viewer, &
+                       ierr);CHKERRQ(ierr)
           call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
@@ -825,11 +793,11 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 
 
         ! Extract pressure, temperature and porosity from subsurface realization
-        call VecGetArrayF90(subsurf_field%flow_xx_loc, xx_loc_p,  &
+        call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_pres, pres_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_temp, temp_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                             ierr);CHKERRQ(ierr)
 
         do local_id = 1, subsurf_grid%nlmax
@@ -846,18 +814,18 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           endif
         enddo
 
-        call VecRestoreArrayF90(subsurf_field%flow_xx_loc, xx_loc_p,  &
+        call VecRestoreArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres, pres_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp, temp_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                                 ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
           material_auxvars => pmc%realization%patch%aux%Material%auxvars
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
+          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &
                               ierr);CHKERRQ(ierr)
 
           ghosted_id = subsurf_grid%nL2G(1)
@@ -870,9 +838,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             sim_perm0_p(local_id) = &
               material_auxvars(ghosted_id)%permeability(perm_xx_index)
           enddo
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &
                                   ierr);CHKERRQ(ierr)
         endif
     end select

@@ -1416,19 +1416,19 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
       nx_local = grid%structured_grid%nlx-1
     endif
     call MPI_Allreduce(nx_local,i,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
     if (i == 0) trick_flux_vel_x = PETSC_TRUE
     if (grid%structured_grid%gye-grid%structured_grid%lye == 0) then
       ny_local = grid%structured_grid%nly-1
     endif
     call MPI_Allreduce(ny_local,j,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
     if (j == 0) trick_flux_vel_y = PETSC_TRUE
     if (grid%structured_grid%gze-grid%structured_grid%lze == 0) then
       nz_local = grid%structured_grid%nlz-1
     endif
     call MPI_Allreduce(nz_local,k,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN, &
-                       option%mycomm,ierr)
+                       option%mycomm,ierr);CHKERRQ(ierr)
     if (k == 0) trick_flux_vel_z = PETSC_TRUE
   endif
 
@@ -1725,8 +1725,8 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(2) = istart
   start(1) = 0
@@ -1790,9 +1790,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
                            NATURAL,option)
   call OutputGetCellVertices(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = grid%unstructured_grid%nlmax
@@ -1828,8 +1828,8 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(2) = istart
   start(1) = 0
@@ -2010,8 +2010,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   istart = 0
   !geh: cannot use dims(1) in MPI_Allreduce as it causes errors on
   !     Juqueen
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(2) = istart
   start(1) = 0
@@ -2066,9 +2066,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
                            NATURAL,option)
   call OutputGetCellVertices(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = grid%unstructured_grid%nlmax
@@ -2086,8 +2086,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   !geh: cannot use dims(1) in MPI_Allreduce as it causes errors on
   !     Juqueen
-  call MPI_Allreduce(vert_count,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(vert_count,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                     option%mycomm,ierr);CHKERRQ(ierr)
   dims(1) = temp_int
   realization_base%output_option%xmf_vert_len=int(dims(1))
 
@@ -2113,8 +2113,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(vert_count, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(vert_count,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
   start(1) = istart
   length(1) = vert_count
@@ -2174,14 +2174,11 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call UGridDMDestroy(ugdm_element)
 
   ! Cell center X/Y/Z
-  call VecCreateMPI(option%mycomm,grid%nlmax, &
-                    PETSC_DETERMINE, &
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DETERMINE, &
                     global_x_cell_vec,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,grid%nlmax, &
-                    PETSC_DETERMINE, &
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DETERMINE, &
                     global_y_cell_vec,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,grid%nlmax, &
-                    PETSC_DETERMINE, &
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DETERMINE, &
                     global_z_cell_vec,ierr);CHKERRQ(ierr)
 
   call OutputGetCellCoordinates(grid, global_x_cell_vec,X_COORDINATE)
@@ -2254,8 +2251,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
   start(1) = istart
   length(1) = local_size
 
@@ -2310,8 +2307,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
   start(1) = istart
   length(1) = local_size
 
@@ -2366,8 +2363,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
   start(1) = istart
   length(1) = local_size
 
@@ -2450,9 +2447,9 @@ subroutine DetermineNumVertices(realization_base,option)
                            NATURAL,option)
   call OutputGetCellVertices(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   local_size = grid%unstructured_grid%nlmax
 
@@ -2464,8 +2461,8 @@ subroutine DetermineNumVertices(realization_base,option)
   vert_count=vert_count+grid%nlmax
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call MPI_Allreduce(vert_count,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(vert_count,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                     option%mycomm,ierr);CHKERRQ(ierr)
   realization_base%output_option%xmf_vert_len=temp_int
 
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
@@ -2626,8 +2623,8 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   local_size = grid%unstructured_grid%explicit_grid%num_elems
 
   call VecCreate(PETSC_COMM_SELF,natural_vec,ierr);CHKERRQ(ierr)
-  call VecSetSizes(natural_vec,local_size*EIGHT_INTEGER, &
-                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
+  call VecSetSizes(natural_vec,local_size*EIGHT_INTEGER,PETSC_DECIDE, &
+                   ierr);CHKERRQ(ierr)
   call VecSetBlockSize(natural_vec,EIGHT_INTEGER,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(natural_vec,ierr);CHKERRQ(ierr)
 
@@ -2918,8 +2915,8 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     call h5pclose_f(prop_id,hdf5_err)
 
     istart = 0
-    call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+    call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    option%mycomm,ierr);CHKERRQ(ierr)
 
     start(2) = istart
     start(1) = 0
@@ -3149,8 +3146,8 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
       call h5pclose_f(prop_id,hdf5_err)
 
       istart = 0
-      call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                    MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+      call MPI_Exscan(local_size,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                      option%mycomm,ierr);CHKERRQ(ierr)
 
       start(2) = istart
       start(1) = 0

@@ -5,11 +5,11 @@
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   save
 
   private
-  
+
   PetscInt :: nptab,nttab0,ncrit_pts
   PetscInt, allocatable :: nttab(:),ncrit(:)
   PetscReal, allocatable :: p_tab(:),t_tab(:,:),r_tab(:,:), &
@@ -17,35 +17,35 @@
                          rr(:,:),hh(:,:),uu(:,:),ss(:,:),ff(:,:)
   PetscReal, allocatable :: tcrit(:),pcrit(:),rhol(:),ul(:),hl(:),sl(:), &
                          rhov(:),hv(:),uv(:),sv(:),fv(:)
-  
+
   public sw_spline_read, sw_prop
-  
+
   contains
 subroutine sw_spline_read
 
   use spline_module
 
   PetscInt :: i,ipx,j,n,iunit=9
-  
+
   open (unit=iunit,file='co2_prop_TC.dat',status='old')
-  
+
   read(iunit,*) nptab
-  
+
   allocate(p_tab(nptab))
   allocate(nttab(nptab))
   allocate(ncrit(nptab))
 
   read(iunit,*) (p_tab(i),i=1,nptab)
-  
+
   read(iunit,*) (nttab(i),i=1,nptab)
-  
+
 ! read: t, rho, h,u,f,s
   nttab0 = 1
   do i=1,nptab
     nttab0 = max(nttab0,nttab(i))
   enddo
   print *,'nttab0=',nttab0
-  
+
   allocate(t_tab(nptab,nttab0))
   allocate(r_tab(nptab,nttab0))
   allocate(h_tab(nptab,nttab0))
@@ -62,7 +62,7 @@ subroutine sw_spline_read
     read(iunit,*) (t_tab(i,j),j=1,nttab(i))
   enddo
 ! print *,'finished reading t'
-  
+
   do i=1,nptab
     read(iunit,*) (r_tab(i,j),j=1,nttab(i))
   enddo
@@ -82,11 +82,11 @@ subroutine sw_spline_read
     read(iunit,*) (f_tab(i,j),j=1,nttab(i))
   enddo
 ! print *,'finished reading f'
-  
+
   read(iunit,*) (ncrit(i),i=1,nptab)
   read(iunit,*) ncrit_pts
 ! print *,'ncrit_pts=',ncrit_pts
-  
+
   allocate(tcrit(ncrit_pts))
   allocate(pcrit(ncrit_pts))
   allocate(rhol(ncrit_pts))
@@ -124,7 +124,7 @@ end subroutine sw_spline_read
 ! ************************************************************************** !
 
 subroutine sw_prop(tx,px,rho,h,u,fg)
-      
+
        use spline_module
 
 !     density of liquid or vapor co2.
@@ -160,7 +160,7 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
               jpx = jpx+1
               call splint(t_tab(ipx,ncrit(ipx):nttab(ipx)),r_tab(ipx,ncrit(ipx):nttab(ipx)), &
                 rr(ipx,ncrit(ipx):nttab(ipx)),n,tkx,rtab(jpx))
- 
+
               call splint(t_tab(ipx,ncrit(ipx):nttab(ipx)),h_tab(ipx,ncrit(ipx):nttab(ipx)), &
                 hh(ipx,ncrit(ipx):nttab(ipx)),n,tkx,htab(jpx))
 
@@ -178,16 +178,16 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
 
 #if 0
 ! Density
-          call spline(p_tab,rtab,nptab,rtab2)   
+          call spline(p_tab,rtab,nptab,rtab2)
           call splint(p_tab,rtab,rtab2,nptab,px,rho)
 ! H
-          call spline(p_tab,htab,nptab,htab2)   
+          call spline(p_tab,htab,nptab,htab2)
           call splint(p_tab,htab,htab2,nptab,px,h)
 ! U
-          call spline(p_tab,utab,nptab,utab2)   
+          call spline(p_tab,utab,nptab,utab2)
           call splint(p_tab,utab,utab2,nptab,px,u)
 ! fg
-          call spline(p_tab,fgtab,nptab,fgtab2)   
+          call spline(p_tab,fgtab,nptab,fgtab2)
           call splint(p_tab,fgtab,fgtab2,nptab,px,fg)
 #endif
 
@@ -203,5 +203,5 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
 !************************************************************************************
     return
 end subroutine sw_prop
-    
+
 end module co2_span_wagner_spline_module

@@ -568,9 +568,8 @@ subroutine PMZFlowResidual(this,snes,xx,r,ierr)
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
   ! calculate residual
   if (zflow_simult_function_evals) then
-    call SNESGetJacobian(snes,M,PETSC_NULL_MAT, &
-                         PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
-                         ierr);CHKERRQ(ierr)
+    call SNESGetJacobian(snes,M,PETSC_NULL_MAT,PETSC_NULL_FUNCTION, &
+                         PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
     call ZFlowResidual(snes,xx,r,M,this%realization,ierr)
   else
     call ZFlowResidual(snes,xx,r,PETSC_NULL_MAT,this%realization,ierr)
@@ -957,11 +956,12 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   this%convergence_reals(MAX_RES_SOL_EQ) = max_abs_res_sol_
 
   int_mpi = size(this%convergence_flags)
-  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi, &
-                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   int_mpi = size(this%convergence_reals)
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_reals,int_mpi, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   ! these conditionals cannot change order
   reason_string = '---| '
@@ -1121,7 +1121,8 @@ subroutine PMZFlowMaxChange(this)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
     call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+                        ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
       change = dabs(vec_new_ptr(j)-vec_old_ptr(j))
@@ -1134,8 +1135,8 @@ subroutine PMZFlowMaxChange(this)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
   i = size(max_change_global)
-  call MPI_Allreduce(MPI_IN_PLACE,max_change_global,i, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,max_change_global,i,MPI_DOUBLE_PRECISION, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
 
   fids = OptionGetFIDs(option)
   ivar = 1

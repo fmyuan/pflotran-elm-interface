@@ -13,11 +13,11 @@ module Geomechanics_Patch_module
   use Geomechanics_Auxiliary_module
   use Dataset_Base_class
   use PFLOTRAN_Constants_module
-  
+
   implicit none
-  
+
   private
-  
+
   type, public :: geomech_patch_type
     PetscInt :: id
     PetscInt, pointer :: imat(:)
@@ -50,70 +50,70 @@ contains
 ! ************************************************************************** !
 
 function GeomechanicsPatchCreate()
-  ! 
+  !
   ! Allocates and initializes a new geomechanics
   ! patch object
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   implicit none
-  
+
   type(geomech_patch_type), pointer :: GeomechanicsPatchCreate
   type(geomech_patch_type), pointer :: patch
-  
+
   allocate(patch)
-  
+
   patch%id = 0
   nullify(patch%imat)
   nullify(patch%geomech_grid)
-  
+
   allocate(patch%geomech_boundary_condition_list)
   call GeomechCouplerInitList(patch%geomech_boundary_condition_list)
   allocate(patch%geomech_source_sink_list)
-  call GeomechCouplerInitList(patch%geomech_source_sink_list)  
-  
+  call GeomechCouplerInitList(patch%geomech_source_sink_list)
+
   nullify(patch%geomech_material_properties)
   nullify(patch%geomech_material_property_array)
-  
+
   allocate(patch%geomech_strata_list)
   call GeomechStrataInitList(patch%geomech_strata_list)
 
   allocate(patch%geomech_region_list)
   call GeomechRegionInitList(patch%geomech_region_list)
-  
+
   call GeomechAuxInit(patch%geomech_aux)
-  
+
   nullify(patch%geomech_field)
   nullify(patch%geomech_datasets)
-  
+
   GeomechanicsPatchCreate => patch
-  
+
 end function GeomechanicsPatchCreate
 
 ! ************************************************************************** !
 
 subroutine GeomechPatchLocalizeRegions(geomech_patch,regions,option)
-  ! 
+  !
   ! Localizes regions within each patch
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   use Option_module
   use Geomechanics_Region_module
 
   implicit none
-  
+
   type(geomech_patch_type) :: geomech_patch
   type(gm_region_list_type) :: regions
   type(option_type) :: option
-  
+
   type(gm_region_type), pointer :: cur_region
   type(gm_region_type), pointer :: patch_region
-  
+
   cur_region => regions%first
   do
     if (.not.associated(cur_region)) exit
@@ -121,43 +121,43 @@ subroutine GeomechPatchLocalizeRegions(geomech_patch,regions,option)
     call GeomechRegionAddToList(patch_region,geomech_patch%geomech_region_list)
     cur_region => cur_region%next
   enddo
-  
- ! Need a call to a subroutine similar to GridlocalizeRegions 
+
+ ! Need a call to a subroutine similar to GridlocalizeRegions
  ! call GridLocalizeRegions(patch%grid,patch%region_list,option)
   call GeomechGridLocalizeRegions(geomech_patch%geomech_grid, &
                                   geomech_patch%geomech_region_list, &
                                   option)
- 
+
 end subroutine GeomechPatchLocalizeRegions
 
 ! ************************************************************************** !
 
 subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
-  ! 
+  !
   ! Assigns conditions and regions to couplers
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   use Option_module
   use Geomechanics_Material_module
   use Geomechanics_Condition_module
-  
+
   implicit none
-  
+
   type(geomech_patch_type) :: patch
   type(geomech_condition_list_type) :: conditions
   type(option_type) :: option
-  
+
   type(geomech_coupler_type), pointer :: coupler
-  type(geomech_coupler_list_type), pointer :: coupler_list 
+  type(geomech_coupler_list_type), pointer :: coupler_list
   type(geomech_strata_type), pointer :: strata
  ! type(geomech_observation_type), pointer :: observation, &
  !                                                     next_observation
-  
+
   PetscInt :: temp_int, isub
-  
+
   ! boundary conditions
   coupler => patch%geomech_boundary_condition_list%first
   do
@@ -216,7 +216,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
       call PrintErrMsg(option)
     endif
     ! pointer to geomech condition
-    if (option%ngeomechdof > 0) then    
+    if (option%ngeomechdof > 0) then
       if (len_trim(coupler%geomech_condition_name) > 0) then
         coupler%geomech_condition => &
           GeomechConditionGetPtrFromList(coupler%geomech_condition_name, &
@@ -239,9 +239,9 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
     coupler => coupler%next
   enddo
 
-!----------------------------  
-! AUX  
-    
+!----------------------------
+! AUX
+
   ! strata
   ! connect pointers from strata to regions
   strata => patch%geomech_strata_list%first
@@ -294,7 +294,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
                    trim(observation%linkage_name) // &
                  '" in observation point "' // &
                  trim(observation%name) // &
-                 '" not found in region list'                   
+                 '" not found in region list'
           call PrintErrMsg(option)
         endif
         if (observation%region%num_cells == 0) then
@@ -317,34 +317,34 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
           ! across all procs
           ! therefore, just nullify connection set
           nullify(observation%connection_set)
-        endif                                      
+        endif
     end select
     observation => next_observation
   enddo
 #endif
- 
+
 end subroutine GeomechPatchProcessGeomechCouplers
 
 ! ************************************************************************** !
 
 subroutine GeomechPatchInitAllCouplerAuxVars(patch,option)
-  ! 
+  !
   ! Initializes coupler auxillary variables
   ! within list
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   type(geomech_patch_type), pointer :: patch
   type(option_type) :: option
-  
+
   PetscBool :: force_update_flag = PETSC_TRUE
-  
+
   call GeomechPatchInitCouplerAuxVars(patch%geomech_boundary_condition_list, &
                                       patch, &
                                       option)
@@ -358,37 +358,37 @@ end subroutine GeomechPatchInitAllCouplerAuxVars
 ! ************************************************************************** !
 
 subroutine GeomechPatchInitCouplerAuxVars(coupler_list,patch,option)
-  ! 
+  !
   ! Initializes coupler auxillary variables
   ! within list
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Option_module
   use Geomechanics_Global_Aux_module
   use Geomechanics_Condition_module
-  
+
   implicit none
-  
+
   type(geomech_coupler_list_type), pointer :: coupler_list
   type(geomech_patch_type), pointer :: patch
   type(option_type) :: option
-  
+
   PetscInt :: num_verts
   PetscBool :: force_update_flag
-  
+
   type(geomech_coupler_type), pointer :: coupler
   PetscInt :: idof
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   if (.not.associated(coupler_list)) return
-    
+
   coupler => coupler_list%first
   do
     if (.not.associated(coupler)) exit
-    
+
     if (associated(coupler%region)) then
       num_verts = coupler%region%num_verts
       if (associated(coupler%geomech_condition) .and. &
@@ -410,28 +410,28 @@ subroutine GeomechPatchInitCouplerAuxVars(coupler_list,patch,option)
         call PrintErrMsg(option)
       endif ! coupler%itype == GM_SRC_SINK_COUPLER_TYPE
     endif ! associated(coupler%region)
-      
+
     coupler => coupler%next
-    
+
   enddo
-  
+
 end subroutine GeomechPatchInitCouplerAuxVars
 
 ! ************************************************************************** !
 
 subroutine GeomechPatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
-  ! 
+  !
   ! Updates auxiliary variables associated
   ! with couplers in list
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   type(geomech_patch_type) :: patch
   PetscBool :: force_update_flag
   type(option_type) :: option
@@ -450,42 +450,42 @@ end subroutine GeomechPatchUpdateAllCouplerAuxVars
 
 subroutine GeomechPatchUpdateCouplerAuxVars(patch,coupler_list, &
                                             force_update_flag,option)
-  ! 
+  !
   ! Updates auxiliary variables associated
   ! with couplers in list
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
-                                     
+  !
+
   use Option_module
   use Geomechanics_Condition_module
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
 
   implicit none
-  
+
   type(geomech_patch_type) :: patch
   type(geomech_coupler_list_type), pointer :: coupler_list
   PetscBool :: force_update_flag
   type(option_type) :: option
-  
+
   type(geomech_coupler_type), pointer :: coupler
   type(geomech_condition_type), pointer :: geomech_condition
   PetscBool :: update
   character(len=MAXSTRINGLENGTH) :: string,string2
   PetscErrorCode :: ierr
-  
+
   PetscInt :: idof,num_verts
   PetscInt :: ivertex,local_id,ghosted_id
-  
+
 
   if (.not.associated(coupler_list)) return
- 
+
   coupler => coupler_list%first
-    
+
   do
-    if (.not.associated(coupler)) exit    
+    if (.not.associated(coupler)) exit
     if (associated(coupler%geomech_aux_real_var)) then
       num_verts = coupler%region%num_verts
       geomech_condition => coupler%geomech_condition
@@ -538,7 +538,7 @@ subroutine GeomechPatchUpdateCouplerAuxVars(patch,coupler_list, &
                                            1:num_verts) = &
               geomech_condition%force_z%dataset%rarray(1)
           end select
-        endif        
+        endif
       endif
     endif
 
@@ -551,13 +551,13 @@ end subroutine GeomechPatchUpdateCouplerAuxVars
 
 subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
                                   vec,ivar,isubvar,isubvar1)
-  ! 
+  !
   ! Extracts variables indexed by ivar and isubvar
   ! from a geomechanics patch
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 07/02/13
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -574,7 +574,7 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(geomech_field_type), pointer :: geomech_field
-  type(geomech_patch_type), pointer :: patch  
+  type(geomech_patch_type), pointer :: patch
   Vec :: vec
   PetscInt :: ivar
   PetscInt :: isubvar
@@ -589,9 +589,9 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   grid => patch%geomech_grid
 
   call GeomechGridVecGetArrayF90(grid,vec,vec_ptr,ierr)
-  
+
   iphase = 1
-  
+
   select case(ivar)
     case(GEOMECH_DISP_X)
       do local_id=1,grid%nlmax_node
@@ -716,19 +716,19 @@ end subroutine GeomechPatchGetDataset
 ! ************************************************************************** !
 
 subroutine GeomechanicsPatchDestroy(geomech_patch)
-  ! 
+  !
   ! Destroys a new geomechanics patch  object
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
-  ! 
+  !
 
   implicit none
-  
+
   type(geomech_patch_type), pointer :: geomech_patch
   if (associated(geomech_patch%imat)) deallocate(geomech_patch%imat)
   nullify(geomech_patch%imat)
-  
+
   if (associated(geomech_patch%geomech_material_property_array)) &
     deallocate(geomech_patch%geomech_material_property_array)
   nullify(geomech_patch%geomech_material_property_array)
@@ -736,13 +736,13 @@ subroutine GeomechanicsPatchDestroy(geomech_patch)
 
   call GeomechStrataDestroyList(geomech_patch%geomech_strata_list)
   call GeomechRegionDestroyList(geomech_patch%geomech_region_list)
-  
+
   call GeomechCouplerDestroyList(geomech_patch%geomech_boundary_condition_list)
   call GeomechCouplerDestroyList(geomech_patch%geomech_source_sink_list)
-  
+
   nullify(geomech_patch%geomech_field)
   nullify(geomech_patch%geomech_datasets)
-  
+
   call GeomechAuxDestroy(geomech_patch%geomech_aux)
 
   deallocate(geomech_patch)

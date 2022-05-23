@@ -6,8 +6,8 @@ module WIPP_Flow_Aux_module
   use Matrix_Zeroing_module
 
   implicit none
-  
-  private 
+
+  private
 
   PetscReal, public :: wippflo_sat_rel_pert = 1.d-8
   PetscReal, public :: wippflo_pres_rel_pert = 1.d-8
@@ -52,17 +52,17 @@ module WIPP_Flow_Aux_module
   ! debugging
   PetscInt, public :: wippflo_ni_count
   PetscInt, public :: wippflo_ts_cut_count
-  PetscInt, public :: wippflo_ts_count 
+  PetscInt, public :: wippflo_ts_count
 
   !TODO(geh): hardwire gas to H2
   PetscReal, public :: fmw_comp(2) = [FMWH2O,2.01588d0]
 
   PetscInt, parameter, public :: WIPPFLO_LIQUID_PRESSURE_DOF = 1
   PetscInt, parameter, public :: WIPPFLO_GAS_SATURATION_DOF = 2
-  
+
   PetscInt, parameter, public :: WIPPFLO_LIQUID_EQUATION_INDEX = 1
   PetscInt, parameter, public :: WIPPFLO_GAS_EQUATION_INDEX = 2
-  
+
   PetscInt, parameter, public :: WIPPFLO_STATE_INDEX = 1
   PetscInt, parameter, public :: WIPPFLO_LIQUID_PRESSURE_INDEX = 1
   PetscInt, parameter, public :: WIPPFLO_GAS_SATURATION_INDEX = 2
@@ -71,20 +71,20 @@ module WIPP_Flow_Aux_module
   PetscInt, parameter, public :: WIPPFLO_LIQUID_CONDUCTANCE_INDEX = 5
   PetscInt, parameter, public :: WIPPFLO_GAS_CONDUCTANCE_INDEX = 6
   PetscInt, parameter, public :: WIPPFLO_MAX_INDEX = 6
-  
+
   PetscInt, parameter, public :: WIPPFLO_UPDATE_FOR_DERIVATIVE = -1
   PetscInt, parameter, public :: WIPPFLO_UPDATE_FOR_FIXED_ACCUM = 0
   PetscInt, parameter, public :: WIPPFLO_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: WIPPFLO_UPDATE_FOR_BOUNDARY = 2
-  
+
   PetscReal, parameter, public :: WIPPFLO_PRESSURE_SCALE = 1.d0
 
   ! these variables, which are global to general, can be modified
   PetscInt, public :: dof_to_primary_variable(2)
-  
+
   ! radiolysis
   PetscBool, public :: wippflo_radiolysis = PETSC_FALSE
-  
+
   type, public :: wippflo_auxvar_type
     PetscReal :: pres(6)   ! (iphase)
     PetscReal :: sat(2)    ! (iphase)
@@ -103,11 +103,11 @@ module WIPP_Flow_Aux_module
     PetscReal :: fracture_perm_scaling_factor
     PetscReal :: klinkenberg_scaling_factor(3)
   end type wippflo_auxvar_type
-  
+
   type, public :: wippflo_parameter_type
     PetscBool :: check_post_converged
   end type wippflo_parameter_type
-  
+
   type, public :: wippflo_type
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
@@ -124,7 +124,7 @@ module WIPP_Flow_Aux_module
     module procedure WIPPFloAuxVarArray1Destroy
     module procedure WIPPFloAuxVarArray2Destroy
   end interface WIPPFloAuxVarDestroy
-  
+
   interface WIPPFloOutputAuxVars
     module procedure WIPPFloOutputAuxVars1
     module procedure WIPPFloOutputAuxVars2
@@ -134,7 +134,7 @@ module WIPP_Flow_Aux_module
     module procedure WIPPFloConvertUnitsToBRAGFloRes
     module procedure WIPPFloConvertUnitsToBRAGFloJac
   end interface WIPPFloConvertUnitsToBRAGFlo
-  
+
   public :: WIPPFloAuxCreate, &
             WIPPFloAuxDestroy, &
             WIPPFloAuxVarCompute, &
@@ -153,28 +153,28 @@ contains
 ! ************************************************************************** !
 
 function WIPPFloAuxCreate(option)
-  ! 
+  !
   ! Allocate and initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
 
   implicit none
 
   type(option_type) :: option
-    
+
   type(wippflo_type), pointer :: WIPPFloAuxCreate
-  
+
   type(wippflo_type), pointer :: aux
 
   dof_to_primary_variable(1:2) = &
     reshape([WIPPFLO_LIQUID_PRESSURE_INDEX, WIPPFLO_GAS_SATURATION_INDEX], &
              shape(dof_to_primary_variable))
-  
-  allocate(aux) 
+
+  allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
@@ -187,25 +187,25 @@ function WIPPFloAuxCreate(option)
 
   allocate(aux%wippflo_parameter)
   aux%wippflo_parameter%check_post_converged = PETSC_FALSE
-  
+
   WIPPFloAuxCreate => aux
-  
+
 end function WIPPFloAuxCreate
 
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxVarInit(auxvar,option)
-  ! 
+  !
   ! Initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(wippflo_auxvar_type) :: auxvar
   type(option_type) :: option
 
@@ -216,7 +216,7 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%elevation = 0.d0
   auxvar%fracture_perm_scaling_factor = 1.d0
   auxvar%klinkenberg_scaling_factor = 1.d0
-  
+
   auxvar%xmol = 0.d0
   auxvar%xmol(1,1) = 1.d0
   auxvar%xmol(2,2) = 1.d0
@@ -227,23 +227,23 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%mobility = 0.d0
   auxvar%kr = 0.d0
   auxvar%mu = 0.d0
-  
+
 end subroutine WIPPFloAuxVarInit
 
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxVarCopy(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies an auxiliary variable
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(wippflo_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
@@ -267,12 +267,12 @@ end subroutine WIPPFloAuxVarCopy
 subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
                                 material_auxvar,characteristic_curves, &
                                 natural_id,option)
-  ! 
+  !
   ! Computes auxiliary variables for each grid cell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
   use Global_Aux_module
@@ -348,20 +348,20 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
     if (option%flow%creep_closure_on .and. wippflo_use_creep_closure) then
       creep_closure => wipp%creep_closure_tables_array( &
                                          material_auxvar%creep_closure_id )%ptr
-                         
+
       if (associated(creep_closure)) then
-      
+
         ! option%time here is the t time, not t + dt time.
         creep_closure_time = option%time
         if (option%iflag /= WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
           creep_closure_time = creep_closure_time + option%flow_dt
         endif
         if (cell_pressure > creep_closure%shutdown_pressure) then
-          ! Temporary shutdown of creep closure: 
+          ! Temporary shutdown of creep closure:
           ! In BRAGFLO, it defaults to doing soil compressibility.
           ! Load in the old eff. porosity as reference porosity from last NI:
           material_auxvar%porosity_base = prev_effective_porosity
-          ! In material_auxvar, the soil reference pressure should already be 
+          ! In material_auxvar, the soil reference pressure should already be
           ! loaded with the old pressure from last NI.
           call MaterialCompressSoil(material_auxvar,cell_pressure, &
                                     wippflo_auxvar%effective_porosity,dummy)
@@ -376,23 +376,23 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
           call MaterialAuxVarSetValue(material_auxvar, &
                                       SOIL_REFERENCE_PRESSURE,cell_pressure)
         endif
-                  
+
       else if (associated(material_auxvar%fracture) .and. &
-               wippflo_use_fracture) then               
+               wippflo_use_fracture) then
           call FracturePoroEvaluate(material_auxvar,cell_pressure, &
-                                    wippflo_auxvar%effective_porosity,dummy)                                 
-      else if (soil_compressibility_index > 0) then      
+                                    wippflo_auxvar%effective_porosity,dummy)
+      else if (soil_compressibility_index > 0) then
           call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                    wippflo_auxvar%effective_porosity,dummy)                                    
-      endif      
+                                    wippflo_auxvar%effective_porosity,dummy)
+      endif
     else if (associated(material_auxvar%fracture) .and. &
-             wippflo_use_fracture) then             
+             wippflo_use_fracture) then
       call FracturePoroEvaluate(material_auxvar,cell_pressure, &
-                                wippflo_auxvar%effective_porosity,dummy)                                
-    else if (soil_compressibility_index > 0) then    
+                                wippflo_auxvar%effective_porosity,dummy)
+    else if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                wippflo_auxvar%effective_porosity,dummy)                                
-    endif    
+                                wippflo_auxvar%effective_porosity,dummy)
+    endif
     if (option%iflag /= WIPPFLO_UPDATE_FOR_DERIVATIVE) then
       ! this needs to be set for proper output
       material_auxvar%porosity = wippflo_auxvar%effective_porosity
@@ -406,7 +406,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
                            wippflo_auxvar%effective_porosity, &
                            wippflo_auxvar%fracture_perm_scaling_factor)
   endif
-  ! According to the order of operations (PTHRESH/RELPERM prior to ROCKCOMP) 
+  ! According to the order of operations (PTHRESH/RELPERM prior to ROCKCOMP)
   ! in PROPS1 in BRAGFLO, fracture has no impact on PTHRESH perm. Thus, the
   ! permeability used in characteristic curves is unmodified.
   perm_for_cc = material_auxvar%permeability(perm_xx_index)
@@ -422,15 +422,15 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
     end select
     call characteristic_curves%saturation_function% &
           CapillaryPressure(wippflo_auxvar%sat(lid),wippflo_auxvar%pres(cpid), &
-                            dummy,option)                             
+                            dummy,option)
   else
     call WIPPCharacteristicCurves(wippflo_auxvar%sat,perm_for_cc, &
                                 characteristic_curves%saturation_function, &
                                 characteristic_curves%liq_rel_perm_function, &
                                 characteristic_curves%gas_rel_perm_function, &
                                 wippflo_auxvar%pres(cpid),krl,krg,option)
-  endif                                
- 
+  endif
+
   wippflo_auxvar%pres(gid) = wippflo_auxvar%pres(lid) + &
                              wippflo_auxvar%pres(cpid)
 
@@ -444,7 +444,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
                                wippflo_auxvar%pres(gid), &
                                wippflo_auxvar%klinkenberg_scaling_factor)
       endif
-    else  
+    else
       call klinkenberg%Scale(material_auxvar%permeability, &
                              wippflo_auxvar%pres(gid), &
                              wippflo_auxvar%klinkenberg_scaling_factor)
@@ -480,7 +480,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   wippflo_auxvar%den(gid) = den_water_vapor + den_air
   wippflo_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*fmw_comp(gid)
   den_water_vapor = 0.d0
-  
+
   ! Liquid Phase
   if (.not.wippflo_use_bragflo_cc) then
   call characteristic_curves%liq_rel_perm_function% &
@@ -512,7 +512,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
           RelativePermeability(wippflo_auxvar%sat(lid),krg,dummy,option)
   endif
   ! STOMP uses separate functions for calculating viscosity of vapor and
-  ! and air (WATGSV,AIRGSV) and then uses GASVIS to calculate mixture 
+  ! and air (WATGSV,AIRGSV) and then uses GASVIS to calculate mixture
   ! viscosity.
   call EOSGasViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(gid), &
                         wippflo_auxvar%pres(gid),den_air,visg,ierr)
@@ -528,12 +528,12 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
                                 material_auxvar, &
                                 characteristic_curves,natural_id, &
                                 option)
-  ! 
+  !
   ! Calculates auxiliary variables for perturbed system
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Option_module
   use Characteristic_Curves_module
@@ -548,7 +548,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
-     
+
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
                pert(option%nflowdof), x_pert_save(option%nflowdof)
 
@@ -596,7 +596,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
       pert(WIPPFLO_GAS_SATURATION_DOF) = perturbation_tolerance
     endif
   endif
-  
+
   ! WIPPFLO_UPDATE_FOR_DERIVATIVE indicates call from perturbation
   option%iflag = WIPPFLO_UPDATE_FOR_DERIVATIVE
   do idof = 1, option%nflowdof
@@ -611,18 +611,18 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
 
   wippflo_auxvar(WIPPFLO_LIQUID_PRESSURE_DOF)%pert = &
     wippflo_auxvar(WIPPFLO_LIQUID_PRESSURE_DOF)%pert / WIPPFLO_PRESSURE_SCALE
-  
+
 end subroutine WIPPFloAuxVarPerturb
 
 ! ************************************************************************** !
 
 subroutine WIPPFloScalePerm(wippflo_auxvar,material_auxvar,perm,ivar)
-  ! 
+  !
   ! Scales the permeability by fracture and Klinkenbert (gas only)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/29/17
-  ! 
+  !
   use Material_Aux_module
   use Variables_module, only : GAS_PERMEABILITY, GAS_PERMEABILITY_X, &
                                GAS_PERMEABILITY_Y, GAS_PERMEABILITY_Z
@@ -654,12 +654,12 @@ end subroutine WIPPFloScalePerm
 
 subroutine WIPPFloPrintAuxVars(wippflo_auxvar,global_auxvar,material_auxvar, &
                                natural_id,string,option)
-  ! 
+  !
   ! Prints out the contents of an auxvar
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Global_Aux_module
   use Material_Aux_module
@@ -697,9 +697,9 @@ subroutine WIPPFloPrintAuxVars(wippflo_auxvar,global_auxvar,material_auxvar, &
   gas_density = wippflo_auxvar%den(gid)
   liquid_saturation = wippflo_auxvar%sat(lid)
   gas_saturation = wippflo_auxvar%sat(gid)
-  liquid_mass = (liquid_density*liquid_saturation)* & 
+  liquid_mass = (liquid_density*liquid_saturation)* &
                 wippflo_auxvar%effective_porosity*material_auxvar%volume
-  gas_mass = (gas_density*gas_saturation)* & 
+  gas_mass = (gas_density*gas_saturation)* &
               wippflo_auxvar%effective_porosity*material_auxvar%volume
   print *, 'tot liq comp mass [kmol]: ', liquid_mass
   print *, 'tot gas comp mass [kmol]: ', gas_mass
@@ -729,12 +729,12 @@ end subroutine WIPPFloPrintAuxVars
 
 subroutine WIPPFloOutputAuxVars1(wippflo_auxvar,global_auxvar,material_auxvar, &
                                  natural_id,string,append,option)
-  ! 
+  !
   ! Prints out the contents of an auxvar to a file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Global_Aux_module
   use Material_Aux_module
@@ -782,9 +782,9 @@ subroutine WIPPFloOutputAuxVars1(wippflo_auxvar,global_auxvar,material_auxvar, &
   gas_density = wippflo_auxvar%den(gid)
   liquid_saturation = wippflo_auxvar%sat(lid)
   gas_saturation = wippflo_auxvar%sat(gid)
-  liquid_mass = (liquid_density*liquid_saturation)* & 
+  liquid_mass = (liquid_density*liquid_saturation)* &
                  wippflo_auxvar%effective_porosity*material_auxvar%volume
-  gas_mass = (gas_density*gas_saturation)* & 
+  gas_mass = (gas_density*gas_saturation)* &
               wippflo_auxvar%effective_porosity*material_auxvar%volume
   write(86,*) 'tot liq comp mass [kmol]: ', liquid_mass
   write(86,*) 'tot gas comp mass [kmol]: ', gas_mass
@@ -821,7 +821,7 @@ subroutine WIPPFloOutputAuxVars1(wippflo_auxvar,global_auxvar,material_auxvar, &
   write(86,*) wippflo_auxvar%mobility(gid)
   write(86,*) wippflo_auxvar%effective_porosity
   write(86,*) '--------------------------------------------------------'
-  
+
   close(86)
 
 end subroutine WIPPFloOutputAuxVars1
@@ -829,12 +829,12 @@ end subroutine WIPPFloOutputAuxVars1
 ! ************************************************************************** !
 
 subroutine WIPPFloOutputAuxVars2(wippflo_auxvars,global_auxvars,option)
-  ! 
+  !
   ! Prints out the contents of an auxvar to a file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   use Global_Aux_module
   use Option_module
@@ -856,11 +856,11 @@ subroutine WIPPFloOutputAuxVars2(wippflo_auxvars,global_auxvars,option)
 
   string = 'wippflo_auxvar.txt'
   open(unit=86,file=string)
-  
+
   n = size(global_auxvars)
 
 100 format(a,100('','',i9))
-  
+
   write(86,'(a,100('','',i9))') '             cell id: ', &
     ((i,i=1,n),idof=0,2)
   write(86,'(a,100('','',i2))') '                idof: ', &
@@ -898,7 +898,7 @@ subroutine WIPPFloOutputAuxVars2(wippflo_auxvars,global_auxvars,option)
     ((wippflo_auxvars(idof,i)%mu(gid),i=1,n),idof=0,2)
   write(86,100) '   effective porosity: ', &
     ((wippflo_auxvars(idof,i)%effective_porosity,i=1,n),idof=0,2)
-  
+
   close(86)
 
 end subroutine WIPPFloOutputAuxVars2
@@ -906,105 +906,105 @@ end subroutine WIPPFloOutputAuxVars2
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxVarSingleDestroy(auxvar)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   implicit none
 
   type(wippflo_auxvar_type), pointer :: auxvar
-  
+
   if (associated(auxvar)) then
     call WIPPFloAuxVarStrip(auxvar)
     deallocate(auxvar)
   endif
-  nullify(auxvar)  
+  nullify(auxvar)
 
 end subroutine WIPPFloAuxVarSingleDestroy
 
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxVarArray1Destroy(auxvars)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   implicit none
 
   type(wippflo_auxvar_type), pointer :: auxvars(:)
-  
+
   PetscInt :: iaux
-  
+
   if (associated(auxvars)) then
     do iaux = 1, size(auxvars)
       call WIPPFloAuxVarStrip(auxvars(iaux))
-    enddo  
+    enddo
     deallocate(auxvars)
   endif
-  nullify(auxvars)  
+  nullify(auxvars)
 
 end subroutine WIPPFloAuxVarArray1Destroy
 
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxVarArray2Destroy(auxvars)
-  ! 
+  !
   ! Deallocates a mode auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
 
   implicit none
 
   type(wippflo_auxvar_type), pointer :: auxvars(:,:)
-  
+
   PetscInt :: iaux, idof
-  
+
   if (associated(auxvars)) then
     do iaux = 1, size(auxvars,2)
       do idof = 1, size(auxvars,1)
         call WIPPFloAuxVarStrip(auxvars(idof-1,iaux))
       enddo
-    enddo  
+    enddo
     deallocate(auxvars)
   endif
-  nullify(auxvars)  
+  nullify(auxvars)
 
 end subroutine WIPPFloAuxVarArray2Destroy
 
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxVarStrip(auxvar)
-  ! 
+  !
   ! WIPPFloAuxVarDestroy: Deallocates a general auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   type(wippflo_auxvar_type) :: auxvar
-  
+
 end subroutine WIPPFloAuxVarStrip
 
 ! ************************************************************************** !
 
 subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
-  ! 
+  !
   ! Converts units of residual from kmol/sec to kg/m^3 bulk (BRAGFLO units)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/16/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
 
@@ -1023,13 +1023,13 @@ end subroutine WIPPFloConvertUnitsToBRAGFloRes
 ! ************************************************************************** !
 
 subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
-  ! 
+  !
   ! Converts units of residual from kmol/sec/(dof units) to
   ! kg/m^3 bulk/(dof units) (BRAGFLO units)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/16/17
-  ! 
+  !
   use Option_module
   use Material_Aux_module
 
@@ -1053,20 +1053,20 @@ end subroutine WIPPFloConvertUnitsToBRAGFloJac
 ! ************************************************************************** !
 
 subroutine WIPPFloAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a general auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/11/17
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   type(wippflo_type), pointer :: aux
-  
+
   if (.not.associated(aux)) return
-  
+
   call WIPPFloAuxVarDestroy(aux%auxvars)
   call WIPPFloAuxVarDestroy(aux%auxvars_bc)
   call WIPPFloAuxVarDestroy(aux%auxvars_ss)
@@ -1076,10 +1076,10 @@ subroutine WIPPFloAuxDestroy(aux)
   if (associated(aux%wippflo_parameter)) then
   endif
   nullify(aux%wippflo_parameter)
-  
+
   deallocate(aux)
   nullify(aux)
-  
+
 end subroutine WIPPFloAuxDestroy
 
 end module WIPP_Flow_Aux_module

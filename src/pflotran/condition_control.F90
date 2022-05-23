@@ -103,7 +103,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
       case(WF_MODE)
 
-        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
         xx_p = UNINITIALIZED_DOUBLE
 
@@ -127,12 +127,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                 endif
               class is(dataset_common_hdf5_type)
                 dataset_flag(idof) = PETSC_TRUE
-                call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+                call VecRestoreArrayF90(field%flow_xx,xx_p, &
+                                        ierr);CHKERRQ(ierr)
                 call ConditionControlMapDatasetToVec(realization, &
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
-                call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+                call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
             end select
           enddo
 
@@ -212,11 +213,11 @@ subroutine CondControlAssignFlowInitCond(realization)
           initial_condition => initial_condition%next
         enddo
 
-        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
       case(G_MODE) ! general phase mode
 
-        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
         xx_p = UNINITIALIZED_DOUBLE
 
@@ -366,11 +367,11 @@ subroutine CondControlAssignFlowInitCond(realization)
           initial_condition => initial_condition%next
         enddo
 
-        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
       case(H_MODE)
 
-        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
         xx_p = UNINITIALIZED_DOUBLE
 
@@ -599,11 +600,11 @@ subroutine CondControlAssignFlowInitCond(realization)
           initial_condition => initial_condition%next
         enddo
 
-        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
       case default
         ! assign initial conditions values to domain
-        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
         xx_p = UNINITIALIZED_DOUBLE
 
@@ -627,12 +628,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                 endif
               class is(dataset_common_hdf5_type)
                 dataset_flag(idof) = PETSC_TRUE
-                call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+                call VecRestoreArrayF90(field%flow_xx,xx_p, &
+                                        ierr);CHKERRQ(ierr)
                 call ConditionControlMapDatasetToVec(realization, &
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
-                call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+                call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
             end select
           enddo
           if (.not.associated(initial_condition%flow_aux_real_var) .and. &
@@ -679,7 +681,7 @@ subroutine CondControlAssignFlowInitCond(realization)
           enddo
           initial_condition => initial_condition%next
         enddo
-        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
     end select
 
@@ -696,7 +698,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
                                    field%flow_xx_loc,NFLOWDOF)
 
-  call VecCopy(field%flow_xx, field%flow_yy, ierr);CHKERRQ(ierr)
+  call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
   ! cannot perform VecMin on local vector as the ghosted corner values are not
   ! updated during the local to local update.
@@ -807,7 +809,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     select case(option%iflowmode)
       case(MPH_MODE)
-        call VecGetArrayF90(field%flow_xx,flow_xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     end select
 
     xx_p = UNINITIALIZED_DOUBLE
@@ -853,8 +855,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
                           string,option)
             if (vec1_loc == PETSC_NULL_VEC) then
               ! cannot use field%work_loc as it is used within ConditionCo...
-              call VecDuplicate(field%work_loc,vec1_loc, &
-                                ierr);CHKERRQ(ierr)
+              call VecDuplicate(field%work_loc,vec1_loc,ierr);CHKERRQ(ierr)
             endif
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
@@ -883,13 +884,13 @@ subroutine CondControlAssignRTTranInitCond(realization)
                           string,option)
             if (vec1_loc == PETSC_NULL_VEC) then
               ! cannot use field%work_loc as it is used within ConditionCo...
-              call VecDuplicate(field%work_loc,vec1_loc, &
-                                ierr);CHKERRQ(ierr)
+              call VecDuplicate(field%work_loc,vec1_loc,ierr);CHKERRQ(ierr)
             endif
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
                                                  vec1_loc,LOCAL)
-            call VecScale(vec1_loc,constraint%minerals% &
+            call VecScale(vec1_loc, &
+                          constraint%minerals% &
                             constraint_area_conv_factor(imnrl), &
                           ierr);CHKERRQ(ierr)
             if (constraint%minerals%area_per_unit_mass(imnrl)) then
@@ -900,23 +901,22 @@ subroutine CondControlAssignRTTranInitCond(realization)
                                 constraint_vol_frac_string(imnrl), &
                               string,option)
                 if (vec2_loc == PETSC_NULL_VEC) then
-                  call VecDuplicate(vec1_loc,vec2_loc, &
-                                    ierr);CHKERRQ(ierr)
+                  call VecDuplicate(vec1_loc,vec2_loc,ierr);CHKERRQ(ierr)
                 endif
                 idof = ONE_INTEGER
                 call ConditionControlMapDatasetToVec(realization,dataset, &
                                                      idof,vec2_loc,LOCAL)
-                call VecPointwiseMult(vec1_loc,vec1_loc, &
-                                      vec2_loc,ierr);CHKERRQ(ierr)
+                call VecPointwiseMult(vec1_loc,vec1_loc,vec2_loc, &
+                                      ierr);CHKERRQ(ierr)
               else
                 call VecScale(vec1_loc, &
-                              constraint%minerals% &
-                                constraint_vol_frac(imnrl), &
+                              constraint%minerals%constraint_vol_frac(imnrl), &
                               ierr);CHKERRQ(ierr)
               endif
               call DiscretizationLocalToGlobal(discretization,vec1_loc, &
                                                field%work,ONEDOF)
-              call VecMin(field%work,PETSC_NULL_INTEGER,tempreal,ierr)
+              call VecMin(field%work,PETSC_NULL_INTEGER,tempreal, &
+                          ierr);CHKERRQ(ierr)
               if (tempreal < epsilon) then
                 option%io_buffer = 'A zero volume fraction assigned to &
                   &mineral "' // &
@@ -950,8 +950,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
                 string,option)
             if (vec1_loc == PETSC_NULL_VEC) then
               ! cannot use field%work_loc as it is used within ConditionCo...
-              call VecDuplicate(field%work_loc,vec1_loc, &
-                                ierr);CHKERRQ(ierr)
+              call VecDuplicate(field%work_loc,vec1_loc,ierr);CHKERRQ(ierr)
             endif
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
@@ -1116,7 +1115,8 @@ subroutine CondControlAssignRTTranInitCond(realization)
       enddo ! icell=1,initial_condition%region%num_cells
       if (use_aq_dataset) then
         call PetscTime(tend,ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%tran_xx_loc,xx_loc_p, &
+                                ierr);CHKERRQ(ierr)
         ave_num_iterations = ave_num_iterations / &
           initial_condition%region%num_cells
         write(option%io_buffer,&
@@ -1130,10 +1130,10 @@ subroutine CondControlAssignRTTranInitCond(realization)
       initial_condition => initial_condition%next
     enddo
 
-    call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     select case(option%iflowmode)
       case(MPH_MODE)
-        call VecRestoreArrayF90(field%flow_xx,flow_xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     end select
 
     cur_patch => cur_patch%next
@@ -1182,7 +1182,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
-  call VecCopy(field%tran_xx, field%tran_yy, ierr);CHKERRQ(ierr)
+  call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
 
   ! override initial conditions if they are to be read from a file
   if (len_trim(option%initialize_transport_filename) > 1) then
@@ -1332,7 +1332,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
       initial_condition => initial_condition%next
     enddo
 
-    call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
     cur_patch => cur_patch%next
   enddo
@@ -1373,7 +1373,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
-  call VecCopy(field%tran_xx, field%tran_yy, ierr);CHKERRQ(ierr)
+  call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
 
   ! override initial conditions if they are to be read from a file
   if (len_trim(option%initialize_transport_filename) > 1) then
@@ -1440,14 +1440,14 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
                                           string,string2, &
                                           dataset%realization_dependent)
         if (vec_type == GLOBAL) then
-          call VecStrideScatter(field%work,idof-1,mdof_vec, &
-                                INSERT_VALUES,ierr);CHKERRQ(ierr)
+          call VecStrideScatter(field%work,idof-1,mdof_vec,INSERT_VALUES, &
+                                ierr);CHKERRQ(ierr)
         else
           call DiscretizationGlobalToLocal(realization%discretization, &
                                            field%work, &
                                            field%work_loc,ONEDOF)
-          call VecStrideScatter(field%work_loc,idof-1,mdof_vec, &
-                                INSERT_VALUES,ierr);CHKERRQ(ierr)
+          call VecStrideScatter(field%work_loc,idof-1,mdof_vec,INSERT_VALUES, &
+                                ierr);CHKERRQ(ierr)
         endif
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // &
@@ -1597,7 +1597,7 @@ subroutine CondControlScaleSourceSink(realization)
       scale = 1.d0/scale
       call VecScale(field%work,scale,ierr);CHKERRQ(ierr)
 
-      call VecGetArrayF90(field%work,vec_ptr, ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
@@ -1671,7 +1671,7 @@ subroutine CondControlReadTransportIC(realization,filename)
     grid => cur_patch%grid
 
       ! assign initial conditions values to domain
-    call VecGetArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
     ! Primary species concentrations for all modes
     do idof = 1, option%ntrandof ! primary aqueous concentrations
@@ -1698,7 +1698,7 @@ subroutine CondControlReadTransportIC(realization,filename)
 
     enddo
 
-    call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
     cur_patch => cur_patch%next
   enddo
@@ -1706,7 +1706,7 @@ subroutine CondControlReadTransportIC(realization,filename)
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
-  call VecCopy(field%tran_xx, field%tran_yy, ierr);CHKERRQ(ierr)
+  call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
 
 end subroutine CondControlReadTransportIC
 

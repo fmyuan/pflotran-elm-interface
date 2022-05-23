@@ -19,7 +19,7 @@ module Connection_module
     PetscInt, pointer :: id_dn2(:)     ! list of ids of 2nd downwind cells
     PetscReal, pointer :: dist(:,:)    ! list of distance vectors, size(-1:3,num_connections) where
                                        !   -1 = fraction upwind
-                                       !   0 = magnitude of distance 
+                                       !   0 = magnitude of distance
                                        !   1-3 = components of unit vector
     PetscReal, pointer :: intercp(:,:) ! x,y,z location of intercept between the line connecting
                                        ! upwind and downwind cells with the face shared by the cells
@@ -33,15 +33,15 @@ module Connection_module
   ! pointer data structure required for making an array of region pointers in F90
   type, public :: connection_set_ptr_type
     type(connection_set_type), pointer :: ptr           ! pointer to the connection_set_type
-  end type connection_set_ptr_type 
-  
+  end type connection_set_ptr_type
+
   type, public :: connection_set_list_type
     PetscInt :: num_connection_objects
     type(connection_set_type), pointer :: first
     type(connection_set_type), pointer :: last
     type(connection_set_ptr_type), pointer :: array(:)
   end type connection_set_list_type
-  
+
   public :: ConnectionCreate, &
             ConnectionAddToList, &
             ConnectionGetNumberInList, &
@@ -49,24 +49,24 @@ module Connection_module
             ConnectionCalculateDistances, &
             ConnectionDestroyList, &
             ConnectionDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function ConnectionCreate(num_connections,connection_itype)
-  ! 
+  !
   ! Allocates and initializes a new connection
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: num_connections
   PetscInt :: connection_itype
-  
+
   type(connection_set_type), pointer :: ConnectionCreate
 
   type(connection_set_type), pointer :: connection
@@ -115,7 +115,7 @@ function ConnectionCreate(num_connections,connection_itype)
       connection%id_dn = 0
   end select
   nullify(connection%next)
-  
+
   ConnectionCreate => connection
 
 end function ConnectionCreate
@@ -123,20 +123,20 @@ end function ConnectionCreate
 ! ************************************************************************** !
 
 function ConnectionGetNumberInList(list)
-  ! 
+  !
   ! Returns the number of connections in a list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/19/07
-  ! 
+  !
 
   implicit none
-  
+
   type(connection_set_list_type) :: list
 
   PetscInt :: ConnectionGetNumberInList
   type(connection_set_type), pointer :: cur_connection_set
-  
+
   ConnectionGetNumberInList = 0
   cur_connection_set => list%first
   do
@@ -151,17 +151,17 @@ end function ConnectionGetNumberInList
 ! ************************************************************************** !
 
 subroutine ConnectionInitList(list)
-  ! 
+  !
   ! InitConnectionModule: Initializes module variables, lists, arrays.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/07
-  ! 
+  !
 
   implicit none
 
   type(connection_set_list_type) :: list
-  
+
   nullify(list%first)
   nullify(list%last)
   nullify(list%array)
@@ -172,49 +172,49 @@ end subroutine ConnectionInitList
 ! ************************************************************************** !
 
 subroutine ConnectionAddToList(new_connection_set,list)
-  ! 
+  !
   ! Adds a new connection of the module global list of
   ! connections
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/07
-  ! 
+  !
 
   implicit none
-  
+
   type(connection_set_type), pointer :: new_connection_set
   type(connection_set_list_type) :: list
-  
+
   list%num_connection_objects = list%num_connection_objects + 1
   new_connection_set%id = list%num_connection_objects
   if (.not.associated(list%first)) list%first => new_connection_set
   if (associated(list%last)) list%last%next => new_connection_set
   list%last => new_connection_set
-  
+
 end subroutine ConnectionAddToList
 
 ! ************************************************************************** !
 
 subroutine ConnectionConvertListToArray(list)
-  ! 
+  !
   ! Creates an array of pointers to the
   ! connections in the connection list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/07
-  ! 
+  !
 
   implicit none
-  
+
   type(connection_set_list_type) :: list
-    
+
   type(connection_set_type), pointer :: cur_connection_set
-  
-  
+
+
   allocate(list%array(list%num_connection_objects))
-  
+
   cur_connection_set => list%first
-  do 
+  do
     if (.not.associated(cur_connection_set)) exit
     list%array(cur_connection_set%id)%ptr => cur_connection_set
     cur_connection_set => cur_connection_set%next
@@ -227,23 +227,23 @@ end subroutine ConnectionConvertListToArray
 subroutine ConnectionCalculateDistances(dist,gravity,distance_upwind, &
                                         distance_downwind,distance_gravity, &
                                         upwind_weight)
-  ! 
+  !
   ! Calculates the various distances and weights used in a flux calculation.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal, intent(in) :: gravity(3)
-  
+
   PetscReal, intent(out) :: distance_upwind
   PetscReal, intent(out) :: distance_downwind
   PetscReal, intent(out) :: distance_gravity
   PetscReal, intent(out) :: upwind_weight
-  
+
   ! dist(-1) = scalar - fraction upwind
   ! dist(0) = scalar - magnitude of distance
   ! gravity = vector(3)
@@ -256,26 +256,26 @@ subroutine ConnectionCalculateDistances(dist,gravity,distance_upwind, &
   ! however, this introduces ever so slight error causing pflow-overhaul not
   ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
   upwind_weight = distance_downwind/(distance_upwind+distance_downwind)
-  
+
 end subroutine ConnectionCalculateDistances
 
 ! ************************************************************************** !
 
 subroutine ConnectionDestroy(connection)
-  ! 
+  !
   ! Deallocates a connection
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
-  
+
   type(connection_set_type), pointer :: connection
-  
+
   if (.not.associated(connection)) return
-  
+
   call DeallocateArray(connection%local)
   call DeallocateArray(connection%id_up)
   call DeallocateArray(connection%id_dn)
@@ -286,9 +286,9 @@ subroutine ConnectionDestroy(connection)
   call DeallocateArray(connection%intercp)
   call DeallocateArray(connection%area)
   call DeallocateArray(connection%cntr)
-  
+
   nullify(connection%next)
-  
+
   deallocate(connection)
   nullify(connection)
 
@@ -297,36 +297,36 @@ end subroutine ConnectionDestroy
 ! ************************************************************************** !
 
 subroutine ConnectionDestroyList(list)
-  ! 
+  !
   ! Deallocates the module global list and array of regions
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/07
-  ! 
+  !
 
   implicit none
-  
+
   type(connection_set_list_type), pointer :: list
-    
+
   type(connection_set_type), pointer :: cur_connection_set, prev_connection_set
-  
+
   if (.not.associated(list)) return
-  
+
   if (associated(list%array)) deallocate(list%array)
   nullify(list%array)
-  
+
   cur_connection_set => list%first
-  do 
+  do
     if (.not.associated(cur_connection_set)) exit
     prev_connection_set => cur_connection_set
     cur_connection_set => cur_connection_set%next
     call ConnectionDestroy(prev_connection_set)
   enddo
-  
+
   nullify(list%first)
   nullify(list%last)
   list%num_connection_objects = 0
-  
+
   deallocate(list)
   nullify(list)
 

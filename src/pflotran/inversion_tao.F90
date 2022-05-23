@@ -175,13 +175,10 @@ subroutine InversionTaoUpdateParameters(this)
   num_constraints = 4
   num_rows = num_measurements + num_constraints
 
-  call MatCreateDense(this%driver%comm%mycomm, &
-                      num_measurements, &
-                      this%realization%patch%grid%nlmax, &
-                      num_measurements, &
-                      this%realization%patch%grid%nmax, &
-                      PETSC_NULL_SCALAR, &
-                      this%Jsensitivity,ierr)
+  call MatCreateDense(this%driver%comm%mycomm,num_measurements, &
+                      this%realization%patch%grid%nlmax,num_measurements, &
+                      this%realization%patch%grid%nmax,PETSC_NULL_SCALAR, &
+                      this%Jsensitivity,ierr);CHKERRQ(ierr)
 
 
 end subroutine InversionTaoUpdateParameters

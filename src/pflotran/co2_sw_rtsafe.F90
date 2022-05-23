@@ -81,14 +81,14 @@
 ! ************************************************************************** !
 
 subroutine bracket(func,x1,x2)
-  
+
   implicit none
-  
+
   PetscInt :: i,ifind
   PetscReal :: fac,f1,f2,x1,x2,df
-  
+
   external func
-  
+
   fac = 1.2d0
   call func(x1,f1,df)
   call func(x2,f2,df)

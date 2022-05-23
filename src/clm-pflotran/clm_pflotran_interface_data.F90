@@ -4,7 +4,7 @@ module clm_pflotran_interface_data
 #include "petsc/finclude/petscvec.h"
   use petscsys
   use petscvec
-  
+
   implicit none
 
   private
@@ -12,7 +12,7 @@ module clm_pflotran_interface_data
   type, public :: clm_pflotran_idata_type
 
   ! Time invariant data:
-  
+
   ! (i) Soil properties -
   ! Local for CLM  - mpi vectors
   Vec :: hksat_x_clm
@@ -53,17 +53,17 @@ module clm_pflotran_interface_data
   Vec :: area_top_face_pf  ! mpi vec
 
   ! Time variant data
-  
+
   ! (i) Sink/Source of water for PFLOTRAN's 3D subsurface domain
   Vec :: qflx_clm   ! mpi vec
   Vec :: qflx_pf    ! seq vec
-  
+
   ! (ii) Source of water and temperature of rain for PFLOTRAN's 2D surface domain
   Vec :: rain_clm   ! mpi vec
   Vec :: rain_pf    ! seq vec
   Vec :: rain_temp_clm ! mpi vec
   Vec :: rain_temp_pf  ! seq vec
-  
+
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
   Vec :: gflux_subsurf_clm  ! mpi vec
@@ -117,23 +117,23 @@ module clm_pflotran_interface_data
   end type clm_pflotran_idata_type
 
   type(clm_pflotran_idata_type) , public, target , save :: clm_pf_idata
-  
+
   public :: CLMPFLOTRANIDataInit, &
             CLMPFLOTRANIDataCreateVec, &
             CLMPFLOTRANIDataDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
   subroutine CLMPFLOTRANIDataInit()
-  ! 
+  !
   ! This routine initialized the data transfer type.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 4/10/2013
-  ! 
-  
+  !
+
     implicit none
 
     clm_pf_idata%nlclm_sub = 0
@@ -183,12 +183,12 @@ contains
 
     clm_pf_idata%qflx_clm = PETSC_NULL_VEC
     clm_pf_idata%qflx_pf = PETSC_NULL_VEC
-    
+
     clm_pf_idata%rain_clm = PETSC_NULL_VEC
     clm_pf_idata%rain_pf = PETSC_NULL_VEC
     clm_pf_idata%rain_temp_clm = PETSC_NULL_VEC
     clm_pf_idata%rain_temp_pf = PETSC_NULL_VEC
-    
+
     clm_pf_idata%gflux_subsurf_clm = PETSC_NULL_VEC
     clm_pf_idata%gflux_subsurf_pf = PETSC_NULL_VEC
 
@@ -214,64 +214,86 @@ contains
 ! ************************************************************************** !
 
   subroutine CLMPFLOTRANIDataCreateVec(mycomm)
-  ! 
+  !
   ! This routine creates PETSc vectors required for data transfer between
   ! CLM and PFLOTRAN.
-  ! 
+  !
   ! Author: Gautam Bisht, ORNL
   ! Date: 2011
-  ! 
-  
+  !
+
     implicit none
-    
+
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
     PetscReal      :: zero = 0.0d0
     Vec :: vec_test
 
-    call MPI_Comm_rank(mycomm,rank, ierr)
+    call MPI_Comm_rank(mycomm,rank,ierr);CHKERRQ(ierr)
 
     !
     ! For data transfer from CLM to PFLOTRAN
     !
 
     ! Create MPI Vectors for CLM
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%hksat_x_clm,ierr)
-    call VecSet(clm_pf_idata%hksat_x_clm,0.d0,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE, &
+                      clm_pf_idata%hksat_x_clm,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%hksat_x_clm,0.d0,ierr);CHKERRQ(ierr)
 
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_y_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_z_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%sucsat_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%watsat_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bsw_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%press_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_y_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_z_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%sucsat_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%watsat_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bsw_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%press_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm, &
+                      ierr);CHKERRQ(ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
-    call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
-    call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
-    call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE, &
+                      clm_pf_idata%gflux_subsurf_clm,ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE, &
+                      clm_pf_idata%rain_clm,ierr);CHKERRQ(ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE, &
+                      clm_pf_idata%rain_temp_clm,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%rain_clm,0.d0,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr);CHKERRQ(ierr)
 
     ! Create Seq. Vectors for PFLOTRAN
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%hksat_x_pf,ierr)
-    call VecSet(clm_pf_idata%hksat_x_pf,0.d0,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub, &
+                      clm_pf_idata%hksat_x_pf,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%hksat_x_pf,0.d0,ierr);CHKERRQ(ierr)
 
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_y_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_z_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%sucsat_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watsat_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bsw_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_y_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_z_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%sucsat_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watsat_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bsw_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf, &
+                      ierr);CHKERRQ(ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_pf,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_temp_pf,ierr)
-    call VecSet(clm_pf_idata%gflux_subsurf_pf,0.d0,ierr)
-    call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
-    call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub, &
+                      clm_pf_idata%gflux_subsurf_pf,ierr);CHKERRQ(ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf, &
+                      clm_pf_idata%rain_pf,ierr);CHKERRQ(ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf, &
+                      clm_pf_idata%rain_temp_pf,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%gflux_subsurf_pf,0.d0,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%rain_pf,0.d0,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr);CHKERRQ(ierr)
 
     !
     ! For data transfer from PFLOTRAN to CLM
@@ -279,52 +301,76 @@ contains
 
     ! Create MPI Vectors for PFLOTRAN
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
-    call VecSet(clm_pf_idata%sat_pf,0.d0,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE, &
+                      clm_pf_idata%sat_pf,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%sat_pf,0.d0,ierr);CHKERRQ(ierr)
 
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%temp_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%area_top_face_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%eff_therm_cond_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%hksat_x2_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%hksat_y2_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%hksat_z2_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sucsat2_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%watsat2_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%bsw2_pf,ierr)
-    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%thetares2_pf,ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%temp_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%area_top_face_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%eff_therm_cond_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%hksat_x2_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%hksat_y2_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%hksat_z2_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sucsat2_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%watsat2_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%bsw2_pf, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%thetares2_pf, &
+                      ierr);CHKERRQ(ierr)
 
     ! Create Seq. Vectors for CLM
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%sat_clm,ierr)
-    call VecSet(clm_pf_idata%sat_clm,0.d0,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub, &
+                      clm_pf_idata%sat_clm,ierr);CHKERRQ(ierr)
+    call VecSet(clm_pf_idata%sat_clm,0.d0,ierr);CHKERRQ(ierr)
 
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%area_top_face_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%eff_therm_cond_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%hksat_x2_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%hksat_y2_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%hksat_z2_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sucsat2_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%watsat2_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%bsw2_clm,ierr)
-    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%thetares2_clm,ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%area_top_face_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%eff_therm_cond_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%hksat_x2_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%hksat_y2_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%hksat_z2_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sucsat2_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%watsat2_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%bsw2_clm, &
+                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%thetares2_clm, &
+                      ierr);CHKERRQ(ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
 ! ************************************************************************** !
 
   subroutine CLMPFLOTRANIDataDestroy()
-  ! 
+  !
   ! This routine destroys PETSc vectors that were created for data transfer.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 4/10/2013
-  ! 
-  
+  !
+
     implicit none
-    
+
     PetscErrorCode :: ierr
 
     if(clm_pf_idata%hksat_x_clm       /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%hksat_x_clm,ierr)
@@ -359,12 +405,12 @@ contains
 
     if(clm_pf_idata%qflx_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%qflx_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
-    
+
     if(clm_pf_idata%rain_clm          /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_clm,ierr)
     if(clm_pf_idata%rain_pf           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_pf,ierr)
     if(clm_pf_idata%rain_temp_clm     /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_temp_clm,ierr)
     if(clm_pf_idata%rain_temp_pf      /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%rain_temp_pf,ierr)
-    
+
     if(clm_pf_idata%gflux_subsurf_clm /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
     if(clm_pf_idata%gflux_subsurf_pf  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
 
@@ -381,9 +427,9 @@ contains
     if(clm_pf_idata%h2osfc_pf         /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%h2osfc_pf,ierr)
 
     if(clm_pf_idata%area_top_face_clm  /= PETSC_NULL_VEC) &
-      call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
+      call VecDestroy(clm_pf_idata%area_top_face_clm,ierr);CHKERRQ(ierr)
     if(clm_pf_idata%area_top_face_pf  /= PETSC_NULL_VEC) &
-      call VecDestroy(clm_pf_idata%area_top_face_pf,ierr)
+      call VecDestroy(clm_pf_idata%area_top_face_pf,ierr);CHKERRQ(ierr)
 
     if(clm_pf_idata%eff_therm_cond_clm  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%eff_therm_cond_clm,ierr)
     if(clm_pf_idata%eff_therm_cond_pf  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%eff_therm_cond_pf,ierr)

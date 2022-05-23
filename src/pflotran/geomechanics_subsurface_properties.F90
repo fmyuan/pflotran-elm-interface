@@ -1,11 +1,11 @@
 module Geomechanics_Subsurface_Properties_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
 
 
@@ -16,7 +16,7 @@ module Geomechanics_Subsurface_Properties_module
   PetscInt, parameter, public :: normal_vector_x_index = 5
   PetscInt, parameter, public :: normal_vector_y_index = 6
   PetscInt, parameter, public :: normal_vector_z_index = 7
-  
+
   PetscInt, parameter, public :: BANDIS_MODEL = 8
   PetscInt, parameter, public :: TURNER_MODEL = 9
   PetscInt, parameter, public :: LINEAR_MODEL = 10
@@ -32,7 +32,7 @@ module Geomechanics_Subsurface_Properties_module
   contains
     procedure, public :: Read => GeomechanicsSubsurfacePropsRead
   end type geomechanics_subsurface_properties_type
-  
+
   public :: GeomechanicsSubsurfacePropsInit, &
             GeomechanicsSubsurfacePropsCreate, &
             GeomechanicsSubsurfacePropsAuxvarInit, &
@@ -40,7 +40,7 @@ module Geomechanics_Subsurface_Properties_module
             GeomechanicsSubsurfacePropsDestroy, &
             GeomechanicsSubsurfacePropsPoroEvaluate, &
             GeomechanicsSubsurfacePropsPermEvaluate
-  
+
   contains
 
 ! ************************************************************************** !
@@ -52,17 +52,17 @@ function GeomechanicsSubsurfacePropsCreate()
   !
 
   implicit none
-  
-  class(geomechanics_subsurface_properties_type), pointer :: &  
+
+  class(geomechanics_subsurface_properties_type), pointer :: &
     GeomechanicsSubsurfacePropsCreate
   class(geomechanics_subsurface_properties_type), pointer :: &
-    this 
-  
+    this
+
   allocate(this)
   call GeomechanicsSubsurfacePropsInit(this)
-  
-  GeomechanicsSubsurfacePropsCreate => this 
-  
+
+  GeomechanicsSubsurfacePropsCreate => this
+
 end function GeomechanicsSubsurfacePropsCreate
 
 ! ************************************************************************** !
@@ -74,10 +74,10 @@ subroutine GeomechanicsSubsurfacePropsInit(this)
   !
 
   implicit none
-  
-  class(geomechanics_subsurface_properties_type), pointer :: this 
 
-  this%geomechanical_compressibility_function = ''  
+  class(geomechanics_subsurface_properties_type), pointer :: this
+
+  this%geomechanical_compressibility_function = ''
   this%Bandis_A = UNINITIALIZED_DOUBLE
   this%Bandis_B = UNINITIALIZED_DOUBLE
   this%maximum_aperture = UNINITIALIZED_DOUBLE
@@ -97,13 +97,13 @@ subroutine GeomechanicsSubsurfacePropsAuxvarInit( &
   !
   use Material_Aux_module
   use Utility_module
-  
+
   implicit none
-  
+
   class(geomechanics_subsurface_properties_type), pointer :: &
-    this 
-  type(material_auxvar_type), intent(inout) :: auxvar    
-   
+    this
+  type(material_auxvar_type), intent(inout) :: auxvar
+
   ! deallocate in case already allocated due to evolving strata
   call DeallocateArray(auxvar%geomechanics_subsurface_prop)
   allocate(auxvar%geomechanics_subsurface_prop(7))
@@ -122,15 +122,15 @@ subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar,this)
   use Material_Aux_module
   use String_module
   use Option_module
-  
+
   implicit none
 
   type(material_auxvar_type), intent(inout) :: auxvar
   class(geomechanics_subsurface_properties_type), pointer :: &
-    this 
- 
+    this
+
   auxvar%geomechanics_subsurface_prop(Bandis_A_index) = &
-    this%Bandis_A  
+    this%Bandis_A
   auxvar%geomechanics_subsurface_prop(Bandis_B_index) = &
     this%Bandis_B
   auxvar%geomechanics_subsurface_prop(maximum_aperture_index) = &
@@ -143,7 +143,7 @@ subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar,this)
     this%normal_vector_y
   auxvar%geomechanics_subsurface_prop(normal_vector_z_index) = &
     this%normal_vector_z
-  
+
   ! set the model index
   call StringToUpper(this%geomechanical_compressibility_function)
   select case(this%geomechanical_compressibility_function)
@@ -160,39 +160,39 @@ subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar,this)
       auxvar%geomechanics_subsurface_prop(model_index) = &
         LINEAR_MODEL
   end select
- 
+
 end subroutine GeomechanicsSubsurfacePropsPropertytoAux
 
 ! ************************************************************************** !
 
 subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 07/29/16
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   implicit none
-  
+
   class(geomechanics_subsurface_properties_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
-  
+
   call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
                         'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS')
-          
+
       if (InputCheckExit(input,option)) exit
-          
+
       if (InputError(input)) exit
       call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword', &
-                          'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS')   
+                          'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS')
       select case(trim(word))
         case('COMPRESSIBILITY_FUNCTION')
           call InputReadCard(input,option, &
@@ -201,17 +201,17 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
           call InputErrorMsg(input,option, &
                              'geomechanical compressibility function', &
                              'GEOMECHANICS_SUBSURFACE_PROPS')
-        case('BANDIS_A') 
+        case('BANDIS_A')
           call InputReadDouble(input,option, &
                                this%Bandis_A)
           call InputErrorMsg(input,option,'Bandis A parameter', &
                              'GEOMECHANICS_SUBSURFACE_PROPS')
-        case('BANDIS_B') 
+        case('BANDIS_B')
           call InputReadDouble(input,option, &
                                this%Bandis_B)
           call InputErrorMsg(input,option,'Bandis B parameter', &
                              'GEOMECHANICS_SUBSURFACE_PROPS')
-        case('MAXIMUM_APERTURE') 
+        case('MAXIMUM_APERTURE')
           call InputReadDouble(input,option, &
                                this%maximum_aperture)
           call InputErrorMsg(input,option,'max aperture for Bandis Model', &
@@ -230,7 +230,7 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
       end select
     enddo
     call InputPopBlock(input,option)
-    
+
 end subroutine GeomechanicsSubsurfacePropsRead
 
 ! ************************************************************************** !
@@ -252,18 +252,18 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
   use Material_Aux_module
   use Grid_module
 
-  
+
   implicit none
-  
+
   type(option_type) :: option
-  
+
   type(material_auxvar_type), intent(inout) :: auxvar
   type(grid_type), pointer, intent(inout) :: grid
   PetscReal, intent(in) :: porosity_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
   PetscReal, intent(out) :: porosity_after
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   PetscReal :: Bandis_A, Bandis_B, maximum_aperture
   PetscReal :: normal_vector_x, normal_vector_y, normal_vector_z
   PetscInt :: model_id
@@ -273,7 +273,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
   if (model_id == 0) then
     model_id = LINEAR_MODEL ! set linear model by default if nothing is specified in the input file
   endif
-        
+
   select case(model_id)
     case(BANDIS_MODEL)
       Bandis_A = auxvar%geomechanics_subsurface_prop(Bandis_A_index)
@@ -285,10 +285,10 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
       call GeomechanicsSubsurfaceBandisPoroEvaluate(grid,porosity_before, &
         local_stress,local_strain,local_pressure, &
         Bandis_A,Bandis_B,maximum_aperture,normal_vector_x,normal_vector_y, &
-        normal_vector_z,porosity_after) 
+        normal_vector_z,porosity_after)
     case(LINEAR_MODEL)
       call GeomechanicsSubsurfaceLinearPoroEvaluate(porosity_before, &
-        local_stress,local_strain,local_pressure,porosity_after)    
+        local_stress,local_strain,local_pressure,porosity_after)
     case(TURNER_MODEL)
       call GeomechanicsSubsurfaceTurnerPoroEvaluate(porosity_before, &
         local_stress,local_strain,local_pressure,porosity_after)
@@ -298,7 +298,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
         trim(string) // '" not recognized.'
       call PrintErrMsg(option)
     end select
-          
+
 end subroutine GeomechanicsSubsurfacePropsPoroEvaluate
 
 ! ************************************************************************** !
@@ -308,9 +308,9 @@ subroutine GeomechanicsSubsurfaceBandisPoroEvaluate(grid,porosity_before, &
                                   Bandis_A,Bandis_B, &
                                   maximum_aperture,normal_vector_x, &
                                   normal_vector_y, &
-                                  normal_vector_z,porosity_after) 
-  ! 
-  ! Calculates soil matrix compression for based on Bandis model (1983) 
+                                  normal_vector_z,porosity_after)
+  !
+  ! Calculates soil matrix compression for based on Bandis model (1983)
   ! Citation: Bandis, S.C., Lumsden, A.C. and Barton, N.R., Fundamentals
   ! of Rock Joint Deformation, Int. J. Rock. Mech. Min. Sci. & Geomech. Abstr.
   ! Vol. 20, No. 6, pp. 249--268, 1983.
@@ -322,7 +322,7 @@ subroutine GeomechanicsSubsurfaceBandisPoroEvaluate(grid,porosity_before, &
   use Grid_module
 
   implicit none
-  
+
   type(grid_type), pointer, intent(inout) :: grid
   PetscReal, intent(in) :: porosity_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure !DANNY-local stress is effective stress
@@ -352,17 +352,17 @@ subroutine GeomechanicsSubsurfaceLinearPoroEvaluate(porosity_before, &
   ! Author: Satish Karra
   ! Date: 07/29/16
   !
-  
+
   implicit none
-  
+
   PetscReal, intent(in) :: porosity_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
   PetscReal, intent(out) :: porosity_after
   PetscReal :: volumetric_strain
-  
+
   volumetric_strain = local_strain(1) + local_strain(2) + local_strain(3)
   porosity_after = porosity_before + volumetric_strain
-  
+
 end subroutine GeomechanicsSubsurfaceLinearPoroEvaluate
 
 ! ************************************************************************** !
@@ -377,20 +377,20 @@ subroutine GeomechanicsSubsurfaceTurnerPoroEvaluate(porosity_before, &
   ! Author: Satish Karra
   ! Date: 07/29/16
   !
-  
+
   implicit none
-  
+
   PetscReal, intent(in) :: porosity_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
   PetscReal, intent(out) :: porosity_after
   PetscReal :: volumetric_strain
-  
+
   volumetric_strain = local_strain(1) + local_strain(2) + local_strain(3)
 
   porosity_after = porosity_before/ &
       (1.d0 + (1.d0 - porosity_before)*volumetric_strain)
 
-  
+
 end subroutine GeomechanicsSubsurfaceTurnerPoroEvaluate
 
 ! ************************************************************************** !
@@ -405,7 +405,7 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
   !
   ! Calculates the change in permeability due to geomechanical strains
   ! according to Bandis calculation of b
-  ! 
+  !
   ! Author: Daniel Birdsell, Satish Karra
   ! Date: 10/4/16
   !
@@ -414,28 +414,28 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
   use Material_Aux_module
   use Grid_module
 
-  
+
   implicit none
-  
+
   type(option_type) :: option
-  
+
   type(material_auxvar_type), intent(inout) :: auxvar
   type(grid_type), pointer, intent(inout) :: grid
   PetscReal, intent(in) :: permeability_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
   PetscReal, intent(out) :: permeability_after
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   PetscReal :: Bandis_A, Bandis_B, maximum_aperture
   PetscReal :: normal_vector_x, normal_vector_y, normal_vector_z
   PetscInt :: model_id
-  
+
   model_id = int(auxvar%geomechanics_subsurface_prop(model_index))
 
   if (model_id == 0) then
     model_id = LINEAR_MODEL ! set linear model by default if nothing is specified in the input file
   endif
-    
+
   select case(model_id)
     case(BANDIS_MODEL)
       Bandis_A = auxvar%geomechanics_subsurface_prop(Bandis_A_index)
@@ -447,10 +447,10 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
       call GeomechanicsSubsurfaceBandisPermEvaluate(grid,permeability_before, &
         local_stress,local_strain,local_pressure, &
         Bandis_A,Bandis_B,maximum_aperture,normal_vector_x,normal_vector_y, &
-        normal_vector_z,permeability_after) 
+        normal_vector_z,permeability_after)
     case(LINEAR_MODEL)
       call GeomechanicsSubsurfaceLinearPermEvaluate(permeability_before, &
-        local_stress,local_strain,local_pressure,permeability_after)    
+        local_stress,local_strain,local_pressure,permeability_after)
     case default
       write(string,*) model_id
       option%io_buffer = 'geomechanical perm model "' // &
@@ -467,9 +467,9 @@ subroutine GeomechanicsSubsurfaceBandisPermEvaluate(grid,permeability_before, &
                                   Bandis_A,Bandis_B, &
                                   maximum_aperture,normal_vector_x, &
                                   normal_vector_y, &
-                                  normal_vector_z,permeability_after) 
-  ! 
-  ! Calculates soil matrix compression for based on Bandis model (1983) 
+                                  normal_vector_z,permeability_after)
+  !
+  ! Calculates soil matrix compression for based on Bandis model (1983)
   ! Citation: Bandis, S.C., Lumsden, A.C. and Barton, N.R., Fundamentals
   ! of Rock Joint Deformation, Int. J. Rock. Mech. Min. Sci. & Geomech. Abstr.
   ! Vol. 20, No. 6, pp. 249--268, 1983.
@@ -481,7 +481,7 @@ subroutine GeomechanicsSubsurfaceBandisPermEvaluate(grid,permeability_before, &
   use Grid_module
 
   implicit none
-  
+
   type(grid_type), pointer, intent(inout) :: grid
   PetscReal, intent(in) :: permeability_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
@@ -511,35 +511,35 @@ subroutine GeomechanicsSubsurfaceLinearPermEvaluate(permeability_before, &
   ! Author: Satish Karra
   ! Date: 07/29/16
   !
-  
+
   implicit none
   PetscReal, intent(in) :: permeability_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
   PetscReal, intent(out) :: permeability_after
   PetscReal :: volumetric_strain
-  
+
   volumetric_strain = local_strain(1) + local_strain(2) + local_strain(3)
 
-  ! do nothing 
+  ! do nothing
   permeability_after = permeability_before
-  
+
 
 end subroutine GeomechanicsSubsurfaceLinearPermEvaluate
 
 ! ************************************************************************** !
 
 subroutine GeomechanicsSubsurfacePropsDestroy(this)
-  ! 
+  !
   ! Deallocates any allocated pointers in auxiliary object
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 07/29/16
   !
 
   implicit none
-  
+
   class(geomechanics_subsurface_properties_type), pointer :: this
-  
+
   if (.not.associated(this)) return
 
   deallocate(this)

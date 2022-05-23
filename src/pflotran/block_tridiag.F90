@@ -8,13 +8,13 @@ module Block_Tridiag_module
   public :: decbt, &
             solbtf, &
             solbtb
-     
+
 contains
 
 ! ************************************************************************** !
 
 subroutine decbt (m, n, ndim, a, b, c, ip, ier)
-      
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -23,7 +23,7 @@ subroutine decbt (m, n, ndim, a, b, c, ip, ier)
   PetscInt :: nm1,nm2,km1,i,j,k,l
   PetscReal :: dp
   PetscReal :: a(ndim,ndim,n), b(ndim,ndim,n), c(ndim,ndim,n)
-     
+
 !--------------------------------------
 ! block-tridiagonal matrix decomposition routine.
 ! written by a. c. hindmarsh.
@@ -63,7 +63,7 @@ subroutine decbt (m, n, ndim, a, b, c, ip, ier)
 ! decbt calls subroutines  dec(m,m0,a,ip,ier)  and  sol(m,m0,a,y,ip)
 ! for solution of m by m linear systems.
 !------------------------------------------------------------------
-      
+
   if (m .lt. 1 .or. n .lt. 4) goto 210
     nm1 = n - 1
     nm2 = n - 2
@@ -203,7 +203,7 @@ subroutine solbt (m, n, ndim, a, b, c, ip, y)
 !     do j=1,n
 !       print *,'solbt: ',m,n,ndim,j,y(1,j),ip(1,j),a(1,1,j),b(1,1,j),c(1,1,j)
 !     enddo
-      
+
   do kb = 1,nm1
     k = n - kb
     kp1 = k + 1
@@ -249,7 +249,7 @@ subroutine solbtf (m, n, ndim, a, b, c, ip, y)
 !         of coefficient matrix from decbt.
 !    ip = m by n integer array of pivot information from decbt.
 !     y = array of length m*n containg the right-hand side vector
-!         (treated as an m by n array here). 
+!         (treated as an m by n array here).
 ! output..
 !     y = solution vector, of length m*n.
 ! solbt makes calls to subroutine sol(m,m0,a,y,ip)

@@ -11,7 +11,7 @@ module PM_TH_TS_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_TH_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -31,21 +31,21 @@ module PM_TH_TS_class
   public :: PMTHTSCreate, &
             PMTHTSUpdateAuxVarsPatch
 
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMTHTSCreate()
-  ! 
+  !
   ! Creates TH TS process models shell
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 05/08/19
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_th_ts_type), pointer :: PMTHTSCreate
 
   class(pm_th_ts_type), pointer :: this
@@ -60,10 +60,10 @@ function PMTHTSCreate()
                             [pres_rel_inf_tol,temp_rel_inf_tol]
   PetscReal, parameter :: residual_abs_inf_tol(2) = 1.d-5
   PetscReal, parameter :: residual_scaled_inf_tol(2) = 1.d-5
-  
+
 #ifdef PM_TH_TS_DEBUG
   print *, 'PMTHTSCreate()'
-#endif  
+#endif
 
   allocate(this)
 
@@ -79,18 +79,18 @@ function PMTHTSCreate()
   this%rel_update_inf_tol = rel_update_inf_tol
 
   PMTHTSCreate => this
-  
+
 end function PMTHTSCreate
 
 ! ************************************************************************** !
 
 subroutine PMTHTSUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 05/08/19
 
   implicit none
-  
+
   class(pm_th_ts_type) :: this
 
   call PMTHTSUpdateAuxVarsPatch(this%realization)
@@ -101,7 +101,7 @@ end subroutine PMTHTSUpdateAuxVars
 ! ************************************************************************** !
 
 subroutine PMTHTSUpdateAuxVarsPatch(realization)
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 05/08/19
 
@@ -111,16 +111,16 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   use Grid_module
   use Patch_module
   use Option_module
-  
+
   implicit none
 
   class(realization_subsurface_type) :: realization
-  
+
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(TH_auxvar_type), pointer :: TH_auxvars(:) 
+  type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
   PetscInt :: ghosted_id,local_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
@@ -137,26 +137,27 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   th_parameter => patch%aux%TH%th_parameter
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  
+
   ! 1. Update auxvars based on new values of pressure, temperature
   call THUpdateAuxVars(realization)
 
-  ! 2. Update auxvars based on new value of dpressure_dtime, mass, and 
+  ! 2. Update auxvars based on new value of dpressure_dtime, mass, and
   !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
-  
-  
+  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
+                          ierr);CHKERRQ(ierr)
+
+
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
     !Ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle 
+    if (patch%imat(ghosted_id) <= 0) cycle
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
     icc = patch%cc_id(ghosted_id)
     icct = patch%cct_id(ghosted_id)
 
-    th_auxvars(ghosted_id)%dpres_dtime = & 
+    th_auxvars(ghosted_id)%dpres_dtime = &
       xxdot_loc_p((ghosted_id-1)*option%nflowdof+1)
     th_auxvars(ghosted_id)%dtemp_dtime = &
       xxdot_loc_p((ghosted_id-1)*option%nflowdof+2)
@@ -172,7 +173,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
                               ierr);CHKERRQ(ierr)
-  
+
 
 end subroutine PMTHTSUpdateAuxVarsPatch
 
@@ -183,13 +184,13 @@ subroutine PMTHTSIFunction(this,ts,time,U,Udot,F,ierr)
   !
   ! Author: Satish Karra
   ! Date: 05/08/19
-  
+
   use Realization_Subsurface_class
   use Field_module
   use Discretization_module
 
   implicit none
-  
+
   class(pm_th_ts_type) :: this
 
   TS :: ts
@@ -206,7 +207,7 @@ subroutine PMTHTSIFunction(this,ts,time,U,Udot,F,ierr)
   field => realization%field
   discretization => realization%discretization
 
-  call VecZeroEntries(F, ierr); CHKERRQ(ierr)
+  call VecZeroEntries(F,ierr);CHKERRQ(ierr)
 
   call THUpdateLocalVecs(U,realization,ierr)
 
@@ -243,7 +244,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   use Field_module
 
   implicit none
-  
+
   class(realization_subsurface_type), pointer :: realization
   Vec :: F
   PetscErrorCode :: ierr
@@ -269,7 +270,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   PetscReal :: dsat_dP, dsat_dt
   PetscReal  :: du_dP, du_dt
   PetscReal :: rock_dencpr
-  
+
   option => realization%option
   grid => realization%patch%grid
   patch => realization%patch
@@ -279,7 +280,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
 
-  call VecGetArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(F,f_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -320,9 +321,9 @@ subroutine IFunctionAccumulation(F,realization,ierr)
                     material_auxvars(ghosted_id)%volume + &
                     dmass_dt*TH_auxvars(ghosted_id)%dtemp_dtime * &
                     material_auxvars(ghosted_id)%volume
-    
-    
-    ! A_E = [d(rho*phi*s*U)/dP + d(rho*(1-phi)*T)/dP] * dP_dtime *Vol + 
+
+
+    ! A_E = [d(rho*phi*s*U)/dP + d(rho*(1-phi)*T)/dP] * dP_dtime *Vol +
     !       [d(rho*phi*s*U)/dT + d(rho*(1-phi)*T)/dT] * dT_dtime *Vol
     denergy_dP = dden_dP     * por        * sat     * u     + &
                  den         * dpor_dP    * sat     * u     + &
@@ -336,19 +337,19 @@ subroutine IFunctionAccumulation(F,realization,ierr)
                  den         * por        * sat     * du_dt + &
                  rock_dencpr * (-dpor_dt) * temp            + &
                  rock_dencpr * (1-por)
-                 
-                                  
+
+
     f_p(iend) = f_p(iend) + &
                   denergy_dP*TH_auxvars(ghosted_id)%dpres_dtime * &
                   material_auxvars(ghosted_id)%volume + &
                   denergy_dt*TH_auxvars(ghosted_id)%dtemp_dtime * &
                   material_auxvars(ghosted_id)%volume
-    
-    
+
+
   enddo
-    
-  call VecRestoreArrayF90(F, f_p, ierr);CHKERRQ(ierr)
-    
+
+  call VecRestoreArrayF90(F,f_p,ierr);CHKERRQ(ierr)
+
 end subroutine IFunctionAccumulation
 
 ! ************************************************************************** !
@@ -365,16 +366,16 @@ subroutine PMTHTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   use Discretization_module
   use Debug_module
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_th_ts_type) :: this
   TS :: ts
   PetscReal :: time
   Vec :: U, Udot
   PetscReal :: shift
   Mat :: A, B
-  PetscErrorCode :: ierr  
+  PetscErrorCode :: ierr
   PetscViewer :: viewer
 
   type(field_type), pointer :: field
@@ -398,18 +399,18 @@ subroutine PMTHTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   call IJacobianAccumulation(J,shift,realization,ierr)
 
   if (A /= B) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
-  endif  
-  
-  
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  endif
+
+
   call PetscViewerASCIIOpen(option%mycomm,'THTSjacobian.out',viewer, &
                             ierr);CHKERRQ(ierr)
   call MatView(J,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
- 
-  
+
+
 end subroutine PMTHTSIJacobian
 
 
@@ -431,12 +432,12 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   use Field_module
 
   implicit none
-  
+
   class(realization_subsurface_type), pointer :: realization
   PetscReal :: shift
   Mat :: J
   PetscErrorCode :: ierr
-  
+
   type(option_type), pointer :: option
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -470,7 +471,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   field => realization%field
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
-  material_auxvars => patch%aux%Material%auxvars  
+  material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
 
   do local_id = 1, grid%nlmax
@@ -484,7 +485,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                                global_auxvars(ghosted_id)%pres(1))
     por = material_auxvars(ghosted_id)%porosity
     dpor_dP = material_auxvars(ghosted_id)%dporosity_dp
-    
+
     den = global_auxvars(ghosted_id)%den(1)
     sat = global_auxvars(ghosted_id)%sat(1)
     temp = global_auxvars(ghosted_id)%temp
@@ -513,13 +514,13 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     d2sat_dPdt = d2sat_dtdP
     d2por_dPdt = d2por_dtdP
     d2u_dPdt = d2u_dtdP
-    
+
     ! A_M = d(rho*phi*s)/dP * dP_dtime * Vol + d(rho*phi*s)/dT * dT_dtime * Vol
-    
+
     ! Jlocal(1,1) = shift*d(A_M)/d(Pdot) + d(A_M)/d(P)
     !             = shift*d(rho*phi*s)/dP*Vol + d2(rho*phi*s)/dP2*dP_dtime*Vol +
     !               d2(rho*phi*s)/dTdP*dT_dtime*Vol
-    
+
     dmass_dP = ( &
       sat     * dden_dP * por     + &
       dsat_dP * den     * por     + &
@@ -537,7 +538,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
       sat       * dden_dP   * dpor_dP   + &
       sat       * den       * d2por_dP2 &
       )
-    
+
     d2mass_dPdt = ( &
       dsat_dt    * dden_dP    * por       + &
       sat        * d2den_dtdP * por       + &
@@ -549,25 +550,25 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
       sat        * dden_dt    * dpor_dP   + &
       sat        * den        * d2por_dtdP &
       )
-      
+
     d2mass_dtdP = d2mass_dPdt
-     
+
     Jlocal(1,1) = (shift*dmass_dP + &
                    d2mass_dP2*TH_auxvars(ghosted_id)%dpres_dtime + &
                    d2mass_dtdP*TH_auxvars(ghosted_id)%dtemp_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
-    
+
     ! Jlocal(1,2) = shift*d(A_M)/d(Tdot) + d(A_M)/d(T)
     !             = shift*d(rho*phi*s)/dT*Vol + d2(rho*phi*s)/dT2*dT_dtime*Vol +
-    !               d2(rho*phi*s)/dPdT*dP_dtime*Vol  
-    
+    !               d2(rho*phi*s)/dPdT*dP_dtime*Vol
+
     dmass_dt = ( &
       sat     * dden_dt * por     + &
       dsat_dt * den     * por     + &
       sat     * den     * dpor_dt &
-      )   
-    
+      )
+
     d2mass_dt2 = ( &
       dsat_dt   * dden_dt   * por       + &
       sat       * d2den_dt2 * por       + &
@@ -578,29 +579,29 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
       dsat_dt   * den       * dpor_dt   + &
       sat       * dden_dt   * dpor_dt   + &
       sat       * den       * d2por_dt2 &
-      )    
-      
+      )
+
     Jlocal(1,2) = (shift*dmass_dt + &
                    d2mass_dt2*TH_auxvars(ghosted_id)%dtemp_dtime + &
                    d2mass_dPdt*TH_auxvars(ghosted_id)%dpres_dtime)* &
                    material_auxvars(ghosted_id)%volume
-    
-    
-    ! A_E = [d(rho*phi*s*U)/dP + d(rock_dencpr*(1-phi)*T)/dP] * dP_dtime *Vol + 
+
+
+    ! A_E = [d(rho*phi*s*U)/dP + d(rock_dencpr*(1-phi)*T)/dP] * dP_dtime *Vol +
     !       [d(rho*phi*s*U)/dT + d(rock_dencpr*(1-phi)*T)/dT] * dT_dtime *Vol
-    
-    
+
+
     ! Jlocal(2,1) = shift*d(A_E)/d(Pdot) + d(A_E)/d(P)
-    !             = shift*[d(rho*phi*s*U)/dP + d(rock_dencpr*(1-phi)*T)/dP]*Vol + 
+    !             = shift*[d(rho*phi*s*U)/dP + d(rock_dencpr*(1-phi)*T)/dP]*Vol +
     !               [d2(rho*phi*s*U)/dP2 + d2(rock_dencpr*(1-phi)*T)/dP2]*dP_dtime*Vol +
     !               [d2(rho*phi*s*U)/dTdP + d2(rock_dencpr*(1-phi)*T)/dTdP]*dT_dtime*Vol
-    
+
     denergy_dP = dden_dP     * por        * sat     * u     + &
                  den         * dpor_dP    * sat     * u     + &
                  den         * por        * dsat_dP * u     + &
                  den         * por        * sat     * du_dp + &
-                 rock_dencpr * (-dpor_dP) * temp 
-    
+                 rock_dencpr * (-dpor_dP) * temp
+
     d2energy_dP2 = d2den_dP2   * por          * sat       * u       + &
                    dden_dP     * dpor_dP      * sat       * u       + &
                    dden_dP     * por          * dsat_dP   * u       + &
@@ -617,7 +618,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                    den         * dpor_dP      * sat       * du_dP   + &
                    den         * por          * dsat_dP   * du_dP   + &
                    den         * por          * sat       * d2u_dP2 + &
-                   rock_dencpr * (-d2por_dP2) * temp 
+                   rock_dencpr * (-d2por_dP2) * temp
 
     d2energy_dPdt = d2den_dPdt  * por           * sat        * u        + &
                     dden_dP     * dpor_dt       * sat        * u        + &
@@ -636,7 +637,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                     den         * por           * dsat_dt    * du_dP    + &
                     den         * por           * sat        * d2u_dPdt + &
                     rock_dencpr * (-d2por_dPdt) * temp                 + &
-                    rock_dencpr * (-dpor_dP)  
+                    rock_dencpr * (-dpor_dP)
 
     d2energy_dtdP = d2energy_dPdt
 
@@ -647,18 +648,18 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                    material_auxvars(ghosted_id)%volume
 
 
-    ! Jlocal(2,2) = shift*d(A_E)/d(Tdot) + d(A_E)/d(T) 
-    !             = shift*[d(rho*phi*s*U)/dT + d(rock_dencpr*(1-phi)*T)/dT]*Vol + 
+    ! Jlocal(2,2) = shift*d(A_E)/d(Tdot) + d(A_E)/d(T)
+    !             = shift*[d(rho*phi*s*U)/dT + d(rock_dencpr*(1-phi)*T)/dT]*Vol +
     !               [d2(rho*phi*s*U)/dPdt + d2(rock_dencpr*(1-phi)*T)/dPdt]*dP_dtime*Vol +
     !               [d2(rho*phi*s*U)/dT2 + d2(rock_dencpr*(1-phi)*T)/dT2]*dT_dtime*Vol
 
     denergy_dt = dden_dt     * por        * sat     * u     + &
                  den         * dpor_dt    * sat     * u     + &
                  den         * por        * dsat_dt * u     + &
-                 den         * por        * sat     * du_dt + &                          
+                 den         * por        * sat     * du_dt + &
                  rock_dencpr * (-dpor_dt) * temp            + &
-                 rock_dencpr * (1-por)     
-                 
+                 rock_dencpr * (1-por)
+
     d2energy_dt2 = d2den_dt2   * por          * sat       * u       + &
                    dden_dt     * dpor_dt      * sat       * u       + &
                    dden_dt     * por          * dsat_dt   * u       + &
@@ -686,31 +687,31 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                    material_auxvars(ghosted_id)%volume
 
     call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jlocal, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)    
-    
-    
+                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+
+
   enddo
-    
+
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-      
+
 end subroutine IJacobianAccumulation
 
 ! ************************************************************************** !
 
 subroutine PMTHTSInitializeTimestep(this)
-  ! 
+  !
   ! Should not need this as it is called in PreSolve.
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/08/19
   !
 
   use TH_module, only : THInitializeTimestep
-  
+
   implicit none
-  
+
   class(pm_th_ts_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
@@ -722,18 +723,18 @@ end subroutine PMTHTSInitializeTimestep
 
 subroutine PMTHTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
-  ! 
+  !
   ! Adds a convergence check for the nonlinear problem
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/08/19
-  ! 
+  !
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
 
   implicit none
-  
+
   SNES :: snes
   PetscInt :: it
   PetscReal :: xnorm ! 2-norm of updated solution
@@ -750,25 +751,25 @@ end subroutine PMTHTSCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMTHTSDestroy(this)
-  ! 
+  !
   ! Destroys TH process model
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/08/19
-  ! 
+  !
   use TH_module, only : THDestroy
 
   implicit none
-  
+
   class(pm_th_ts_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
 
   ! preserve this ordering
   call PMTHDestroy(this)
-  
+
 end subroutine PMTHTSDestroy
 
 end module PM_TH_TS_class

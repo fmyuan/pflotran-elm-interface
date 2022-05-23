@@ -2,7 +2,7 @@ module Upwind_Direction_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
- 
+
   implicit none
 
   private
@@ -32,17 +32,17 @@ contains
 ! ************************************************************************** !
 
 subroutine UpwindDirectionInit()
-  ! 
+  !
   ! Allocates and initializes variables for upwind direction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/19/18
-  ! 
+  !
   implicit none
 
   update_upwind_direction = PETSC_FALSE
 
-  ! these counters are used for performance analysis only.  they will not 
+  ! these counters are used for performance analysis only.  they will not
   ! affect simulation results.
   liq_upwind_flip_count_by_res = 0
   gas_upwind_flip_count_by_res = 0
@@ -62,12 +62,12 @@ function UpwindDirection(upwind_direction,delta_pressure, &
                          count_upwind_direction_flip_, &
                          upwind_flip_count_by_res, &
                          upwind_flip_count_by_jac)
-  ! 
+  !
   ! Calculates the upwind direction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/19/18
-  ! 
+  !
   implicit none
 
   PetscInt :: upwind_direction
@@ -115,12 +115,12 @@ end function UpwindDirection
 
 ! ************************************************************************** !
 subroutine UpwindDirectionPrintStats(option)
-  ! 
+  !
   ! Prints statistic recorded for upwind direction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/18
-  ! 
+  !
   use Option_module
 
   implicit none

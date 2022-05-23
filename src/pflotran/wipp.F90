@@ -1,12 +1,12 @@
 module Fracture_module
-  
+
   use PFLOTRAN_Constants_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   implicit none
-  
+
   private
 
   PetscInt, parameter, public :: frac_init_pres_index = 1
@@ -16,7 +16,7 @@ module Fracture_module
   PetscInt, parameter, public :: frac_change_perm_x_index = 1
   PetscInt, parameter, public :: frac_change_perm_y_index = 2
   PetscInt, parameter, public :: frac_change_perm_z_index = 3
-  
+
   type, public :: fracture_type
     PetscReal :: init_pressure
     PetscReal :: altered_pressure
@@ -28,7 +28,7 @@ module Fracture_module
   contains
     procedure, public :: Read => FractureRead
   end type fracture_type
-  
+
 !  class(fracture_type), pointer, public :: fracture
 
   public :: FractureInit, &
@@ -39,7 +39,7 @@ module Fracture_module
             FractureDestroy, &
             FracturePoroEvaluate, &
             FracturePermScale
-  
+
   contains
 
 ! ************************************************************************** !
@@ -51,15 +51,15 @@ function FractureCreate()
   !
 
   implicit none
-  
+
   class(fracture_type), pointer :: FractureCreate
   class(fracture_type), pointer :: fracture
-  
+
   allocate(fracture)
   call FractureInit(fracture)
-  
+
   FractureCreate => fracture
-  
+
 end function FractureCreate
 
 ! ************************************************************************** !
@@ -71,9 +71,9 @@ subroutine FractureInit(this)
   !
 
   implicit none
-  
+
   class(fracture_type), pointer :: this
-  
+
   this%init_pressure = UNINITIALIZED_DOUBLE
   this%altered_pressure = UNINITIALIZED_DOUBLE
   this%maximum_porosity = UNINITIALIZED_DOUBLE
@@ -93,9 +93,9 @@ subroutine FractureAuxVarInit(auxvar)
   !
 
   use Material_Aux_module
-  
+
   implicit none
-  
+
   type(material_auxvar_type), intent(inout) :: auxvar
 
   call MaterialAuxVarFractureStrip(auxvar%fracture)
@@ -115,7 +115,7 @@ subroutine FracturePropertytoAux(fracture_auxvar,fracture_property)
   !
 
   use Material_Aux_module
-  
+
   implicit none
 
   type(fracture_auxvar_type), pointer :: fracture_auxvar
@@ -150,16 +150,16 @@ end subroutine FracturePropertytoAux
 ! ************************************************************************** !
 
 subroutine FractureRead(this,input,option)
-  ! 
+  !
   ! Author: Heeho Park
   ! Date: 4/7/15
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   implicit none
-  
+
   class(fracture_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
@@ -171,13 +171,13 @@ subroutine FractureRead(this,input,option)
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
                                     'MATERIAL_PROPERTY,WIPP-FRACTURE')
-          
+
       if (InputCheckExit(input,option)) exit
-          
+
       if (InputError(input)) exit
       call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword', &
-                          'MATERIAL_PROPERTY,WIPP-FRACTURE')   
+                          'MATERIAL_PROPERTY,WIPP-FRACTURE')
       select case(trim(word))
         case('INITIATING_PRESSURE')
           call InputReadDouble(input,option, &
@@ -227,10 +227,10 @@ subroutine FractureSetInitialPressure(fracture,initial_cell_pressure)
   use Material_Aux_module
 
   implicit none
-  
+
   type(fracture_auxvar_type) :: fracture
   PetscReal, intent(in) :: initial_cell_pressure
-  
+
   fracture%initial_pressure = initial_cell_pressure
 !  fracture%properties(frac_init_pres_index) = &
 !    fracture%properties(frac_init_pres_index) + initial_cell_pressure
@@ -254,20 +254,20 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
 
   use Option_module
   use Material_Aux_module
-  
+
   implicit none
-  
+
 !  class(fracture_type) :: this
   type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
-  
+
   PetscReal :: Ci, Ca
   PetscReal :: P0, Pa, Pi
   PetscReal :: phia, phi0
 
-  ! if fracture is off, still have to calculate soil compressiblity, if 
+  ! if fracture is off, still have to calculate soil compressiblity, if
   ! soil_compressibility_index > 0
   if (.not.auxvar%fracture%fracture_is_on) then
     ! soil_compressibility_index is a file global in material_aux.F90
@@ -291,12 +291,12 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
   Pa = auxvar%fracture%properties(frac_alt_pres_index) + Pi
   phia = auxvar%fracture%properties(frac_max_poro_index)
   phi0 = auxvar%porosity_base
-  
+
   if (P0 < -998.d0) then ! not yet initialized
     compressed_porosity = phi0
     return
   endif
-  
+
   if (pressure < Pi) then
 !    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &
 !                              dcompressed_porosity_dp)
@@ -319,7 +319,7 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
 end subroutine FracturePoroEvaluate
 
 ! ************************************************************************** !
-                                
+
 subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
                              scaling_factor)
   !
@@ -332,9 +332,9 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
 
   use Option_module
   use Material_Aux_module
-  
+
   implicit none
-  
+
 !  class(fracture_type) :: this
   type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: liquid_pressure
@@ -389,17 +389,17 @@ end subroutine FracturePermScale
 ! ************************************************************************** !
 
 subroutine FractureDestroy(this)
-  ! 
+  !
   ! Deallocates any allocated pointers in auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   class(fracture_type), pointer :: this
-  
+
   if (.not.associated(this)) return
 
   deallocate(this)
@@ -412,9 +412,9 @@ end module Fracture_module
 ! ************************************************************************** !
 ! ************************************************************************** !
 ! ************************************************************************** !
-  
+
 module Creep_Closure_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -422,7 +422,7 @@ module Creep_Closure_module
   use Lookup_Table_module
 
   implicit none
-  
+
   private
 
   type, public :: creep_closure_type
@@ -434,15 +434,15 @@ module Creep_Closure_module
     PetscReal :: time_datamax
     PetscReal :: porosity_minimum
     class(lookup_table_general_type), pointer :: lookup_table
-    
+
     class(creep_closure_type), pointer :: next
-    
+
   contains
     procedure, public :: Read => CreepClosureRead
     procedure, public :: Evaluate => CreepClosureEvaluate
     procedure, public :: Test => CreepClosureTest
   end type creep_closure_type
-  
+
   type, public :: creep_closure_ptr_type
     class(creep_closure_type), pointer :: ptr
   end type creep_closure_ptr_type
@@ -455,67 +455,67 @@ module Creep_Closure_module
             CreepClosureAddToList, &
             CreepClosureConvertListToArray, &
             CreepClosureGetID
-  
+
   contains
-  
+
 ! ************************************************************************** !
 
 subroutine CreepClosureInit()
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
- 
-  
+
+
+
 end subroutine CreepClosureInit
 
 ! ************************************************************************** !
 
 function CreepClosureCreate()
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   class(creep_closure_type), pointer :: CreepClosureCreate
-  
+
   allocate(CreepClosureCreate)
   CreepClosureCreate%name = ''
   CreepClosureCreate%num_times = UNINITIALIZED_INTEGER
   CreepClosureCreate%num_values_per_time = UNINITIALIZED_INTEGER
   CreepClosureCreate%shutdown_pressure = 5.d7 ! set to BRAGFLO default
-  CreepClosureCreate%porosity_minimum = 1.d-2 
+  CreepClosureCreate%porosity_minimum = 1.d-2
   CreepClosureCreate%time_closeoff = MAX_DOUBLE ! s
   CreepClosureCreate%time_datamax =  MAX_DOUBLE ! s
   nullify(CreepClosureCreate%lookup_table)
   nullify(CreepClosureCreate%next)
-  
+
 end function CreepClosureCreate
 
 ! ************************************************************************** !
 
 subroutine CreepClosureRead(this,input,option)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
   use Utility_module
   use Units_module
-  
+
   implicit none
-  
+
   class(creep_closure_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: keyword, word, internal_units
@@ -530,14 +530,14 @@ subroutine CreepClosureRead(this,input,option)
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)   
-      
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
-      case('FILENAME') 
+      case('FILENAME')
         call InputReadFilename(input,option,filename)
         call InputErrorMsg(input,option,'FILENAME',error_string)
       case('SHUTDOWN_PRESSURE')
@@ -551,12 +551,12 @@ subroutine CreepClosureRead(this,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
   if (len_trim(filename) < 1) then
     option%io_buffer = 'FILENAME must be specified for CREEP_CLOSURE.'
     call PrintErrMsg(option)
   endif
-  
+
   this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
   error_string = 'CREEP_CLOSURE file'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
@@ -568,19 +568,19 @@ subroutine CreepClosureRead(this,input,option)
 
     call InputReadCard(input2,option,keyword)
     call InputErrorMsg(input2,option,'keyword',error_string)
-    call StringToUpper(keyword)   
-      
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
-      case('NUM_TIMES') 
+      case('NUM_TIMES')
         call InputReadInt(input2,option,this%num_times)
         call InputErrorMsg(input2,option,'number of times',error_string)
-      case('NUM_VALUES_PER_TIME') 
+      case('NUM_VALUES_PER_TIME')
         call InputReadInt(input2,option,this%num_values_per_time)
         call InputErrorMsg(input2,option,'number of pressure',error_string)
-      case('TIME_UNITS') 
+      case('TIME_UNITS')
         internal_units = 'sec'
-        call InputReadWord(input2,option,word,PETSC_TRUE) 
-        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        call InputReadWord(input2,option,word,PETSC_TRUE)
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')
         call StringToUpper(word)
         time_units_conversion = UnitsConvertToInternal(word, &
                                 internal_units,option)
@@ -603,12 +603,12 @@ subroutine CreepClosureRead(this,input,option)
                               input2,option)
         this%lookup_table%axis1%values = this%lookup_table%axis1%values * &
           time_units_conversion
-      case('PRESSURE') 
+      case('PRESSURE')
         string = 'PRESSURE in CREEP_CLOSURE'
         call UtilityReadArray(this%lookup_table%axis2%values, &
                               NEG_ONE_INTEGER, &
                               string,input2,option)
-      case('POROSITY') 
+      case('POROSITY')
         string = 'POROSITY in CREEP_CLOSURE'
         call UtilityReadArray(this%lookup_table%data, &
                               NEG_ONE_INTEGER, &
@@ -620,11 +620,11 @@ subroutine CreepClosureRead(this,input,option)
   enddo
   call InputPopBlock(input,option)
   call InputDestroy(input2)
-  
+
   if (size(this%lookup_table%axis1%values) /= this%num_times) then
     option%io_buffer = 'Number of times does not match NUM_TIMES.'
     call PrintErrMsg(option)
-  endif  
+  endif
   if (size(this%lookup_table%axis2%values) /= &
     this%num_times*this%num_values_per_time) then
     option%io_buffer = 'Number of pressures does not match NUM_TIMES * ' // &
@@ -648,17 +648,17 @@ end subroutine CreepClosureRead
 ! ************************************************************************** !
 
 subroutine CreepClosureAddToList(new_creep_closure,list)
-  ! 
+  !
   ! Adds an object to linked list
-  ! 
+  !
 
   implicit none
-  
+
   class(creep_closure_type), pointer :: new_creep_closure
   class(creep_closure_type), pointer :: list
 
   class(creep_closure_type), pointer :: cur_creep_closure
-  
+
   if (associated(list)) then
     cur_creep_closure => list
     ! loop to end of list
@@ -670,47 +670,47 @@ subroutine CreepClosureAddToList(new_creep_closure,list)
   else
     list => new_creep_closure
   endif
-  
+
 end subroutine CreepClosureAddToList
 
 ! ************************************************************************** !
 
 subroutine CreepClosureConvertListToArray(list,array,option)
-  ! 
+  !
   ! Creates an array of pointers to the objects in the list
-  ! 
+  !
 
   use String_module
   use Option_module
-  
+
   implicit none
-  
+
   class(creep_closure_type), pointer :: list
   class(creep_closure_ptr_type), pointer :: array(:)
   type(option_type) :: option
-    
+
   class(creep_closure_type), pointer :: cur_creep_closure
   PetscInt :: count
-  
+
   ! Start at 2
-  ! The first element will be a null pointer (no creep closure)  
+  ! The first element will be a null pointer (no creep closure)
   count = 1
   cur_creep_closure => list
-  do 
+  do
     if (.not.associated(cur_creep_closure)) exit
     count = count + 1
     cur_creep_closure => cur_creep_closure%next
   enddo
-  
+
   if (associated(array)) deallocate(array)
   allocate(array(count))
 
   ! Start at 2
-  ! The first element is a null pointer (no creep closure)  
+  ! The first element is a null pointer (no creep closure)
   cur_creep_closure => list
   count = 1
   nullify(array(count)%ptr)
-  do 
+  do
     if (.not.associated(cur_creep_closure)) exit
     count = count + 1
     array(count)%ptr => cur_creep_closure
@@ -728,17 +728,17 @@ end subroutine CreepClosureConvertListToArray
 function CreepClosureGetID(creep_closure_array, &
                                    creep_closure_name, &
                                    material_property_name, option)
-  ! 
+  !
   ! Returns the ID of the creep_closure object named
   ! "creep_closure_name"
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/11
-  ! 
+  !
 
   use Option_module
   use String_module
-  
+
   class(creep_closure_ptr_type), pointer :: &
     creep_closure_array(:)
   character(len=MAXWORDLENGTH) :: creep_closure_name
@@ -751,7 +751,7 @@ function CreepClosureGetID(creep_closure_array, &
   CreepClosureGetID = 1
 
   if (len_trim(creep_closure_name) < 1) return
-  
+
   do CreepClosureGetID = 2, size(creep_closure_array)
     if (StringCompare(creep_closure_name, &
                       creep_closure_array( &
@@ -771,55 +771,55 @@ end function CreepClosureGetID
 ! ************************************************************************** !
 
 function CreepClosureEvaluate(this,time,pressure)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   implicit none
-  
+
   class(creep_closure_type) :: this
   PetscReal :: time
   PetscReal :: pressure
-  
+
   PetscReal :: CreepClosureEvaluate
-  
+
   CreepClosureEvaluate = this%lookup_table%Sample(time,pressure)
-  
+
 end function CreepClosureEvaluate
 
 
 ! ************************************************************************** !
 
 subroutine CreepClosureTest(this,time,pressure)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   implicit none
-  
+
   class(creep_closure_type) :: this
   PetscReal :: time
   PetscReal :: pressure
-  
+
   print *, time, pressure, this%Evaluate(time,pressure)
-  
+
 end subroutine CreepClosureTest
 
 
 ! ************************************************************************** !
 
 subroutine CreepClosureDestroy(creep_closure)
-  ! 
+  !
   ! Deallocates any allocated pointers in auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   class(creep_closure_type), pointer :: creep_closure
-  
+
   if (.not.associated(creep_closure)) return
 
   call LookupTableDestroy(creep_closure%lookup_table)
@@ -832,18 +832,18 @@ end subroutine CreepClosureDestroy
 ! ************************************************************************** !
 
 subroutine CreepClosureArrayDestroy(creep_closure_array)
-  ! 
+  !
   ! Destroys an array of pointers
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(creep_closure_ptr_type), pointer :: &
     creep_closure_array(:)
-  
+
   class(creep_closure_type), pointer :: cur_creep_closure
   PetscInt :: i
-  
+
   if (.not. associated(creep_closure_array)) return
 
   ! The first element is a null pointer (no creep closure)
@@ -851,7 +851,7 @@ subroutine CreepClosureArrayDestroy(creep_closure_array)
     call CreepClosureDestroy(creep_closure_array(i)%ptr)
     nullify(creep_closure_array(i)%ptr)
   enddo
-  
+
   deallocate(creep_closure_array)
   nullify(creep_closure_array)
 
@@ -862,16 +862,16 @@ end module Creep_Closure_module
 ! ************************************************************************** !
 ! ************************************************************************** !
 ! ************************************************************************** !
-  
+
 module Klinkenberg_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
 
   type, public :: klinkenberg_type
@@ -883,9 +883,9 @@ module Klinkenberg_module
     procedure, public :: Scale => KlinkenbergScale
     procedure, public :: Test => KlinkenbergTest
   end type klinkenberg_type
-  
+
   class(klinkenberg_type), pointer, public :: klinkenberg
-  
+
   interface KlinkenbergDestroy
     module procedure KlinkenbergDestroy1
     module procedure KlinkenbergDestroy2
@@ -894,83 +894,83 @@ module Klinkenberg_module
   public :: KlinkenbergInit, &
             KlinkenbergCreate, &
             KlinkenbergDestroy
-  
+
   contains
-  
+
 ! ************************************************************************** !
 
 subroutine KlinkenbergInit()
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   if (associated(klinkenberg)) then
     call KlinkenbergDestroy(klinkenberg)
   endif
   nullify(klinkenberg)
-  
+
 end subroutine KlinkenbergInit
 
 ! ************************************************************************** !
 
 function KlinkenbergCreate()
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   class(klinkenberg_type), pointer :: KlinkenbergCreate
-  
+
   allocate(KlinkenbergCreate)
   KlinkenbergCreate%a = UNINITIALIZED_DOUBLE
   KlinkenbergCreate%b = UNINITIALIZED_DOUBLE
-  
+
 end function KlinkenbergCreate
 
 ! ************************************************************************** !
 
 subroutine KlinkenbergRead(this,input,option)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
   use Utility_module
   use Units_module
-  
+
   implicit none
-  
+
   class(klinkenberg_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string = 'KLINKENBERG_EFFECT'
 
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)   
-      
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
-      case('A') 
+      case('A')
         call InputReadDouble(input,option,this%a)
         call InputErrorMsg(input,option,'a',error_string)
-      case('B') 
+      case('B')
         call InputReadDouble(input,option,this%b)
         call InputErrorMsg(input,option,'b',error_string)
      case default
@@ -978,7 +978,7 @@ subroutine KlinkenbergRead(this,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
   if (Uninitialized(this%a)) then
     option%io_buffer = &
       'Parameter "a" must be included to model the Klinkenberg Effect.'
@@ -989,22 +989,22 @@ subroutine KlinkenbergRead(this,input,option)
       'Parameter "b" must be included to model the Klinkenberg Effect.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine KlinkenbergRead
 
 ! ************************************************************************** !
 
 function KlinkenbergEvaluate(this,liquid_permeability,gas_pressure)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   implicit none
-  
+
   class(klinkenberg_type) :: this
   PetscReal :: liquid_permeability(3)
   PetscReal :: gas_pressure
-  
+
   PetscReal :: gas_permeability(3)
   PetscReal :: perm_scale(3)
 
@@ -1013,26 +1013,26 @@ function KlinkenbergEvaluate(this,liquid_permeability,gas_pressure)
   call this%Scale(liquid_permeability,gas_pressure,perm_scale)
   gas_permeability(:) = liquid_permeability(:) * perm_scale(:)
   KlinkenbergEvaluate(:) = gas_permeability(:)
-  
+
 end function KlinkenbergEvaluate
 
 ! ************************************************************************** !
 
 subroutine KlinkenbergScale(this,liquid_permeability,gas_pressure, &
                           permeability_scale)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   implicit none
-  
+
   class(klinkenberg_type) :: this
   PetscReal :: liquid_permeability(3) ! [m^2]
   PetscReal :: gas_pressure ! [Pa]
   PetscReal :: permeability_scale(3) ! [m^2]
-  
+
   PetscInt :: i
-  
+
   if (gas_pressure > 0.d0) then
     do i = 1, 3
       permeability_scale(i) = (1.d0 + &
@@ -1041,39 +1041,39 @@ subroutine KlinkenbergScale(this,liquid_permeability,gas_pressure, &
   else
     permeability_scale = 1.d0
   endif
-  
+
 end subroutine KlinkenbergScale
 
 ! ************************************************************************** !
 
 subroutine KlinkenbergTest(this,liquid_permeability,gas_pressure)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   implicit none
-  
+
   class(klinkenberg_type) :: this
   PetscReal :: liquid_permeability(3)
   PetscReal :: gas_pressure
-  
+
   print *, liquid_permeability, gas_pressure, &
            this%Evaluate(liquid_permeability,gas_pressure)
-  
+
 end subroutine KlinkenbergTest
 
 ! ************************************************************************** !
 
 subroutine KlinkenbergDestroy1()
-  ! 
+  !
   ! Deallocates any allocated pointers in auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   call KlinkenbergDestroy(klinkenberg)
 
 end subroutine KlinkenbergDestroy1
@@ -1081,17 +1081,17 @@ end subroutine KlinkenbergDestroy1
 ! ************************************************************************** !
 
 subroutine KlinkenbergDestroy2(klinkenberg)
-  ! 
+  !
   ! Deallocates any allocated pointers in auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
 
   implicit none
-  
+
   class(klinkenberg_type), pointer :: klinkenberg
-  
+
   if (.not.associated(klinkenberg)) return
 
   deallocate(klinkenberg)
@@ -1104,7 +1104,7 @@ end module Klinkenberg_module
 ! ************************************************************************** !
 
 module WIPP_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -1112,21 +1112,21 @@ module WIPP_module
   use Creep_Closure_module
 
   implicit none
-  
+
   private
 
   type :: wipp_type
     class(creep_closure_type), pointer :: creep_closure_tables
     class(creep_closure_ptr_type), pointer :: creep_closure_tables_array(:)
   end type wipp_type
-  
+
   type(wipp_type), pointer, public :: wipp
-  
+
   interface WIPPDestroy
     module procedure WIPPDestroy1
     module procedure WIPPDestroy2
   end interface
-  
+
   public :: WIPPInit, &
             WIPPGetPtr, &
             WIPPRead, &
@@ -1144,12 +1144,12 @@ subroutine WIPPInit()
   !
 
   implicit none
-  
+
   if (associated(wipp)) then
     call WIPPDestroy(wipp)
   endif
-  nullify(wipp)  
-  
+  nullify(wipp)
+
 end subroutine WIPPInit
 
 ! ************************************************************************** !
@@ -1161,7 +1161,7 @@ function WIPPGetPtr()
   !
 
   implicit none
-  
+
   type(wipp_type), pointer :: WIPPGetPtr
 
   if (.not.associated(wipp)) then
@@ -1169,59 +1169,59 @@ function WIPPGetPtr()
     nullify(wipp%creep_closure_tables)
     nullify(wipp%creep_closure_tables_array)
   endif
-  
+
   WIPPGetPtr => wipp
-  
+
 end function WIPPGetPtr
 
 ! ************************************************************************** !
 
 subroutine WIPPRead(input,option)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/14
-  ! 
+  !
   use Option_module
   use Input_Aux_module
   use String_module
   use Creep_Closure_module
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   type(wipp_type), pointer :: wipp
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string = 'WIPP'
 
   wipp => WIPPGetPtr()
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)   
-      
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
 !      case('CREEP_CLOSURE')
 !        call CreepClosureInit()
 !        creep_closure => CreepClosureCreate()
 !        call creep_closure%Read(input,option)
 !        option%flow%transient_porosity = PETSC_TRUE
-!        wipp%creep_closure => creep_closure      
+!        wipp%creep_closure => creep_closure
      case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine WIPPRead
 
 ! ************************************************************************** !
@@ -1233,7 +1233,7 @@ subroutine WIPPDestroy1()
   !
 
   implicit none
-  
+
   call WIPPDestroy(wipp)
 
 end subroutine WIPPDestroy1
@@ -1247,15 +1247,15 @@ subroutine WippDestroy2(wipp)
   !
 
   implicit none
-  
+
   type(wipp_type), pointer :: wipp
-  
+
   if (.not.associated(wipp)) return
 
   call CreepClosureArrayDestroy(wipp%creep_closure_tables_array)
   nullify(wipp%creep_closure_tables)
   nullify(wipp%creep_closure_tables_array)
-  
+
   deallocate(wipp)
   nullify(wipp)
 
@@ -1267,14 +1267,14 @@ end module WIPP_module
 ! ************************************************************************** !
 
 module WIPP_Characteristic_Curve_module
-  
+
   use PFLOTRAN_Constants_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   implicit none
-  
+
   private
 
   public :: WIPPCCVerify, &
@@ -1283,7 +1283,7 @@ module WIPP_Characteristic_Curve_module
 contains
 
 ! ************************************************************************** !
-  
+
 subroutine WIPPCCVerify(saturation_func, &
                         liq_rel_perm_func, &
                         gas_rel_perm_func, &
@@ -1408,7 +1408,7 @@ subroutine WIPPCCVerify(saturation_func, &
     option%io_buffer = 'Unequal liquid residual saturations.'
     call PrintErrMsg(option)
   endif
- 
+
   if ((Initialized(ssgr) .and. .not.Equal(ssgr,lsgr)) .or. &
       .not.Equal(lsgr,gsgr)) then
     print *, 'ssgr: ', ssgr, stype
@@ -1417,7 +1417,7 @@ subroutine WIPPCCVerify(saturation_func, &
     option%io_buffer = 'Unequal gas residual saturations.'
     call PrintErrMsg(option)
   endif
- 
+
   if ((Initialized(slamda) .and. .not.Equal(slamda,llamda)) .or. &
       .not.Equal(llamda,glamda)) then
     print *, 'slamda: ', slamda, stype
@@ -1426,11 +1426,11 @@ subroutine WIPPCCVerify(saturation_func, &
     option%io_buffer = 'Unequal lambdas.'
     call PrintErrMsg(option)
   endif
- 
+
 end subroutine WIPPCCVerify
 
 ! ************************************************************************** !
-  
+
 subroutine WIPPCharacteristicCurves(saturation, &
                                     permeability, &
                                     saturation_func, &
@@ -1625,7 +1625,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
 !
 !------- PTC > 0.
 !
-! BADAY 5/12/17 - corrected OR to AND such that ELSE IF is executed 
+! BADAY 5/12/17 - corrected OR to AND such that ELSE IF is executed
 !-------   when KRP = 8
             IF (KRP .GT. 1 .AND. KRP .LT. 5) THEN
 !
@@ -1875,7 +1875,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
         error = PETSC_TRUE
         print *, 'Outside bounds capillary pressure.'
       endif
-    endif 
+    endif
   endif
   if (liq_rel_perm > 0.d0) then
     tempreal = (liq_rel_perm-krl_check)/liq_rel_perm
@@ -1887,7 +1887,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
         error = PETSC_TRUE
         print *, 'Outside bounds liquid relative permeability.'
       endif
-    endif 
+    endif
   endif
   if (gas_rel_perm > 0.d0) then
     tempreal = (gas_rel_perm-krg_check)/gas_rel_perm
@@ -1899,12 +1899,12 @@ subroutine WIPPCharacteristicCurves(saturation, &
         error = PETSC_TRUE
         print *, 'Outside bounds gas relative permeability.'
       endif
-    endif 
+    endif
   endif
 
   if (error) then
     write(*,'(" kpc, krp: ",i4,i4)') kpc, krp
-    write(*,'(" lambda,swr,sgr,pcmax: ",8es13.5e3)') xlamda, swr, sgr, pcmax 
+    write(*,'(" lambda,swr,sgr,pcmax: ",8es13.5e3)') xlamda, swr, sgr, pcmax
     write(*,'(" satl,satg,perm: ",2es23.15e3,es13.5)') saturation(:), &
       permeability
 !    stop

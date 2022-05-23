@@ -619,14 +619,14 @@ subroutine LUDecomposition1(A,N,INDX,D,stop_on_error,ierror)
     enddo
     if (aamax <= 0.d0) then
       if (stop_on_error) then
-        call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
+        call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr);CHKERRQ(ierr)
         print *, "ERROR: Singular value encountered in LUDecomposition() on &
                  &processor: ", rank, ' aamax = ',aamax,' row = ',i
         do k = 1, N
           print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
         enddo
-        call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
-        call MPI_Finalize(ierr)
+        call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr);CHKERRQ(ierr)
+        call MPI_Finalize(ierr);CHKERRQ(ierr)
         stop
       else
         ierror = 1
@@ -765,10 +765,10 @@ subroutine LUDecomposition_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
       if (abs(A(ichunk,ithread,i,j)).gt.aamax) aamax=abs(A(ichunk,ithread,i,j))
     enddo
     if (aamax.eq.0.d0) then
-      call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
+      call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr);CHKERRQ(ierr)
       print *, "ERROR: Singular value encountered in LUDecomposition() on processor", rank, ichunk,ithread
-      call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
-      call MPI_Finalize(ierr)
+      call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr);CHKERRQ(ierr)
+      call MPI_Finalize(ierr);CHKERRQ(ierr)
       stop
     endif
     VV(ichunk,ithread,i)=1./aamax
@@ -2495,12 +2495,13 @@ subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
 
       if (option%myrank .ne. rank_list(1)) then
         call MPI_Send(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      rank_list(1),TAG,option%mycomm,ierr)
+                      rank_list(1),TAG,option%mycomm,ierr);CHKERRQ(ierr)
       else
         temp_array(1) = local_val(j)
         do m = 2,num_ranks
           call MPI_Recv(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                        rank_list(m),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+                        rank_list(m),TAG,option%mycomm,MPI_STATUS_IGNORE, &
+                        ierr);CHKERRQ(ierr)
           temp_array(m) = local_val(j)
         enddo
         global_sum(j) = sum(temp_array)
@@ -2508,11 +2509,12 @@ subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
       if (option%myrank == rank_list(1)) then
         do m = 2,num_ranks
           call MPI_Send(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                        rank_list(m),TAG,option%mycomm,ierr)
+                        rank_list(m),TAG,option%mycomm,ierr);CHKERRQ(ierr)
         enddo
       else
         call MPI_Recv(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
+                      rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE, &
+                      ierr);CHKERRQ(ierr)
       endif
 
     enddo

@@ -1785,7 +1785,7 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   write(IUNIT_TEMP,'(2X,A8,2X,A3)') "PRESSURE", "MPa"
   write(IUNIT_TEMP,'(2X,A11,2X,A1)') "TEMPERATURE", "C"
   write(IUNIT_TEMP,'(2X,A7,2X,A6)') "DENSITY", "kg/m^3"
-  write(IUNIT_TEMP,'(2X,A15,2X,A5)') "INTERNAL_ENERGY", "MJ/kg" 
+  write(IUNIT_TEMP,'(2X,A15,2X,A5)') "INTERNAL_ENERGY", "MJ/kg"
   write(IUNIT_TEMP,'(2X,A8,2X,A5)') "ENTHALPY", "MJ/kg"
   write(IUNIT_TEMP,'(2X,A9,2X,A4)') "VISCOSITY", "Pa-s"
   write(IUNIT_TEMP,'(A3)') "END"

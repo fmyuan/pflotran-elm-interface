@@ -945,8 +945,8 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   call PetscBagRegisterInt(bag,header%num_contig_revert_due_to_sync,0, &
                            "num_contig_revert_due_to_sync","", &
                            ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%revert_dt,0, &
-                           "revert_dt","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%revert_dt,0,"revert_dt","", &
+                           ierr);CHKERRQ(ierr)
 
 end subroutine TimestepperBaseRegisterHeader
 
@@ -1089,7 +1089,7 @@ function TimestepperBaseWallClockStop(this,option)
   ! checkpoint and exit
   TimestepperBaseWallclockStop = PETSC_FALSE
   if (option%wallclock_stop_flag) then
-    call PetscTime(current_time, ierr)
+    call PetscTime(current_time,ierr);CHKERRQ(ierr)
     average_step_time = (current_time-option%comm%start_time)/ &
                         dble(this%steps-this%start_time_step+1) &
                         *2.d0  ! just to be safe, double it
