@@ -980,13 +980,12 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (spline > 0) then ! Create cubic approximation for any saturation function
     if (associated(sf_swap)) then ! Splining a loop-invariant replacement
-      sf_swap2 => SFSplineCtor(sf_swap, spline)
+      sf_swap2 => SFPCHIPCtorFunction(spline, sf_swap)
       deallocate(sf_swap)
       sf_swap => sf_swap2
     else
-      sf_swap => SFSplineCtor(saturation_function, spline)
+      sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
     end if
-    ! The calling CCRead will deallocated saturation_function
   end if
 
 end function SaturationFunctionRead
@@ -1794,11 +1793,11 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
 
   if (spline > 0) then ! Create cubic approximation for any saturation function
     if (associated(rpf_swap)) then ! Splining a loop-invariant replacement
-      rpf_swap2 => RPFSplineCtor(permeability_function, 101)
+      rpf_swap2 => RPFPCHIPCtorFunction(spline, permeability_function)
       deallocate(rpf_swap)
       rpf_swap => rpf_swap2
     else
-      rpf_swap => RPFSplineCtor(permeability_function, 101)
+      rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
     end if
   end if
 

@@ -4,7 +4,7 @@ module Characteristic_Curves_spline_module
 use petscsys ! Necessary for PETSC_TRUE / PETSC_FALSE
 use Characteristic_Curves_Base_module   ! Needed to define base type
 use Option_module ! Needed for Verify and unused arguments in Pc and Sl
-use spline_module
+use slatec_pchip_module
 use PFLOTRAN_constants_module ! Needed for UNINITIALIZED_DOUBLE
 
 implicit none
@@ -12,174 +12,268 @@ private
 
 ! **************************************************************************** !
 !
+! Author: Matthew Paul
+! Date:   05/05/2022
+!
+! This module contains the methods to construct, evaluate, and deconstruct 
+! cubic spline interpolation for any monotonic capillary pressure or relative
+! permeability function or data set.  Cubic splines are the simpliest
+! arithmeticl expression that provides continuity and smoothness over any data.
+! In the abscense of hysterisis , the free energy and hence capillary pressure
+! must be a monotonic function of saturation. In addition, monotonicity is
+! necessary to avoid introducing degenerate roots for the Newton solver.
+!
+! Monotonic splines are calculated using the Piecewise Cubic Hermite
+! Interpolation Polynomial (PCHIP) package from SLATEC, a public domain library.
+! PCHIP was optimized for graphing, thus the evaluation function assumes the
+! points being evaluated are in an ordered list, and a linear search was used
+! to evaluate the entire list.
+
+! Here, the PCHIP calculated polynomials are cached and a binary search
+! is used to search the key values, which is more efficient when there is no
+! correlation between consequentive function evaluations. Binary search can be
+! make branchless and vectorized using conditional move / merge() intrinsic,
+! but is left as the branched form for scalar function calls.
+!
 ! References:
 !
 ! Ross, P (1992) "Cubic approximation of hydraulic properties for simulations of
-! unsaturated flow", Water Resource Research 28(10):2617-2620.
+! unsaturated flow", Water Resour. Res. 28(10):2617-2620.
 ! doi: 10.1029/92WR01310a
 !
-! **************************************************************************** !
-!
-! sat_func_base_type        External base type, quasi-abstract
-! |
-! |-->sf_spline_type        Generated cubic spline type
+! Fritsch, FN and Carlson, RE (1980) "Monotone piecewise cubic interpolation",
+! SIAM J. Numer. Anal., 17(2):238-246.
+! doi: 10.11377/0717021
 !
 ! **************************************************************************** !
-public SFSplineCtor
+
+type, private :: cubic_type
+! Polynomial coefficients are stored in a structure for data locality
+! x-reference values are stored separately to reduce cache size during search
+  PetscReal :: y, dy, c2, c3
+end type
+ 
 ! **************************************************************************** !
-type, public, extends(sat_func_base_type) :: sf_spline_type
+type, public, extends(sat_func_base_type) :: sf_pchip_type
   private
-    PetscInt  :: N ! Number of splines
-    PetscReal :: h ! Saturation interval width
+    PetscInt  :: N ! Number of knots
+    PetscReal, dimension(:), allocatable :: x ! Reference points
+    type(cubic_type), dimension(:), allocatable :: coef ! Coefficients
   contains
-    procedure, public :: Init              => SFSplineInit
-    procedure, public :: CapillaryPressure => SFSplineCapillaryPressure
-    procedure, public :: Test              => SFSplineTest
+    procedure, public :: Init              => SFPCHIPInit
+    procedure, public :: CapillaryPressure => SFPCHIPCapillaryPressure
+    procedure, public :: Test              => SFPCHIPTest
+    procedure, public :: Dtor              => SFPCHIPDtor
 end type
 
 ! **************************************************************************** !
-public RPFSplineCtor
+
+type, public, extends(rel_perm_func_base_type) :: rpf_pchip_type
+  private
+    PetscInt :: N ! Number of knots
+    PetscReal, dimension(:), allocatable :: x ! Reference points
+    type(cubic_type), dimension(:), allocatable :: coef ! Coefficients
+  contains
+    procedure, public :: Init                 => RPFPCHIPInit
+    procedure, public :: RelativePermeability => RPFPCHIPRelativePermeability
+    procedure, public :: Test                 => RPFPCHIPTest
+    procedure, public :: Dtor                 => RPFPCHIPDtor
+end type
+
 ! **************************************************************************** !
 
-type, public, extends(rel_perm_func_base_type) :: rpf_spline_type
-  private
-    PetscInt  :: N ! Number of splines
-  contains
-    procedure, public :: Init                 => RPFSplineInit
-    procedure, public :: RelativePermeability => RPFSplineRelativePermeability
-    procedure, public :: Test                 => RPFSplineTest
-end type
+private PCHIPCoefficients
+ 
+private SFPCHIPAllocate
+public  SFPCHIPCtorFunction
+public  SFPCHIPCtorData
+
+private RPFPCHIPAllocate
+public  RPFPCHIPCtorFunction
+public  RPFPCHIPCtorData
 
 contains
+
+! **************************************************************************** !
+! PCHIP wrapper
+! **************************************************************************** !
+
+subroutine PCHIPCoefficients(N, x, y, dy, c2, c3)
+  PetscInt, intent(in)   :: N
+  PetscReal, intent(in)  :: x(N), y(N)
+  PetscReal, intent(out) :: dy(N-1), c2(N-1), c3(N-1)
+  PetscInt :: I
+  PetscReal :: h, delta, del1, del2
+
+  ! First derivatives are calculating using PCHIP library
+  I = 0
+  call PCHIM(N, x, y, dy, 1, I)
+
+  ! Polynomial coefficients are cached
+  do I = 1, N-1
+    h     =  x(i+1)  - x(i)
+    delta = (y(i+1)  - y(i))/h
+    del1  = (dy(i)   - delta)/h
+    del2  = (dy(i+1) - delta)/h
+
+    c2(i) = -(del1+del1+del2)
+    c3(i) =  (del1     +del2)/h
+  end do
+end subroutine
 
 ! **************************************************************************** !
 ! Saturation Function Spline Methods
 ! **************************************************************************** !
 
-subroutine SFSplineInit(this)
+subroutine SFPCHIPInit(this)
   implicit none
-  class(sf_spline_type) :: this
+  class(sf_pchip_type) :: this
   ! This method is intentionally left blank.
-end subroutine SFSplineInit
+end subroutine SFPCHIPInit
 
 ! **************************************************************************** !
 
-function SFSplineCtor(sf_analytic, N) result (new)
+function SFPCHIPAllocate(N) result (new)
+  ! Perform allocation for both data or function defined splines
   implicit none
-  class(sf_spline_type), pointer :: new
-  class(sat_func_base_type), intent(in) :: sf_analytic
   PetscInt, intent(in) :: N
-  PetscInt  :: I, ierr
-  PetscReal :: dy1, dyn, delta, del1, del2, h
-  type(option_type) :: option
+  class(sf_pchip_type), pointer :: new
 
-  ! Validate the number of knots - could set a default here
+  ! No interpolation is possible with less than 2 knots
   if (N < 2) then
     nullify(new)
     return
   end if
 
-  ! Allocate space for base structure
+  ! Allocate spline object
   allocate(new)
   if (.not. associated(new)) return
 
-  ! Allocate knot table
-  allocate(new%spline(N))
-  if (.not. allocated(new%spline)) then
+  new%N = N
+
+  ! Allocate subordinate arrays
+  allocate(new%x(N))
+  if (.not. allocated(new%x)) then
     deallocate(new)
     nullify(new)
     return
   end if
 
-  ! Standard attributes of base class
+  allocate(new%coef(N))
+  if (.not. allocated(new%coef)) then
+    deallocate(new)
+    nullify(new)
+    return
+  end if
+
+! Unused pointers in base class that must be nullified
+! Could be eliminated if base class is refactored
   nullify(new%sat_poly)
   nullify(new%pres_poly)
-  new%Sr = 0d0
-  new%calc_int_tension = PETSC_FALSE  ! Default, can be mutated
-  new%analytical_derivative_available = PETSC_TRUE
-  new%Pcmax = sf_analytic%Pcmax ! Copy by not really used
 
-  ! N knots
-  new%N = N
-  new%spline(1)%x = 0d0
-  call sf_analytic%CapillaryPressure(new%spline(1)%x, new%spline(1)%y, dy1, option)
-  do I = 2, N-1
-    new%spline(i)%x = dble(I-1)/dble(N-1)
-    call sf_analytic%CapillaryPressure(new%spline(i)%x, new%spline(i)%y, dyn, option)
-  end do
-  new%spline(N)%x = 1d0
-  call sf_analytic%CapillaryPressure(new%spline(N)%x, new%spline(N)%y, dyn, option)
-  
-  call PCHIM(N, new%spline%x, new%spline%y, new%spline%dy, 1, ierr)
-
-! do i = 1, N-1
-!   h = new%spline(i+1)%x - new%spline(i)%x
-!   delta = (new%spline(i+1)%y  - new%spline(i)%y)/h
-!   del1  = (new%spline(i  )%dy - delta)/h
-!   del2  = (new%spline(i+1)%dy - delta)/h
-
-!   new%spline(i)%c2 = -(del1+del1+del2)
-!   new%spline(i)%c3 =  (del1+del2)/h
-! end do
-
-end function SFSplineCtor
+end function
 
 ! **************************************************************************** !
 
-subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
+function SFPCHIPCtorFunction(N, sf_analytic) result (new)
+  implicit none
+  class(sf_pchip_type), pointer :: new
+  class(sat_func_base_type), intent(in) :: sf_analytic
+  PetscInt, intent(in) :: N
+  PetscInt  :: I, ierr
+  PetscReal :: dyn
+  type(option_type) :: option
+
+  new => SFPCHIPAllocate(N)
+  if (.not. associated(new)) return
+
+  ! Standard attributes of base class
+  new%Sr = 0d0
+  new%calc_int_tension = PETSC_FALSE  ! Default, can be mutated
+  new%analytical_derivative_available = PETSC_TRUE
+  new%Pcmax = sf_analytic%Pcmax
+
+  ! Generate N knots starting at 0 and ending at 1
+  do I = 1, N
+    new%x(i) = dble(I-1)/dble(N-1)
+    call sf_analytic%CapillaryPressure(new%x(i), new%coef(i)%y, dyn, option)
+  end do
+ 
+! Calculate the polynomial coefficients
+  call PCHIPCoefficients(N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
+
+end function SFPCHIPCtorFunction
+
+! **************************************************************************** !
+
+function SFPCHIPCtorData(N, x, y) result (new)
+  implicit none
+  class(sf_pchip_type), pointer :: new
+  PetscInt, intent(in) :: N
+  PetscReal, intent(in) :: x(N), y(N)
+
+  new => SFPCHIPAllocate(N)
+  if (.not. associated(new)) return
+
+  ! Standard attributes of base class
+  new%Sr = x(1)
+  new%calc_int_tension = PETSC_FALSE  ! Default, can be mutated
+  new%analytical_derivative_available = PETSC_TRUE
+  new%Pcmax = y(1)
+
+  new%x = x
+  new%coef%y = y
+
+! Calculate the polynomial coefficients
+  call PCHIPCoefficients(N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
+
+end function SFPCHIPCtorData
+
+! **************************************************************************** !
+
+subroutine SFPCHIPCapillaryPressure(this, liquid_saturation, &
                                    capillary_pressure, dPc_dSatl, option)
   implicit none
-
-  class(sf_spline_type) :: this
+  class(sf_pchip_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
   PetscInt :: i, j, k
-  PetscReal :: x, y, dy
-  PetscReal :: h, delta, del1, del2
-  PetscReal :: c2, c3
-  PetscReal :: c2t2, c3t3
+  PetscReal :: x
 
-  x = min(max(liquid_saturation,0d0),1d0)
+  x = min(max(liquid_saturation,this%x(1)),this%x(this%N))
 
+! Binary search, compiler can optimize this to be branchless
+! Replace branch with merge() when vectorizing
   i = 1
   j = this%n
   do while (j - i > 1)
     k = (i + j)/2
-    if (this%spline(k)%x > x) then
+    if (this%x(k) > x) then
       j = k
     else
       i = k
     end if
   end do
 
-  h = this%spline(i+1)%x - this%spline(i)%x
-  delta = (this%spline(i+1)%y  - this%spline(i)%y)/h
-  del1  = (this%spline(i  )%dy - delta)/h
-  del2  = (this%spline(i+1)%dy - delta)/h
+  x  = x - this%x(i)
 
-  c2 = -(del1+del1+del2)
-  c3 =  (del1+del2)/h
-  c2t2 = c2 + c2
-  c3t3 = c3+c3+c3
+  capillary_pressure    =    this%coef(i)%y + x* &
+                        (   this%coef(i)%dy + x* &
+                        (   this%coef(i)%c2 + x*this%coef(i)%c3))
+  dPc_dSatl             =   this%coef(i)%dy + x* &
+                        ( 2*this%coef(i)%c2 + 3*x*this%coef(i)%c3)
 
-  x = x - this%spline(i)%x
-  y = this%spline(i)%y + x*(this%spline(i)%dy + x*(c2 + x*c3))
-  dy = this%spline(i)%dy + x*(c2t2 + x*c3t3)
-
-  capillary_pressure = y
-  dPc_dSatl = dy
-
-end subroutine SFSplineCapillaryPressure
+end subroutine SFPCHIPCapillaryPressure
 
 ! **************************************************************************** !
 
-subroutine SFSplineTest(this,cc_name,option)
+subroutine SFPCHIPTest(this,cc_name,option)
   use Option_module
   use Material_Aux_module
   use PFLOTRAN_Constants_module
   implicit none
-  class(sf_spline_type) :: this
+  class(sf_pchip_type) :: this
   character(len=MAXWORDLENGTH) :: cc_name
   type(option_type), intent(inout) :: option
   character(len=MAXSTRINGLENGTH) :: string
@@ -191,9 +285,7 @@ subroutine SFSplineTest(this,cc_name,option)
   write(string,*) cc_name
   string = trim(cc_name) // '_pc_from_sat.dat'
   open(unit=86,file=string)
-  write(86,*) '#Sw,       Pc,       dPc/dSw'
-
- ! calculate capillary pressure as a function of saturation
+  write(86,*) '#Sw, Pc, dPc/dSw'
   do i = 0, num_values
     Sw = dble(i)/dble(num_values)
     call this%CapillaryPressure(Sw, Pc, dPc_dSw, option)
@@ -201,158 +293,182 @@ subroutine SFSplineTest(this,cc_name,option)
   enddo
   close(86)
 
-
+! Write knots and derivatives to file
   write(string,*) cc_name
-  string = trim(cc_name) // '_Pc_spline.dat'
+  string = trim(cc_name) // '_pc_knots.dat'
   open(unit=87,file=string)
-  write(86,*) '#Index, x, y, dy'
+  write(87,*) '#Index, Sw, Pc, dPc/dSw'
   do i = 1, this%N
-    write(87,*) this%spline(i)%x, this%spline(i)%y, this%spline(i)%dy
+    write(87,*) i, this%x(i), this%coef(i)%y, this%coef(i)%dy
   end do
 
-end subroutine SFSplineTest
+end subroutine SFPCHIPTest
 
 ! **************************************************************************** !
-! Relative Permeability Spline Methods
-! **************************************************************************** !
 
-subroutine RPFSplineInit(this)
+subroutine SFPCHIPDtor(this)
   implicit none
-  class(rpf_spline_type) :: this
+  class(sf_pchip_type) :: this
+  deallocate(this%x)
+  deallocate(this%coef)
+end subroutine SFPCHIPDtor
+
+! **************************************************************************** !
+! Relative Permeability PCHIP Methods
+! **************************************************************************** !
+
+subroutine RPFPCHIPInit(this)
+  implicit none
+  class(rpf_pchip_type) :: this
   ! This method is intentionally left blank.
-end subroutine RPFSplineInit
+end subroutine RPFPCHIPInit
 
 ! **************************************************************************** !
 
-function RPFSplineCtor(rpf_analytic, N) result (new)
+function RPFPCHIPAllocate(N) result (new)
+  ! Perform allocation for both data or function defined splines
   implicit none
-  class(rpf_spline_type), pointer :: new
-  class(rel_perm_func_base_type), intent(in) :: rpf_analytic
   PetscInt, intent(in) :: N
-  PetscInt  :: I, ierr
-  PetscReal :: buffer
-  PetscReal :: span
-  PetscReal :: delta, del1, del2, h
-  type(option_type) :: option
+  class(rpf_pchip_type), pointer :: new
 
-  ! Validate the number of knots - could set a default here
+  ! No interpolation is possible with less than 2 knots
   if (N < 2) then
     nullify(new)
     return
   end if
 
+  ! Allocate spline base
   allocate(new)
   if (.not. associated(new)) return
 
-  allocate(new%spline(N))
-  if (.not. allocated(new%spline)) then
+  new%N = N
+
+  ! Allocate reference point array
+  allocate(new%x(N))
+  if (.not. allocated(new%x)) then
     deallocate(new)
     nullify(new)
     return
   end if
 
-  ! Standard attributes of base class
+  ! Allocate coefficient array
+  allocate(new%coef(N))
+  if (.not. allocated(new%coef)) then
+    deallocate(new)
+    nullify(new)
+    return
+  end if
+
+! Unused pointers in base class that must be nullified
   nullify(new%poly)
-  new%Sr = rpf_analytic%Sr
-  new%Srg = rpf_analytic%Srg
-  ! Liquid relative perm functions may have an "uninitialized" gas residual
-  new%analytical_derivative_available = PETSC_TRUE
-  ! Initialize public attributes
-  if (rpf_analytic%Srg == UNINITIALIZED_DOUBLE) new%Srg = 0d0
 
-  ! N knots
-  new%N = N
-  span = 1d0 - new%Srg - new%Sr
-
-  ! Generate N knots between Sr and 1-Srg, saving derivatives at endpoints
-  ! Ensure endpoints are exactly on the residual gas saturation
-  new%spline(1)%x = new%Sr
-  call rpf_analytic%RelativePermeability(new%spline(1)%x, new%spline(1)%y, buffer, option)
-  do I = 2, N-1
-    new%spline(i)%x = new%Sr + span*dble(I-1)/dble(N-1)
-    call rpf_analytic%RelativePermeability(new%spline(I)%x, new%spline(I)%y, buffer, option)
-  end do
-  new%spline(N)%x = 1d0 - new%Srg
-  call rpf_analytic%RelativePermeability(new%spline(N)%x, new%spline(N)%y, buffer, option)
-
-  ! Find derivatives of internal splines
-  call PCHIM(N, new%spline%x, new%spline%y, new%spline%dy, 1, ierr)
-
-! do i = 1, N-1
-!   h = new%spline(i+1)%x - new%spline(i)%x
-!   delta = (new%spline(i+1)%y  - new%spline(i)%y)/h
-!   del1  = (new%spline(i  )%dy - delta)/h
-!   del2  = (new%spline(i+1)%dy - delta)/h
-
-!   new%spline(i)%c2 = -(del1+del1+del2)
-!   new%spline(i)%c3 =  (del1+del2)/h
-! end do
-
-end function RPFSplineCtor
+end function
 
 ! **************************************************************************** !
 
-subroutine RPFSplineRelativePermeability(this, liquid_saturation, &
+function RPFPCHIPCtorFunction(N, rpf_analytic) result (new)
+  implicit none
+  class(rpf_pchip_type), pointer :: new
+  class(rel_perm_func_base_type), intent(in) :: rpf_analytic
+  PetscInt, intent(in) :: N
+  PetscInt  :: I
+  PetscReal :: dyn, span
+  type(option_type) :: option
+
+  new => RPFPCHIPAllocate(N)
+  if (.not. associated(new)) return
+
+  ! Standard attributes of base class
+  new%Sr  = rpf_analytic%Sr
+  new%Srg = rpf_analytic%Srg
+  ! Liquid relative perm functions may have an "uninitialized" gas residual
+  if (rpf_analytic%Srg == UNINITIALIZED_DOUBLE) new%Srg = 0d0
+  new%analytical_derivative_available = PETSC_TRUE
+
+  ! N knots starting at Sr and ending at 1-Srg
+  span = 1d0 - new%Srg - new%Sr
+  do I = 1, N-1
+    new%x(i) = new%Sr + span*dble(I-1)/dble(N-1)
+    call rpf_analytic%RelativePermeability(new%x(I), new%coef(I)%y, dyn, option)
+  end do
+  ! Ensure the endpoint is exact
+  new%x(N) = 1d0 - new%Srg
+  call rpf_analytic%RelativePermeability(new%x(N), new%coef(N)%y, dyn, option)
+
+  ! Calculate the quadratic and cubic coefficients
+  call PCHIPCoefficients(N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
+
+end function RPFPCHIPCtorFunction
+
+! **************************************************************************** !
+
+function RPFPCHIPCtorData(N, x, y) result (new)
+  implicit none
+  class(rpf_pchip_type), pointer :: new
+  PetscInt, intent(in) :: N
+  PetscReal, intent(in) :: x(N), y(N)
+
+  new => RPFPCHIPAllocate(N)
+  if (.not. associated(new)) return
+
+  ! Base class assignments
+  new%Sr  = x(1)
+  new%Srg = 1d0 - x(N)
+  new%analytical_derivative_available = PETSC_TRUE
+
+  new%x = x
+  new%coef%y = y
+
+  ! Calculate polynomial coefficients
+  call PCHIPCoefficients(N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
+
+end function RPFPCHIPCtorData
+! **************************************************************************** !
+
+subroutine RPFPCHIPRelativePermeability(this, liquid_saturation, &
                                    relative_permeability, dkr_sat, option)
   implicit none
 
-  class(rpf_spline_type) :: this
+  class(rpf_pchip_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
   PetscInt :: i, j, k
-  PetscReal :: h, delta, del1, del2
-  PetscReal :: c2, c3, c2t2, c3t3
-  PetscReal :: x, y, dy
+  PetscReal :: x
 
-! If provided with an array, these functions can be done in parallel
-! Ceiling, min, and max are hardware instructions
+  x = min(max(liquid_saturation,this%x(1)), this%x(this%N))
 
-! Aliases because dummy variable names are absurdly long. Compiler should inline
-
-! Cut saturation off at residuals
-
-  x = min(max(liquid_saturation,this%spline(1)%x), this%spline(this%N)%x)
-
+! Binary search, compiler can optimize this to be branchless
+! Replace branch with merge() when vectorizing
   i = 1
   j = this%n
   do while (j - i > 1)
     k = (i + j)/2
-   if (this%spline(k)%x > x) then
-     j = k
-   else
-     i = k
-   end if
+    if (this%x(k) > x) then
+      j = k
+    else
+      i = k
+    end if
   end do
 
-!  i = min(max(ceiling(x - this%Sr * dble(this%N-1)),1),this%N-1)
+  x  = x - this%x(i)
 
-  h = this%spline(i+1)%x - this%spline(i)%x
-  delta = (this%spline(i+1)%y  - this%spline(i)%y)/h
-  del1  = (this%spline(i  )%dy - delta)/h
-  del2  = (this%spline(i+1)%dy - delta)/h
+  relative_permeability =    this%coef(i)%y + x* &
+                        (   this%coef(i)%dy + x* &
+                        (   this%coef(i)%c2 + x*this%coef(i)%c3))
+  dkr_sat               =   this%coef(i)%dy + x* &
+                        ( 2*this%coef(i)%c2 + 3*x*this%coef(i)%c3)
 
-  c2 = -(del1+del1+del2)
-  c2t2 = c2 + c2
-  c3 = (del1+del2)/h
-  c3t3 = c3+c3+c3
-
-  x = x - this%spline(i)%x
-  y = this%spline(i)%y + x*(this%spline(i)%dy + x*(c2 + x*c3))
-  dy = this%spline(i)%dy + x*(c2t2 + x*c3t3)
-
-  relative_permeability= y
-  dkr_sat = dy
-end subroutine RPFSplineRelativePermeability
+end subroutine RPFPCHIPRelativePermeability
 
 ! **************************************************************************** !
 
-subroutine RPFSplineTest(this,cc_name,phase,option)
+subroutine RPFPCHIPTest(this,cc_name,phase,option)
   use Option_module
   use Material_Aux_module
   use PFLOTRAN_Constants_module
   implicit none
-  class(rpf_spline_type) :: this
+  class(rpf_pchip_type) :: this
   character(len=MAXWORDLENGTH) :: cc_name
   type(option_type), intent(inout) :: option
   character(len=MAXWORDLENGTH) :: phase
@@ -376,15 +492,23 @@ subroutine RPFSplineTest(this,cc_name,phase,option)
   close(86)
 
   write(string,*) cc_name
-  string = trim(cc_name) // '_' //  trim(phase) // '_Kr_spline.dat'
+  string = trim(cc_name) // '_' //  trim(phase) // '_Kr_knots.dat'
   open(unit=87,file=string)
-  write(86,*) '#Index, x_max, A, B, C, D'
+  write(87,*) '#Index, x, y, dy'
   do i = 1, this%N
-    write(87,*) this%spline(i)%x, this%spline(i)%y, this%spline(i)%dy
+    write(87,*) this%x(i), this%coef(i)%y, this%coef(i)%dy
   end do
   close(87)
     
-end subroutine RPFSplineTest
+end subroutine RPFPCHIPTest
+
+! **************************************************************************** !
+
+subroutine RPFPCHIPDtor(this)
+  class(rpf_pchip_type) :: this
+  deallocate(this%x)
+  deallocate(this%coef) 
+end subroutine RPFPCHIPDtor
 
 end module
 

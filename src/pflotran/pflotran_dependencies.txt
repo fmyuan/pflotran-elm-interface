@@ -23,7 +23,7 @@ characteristic_curves_loop_invariant.o : characteristic_curves_base.o \
                                          option.o
 characteristic_curves_spline.o : characteristic_curves_base.o \
                                  option.o \
-                                 spline.o
+                                 slatec_pchip.o
 
 characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
                                   string.o

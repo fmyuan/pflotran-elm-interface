@@ -16,17 +16,12 @@ module Characteristic_Curves_Base_module
     PetscReal :: coefficients(4)
   end type polynomial_type
 
-  type, public :: spline_type
-    PetscReal :: x, y, dy
-  end type spline_type
-
 !-----------------------------------------------------------------------------
 !-- Saturation Functions -----------------------------------------------------
 !-----------------------------------------------------------------------------
   type, public :: sat_func_base_type
     type(polynomial_type), pointer :: sat_poly
     type(polynomial_type), pointer :: pres_poly
-    type(spline_type), dimension(:), allocatable :: spline
     PetscReal :: Sr
     PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
@@ -48,6 +43,8 @@ module Characteristic_Curves_Base_module
     procedure, public :: SetResidualSaturation => SFBaseSetResidualSaturation
     procedure, public :: SetAlpha_ => SFBaseSetNeedsToBeExtended
     procedure, public :: SetM_ => SFBaseSetNeedsToBeExtended
+
+    procedure, public :: Dtor => SFBaseDtor
   end type sat_func_base_type
 
 !-----------------------------------------------------------------------------
@@ -55,7 +52,6 @@ module Characteristic_Curves_Base_module
 !-----------------------------------------------------------------------------
   type, public :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
-    type(spline_type), dimension(:), allocatable :: spline
     PetscReal :: Sr
     PetscReal :: Srg
     PetscBool :: analytical_derivative_available
@@ -73,6 +69,8 @@ module Characteristic_Curves_Base_module
     procedure, public :: GetM_ => RPFBaseGetNeedsToBeExtended
     procedure, public :: SetResidualSaturation => RPFBaseSetResidualSaturation
     procedure, public :: SetM_ => RPFBaseSetNeedsToBeExtended
+
+    procedure, public :: Dtor => RPFBaseDtor
   end type rel_perm_func_base_type
 
   public :: PolynomialCreate, &
@@ -367,6 +365,11 @@ subroutine SFBaseD2SatDP2(this,pc,d2s_dp2,option)
 
 end subroutine SFBaseD2SatDP2
 
+subroutine SFBaseDtor(this)
+  class(sat_func_base_type) :: this
+
+end subroutine
+
 ! ************************************************************************** !
 
 subroutine SFBaseTest(this,cc_name,option)
@@ -586,6 +589,12 @@ end subroutine RPFBaseGasEffectiveSaturation
 
 ! ************************************************************************** !
 
+subroutine RPFBaseDtor(this)
+  class(rel_perm_func_base_type) :: this
+
+end subroutine
+
+! ************************************************************************** !
 subroutine RPFBaseTest(this,cc_name,phase,option)
 
   use Option_module
@@ -679,8 +688,7 @@ subroutine SaturationFunctionDestroy(sf)
   class(sat_func_base_type), pointer :: sf
 
   if (.not.associated(sf)) return
-
-  if (allocated(sf%spline)) deallocate(sf%spline)
+  call sf%Dtor()
 
   call PolynomialDestroy(sf%sat_poly)
   call PolynomialDestroy(sf%sat_poly)
@@ -705,7 +713,7 @@ subroutine PermeabilityFunctionDestroy(rpf)
 
   if (.not.associated(rpf)) return
 
-  if (allocated(rpf%spline)) deallocate(rpf%spline)
+  call rpf%Dtor()
 
   call PolynomialDestroy(rpf%poly)
   deallocate(rpf)

@@ -265,6 +265,7 @@ misc_obj = \
 	${common_src}simulation_inverse.o \
 	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
+        ${common_src}slatec_pchip.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
