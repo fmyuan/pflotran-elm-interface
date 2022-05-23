@@ -383,7 +383,7 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
   ! Date: 02/10/16
 
   use Inversion_TS_Aux_module
-  use Realization_Base_class
+  use Realization_Subsurface_class
 
   implicit none
 
@@ -396,17 +396,7 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
   ierr = 0
   inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
   if (associated(this%realization%patch%aux%inversion_forward_aux)) then
-    call RealizationGetVariable(this%realization, &
-                                this%realization%field%work, &
-                                inversion_forward_aux%iobsfunc,ZERO_INTEGER)
-    call VecScatterBegin(inversion_forward_aux%scatter_global_to_measurement, &
-                         this%realization%field%work, &
-                         inversion_forward_aux%measurement_vec,INSERT_VALUES, &
-                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(inversion_forward_aux%scatter_global_to_measurement, &
-                       this%realization%field%work, &
-                       inversion_forward_aux%measurement_vec,INSERT_VALUES, &
-                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call RealizationGetObservedVariables(this%realization)
     call InversionForwardAuxStep(this%realization%patch%aux% &
                                  inversion_forward_aux,time)
   endif

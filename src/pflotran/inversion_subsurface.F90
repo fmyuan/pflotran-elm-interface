@@ -272,8 +272,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
   use Utility_module
 
@@ -316,11 +315,11 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       call StringToUpper(word)
       select case(word)
         case('LIQUID_PRESSURE')
-          this%iobsfunc = LIQUID_PRESSURE
+          this%iobsfunc = OBS_LIQUID_PRESSURE
         case('LIQUID_SATURATION')
-          this%iobsfunc = LIQUID_SATURATION
+          this%iobsfunc = OBS_LIQUID_SATURATION
         case('SOLUTE_CONCENTRATION')
-          this%iobsfunc = SOLUTE_CONCENTRATION
+          this%iobsfunc = OBS_SOLUTE_CONCENTRATION
         case default
           call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ','//trim(keyword),option)
@@ -482,8 +481,7 @@ subroutine InversionSubsurfInitialize(this)
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
 
   class(inversion_subsurface_type) :: this
@@ -748,6 +746,17 @@ subroutine InversionSubsurfInitialize(this)
         this%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('Quantity of interest not specified in &
         &InversionSubsurfInitialize.')
+    endif
+  endif
+
+  if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
+    ! Ensure that the number of measurements equals the number of
+    ! survey measurements. Otherwise, we need to create a mapping.
+    if (size(this%realization%survey%dsim) /= num_measurements) then
+      call this%driver%PrintErrMsg('The number of measurements for ERT does &
+        &not match the number of survey ERT values (' // &
+        trim(StringWrite(num_measurements)) // ' vs. ' // &
+        trim(StringWrite(size(this%realization%survey%dsim))) // ').')
     endif
   endif
 
@@ -1398,15 +1407,15 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
       call DiscretizationNaturalToGlobal(discretization,natural_vec, &
                                          onedof_vec,ONEDOF)
       select case(this%iobsfunc)
-        case(LIQUID_PRESSURE)
+        case(OBS_LIQUID_PRESSURE)
           tempint = zflow_liq_flow_eq
-        case(LIQUID_SATURATION)
+        case(OBS_LIQUID_SATURATION)
           tempint = zflow_liq_flow_eq
           call RealizationGetVariable(this%realization,work,DERIVATIVE, &
                                       ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
           call VecPointwiseMult(onedof_vec,onedof_vec,work, &
                                 ierr);CHKERRQ(ierr)
-        case(SOLUTE_CONCENTRATION)
+        case(OBS_SOLUTE_CONCENTRATION)
           tempint = zflow_sol_tran_eq
         case default
           option%io_buffer = 'Unknown observation type in InvSubsurfCalcLambda'
@@ -1723,7 +1732,6 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
   ! Date: 09/24/21
   !
   use Debug_module
-  use Variables_module, only : LIQUID_PRESSURE
   use Realization_Base_class
   use String_module
 

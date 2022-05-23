@@ -9,6 +9,11 @@ module Inversion_TS_Aux_module
 
   private
 
+  PetscInt, parameter, public :: OBS_LIQUID_PRESSURE = 1
+  PetscInt, parameter, public :: OBS_LIQUID_SATURATION = 2
+  PetscInt, parameter, public :: OBS_SOLUTE_CONCENTRATION = 3
+  PetscInt, parameter, public :: OBS_ERT_MEASUREMENT = 4
+
   type, public :: inversion_forward_aux_type
     PetscBool :: store_adjoint
     PetscInt :: num_timesteps

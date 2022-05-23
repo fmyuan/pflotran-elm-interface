@@ -506,8 +506,7 @@ pflotran_rxn.o : communicator_aux.o driver.o global_aux.o input_aux.o \
 pm_auxiliary.o : communicator_base.o condition.o coupler.o eos_water.o \
                  global_aux.o init_subsurface.o input_aux.o inversion_ts_aux.o \
                  option.o pflotran_constants.o pm_base.o reaction_aux.o \
-                 reactive_transport_aux.o realization_base.o \
-                 realization_subsurface.o string.o
+                 reactive_transport_aux.o realization_subsurface.o string.o
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
             realization_base.o solver.o string.o utility.o
 pm_base_pointer.o : pflotran_constants.o pm_base.o
@@ -516,7 +515,8 @@ pm_ert.o : communicator_base.o connection.o coupler.o debug.o discretization.o \
            material_aux.o option.o patch.o pflotran_constants.o pm_base.o \
            reaction_aux.o reactive_transport_aux.o realization_base.o \
            realization_subsurface.o solver.o string.o survey.o timer.o \
-           transport_constraint_rt.o units.o utility.o variables.o waypoint.o
+           transport_constraint_rt.o units.o utility.o variables.o waypoint.o \
+           zflow_aux.o
 pm_general.o : checkpoint.o convergence.o field.o general.o general_aux.o \
                global.o global_aux.o grid.o input_aux.o material.o option.o \
                patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -860,13 +860,13 @@ realization_subsurface.o : characteristic_curves.o \
                            discretization.o dm_kludge.o field.o fluid.o grid.o \
                            grid_structured.o grid_unstructured.o \
                            grid_unstructured_aux.o grid_unstructured_cell.o \
-                           input_aux.o material.o material_aux.o \
-                           material_transform.o nw_transport_aux.o option.o \
-                           output_aux.o patch.o pflotran_constants.o \
-                           reaction.o reaction_aux.o reaction_mineral.o \
-                           reactive_transport_aux.o realization_base.o \
-                           region.o saturation_function.o strata.o string.o \
-                           survey.o th_aux.o time_storage.o \
+                           input_aux.o inversion_ts_aux.o material.o \
+                           material_aux.o material_transform.o \
+                           nw_transport_aux.o option.o output_aux.o patch.o \
+                           pflotran_constants.o reaction.o reaction_aux.o \
+                           reaction_mineral.o reactive_transport_aux.o \
+                           realization_base.o region.o saturation_function.o \
+                           strata.o string.o survey.o th_aux.o time_storage.o \
                            transport_constraint.o transport_constraint_base.o \
                            transport_constraint_nwt.o \
                            transport_constraint_rt.o variables.o waypoint.o
