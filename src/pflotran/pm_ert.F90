@@ -326,6 +326,7 @@ recursive subroutine PMERTInitializeRun(this)
   use Reactive_Transport_Aux_module
   use String_module
   use Transport_Constraint_RT_module
+  use ZFlow_Aux_module
 
   implicit none
 
@@ -337,6 +338,8 @@ recursive subroutine PMERTInitializeRun(this)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
+  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
+  type(zflow_auxvar_type), pointer :: zflow_auxvars_bcss(:)
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
@@ -367,64 +370,15 @@ recursive subroutine PMERTInitializeRun(this)
   ! Initialize to zeros
   call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
 
-  ! calculate species conductivity coefficients if defined
-  if (len_trim(this%mobility_database) > 0) then
-    if (.not.associated(reaction%primary_spec_Z)) then
-      option%io_buffer = 'The CHEMISTRY block must be include a DATABASE to &
-        &calculate fluid conductivity as a function of species mobilities.'
-      call PrintErrMsg(option)
-    endif
-    input => InputCreate(IUNIT_TEMP,this%mobility_database,option)
-    allocate(this%species_conductivity_coef(reaction%naqcomp))
-    this%species_conductivity_coef = UNINITIALIZED_DOUBLE
-    do
-      call InputReadPflotranString(input,option)
-      if (InputError(input)) exit
-      if (InputCheckExit(input,option)) exit
-      if (len_trim(input%buf) == 0) cycle
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,'MOBILITY SPECIES NAME', &
-                         'MOBILITY_DATABASE')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,'MOBILITY VALUE','MOBILITY_DATABASE')
-      ispecies = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
-                                             this%option)
-      if (Initialized(ispecies)) then
-        this%species_conductivity_coef(ispecies) = & ! [m^2-charge-A/V-mol]
-          tempreal * &                               ! mobility [m^2/V-s]
-          abs(reaction%primary_spec_Z(ispecies)) * & ! [charge/atom]
-          AVOGADRO_NUMBER * &                        ! [atom/mol]
-          ELEMENTARY_CHARGE                          ! [A-s] or [C]
-      endif
-    enddo
-    flag = PETSC_FALSE
-    do ispecies = 1, reaction%naqcomp
-      if (Uninitialized(this%species_conductivity_coef(ispecies))) then
-        if (.not.flag) then
-          flag = PETSC_TRUE
-          option%io_buffer = ''
-          call PrintMsg(option)
-        endif
-        option%io_buffer = reaction%primary_species_names(ispecies)
-        call PrintMsg(option)
-      endif
-    enddo
-    if (flag) then
-      option%io_buffer = 'Electrical mobilities for the species above not &
-        &defined in mobility database: ' // trim(this%mobility_database)
-      call PrintErrMsg(option)
-    endif
-    call InputDestroy(input)
-  else if (associated(patch%aux%RT)) then
-    rt_auxvars => patch%aux%RT%auxvars
-    rt_auxvars_bc => patch%aux%RT%auxvars_bc
-    ispecies = 1
+  if (option%iflowmode == ZFLOW_MODE .and. zflow_sol_tran_eq > 0) then
+    zflow_auxvars => patch%aux%ZFlow%auxvars
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       this%max_tracer_conc = max(this%max_tracer_conc, &
-                                 rt_auxvars(local_id)%total(ispecies,1))
+                                 zflow_auxvars(ZERO_INTEGER,local_id)%conc)
     enddo
+    zflow_auxvars_bcss => patch%aux%ZFlow%auxvars_bc
     boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
     do
@@ -434,23 +388,112 @@ recursive subroutine PMERTInitializeRun(this)
         sum_connection = sum_connection + 1
         this%max_tracer_conc = &
           max(this%max_tracer_conc, &
-              rt_auxvars_bc(sum_connection)%total(ispecies,1))
+              zflow_auxvars_bcss(sum_connection)%conc)
       enddo
       boundary_condition => boundary_condition%next
     enddo
+    zflow_auxvars_bcss => patch%aux%ZFlow%auxvars_ss
     source_sink => patch%source_sink_list%first
+    sum_connection = 0
     do
       if (.not.associated(source_sink)) exit
       cur_connection_set => source_sink%connection_set
-      rt_auxvar => TranConstraintRTGetAuxVar(source_sink%tran_condition% &
-                                             cur_constraint_coupler)
-      this%max_tracer_conc = max(this%max_tracer_conc, &
-                                 rt_auxvar%total(ispecies,1))
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        this%max_tracer_conc = &
+          max(this%max_tracer_conc, &
+              zflow_auxvars_bcss(sum_connection)%conc)
+      enddo
       source_sink => source_sink%next
     enddo
     call MPI_Allreduce(MPI_IN_PLACE,this%max_tracer_conc,ONE_INTEGER, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
                        ierr);CHKERRQ(ierr)
+  endif
+
+  if (option%itranmode == RT_MODE) then
+    ! calculate species conductivity coefficients if defined
+    if (len_trim(this%mobility_database) > 0) then
+      if (.not.associated(reaction%primary_spec_Z)) then
+        option%io_buffer = 'The CHEMISTRY block must be include a DATABASE to &
+          &calculate fluid conductivity as a function of species mobilities.'
+        call PrintErrMsg(option)
+      endif
+      input => InputCreate(IUNIT_TEMP,this%mobility_database,option)
+      allocate(this%species_conductivity_coef(reaction%naqcomp))
+      this%species_conductivity_coef = UNINITIALIZED_DOUBLE
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        if (len_trim(input%buf) == 0) cycle
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'MOBILITY SPECIES NAME', &
+                          'MOBILITY_DATABASE')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,'MOBILITY VALUE','MOBILITY_DATABASE')
+        ispecies = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
+                                              this%option)
+        if (Initialized(ispecies)) then
+          this%species_conductivity_coef(ispecies) = & ! [m^2-charge-A/V-mol]
+            tempreal * &                               ! mobility [m^2/V-s]
+            abs(reaction%primary_spec_Z(ispecies)) * & ! [charge/atom]
+            AVOGADRO_NUMBER * &                        ! [atom/mol]
+            ELEMENTARY_CHARGE                          ! [A-s] or [C]
+        endif
+      enddo
+      flag = PETSC_FALSE
+      do ispecies = 1, reaction%naqcomp
+        if (Uninitialized(this%species_conductivity_coef(ispecies))) then
+          if (.not.flag) then
+            flag = PETSC_TRUE
+            option%io_buffer = ''
+            call PrintMsg(option)
+          endif
+          option%io_buffer = reaction%primary_species_names(ispecies)
+          call PrintMsg(option)
+        endif
+      enddo
+      if (flag) then
+        option%io_buffer = 'Electrical mobilities for the species above not &
+          &defined in mobility database: ' // trim(this%mobility_database)
+        call PrintErrMsg(option)
+      endif
+      call InputDestroy(input)
+    else if (associated(patch%aux%RT)) then
+      rt_auxvars => patch%aux%RT%auxvars
+      rt_auxvars_bc => patch%aux%RT%auxvars_bc
+      ispecies = 1
+      do local_id = 1, grid%nlmax  ! For each local node do...
+        ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        this%max_tracer_conc = max(this%max_tracer_conc, &
+                                  rt_auxvars(local_id)%total(ispecies,1))
+      enddo
+      boundary_condition => patch%boundary_condition_list%first
+      sum_connection = 0
+      do
+        if (.not.associated(boundary_condition)) exit
+        cur_connection_set => boundary_condition%connection_set
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+          this%max_tracer_conc = &
+            max(this%max_tracer_conc, &
+                rt_auxvars_bc(sum_connection)%total(ispecies,1))
+        enddo
+        boundary_condition => boundary_condition%next
+      enddo
+      source_sink => patch%source_sink_list%first
+      do
+        if (.not.associated(source_sink)) exit
+        cur_connection_set => source_sink%connection_set
+        rt_auxvar => TranConstraintRTGetAuxVar(source_sink%tran_condition% &
+                                              cur_constraint_coupler)
+        this%max_tracer_conc = max(this%max_tracer_conc, &
+                                  rt_auxvar%total(ispecies,1))
+        source_sink => source_sink%next
+      enddo
+    endif
   endif
 
   ! ensure that electrodes are not placed in inactive cells
@@ -575,6 +618,7 @@ subroutine PMERTPreSolve(this)
   use Realization_Base_class
   use Variables_module
   use ERT_module
+  use ZFlow_Aux_module
 
   implicit none
 
@@ -585,6 +629,7 @@ subroutine PMERTPreSolve(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: ghosted_id
@@ -615,11 +660,15 @@ subroutine PMERTPreSolve(this)
 
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
-  if (associated(patch%aux%RT)) then
+  nullify(zflow_auxvars)
+  if (option%itranmode == RT_MODE) then
     rt_auxvars => patch%aux%RT%auxvars
-    if (Initialized(this%max_tracer_conc)) then
-      tracer_scale = this%tracer_conductivity/this%max_tracer_conc
-    endif
+  endif
+  if (zflow_sol_tran_eq > 0) then
+    zflow_auxvars => patch%aux%ZFlow%auxvars
+  endif
+  if (Initialized(this%max_tracer_conc)) then
+    tracer_scale = this%tracer_conductivity/this%max_tracer_conc
   endif
 
   material_auxvars => patch%aux%Material%auxvars
@@ -644,6 +693,12 @@ subroutine PMERTPreSolve(this)
         cond_w = cond_w0 + tracer_scale * &
                            rt_auxvars(ghosted_id)%total(species_id,1)
       endif
+    endif
+    if (associated(zflow_auxvars)) then
+      cond_sp = &                                    ! S/m
+                this%tracer_conductivity * &         ! [m^2-charge-A/V-mol]
+                zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc * &! mol/L
+                1000.d0                              ! L/m^3
     endif
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
