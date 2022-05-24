@@ -444,9 +444,9 @@ subroutine SolverCreateSNES(solver,comm,options_prefix,option)
 
   select case(solver%snes_type)
     case(SNESNEWTONLS,SNESNEWTONTR)
-#if (PETSC_VERSION_GE(3,17,0) || !PETSC_VERSION_RELEASE)
+
     case(SNESNEWTONTRDC)
-#endif
+
     case default
       option%io_buffer = 'Unsupported SNES type: ' // trim(solver%snes_type)
       call PrintErrMsg(option)
@@ -1080,7 +1080,6 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
           solver%snes_type = SNESNEWTONLS
         case('TRUST_REGION')
           solver%snes_type = SNESNEWTONTR
-#if (PETSC_VERSION_GE(3,17,0) || !PETSC_VERSION_RELEASE)
         case('NTRDC','NEWTONTRDC')
           option%flow%using_newtontrdc = PETSC_TRUE
           solver%snes_type = SNESNEWTONTRDC
@@ -1095,7 +1094,6 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
           call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                     trim(string),trim('FALSE'), &
                                     ierr);CHKERRQ(ierr)
-#endif
         case default
           call InputKeywordUnrecognized(input,keyword,error_string,option)
       end select
