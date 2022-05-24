@@ -5,31 +5,34 @@ implicit none
 ! **************************************************************************** !
 !
 ! This module contains selected subroutines from the PCHIP package of the SLATEC
-! public domain library. The code has been imported to conform to the PFLOTRAN
-! conventions but is otherwise unmodified. This included:
-! 1. Using variable type definitions in petsc/finclude/petscsys.h instead of
-!    Fortran instrinsic types.
+! public domain library. The code has been minimally modified to conform to 
+! PFLOTRAN conventions. These modifications include:
+! 1. Using variable type definitions in petsc/finclude/petscsys.h instead
+!    native Fortran types.
 ! 2. Replacing fixed format continuation characters with free-format ampersands.
 ! 3. Removing declaration of local functions 
 !
 ! XERMSG functionality has not been replicated, but could be integrated with
 ! existing PFLOTRAN error message routines.
 !
-!
 ! Imported SLATEC/PCHIP decks
 ! 1. PCHDOC
 ! 2. PCHIM
 ! 3. PCHST
-!
+! 4. CHFDV
+! 5. PCHFD
+
 ! Importer: Matthew Paul
 ! Date:     05/23/2022
 !
 ! **************************************************************************** !
 
-public XERMSG
+private XERMSG
 public PCHDOC
 public PCHIM
-public PCHST 
+public PCHST
+public CHFDV
+public PCHFD
 
 contains
 
@@ -588,6 +591,491 @@ end subroutine XERMSG
 !
       RETURN
 !------------- LAST LINE OF PCHST FOLLOWS ------------------------------
+      END
+
+!DECK CHFDV
+      SUBROUTINE CHFDV (X1, X2, F1, F2, D1, D2, NE, XE, FE, DE, NEXT, IERR)
+!***BEGIN PROLOGUE  CHFDV
+!***PURPOSE  Evaluate a cubic polynomial given in Hermite form and its
+!            first derivative at an array of points.  While designed for
+!            use by PCHFD, it may be useful directly as an evaluator
+!            for a piecewise cubic Hermite function in applications,
+!            such as graphing, where the interval is known in advance.
+!            If only function values are required, use CHFEV instead.
+!***LIBRARY   SLATEC (PCHIP)
+!***CATEGORY  E3, H1
+!***TYPE      SINGLE PRECISION (CHFDV-S, DCHFDV-D)
+!***KEYWORDS  CUBIC HERMITE DIFFERENTIATION, CUBIC HERMITE EVALUATION,
+!             CUBIC POLYNOMIAL EVALUATION, PCHIP
+!***AUTHOR  Fritsch, F. N., (LLNL)
+!             Lawrence Livermore National Laboratory
+!             P.O. Box 808  (L-316)
+!             Livermore, CA  94550
+!             FTS 532-4275, (510) 422-4275
+!***DESCRIPTION
+!
+!        CHFDV:  Cubic Hermite Function and Derivative Evaluator
+!
+!     Evaluates the cubic polynomial determined by function values
+!     F1,F2 and derivatives D1,D2 on interval (X1,X2), together with
+!     its first derivative, at the points  XE(J), J=1(1)NE.
+!
+!     If only function values are required, use CHFEV, instead.
+!
+! ----------------------------------------------------------------------
+!
+!  Calling sequence:
+!
+!        INTEGER  NE, NEXT(2), IERR
+!        REAL  X1, X2, F1, F2, D1, D2, XE(NE), FE(NE), DE(NE)
+!
+!        CALL  CHFDV (X1,X2, F1,F2, D1,D2, NE, XE, FE, DE, NEXT, IERR)
+!
+!   Parameters:
+!
+!     X1,X2 -- (input) endpoints of interval of definition of cubic.
+!           (Error return if  X1.EQ.X2 .)
+!
+!     F1,F2 -- (input) values of function at X1 and X2, respectively.
+!
+!     D1,D2 -- (input) values of derivative at X1 and X2, respectively.
+!
+!     NE -- (input) number of evaluation points.  (Error return if
+!           NE.LT.1 .)
+!
+!     XE -- (input) real array of points at which the functions are to
+!           be evaluated.  If any of the XE are outside the interval
+!           [X1,X2], a warning error is returned in NEXT.
+!
+!     FE -- (output) real array of values of the cubic function defined
+!           by  X1,X2, F1,F2, D1,D2  at the points  XE.
+!
+!     DE -- (output) real array of values of the first derivative of
+!           the same function at the points  XE.
+!
+!     NEXT -- (output) integer array indicating number of extrapolation
+!           points:
+!            NEXT(1) = number of evaluation points to left of interval.
+!            NEXT(2) = number of evaluation points to right of interval.
+!
+!     IERR -- (output) error flag.
+!           Normal return:
+!              IERR = 0  (no errors).
+!           "Recoverable" errors:
+!              IERR = -1  if NE.LT.1 .
+!              IERR = -2  if X1.EQ.X2 .
+!                (Output arrays have not been changed in either case.)
+!
+!***REFERENCES  (NONE)
+!***ROUTINES CALLED  XERMSG
+!***REVISION HISTORY  (YYMMDD)
+!   811019  DATE WRITTEN
+!   820803  Minor cosmetic changes for release 1.
+!   890411  Added SAVE statements (Vers. 3.2).
+!   890531  Changed all specific intrinsics to generic.  (WRB)
+!   890831  Modified array declarations.  (WRB)
+!   890831  REVISION DATE from Version 3.2
+!   891214  Prologue converted to Version 4.0 format.  (BAB)
+!   900315  CALLs to XERROR changed to CALLs to XERMSG.  (THJ)
+!***END PROLOGUE  CHFDV
+!  Programming notes:
+!
+!     To produce a double precision version, simply:
+!        a. Change CHFDV to DCHFDV wherever it occurs,
+!        b. Change the real declaration to double precision, and
+!        c. Change the constant ZERO to double precision.
+!
+!  DECLARE ARGUMENTS.
+!
+      PetscInt :: NE, NEXT(2), IERR
+      PetscReal :: X1, X2, F1, F2, D1, D2, XE(*), FE(*), DE(*)
+!
+!  DECLARE LOCAL VARIABLES.
+!
+      PetscInt :: I
+      PetscReal :: C2, C2T2, C3, C3T3, DEL1, DEL2, DELTA, H, X, XMI, XMA, ZERO
+      SAVE ZERO
+      DATA  ZERO /0./
+!
+!  VALIDITY-CHECK ARGUMENTS.
+!
+!***FIRST EXECUTABLE STATEMENT  CHFDV
+      IF (NE .LT. 1)  GO TO 5001
+      H = X2 - X1
+      IF (H .EQ. ZERO)  GO TO 5002
+!
+!  INITIALIZE.
+!
+      IERR = 0
+      NEXT(1) = 0
+      NEXT(2) = 0
+      XMI = MIN(ZERO, H)
+      XMA = MAX(ZERO, H)
+!
+!  COMPUTE CUBIC COEFFICIENTS (EXPANDED ABOUT X1).
+!
+      DELTA = (F2 - F1)/H
+      DEL1 = (D1 - DELTA)/H
+      DEL2 = (D2 - DELTA)/H
+!                                           (DELTA IS NO LONGER NEEDED.)
+      C2 = -(DEL1+DEL1 + DEL2)
+      C2T2 = C2 + C2
+      C3 = (DEL1 + DEL2)/H
+!                               (H, DEL1 AND DEL2 ARE NO LONGER NEEDED.)
+      C3T3 = C3+C3+C3
+!
+!  EVALUATION LOOP.
+!
+      DO 500  I = 1, NE
+         X = XE(I) - X1
+         FE(I) = F1 + X*(D1 + X*(C2 + X*C3))
+         DE(I) = D1 + X*(C2T2 + X*C3T3)
+!          COUNT EXTRAPOLATION POINTS.
+         IF ( X.LT.XMI )  NEXT(1) = NEXT(1) + 1
+         IF ( X.GT.XMA )  NEXT(2) = NEXT(2) + 1
+!        (NOTE REDUNDANCY--IF EITHER CONDITION IS TRUE, OTHER IS FALSE.)
+  500 CONTINUE
+!
+!  NORMAL RETURN.
+!
+      RETURN
+!
+!  ERROR RETURNS.
+!
+ 5001 CONTINUE
+!     NE.LT.1 RETURN.
+      IERR = -1
+      CALL XERMSG ('SLATEC', 'CHFDV', &
+         'NUMBER OF EVALUATION POINTS LESS THAN ONE', IERR, 1)
+      RETURN
+!
+ 5002 CONTINUE
+!     X1.EQ.X2 RETURN.
+      IERR = -2
+      CALL XERMSG ('SLATEC', 'CHFDV', 'INTERVAL ENDPOINTS EQUAL', IERR, 1)
+      RETURN
+!------------- LAST LINE OF CHFDV FOLLOWS ------------------------------
+      END
+
+!DECK PCHFD
+      SUBROUTINE PCHFD (N, X, F, D, INCFD, SKIP, NE, XE, FE, DE, IERR)
+!***BEGIN PROLOGUE  PCHFD
+!***PURPOSE  Evaluate a piecewise cubic Hermite function and its first
+!            derivative at an array of points.  May be used by itself
+!            for Hermite interpolation, or as an evaluator for PCHIM
+!            or PCHIC.  If only function values are required, use
+!            PCHFE instead.
+!***LIBRARY   SLATEC (PCHIP)
+!***CATEGORY  E3, H1
+!***TYPE      SINGLE PRECISION (PCHFD-S, DPCHFD-D)
+!***KEYWORDS  CUBIC HERMITE DIFFERENTIATION, CUBIC HERMITE EVALUATION,
+!             HERMITE INTERPOLATION, PCHIP, PIECEWISE CUBIC EVALUATION
+!***AUTHOR  Fritsch, F. N., (LLNL)
+!             Lawrence Livermore National Laboratory
+!             P.O. Box 808  (L-316)
+!             Livermore, CA  94550
+!             FTS 532-4275, (510) 422-4275
+!***DESCRIPTION
+!
+!          PCHFD:  Piecewise Cubic Hermite Function and Derivative
+!                  evaluator
+!
+!     Evaluates the cubic Hermite function defined by  N, X, F, D,  to-
+!     gether with its first derivative, at the points  XE(J), J=1(1)NE.
+!
+!     If only function values are required, use PCHFE, instead.
+!
+!     To provide compatibility with PCHIM and PCHIC, includes an
+!     increment between successive values of the F- and D-arrays.
+!
+! ----------------------------------------------------------------------
+!
+!  Calling sequence:
+!
+!        PARAMETER  (INCFD = ...)
+!        INTEGER  N, NE, IERR
+!        REAL  X(N), F(INCFD,N), D(INCFD,N), XE(NE), FE(NE), DE(NE)
+!        LOGICAL  SKIP
+!
+!        CALL  PCHFD (N, X, F, D, INCFD, SKIP, NE, XE, FE, DE, IERR)
+!
+!   Parameters:
+!
+!     N -- (input) number of data points.  (Error return if N.LT.2 .)
+!
+!     X -- (input) real array of independent variable values.  The
+!           elements of X must be strictly increasing:
+!                X(I-1) .LT. X(I),  I = 2(1)N.
+!           (Error return if not.)
+!
+!     F -- (input) real array of function values.  F(1+(I-1)*INCFD) is
+!           the value corresponding to X(I).
+!
+!     D -- (input) real array of derivative values.  D(1+(I-1)*INCFD) is
+!           the value corresponding to X(I).
+!
+!     INCFD -- (input) increment between successive values in F and D.
+!           (Error return if  INCFD.LT.1 .)
+!
+!     SKIP -- (input/output) logical variable which should be set to
+!           .TRUE. if the user wishes to skip checks for validity of
+!           preceding parameters, or to .FALSE. otherwise.
+!           This will save time in case these checks have already
+!           been performed (say, in PCHIM or PCHIC).
+!           SKIP will be set to .TRUE. on normal return.
+!
+!     NE -- (input) number of evaluation points.  (Error return if
+!           NE.LT.1 .)
+!
+!     XE -- (input) real array of points at which the functions are to
+!           be evaluated.
+!
+!
+!          NOTES:
+!           1. The evaluation will be most efficient if the elements
+!              of XE are increasing relative to X;
+!              that is,   XE(J) .GE. X(I)
+!              implies    XE(K) .GE. X(I),  all K.GE.J .
+!           2. If any of the XE are outside the interval [X(1),X(N)],
+!              values are extrapolated from the nearest extreme cubic,
+!              and a warning error is returned.
+!
+!     FE -- (output) real array of values of the cubic Hermite function
+!           defined by  N, X, F, D  at the points  XE.
+!
+!     DE -- (output) real array of values of the first derivative of
+!           the same function at the points  XE.
+!
+!     IERR -- (output) error flag.
+!           Normal return:
+!              IERR = 0  (no errors).
+!           Warning error:
+!              IERR.GT.0  means that extrapolation was performed at
+!                 IERR points.
+!           "Recoverable" errors:
+!              IERR = -1  if N.LT.2 .
+!              IERR = -2  if INCFD.LT.1 .
+!              IERR = -3  if the X-array is not strictly increasing.
+!              IERR = -4  if NE.LT.1 .
+!           (Output arrays have not been changed in any of these cases.)
+!               NOTE:  The above errors are checked in the order listed,
+!                   and following arguments have **NOT** been validated.
+!              IERR = -5  if an error has occurred in the lower-level
+!                         routine CHFDV.  NB: this should never happen.
+!                         Notify the author **IMMEDIATELY** if it does.
+!
+!***REFERENCES  (NONE)
+!***ROUTINES CALLED  CHFDV, XERMSG
+!***REVISION HISTORY  (YYMMDD)
+!   811020  DATE WRITTEN
+!   820803  Minor cosmetic changes for release 1.
+!   870707  Minor cosmetic changes to prologue.
+!   890531  Changed all specific intrinsics to generic.  (WRB)
+!   890831  Modified array declarations.  (WRB)
+!   890831  REVISION DATE from Version 3.2
+!   891214  Prologue converted to Version 4.0 format.  (BAB)
+!   900315  CALLs to XERROR changed to CALLs to XERMSG.  (THJ)
+!***END PROLOGUE  PCHFD
+!  Programming notes:
+!
+!     1. To produce a double precision version, simply:
+!        a. Change PCHFD to DPCHFD, and CHFDV to DCHFDV, wherever they
+!           occur,
+!        b. Change the real declaration to double precision,
+!
+!     2. Most of the coding between the call to CHFDV and the end of
+!        the IR-loop could be eliminated if it were permissible to
+!        assume that XE is ordered relative to X.
+!
+!     3. CHFDV does not assume that X1 is less than X2.  thus, it would
+!        be possible to write a version of PCHFD that assumes a strict-
+!        ly decreasing X-array by simply running the IR-loop backwards
+!        (and reversing the order of appropriate tests).
+!
+!     4. The present code has a minor bug, which I have decided is not
+!        worth the effort that would be required to fix it.
+!        If XE contains points in [X(N-1),X(N)], followed by points .LT.
+!        X(N-1), followed by points .GT.X(N), the extrapolation points
+!        will be counted (at least) twice in the total returned in IERR.
+!
+!  DECLARE ARGUMENTS.
+!
+      PetscInt :: N, INCFD, NE, IERR
+      PetscReal :: X(*), F(INCFD,*), D(INCFD,*), XE(*), FE(*), DE(*)
+      PetscBool :: SKIP
+!
+!  DECLARE LOCAL VARIABLES.
+!
+      PetscInt :: I, IERC, IR, J, JFIRST, NEXT(2), NJ
+!
+!  VALIDITY-CHECK ARGUMENTS.
+!
+!***FIRST EXECUTABLE STATEMENT  PCHFD
+      IF (SKIP)  GO TO 5
+!
+      IF ( N.LT.2 )  GO TO 5001
+      IF ( INCFD.LT.1 )  GO TO 5002
+      DO 1  I = 2, N
+         IF ( X(I).LE.X(I-1) )  GO TO 5003
+    1 CONTINUE
+!
+!  FUNCTION DEFINITION IS OK, GO ON.
+!
+    5 CONTINUE
+      IF ( NE.LT.1 )  GO TO 5004
+      IERR = 0
+      SKIP = .TRUE.
+!
+!  LOOP OVER INTERVALS.        (   INTERVAL INDEX IS  IL = IR-1  . )
+!                              ( INTERVAL IS X(IL).LE.X.LT.X(IR) . )
+      JFIRST = 1
+      IR = 2
+   10 CONTINUE
+!
+!     SKIP OUT OF LOOP IF HAVE PROCESSED ALL EVALUATION POINTS.
+!
+         IF (JFIRST .GT. NE)  GO TO 5000
+!
+!     LOCATE ALL POINTS IN INTERVAL.
+!
+         DO 20  J = JFIRST, NE
+            IF (XE(J) .GE. X(IR))  GO TO 30
+   20    CONTINUE
+         J = NE + 1
+         GO TO 40
+!
+!     HAVE LOCATED FIRST POINT BEYOND INTERVAL.
+!
+   30    CONTINUE
+         IF (IR .EQ. N)  J = NE + 1
+!
+   40    CONTINUE
+         NJ = J - JFIRST
+!
+!     SKIP EVALUATION IF NO POINTS IN INTERVAL.
+!
+         IF (NJ .EQ. 0)  GO TO 50
+!
+!     EVALUATE CUBIC AT XE(I),  I = JFIRST (1) J-1 .
+!
+!       ----------------------------------------------------------------
+        CALL CHFDV (X(IR-1),X(IR), F(1,IR-1),F(1,IR), D(1,IR-1),D(1,IR), &
+                    NJ, XE(JFIRST), FE(JFIRST), DE(JFIRST), NEXT, IERC)
+!       ----------------------------------------------------------------
+         IF (IERC .LT. 0)  GO TO 5005
+!
+         IF (NEXT(2) .EQ. 0)  GO TO 42
+!        IF (NEXT(2) .GT. 0)  THEN
+!           IN THE CURRENT SET OF XE-POINTS, THERE ARE NEXT(2) TO THE
+!           RIGHT OF X(IR).
+!
+            IF (IR .LT. N)  GO TO 41
+!           IF (IR .EQ. N)  THEN
+!              THESE ARE ACTUALLY EXTRAPOLATION POINTS.
+               IERR = IERR + NEXT(2)
+               GO TO 42
+   41       CONTINUE
+!           ELSE
+!              WE SHOULD NEVER HAVE GOTTEN HERE.
+               GO TO 5005
+!           ENDIF
+!        ENDIF
+   42    CONTINUE
+!
+         IF (NEXT(1) .EQ. 0)  GO TO 49
+!        IF (NEXT(1) .GT. 0)  THEN
+!           IN THE CURRENT SET OF XE-POINTS, THERE ARE NEXT(1) TO THE
+!           LEFT OF X(IR-1).
+!
+            IF (IR .GT. 2)  GO TO 43
+!           IF (IR .EQ. 2)  THEN
+!              THESE ARE ACTUALLY EXTRAPOLATION POINTS.
+               IERR = IERR + NEXT(1)
+               GO TO 49
+   43       CONTINUE
+!           ELSE
+!              XE IS NOT ORDERED RELATIVE TO X, SO MUST ADJUST
+!              EVALUATION INTERVAL.
+!
+!              FIRST, LOCATE FIRST POINT TO LEFT OF X(IR-1).
+               DO 44  I = JFIRST, J-1
+                  IF (XE(I) .LT. X(IR-1))  GO TO 45
+   44          CONTINUE
+!              NOTE-- CANNOT DROP THROUGH HERE UNLESS THERE IS AN ERROR
+!                     IN CHFDV.
+               GO TO 5005
+!
+   45          CONTINUE
+!              RESET J.  (THIS WILL BE THE NEW JFIRST.)
+               J = I
+!
+!              NOW FIND OUT HOW FAR TO BACK UP IN THE X-ARRAY.
+               DO 46  I = 1, IR-1
+                  IF (XE(J) .LT. X(I)) GO TO 47
+   46          CONTINUE
+!              NB-- CAN NEVER DROP THROUGH HERE, SINCE XE(J).LT.X(IR-1).
+!
+   47          CONTINUE
+!              AT THIS POINT, EITHER  XE(J) .LT. X(1)
+!                 OR      X(I-1) .LE. XE(J) .LT. X(I) .
+!              RESET IR, RECOGNIZING THAT IT WILL BE INCREMENTED BEFORE
+!              CYCLING.
+               IR = MAX(1, I-1)
+!           ENDIF
+!        ENDIF
+   49    CONTINUE
+!
+         JFIRST = J
+!
+!     END OF IR-LOOP.
+!
+   50 CONTINUE
+      IR = IR + 1
+      IF (IR .LE. N)  GO TO 10
+!
+!  NORMAL RETURN.
+!
+ 5000 CONTINUE
+      RETURN
+!
+!  ERROR RETURNS.
+!
+ 5001 CONTINUE
+!     N.LT.2 RETURN.
+      IERR = -1
+      CALL XERMSG ('SLATEC', 'PCHFD', &
+         'NUMBER OF DATA POINTS LESS THAN TWO', IERR, 1)
+      RETURN
+!
+ 5002 CONTINUE
+!     INCFD.LT.1 RETURN.
+      IERR = -2
+      CALL XERMSG ('SLATEC', 'PCHFD', 'INCREMENT LESS THAN ONE', IERR, &
+         1)
+      RETURN
+!
+ 5003 CONTINUE
+!     X-ARRAY NOT STRICTLY INCREASING.
+      IERR = -3
+      CALL XERMSG ('SLATEC', 'PCHFD', 'X-ARRAY NOT STRICTLY INCREASING' &
+         , IERR, 1)
+      RETURN
+!
+ 5004 CONTINUE
+!     NE.LT.1 RETURN.
+      IERR = -4
+      CALL XERMSG ('SLATEC', 'PCHFD', &
+         'NUMBER OF EVALUATION POINTS LESS THAN ONE', IERR, 1)
+      RETURN
+!
+ 5005 CONTINUE
+!     ERROR RETURN FROM CHFDV.
+!   *** THIS CASE SHOULD NEVER OCCUR ***
+      IERR = -5
+      CALL XERMSG ('SLATEC', 'PCHFD', &
+         'ERROR RETURN FROM CHFDV -- FATAL', IERR, 2)
+      RETURN
+!------------- LAST LINE OF PCHFD FOLLOWS ------------------------------
       END
 
 end module slatec_pchip_module

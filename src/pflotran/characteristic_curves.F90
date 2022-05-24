@@ -155,6 +155,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFIGHCC2CompCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
+          case('SPLINE')
+            this%saturation_function => SFPCHIPCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
@@ -380,6 +382,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscReal :: wipp_s_min, wipp_s_effmin
   PetscBool :: wipp_pct_ignore
   PetscInt :: spline
+  type(knot_queue_type) :: knot_queue
+  PetscReal :: x, y
 
   nullify(sf_swap)
   ! Default values for unspecified parameters
@@ -399,6 +403,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   input%ierr = 0
   smooth = PETSC_FALSE
   spline = 0
+
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -433,6 +438,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       error_string = trim(error_string) // 'IGHCC2_COMP'
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
+    class is (sf_pchip_type)
+      error_string = trim(error_string) // sf%name()
   end select
 
   call InputPushBlock(input,option)
@@ -887,6 +894,15 @@ function SaturationFunctionRead(saturation_function,input,option) &
                                       temp_string, internal_units, &
                                       error_string,option)
         end select
+      class is (sf_pchip_type)
+        select case(keyword)
+          case('KNOT')
+            ! Push data onto stack
+            call InputReadDouble(input,option,x)
+            call InputReadDouble(input,option,y)
+            call knot_queue%enqueue(x, y)
+            spline = spline + 1
+        end select
       class default
         option%io_buffer = 'Read routine not implemented for ' &
                            // trim(error_string) // '.'
@@ -900,7 +916,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   ! Throw errors for invalid combinations of options or parametersa
 
   ! Error checking for wipp_pct_ignore option
-  if (wipp_pct_ignore) then ! Check it is not overspecife
+  if (wipp_pct_ignore) then ! Check it is not overspecified
     if (alpha == 0d0) then
       option%io_buffer = 'Must specify ALPHA with IGNORE_PERMEABILITY option'
     else
@@ -945,7 +961,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
     call PrintErrMsg(option)
   end if
 
-
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
   endif
@@ -979,13 +994,18 @@ function SaturationFunctionRead(saturation_function,input,option) &
   end select
 
   if (spline > 0) then ! Create cubic approximation for any saturation function
-    if (associated(sf_swap)) then ! Splining a loop-invariant replacement
-      sf_swap2 => SFPCHIPCtorFunction(spline, sf_swap)
-      deallocate(sf_swap)
-      sf_swap => sf_swap2
-    else
-      sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
-    end if
+    select type (sf => saturation_function)
+    class is (sf_pchip_type)
+      sf_swap => SFPCHIPCtorQueue(knot_queue)
+    class default
+      if (.not. associated(sf_swap)) then 
+        sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
+      else
+        sf_swap2 => SFPCHIPCtorFunction(spline, sf_swap)
+        deallocate(sf_swap)
+        sf_swap => sf_swap2
+      end if
+    end select
   end if
 
 end function SaturationFunctionRead
@@ -1112,6 +1132,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'LOOKUP_TABLE_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
+    class is(rpf_pchip_type)
+      error_string = trim(error_string) // rpf%Name()
   end select
 
   call InputPushBlock(input,option)
