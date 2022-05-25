@@ -399,6 +399,8 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
     call RealizationGetObservedVariables(this%realization)
     call InversionForwardAuxStep(this%realization%patch%aux% &
                                  inversion_forward_aux,time)
+    call InversionForwardAuxMeasure(this%realization%patch%aux% &
+                                    inversion_forward_aux,time)
   endif
 
 end subroutine PMAuxiliaryInversion

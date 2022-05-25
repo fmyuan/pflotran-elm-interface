@@ -49,6 +49,7 @@ module Inversion_TS_Aux_module
   public :: InversionForwardAuxCreate, &
             InvForwardAuxResetMeasurements, &
             InversionForwardAuxStep, &
+            InversionForwardAuxMeasure, &
             InvForwardAuxDestroyList, &
             InversionForwardAuxDestroy, &
             InversionTSAuxCreate, &
@@ -128,10 +129,6 @@ subroutine InversionForwardAuxStep(aux,time)
   type(inversion_forward_aux_type), pointer :: aux
   PetscReal :: time
 
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: imeasurement
-  PetscErrorCode :: ierr
-
   if (associated(aux%current)) then
     aux%current%time = time
     ! store the solution
@@ -141,17 +138,38 @@ subroutine InversionForwardAuxStep(aux,time)
     aux%last => aux%current
   endif
 
+end subroutine InversionForwardAuxStep
+
+! ************************************************************************** !
+
+subroutine InversionForwardAuxMeasure(aux,time)
+  !
+  ! Appends a time step to the linked list
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+
+  use Utility_module
+
+  type(inversion_forward_aux_type), pointer :: aux
+  PetscReal :: time
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: imeasurement
+  PetscErrorCode :: ierr
+
   if (Equal(aux%sync_times(aux%isync_time),time)) then
     call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
     do imeasurement = 1, size(aux%measurements)
       call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
-                                      vec_ptr(imeasurement))
+                                       vec_ptr(imeasurement))
     enddo
-    call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr, &
+                                ierr);CHKERRQ(ierr)
     aux%isync_time = aux%isync_time + 1
   endif
 
-end subroutine InversionForwardAuxStep
+end subroutine InversionForwardAuxMeasure
 
 ! ************************************************************************** !
 
