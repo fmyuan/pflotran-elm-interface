@@ -300,6 +300,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('CONSTANT')
             rel_perm_function_ptr => RPFConstantCreate()
             ! phase_keyword = 'NONE'
+          case('SPLINE_GAS')
+            rel_perm_function_ptr => RPFPCHIPCreate()
+            phase_keyword = 'GAS'
+          case('SPLINE_LIQ')
+            rel_perm_function_ptr => RPFPCHIPCreate()
+            phase_keyword = 'LIQUID'
           case default
             call InputKeywordUnrecognized(input,word,'PERMEABILITY_FUNCTION', &
                                           option)
@@ -382,7 +388,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscReal :: wipp_s_min, wipp_s_effmin
   PetscBool :: wipp_pct_ignore
   PetscInt :: spline
-  type(knot_queue_type) :: knot_queue
+  type(knot_queue_type) :: knots
   PetscReal :: x, y
 
   nullify(sf_swap)
@@ -894,14 +900,16 @@ function SaturationFunctionRead(saturation_function,input,option) &
                                       temp_string, internal_units, &
                                       error_string,option)
         end select
+    !------------------------------------------
       class is (sf_pchip_type)
         select case(keyword)
-          case('KNOT')
-            ! Push data onto stack
-            call InputReadDouble(input,option,x)
-            call InputReadDouble(input,option,y)
-            call knot_queue%enqueue(x, y)
-            spline = spline + 1
+        case('KNOT')
+          ! Spline type ony contains knot pairs
+          ! but keyword will contain the 1st token
+          spline = spline + 1
+          call InputReadDouble(input,option,x)
+          call InputReadDouble(input,option,y)
+          call knots%enqueue(x, y)
         end select
       class default
         option%io_buffer = 'Read routine not implemented for ' &
@@ -993,14 +1001,14 @@ function SaturationFunctionRead(saturation_function,input,option) &
   !------------------------------------------
   end select
 
-  if (spline > 0) then ! Create cubic approximation for any saturation function
+  if (spline > 0) then
     select type (sf => saturation_function)
-    class is (sf_pchip_type)
-      sf_swap => SFPCHIPCtorQueue(knot_queue)
-    class default
+    class is (sf_pchip_type) ! Splines from knots
+      sf_swap => SFPCHIPCtorQueue(knots)
+    class default ! Splines from any function
       if (.not. associated(sf_swap)) then 
         sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
-      else
+      else ! If swap space is occupied
         sf_swap2 => SFPCHIPCtorFunction(spline, sf_swap)
         deallocate(sf_swap)
         sf_swap => sf_swap2
@@ -1037,6 +1045,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   PetscBool :: found
   PetscBool :: smooth
   PetscInt  :: spline
+  type(knot_queue_type) :: knots
+  PetscReal :: x, y
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
@@ -1714,6 +1724,15 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
+      class is(rpf_pchip_type)
+        select case(keyword)
+        case('KNOT')
+          spline = spline + 1
+          call InputReadDouble(input,option,x)
+          call InputReadDouble(input,option,y)
+          call knots%enqueue(x,y)
+        end select
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
                            'permeability function class.'
@@ -1813,14 +1832,19 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     call permeability_function%SetupPolynomials(option,error_string)
   endif
 
-  if (spline > 0) then ! Create cubic approximation for any saturation function
-    if (associated(rpf_swap)) then ! Splining a loop-invariant replacement
-      rpf_swap2 => RPFPCHIPCtorFunction(spline, permeability_function)
-      deallocate(rpf_swap)
-      rpf_swap => rpf_swap2
-    else
-      rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
-    end if
+  if (spline > 0) then
+    select type (rpf => permeability_function)
+    class is (rpf_pchip_type) ! Splines from knots
+      rpf_swap => RPFPCHIPCtorQueue(knots)
+    class default ! Splines from any function
+      if (.not. associated(rpf_swap)) then
+        rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
+      else ! If swap space is occupied
+        rpf_swap2 => RPFPCHIPCtorFunction(spline, permeability_function)
+        deallocate(rpf_swap)
+        rpf_swap => rpf_swap2
+      end if
+    end select
   end if
 
 end function PermeabilityFunctionRead

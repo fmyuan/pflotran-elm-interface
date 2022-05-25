@@ -268,17 +268,11 @@ function SFPCHIPAllocate(N) result (new)
 
   ! Allocate subordinate dynamic objects
   allocate(new%x(N))
-  if (.not. allocated(new%x)) then
-    deallocate(new)
-    nullify(new)
-    return
-  end if
-
   allocate(new%coef(N))
-  if (.not. allocated(new%coef)) then
+  if (.not. allocated(new%x) .or. .not. allocated(new%coef)) then
+    ! Final method will deallocate if only one is allocated
     deallocate(new)
     nullify(new)
-    return
   end if
 
 end function
@@ -505,19 +499,12 @@ function RPFPCHIPAllocate(N) result (new)
 
   ! Allocate subordinate dynamic objects
   allocate(new%x(N))
-  if (.not. allocated(new%x)) then
-    deallocate(new)
-    nullify(new)
-    return
-  end if
-
   allocate(new%coef(N))
-  if (.not. allocated(new%coef)) then
+  if (.not. allocated(new%x) .or. .not. allocated(new%coef)) then
+    ! Final method will deallocate if only one is allocated
     deallocate(new)
     nullify(new)
-    return
   end if
-
 end function
 
 ! **************************************************************************** !
@@ -525,8 +512,8 @@ end function
 subroutine RPFPCHIPDtor(this)
   type(rpf_pchip_type) :: this
   ! Deallocate coefficient array
-  deallocate(this%x)
-  deallocate(this%coef) 
+  if (allocated(this%x)) deallocate(this%x)
+  if (allocated(this%coef)) deallocate(this%coef)
 end subroutine RPFPCHIPDtor
 
 ! **************************************************************************** !
