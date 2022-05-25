@@ -76,6 +76,7 @@ module Utility_module
             CrossProduct, &
             ReallocateArray, &
             UtilityReadArray, &
+            UtilitySortArray, &
             DeallocateArray, &
             InterfaceApprox, &
             Interpolate, &

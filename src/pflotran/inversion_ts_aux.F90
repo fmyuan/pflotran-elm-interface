@@ -18,6 +18,8 @@ module Inversion_TS_Aux_module
     PetscBool :: store_adjoint
     PetscInt :: num_timesteps
     PetscInt :: iobsfunc
+    PetscInt :: isync_time
+    PetscReal, pointer :: sync_times(:)
     Mat :: M_ptr
     Vec :: solution_ptr
     type(inversion_forward_ts_aux_type), pointer :: first
@@ -77,6 +79,8 @@ function InversionForwardAuxCreate()
   aux%store_adjoint = PETSC_TRUE
   aux%num_timesteps = 0
   aux%iobsfunc = UNINITIALIZED_INTEGER
+  aux%isync_time = 1
+  nullify(aux%sync_times)
   aux%M_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%first)
@@ -94,7 +98,7 @@ end function InversionForwardAuxCreate
 
 subroutine InvForwardAuxResetMeasurements(aux)
   !
-  ! Appends a time step to the linked list
+  ! Resets flags for forward run back to original settings.
   !
   ! Author: Glenn Hammond
   ! Date: 02/21/22
@@ -103,6 +107,7 @@ subroutine InvForwardAuxResetMeasurements(aux)
 
   PetscInt :: imeasurement
 
+  aux%isync_time = 1
   do imeasurement = 1, size(aux%measurements)
     aux%measurements(imeasurement)%measured = PETSC_FALSE
   enddo
@@ -117,6 +122,8 @@ subroutine InversionForwardAuxStep(aux,time)
   !
   ! Author: Glenn Hammond
   ! Date: 02/14/22
+
+  use Utility_module
 
   type(inversion_forward_aux_type), pointer :: aux
   PetscReal :: time
@@ -134,12 +141,15 @@ subroutine InversionForwardAuxStep(aux,time)
     aux%last => aux%current
   endif
 
-  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  do imeasurement = 1, size(aux%measurements)
-    call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
-                                     vec_ptr(imeasurement))
-  enddo
-  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  if (Equal(aux%sync_times(aux%isync_time),time)) then
+    call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    do imeasurement = 1, size(aux%measurements)
+      call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
+                                      vec_ptr(imeasurement))
+    enddo
+    call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    aux%isync_time = aux%isync_time + 1
+  endif
 
 end subroutine InversionForwardAuxStep
 
@@ -274,6 +284,9 @@ subroutine InversionForwardAuxDestroy(aux)
   type(inversion_forward_aux_type), pointer :: aux
 
   call InvForwardAuxDestroyList(aux,PETSC_FALSE)
+
+  call DeallocateArray(aux%sync_times)
+
   ! simply nullify
   nullify(aux%last)
   nullify(aux%current)

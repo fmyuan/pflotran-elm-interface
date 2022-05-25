@@ -108,71 +108,6 @@ end subroutine InversionMeasurementAuxCopy
 
 ! ************************************************************************** !
 
-subroutine InversionMeasurementMeasure(time,measurement,value_)
-  !
-  ! Copies the value into measurement
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/21/22
-  !
-  PetscReal :: time
-  type(inversion_measurement_aux_type) :: measurement
-  PetscReal :: value_
-
-  PetscReal, parameter :: tol = 1.d0
-  PetscBool :: measure
-
-  measure = PETSC_FALSE
-  if (Uninitialized(measurement%time)) then
-    measure = PETSC_TRUE
-  else
-    measure = .not.measurement%measured .and. measurement%time <= time + tol
-  endif
-
-  if (measure) then
-    measurement%simulated_value = value_
-    measurement%measured = PETSC_TRUE
-  endif
-
-end subroutine InversionMeasurementMeasure
-
-! ************************************************************************** !
-
-subroutine InversionMeasurementPrint(measurement,option)
-  !
-  ! Print contents of measurement object for debugging
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/14/22
-  !
-  use Option_module
-  use String_module
-  use Units_module
-
-  type(inversion_measurement_aux_type) :: measurement
-  type(option_type) :: option
-
-  character(len=MAXWORDLENGTH) :: word
-  PetscErrorCode :: ierr
-
-  if (optionPrintToScreen(option)) then
-    print *, 'Measurment: ' // trim(StringWrite(measurement%id))
-    word = 'sec'
-    print *, '             Time: ' // &
-      trim(StringWrite(measurement%time / &
-                       UnitsConvertToInternal(measurement%time_units,word, &
-                                              option,ierr))) // ' ' // &
-      measurement%time_units
-    print *, '          Cell ID: ' // trim(StringWrite(measurement%cell_id))
-    print *, '            Value: ' // trim(StringWrite(measurement%value))
-    print *, '  Simulated Value: ' // &
-      trim(StringWrite(measurement%simulated_value))
-  endif
-
-end subroutine InversionMeasurementPrint
-
-! ************************************************************************** !
-
 function InversionMeasurementAuxRead(input,error_string,option)
   !
   ! Reads measurements and appends to the list
@@ -251,6 +186,71 @@ function InversionMeasurementAuxRead(input,error_string,option)
   InversionMeasurementAuxRead => new_measurement
 
 end function InversionMeasurementAuxRead
+
+! ************************************************************************** !
+
+subroutine InversionMeasurementMeasure(time,measurement,value_)
+  !
+  ! Copies the value into measurement
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/21/22
+  !
+  PetscReal :: time
+  type(inversion_measurement_aux_type) :: measurement
+  PetscReal :: value_
+
+  PetscReal, parameter :: tol = 1.d0
+  PetscBool :: measure
+
+  measure = PETSC_FALSE
+  if (Uninitialized(measurement%time)) then
+    measure = PETSC_TRUE
+  else
+    measure = .not.measurement%measured .and. measurement%time <= time + tol
+  endif
+
+  if (measure) then
+    measurement%simulated_value = value_
+    measurement%measured = PETSC_TRUE
+  endif
+
+end subroutine InversionMeasurementMeasure
+
+! ************************************************************************** !
+
+subroutine InversionMeasurementPrint(measurement,option)
+  !
+  ! Print contents of measurement object for debugging
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  type(inversion_measurement_aux_type) :: measurement
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  if (optionPrintToScreen(option)) then
+    print *, 'Measurment: ' // trim(StringWrite(measurement%id))
+    word = 'sec'
+    print *, '             Time: ' // &
+      trim(StringWrite(measurement%time / &
+                       UnitsConvertToInternal(measurement%time_units,word, &
+                                              option,ierr))) // ' ' // &
+      measurement%time_units
+    print *, '          Cell ID: ' // trim(StringWrite(measurement%cell_id))
+    print *, '            Value: ' // trim(StringWrite(measurement%value))
+    print *, '  Simulated Value: ' // &
+      trim(StringWrite(measurement%simulated_value))
+  endif
+
+end subroutine InversionMeasurementPrint
 
 ! ************************************************************************** !
 
