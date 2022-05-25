@@ -221,7 +221,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units,option)
         new_measurement%time = new_measurement%time*units_conversion
-      case('CELL_ID')
+      case('CELL_ID','ERT_MEASUREMENT_ID')
         call InputReadInt(input,option,new_measurement%cell_id)
         call InputErrorMsg(input,option,keyword,error_string)
       case('COORDINATE')

@@ -1898,7 +1898,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
     pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
     ! place the material process model as %peer for the top pmc
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_CHILD, &
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
            PMCCastToBase(simulation%process_model_coupler_list), &
            pmc_dummy,PM_APPEND)
     nullify(pm_aux)

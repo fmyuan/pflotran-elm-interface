@@ -320,6 +320,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
           this%iobsfunc = OBS_LIQUID_SATURATION
         case('SOLUTE_CONCENTRATION')
           this%iobsfunc = OBS_SOLUTE_CONCENTRATION
+        case('ERT_MEASUREMENT')
+          this%iobsfunc = OBS_ERT_MEASUREMENT
         case default
           call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ','//trim(keyword),option)
@@ -495,6 +497,7 @@ subroutine InversionSubsurfInitialize(this)
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters
   PetscInt, allocatable :: int_array(:), int_array2(:)
+  PetscReal, pointer :: real_array(:)
   PetscReal, pointer :: vec_ptr(:)
   Vec :: v, v2
   IS :: is_petsc
@@ -690,11 +693,25 @@ subroutine InversionSubsurfInitialize(this)
     inversion_forward_aux%measurement_vec = this%measurement_vec
     ! set up pointer to M matrix
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
+
+    if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
+      ! Ensure that the number of measurements equals the number of
+      ! survey measurements. Otherwise, we need to create a mapping.
+      if (size(this%realization%survey%dsim) /= num_measurements) then
+        call this%driver%PrintErrMsg('The number of measurements for ERT does &
+          &not match the number of survey ERT values (' // &
+          trim(StringWrite(num_measurements)) // ' vs. ' // &
+          trim(StringWrite(size(this%realization%survey%dsim))) // ').')
+      endif
+    endif
+
   endif
 
   inversion_forward_aux => this%inversion_aux%inversion_forward_aux
-  inversion_forward_aux%M_ptr = &
-    this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+  if (.not.associated(this%perturbation)) then
+    inversion_forward_aux%M_ptr = &
+      this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+  endif
 ! create inversion_ts_aux for first time step
   nullify(inversion_forward_aux%first) ! must pass in null object
   inversion_forward_aux%first => &
@@ -749,17 +766,6 @@ subroutine InversionSubsurfInitialize(this)
     endif
   endif
 
-  if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
-    ! Ensure that the number of measurements equals the number of
-    ! survey measurements. Otherwise, we need to create a mapping.
-    if (size(this%realization%survey%dsim) /= num_measurements) then
-      call this%driver%PrintErrMsg('The number of measurements for ERT does &
-        &not match the number of survey ERT values (' // &
-        trim(StringWrite(num_measurements)) // ' vs. ' // &
-        trim(StringWrite(size(this%realization%survey%dsim))) // ').')
-    endif
-  endif
-
 end subroutine InversionSubsurfInitialize
 
 ! ************************************************************************** !
@@ -808,6 +814,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   use Discretization_module
   use Init_Subsurface_module
   use Material_module
+  use Waypoint_module
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
@@ -816,9 +823,39 @@ subroutine InvSubsurfConnectToForwardRun(this)
   PetscInt :: iqoi(2)
   PetscInt :: i, iparameter
   character(len=MAXSTRINGLENGTH) :: string
+  type(waypoint_type), pointer :: waypoint
   PetscErrorCode :: ierr
 
   call this%forward_simulation%InitializeRun()
+
+  ! insert measurement times into outer waypoint list
+!  allocate(real_array(size(num_measurements))
+  do i = 1, size(this%measurements)
+    if (.not.Initialized(this%measurements(i)%time)) cycle
+    waypoint => WaypointCreate()
+    waypoint%time = this%measurements(i)%time
+    waypoint%sync = PETSC_TRUE
+    call WaypointInsertInList(waypoint, &
+                              this%forward_simulation%waypoint_list_outer)
+  enddo
+#if 0
+    real_array(i) = this%measurements(i)%time
+  enddo
+  call UtilitySortArray(real_array)
+  temp_int = 1
+  do i = 2, num_measurements
+    if (real_array(i) > real_array(i-1)) temp_int = temp_int + 1
+  enddo
+  allocate(this%inversion_aux%sync_times(temp_int)
+  temp_int = 1
+  this%inversion_aux%sync_times(temp_int) = real_array(1)
+  do i = 2, num_measurements
+    if (real_array(i) > real_array(i-1)) then
+      temp_int = temp_int + 1
+      this%inversion_aux%sync_times(temp_int) = real_array(i)
+    enddo
+  enddo
+#endif
 
   this%realization%patch%aux%inversion_forward_aux => &
     this%inversion_aux%inversion_forward_aux

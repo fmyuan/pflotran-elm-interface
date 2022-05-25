@@ -51,6 +51,11 @@ module Utility_module
     module procedure DeallocateArray2DString
   end interface
 
+  interface UtilitySortArray
+    module procedure UtilitySortArrayReal
+    module procedure UtilitySortArrayInt
+  end interface
+
   interface InterfaceApprox
     module procedure InterfaceApproxWithDeriv
     module procedure InterfaceApproxWithoutDeriv
@@ -2624,6 +2629,74 @@ end function expm1
 
 ! ************************************************************************** !
 
+subroutine UtilitySortArrayInt(array)
+  !
+  ! Sorts an integer array from lowest value to highest
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/25/22
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscBool :: swapped
+  PetscInt :: i
+  PetscInt :: array(:)
+  PetscInt :: tempint
+
+  do
+    swapped = PETSC_FALSE
+    do i = 1, size(array)-1
+      if (array(i) > array(i+1)) then
+        tempint = array(i)
+        array(i+1) = array(i)
+        array(i) = tempint
+        swapped = PETSC_TRUE
+      endif
+    enddo
+    if (.not.swapped) exit
+  enddo
+
+end subroutine UtilitySortArrayInt
+
+! ************************************************************************** !
+
+subroutine UtilitySortArrayReal(array)
+  !
+  ! Sorts a double precision array from lowest value to highest
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/25/22
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscBool :: swapped
+  PetscInt :: i
+  PetscReal :: array(:)
+  PetscReal :: tempreal
+
+  do
+    swapped = PETSC_FALSE
+    do i = 1, size(array)-1
+      if (array(i) > array(i+1)) then
+        tempreal = array(i)
+        array(i+1) = array(i)
+        array(i) = tempreal
+        swapped = PETSC_TRUE
+      endif
+    enddo
+    if (.not.swapped) exit
+  enddo
+
+end subroutine UtilitySortArrayReal
+
+! ************************************************************************** !
+
 subroutine PrintHeader(header,option)
   !
   ! Prints a header to screen and/or file output
@@ -2652,7 +2725,6 @@ subroutine PrintHeader(header,option)
   call PrintMsg(option,string)
 
 end subroutine PrintHeader
-
 
 ! ************************************************************************** !
 
