@@ -444,9 +444,9 @@ subroutine SolverCreateSNES(solver,comm,options_prefix,option)
 
   select case(solver%snes_type)
     case(SNESNEWTONLS,SNESNEWTONTR)
-#if (PETSC_VERSION_GE(3,17,0) || !PETSC_VERSION_RELEASE)
+
     case(SNESNEWTONTRDC)
-#endif
+
     case default
       option%io_buffer = 'Unsupported SNES type: ' // trim(solver%snes_type)
       call PrintErrMsg(option)
@@ -1054,13 +1054,23 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
   PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
+  PetscErrorCode :: ierr
 
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, prefix
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: boolean
 
+  select case(solver%itype)
+    case(FLOW_CLASS)
+      prefix = '-flow_'
+    case(TRANSPORT_CLASS)
+      prefix = '-tran_'
+    case(GEOPHYSICS_CLASS)
+      prefix = '-geop_'
+  end select
+  
   found = PETSC_TRUE
   select case(trim(keyword))
-
     case('SNES_TYPE')
       call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -1070,13 +1080,141 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
           solver%snes_type = SNESNEWTONLS
         case('TRUST_REGION')
           solver%snes_type = SNESNEWTONTR
-#if (PETSC_VERSION_GE(3,17,0) || !PETSC_VERSION_RELEASE)
-        case('TRUST_REGION_DOGLEG_CAUCHY')
+        case('NTRDC','NEWTONTRDC')
+          option%flow%using_newtontrdc = PETSC_TRUE
           solver%snes_type = SNESNEWTONTRDC
-#endif
+          string = trim(prefix) // 'snes_trdc_use_cauchy'
+          call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                    trim(string),trim('TRUE'), &
+                                    ierr);CHKERRQ(ierr)
+        case('NTR','NEWTONTR')
+          option%flow%using_newtontrdc = PETSC_TRUE
+          solver%snes_type = SNESNEWTONTRDC
+          string = trim(prefix) // 'snes_trdc_use_cauchy'
+          call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                    trim(string),trim('FALSE'), &
+                                    ierr);CHKERRQ(ierr)
         case default
           call InputKeywordUnrecognized(input,keyword,error_string,option)
       end select
+    case ('NTRDC_OPTIONS','NEWTONTRDC_OPTIONS','NTR_OPTIONS', &
+          'NEWTONTR_OPTIONS')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputCheckExit(input,option)) exit
+
+        call InputReadCard(input,option,keyword)
+        call InputErrorMsg(input,option,'keyword','NewtonTRDC or NewtonTR')
+        call StringToUpper(keyword)
+
+        select case(trim(keyword))
+          case('TR_TOL')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'trust region tolerance ', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_tol'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('ETA1') ! 0 =< ETA1 <= ETA2, ETA3 = 0.75
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'rho > eta1 trust region satisfactory value', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_eta1'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('ETA2')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'rho =< eta2, shrink trust region ', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_eta2'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('ETA3')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'rho > eta3, expand trust region', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_eta3'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('T1') ! SHRINK BY THIS FACTOR 0.25
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'shrink trust region by t1', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_t1'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('T2') ! EXPAND BY THIS FACTOR 2.00
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'expand trust region by t2', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_t2'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('DELTA_M','DELTAM')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'maximum trust region size, Delta_M*xnorm', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_deltaM'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('DELTA_0','DELTA0')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'initial trust region size', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_delta0'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('USE_CAUCHY','CAUCHY')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'USE_CAUCHY TRUE or FALSE', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_use_cauchy'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('AUTO_SCALE_UNKNOWNS','AUTO_SCALE')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'auto scale multiphase flow TRUE or FALSE', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_auto_scale_multiphase'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case('AUTO_SCALE_MAX')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                               'auto scale multiphase max value', &
+                               'NEWTON TRD options')
+            string = trim(prefix) // 'snes_trdc_auto_scale_max'
+            call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                      trim(string),trim(word), &
+                                      ierr);CHKERRQ(ierr)
+          case default
+            option%io_buffer  = 'NTRDC or NTR option: ' // trim(word) // &
+                              ' unknown.'
+            call PrintErrMsg(option)
+        end select
+      enddo
+      call InputPopBlock(input,option)
 
     case ('INEXACT_NEWTON')
       solver%inexact_newton = PETSC_TRUE

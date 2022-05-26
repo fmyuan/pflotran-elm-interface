@@ -34,12 +34,13 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
   PetscInt, public :: general_sub_newton_iter_num = 0
+  PetscInt, public :: general_newtontrdc_prev_iter_num = 0 
 
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
-  PetscBool, public :: general_using_newtontr = PETSC_FALSE
   PetscBool, public :: general_allow_state_change = PETSC_TRUE
   PetscBool, public :: general_state_changed = PETSC_FALSE
   PetscBool, public :: general_force_iteration = PETSC_FALSE
+  PetscBool, public :: general_newtontrdc_hold_inner = PETSC_FALSE
   PetscBool, public :: gen_chk_max_dpl_liq_state_only = PETSC_FALSE
   PetscBool, public :: general_kelvin_equation = PETSC_FALSE
   PetscBool, public :: general_compute_surface_tension = PETSC_FALSE

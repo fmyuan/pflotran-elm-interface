@@ -25,6 +25,10 @@ NUMERICAL_METHODS FLOW
     #  MAX_STEPS 1
   /
 
+  NEWTON_SOLVER
+    SCALE_JACOBIAN
+  /
+  
 END
 
 #=========================== regression =======================================

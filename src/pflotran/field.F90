@@ -42,6 +42,9 @@ module Field_module
     Vec :: flow_xxdot, flow_xxdot_loc
     Vec :: flow_rhs
 
+    ! vectors for advanced nonlinear solvers other than Newton - Heeho
+    Vec :: flow_scaled_xx, flow_work_loc
+
     ! vectors for operator splitting
     Vec :: tran_rhs
     Vec :: tran_rhs_coef
@@ -125,6 +128,8 @@ function FieldCreate()
   field%flow_r = PETSC_NULL_VEC
   field%flow_xx = PETSC_NULL_VEC
   field%flow_xx_loc = PETSC_NULL_VEC
+  field%flow_scaled_xx = PETSC_NULL_VEC
+  field%flow_work_loc = PETSC_NULL_VEC
   field%flow_dxx = PETSC_NULL_VEC
   field%flow_yy = PETSC_NULL_VEC
   field%flow_accum = PETSC_NULL_VEC
@@ -252,6 +257,12 @@ subroutine FieldDestroy(field)
   if (field%flow_r /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_r,ierr);CHKERRQ(ierr)
   endif
+  if (field%flow_scaled_xx /= PETSC_NULL_VEC) then
+    call VecDestroy(field%flow_scaled_xx,ierr);CHKERRQ(ierr)
+  endif 
+  if (field%flow_work_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(field%flow_work_loc,ierr);CHKERRQ(ierr)
+  endif 
   if (field%flow_xx /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_xx,ierr);CHKERRQ(ierr)
   endif
