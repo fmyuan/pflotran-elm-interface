@@ -825,45 +825,54 @@ subroutine InvSubsurfConnectToForwardRun(this)
   PetscInt :: i, iparameter, sync_count
   character(len=MAXSTRINGLENGTH) :: string
   type(waypoint_type), pointer :: waypoint
-  PetscReal, allocatable :: real_array(:)
+  PetscReal, pointer :: real_array(:)
   PetscBool :: iflag, include_final_time
   PetscErrorCode :: ierr
 
   call this%forward_simulation%InitializeRun()
 
-  ! insert measurement times into outer waypoint list
-  allocate(real_array(size(this%measurements)))
-  final_time = &
-    WaypointListGetFinalTime(this%forward_simulation%waypoint_list_outer)
-  do i = 1, size(this%measurements)
-    if (Uninitialized(this%measurements(i)%time)) then
-      this%measurements(i)%time = final_time
-    endif
-    real_array(i) = this%measurements(i)%time
-  enddo
-  call UtilitySortArray(real_array)
-  sync_count = 0
+  ! insert measurement times into waypoint list. this must come after the
+  ! simulation is initialized to obtain the final time.
+  if (.not.associated(this%inversion_aux% &
+                        inversion_forward_aux%sync_times)) then
+    allocate(real_array(size(this%measurements)))
+    final_time = &
+      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_outer)
+    do i = 1, size(this%measurements)
+      if (Uninitialized(this%measurements(i)%time)) then
+        this%measurements(i)%time = final_time
+      endif
+      real_array(i) = this%measurements(i)%time
+    enddo
+    call UtilitySortArray(real_array)
+    sync_count = 0
+    do i = 1, size(real_array)
+      iflag = PETSC_FALSE
+      if (i == 1) then
+        iflag = PETSC_TRUE
+      else if (real_array(i) > real_array(i-1)) then
+        iflag = PETSC_TRUE
+      endif
+      if (iflag) then
+        sync_count = sync_count + 1
+        real_array(sync_count) = real_array(i)
+      endif
+    enddo
+    allocate(this%inversion_aux%inversion_forward_aux%sync_times(sync_count))
+    this%inversion_aux%inversion_forward_aux%sync_times(:) = &
+      real_array(1:sync_count)
+    deallocate(real_array)
+    nullify(real_array)
+  endif
+
+  real_array => this%inversion_aux%inversion_forward_aux%sync_times
   do i = 1, size(real_array)
-    iflag = PETSC_FALSE
-    if (i == 1) then
-      iflag = PETSC_TRUE
-    else if (real_array(i) > real_array(i-1)) then
-      iflag = PETSC_TRUE
-    endif
-    if (iflag) then
-      sync_count = sync_count + 1
-      waypoint => WaypointCreate()
-      waypoint%time = real_array(i)
-      real_array(sync_count) = real_array(i)
-      waypoint%sync = PETSC_TRUE
-      call WaypointInsertInList(waypoint, &
-                                this%forward_simulation%waypoint_list_outer)
-    endif
+    waypoint => WaypointCreate()
+    waypoint%time = real_array(i)
+    waypoint%sync = PETSC_TRUE
+    call WaypointInsertInList(waypoint, &
+                              this%forward_simulation%waypoint_list_outer)
   enddo
-  allocate(this%inversion_aux%inversion_forward_aux%sync_times(sync_count))
-  this%inversion_aux%inversion_forward_aux%sync_times(1:sync_count) = &
-    real_array(1:sync_count)
-  deallocate(real_array)
 
   this%realization%patch%aux%inversion_forward_aux => &
     this%inversion_aux%inversion_forward_aux
