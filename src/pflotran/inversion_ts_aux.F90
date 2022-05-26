@@ -126,6 +126,8 @@ subroutine InversionForwardAuxStep(aux,time)
 
   use Utility_module
 
+  implicit none
+
   type(inversion_forward_aux_type), pointer :: aux
   PetscReal :: time
 
@@ -142,32 +144,33 @@ end subroutine InversionForwardAuxStep
 
 ! ************************************************************************** !
 
-subroutine InversionForwardAuxMeasure(aux,time)
+subroutine InversionForwardAuxMeasure(aux,time,option)
   !
   ! Appends a time step to the linked list
   !
   ! Author: Glenn Hammond
   ! Date: 02/14/22
 
-  use Utility_module
+  use Option_module
+
+  implicit none
 
   type(inversion_forward_aux_type), pointer :: aux
   PetscReal :: time
+  type(option_type) :: option
 
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: imeasurement
   PetscErrorCode :: ierr
 
-  if (Equal(aux%sync_times(aux%isync_time),time)) then
-    call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-    do imeasurement = 1, size(aux%measurements)
-      call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
-                                       vec_ptr(imeasurement))
-    enddo
-    call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr, &
-                                ierr);CHKERRQ(ierr)
-    aux%isync_time = aux%isync_time + 1
-  endif
+  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  do imeasurement = 1, size(aux%measurements)
+    call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
+                                     vec_ptr(imeasurement),option)
+  enddo
+  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  aux%isync_time = aux%isync_time + 1
 
 end subroutine InversionForwardAuxMeasure
 

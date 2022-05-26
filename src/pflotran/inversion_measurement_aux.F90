@@ -189,28 +189,35 @@ end function InversionMeasurementAuxRead
 
 ! ************************************************************************** !
 
-subroutine InversionMeasurementMeasure(time,measurement,value_)
+subroutine InversionMeasurementMeasure(time,measurement,value_,option)
   !
   ! Copies the value into measurement
   !
   ! Author: Glenn Hammond
   ! Date: 02/21/22
-  !
+
+  use Option_module
+  use String_module
+  use Utility_module
+
   PetscReal :: time
   type(inversion_measurement_aux_type) :: measurement
   PetscReal :: value_
+  type(option_type) :: option
 
   PetscReal, parameter :: tol = 1.d0
   PetscBool :: measure
 
   measure = PETSC_FALSE
-  if (Uninitialized(measurement%time)) then
-    measure = PETSC_TRUE
-  else
-    measure = .not.measurement%measured .and. measurement%time <= time + tol
-  endif
+!  if (Uninitialized(measurement%time)) then
+!    measure = PETSC_TRUE
+!  else
+    measure = .not.measurement%measured .and. Equal(measurement%time,time)
+!  endif
 
   if (measure) then
+    call PrintMsg(option,'  Recording measurement #' // &
+      trim(StringWrite(measurement%id)))
     measurement%simulated_value = value_
     measurement%measured = PETSC_TRUE
   endif

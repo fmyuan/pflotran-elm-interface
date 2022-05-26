@@ -248,9 +248,12 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
       this%name = 'auxiliary evolving strata'
       this%header = 'AUXILIARY EVOLVING STRATA'
       this%evaluate_at_end_of_simulation = PETSC_FALSE
-    case('INVERSION')
-      this%Evaluate => PMAuxiliaryInversion
-      this%header = 'AUXILIARY INVERSION'
+    case('INVERSION_MEASUREMENT')
+      this%Evaluate => PMAuxiliaryInversionMeasurement
+      this%header = 'AUXILIARY INVERSION MEASUREMENT'
+    case('INVERSION_ADJOINT')
+      this%Evaluate => PMAuxiliaryInversionAdjoint
+      this%header = 'AUXILIARY INVERSION ADJOINT'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
@@ -375,7 +378,43 @@ end subroutine PMAuxiliaryEvolvingStrata
 
 ! ************************************************************************** !
 
-subroutine PMAuxiliaryInversion(this,time,ierr)
+subroutine PMAuxiliaryInversionMeasurement(this,time,ierr)
+  !
+  ! Takes measurements for inversion calculation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/25/22
+
+  use Inversion_TS_Aux_module
+  use Option_module
+  use Realization_Subsurface_class
+  use Utility_module
+
+  implicit none
+
+  class(pm_auxiliary_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+
+  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+
+  ierr = 0
+  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
+  if (associated(inversion_forward_aux)) then
+    if (Equal(inversion_forward_aux%sync_times( &
+                inversion_forward_aux%isync_time),time)) then
+      call RealizationGetObservedVariables(this%realization)
+      call InversionForwardAuxMeasure(inversion_forward_aux,time,this%option)
+    else
+      call PrintMsg(this%option,'  No measurement requested at this time.')
+    endif
+  endif
+
+end subroutine PMAuxiliaryInversionMeasurement
+
+! ************************************************************************** !
+
+subroutine PMAuxiliaryInversionAdjoint(this,time,ierr)
   !
   ! Initializes auxiliary process model
   !
@@ -391,19 +430,13 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
-
   ierr = 0
-  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
   if (associated(this%realization%patch%aux%inversion_forward_aux)) then
-    call RealizationGetObservedVariables(this%realization)
     call InversionForwardAuxStep(this%realization%patch%aux% &
-                                 inversion_forward_aux,time)
-    call InversionForwardAuxMeasure(this%realization%patch%aux% &
-                                    inversion_forward_aux,time)
+                                   inversion_forward_aux,time)
   endif
 
-end subroutine PMAuxiliaryInversion
+end subroutine PMAuxiliaryInversionAdjoint
 
 ! ************************************************************************** !
 

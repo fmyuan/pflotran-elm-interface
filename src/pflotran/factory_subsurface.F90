@@ -1891,7 +1891,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (associated(option%inversion)) then
     allocate(pm_aux)
     call PMAuxiliaryInit(pm_aux)
-    string = 'INVERSION'
+    string = 'INVERSION_MEASUREMENT'
     call PMAuxiliarySetFunctionPointer(pm_aux,string)
     pm_aux%realization => realization
     pm_aux%option => option
@@ -1902,6 +1902,24 @@ subroutine SubsurfaceInitSimulation(simulation)
            PMCCastToBase(simulation%process_model_coupler_list), &
            pmc_dummy,PM_APPEND)
     nullify(pm_aux)
+  endif
+
+  if (associated(option%inversion)) then
+    if (.not.option%inversion%use_perturbation) then
+      allocate(pm_aux)
+      call PMAuxiliaryInit(pm_aux)
+      string = 'INVERSION_ADJOINT'
+      call PMAuxiliarySetFunctionPointer(pm_aux,string)
+      pm_aux%realization => realization
+      pm_aux%option => option
+
+      pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
+      ! place the material process model as %peer for the top pmc
+      call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_CHILD, &
+            PMCCastToBase(simulation%process_model_coupler_list), &
+            pmc_dummy,PM_APPEND)
+      nullify(pm_aux)
+    endif
   endif
 
   ! For each ProcessModel, set:

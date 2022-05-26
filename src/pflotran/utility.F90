@@ -2652,8 +2652,8 @@ subroutine UtilitySortArrayInt(array)
     do i = 1, size(array)-1
       if (array(i) > array(i+1)) then
         tempint = array(i)
-        array(i+1) = array(i)
-        array(i) = tempint
+        array(i) = array(i+1)
+        array(i+1) = tempint
         swapped = PETSC_TRUE
       endif
     enddo
@@ -2686,8 +2686,8 @@ subroutine UtilitySortArrayReal(array)
     do i = 1, size(array)-1
       if (array(i) > array(i+1)) then
         tempreal = array(i)
-        array(i+1) = array(i)
-        array(i) = tempreal
+        array(i) = array(i+1)
+        array(i+1) = tempreal
         swapped = PETSC_TRUE
       endif
     enddo

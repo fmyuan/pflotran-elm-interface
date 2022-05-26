@@ -820,6 +820,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   class(inversion_subsurface_type) :: this
 
   PetscReal :: rmin, rmax
+  PetscReal :: final_time
   PetscInt :: iqoi(2)
   PetscInt :: i, iparameter, sync_count
   character(len=MAXSTRINGLENGTH) :: string
@@ -832,20 +833,23 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   ! insert measurement times into outer waypoint list
   allocate(real_array(size(this%measurements)))
+  final_time = &
+    WaypointListGetFinalTime(this%forward_simulation%waypoint_list_outer)
   do i = 1, size(this%measurements)
+    if (Uninitialized(this%measurements(i)%time)) then
+      this%measurements(i)%time = final_time
+    endif
     real_array(i) = this%measurements(i)%time
   enddo
   call UtilitySortArray(real_array)
-  include_final_time = PETSC_FALSE
   sync_count = 0
   do i = 1, size(real_array)
     iflag = PETSC_FALSE
-    if (.not.Initialized(real_array(i))) then
-      include_final_time = PETSC_TRUE
-      cycle
+    if (i == 1) then
+      iflag = PETSC_TRUE
+    else if (real_array(i) > real_array(i-1)) then
+      iflag = PETSC_TRUE
     endif
-    if (i == 1) iflag = PETSC_TRUE
-    if (real_array(i) > real_array(i-1)) iflag = PETSC_TRUE
     if (iflag) then
       sync_count = sync_count + 1
       waypoint => WaypointCreate()
@@ -856,15 +860,9 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                 this%forward_simulation%waypoint_list_outer)
     endif
   enddo
-  i = 0
-  if (include_final_time) i = 1
-  allocate(this%inversion_aux%inversion_forward_aux%sync_times(sync_count+i))
+  allocate(this%inversion_aux%inversion_forward_aux%sync_times(sync_count))
   this%inversion_aux%inversion_forward_aux%sync_times(1:sync_count) = &
     real_array(1:sync_count)
-  if (include_final_time) then
-    this%inversion_aux%inversion_forward_aux%sync_times(sync_count+i) = &
-      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_outer)
-  endif
   deallocate(real_array)
 
   this%realization%patch%aux%inversion_forward_aux => &
