@@ -22,7 +22,8 @@ module Factory_Subsurface_module
             FactorySubsurfReadUFDBiospherePM, &
             FactorySubsurfReadWellPM, &
             FactorySubsurfaceReadMTPM, &
-            FactorySubsurfReadGeophysicsPM
+            FactorySubsurfReadGeophysicsPM, &
+            FactorySubsurfSetPMCWaypointPtrs
 
 contains
 
@@ -1941,18 +1942,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   ! setup the outer waypoint lists
   call SetupWaypointList(simulation)
-  if (associated(simulation%flow_process_model_coupler)) then
-    call simulation%flow_process_model_coupler% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
-  if (associated(simulation%tran_process_model_coupler)) then
-    call simulation%tran_process_model_coupler% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
-  if (associated(simulation%geop_process_model_coupler)) then
-    call simulation%geop_process_model_coupler% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
+  call FactorySubsurfSetPMCWaypointPtrs(simulation)
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)
@@ -2208,7 +2198,6 @@ subroutine SetupWaypointList(simulation)
   ! Author: Gautam Bisht
   ! Date: 06/05/18
   !
-
   use Checkpoint_module
   use Realization_Subsurface_class
   use Option_module
@@ -2230,6 +2219,7 @@ subroutine SetupWaypointList(simulation)
     WaypointCreateSyncWaypointList(simulation%waypoint_list_subsurface)
 
   ! merge in outer waypoints (e.g. checkpoint times)
+  ! creates a copy of outer and merges to subsurface
   call WaypointListCopyAndMerge(simulation%waypoint_list_subsurface, &
                                 simulation%waypoint_list_outer,option)
 
@@ -2256,6 +2246,34 @@ subroutine SetupWaypointList(simulation)
   endif
 
 end subroutine SetupWaypointList
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfSetPMCWaypointPtrs(simulation)
+  !
+  ! Sets the process model coupler waypoint pointers to the first waypoint
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/26/22
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+
+  if (associated(simulation%flow_process_model_coupler)) then
+    call simulation%flow_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+  if (associated(simulation%tran_process_model_coupler)) then
+    call simulation%tran_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+  if (associated(simulation%geop_process_model_coupler)) then
+    call simulation%geop_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+
+end subroutine FactorySubsurfSetPMCWaypointPtrs
 
 ! ************************************************************************** !
 

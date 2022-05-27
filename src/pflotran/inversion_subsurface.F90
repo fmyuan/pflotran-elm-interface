@@ -708,19 +708,19 @@ subroutine InversionSubsurfInitialize(this)
 
   inversion_forward_aux => this%inversion_aux%inversion_forward_aux
   if (.not.associated(this%perturbation)) then
-    inversion_forward_aux%M_ptr = &
-      this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+      inversion_forward_aux%M_ptr = &
+        this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+  ! create inversion_ts_aux for first time step
+    nullify(inversion_forward_aux%first) ! must pass in null object
+    inversion_forward_aux%first => &
+      InversionTSAuxCreate(inversion_forward_aux%first, &
+                          inversion_forward_aux%M_ptr)
+    inversion_forward_aux%current => inversion_forward_aux%first
+    call InvTSAuxAllocate(inversion_forward_aux%first, &
+                          inversion_forward_aux%M_ptr, &
+                          this%realization%option%nflowdof, &
+                          patch%grid%nlmax)
   endif
-! create inversion_ts_aux for first time step
-  nullify(inversion_forward_aux%first) ! must pass in null object
-  inversion_forward_aux%first => &
-    InversionTSAuxCreate(inversion_forward_aux%first, &
-                         inversion_forward_aux%M_ptr)
-  inversion_forward_aux%current => inversion_forward_aux%first
-  call InvTSAuxAllocate(inversion_forward_aux%first, &
-                        inversion_forward_aux%M_ptr, &
-                        this%realization%option%nflowdof, &
-                        patch%grid%nlmax)
 
   if (associated(this%perturbation)) then
     call InvForwardAuxDestroyList(this%inversion_aux%inversion_forward_aux, &
@@ -811,6 +811,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   ! Date: 10/18/21
   !
   use Discretization_module
+  use Factory_Subsurface_module
   use Init_Subsurface_module
   use Material_module
   use Utility_module
@@ -829,15 +830,13 @@ subroutine InvSubsurfConnectToForwardRun(this)
   PetscBool :: iflag, include_final_time
   PetscErrorCode :: ierr
 
-  call this%forward_simulation%InitializeRun()
-
   ! insert measurement times into waypoint list. this must come after the
   ! simulation is initialized to obtain the final time.
   if (.not.associated(this%inversion_aux% &
                         inversion_forward_aux%sync_times)) then
     allocate(real_array(size(this%measurements)))
     final_time = &
-      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_outer)
+      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_subsurface)
     do i = 1, size(this%measurements)
       if (Uninitialized(this%measurements(i)%time)) then
         this%measurements(i)%time = final_time
@@ -872,7 +871,27 @@ subroutine InvSubsurfConnectToForwardRun(this)
     waypoint%sync = PETSC_TRUE
     call WaypointInsertInList(waypoint, &
                               this%forward_simulation%waypoint_list_outer)
+!                              this%forward_simulation%waypoint_list_subsurface)
   enddo
+
+#if 0
+  ! resets the waypoint pointers to the first entry, which may have changed
+  ! due to the insertions above
+  call WaypointListFillIn(this%forward_simulation%waypoint_list_subsurface, &
+                          this%forward_simulation%option)
+  call WaypointListRemoveExtraWaypnts(this%forward_simulation% &
+                                        waypoint_list_subsurface, &
+                                      this%forward_simulation%option)
+  call WaypointListFindDuplicateTimes(this%forward_simulation% &
+                                        waypoint_list_subsurface, &
+                                      this%forward_simulation%option)
+  call FactorySubsurfSetPMCWaypointPtrs(this%forward_simulation)
+#endif
+
+  ! must come after insertion of waypoints and setting of pointers; otherwise,
+  ! the pmc timestepper cur_waypoint pointers are pointing at the time 0
+  ! waypoint, instead of the one just after time 0, which is incorrect.
+  call this%forward_simulation%InitializeRun()
 
   this%realization%patch%aux%inversion_forward_aux => &
     this%inversion_aux%inversion_forward_aux
