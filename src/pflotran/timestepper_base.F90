@@ -475,6 +475,7 @@ end subroutine TimestepperBaseUpdateDT
 ! ************************************************************************** !
 
 subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
+                                        sync_flag, &
                                         snapshot_plot_flag, &
                                         observation_plot_flag, &
                                         massbal_plot_flag,checkpoint_flag)
@@ -493,6 +494,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   PetscReal :: sync_time
   type(option_type) :: option
   PetscInt :: stop_flag
+  PetscBool :: sync_flag
   PetscBool :: snapshot_plot_flag
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
@@ -613,6 +615,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
           ! the time step back to its prior value after the waypoint is met.
           ! %revert_dt is a flag that does so above.
           if (force_to_match_waypoint) revert_due_to_waypoint = PETSC_TRUE
+          if (cur_waypoint%sync) sync_flag = PETSC_TRUE
           if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
           if (cur_waypoint%print_obs_output) observation_plot_flag = PETSC_TRUE
           if (cur_waypoint%print_msbl_output) massbal_plot_flag = PETSC_TRUE

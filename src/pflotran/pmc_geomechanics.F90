@@ -213,10 +213,12 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   PetscReal :: sync_time
   PetscInt :: stop_flag
   PetscInt :: local_stop_flag
+  PetscBool :: sync_flag
   PetscBool :: snapshot_plot_flag
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_flag
+  PetscBool :: peer_already_run_to_time
 
   class(pm_base_type), pointer :: cur_pm
 
@@ -232,11 +234,13 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   local_stop_flag = 0
 
   call SetOutputFlags(this)
+  sync_flag = PETSC_FALSE
   snapshot_plot_flag = PETSC_FALSE
   observation_plot_flag = PETSC_FALSE
   massbal_plot_flag = PETSC_FALSE
 
   call this%timestepper%SetTargetTime(sync_time,this%option,local_stop_flag, &
+                                      sync_flag, &
                                       snapshot_plot_flag, &
                                       observation_plot_flag, &
                                       massbal_plot_flag,checkpoint_flag)
@@ -266,6 +270,18 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
     ! Set data needed by process-model
     call this%SetAuxData()
     call this%child%RunToTime(this%timestepper%target_time,local_stop_flag)
+    call this%GetAuxData()
+  endif
+
+  peer_already_run_to_time = PETSC_FALSE
+  if (sync_flag .and. associated(this%peer)) then
+    ! synchronize peers
+    call this%SetAuxData()
+    ! Run neighboring process model couplers
+    call this%peer%RunToTime(this%timestepper%target_time, &
+                             local_stop_flag)
+    peer_already_run_to_time = PETSC_TRUE
+    call this%GetAuxData()
   endif
 
   if (this%timestepper%time_step_cut_flag) then
@@ -292,8 +308,10 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   call this%SetAuxData()
 
   ! Run neighboring process model couplers
-  if (associated(this%peer)) then
+  if (associated(this%peer) .and. .not.peer_already_run_to_time) then
+    call this%SetAuxData()
     call this%peer%RunToTime(sync_time,local_stop_flag)
+    call this%GetAuxData()
   endif
 
   stop_flag = max(stop_flag,local_stop_flag)

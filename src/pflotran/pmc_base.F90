@@ -567,6 +567,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   character(len=MAXSTRINGLENGTH) :: filename_append
   PetscInt :: local_stop_flag
   PetscBool :: failure
+  PetscBool :: sync_flag
   PetscBool :: checkpoint_at_this_time_flag
   PetscBool :: snapshot_plot_at_this_time_flag
   PetscBool :: observation_plot_at_this_time_flag
@@ -596,6 +597,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     if (this%timestepper%target_time >= sync_time) exit
 
     call SetOutputFlags(this)
+    sync_flag = PETSC_FALSE
     checkpoint_at_this_time_flag = PETSC_FALSE
     snapshot_plot_at_this_time_flag = PETSC_FALSE
     observation_plot_at_this_time_flag = PETSC_FALSE
@@ -607,6 +609,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
 
     call this%timestepper%SetTargetTime(sync_time,this%option, &
                                         local_stop_flag, &
+                                        sync_flag, &
                                         snapshot_plot_at_this_time_flag, &
                                         observation_plot_at_this_time_flag, &
                                         massbal_plot_at_this_time_flag, &
@@ -649,6 +652,16 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
 
     peer_already_run_to_time = PETSC_FALSE
+
+    if (sync_flag .and. associated(this%peer)) then
+      call this%SetAuxData()
+      ! Run neighboring process model couplers
+      call this%peer%RunToTime(this%timestepper%target_time, &
+                               local_stop_flag)
+      peer_already_run_to_time = PETSC_TRUE
+      call this%GetAuxData()
+    endif
+
     ! only print output for process models of depth 0
     if (associated(this%Output)) then
       ! however, if we are using the modulus of the output_option%imod, we may
