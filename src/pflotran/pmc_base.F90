@@ -651,56 +651,63 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       call this%GetAuxData()
     endif
 
-    peer_already_run_to_time = PETSC_FALSE
+    ! output at time step flags
+    if (associated(this%Output)) then
+      ! if we are using the modulus of the output_option%imod, we may
+      ! still print
+      snapshot_plot_at_this_timestep_flag = &
+        (mod(this%timestepper%steps,this%pm_list% &
+              output_option%periodic_snap_output_ts_imod) == 0)
+      observation_plot_at_this_timestep_flag = &
+        (mod(this%timestepper%steps,this%pm_list% &
+              output_option%periodic_obs_output_ts_imod) == 0)
+      massbal_plot_at_this_timestep_flag = &
+        (mod(this%timestepper%steps,this%pm_list% &
+              output_option%periodic_msbl_output_ts_imod) == 0)
+      if (this%pm_list%steady_state) &
+        snapshot_plot_at_this_timestep_flag = PETSC_TRUE
+    endif
 
-    if (sync_flag .and. associated(this%peer)) then
-      call this%SetAuxData()
-      ! Run neighboring process model couplers
-      call this%peer%RunToTime(this%timestepper%target_time, &
-                               local_stop_flag)
-      peer_already_run_to_time = PETSC_TRUE
-      call this%GetAuxData()
+    ! checkpoint at time step flags
+    if (this%is_master .and. associated(this%checkpoint_option)) then
+      if (this%checkpoint_option%periodic_ts_incr > 0 .and. &
+          mod(this%timestepper%steps, &
+              this%checkpoint_option%periodic_ts_incr) == 0) then
+        checkpoint_at_this_timestep_flag = PETSC_TRUE
+      endif
+    endif
+
+    peer_already_run_to_time = PETSC_FALSE
+    if (associated(this%peer)) then
+      if ( &
+          ! specified synchronization of process model couplers
+          sync_flag .or. &
+          ! printing output
+          ! this%Output current performs actions beyond solely
+          ! outputing data (e.g. time averaging of data). but
+          ! we should only force the peers on actual output
+          (this%pm_list%output_option%force_synchronized_output .and. &
+            (snapshot_plot_at_this_time_flag .or. &
+             snapshot_plot_at_this_timestep_flag .or. &
+             observation_plot_at_this_time_flag .or. &
+             observation_plot_at_this_timestep_flag .or. &
+             massbal_plot_at_this_time_flag .or. &
+             massbal_plot_at_this_timestep_flag)) .or. &
+          ! checkpointing
+          (this%is_master .and. &
+            (checkpoint_at_this_time_flag .or. &
+             checkpoint_at_this_timestep_flag))) then
+        call this%SetAuxData()
+        ! Run neighboring process model couplers
+        call this%peer%RunToTime(this%timestepper%target_time, &
+                                local_stop_flag)
+        call this%GetAuxData()
+        peer_already_run_to_time = PETSC_TRUE
+      endif
     endif
 
     ! only print output for process models of depth 0
     if (associated(this%Output)) then
-      ! however, if we are using the modulus of the output_option%imod, we may
-      ! still print
-      snapshot_plot_at_this_timestep_flag = &
-        (mod(this%timestepper%steps,this%pm_list% &
-             output_option%periodic_snap_output_ts_imod) == 0)
-      observation_plot_at_this_timestep_flag = &
-        (mod(this%timestepper%steps,this%pm_list% &
-             output_option%periodic_obs_output_ts_imod) == 0)
-      massbal_plot_at_this_timestep_flag = &
-        (mod(this%timestepper%steps,this%pm_list% &
-             output_option%periodic_msbl_output_ts_imod) == 0)
-
-      if (this%pm_list%steady_state) &
-        snapshot_plot_at_this_timestep_flag = PETSC_TRUE
-
-      if (this%pm_list%output_option%force_synchronized_output .and. &
-          associated(this%peer) .and. .not.peer_already_run_to_time) then
-        ! this%Output current performs actions beyond solely outputing data
-        ! (e.g. time averaging of data). but we should only force the peers
-        ! on actual output
-        if (snapshot_plot_at_this_time_flag .or. &
-            snapshot_plot_at_this_timestep_flag .or. &
-            observation_plot_at_this_time_flag .or. &
-            observation_plot_at_this_timestep_flag .or. &
-            massbal_plot_at_this_time_flag .or. &
-            massbal_plot_at_this_timestep_flag) then
-          ! if printing synchronized output, need to sync all other PMCs.
-          ! children are already in sync, but peers are not.
-          call this%SetAuxData()
-          ! Run neighboring process model couplers
-          call this%peer%RunToTime(this%timestepper%target_time, &
-                                   local_stop_flag)
-          peer_already_run_to_time = PETSC_TRUE
-          call this%GetAuxData()
-        endif
-      endif
-
       call this%Output(this%pm_list%realization_base, &
                        (snapshot_plot_at_this_time_flag .or. &
                         snapshot_plot_at_this_timestep_flag), &
@@ -710,46 +717,21 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
                         massbal_plot_at_this_timestep_flag))
     endif
 
-    if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0) then
-        if (mod(this%timestepper%steps, &
-                this%checkpoint_option%periodic_ts_incr) == 0) then
-          checkpoint_at_this_timestep_flag = PETSC_TRUE
-        endif
-      endif
-    endif
-
     if (this%is_master) then
-      if (checkpoint_at_this_time_flag .or. &
-          checkpoint_at_this_timestep_flag) then
-        if (associated(this%peer) .and. .not.peer_already_run_to_time) then
-          ! if checkpointing, need to sync all other PMCs.  Children are
-          ! already in sync, but peers are not.
-          call this%SetAuxData()
-          ! Run neighboring process model couplers
-          call this%peer%RunToTime(this%timestepper%target_time, &
-                                   local_stop_flag)
-          ! Checkpointing forces peers to be executed prior to the
-          ! checkpointing. If so, we need to skip the peer RunToTime
-          ! outside the loop
-          peer_already_run_to_time = PETSC_TRUE
-          call this%GetAuxData()
-        endif
-        ! it is possible that two identical checkpoint files will be created,
-        ! one at the time and another at the time step, but this is fine.
-        if (checkpoint_at_this_time_flag) then
-          filename_append = &
-            CheckpointAppendNameAtTime(this%checkpoint_option, &
-                                       this%option%time,this%option)
-          call this%Checkpoint(filename_append)
-        endif
-        if (checkpoint_at_this_timestep_flag) then
-          filename_append = &
-            CheckpointAppendNameAtTimestep(this%checkpoint_option, &
-                                           this%timestepper%steps, &
-                                           this%option)
-          call this%Checkpoint(filename_append)
-        endif
+      ! it is possible that two identical checkpoint files will be created,
+      ! one at the time and another at the time step, but this is fine.
+      if (checkpoint_at_this_time_flag) then
+        filename_append = &
+          CheckpointAppendNameAtTime(this%checkpoint_option, &
+                                      this%option%time,this%option)
+        call this%Checkpoint(filename_append)
+      endif
+      if (checkpoint_at_this_timestep_flag) then
+        filename_append = &
+          CheckpointAppendNameAtTimestep(this%checkpoint_option, &
+                                          this%timestepper%steps, &
+                                          this%option)
+        call this%Checkpoint(filename_append)
       endif
 
       if (this%timestepper%WallClockStop(this%option)) then
