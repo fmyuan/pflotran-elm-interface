@@ -7239,6 +7239,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                       reaction,option)
     case(SALINITY)
       value = patch%aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
+    case(SMECTITE)
+      if (associated(patch%aux%MTransform)) then
+        if (associated(patch%aux%MTransform%auxvars(ghosted_id)%il_aux)) then
+          value = patch%aux%MTransform%auxvars(ghosted_id)%il_aux%fs
+        endif
+      endif
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
