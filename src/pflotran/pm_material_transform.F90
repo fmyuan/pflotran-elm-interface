@@ -242,12 +242,13 @@ subroutine PMMaterialTransformSetup(this)
       endif
     endif
 
-    if (Initialized(patch%mtf_id(ghosted_id))) then
+    if (Initialized(cur_material_property%material_transform_id)) then
       patch%mtf_id(ghosted_id) = cur_material_property%material_transform_id
-      call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
     endif
 
   enddo
+
+  call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
 
   ! initialize the auxiliary variables
   patch%aux%MTransform => MaterialTransformCreate()
