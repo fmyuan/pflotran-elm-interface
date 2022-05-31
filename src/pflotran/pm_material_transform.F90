@@ -223,9 +223,9 @@ subroutine PMMaterialTransformSetup(this)
   ! cell mapping for material transform id and initialize auxilary variables
 
   allocate(patch%mtf_id(grid%ngmax))
+  patch%mtf_id = UNINITIALIZED_INTEGER
 
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
+  do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
@@ -242,8 +242,10 @@ subroutine PMMaterialTransformSetup(this)
       endif
     endif
 
-    patch%mtf_id(ghosted_id) = cur_material_property%material_transform_id
-    call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
+    if (Initialized(patch%mtf_id(ghosted_id))) then
+      patch%mtf_id(ghosted_id) = cur_material_property%material_transform_id
+      call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
+    endif
 
   enddo
 
