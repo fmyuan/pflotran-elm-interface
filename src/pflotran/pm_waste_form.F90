@@ -2987,6 +2987,8 @@ end subroutine PMWFSetup
   ! Author: Glenn Hammond
   ! Date: 08/25/15
   use Reaction_Aux_module
+  use Reaction_Gas_aux_module
+  use Reaction_Sandbox_module
   use Realization_Base_class
 
   implicit none
@@ -3011,6 +3013,7 @@ end subroutine PMWFSetup
 ! -------------------------------------------------------
   IS :: is
   class(waste_form_base_type), pointer :: cur_waste_form
+  class(reaction_rt_type), pointer :: reaction
   PetscInt :: num_waste_form_cells
   PetscInt :: num_species
   PetscInt :: size_of_vec
@@ -3019,6 +3022,23 @@ end subroutine PMWFSetup
                            energy_indices_in_residual(:)
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
+
+  reaction => this%realization%reaction
+
+  ! ensure that waste form is not being used with other reactive transport
+  ! capability
+  if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
+      reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
+      reaction%immobile%nimmobile > 0 .or. &
+      GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+      associated(rxn_sandbox_list)) then
+    this%option%io_buffer = 'The UFD_DECAY process model may not be used &
+      &with other reactive transport capability within PFLOTRAN. &
+      &Minerals (and mineral kinetics) are used because their data &
+      &structures are leveraged by UFD_DECAY, but no "conventional" &
+      &mineral precipitation-dissolution capability is used.'
+    call PrintErrMsg(this%option)
+  endif
 
   if (this%print_mass_balance) then
     call PMWFOutputHeader(this)
