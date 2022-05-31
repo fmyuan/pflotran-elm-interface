@@ -221,6 +221,7 @@ subroutine SimSubsurfInitializeRun(this)
   ! the user may request output of variable that do not exist for the
   ! the requested process models; this routine should catch such issues.
   call OutputEnsureVariablesExist(this%output_option,this%option)
+  call SimSubsurfForbiddenCombinations(this)
 
   if (associated(this%process_model_coupler_list)) then
     if (this%option%restart_flag) then
@@ -637,6 +638,35 @@ function SimSubsurfGetFinalWaypointTime(this)
   enddo
 
 end function SimSubsurfGetFinalWaypointTime
+
+! ************************************************************************** !
+
+subroutine SimSubsurfForbiddenCombinations(this)
+  !
+  ! Throws error messages when forbidden combinations of processes/process
+  ! models are requested.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/31/22
+
+  use Strata_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: this
+
+  ! cannot update porosity based on mineral volume fractions and evolve
+  ! strata at the same time.
+  if (associated(this%realization%reaction)) then
+    if (StrataEvolves(this%realization%patch%strata_list) .and. &
+        this%realization%reaction%update_porosity) then
+      call PrintErrMsg(this%option,'Time dependent STRATA and the update of &
+            &porosity based on mineral volume fractions cannot be used &
+            &simultaneously.')
+    endif
+  endif
+
+end subroutine SimSubsurfForbiddenCombinations
 
 ! ************************************************************************** !
 
