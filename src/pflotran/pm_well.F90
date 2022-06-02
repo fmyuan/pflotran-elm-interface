@@ -858,7 +858,7 @@ subroutine PMWellSetup(this)
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
     source_sink%name = 'well_segment_' // trim(string)
 
-    ! ----- flow ----------------
+    ! ----- flow ------------------
     source_sink%flow_condition_name = 'well_segment_' // trim(string) // &
                                       '_flow_srcsink'
     source_sink%flow_condition => FlowConditionCreate(option)
@@ -871,7 +871,7 @@ subroutine PMWellSetup(this)
     allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
     source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0
 
-    ! ----- transport -----------
+    ! ----- transport -------------
     if (this%transport) then
       write(string,'(I0.4)') k
       source_sink%tran_condition_name = 'well_segment_' // trim(string) // &
