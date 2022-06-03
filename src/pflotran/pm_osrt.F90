@@ -14,6 +14,7 @@ module PM_OSRT_class
   type, public, extends(pm_rt_type) :: pm_osrt_type
     Vec :: fixed_accum
     Vec :: rhs
+    PetscInt :: sum_iterations
     PetscLogDouble :: cumulative_transport_time
     PetscLogDouble :: cumulative_reaction_time
   contains
@@ -52,6 +53,7 @@ function PMOSRTCreate()
   call PMOSRTInit(pm_osrt)
   pm_osrt%name = 'Oper.-Split Reactive Transport'
   pm_osrt%header = 'OPER.-SPLIT REACTIVE TRANSPORT'
+  pm_osrt%sum_iterations = 0
   pm_osrt%cumulative_transport_time = 0.d0
   pm_osrt%cumulative_reaction_time = 0.d0
 
@@ -366,10 +368,11 @@ recursive subroutine PMOSRTFinalizeRun(this)
 
 
   if (OptionPrintToScreen(this%option)) then
-    write(*,'(/," Transport Time: ", es12.4, " [sec]",/,&
-               &"  Reaction Time: ", es12.4, " [sec]")') &
+    write(*,'(/,"       Transport Time: ", es12.4, " [sec]",/,&
+               &"        Reaction Time: ", es12.4, " [sec]")') &
             this%cumulative_transport_time, &
             this%cumulative_reaction_time
+    write(*,'("  Reaction Iterations: ", i8)') this%sum_iterations
   endif
 
   if (associated(this%next)) then
