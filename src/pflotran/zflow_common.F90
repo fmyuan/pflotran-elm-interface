@@ -324,6 +324,11 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         Res(zflow_liq_flow_eq) = Res(zflow_liq_flow_eq) + &
                                                  q * zflow_density_kmol
 
+        if (option%iflag > 0) then
+          print *, option%myrank, zflow_auxvar_up%pres, zflow_auxvar_dn%pres, &
+          perm_ave_over_dist_visc, kr, delta_pressure, v_darcy, area, q, zflow_density_kmol
+        endif
+
         if (calculate_derivatives) then
           tempreal = perm_ave_over_dist_visc * area
           dq_dpup = tempreal * (delta_pressure * dkr_dpup + kr)
