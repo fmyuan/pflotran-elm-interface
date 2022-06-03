@@ -533,7 +533,7 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       string = 'liquid pressure governor'
     endif
     string = 'TS update: ' // trim(string)
-    call OptionPrint(string,this%option)
+    call PrintMsg(this%option,string)
   endif
 
   if (Initialized(this%cfl_governor)) then
@@ -1102,7 +1102,6 @@ subroutine PMZFlowMaxChange(this)
   PetscReal :: max_change, change
   PetscInt :: i, j
   PetscInt :: ivar
-  PetscInt :: fids(2)
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscErrorCode :: ierr
@@ -1138,22 +1137,22 @@ subroutine PMZFlowMaxChange(this)
   call MPI_Allreduce(MPI_IN_PLACE,max_change_global,i,MPI_DOUBLE_PRECISION, &
                      MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
 
-  fids = OptionGetFIDs(option)
   ivar = 1
   if (zflow_liq_flow_eq > 0) then
-    write(string,'("  --> max chng: dpl= ",1pe12.4, " dsl= ",1pe12.4)') &
+    write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4, " dsl= ",&
+                           &1pe12.4)') &
       max_change_global(ivar:ivar+1)
     this%max_pressure_change = max_change_global(ivar)
     this%max_saturation_change = max_change_global(ivar+1)
     ivar = ivar+2
-    call StringWriteToUnits(fids,string)
+    call PrintMsg(option)
   endif
   if (zflow_sol_tran_eq > 0) then
-    write(string,'("                 dc= ",1pe12.4)') max_change_global(ivar)
+    write(option%io_buffer,'(19x,"dc= ",1pe12.4)') max_change_global(ivar)
     ! hijacking xmol_change
     this%max_xmol_change = max_change_global(ivar)
     ivar = ivar+1
-    call StringWriteToUnits(fids,string)
+    call PrintMsg(option)
   endif
   deallocate(max_change_global)
 

@@ -668,30 +668,17 @@ subroutine PMRTFinalizeTimestep(this)
 
   call RTMaxChange(this%realization,this%max_concentration_change, &
                    this%max_volfrac_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
+  write(this%option%io_buffer,'("  --> max change:  dcmx= ",1pe12.4,&
+                              &"  dc/dt= ",1pe12.4," [mol/s]")') &
       maxval(this%max_concentration_change), &
       maxval(this%max_concentration_change)/this%option%tran_dt
-    if (this%realization%reaction%mineral%nkinmnrl > 0) then
-      write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
-            &" [1/s]")') &
-        maxval(this%max_volfrac_change), &
-        maxval(this%max_volfrac_change)/this%option%tran_dt
-    endif
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,&
-            '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
-      maxval(this%max_concentration_change), &
-      maxval(this%max_concentration_change)/this%option%tran_dt
-    if (this%realization%reaction%mineral%nkinmnrl > 0) then
-      write(this%option%fid_out, &
-        '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
-        maxval(this%max_volfrac_change), &
-        maxval(this%max_volfrac_change)/this%option%tran_dt
-    endif
+  call PrintMsg(this%option)
+  if (this%realization%reaction%mineral%nkinmnrl > 0) then
+    write(this%option%io_buffer,'(18x,"dvfmx= ",1pe12.4,&
+                                &" dvf/dt= ",1pe12.4," [1/s]")') &
+      maxval(this%max_volfrac_change), &
+      maxval(this%max_volfrac_change)/this%option%tran_dt
+    call PrintMsg(this%option)
   endif
 
 end subroutine PMRTFinalizeTimestep
@@ -1116,7 +1103,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       pass_or_fail = ' F'
     endif
     write(out_string,'(4x,"irsec:",es9.2,i3)') this%option%infnorm_res_sec
-    call OptionPrint(out_string,this%option)
+    call PrintMsg(out_string,this%option)
   endif
 #endif
 

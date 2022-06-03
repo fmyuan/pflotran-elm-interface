@@ -935,7 +935,7 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
             endif
             string = trim(string) // ' : ' // &
               StringFormatDouble(this%converged_real(idof,itol))
-            call OptionPrint(string,option)
+            call PrintMsg(option,string)
           endif
         endif
       enddo
@@ -943,16 +943,16 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x," R:",2es8.1)') this%converged_real(:,RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"SR:",2es8.1)') &
         this%converged_real(:,SCALED_RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"AU:",2es8.1)') this%converged_real(:,ABS_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"RU:",2es8.1)') this%converged_real(:,REL_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
     endif
   endif
 
@@ -1036,13 +1036,13 @@ subroutine PMTHMaxChange(this)
   implicit none
 
   class(pm_th_type) :: this
-  character(len=MAXSTRINGLENGTH) :: string
 
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
-  write(string,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
+  write(this%option%io_buffer,'("  --> max change: dpmx= ",1pe12.4,&
+                         &" dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
-  call OptionPrint(string,this%option)
+  call PrintMsg(this%option)
 
 end subroutine PMTHMaxChange
 

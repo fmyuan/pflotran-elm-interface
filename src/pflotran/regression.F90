@@ -500,10 +500,11 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   option => realization%option
 
   if (OptionIsIORank(option)) then
+    call PrintMsg(option,'')
     string = trim(option%global_prefix) // &
              trim(option%group_prefix) // &
              '.regression'
-    option%io_buffer = '--> write regression output file: ' // trim(string)
+    option%io_buffer = ' --> write regression output file: ' // trim(string)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=string,action="write")
   endif

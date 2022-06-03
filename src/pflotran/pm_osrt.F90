@@ -14,7 +14,7 @@ module PM_OSRT_class
   type, public, extends(pm_rt_type) :: pm_osrt_type
     Vec :: fixed_accum
     Vec :: rhs
-    PetscInt :: sum_iterations
+    PetscInt :: cumulative_newton_iterations
     PetscLogDouble :: cumulative_transport_time
     PetscLogDouble :: cumulative_reaction_time
   contains
@@ -53,7 +53,7 @@ function PMOSRTCreate()
   call PMOSRTInit(pm_osrt)
   pm_osrt%name = 'Oper.-Split Reactive Transport'
   pm_osrt%header = 'OPER.-SPLIT REACTIVE TRANSPORT'
-  pm_osrt%sum_iterations = 0
+  pm_osrt%cumulative_newton_iterations = 0
   pm_osrt%cumulative_transport_time = 0.d0
   pm_osrt%cumulative_reaction_time = 0.d0
 
@@ -261,30 +261,18 @@ subroutine PMOSRTFinalizeTimestep(this)
 
   call RTMaxChange(this%realization,this%max_concentration_change, &
                    this%max_volfrac_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
+
+  write(this%option%io_buffer,'("  --> max change: dcmx= ",1pe12.4,&
+                              &"  dc/dt= ",1pe12.4," [mol/s]")') &
       maxval(this%max_concentration_change), &
       maxval(this%max_concentration_change)/this%option%tran_dt
-    if (this%realization%reaction%mineral%nkinmnrl > 0) then
-      write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
-            &" [1/s]")') &
-        maxval(this%max_volfrac_change), &
-        maxval(this%max_volfrac_change)/this%option%tran_dt
-    endif
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,&
-            '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
-      maxval(this%max_concentration_change), &
-      maxval(this%max_concentration_change)/this%option%tran_dt
-    if (this%realization%reaction%mineral%nkinmnrl > 0) then
-      write(this%option%fid_out, &
-        '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
-        maxval(this%max_volfrac_change), &
-        maxval(this%max_volfrac_change)/this%option%tran_dt
-    endif
+  call PrintMsg(this%option)
+  if (this%realization%reaction%mineral%nkinmnrl > 0) then
+    write(this%option%io_buffer,'("                 dvfmx= ",1pe12.4,&
+                                &" dvf/dt= ",1pe12.4," [1/s]")') &
+      maxval(this%max_volfrac_change), &
+      maxval(this%max_volfrac_change)/this%option%tran_dt
+    call PrintMsg(this%option)
   endif
 #endif
 
@@ -366,14 +354,15 @@ recursive subroutine PMOSRTFinalizeRun(this)
 
   class(pm_osrt_type) :: this
 
-
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'(/,"       Transport Time: ", es12.4, " [sec]",/,&
-               &"        Reaction Time: ", es12.4, " [sec]")') &
-            this%cumulative_transport_time, &
-            this%cumulative_reaction_time
-    write(*,'("  Reaction Iterations: ", i8)') this%sum_iterations
-  endif
+  write(this%option%io_buffer,'(7x,"Transport Time: ",es12.4," [sec]")') &
+    this%cumulative_transport_time
+  call PrintMsg(this%option)
+  write(this%option%io_buffer,'(8x,"Reaction Time: ",es12.4," [sec]")') &
+    this%cumulative_reaction_time
+  call PrintMsg(this%option)
+  write(this%option%io_buffer,'(2x,"Reaction Iterations: ",i12)') &
+    this%cumulative_newton_iterations
+  call PrintMsg(this%option)
 
   if (associated(this%next)) then
     call this%next%FinalizeRun()
