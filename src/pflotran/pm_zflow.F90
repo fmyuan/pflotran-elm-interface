@@ -26,7 +26,7 @@ module PM_ZFlow_class
     PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
     PetscReal :: sat_update_trunc_ni
     PetscReal :: unsat_to_sat_pres_damping_ni
-    PetscBool :: verbose_convergence
+    PetscInt :: convergence_verbosity
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -115,7 +115,7 @@ subroutine PMZFlowInitObject(this)
   this%xmol_change_governor = UNINITIALIZED_DOUBLE
 
   this%check_post_convergence = PETSC_TRUE
-  this%verbose_convergence = PETSC_FALSE
+  this%convergence_verbosity = 0
 
   this%max_allow_liq_pres_change_ni = UNINITIALIZED_DOUBLE
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
@@ -156,6 +156,7 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: local_error_string
   PetscBool :: found
   PetscReal :: array(1)
+  PetscInt :: temp_int
 
   option => this%option
 
@@ -201,7 +202,13 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         enddo
         call InputPopBlock(input,option)
       case('VERBOSE_CONVERGENCE')
-        this%verbose_convergence = PETSC_TRUE
+        this%convergence_verbosity = 1
+        call InputReadInt(input,option,temp_int)
+        if (input%ierr == 0) then
+          this%convergence_verbosity = temp_int
+        else
+          call InputDefaultMsg(input,option,keyword)
+        endif
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
@@ -815,7 +822,7 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       ! maximum absolute change in liquid pressure over Newton iteration
       tempreal = dabs(dX_p(offset+zflow_liq_flow_eq))
       if (tempreal > dabs(max_abs_pressure_change_NI)) then
-        max_abs_pressure_change_NI_cell = local_id
+        max_abs_pressure_change_NI_cell = grid%nG2A(ghosted_id)
         max_abs_pressure_change_NI = tempreal
       endif
     endif
@@ -823,7 +830,7 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       ! maximum absolute change in liquid pressure over Newton iteration
       tempreal = dabs(dX_p(offset+zflow_sol_tran_eq))
       if (tempreal > dabs(max_abs_conc_change_NI)) then
-        max_abs_conc_change_NI_cell = local_id
+        max_abs_conc_change_NI_cell = grid%nG2A(ghosted_id)
         max_abs_conc_change_NI = tempreal
       endif
     endif
@@ -931,7 +938,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
       tempreal = dabs(residual)
       if (tempreal > max_abs_res_liq_) then
         max_abs_res_liq_ = tempreal
-        max_abs_res_liq_cell = local_id
+        max_abs_res_liq_cell = grid%nG2A(ghosted_id)
       endif
     endif
     if (zflow_sol_tran_eq > 0) then
@@ -941,7 +948,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
       tempreal = dabs(residual)
       if (tempreal > max_abs_res_sol_) then
         max_abs_res_sol_ = tempreal
-        max_abs_res_sol_cell = local_id
+        max_abs_res_sol_cell = grid%nG2A(ghosted_id)
       endif
     endif
   enddo
@@ -954,6 +961,13 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   this%convergence_reals(MAX_RES_LIQ_EQ) = max_abs_res_liq_
   this%convergence_flags(MAX_RES_SOL_EQ) = max_abs_res_sol_cell
   this%convergence_reals(MAX_RES_SOL_EQ) = max_abs_res_sol_
+
+  if (this%convergence_verbosity >= 10) then
+    print *, option%myrank, this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
+                            this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI), &
+                            this%convergence_flags(MAX_RES_LIQ_EQ), &
+                            this%convergence_reals(MAX_RES_LIQ_EQ)
+  endif
 
   int_mpi = size(this%convergence_flags)
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi,MPIU_INTEGER, &
@@ -975,7 +989,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
     converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
 
-  if (this%verbose_convergence .and. &
+  if (this%convergence_verbosity > 0 .and. &
       OptionPrintToScreen(option)) then
     if (option%comm%mycommsize > 1) then
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &

@@ -917,6 +917,12 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         icc_up = patch%cc_id(ghosted_id_up)
         icc_dn = patch%cc_id(ghosted_id_dn)
 
+        option%iflag = 0
+        if ((grid%nG2A(ghosted_id_up) == 84 .and. &
+             grid%nG2A(ghosted_id_dn) == 85) .or. &
+            (grid%nG2A(ghosted_id_up) == 85 .and. &
+             grid%nG2A(ghosted_id_dn) == 84)) option%iflag = 1
+
         call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
                               global_auxvars(ghosted_id_up), &
                               material_auxvars(ghosted_id_up), &
