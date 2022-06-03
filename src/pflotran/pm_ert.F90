@@ -690,15 +690,13 @@ subroutine PMERTPreSolve(this)
         cond_w = cond_w0 + cond_sp
       else
         species_id = 1
-        cond_w = cond_w0 + tracer_scale * &
-                           rt_auxvars(ghosted_id)%total(species_id,1)
+        cond_sp = tracer_scale * rt_auxvars(ghosted_id)%total(species_id,1)
+        cond_w = cond_w0 + cond_sp
       endif
     endif
     if (associated(zflow_auxvars)) then
-      cond_sp = &                                    ! S/m
-                this%tracer_conductivity * &         ! [m^2-charge-A/V-mol]
-                zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc * &! mol/L
-                1000.d0                              ! L/m^3
+      cond_sp = tracer_scale * zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc
+      cond_w = cond_w0 + cond_sp
     endif
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
