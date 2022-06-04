@@ -879,11 +879,10 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
         enddo
       enddo
       ! nh4 inhibition
-      j = this%nh4_id
       do i = 1, this%nrow(irxn)
         ! units = kg water/sec
-        Jacobian(this%irow(i,irxn),this%icol(j,irxn)) = &
-          Jacobian(this%irow(i,irxn),this%icol(j,irxn)) - &
+        Jacobian(this%irow(i,irxn),this%nh4_id) = &
+          Jacobian(this%irow(i,irxn),this%nh4_id) - &
           ! units of derivative_col = kg water/mol biomass/sec
           this%stoich_row(i,irxn) * rate(irxn) * &
           dnh4_inhibition_dnh4 * &
