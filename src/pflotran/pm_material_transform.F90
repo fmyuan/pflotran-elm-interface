@@ -225,7 +225,8 @@ subroutine PMMaterialTransformSetup(this)
   allocate(patch%mtf_id(grid%ngmax))
   patch%mtf_id = UNINITIALIZED_INTEGER
 
-  do ghosted_id = 1, grid%ngmax
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
@@ -254,7 +255,8 @@ subroutine PMMaterialTransformSetup(this)
   patch%aux%MTransform => MaterialTransformCreate()
   material_auxvars => patch%aux%Material%auxvars
   allocate(m_transform_auxvars(grid%ngmax))
-  do ghosted_id = 1, grid%ngmax
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
