@@ -16,8 +16,8 @@ path = []
 path.append('.')
 
 files = []
-files.append('regional_doublet-obs-1.pft')
-#files.append('regional_doublet-obs-0.pft')
+#files.append('regional_doublet-obs-1.pft')
+files.append('regional_doublet-obs-0.pft')
 filenames = pft.get_full_paths(path,files)
 
 f = plt.figure(figsize=(8,6))
