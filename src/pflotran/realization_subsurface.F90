@@ -2993,9 +2993,7 @@ subroutine RealizationStrip(this)
     call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
   endif
 
-  if (associated(this%material_transform)) then
-    call MaterialTransformDestroy(this%material_transform)
-  endif
+  nullify(this%material_transform)
 
   call DatasetDestroy(this%datasets)
 

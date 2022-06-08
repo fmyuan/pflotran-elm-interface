@@ -1934,7 +1934,14 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
-   endif
+  endif
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
+  nullify(start,dims,length,stride,int_array)
 
 end subroutine PMRTCheckpointHDF5
 
@@ -2209,6 +2216,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   deallocate(length)
   deallocate(stride)
   deallocate(int_array)
+  nullify(start,dims,length,stride,int_array)
 
 end subroutine PMRTRestartHDF5
 
