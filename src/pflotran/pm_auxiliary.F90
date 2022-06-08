@@ -122,10 +122,12 @@ end subroutine PMAuxiliarySetup
 
 function PMAuxiliaryCast(this)
   !
-  ! Initializes auxiliary process model
+  ! Casts a base process model to auxiliary
   !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
+
+  use Option_module
 
   implicit none
 
@@ -139,7 +141,9 @@ function PMAuxiliaryCast(this)
     class is (pm_auxiliary_type)
       PMAuxiliaryCast => this
     class default
-      !geh: have default here to pass a null pointer if not of type ascii
+      this%option%io_buffer = 'Cannot cast pm_base_type to pm_auxiliary_type &
+        &in PMAuxiliaryCast.'
+      call PrintErrMsg(this%option)
   end select
 
 end function PMAuxiliaryCast

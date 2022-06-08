@@ -58,6 +58,7 @@ module PM_ERT_class
 
   public :: PMERTCreate, &
             PMERTInit, &
+            PMERTCast, &
             PMERTStrip
 
 contains
@@ -286,6 +287,36 @@ subroutine PMERTSetup(this)
   this%survey => this%realization%survey
 
 end subroutine PMERTSetup
+
+! ************************************************************************** !
+
+function PMERTCast(this)
+  !
+  ! Initializes a base process model to ert
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/08/22
+
+  use Option_module
+
+  implicit none
+
+  class(pm_base_type), pointer :: this
+
+  class(pm_ert_type), pointer :: PMERTCast
+
+  nullify(PMERTCast)
+  if (.not.associated(this)) return
+  select type (this)
+    class is (pm_ert_type)
+      PMERTCast => this
+    class default
+      this%option%io_buffer = 'Cannot cast pm_base_type to pm_ert_type &
+        &in PMERTCast.'
+      call PrintErrMsg(this%option)
+  end select
+
+end function PMERTCast
 
 ! ************************************************************************** !
 
