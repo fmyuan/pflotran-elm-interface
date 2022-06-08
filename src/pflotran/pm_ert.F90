@@ -473,6 +473,9 @@ recursive subroutine PMERTInitializeRun(this)
     call PrintErrMsg(option)
   endif
 
+  ! calculate initial electrical conductivity
+  call PMERTPreSolve(this)
+
 end subroutine PMERTInitializeRun
 
 ! ************************************************************************** !
