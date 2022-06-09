@@ -170,6 +170,9 @@ subroutine InversionSubsurfaceInit(this,driver)
   nullify(this%realization)
   nullify(this%inversion_aux)
 
+  ! initialize measurement reporting verbosity
+  inv_meas_reporting_verbosity = 1
+
 end subroutine InversionSubsurfaceInit
 
 ! ************************************************************************** !
@@ -340,18 +343,21 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         select case(trim(keyword))
           case('MEASUREMENT')
             new_measurement => InversionMeasurementAuxRead(input,string,option)
+            if (associated(last_measurement)) then
+              last_measurement%next => new_measurement
+              new_measurement%id = last_measurement%id + 1
+            else
+              first_measurement => new_measurement
+              first_measurement%id = 1
+            endif
+            last_measurement => new_measurement
+            nullify(new_measurement)
+          case('REPORTING_VERBOSITY')
+            call InputReadInt(input,option,inv_meas_reporting_verbosity)
+            call InputErrorMsg(input,option,keyword,error_string)
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
-        if (associated(last_measurement)) then
-          last_measurement%next => new_measurement
-          new_measurement%id = last_measurement%id + 1
-        else
-          first_measurement => new_measurement
-          first_measurement%id = 1
-        endif
-        last_measurement => new_measurement
-        nullify(new_measurement)
       enddo
       call InputPopBlock(input,option)
       if (.not.associated(last_measurement)) then
@@ -619,58 +625,75 @@ subroutine InversionSubsurfInitialize(this)
       call ISDestroy(is_parameter,ierr)
     endif
 
-    ! map coordinates to cell ids
-    allocate(int_array(num_measurements))
-    int_array = -1
-    do i = 1, num_measurements
-      if (Initialized(this%measurements(i)%coordinate%x)) then
-        call GridGetLocalIDFromCoordinate(patch%grid, &
-                                          this%measurements(i)%coordinate, &
-                                          this%realization%option,local_id)
-        if (Initialized(local_id)) then
-          int_array(i) = patch%grid%nG2A(patch%grid%nL2G(local_id))
+    if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
+      temp_int = -1
+      do i = 1, num_measurements
+        temp_int = max(temp_int,this%measurements(i)%cell_id)
+      enddo
+      if (temp_int > size(this%realization%survey%dsim)) then
+        call this%driver%PrintErrMsg('The ERT_MEASUREMENT_ID assigned to a &
+          &measurement is greater than the number of measurements in an &
+          &survey (survey size = ' // &
+          trim(StringWrite(num_measurements)) // &
+          ' vs. maximum ERT_MEASUREMENT_ID = ' // &
+          trim(StringWrite(size(this%realization%survey%dsim))) // ').')
+      endif
+    else
+      ! map coordinates to cell ids
+      allocate(int_array(num_measurements))
+      int_array = -1
+      do i = 1, num_measurements
+        if (Initialized(this%measurements(i)%coordinate%x)) then
+          call GridGetLocalIDFromCoordinate(patch%grid, &
+                                            this%measurements(i)%coordinate, &
+                                            this%realization%option,local_id)
+          if (Initialized(local_id)) then
+            int_array(i) = patch%grid%nG2A(patch%grid%nL2G(local_id))
+          endif
         endif
+      enddo
+      mpi_int = num_measurements
+      call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
+                        this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
+      i = maxval(int_array)
+      if (i > patch%grid%nmax) then
+        this%realization%option%io_buffer = 'A measurement cell ID (' // &
+          trim(StringWrite(i)) // ') is beyond the maximum cell ID.'
+        call PrintErrMsg(this%realization%option)
       endif
-    enddo
-    mpi_int = num_measurements
-    call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
-                       this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
-    do i = 1, num_measurements
-      if (int_array(i) > 0) then
-        this%measurements(i)%cell_id = int_array(i)
-      endif
-      if (Uninitialized(this%measurements(i)%cell_id)) then
-        string = 'Measurement ' // trim(StringWrite(i)) // &
-          ' at coordinate (' // &
-          trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
-          trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
-          trim(StringWrite(this%measurements(i)%coordinate%z)) // &
-          ') not mapped properly.'
-        call this%driver%PrintErrMsg(string)
-      endif
-    enddo
+      do i = 1, num_measurements
+        if (int_array(i) > 0) then
+          this%measurements(i)%cell_id = int_array(i)
+        endif
+        if (Uninitialized(this%measurements(i)%cell_id)) then
+          string = 'Measurement ' // trim(StringWrite(i)) // &
+            ' at coordinate (' // &
+            trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
+            trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
+            trim(StringWrite(this%measurements(i)%coordinate%z)) // &
+            ') not mapped properly.'
+          call this%driver%PrintErrMsg(string)
+        endif
+      enddo
 
-    ! map measurement vecs to the solution vector
-    do i = 1, num_measurements
-      int_array(i) = this%measurements(i)%cell_id
-    enddo
-    i = maxval(int_array)
-    if (i > patch%grid%nmax) then
-      this%realization%option%io_buffer = 'A measurement cell ID (' // &
-        trim(StringWrite(i)) // ') is beyond the maximum cell ID.'
-      call PrintErrMsg(this%realization%option)
+      ! map measurement vec to the solution vector
+      do i = 1, num_measurements
+        int_array(i) = this%measurements(i)%cell_id
+      enddo
+      int_array = int_array - 1
+      call DiscretAOApplicationToPetsc(this%realization%discretization, &
+                                      int_array)
+      call ISCreateGeneral(this%driver%comm%mycomm,num_measurements,int_array, &
+                          PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+      deallocate(int_array)
+      call VecScatterCreate(this%realization%field%work,is_petsc, &
+                            this%measurement_vec,PETSC_NULL_IS, &
+                            this%scatter_global_to_measurement, &
+                            ierr);CHKERRQ(ierr)
+      call ISDestroy(is_petsc,ierr)
     endif
-    int_array = int_array - 1
-    call DiscretAOApplicationToPetsc(this%realization%discretization, &
-                                     int_array)
-    call ISCreateGeneral(this%driver%comm%mycomm,num_measurements,int_array, &
-                         PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
-    deallocate(int_array)
-    call VecScatterCreate(this%realization%field%work,is_petsc, &
-                          this%measurement_vec,PETSC_NULL_IS, &
-                          this%scatter_global_to_measurement, &
-                          ierr);CHKERRQ(ierr)
-    call ISDestroy(is_petsc,ierr)
+
+    ! map measurement vec to distributed measurement vec
     call ISCreateStride(this%driver%comm%mycomm,num_measurements,ZERO_INTEGER, &
                         ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
     call VecScatterCreate(this%measurement_vec,is_measure, &
@@ -692,17 +715,6 @@ subroutine InversionSubsurfInitialize(this)
     inversion_forward_aux%measurement_vec = this%measurement_vec
     ! set up pointer to M matrix
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
-
-    if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
-      ! Ensure that the number of measurements equals the number of
-      ! survey measurements. Otherwise, we need to create a mapping.
-      if (size(this%realization%survey%dsim) /= num_measurements) then
-        call this%driver%PrintErrMsg('The number of measurements for ERT does &
-          &not match the number of survey ERT values (' // &
-          trim(StringWrite(num_measurements)) // ' vs. ' // &
-          trim(StringWrite(size(this%realization%survey%dsim))) // ').')
-      endif
-    endif
 
   endif
 
@@ -1224,7 +1236,41 @@ subroutine InvSubsurfCalculateSensitivity(this)
   ! Author: Glenn Hammond
   ! Date: 03/25/22
   !
+  use Option_module
+  use String_module
+  use Units_module
+  use Utility_module
+
   class(inversion_subsurface_type) :: this
+
+  type(option_type), pointer :: option
+  PetscInt :: imeasurement
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  option => this%realization%option
+
+  ! ensure that all measurement have been recorded
+  do imeasurement = 1, size(this%measurements)
+    if (.not.this%measurements(imeasurement)%measured) then
+      option%io_buffer = 'Measurement at cell ' // &
+        StringWrite(this%measurements(imeasurement)%cell_id)
+      if (Initialized(this%measurements(imeasurement)%time)) then
+        word = 'sec'
+        option%io_buffer = trim(option%io_buffer) // &
+          ' at ' // trim(StringWrite(this%measurements(imeasurement)%time/ &
+          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
+                                 word,option,ierr))) // &
+          ' ' // trim(this%measurements(imeasurement)%time_units)
+      endif
+      option%io_buffer = trim(option%io_buffer) // &
+        ' with a measured value from the measurement file of ' // &
+        trim(StringWrite(this%measurements(imeasurement)%value)) // &
+        ' was not measured during the simulation.'
+      call PrintErrMsg(option)
+    endif
+  enddo
+
 
   if (associated(this%perturbation)) then
     call InvSubsurfPertCalcSensitivity(this)
@@ -1255,7 +1301,6 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   use Option_module
   use String_module
   use Timer_class
-  use Units_module
   use Utility_module
 
   class(inversion_subsurface_type) :: this
@@ -1281,23 +1326,6 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   ! initialize first_lambda flag
   do imeasurement = 1, size(this%measurements)
     this%measurements(imeasurement)%first_lambda = PETSC_FALSE
-    if (.not.this%measurements(imeasurement)%measured) then
-      option%io_buffer = 'Measurement at cell ' // &
-        StringWrite(this%measurements(imeasurement)%cell_id)
-      if (Initialized(this%measurements(imeasurement)%time)) then
-        word = 'sec'
-        option%io_buffer = trim(option%io_buffer) // &
-          ' at ' // trim(StringWrite(this%measurements(imeasurement)%time/ &
-          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
-                                 word,option,ierr))) // &
-          ' ' // trim(this%measurements(imeasurement)%time_units)
-      endif
-      option%io_buffer = trim(option%io_buffer) // &
-        ' with a measured value from the measurement file of ' // &
-        trim(StringWrite(this%measurements(imeasurement)%value)) // &
-        ' was not measured during the simulation.'
-      call PrintErrMsg(option)
-    endif
   enddo
 
   ! go to end of list

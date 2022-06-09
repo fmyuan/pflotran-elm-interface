@@ -2979,6 +2979,7 @@ subroutine RealizationGetObservedVariables(realization)
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
+  PetscInt :: iert_measurement
   PetscErrorCode :: ierr
 
   inversion_forward_aux => realization%patch%aux%inversion_forward_aux
@@ -3008,8 +3009,9 @@ subroutine RealizationGetObservedVariables(realization)
       case(OBS_ERT_MEASUREMENT)
         call VecGetArrayF90(inversion_forward_aux%measurement_vec, &
                             vec_ptr,ierr);CHKERRQ(ierr)
-        do i=1, size(realization%survey%dsim)
-          vec_ptr(i) = realization%survey%dsim(i)
+        do i=1, size(inversion_forward_aux%measurements)
+          iert_measurement = inversion_forward_aux%measurements(i)%cell_id
+          vec_ptr(i) = realization%survey%dsim(iert_measurement)
         enddo
         call VecRestoreArrayF90(inversion_forward_aux%measurement_vec, &
                                 vec_ptr,ierr);CHKERRQ(ierr)

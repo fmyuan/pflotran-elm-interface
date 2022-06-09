@@ -9,6 +9,8 @@ module Inversion_Measurement_Aux_module
 
   private
 
+ PetscInt, public :: inv_meas_reporting_verbosity
+
   type, public :: inversion_measurement_aux_type
     PetscInt :: id
     PetscReal :: time
@@ -216,10 +218,23 @@ subroutine InversionMeasurementMeasure(time,measurement,value_,option)
 !  endif
 
   if (measure) then
-    call PrintMsg(option,'  Recording measurement #' // &
-      trim(StringWrite(measurement%id)))
     measurement%simulated_value = value_
     measurement%measured = PETSC_TRUE
+    if (inv_meas_reporting_verbosity > 0) then
+      option%io_buffer = '  Recording measurement #' // &
+        trim(StringWrite(measurement%id))
+      if (inv_meas_reporting_verbosity > 1) then
+        option%io_buffer = trim(option%io_buffer) // &
+          ' sim value = ' // &
+          trim(StringWrite('(es13.6)',measurement%simulated_value))
+      endif
+      if (inv_meas_reporting_verbosity > 2) then
+        option%io_buffer = trim(option%io_buffer) // &
+          ', orig value = ' // &
+          trim(StringWrite('(es13.6)',measurement%value))
+      endif
+      call PrintMsg(option)
+    endif
   endif
 
 end subroutine InversionMeasurementMeasure
