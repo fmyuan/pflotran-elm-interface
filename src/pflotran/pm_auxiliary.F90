@@ -17,7 +17,6 @@ module PM_Auxiliary_class
     class(communicator_type), pointer :: comm1
     character(len=MAXWORDLENGTH) :: ctype
     type(pm_auxiliary_salinity_type), pointer :: salinity
-    PetscBool :: evaluate_at_end_of_simulation
     procedure(PMAuxliaryEvaluate), pointer :: Evaluate => null()
   contains
     procedure, public :: Setup => PMAuxiliarySetup
@@ -58,7 +57,7 @@ contains
 
 function PMAuxiliaryCreate()
   !
-  ! Creates reactive transport process models shell
+  ! Creates an auxiliary process model
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -95,7 +94,6 @@ subroutine PMAuxiliaryInit(this)
   nullify(this%salinity)
   this%ctype = ''
   this%name = ''
-  this%evaluate_at_end_of_simulation = PETSC_TRUE
 
   call PMBaseInit(this)
   ! restart not currently supported for auxiliary pm's, and not needed.
@@ -251,13 +249,6 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
       this%header = 'AUXILIARY EVOLVING STRATA'
-      this%evaluate_at_end_of_simulation = PETSC_FALSE
-    case('INVERSION_MEASUREMENT')
-      this%Evaluate => PMAuxiliaryInversionMeasurement
-      this%header = 'AUXILIARY INVERSION MEASUREMENT'
-    case('INVERSION_ADJOINT')
-      this%Evaluate => PMAuxiliaryInversionAdjoint
-      this%header = 'AUXILIARY INVERSION ADJOINT'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
@@ -382,68 +373,6 @@ end subroutine PMAuxiliaryEvolvingStrata
 
 ! ************************************************************************** !
 
-subroutine PMAuxiliaryInversionMeasurement(this,time,ierr)
-  !
-  ! Takes measurements for inversion calculation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/25/22
-
-  use Inversion_TS_Aux_module
-  use Option_module
-  use Realization_Subsurface_class
-  use Utility_module
-
-  implicit none
-
-  class(pm_auxiliary_type) :: this
-  PetscReal :: time
-  PetscErrorCode :: ierr
-
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
-
-  ierr = 0
-  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
-  if (associated(inversion_forward_aux)) then
-    if (Equal(inversion_forward_aux%sync_times( &
-                inversion_forward_aux%isync_time),time)) then
-      call RealizationGetObservedVariables(this%realization)
-      call InversionForwardAuxMeasure(inversion_forward_aux,time,this%option)
-    else
-      call PrintMsg(this%option,'  No measurement requested at this time.')
-    endif
-  endif
-
-end subroutine PMAuxiliaryInversionMeasurement
-
-! ************************************************************************** !
-
-subroutine PMAuxiliaryInversionAdjoint(this,time,ierr)
-  !
-  ! Initializes auxiliary process model
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/10/16
-
-  use Inversion_TS_Aux_module
-  use Realization_Subsurface_class
-
-  implicit none
-
-  class(pm_auxiliary_type) :: this
-  PetscReal :: time
-  PetscErrorCode :: ierr
-
-  ierr = 0
-  if (associated(this%realization%patch%aux%inversion_forward_aux)) then
-    call InversionForwardAuxStep(this%realization%patch%aux% &
-                                   inversion_forward_aux,time)
-  endif
-
-end subroutine PMAuxiliaryInversionAdjoint
-
-! ************************************************************************** !
-
 subroutine PMAuxiliarySalinity(this,time,ierr)
   !
   ! Initializes auxiliary process model
@@ -547,7 +476,6 @@ subroutine PMAuxiliaryDestroy(this)
   nullify(this%realization)
   nullify(this%comm1)
   nullify(this%option)
-  nullify(this%output_option)
 
   if (associated(this%salinity)) then
     deallocate(this%salinity)

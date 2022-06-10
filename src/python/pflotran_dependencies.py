@@ -77,6 +77,7 @@ for root in source_file_roots:
   f.write('%d\t%d\t%d\n' % (line_count_in_file,blank_line_count_in_file,
                             comment_line_count_in_file))
 f.write('-------------------------------------------------------------------\n')
+f.write('Number of files: %d\n' % file_count)
 f.write('Total Line count: %d\n' % 
         (line_count+comment_line_count+blank_line_count))
 f.write('Fortran source line count: %d\n' % line_count)
