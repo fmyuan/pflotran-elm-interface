@@ -826,6 +826,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   use Factory_Subsurface_module
   use Init_Subsurface_module
   use Material_module
+  use String_module
   use Utility_module
   use Waypoint_module
   use ZFlow_Aux_module
@@ -874,6 +875,38 @@ subroutine InvSubsurfConnectToForwardRun(this)
       real_array(1:sync_count)
     deallocate(real_array)
     nullify(real_array)
+
+    ! ensure that ERT measurements are sampled when ERT is calculated
+    ! note that ERT may be calculated more often than the measurement occurs
+    if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
+      real_array => this%inversion_aux%inversion_forward_aux%sync_times
+      waypoint => &
+        this%forward_simulation%geop_process_model_coupler%waypoint_list%first
+      i = 0
+      do i = 1, size(real_array)
+        iflag = PETSC_FALSE
+        do
+          if (.not.associated(waypoint)) exit
+          if (waypoint%sync) then
+            if (waypoint%time > real_array(i)) then
+              exit
+            else if (Equal(real_array(i),waypoint%time)) then
+              iflag = PETSC_TRUE
+              exit
+            endif
+          endif
+          waypoint => waypoint%next
+        enddo
+        if (.not.iflag) then
+          call this%driver%PrintErrMsg( &
+            'ERT measurement at ' // &
+            trim(StringWrite(real_array(i))) // &
+            ' seconds not found among survey times.')
+        endif
+      enddo
+      nullify(real_array)
+    endif
+
   endif
 
   real_array => this%inversion_aux%inversion_forward_aux%sync_times
