@@ -653,7 +653,7 @@ subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       string = 'liquid pressure governor'
     endif
     string = 'TS update: ' // trim(string)
-    call OptionPrint(string,this%option)
+    call PrintMsg(this%option,string)
   endif
 
   if (Initialized(this%cfl_governor)) then
@@ -785,14 +785,9 @@ subroutine PMPNFMaxChange(this)
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
                      ierr);CHKERRQ(ierr)
   ! print them out
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4)') &
-      max_change_global(1)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4)') &
-      max_change_global(1)
-  endif
+  write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4)') &
+        max_change_global(1)
+  call PrintMsg(option)
 
   this%max_pressure_change = max_change_global(1)
 

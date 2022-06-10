@@ -3445,7 +3445,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
     case default
       option%io_buffer = 'BC type "' // &
-        trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
+        trim(GetSubConditionType(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
       call PrintErrMsg(option)
 
@@ -3553,7 +3553,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       ! No change in fluxe
     case default
       option%io_buffer = 'BC type "' // &
-        trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
+        trim(GetSubConditionType(ibndtype(TH_TEMPERATURE_DOF))) // &
         '" not implemented in TH mode.'
       call PrintErrMsg(option)
   end select

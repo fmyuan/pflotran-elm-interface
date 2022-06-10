@@ -242,8 +242,9 @@ subroutine SimSubsurfInitializeRun(this)
   endif
 
   call SimulationBaseInputRecordPrint(this,this%option)
-  call PrintMsg(this%option," ")
-  call PrintMsg(this%option,"  Finished Initialization")
+  call PrintMsg(this%option,'')
+  call PrintMsg(this%option,' Finished Initialization')
+  call PrintMsg(this%option,'')
   if (OptionPrintToFile(this%option)) then
     inquire(this%option%fid_inputrecord,opened=flag)
     if (flag) close(this%option%fid_inputrecord)
@@ -379,6 +380,7 @@ subroutine SimSubsurfJumpStart(this)
   use Output_module
   use Option_module
   use Output_Aux_module
+  use String_module
   use Timestepper_Base_class
 
   implicit none
@@ -427,9 +429,8 @@ subroutine SimSubsurfJumpStart(this)
     call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
-                       trim(adjustl(option%io_buffer)) // &
-                       '), specified by TIMESTEPPER->MAX_STEPS, ' // &
-                       'has been met.  Stopping....'
+      trim(StringWrite(master_timestepper%max_time_step)) // &
+      '), specified by TIMESTEPPER->MAX_STEPS, has been met.  Stopping....'
     call PrintMsg(option)
     call PrintMsg(option,'')
     option%driver%status = DONE
@@ -451,11 +452,9 @@ subroutine SimSubsurfJumpStart(this)
   !if TIMESTEPPER->MAX_STEPS < 1, print out initial condition only
   if (master_timestepper%max_time_step < 1) then
     call PrintMsg(option,'')
-    write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
-                       trim(adjustl(option%io_buffer)) // &
-                       '), specified by TIMESTEPPER->MAX_STEPS, ' // &
-                       'has been met.  Stopping....'
+      trim(StringWrite(master_timestepper%max_time_step)) // &
+      '), specified by TIMESTEPPER->MAX_STEPS, has been met.  Stopping....'
     call PrintMsg(option)
     call PrintMsg(option,'')
     option%driver%status = DONE

@@ -174,7 +174,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   !     snes->ttol for subsequent iterations.
   call SNESConvergedDefault(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                             0,ierr);CHKERRQ(ierr)
-                            
+
   if (option%convergence /= CONVERGENCE_CONVERGED .and. reason == -9) then
     return
   endif
@@ -358,7 +358,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           out_string = trim(out_string) // ' rsn: ' // trim(rsn_string)
         endif
       endif
-      call OptionPrint(out_string,option)
+      call PrintMsg(option,out_string)
     endif
   else
 
@@ -404,7 +404,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                           & " 2u:",es10.2, &
                           & 32x, &
                       & " rsn: ",a)') i_iteration, fnorm, unorm, trim(string)
-      call OptionPrint(out_string,option)
+      call PrintMsg(option,out_string)
       if (solver%print_linear_iterations) then
         call KSPGetIterationNumber(solver%ksp,i,ierr);CHKERRQ(ierr)
         write(option%io_buffer,'("   Linear Solver Iterations: ",i6)') i

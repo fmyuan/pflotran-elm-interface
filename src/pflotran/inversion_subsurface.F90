@@ -1246,29 +1246,28 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   endif
 
   ! work backward through list
-  call OptionPrint(' Working backward through inversion_ts_aux list &
-                   &calculating lambdas.',option)
+  call PrintMsg(option,' Working backward through inversion_ts_aux list &
+                   &calculating lambdas.')
   cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%last
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    if (OptionPrintToScreen(option)) then
-      print *, '  call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
-    endif
+    option%io_buffer = '  call InvSubsurfCalcLambda: ' // &
+      StringWrite(cur_inversion_ts_aux%timestep)
+    call PrintMsg(option)
     call InvSubsurfAdjointCalcLambda(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%prev
   enddo
 
   ! work forward through list
-  call OptionPrint(' Working forward through inversion_ts_aux list &
-                   &calculating sensitivity coefficients.',option)
+  call PrintMsg(option,' Working forward through inversion_ts_aux list &
+                   &calculating sensitivity coefficients.')
   call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%first
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    if (OptionPrintToScreen(option)) then
-      print *, '  call InvSubsurfAddSensitivity: ', &
-               cur_inversion_ts_aux%timestep
-    endif
+    option%io_buffer = '  call InvSubsurfAddSensitivity: ' // &
+      StringWrite(cur_inversion_ts_aux%timestep)
+    call PrintMsg(option)
     call InvSubsurfAdjointAddSensitivity(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%next
   enddo

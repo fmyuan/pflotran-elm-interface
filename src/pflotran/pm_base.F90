@@ -460,12 +460,15 @@ subroutine PMBasePrintHeader(this)
   ! Author: Glenn Hammond
   ! Date: 08/06/18
   !
+  use Option_module
   use Utility_module
 
   implicit none
 
   class(pm_base_type) :: this
 
+  ! spacing
+  call PrintMsg(this%option,'')
   call PrintHeader(this%header,this%option)
 
 end subroutine PMBasePrintHeader

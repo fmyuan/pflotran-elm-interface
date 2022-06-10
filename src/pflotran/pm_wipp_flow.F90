@@ -66,7 +66,7 @@ module PM_WIPP_Flow_class
     PetscReal :: auto_pressure_Pb_0
     PetscReal :: auto_press_shallow_origin(3)
     PetscReal :: linear_system_scaling_factor
-    PetscBool :: scale_linear_system ! Jacobian and residual is scaled 
+    PetscBool :: scale_linear_system ! Jacobian and residual is scaled
                                      ! just before the PETSc solver.
     PetscInt :: newtontrdc_inner_iter_num ! True: inside inner iteration.
     PetscInt :: newtontrdc_prev_iter_num
@@ -1186,7 +1186,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       string = 'liquid pressure governor'
     endif
     string = 'TS update: ' // trim(string)
-    call OptionPrint(string,this%option)
+    call PrintMsg(this%option,string)
   endif
   ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
   ! within timestepper_BE. use %minimum_timestep_size, which is specific to
@@ -1195,7 +1195,8 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
 
   if (wippflo_debug_ts_update) then
     if (minval(dtime(:)) < time_step_max_growth_factor .and. dt < dt_max) then
-      write(*,'(" scaled dt: ",2es13.5)') dtime(:)
+      write(this%option%io_buffer,'(" scaled dt: ",2es13.5)') dtime(:)
+      call PrintMsg(this%option)
     endif
   endif
 
@@ -1299,10 +1300,10 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  
+
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: residual_vec
@@ -1318,7 +1319,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   field => this%realization%field
 
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
-  
+
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_ghosted)) then
     allocate(diagonal_values(size(this%dirichlet_dofs_local)))
@@ -1369,7 +1370,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     !call MatDiagonalScaleLocal(A,field%flow_work_loc,ierr);CHKERRQ(ierr)
     call MatDiagonalScale(A,PETSC_NULL_VEC,field%flow_work_loc, &
                           ierr);CHKERRQ(ierr)
-  endif 
+  endif
 
   if (this%scale_linear_system) then
     call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
@@ -1535,7 +1536,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: pressure_scale_factor
   PetscInt :: max_gas_sat_outside_lim_cell
   PetscInt :: i, irow
-  ! dX_p is subtracted to update the solution.  The max values need to be 
+  ! dX_p is subtracted to update the solution.  The max values need to be
 
   ! scaled by this delta_scale for proper screen output.
   PetscReal, parameter :: delta_scale = -1.d0
@@ -1568,7 +1569,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     close(IUNIT_TEMP)
   endif
   call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  
+
   ! if the solution is scaled, then it must be scaled back
   if (option%flow%scale_all_pressure) then
     pressure_scale_factor = option%flow%pressure_scaling_factor
@@ -2410,16 +2411,10 @@ subroutine PMWIPPFloMaxChange(this)
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
                      ierr);CHKERRQ(ierr)
   ! print them out
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4, &
-             &" dsg= ",1pe12.4)') &
+  write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4, " dpg= ",&
+                         &1pe12.4," dsg= ",1pe12.4)') &
       max_change_global(1:3)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ", &
-                          &1pe12.4, " dsg= ",1pe12.4)') &
-      max_change_global(1:3)
-  endif
+  call PrintMsg(option)
 
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   this%max_pressure_change = max_change_global(1)

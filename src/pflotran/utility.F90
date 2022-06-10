@@ -2648,8 +2648,8 @@ subroutine PrintHeader(header,option)
   string = '(2("=")," ' // trim(header) // ' ",' // &
            trim(StringWrite(80-len_trim(header)-4)) // '("="))'
   write(string,string)
-  call OptionPrint('',option)
-  call OptionPrint(string,option)
+!  call PrintMsg('',option)
+  call PrintMsg(option,string)
 
 end subroutine PrintHeader
 
