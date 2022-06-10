@@ -110,7 +110,7 @@ subroutine InvForwardAuxResetMeasurements(aux)
 
   aux%isync_time = 1
   do imeasurement = 1, size(aux%measurements)
-    aux%measurements(imeasurement)%measured = PETSC_FALSE
+    call InversionMeasurementAuxReset(aux%measurements(imeasurement))
   enddo
 
 end subroutine InvForwardAuxResetMeasurements

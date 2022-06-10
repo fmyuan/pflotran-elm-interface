@@ -26,6 +26,7 @@ module Inversion_Measurement_Aux_module
 
   public :: InversionMeasurementAuxCreate, &
             InversionMeasurementAuxInit, &
+            InversionMeasurementAuxReset, &
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
             InversionMeasurementMeasure, &
@@ -84,6 +85,23 @@ subroutine InversionMeasurementAuxInit(measurement)
   nullify(measurement%next)
 
 end subroutine InversionMeasurementAuxInit
+
+! ************************************************************************** !
+
+subroutine InversionMeasurementAuxReset(measurement)
+  !
+  ! Resets measurement data at beginning of inversion iteration
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/22
+  !
+  type(inversion_measurement_aux_type) :: measurement
+
+  measurement%simulated_value = UNINITIALIZED_DOUBLE
+  measurement%first_lambda = PETSC_FALSE
+  measurement%measured = PETSC_FALSE
+
+end subroutine InversionMeasurementAuxReset
 
 ! ************************************************************************** !
 
