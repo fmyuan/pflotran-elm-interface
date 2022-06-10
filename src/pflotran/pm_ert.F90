@@ -524,6 +524,9 @@ recursive subroutine PMERTInitializeRun(this)
                                   rt_auxvar%total(ispecies,1))
         source_sink => source_sink%next
       enddo
+      call MPI_Allreduce(MPI_IN_PLACE,this%max_tracer_conc,ONE_INTEGER, &
+                         MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                         ierr);CHKERRQ(ierr)
     endif
   endif
 
