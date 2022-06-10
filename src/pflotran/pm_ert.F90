@@ -818,14 +818,11 @@ subroutine PMERTSolve(this,time,ierr)
   nelec = survey%num_electrode
   this%linear_iterations_in_step = 0
 
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'(" Solving for electrode:")',advance='no')
-  endif
+  this%option%io_buffer = '  Solving for electrode:'
+  call PrintMsgNoAdvance(this%option)
   do ielec=1,nelec
-    if (OptionPrintToScreen(this%option)) then
-      write(*,'(x,a)',advance='no') trim(StringWrite(ielec))
-    endif
-
+    write(this%option%io_buffer,'(x,a)') trim(StringWrite(ielec))
+    call PrintMsgNoAdvance(this%option)
     if (this%analytical_potential) then
       ! Initial Solution -> analytic sol for a half-space
       ! Get Analytical potential for a half-space
@@ -899,6 +896,7 @@ subroutine PMERTSolve(this,time,ierr)
     this%linear_iterations_in_step = this%linear_iterations_in_step + &
                                      num_linear_iterations
   enddo
+  call PrintMsg(this%option,'')
 
   ! Assemble solutions
   call PMERTAssembleSimulatedData(this,time)

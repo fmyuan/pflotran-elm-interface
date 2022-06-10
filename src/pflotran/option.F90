@@ -169,6 +169,12 @@ module Option_module
   interface PrintMsg
     module procedure PrintMsg1
     module procedure PrintMsg2
+    module procedure PrintMsg3
+  end interface
+
+  interface PrintMsgNoAdvance
+    module procedure PrintMsgNoAdvance1
+    module procedure PrintMsgNoAdvance2
   end interface
 
   interface PrintMsgAnyRank
@@ -217,6 +223,7 @@ module Option_module
             PrintErrMsgByRankToDev, &
             PrintWrnMsg, &
             PrintMsg, &
+            PrintMsgNoAdvance, &
             PrintMsgAnyRank, &
             PrintMsgByRank, &
             PrintMsgByCell, &
@@ -870,6 +877,41 @@ end subroutine PrintWrnMsg2
 
 ! ************************************************************************** !
 
+subroutine PrintMsgNoAdvance1(option)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/22
+  !
+  implicit none
+
+  type(option_type) :: option
+
+  call PrintMsgNoAdvance2(option,option%io_buffer)
+
+end subroutine PrintMsgNoAdvance1
+
+! ************************************************************************** !
+
+subroutine PrintMsgNoAdvance2(option,string)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/22
+  !
+  implicit none
+
+  type(option_type) :: option
+  character(len=*) :: string
+
+  call PrintMsg3(option,string,PETSC_FALSE)
+
+end subroutine PrintMsgNoAdvance2
+
+! ************************************************************************** !
+
 subroutine PrintMsg1(option)
   !
   ! Prints output to the screen and/or output file
@@ -881,7 +923,7 @@ subroutine PrintMsg1(option)
 
   type(option_type) :: option
 
-  call PrintMsg2(option,option%io_buffer)
+  call PrintMsg3(option,option%io_buffer,PETSC_TRUE)
 
 end subroutine PrintMsg1
 
@@ -899,15 +941,42 @@ subroutine PrintMsg2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  ! note that these flags can be toggled off specific time steps
-  if (option%print_screen_flag) then
-    write(STDOUT_UNIT,'(a)') trim(string)
-  endif
-  if (option%print_file_flag) then
-    write(option%fid_out,'(a)') trim(string)
-  endif
+  call PrintMsg3(option,string,PETSC_TRUE)
 
 end subroutine PrintMsg2
+
+! ************************************************************************** !
+
+subroutine PrintMsg3(option,string,advance_)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07, 06/03/22
+  !
+  implicit none
+
+  type(option_type) :: option
+  character(len=*) :: string
+  PetscBool :: advance_
+
+  ! note that these flags can be toggled off specific time steps
+  if (option%print_screen_flag) then
+    if (.not.advance_) then
+      write(STDOUT_UNIT,'(a)',advance='no') trim(string)
+    else
+      write(STDOUT_UNIT,'(a)') trim(string)
+    endif
+  endif
+  if (option%print_file_flag) then
+    if (.not.advance_) then
+      write(option%fid_out,'(a)',advance='no') trim(string)
+    else
+      write(option%fid_out,'(a)') trim(string)
+    endif
+  endif
+
+end subroutine PrintMsg3
 
 ! ************************************************************************** !
 

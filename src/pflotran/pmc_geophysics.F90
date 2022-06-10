@@ -208,16 +208,10 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   endif
 
   if (skip_survey) then
-    if (this%option%print_screen_flag) then
-      write(*, '(/," Time= ",1pe12.5," [",a,"]", &
-            &" Skipping geophysics as this is not a survey time.",/)') &
-         timestepper%target_time/output_option%tconv,trim(output_option%tunit)
-    endif
-    if (this%option%print_file_flag) then
-      write(this%option%fid_out, '(/," Time= ",1pe12.5," [",a,"]", &
-            &" Skipping geophysics as this is not a survey time.",/)') &
-         timestepper%target_time/output_option%tconv,trim(output_option%tunit)
-    endif
+    write(this%option%io_buffer,'(" Time= ",1pe12.5," [",a,"]", &
+          &" Skipping geophysics as this is not a survey time.")') &
+      timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+    call PrintMsg(this%option)
     return
   endif
 
@@ -229,20 +223,12 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   timestepper%steps = timestepper%steps + 1
   timestepper%cumulative_linear_iterations = &
     timestepper%cumulative_linear_iterations + linear_iterations_in_step
-  if (this%option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-         & /,"  linear = ",i5," [",i10,"]")') &
-         timestepper%steps, timestepper%target_time/output_option%tconv, &
-         trim(output_option%tunit), linear_iterations_in_step, &
-         timestepper%cumulative_linear_iterations
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-         & /,"  linear = ",i5," [",i10,"]")') &
-         timestepper%steps, this%timestepper%target_time/output_option%tconv, &
-         trim(output_option%tunit), linear_iterations_in_step, &
-         timestepper%cumulative_linear_iterations
-  endif
+  write(this%option%io_buffer,'(" Step ",i6," Time= ",1pe12.5," [",a,"]", &
+                              &a,"  linear = ",i5," [",i10,"]")') &
+       timestepper%steps, timestepper%target_time/output_option%tconv, &
+       trim(output_option%tunit),new_line('a'), &
+       linear_iterations_in_step,timestepper%cumulative_linear_iterations
+  call PrintMsg(this%option)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
