@@ -287,7 +287,7 @@ subroutine OptionSetDriver(option,driver)
     call PrintErrMsg(option)
   endif
   option%print_screen_flag = driver%PrintToScreen()
-  option%print_file_flag = driver%PrintToFile()
+  option%print_file_flag = PETSC_FALSE
 
 end subroutine OptionSetDriver
 
@@ -898,8 +898,6 @@ subroutine PrintMsg2(option,string)
 
   type(option_type) :: option
   character(len=*) :: string
-
-  if (OptionPrintToScreen(option)) print *, trim(string)
 
   ! note that these flags can be toggled off specific time steps
   if (option%print_screen_flag) then

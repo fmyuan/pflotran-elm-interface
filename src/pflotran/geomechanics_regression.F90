@@ -533,7 +533,8 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
     string = trim(option%global_prefix) // &
              trim(option%group_prefix) // &
              '.regression'
-    option%io_buffer = '--> write geomechanics_regression output file: ' // trim(string)
+    option%io_buffer = ' --> write geomechanics_regression output file: ' // &
+      trim(string)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=string,action="write")
   endif
