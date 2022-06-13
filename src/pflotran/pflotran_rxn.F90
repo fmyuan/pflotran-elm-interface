@@ -240,7 +240,7 @@ program pflotran_rxn
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
 
   driver => DriverCreate()
-  call MPI_Init(ierr);CHKERRQ(ierr)
+  call MPI_Init(ierr);CHKERRA(ierr)
   call CommInitPetsc(driver%comm,MPI_COMM_WORLD)
 
   option => OptionCreate()
@@ -256,7 +256,8 @@ program pflotran_rxn
   call InputGetCommandLineString(string, option%global_prefix, option_found, option)
 
   PETSC_COMM_WORLD = MPI_COMM_WORLD
-  call PetscInitialize(PETSC_NULL_CHARACTER,ierr);CHKERRQ(ierr)
+  call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+  CHKERRA(ierr)
 
   input => InputCreate(IN_UNIT, option%input_filename, option)
 
@@ -332,8 +333,8 @@ program pflotran_rxn
   call InputDestroy(input)
   call OptionDestroy(option)
   call DriverDestroy(driver)
-  call PetscFinalize(ierr);CHKERRQ(ierr)
-  call MPI_Finalize(ierr);CHKERRQ(ierr)
+  call PetscFinalize(ierr);CHKERRA(ierr)
+  call MPI_Finalize(ierr);CHKERRA(ierr)
 
 end program pflotran_rxn
 

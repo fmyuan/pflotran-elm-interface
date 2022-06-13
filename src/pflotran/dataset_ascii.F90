@@ -236,6 +236,18 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
             call InputErrorMsg(input,option,'DATA_UNITS',error_string)
           endif
           cycle
+        case('TIME_UNIT','DATA_UNIT')
+          option%io_buffer = 'Incorrect card "' // trim(word) // &
+            '" in ascii dataset read.'
+          select case(word)
+            case('TIME_UNIT')
+              word = 'TIME_UNITS'
+            case('DATA_UNIT')
+              word = 'DATA_UNITS'
+          end select
+          option%io_buffer = trim(option%io_buffer) // ' Use "' // &
+            trim(word) // '".'
+          call PrintErrMsg(option)
         case default
           ! copy the first row of actual data and count up the number of
           ! columns.
