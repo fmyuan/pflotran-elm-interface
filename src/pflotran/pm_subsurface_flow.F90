@@ -238,7 +238,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
-
+      
     case default
       found = PETSC_FALSE
   end select
@@ -264,10 +264,11 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   class(pm_subsurface_flow_type) :: this
   type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: keyword, word
   PetscBool :: found
-  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: error_string, string
   type(option_type), pointer :: option
+  PetscErrorCode :: ierr
 
 !  found = PETSC_FALSE
 !  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
@@ -391,6 +392,7 @@ subroutine PMSubsurfaceFlowSetRealization(this,realization)
   ! Date: 04/21/14
 
   use Realization_Subsurface_class
+  use Option_module
   use Grid_module
 
   implicit none
@@ -401,7 +403,12 @@ subroutine PMSubsurfaceFlowSetRealization(this,realization)
   this%realization => realization
   this%realization_base => realization
 
-  this%solution_vec = realization%field%flow_xx
+  ! scale pressures down to the range near saturation (0 to 1)
+  if (this%option%flow%scale_all_pressure) then 
+    this%solution_vec = realization%field%flow_scaled_xx
+  else
+    this%solution_vec = realization%field%flow_xx
+  endif
   this%residual_vec = realization%field%flow_r
 
 end subroutine PMSubsurfaceFlowSetRealization
@@ -744,12 +751,24 @@ subroutine PMSubsurfaceFlowPreSolve(this)
 
   use Global_module
   use Data_Mediator_module
+  use Option_module
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
 
-  this%norm_history = 0.d0
+  PetscErrorCode :: ierr
+  PetscReal :: inverse_factor
+
+  if (this%option%flow%scale_all_pressure) then
+    call VecCopy(this%realization%field%flow_xx, &
+                 this%realization%field%flow_scaled_xx,ierr);CHKERRQ(ierr)
+    inverse_factor = this%option%flow%pressure_scaling_factor**(-1.d0)
+    call VecStrideScale(this%realization%field%flow_scaled_xx,ZERO_INTEGER, &
+                        inverse_factor, ierr);CHKERRQ(ierr)
+  endif 
+
+  this%norm_history = 0.d0  
   call DataMediatorUpdate(this%realization%flow_data_mediator_list, &
                           this%realization%field%flow_mass_transfer, &
                           this%realization%option)

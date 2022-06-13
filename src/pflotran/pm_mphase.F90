@@ -512,7 +512,7 @@ subroutine PMMphaseMaxChange(this)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   !
-
+  use Option_module
   use Mphase_module, only : MphaseMaxChange
 
   implicit none
@@ -523,18 +523,13 @@ subroutine PMMphaseMaxChange(this)
                        this%max_temperature_change, &
                        this%max_saturation_change, &
                        this%max_xmol_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dpmx= ",1pe12.4, &
-      & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
-          this%max_pressure_change,this%max_temperature_change, &
-          this%max_xmol_change,this%max_saturation_change
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
-      & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
-          this%max_pressure_change,this%max_temperature_change, &
-          this%max_xmol_change,this%max_saturation_change
-  endif
+  write(this%option%io_buffer,'("  --> max change: dpmx= ",1pe12.4,&
+                              &" dtmpmx= ",1pe12.4)') &
+        this%max_pressure_change,this%max_temperature_change
+  call PrintMsg(this%option)
+  write(this%option%io_buffer,'(17x," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
+        this%max_xmol_change,this%max_saturation_change
+  call PrintMsg(this%option)
 
 end subroutine PMMphaseMaxChange
 

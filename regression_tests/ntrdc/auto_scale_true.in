@@ -1,0 +1,195 @@
+# PFLOTRAN QA Test 9: 1D Horizontal Infiltration, 2-Phase Flow
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        DEFAULT_ALPHA
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588d0 #hardwired
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+  1
+  2
+  4
+  6
+  8
+  10
+  /
+END
+
+#================================solver options================================#
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    LIQUID_RESIDUAL_INFINITY_TOL 1.d-2     ! FTOL_SAT
+    GAS_RESIDUAL_INFINITY_TOL 1.d-2        ! FTOL_PRES
+    MAX_ALLOW_REL_LIQ_PRES_CHANG_NI 1.d-2  ! EPS_PRES
+    MAX_ALLOW_REL_GAS_SAT_CHANGE_NI 1.d-3  ! EPS_SAT
+    GAS_SAT_THRESH_FORCE_EXTRA_NI 1.d-3    ! SATLIMIT
+    GAS_SAT_THRESH_FORCE_TS_CUT 0.1d0      ! DSATLIM
+    MIN_LIQ_PRES_FORCE_TS_CUT -1.d8        ! DPRELIM
+    MAX_ALLOW_GAS_SAT_CHANGE_TS 1.d0       ! DSAT_MAX
+    MAX_ALLOW_LIQ_PRES_CHANGE_TS 1.d7      ! DPRES_MAX
+    MAXIMUM_NUMBER_OF_ITERATIONS 8
+    VERBOSE_LOGGING #this temporarily adds verbose logging for Heeho
+    CONVERGENCE_TEST BOTH
+    DO_NOT_SCALE_JACOBIAN
+    SNES_TYPE NTRDC
+    NTRDC_OPTIONS
+      AUTO_SCALE TRUE
+    END
+  END
+
+  LINEAR_SOLVER
+    VERBOSE_LOGGING #this is temporary for Heeho
+    SOLVER DIRECT MUMPS
+  END
+
+  TIMESTEPPER
+    MAX_NUM_CONTIGUOUS_REVERTS 99 #hardwired
+    TIMESTEP_OVERSTEP_REL_TOLERANCE 1.d-6 #hardwired
+    TIMESTEP_REDUCTION_FACTOR 0.5d0 #hardwired
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0 #hardwired
+    MAXIMUM_CONSECUTIVE_TS_CUTS 40
+    MAXIMUM_NUMBER_OF_TIMESTEPS 20000
+    NUM_STEPS_AFTER_TS_CUT 0 #hardwired
+  END
+END
+
+!=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 40 1 1    ! 1D PROBLEM
+  DXYZ
+    40*0.005
+    1.d0
+    1.d0
+  /
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  POROSITY 0.45d0
+  TORTUOSITY 1.0d0
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 0.d0
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_ISO 1.18d-14
+  /
+END
+!=========================== saturation functions =============================
+
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION BRAGFLO_KRP5
+    LIQUID_RESIDUAL_SATURATION 0.3333333d0
+    PCT_A 0.0
+    PCT_EXP -0.2865812
+    KPC 2
+    MAX_CAPILLARY_PRESSURE 9807.0
+    GAS_RESIDUAL_SATURATION 0.0D0
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP5_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.3333333d0
+    GAS_RESIDUAL_SATURATION 0.0D0
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP5_GAS
+    LIQUID_RESIDUAL_SATURATION 0.33333333d0
+    GAS_RESIDUAL_SATURATION 0.0D0
+  /
+END
+
+EOS WATER
+  DENSITY CONSTANT 997.16d0
+  ENTHALPY CONSTANT 1.8890d0
+  VISCOSITY CONSTANT 1.d-3
+END
+
+!=========================== output options ===================================
+OUTPUT
+END
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 9.504d3 s
+  MAXIMUM_TIMESTEP_SIZE 1.d3 s
+END
+
+!=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    2.d-1 1.d0 1.d0
+  /
+END
+REGION left
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+  FACE WEST
+END
+
+REGION first
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.000001 1.d0 1.d0
+  /
+END
+
+REGION right
+  COORDINATES
+    2.d-1 0.d0 0.d0
+    2.d-1 1.d0 1.d0
+  /
+  FACE EAST
+END
+
+!=========================== flow conditions ==================================
+FLOW_CONDITION left
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 109525.
+  LIQUID_SATURATION 1.d0
+END
+
+FLOW_CONDITION initial_sat
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 109525.
+  LIQUID_SATURATION 0.4444d0
+END
+
+!=========================== condition couplers ===============================
+! initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial_sat
+  REGION all
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION left
+  REGION left
+END
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil
+END
+
+END_SUBSURFACE

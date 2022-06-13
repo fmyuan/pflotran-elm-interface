@@ -26,6 +26,14 @@ module Timestepper_SNES_class
     PetscReal, pointer :: tfac(:)
     PetscInt :: ntfac             ! size of tfac
 
+    ! rescue mode related parameters - heeho
+    PetscBool :: rescue_mode  ! increase dt when a simulation is in
+                              ! a hole or oscillation
+    PetscInt  :: rescue_frequency       ! how often do we rescue?
+    PetscReal :: rescue_factor          ! what do we increase dt by?
+    PetscReal :: rescue_step_threshold  ! how small should dt be compared to t
+    PetscInt  :: rescue_step_counter    ! counter to trigger rescue
+
   contains
 
     procedure, public :: ReadSelectCase => TimestepperSNESReadSelectCase
@@ -129,6 +137,13 @@ subroutine TimestepperSNESInit(this)
   this%tfac(11) = 1.0d0; this%tfac(12) = 1.0d0
   this%tfac(13) = 1.0d0
 
+  ! rescue mode defaults - heeho
+  this%rescue_mode = PETSC_FALSE
+  this%rescue_frequency = 100
+  this%rescue_factor = 1.0d3
+  this%rescue_step_threshold = 1.0d-5
+  this%rescue_step_counter = 0
+
 end subroutine TimestepperSNESInit
 
 ! ************************************************************************** !
@@ -176,6 +191,42 @@ subroutine TimestepperSNESReadSelectCase(this,input,keyword,found, &
           option)
       this%ntfac = size(this%tfac)
 
+    case ('RESCUE_MODE')  ! heeho
+      this%rescue_mode = PETSC_TRUE
+      input%ierr = 0
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputCheckExit(input,option)) exit
+
+        call InputReadCard(input,option,keyword)
+        call InputErrorMsg(input,option,'keyword','RESCUE MODE')
+        call StringToUpper(keyword)
+
+        select case(trim(keyword))
+          case('RESCUE_FACTOR','FACTOR','RFAC')
+            call InputReadDouble(input,option,this%rescue_factor)
+            call InputErrorMsg(input,option, &
+                               'rescue factor ', &
+                               'RESCUE mode options')
+          case('RESCUE_FREQUENCY','FREQUENCY','RFREQ')
+            call InputReadInt(input,option,this%rescue_frequency)
+            call InputErrorMsg(input,option, &
+                               'rescue frequency ', &
+                               'RESCUE mode options')
+          case('RESCUE_STEP_THRESHOLD','THRESHOLD','STEP_THRESHOLD','RTHRESH')
+            call InputReadDouble(input,option,this%rescue_step_threshold)
+            call InputErrorMsg(input,option, &
+                               'rescue threshold ', &
+                               'RESCUE mode options')
+          case default
+            option%io_buffer  = 'Timestepper RESCUE MODE option: ' // trim(keyword) // &
+                              ' unknown.'
+            call PrintErrMsg(option)
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
     case default
       found = PETSC_FALSE
   end select
@@ -192,14 +243,18 @@ subroutine TimestepperSNESUpdateDT(this,process_model)
   ! Date: 07/22/13
   !
 
+  use Option_module
   use PM_Base_class
 
   implicit none
 
   class(timestepper_SNES_type) :: this
   class(pm_base_type) :: process_model
+  type(option_type), pointer :: option
 
   PetscBool :: update_time_step
+
+  option => process_model%option
 
   update_time_step = PETSC_TRUE
 
@@ -235,6 +290,26 @@ subroutine TimestepperSNESUpdateDT(this,process_model)
 
   endif
 
+  ! rescue mode - heeho
+  if (this%rescue_mode) then
+    if (this%target_time*this%rescue_step_threshold > this%dt) then
+      this%rescue_step_counter = this%rescue_step_counter + 1
+    else
+      if (this%rescue_step_counter > 0) then
+        ! subtract from the counter if it recovers itself
+        this%rescue_step_counter = this%rescue_step_counter - 1
+      endif
+    endif
+    if (this%rescue_step_counter > this%rescue_frequency) then
+      this%rescue_step_counter = 0
+      ! there was conditional to control too big of rescue factor but it
+      ! was removed as it is very unlikely.
+      this%dt = this%dt * this%rescue_factor
+      option%io_buffer = 'rescue mode activated. jumping time step size.'
+      call PrintMsg(option)
+    endif
+  endif
+
 end subroutine TimestepperSNESUpdateDT
 
 ! ************************************************************************** !
@@ -250,9 +325,11 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use PM_Base_class
+  use PM_Subsurface_Flow_class
   use Option_module
   use Output_module, only : Output, OutputFindNaNOrInfInVec
   use Output_EKG_module, only : IUNIT_EKG
+  use String_module
 
   implicit none
 
@@ -274,9 +351,7 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_wasted_linear_iterations
   PetscInt :: sum_wasted_newton_iterations
-  character(len=MAXWORDLENGTH) :: tunit
 
-  PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
@@ -293,8 +368,6 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
   call PrintMsg(process_model%option)
 #endif
 
-  tconv = process_model%output_option%tconv
-  tunit = process_model%output_option%tunit
   sum_linear_iterations = 0
   sum_wasted_linear_iterations = 0
   sum_wasted_newton_iterations = 0
@@ -336,55 +409,8 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
       sum_wasted_newton_iterations = sum_wasted_newton_iterations + &
            num_newton_iterations
       ! The Newton solver diverged, so try reducing the time step.
-      icut = icut + 1
-      this%time_step_cut_flag = PETSC_TRUE
-      ! if a cut occurs on the last time step, the stop_flag will have been
-      ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
-      ! premature ending of simulation.
-      if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
-
-      if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
-
-        if (icut > this%max_time_step_cuts) then
-          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
-          call PrintMsg(option)
-          write(option%io_buffer, &
-                '("    icut =",i3,", max_time_step_cuts=",i3)') &
-                icut,this%max_time_step_cuts
-          call PrintMsg(option)
-        endif
-        if (this%dt < this%dt_min) then
-          option%io_buffer = ' Stopping: Time step size is less than the &
-                             &minimum allowable time step.'
-          call PrintMsg(option)
-          write(option%io_buffer, &
-                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
-               this%dt/tconv,this%dt_min/tconv,trim(tunit)
-          call PrintMsg(option)
-       endif
-
-        process_model%output_option%plot_name = trim(process_model%name)// &
-          '_cut_to_failure'
-        snapshot_plot_flag = PETSC_TRUE
-        observation_plot_flag = PETSC_FALSE
-        massbal_plot_flag = PETSC_FALSE
-        call Output(process_model%realization_base,snapshot_plot_flag, &
-                    observation_plot_flag,massbal_plot_flag)
-        stop_flag = TS_STOP_FAILURE
-        return
-      endif
-
-      this%target_time = this%target_time - this%dt
-
-      this%dt = this%time_step_reduction_factor * this%dt
-
-      write(option%io_buffer,'(''-> Cut time step: snes='',i3, &
-           &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-           &   1pe12.5)')  snes_reason,icut, &
-           this%cumulative_time_step_cuts+icut, &
-           option%time/tconv, &
-           this%dt/tconv
-      call PrintMsg(option)
+      call this%CutDT(process_model,icut,stop_flag,'snes', &
+                      snes_reason,option)
       if (snes_reason < SNES_CONVERGED_ITERATING) then
         call SolverNewtonPrintFailedReason(solver,option)
         if (solver%verbose_logging) then
@@ -431,58 +457,47 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
-  if (option%print_screen_flag) then
-      write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-           & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
-           & " [",i8,"]", " linear = ",i5," [",i10,"]"," cuts = ",i2, &
-           & " [",i4,"]")') &
-           this%steps, &
-           this%target_time/tconv, &
-           this%dt/tconv, &
-           trim(tunit),snes_reason,sum_newton_iterations, &
-           this%cumulative_newton_iterations,sum_linear_iterations, &
-           this%cumulative_linear_iterations,icut, &
-           this%cumulative_time_step_cuts
 
+  call TimestepperBasePrintStepInfo(this,process_model%output_option, &
+                                    snes_reason,option)
+  write(option%io_buffer,'("  newton = ",i3," [",i8,"]", " linear = ",i5, &
+                         &" [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+           sum_newton_iterations,this%cumulative_newton_iterations, &
+           sum_linear_iterations,this%cumulative_linear_iterations, &
+           icut,this%cumulative_time_step_cuts
+  call PrintMsg(option)
 
-    if (associated(process_model%realization_base%discretization%grid)) then
-       scaled_fnorm = fnorm/process_model%realization_base% &
-                        discretization%grid%nmax
-    else
-       scaled_fnorm = fnorm
-    endif
+  select type(process_model)
+    class is (pm_subsurface_flow_type)
+      scaled_fnorm = fnorm/process_model%realization_base% &
+                     discretization%grid%nmax
+    class default
+      scaled_fnorm = fnorm
+  end select
 
-    print *,' --> SNES Linear/Non-Linear Iterations = ', &
-             num_linear_iterations,' / ',num_newton_iterations
-    write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm
-  endif
-
-  if (option%print_file_flag) then
-    write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-      & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &
-      & " [",i8,"]", " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
-      this%steps, &
-      this%target_time/tconv, &
-      this%dt/tconv, &
-      trim(tunit),snes_reason,sum_newton_iterations, &
-      this%cumulative_newton_iterations,sum_linear_iterations, &
-      this%cumulative_linear_iterations,icut, &
-      this%cumulative_time_step_cuts
-  endif
+  option%io_buffer = '  --> SNES Linear/Non-Linear Iterations = ' // &
+    trim(StringWrite(num_linear_iterations)) // ' / ' // &
+    trim(StringWrite(num_newton_iterations))
+  call PrintMsg(option)
+  option%io_buffer = '  --> SNES Residual: ' // &
+    trim(StringWrite('(e14.6)',fnorm)) // ' ' // &
+    trim(StringWrite('(e14.6)',scaled_fnorm)) // ' ' // &
+    trim(StringWrite('(e14.6)',inorm))
+  call PrintMsg(option)
 
   option%time = this%target_time
   call process_model%FinalizeTimestep()
 
   if (this%print_ekg .and. OptionPrintToFile(option)) then
 100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i3,i5,i5,i10)
-    write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
-      this%dt/tconv, trim(tunit), &
+    write(IUNIT_EKG,100) trim(this%name), this%steps, &
+      this%target_time/process_model%output_option%tconv, &
+      this%dt/process_model%output_option%tconv, &
+      trim(process_model%output_option%tunit), &
       icut, this%cumulative_time_step_cuts, &
       sum_newton_iterations, this%cumulative_newton_iterations, &
       sum_linear_iterations, this%cumulative_linear_iterations
   endif
-
-  if (option%print_screen_flag) print *, ""
 
 end subroutine TimestepperSNESStepDT
 
@@ -946,7 +961,7 @@ end subroutine TimestepperSNESReset
 
 ! ************************************************************************** !
 
-subroutine TimestepperSNESPrintInfo(this,option)
+subroutine TimestepperSNESPrintInfo(this,aux_string,option)
   !
   ! Prints settings for base timestepper.
   !
@@ -959,15 +974,17 @@ subroutine TimestepperSNESPrintInfo(this,option)
   implicit none
 
   class(timestepper_SNES_type) :: this
+  character(len=*) :: aux_string
   type(option_type) :: option
 
-  PetscInt :: fids(2)
   PetscInt :: i
   character(len=MAXSTRINGLENGTH), allocatable :: strings(:)
 
-  fids = OptionGetFIDs(option)
-  call StringWriteToUnits(fids,' ')
-  call StringWriteToUnits(fids,trim(this%name) // ' Time Stepper')
+  if (len_trim(aux_string) > 0) then
+    call TimestepperBasePrintInfo(this,aux_string,option)
+  else
+    call TimestepperBasePrintInfo(this,'SNES',option)
+  endif
 
   ! have to allocate since ntfac can be infinite
   allocate(strings(this%ntfac+20))
@@ -983,10 +1000,11 @@ subroutine TimestepperSNESPrintInfo(this,option)
                    StringWriteF(this%tfac(i))
   enddo
   call StringsCenter(strings,30,':')
-  call StringWriteToUnits(fids,strings)
+  do i = 1, size(strings)
+    if (len_trim(strings(i)) > 0) call PrintMsg(option,strings(i))
+  enddo
   deallocate(strings)
 
-  call TimestepperBasePrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
 
@@ -1032,6 +1050,7 @@ recursive subroutine TimestepperSNESFinalizeRun(this,option)
   !
 
   use Option_module
+  use String_module
 
   implicit none
 
@@ -1044,26 +1063,25 @@ recursive subroutine TimestepperSNESFinalizeRun(this,option)
   call PrintMsg(option,'TimestepperSNESFinalizeRun()')
 #endif
 
-  if (OptionPrintToScreen(option)) then
-    write(*,'(/,x,a," TS SNES steps = ",i6," newton = ",i8," linear = ",i10, &
-            & " cuts = ",i6)') &
-            trim(this%name), &
-            this%steps, &
-            this%cumulative_newton_iterations, &
-            this%cumulative_linear_iterations, &
-            this%cumulative_time_step_cuts
-    write(string,'(i12)') this%cumulative_wasted_linear_iterations
-
-    write(*,'(x,a)') trim(this%name) // &
-      ' TS SNES Wasted Linear Iterations = ' // trim(adjustl(string))
-    write(string,'(i12)') this%cumulative_wasted_newton_iterations
-    write(*,'(x,a)') trim(this%name) // &
-      ' TS SNES Wasted Newton Iterations = ' // trim(adjustl(string))
-
-    write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(x,a)') trim(this%name) // ' TS SNES SNES time = ' // &
-      trim(adjustl(string)) // ' seconds'
-  endif
+  call PrintMsg(option,'')
+  string = ' ' // trim(this%name) // &
+    ' TS SNES steps = ' // trim(StringWrite(this%steps)) // &
+    '  newton = ' // trim(StringWrite(this%cumulative_newton_iterations)) // &
+    '  linear = ' // trim(StringWrite(this%cumulative_linear_iterations)) // &
+    '  cuts = ' // trim(StringWrite(this%cumulative_time_step_cuts))
+  call PrintMsg(option,string)
+  string = ' ' // trim(this%name) // &
+    ' TS SNES Wasted Linear Iterations = ' // &
+    trim(StringWrite(this%cumulative_wasted_linear_iterations))
+  call PrintMsg(option,string)
+  string = ' ' // trim(this%name) // &
+    ' TS SNES Wasted Newton Iterations = ' // &
+    trim(StringWrite(this%cumulative_wasted_newton_iterations))
+  call PrintMsg(option,string)
+  string = ' ' // trim(this%name) // &
+    ' TS SNES time = ' // &
+    trim(StringWrite('(f12.1)',this%cumulative_solver_time)) // ' seconds'
+  call PrintMsg(option,string)
 
 end subroutine TimestepperSNESFinalizeRun
 

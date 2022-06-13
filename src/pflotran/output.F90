@@ -1006,8 +1006,8 @@ end subroutine OutputVariableRead
 
 ! ************************************************************************** !
 
-subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
-                  massbal_plot_flag)
+subroutine Output(realization_base,snapshot_plot_flag, &
+                  observation_plot_flag,massbal_plot_flag)
   !
   ! Main driver for all output subroutines
   !
@@ -1037,7 +1037,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 
   ! check for plot request from active directory
   if (.not.snapshot_plot_flag) then
-
     if (option%use_touch_options) then
       string = 'plot'
       if (OptionCheckTouch(option,string)) then
@@ -1045,20 +1044,20 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
         snapshot_plot_flag = PETSC_TRUE
       endif
     endif
-
   endif
 
 !.................................
   if (snapshot_plot_flag) then
 
+    call PrintMsg(option,'')
     if (realization_base%output_option%print_hdf5) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
       call PetscLogEventBegin(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       if (realization_base%discretization%itype == UNSTRUCTURED_GRID) then
         select case (realization_base%discretization%grid%itype)
           case (EXPLICIT_UNSTRUCTURED_GRID)
-             call OutputHDF5UGridXDMFExplicit(realization_base, &
-                  INSTANTANEOUS_VARS)
+            call OutputHDF5UGridXDMFExplicit(realization_base, &
+                                             INSTANTANEOUS_VARS)
           case (IMPLICIT_UNSTRUCTURED_GRID)
             call OutputHDF5UGridXDMF(realization_base,INSTANTANEOUS_VARS)
           case (POLYHEDRA_UNSTRUCTURED_GRID)

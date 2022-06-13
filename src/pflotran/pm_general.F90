@@ -234,6 +234,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         general_harmonic_diff_density = PETSC_TRUE
+      case('NEWTONTRDC_HOLD_INNER_ITERATIONS',&
+           'HOLD_INNER_ITERATIONS','NEWTONTRDC_HOLD_INNER')
+        !heeho: only used when using newtontrd-c
+        general_newtontrdc_hold_inner = PETSC_TRUE
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
       case('ISOTHERMAL')
@@ -245,7 +249,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
          non_darcy_B = tempreal
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
-         !heeho: assuming liquid component is index 1
+        !heeho: assuming liquid component is index 1
         call InputReadDouble(input,option,fmw_comp(1))
         call InputErrorMsg(input,option,keyword,error_string)
       case('NO_AIR')
@@ -1198,6 +1202,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool :: flags(37)
   character(len=MAXSTRINGLENGTH) :: string
+
+  PetscBool :: rho_flag
+
   character(len=12), parameter :: state_string(3) = &
     ['Liquid State','Gas State   ','2Phase State']
   character(len=17), parameter :: dof_string(3,3) = &
@@ -1213,6 +1220,17 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
+
+  call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
+
+  if (this%option%flow%using_newtontrdc) then
+    if (general_newtontrdc_prev_iter_num == it) then
+      general_sub_newton_iter_num = general_sub_newton_iter_num + 1
+    endif
+    general_newtontrdc_prev_iter_num = it
+  endif
+
+
 
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
@@ -1335,27 +1353,63 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
               string = trim(string) // ' : ' // &
                 StringFormatDouble(this%converged_real(idof,istate,itol))
-              call OptionPrint(string,option)
+              call PrintMsg(option,string)
             endif
           endif
         enddo
       enddo
     enddo
+
+    if (option%flow%using_newtontrdc .and. &
+        general_state_changed .and. &
+        .not.rho_flag) then
+      if (general_newtontrdc_hold_inner) then
+        ! if we hold inner iterations, we must not change state in
+        ! the inner iteration. If we reach convergence in an inner
+        ! newtontrdc iteration, then we must force an outer iteration
+        ! to allow state change in case the solutions are
+        ! out-of-bounds of the states -hdp
+        general_force_iteration = PETSC_TRUE
+        general_state_changed = PETSC_FALSE
+      else
+        ! if we have state changes, we exit out of inner iteration
+        ! and go to the next newton iteration. the tr inner iteration
+        !  should only be used when there is no state changes
+        ! if rho is satisfied in inner iteration, the algorithm already
+        ! exited the inner iteration. -heeho
+        general_force_iteration = PETSC_TRUE
+        general_state_changed = PETSC_FALSE
+      endif
+    endif
+
+    call MPI_Allreduce(MPI_IN_PLACE,general_force_iteration,ONE_INTEGER, &
+                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+    if (general_force_iteration) then
+      if (.not.general_newtontrdc_hold_inner) then
+        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+        general_force_iteration = PETSC_FALSE
+      else if (general_newtontrdc_hold_inner .and. &
+               option%convergence == CONVERGENCE_CONVERGED) then
+        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+        general_force_iteration = PETSC_FALSE
+      endif
+    endif
+
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x," R:",9es8.1)') this%converged_real(:,:,RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"SR:",9es8.1)') &
         this%converged_real(:,:,SCALED_RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"AU:",9es8.1)') &
         this%converged_real(:,:,ABS_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"RU:",9es8.1)') &
         this%converged_real(:,:,REL_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
     endif
 
     if (it >= this%solver%newton_max_iterations) then
@@ -1363,36 +1417,15 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
       if (this%logging_verbosity > 0) then
         string = '    Exceeded General Mode Max Newton Iterations'
-        call OptionPrint(string,option)
+        call PrintMsg(option,string)
       endif
     endif
     if (general_high_temp_ts_cut) then
       general_high_temp_ts_cut = PETSC_FALSE
       string = '    Exceeded General Mode EOS max temperature'
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
-
-    if (general_using_newtontr .and. general_state_changed) then
-        ! if we reach convergence in an inner newton iteration of TR
-        ! then we must force an outer iteration to allow state change
-        ! in case the solutions are out-of-bounds of the states -hdp
-        general_force_iteration = PETSC_TRUE
-    endif
-
-    if (general_using_newtontr .and. &
-        general_sub_newton_iter_num > 1 .and. &
-        general_force_iteration .and. &
-        option%convergence == CONVERGENCE_CONVERGED) then
-        ! This is a complicated case but necessary.
-        ! right now PFLOTRAN declares convergence with a negative rho in tr.c
-        ! this should not be happening thus cutting timestep.
-        option%convergence = CONVERGENCE_CUT_TIMESTEP
-    endif
-
-    call MPI_Allreduce(MPI_IN_PLACE,general_force_iteration,ONE_INTEGER, &
-                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
-    option%force_newton_iteration = general_force_iteration
     if (general_sub_newton_iter_num > 20) then
       ! cut time step in case PETSC solvers are missing inner iterations
       option%convergence = CONVERGENCE_CUT_TIMESTEP
@@ -1553,18 +1586,12 @@ subroutine PMGeneralMaxChange(this)
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
                      ierr);CHKERRQ(ierr)
   ! print them out
-  if (option%print_screen_flag) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:6)
-  endif
-  if (option%print_file_flag) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:6)
-  endif
+  write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4, " dpg= ",&
+                         &1pe12.4," dpa= ",1pe12.4)') max_change_global(1:3)
+  call PrintMsg(option)
+  write(option%io_buffer,'(17x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+                         &" dsg= ",1pe12.4)') max_change_global(4:6)
+  call PrintMsg(option)
 
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
   !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION]

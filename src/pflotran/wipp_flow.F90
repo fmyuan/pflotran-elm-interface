@@ -889,11 +889,12 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: xx_p(:), scaled_xx_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscBool :: debug_connection
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: k
+  PetscInt :: k, irow, vecsize
 
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -931,7 +932,23 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
 
   ! Communication -----------------------------------------
   ! must be called before WIPPFloUpdateAuxVars()
-  call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
+  if (option%flow%scale_all_pressure) then
+    ! have to convert the log concentration to non-log form
+    call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(xx,scaled_xx_p,ierr);CHKERRQ(ierr)
+    do irow = 1, size(xx_p), 2
+      xx_p(irow) = scaled_xx_p(irow) * option%flow%pressure_scaling_factor
+      xx_p(irow+1) = scaled_xx_p(irow+1)
+    enddo
+    call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(xx,scaled_xx_p,ierr);CHKERRQ(ierr)
+    call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
+                                     field%flow_xx_loc,NFLOWDOF)
+  else
+    call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,&
+                                     NFLOWDOF)
+  endif
+  
   call WIPPFloUpdateAuxVars(realization)
 
   ! override flags since they will soon be out of date

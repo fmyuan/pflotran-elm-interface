@@ -1,0 +1,312 @@
+# dry model 27 elements with center cell being the waste package.
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+
+      /
+    /
+  /
+END
+
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  TIMESTEPPER
+    NUM_STEPS_AFTER_TS_CUT 0
+    MAXIMUM_NUMBER_OF_TIMESTEPS 1000
+    PRESSURE_CHANGE_GOVERNOR       1.d8
+    TEMPERATURE_CHANGE_GOVERNOR    1.d1
+    SATURATION_CHANGE_GOVERNOR     0.5d0
+    CONCENTRATION_CHANGE_GOVERNOR  0.5d0
+  /
+  NEWTON_SOLVER
+    VERBOSE_LOGGING
+    MAXIMUM_NUMBER_OF_ITERATIONS 8
+    USE_INFINITY_NORM_CONVERGENCE
+    RESIDUAL_INF_TOL 5.d-6
+  /
+  LINEAR_SOLVER
+    VERBOSE_LOGGING
+    SOLVER DIRECT MUMPS
+  /
+END
+
+# == discretization ===========================================================
+GRID
+  TYPE structured
+  NXYZ 3 3 3
+  DXYZ
+    3@2.41
+    3@2.41
+    3@2.41
+  /
+END
+
+REGRESSION
+  CELL_IDS
+    5
+    11
+    13
+    14
+    15
+    17
+    23
+  END
+END
+
+#=========================== times ============================================
+
+TIME
+  FINAL_TIME 1.0d02 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 5. y at 0.0 y
+END
+
+#=========================== output options ===================================
+
+OUTPUT
+
+END
+
+#=========================== observation points ===============================
+
+REGION center
+  BLOCK 2 2 2 2 2 2
+/
+
+REGION face
+  BLOCK 2 2 1 1 2 2
+/
+
+REGION corner
+  BLOCK 1 1 1 1 1 1 
+/
+
+REGION edge
+  BLOCK 2 2 1 1 1 1 
+/
+
+#=========================== fluid properties =================================
+
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.1d-5
+END
+
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+END
+
+#=========================== material properties =============================
+
+#Engineered Barrier System
+MATERIAL_PROPERTY drift
+  ID 5
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.40 
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 1.6d-8
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0 
+  ROCK_DENSITY 2700.d0 
+  THERMAL_CONDUCTIVITY_DRY 2.0d0
+  THERMAL_CONDUCTIVITY_WET 2.0d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-13 # value from GDSA2018 fig 5-2
+  /
+END
+
+MATERIAL_PROPERTY ubf_conf
+  ID 3
+  CHARACTERISTIC_CURVES cc1 #cc2
+  POROSITY 0.40
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4
+  SOIL_COMPRESSIBILITY 6.4d-8
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.0d0
+  THERMAL_CONDUCTIVITY_WET 2.0d0
+  HEAT_CAPACITY 830.
+  PERMEABILITY
+    PERM_ISO 1.d-14
+  /
+END
+
+MATERIAL_PROPERTY wp
+  ID 8
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.50 #0.30
+  TORTUOSITY 1.0 #allow things to diffuse out quickly
+  SOIL_COMPRESSIBILITY 0.d0
+  SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  ROCK_DENSITY 5000.d0
+  THERMAL_CONDUCTIVITY_DRY 16.7
+  THERMAL_CONDUCTIVITY_WET 16.7
+  HEAT_CAPACITY 488.
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+END
+
+#=========================== saturation functions =============================
+
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.5
+    ALPHA 1.d-3
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.5
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.d5
+  GAS_PRESSURE 1.d5
+  GAS_SATURATION 0.0d0
+  MOLE_FRACTION 1.d-7
+  TEMPERATURE 25.d0
+END
+
+FLOW_CONDITION wp_heatsource
+  TYPE
+    RATE SCALED_MASS_RATE VOLUME
+  /
+  INTERPOLATION LINEAR
+  RATE FILE 24pwr_100yOoR_general.txt 
+END
+
+#=================================== regions ================================
+
+REGION all
+  BLOCK 1 3 1 3 1 3
+/
+
+REGION drift
+  BLOCK 1 3 1 3 1 3
+/
+
+REGION waste_package
+  BLOCK 2 2 2 2 2 2
+/
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0  0.d0    0.d0
+    0.d0  7.23d0  7.23d0
+  /
+/
+
+REGION east
+  FACE EAST
+  COORDINATES
+    7.23d0  0.d0    0.d0
+    7.23d0  7.23d0  7.230d0
+  /
+/
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.0d0   7.23d0  0.d0
+    7.23d0  7.23d0  7.230d0
+  /
+/
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    0.0d0   0.d0  0.d0
+    7.23d0  0.d0  7.230d0
+  /
+/ 
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.0d0   0.0d0   7.23d0
+    7.23d0  7.23d0  7.230d0
+  /
+/
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.0d0   0.d0    0.d0
+    7.23d0  7.23d0  0.d0
+  /
+/
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+
+#=========================== initial condition couplers =====================
+
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+#============================= source_sink couplers ==========================
+
+SOURCE_SINK
+  FLOW_CONDITION wp_heatsource
+  REGION waste_package
+END
+
+#============================= strata ========================================
+
+STRATA
+  REGION drift
+  MATERIAL drift
+END
+
+
+STRATA
+  REGION waste_package
+  MATERIAL wp
+END
+
+
+END_SUBSURFACE
