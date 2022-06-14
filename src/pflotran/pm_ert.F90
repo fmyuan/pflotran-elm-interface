@@ -834,14 +834,13 @@ subroutine PMERTSolve(this,time,ierr)
         if (patch%imat(ghosted_id) <= 0) cycle
         vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
       enddo
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    else
+      ! zero initial solution
+      call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
     endif
 
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
     call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
-
-    ! NB. solution is stored in field%work -> this can be an initial guess
-    !call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
 
     ! RHS
     call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
