@@ -835,12 +835,11 @@ subroutine PMERTSolve(this,time,ierr)
         vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
       enddo
       call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
     else
       ! zero initial solution
       call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
     endif
-
-    call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
 
     ! RHS
     call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
