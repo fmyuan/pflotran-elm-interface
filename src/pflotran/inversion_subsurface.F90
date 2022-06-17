@@ -170,6 +170,9 @@ subroutine InversionSubsurfaceInit(this,driver)
   nullify(this%realization)
   nullify(this%inversion_aux)
 
+  ! initialize measurement reporting verbosity
+  inv_meas_reporting_verbosity = 1
+
 end subroutine InversionSubsurfaceInit
 
 ! ************************************************************************** !
@@ -272,8 +275,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
   use Utility_module
 
@@ -316,11 +318,13 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       call StringToUpper(word)
       select case(word)
         case('LIQUID_PRESSURE')
-          this%iobsfunc = LIQUID_PRESSURE
+          this%iobsfunc = OBS_LIQUID_PRESSURE
         case('LIQUID_SATURATION')
-          this%iobsfunc = LIQUID_SATURATION
+          this%iobsfunc = OBS_LIQUID_SATURATION
         case('SOLUTE_CONCENTRATION')
-          this%iobsfunc = SOLUTE_CONCENTRATION
+          this%iobsfunc = OBS_SOLUTE_CONCENTRATION
+        case('ERT_MEASUREMENT')
+          this%iobsfunc = OBS_ERT_MEASUREMENT
         case default
           call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ','//trim(keyword),option)
@@ -339,18 +343,21 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         select case(trim(keyword))
           case('MEASUREMENT')
             new_measurement => InversionMeasurementAuxRead(input,string,option)
+            if (associated(last_measurement)) then
+              last_measurement%next => new_measurement
+              new_measurement%id = last_measurement%id + 1
+            else
+              first_measurement => new_measurement
+              first_measurement%id = 1
+            endif
+            last_measurement => new_measurement
+            nullify(new_measurement)
+          case('REPORTING_VERBOSITY')
+            call InputReadInt(input,option,inv_meas_reporting_verbosity)
+            call InputErrorMsg(input,option,keyword,error_string)
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
-        if (associated(last_measurement)) then
-          last_measurement%next => new_measurement
-          new_measurement%id = last_measurement%id + 1
-        else
-          first_measurement => new_measurement
-          first_measurement%id = 1
-        endif
-        last_measurement => new_measurement
-        nullify(new_measurement)
       enddo
       call InputPopBlock(input,option)
       if (.not.associated(last_measurement)) then
@@ -482,8 +489,7 @@ subroutine InversionSubsurfInitialize(this)
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
 
   class(inversion_subsurface_type) :: this
@@ -619,58 +625,75 @@ subroutine InversionSubsurfInitialize(this)
       call ISDestroy(is_parameter,ierr)
     endif
 
-    ! map coordinates to cell ids
-    allocate(int_array(num_measurements))
-    int_array = -1
-    do i = 1, num_measurements
-      if (Initialized(this%measurements(i)%coordinate%x)) then
-        call GridGetLocalIDFromCoordinate(patch%grid, &
-                                          this%measurements(i)%coordinate, &
-                                          this%realization%option,local_id)
-        if (Initialized(local_id)) then
-          int_array(i) = patch%grid%nG2A(patch%grid%nL2G(local_id))
+    if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
+      temp_int = -1
+      do i = 1, num_measurements
+        temp_int = max(temp_int,this%measurements(i)%cell_id)
+      enddo
+      if (temp_int > size(this%realization%survey%dsim)) then
+        call this%driver%PrintErrMsg('The ERT_MEASUREMENT_ID assigned to a &
+          &measurement is greater than the number of measurements in an &
+          &survey (survey size = ' // &
+          trim(StringWrite(num_measurements)) // &
+          ' vs. maximum ERT_MEASUREMENT_ID = ' // &
+          trim(StringWrite(size(this%realization%survey%dsim))) // ').')
+      endif
+    else
+      ! map coordinates to cell ids
+      allocate(int_array(num_measurements))
+      int_array = -1
+      do i = 1, num_measurements
+        if (Initialized(this%measurements(i)%coordinate%x)) then
+          call GridGetLocalIDFromCoordinate(patch%grid, &
+                                            this%measurements(i)%coordinate, &
+                                            this%realization%option,local_id)
+          if (Initialized(local_id)) then
+            int_array(i) = patch%grid%nG2A(patch%grid%nL2G(local_id))
+          endif
         endif
+      enddo
+      mpi_int = num_measurements
+      call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
+                        this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
+      i = maxval(int_array)
+      if (i > patch%grid%nmax) then
+        this%realization%option%io_buffer = 'A measurement cell ID (' // &
+          trim(StringWrite(i)) // ') is beyond the maximum cell ID.'
+        call PrintErrMsg(this%realization%option)
       endif
-    enddo
-    mpi_int = num_measurements
-    call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
-                       this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
-    do i = 1, num_measurements
-      if (int_array(i) > 0) then
-        this%measurements(i)%cell_id = int_array(i)
-      endif
-      if (Uninitialized(this%measurements(i)%cell_id)) then
-        string = 'Measurement ' // trim(StringWrite(i)) // &
-          ' at coordinate (' // &
-          trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
-          trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
-          trim(StringWrite(this%measurements(i)%coordinate%z)) // &
-          ') not mapped properly.'
-        call this%driver%PrintErrMsg(string)
-      endif
-    enddo
+      do i = 1, num_measurements
+        if (int_array(i) > 0) then
+          this%measurements(i)%cell_id = int_array(i)
+        endif
+        if (Uninitialized(this%measurements(i)%cell_id)) then
+          string = 'Measurement ' // trim(StringWrite(i)) // &
+            ' at coordinate (' // &
+            trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
+            trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
+            trim(StringWrite(this%measurements(i)%coordinate%z)) // &
+            ') not mapped properly.'
+          call this%driver%PrintErrMsg(string)
+        endif
+      enddo
 
-    ! map measurement vecs to the solution vector
-    do i = 1, num_measurements
-      int_array(i) = this%measurements(i)%cell_id
-    enddo
-    i = maxval(int_array)
-    if (i > patch%grid%nmax) then
-      this%realization%option%io_buffer = 'A measurement cell ID (' // &
-        trim(StringWrite(i)) // ') is beyond the maximum cell ID.'
-      call PrintErrMsg(this%realization%option)
+      ! map measurement vec to the solution vector
+      do i = 1, num_measurements
+        int_array(i) = this%measurements(i)%cell_id
+      enddo
+      int_array = int_array - 1
+      call DiscretAOApplicationToPetsc(this%realization%discretization, &
+                                      int_array)
+      call ISCreateGeneral(this%driver%comm%mycomm,num_measurements,int_array, &
+                          PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+      deallocate(int_array)
+      call VecScatterCreate(this%realization%field%work,is_petsc, &
+                            this%measurement_vec,PETSC_NULL_IS, &
+                            this%scatter_global_to_measurement, &
+                            ierr);CHKERRQ(ierr)
+      call ISDestroy(is_petsc,ierr)
     endif
-    int_array = int_array - 1
-    call DiscretAOApplicationToPetsc(this%realization%discretization, &
-                                     int_array)
-    call ISCreateGeneral(this%driver%comm%mycomm,num_measurements,int_array, &
-                         PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
-    deallocate(int_array)
-    call VecScatterCreate(this%realization%field%work,is_petsc, &
-                          this%measurement_vec,PETSC_NULL_IS, &
-                          this%scatter_global_to_measurement, &
-                          ierr);CHKERRQ(ierr)
-    call ISDestroy(is_petsc,ierr)
+
+    ! map measurement vec to distributed measurement vec
     call ISCreateStride(this%driver%comm%mycomm,num_measurements,ZERO_INTEGER, &
                         ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
     call VecScatterCreate(this%measurement_vec,is_measure, &
@@ -692,21 +715,24 @@ subroutine InversionSubsurfInitialize(this)
     inversion_forward_aux%measurement_vec = this%measurement_vec
     ! set up pointer to M matrix
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
+
   endif
 
   inversion_forward_aux => this%inversion_aux%inversion_forward_aux
-  inversion_forward_aux%M_ptr = &
-    this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
-! create inversion_ts_aux for first time step
-  nullify(inversion_forward_aux%first) ! must pass in null object
-  inversion_forward_aux%first => &
-    InversionTSAuxCreate(inversion_forward_aux%first, &
-                         inversion_forward_aux%M_ptr)
-  inversion_forward_aux%current => inversion_forward_aux%first
-  call InvTSAuxAllocate(inversion_forward_aux%first, &
-                        inversion_forward_aux%M_ptr, &
-                        this%realization%option%nflowdof, &
-                        patch%grid%nlmax)
+  if (.not.associated(this%perturbation)) then
+      inversion_forward_aux%M_ptr = &
+        this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+  ! create inversion_ts_aux for first time step
+    nullify(inversion_forward_aux%first) ! must pass in null object
+    inversion_forward_aux%first => &
+      InversionTSAuxCreate(inversion_forward_aux%first, &
+                          inversion_forward_aux%M_ptr)
+    inversion_forward_aux%current => inversion_forward_aux%first
+    call InvTSAuxAllocate(inversion_forward_aux%first, &
+                          inversion_forward_aux%M_ptr, &
+                          this%realization%option%nflowdof, &
+                          patch%grid%nlmax)
+  endif
 
   if (associated(this%perturbation)) then
     call InvForwardAuxDestroyList(this%inversion_aux%inversion_forward_aux, &
@@ -797,18 +823,119 @@ subroutine InvSubsurfConnectToForwardRun(this)
   ! Date: 10/18/21
   !
   use Discretization_module
+  use Factory_Subsurface_module
   use Init_Subsurface_module
   use Material_module
+  use String_module
+  use Utility_module
+  use Waypoint_module
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
 
   PetscReal :: rmin, rmax
+  PetscReal :: final_time
   PetscInt :: iqoi(2)
-  PetscInt :: i, iparameter
+  PetscInt :: i, iparameter, sync_count
   character(len=MAXSTRINGLENGTH) :: string
+  type(waypoint_type), pointer :: waypoint
+  PetscReal, pointer :: real_array(:)
+  PetscBool :: iflag, include_final_time
   PetscErrorCode :: ierr
 
+  ! insert measurement times into waypoint list. this must come after the
+  ! simulation is initialized to obtain the final time.
+  if (.not.associated(this%inversion_aux% &
+                        inversion_forward_aux%sync_times)) then
+    allocate(real_array(size(this%measurements)))
+    final_time = &
+      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_subsurface)
+    do i = 1, size(this%measurements)
+      if (Uninitialized(this%measurements(i)%time)) then
+        this%measurements(i)%time = final_time
+      endif
+      real_array(i) = this%measurements(i)%time
+    enddo
+    call UtilitySortArray(real_array)
+    sync_count = 0
+    do i = 1, size(real_array)
+      iflag = PETSC_FALSE
+      if (i == 1) then
+        iflag = PETSC_TRUE
+      else if (real_array(i) > real_array(i-1)) then
+        iflag = PETSC_TRUE
+      endif
+      if (iflag) then
+        sync_count = sync_count + 1
+        real_array(sync_count) = real_array(i)
+      endif
+    enddo
+    allocate(this%inversion_aux%inversion_forward_aux%sync_times(sync_count))
+    this%inversion_aux%inversion_forward_aux%sync_times(:) = &
+      real_array(1:sync_count)
+    deallocate(real_array)
+    nullify(real_array)
+
+    ! ensure that ERT measurements are sampled when ERT is calculated
+    ! note that ERT may be calculated more often than the measurement occurs
+    if (this%iobsfunc == OBS_ERT_MEASUREMENT) then
+      real_array => this%inversion_aux%inversion_forward_aux%sync_times
+      waypoint => &
+        this%forward_simulation%geop_process_model_coupler%waypoint_list%first
+      i = 0
+      do i = 1, size(real_array)
+        iflag = PETSC_FALSE
+        do
+          if (.not.associated(waypoint)) exit
+          if (waypoint%sync) then
+            if (waypoint%time > real_array(i)) then
+              exit
+            else if (Equal(real_array(i),waypoint%time)) then
+              iflag = PETSC_TRUE
+              exit
+            endif
+          endif
+          waypoint => waypoint%next
+        enddo
+        if (.not.iflag) then
+          call this%driver%PrintErrMsg( &
+            'ERT measurement at ' // &
+            trim(StringWrite(real_array(i))) // &
+            ' seconds not found among survey times.')
+        endif
+      enddo
+      nullify(real_array)
+    endif
+
+  endif
+
+  real_array => this%inversion_aux%inversion_forward_aux%sync_times
+  do i = 1, size(real_array)
+    waypoint => WaypointCreate()
+    waypoint%time = real_array(i)
+    waypoint%sync = PETSC_TRUE
+    call WaypointInsertInList(waypoint, &
+                              this%forward_simulation%waypoint_list_outer)
+!                              this%forward_simulation%waypoint_list_subsurface)
+  enddo
+
+#if 0
+  ! resets the waypoint pointers to the first entry, which may have changed
+  ! due to the insertions above
+  call WaypointListFillIn(this%forward_simulation%waypoint_list_subsurface, &
+                          this%forward_simulation%option)
+  call WaypointListRemoveExtraWaypnts(this%forward_simulation% &
+                                        waypoint_list_subsurface, &
+                                      this%forward_simulation%option)
+  call WaypointListFindDuplicateTimes(this%forward_simulation% &
+                                        waypoint_list_subsurface, &
+                                      this%forward_simulation%option)
+  call FactorySubsurfSetPMCWaypointPtrs(this%forward_simulation)
+#endif
+
+  ! must come after insertion of waypoints and setting of pointers; otherwise,
+  ! the pmc timestepper cur_waypoint pointers are pointing at the time 0
+  ! waypoint, instead of the one just after time 0, which is incorrect.
   call this%forward_simulation%InitializeRun()
 
   this%realization%patch%aux%inversion_forward_aux => &
@@ -1142,7 +1269,41 @@ subroutine InvSubsurfCalculateSensitivity(this)
   ! Author: Glenn Hammond
   ! Date: 03/25/22
   !
+  use Option_module
+  use String_module
+  use Units_module
+  use Utility_module
+
   class(inversion_subsurface_type) :: this
+
+  type(option_type), pointer :: option
+  PetscInt :: imeasurement
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  option => this%realization%option
+
+  ! ensure that all measurement have been recorded
+  do imeasurement = 1, size(this%measurements)
+    if (.not.this%measurements(imeasurement)%measured) then
+      option%io_buffer = 'Measurement at cell ' // &
+        StringWrite(this%measurements(imeasurement)%cell_id)
+      if (Initialized(this%measurements(imeasurement)%time)) then
+        word = 'sec'
+        option%io_buffer = trim(option%io_buffer) // &
+          ' at ' // trim(StringWrite(this%measurements(imeasurement)%time/ &
+          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
+                                 word,option,ierr))) // &
+          ' ' // trim(this%measurements(imeasurement)%time_units)
+      endif
+      option%io_buffer = trim(option%io_buffer) // &
+        ' with a measured value from the measurement file of ' // &
+        trim(StringWrite(this%measurements(imeasurement)%value)) // &
+        ' was not measured during the simulation.'
+      call PrintErrMsg(option)
+    endif
+  enddo
+
 
   if (associated(this%perturbation)) then
     call InvSubsurfPertCalcSensitivity(this)
@@ -1173,7 +1334,6 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   use Option_module
   use String_module
   use Timer_class
-  use Units_module
   use Utility_module
 
   class(inversion_subsurface_type) :: this
@@ -1199,23 +1359,6 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   ! initialize first_lambda flag
   do imeasurement = 1, size(this%measurements)
     this%measurements(imeasurement)%first_lambda = PETSC_FALSE
-    if (.not.this%measurements(imeasurement)%measured) then
-      option%io_buffer = 'Measurement at cell ' // &
-        StringWrite(this%measurements(imeasurement)%cell_id)
-      if (Initialized(this%measurements(imeasurement)%time)) then
-        word = 'sec'
-        option%io_buffer = trim(option%io_buffer) // &
-          ' at ' // trim(StringWrite(this%measurements(imeasurement)%time/ &
-          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
-                                 word,option,ierr))) // &
-          ' ' // trim(this%measurements(imeasurement)%time_units)
-      endif
-      option%io_buffer = trim(option%io_buffer) // &
-        ' with a measured value from the measurement file of ' // &
-        trim(StringWrite(this%measurements(imeasurement)%value)) // &
-        ' was not measured during the simulation.'
-      call PrintErrMsg(option)
-    endif
   enddo
 
   ! go to end of list
@@ -1398,15 +1541,15 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
       call DiscretizationNaturalToGlobal(discretization,natural_vec, &
                                          onedof_vec,ONEDOF)
       select case(this%iobsfunc)
-        case(LIQUID_PRESSURE)
+        case(OBS_LIQUID_PRESSURE)
           tempint = zflow_liq_flow_eq
-        case(LIQUID_SATURATION)
+        case(OBS_LIQUID_SATURATION)
           tempint = zflow_liq_flow_eq
           call RealizationGetVariable(this%realization,work,DERIVATIVE, &
                                       ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
           call VecPointwiseMult(onedof_vec,onedof_vec,work, &
                                 ierr);CHKERRQ(ierr)
-        case(SOLUTE_CONCENTRATION)
+        case(OBS_SOLUTE_CONCENTRATION)
           tempint = zflow_sol_tran_eq
         case default
           option%io_buffer = 'Unknown observation type in InvSubsurfCalcLambda'
@@ -1723,7 +1866,6 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
   ! Date: 09/24/21
   !
   use Debug_module
-  use Variables_module, only : LIQUID_PRESSURE
   use Realization_Base_class
   use String_module
 

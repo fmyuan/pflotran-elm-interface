@@ -17,7 +17,6 @@ module PM_Auxiliary_class
     class(communicator_type), pointer :: comm1
     character(len=MAXWORDLENGTH) :: ctype
     type(pm_auxiliary_salinity_type), pointer :: salinity
-    PetscBool :: evaluate_at_end_of_simulation
     procedure(PMAuxliaryEvaluate), pointer :: Evaluate => null()
   contains
     procedure, public :: Setup => PMAuxiliarySetup
@@ -58,7 +57,7 @@ contains
 
 function PMAuxiliaryCreate()
   !
-  ! Creates reactive transport process models shell
+  ! Creates an auxiliary process model
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -95,7 +94,6 @@ subroutine PMAuxiliaryInit(this)
   nullify(this%salinity)
   this%ctype = ''
   this%name = ''
-  this%evaluate_at_end_of_simulation = PETSC_TRUE
 
   call PMBaseInit(this)
   ! restart not currently supported for auxiliary pm's, and not needed.
@@ -122,10 +120,12 @@ end subroutine PMAuxiliarySetup
 
 function PMAuxiliaryCast(this)
   !
-  ! Initializes auxiliary process model
+  ! Casts a base process model to auxiliary
   !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
+
+  use Option_module
 
   implicit none
 
@@ -139,7 +139,9 @@ function PMAuxiliaryCast(this)
     class is (pm_auxiliary_type)
       PMAuxiliaryCast => this
     class default
-      !geh: have default here to pass a null pointer if not of type ascii
+      this%option%io_buffer = 'Cannot cast pm_base_type to pm_auxiliary_type &
+        &in PMAuxiliaryCast.'
+      call PrintErrMsg(this%option)
   end select
 
 end function PMAuxiliaryCast
@@ -247,10 +249,6 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
       this%header = 'AUXILIARY EVOLVING STRATA'
-      this%evaluate_at_end_of_simulation = PETSC_FALSE
-    case('INVERSION')
-      this%Evaluate => PMAuxiliaryInversion
-      this%header = 'AUXILIARY INVERSION'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
@@ -375,46 +373,6 @@ end subroutine PMAuxiliaryEvolvingStrata
 
 ! ************************************************************************** !
 
-subroutine PMAuxiliaryInversion(this,time,ierr)
-  !
-  ! Initializes auxiliary process model
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/10/16
-
-  use Inversion_TS_Aux_module
-  use Realization_Base_class
-
-  implicit none
-
-  class(pm_auxiliary_type) :: this
-  PetscReal :: time
-  PetscErrorCode :: ierr
-
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
-
-  ierr = 0
-  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
-  if (associated(this%realization%patch%aux%inversion_forward_aux)) then
-    call RealizationGetVariable(this%realization, &
-                                this%realization%field%work, &
-                                inversion_forward_aux%iobsfunc,ZERO_INTEGER)
-    call VecScatterBegin(inversion_forward_aux%scatter_global_to_measurement, &
-                         this%realization%field%work, &
-                         inversion_forward_aux%measurement_vec,INSERT_VALUES, &
-                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(inversion_forward_aux%scatter_global_to_measurement, &
-                       this%realization%field%work, &
-                       inversion_forward_aux%measurement_vec,INSERT_VALUES, &
-                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call InversionForwardAuxStep(this%realization%patch%aux% &
-                                 inversion_forward_aux,time)
-  endif
-
-end subroutine PMAuxiliaryInversion
-
-! ************************************************************************** !
-
 subroutine PMAuxiliarySalinity(this,time,ierr)
   !
   ! Initializes auxiliary process model
@@ -518,7 +476,6 @@ subroutine PMAuxiliaryDestroy(this)
   nullify(this%realization)
   nullify(this%comm1)
   nullify(this%option)
-  nullify(this%output_option)
 
   if (associated(this%salinity)) then
     deallocate(this%salinity)

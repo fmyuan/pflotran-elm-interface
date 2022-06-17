@@ -1,32 +1,31 @@
-module PMC_Auxiliary_class
+module PMC_General_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PMC_Base_class
-  use PM_Auxiliary_class
-  use Realization_Subsurface_class
-
+  use PM_Base_class
   use PFLOTRAN_Constants_module
 
   implicit none
 
 
   private
-  type, public, extends(pmc_base_type) :: pmc_auxiliary_type
-    class(pm_auxiliary_type), pointer :: pm_aux
+  type, public, extends(pmc_base_type) :: pmc_general_type
+    class(pm_base_type), pointer :: pm
+    PetscBool :: evaluate_at_end_of_simulation
   contains
-    procedure, public :: Init => PMCAuxiliaryInit
-    procedure, public :: RunToTime => PMCAuxiliaryRunToTime
-    procedure, public :: Destroy => PMCAuxiliaryDestroy
-  end type pmc_auxiliary_type
+    procedure, public :: Init => PMCGeneralInit
+    procedure, public :: RunToTime => PMCGeneralRunToTime
+    procedure, public :: Destroy => PMCGeneralDestroy
+  end type pmc_general_type
 
-  public :: PMCAuxiliaryCreate
+  public :: PMCGeneralCreate
 
 contains
 
 ! ************************************************************************** !
 
-function PMCAuxiliaryCreate(name_,pm_aux)
+function PMCGeneralCreate(name_,pm_base)
   !
   ! Allocates and initializes a new process_model_coupler
   ! object.
@@ -38,11 +37,11 @@ function PMCAuxiliaryCreate(name_,pm_aux)
   implicit none
 
   character(len=*) :: name_
-  class(pm_auxiliary_type), pointer :: pm_aux
+  class(pm_base_type), pointer :: pm_base
 
-  class(pmc_auxiliary_type), pointer :: PMCAuxiliaryCreate
+  class(pmc_general_type), pointer :: PMCGeneralCreate
 
-  class(pmc_auxiliary_type), pointer :: pmc
+  class(pmc_general_type), pointer :: pmc
 
   allocate(pmc)
   call pmc%Init()
@@ -50,17 +49,17 @@ function PMCAuxiliaryCreate(name_,pm_aux)
   if (len_trim(name_) > 0) then
     call pmc%SetName(name_)
   endif
-  call pmc%SetOption(pm_aux%option)
-  pmc%pm_list => pm_aux
-  pmc%pm_aux => pm_aux
+  call pmc%SetOption(pm_base%option)
+  pmc%pm_list => pm_base
+  pmc%pm => pm_base
 
-  PMCAuxiliaryCreate => pmc
+  PMCGeneralCreate => pmc
 
-end function PMCAuxiliaryCreate
+end function PMCGeneralCreate
 
 ! ************************************************************************** !
 
-subroutine PMCAuxiliaryInit(this)
+subroutine PMCGeneralInit(this)
   !
   ! Initializes a new process model coupler object.
   !
@@ -70,31 +69,33 @@ subroutine PMCAuxiliaryInit(this)
 
   implicit none
 
-  class(pmc_auxiliary_type) :: this
+  class(pmc_general_type) :: this
 
   call PMCBaseInit(this)
-  this%name = 'PMCAuxiliary'
+  this%name = 'PMCGeneral'
+  this%evaluate_at_end_of_simulation = PETSC_TRUE
 
-end subroutine PMCAuxiliaryInit
+end subroutine PMCGeneralInit
 
 ! ************************************************************************** !
 
-recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
+recursive subroutine PMCGeneralRunToTime(this,sync_time,stop_flag)
   !
   ! Runs the actual simulation.
   !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   !
-
-  use Timestepper_Base_class
   use Option_module
+  use PM_Auxiliary_class
+  use PM_Inversion_class
+  use Timestepper_Base_class
 
   implicit none
 
 #include "petsc/finclude/petscviewer.h"
 
-  class(pmc_auxiliary_type), target :: this
+  class(pmc_general_type), target :: this
   PetscReal :: sync_time
   PetscInt :: stop_flag
 
@@ -114,10 +115,19 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
 
   local_stop_flag = TS_CONTINUE
   if (stop_flag /= TS_STOP_END_SIMULATION .or. &
-      this%pm_aux%evaluate_at_end_of_simulation) then
+      this%evaluate_at_end_of_simulation) then
     call this%PrintHeader()
     ! must use ierr here due to 32-/64-bit integer issues
-    call this%pm_aux%Evaluate(sync_time,ierr)
+    select type(pm_=>this%pm)
+      class is(pm_auxiliary_type)
+        call pm_%Evaluate(sync_time,ierr)
+      class is(pm_inversion_type)
+        call pm_%Evaluate(sync_time,ierr)
+      class default
+        this%option%io_buffer = 'PMC General not configured for PM ' // &
+          trim(pm_%name) // '.'
+        call PrintErrMsg(this%option)
+    end select
     local_stop_flag = ierr
   endif
 
@@ -144,16 +154,16 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
     call PetscLogStagePop(ierr);CHKERRQ(ierr)
   endif
 
-end subroutine PMCAuxiliaryRunToTime
+end subroutine PMCGeneralRunToTime
 
 ! ************************************************************************** !
 !
-! PMCAuxiliaryFinalizeRun: Finalizes the time stepping
+! PMCGeneralFinalizeRun: Finalizes the time stepping
 ! author: Glenn Hammond
 ! date: 03/18/13
 !
 ! ************************************************************************** !
-recursive subroutine PMCAuxiliaryFinalizeRun(this)
+recursive subroutine PMCGeneralFinalizeRun(this)
   !
   ! Finalizes the time stepping
   !
@@ -165,31 +175,31 @@ recursive subroutine PMCAuxiliaryFinalizeRun(this)
 
   implicit none
 
-  class(pmc_auxiliary_type) :: this
+  class(pmc_general_type) :: this
 
-end subroutine PMCAuxiliaryFinalizeRun
+end subroutine PMCGeneralFinalizeRun
 
 ! ************************************************************************** !
 
-subroutine PMCAuxiliaryStrip(this)
+subroutine PMCGeneralStrip(this)
   !
-  ! Deallocates members of PMC Auxiliary.
+  ! Deallocates members of PMC General.
   !
   ! Author: Glenn Hammond
   ! Date: 01/13/14
 
   implicit none
 
-  class(pmc_auxiliary_type) :: this
+  class(pmc_general_type) :: this
 
   call PMCBaseStrip(this)
-  nullify(this%pm_aux)
+  nullify(this%pm)
 
-end subroutine PMCAuxiliaryStrip
+end subroutine PMCGeneralStrip
 
 ! ************************************************************************** !
 
-recursive subroutine PMCAuxiliaryDestroy(this)
+recursive subroutine PMCGeneralDestroy(this)
   !
   ! ProcessModelCouplerDestroy: Deallocates a process_model_coupler object
   !
@@ -201,9 +211,9 @@ recursive subroutine PMCAuxiliaryDestroy(this)
 
   implicit none
 
-  class(pmc_auxiliary_type) :: this
+  class(pmc_general_type) :: this
 
-  call PMCAuxiliaryStrip(this)
+  call PMCGeneralStrip(this)
 
   if (associated(this%child)) then
     call this%child%Destroy()
@@ -219,6 +229,6 @@ recursive subroutine PMCAuxiliaryDestroy(this)
     nullify(this%peer)
   endif
 
-end subroutine PMCAuxiliaryDestroy
+end subroutine PMCGeneralDestroy
 
-end module PMC_Auxiliary_class
+end module PMC_General_class

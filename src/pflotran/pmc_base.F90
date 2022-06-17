@@ -102,8 +102,7 @@ module PMC_Base_class
             PMCBaseSetChildPeerPtr, &
             PMCBaseFinalizeRun, &
             PMCBaseStrip, &
-            SetOutputFlags, &
-            PMCCastToBase
+            SetOutputFlags
 
 contains
 
