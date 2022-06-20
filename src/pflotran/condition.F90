@@ -1775,6 +1775,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
             case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
+            case('DIRICHLET_SEEPAGE')
+              sub_condition_ptr%itype = DIRICHLET_SEEPAGE_BC
             case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'

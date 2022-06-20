@@ -1639,12 +1639,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         case(TWO_PHASE_STATE)
           ! gas pressure; 1st dof ------------------------ !
           select case(general%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                      patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
               dof1 = PETSC_TRUE
-              coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                                          general%gas_pressure%itype
             case default
               string = GetSubConditionType(general%gas_pressure%itype)
               option%io_buffer = &
@@ -1715,13 +1716,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           else
           ! liquid pressure; 1st dof --------------------- !
             select case(general%liquid_pressure%itype)
-              case(DIRICHLET_BC)
+              case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,general%liquid_pressure%dataset,iconn,liq_pressure)
                 coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_pressure
                 dof1 = PETSC_TRUE
                 coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
-                                                                    DIRICHLET_BC
+                                                  general%liquid_pressure%itype
               case default
                 string = GetSubConditionType(general%liquid_pressure%itype)
                 option%io_buffer = &
@@ -1770,12 +1771,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           temperature = UNINITIALIZED_DOUBLE
           ! gas pressure; 1st dof ------------------------ !
           select case(general%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
               dof1 = PETSC_TRUE
-              coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = &
+                                                   general%gas_pressure%itype
             case default
               string = GetSubConditionType(general%gas_pressure%itype)
               option%io_buffer = &
