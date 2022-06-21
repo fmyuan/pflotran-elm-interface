@@ -4860,6 +4860,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
         !                    dP[Pa]]
         tot_mole_flux = perm_ave_over_dist(1) * rel_perm * &
                   delta_pressure
+        ! Store flux calculation for consistency with transport
+        well_up%ql(iup) = tot_mole_flux
+
         density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
         ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
         q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
@@ -4895,17 +4898,20 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-          tot_mole_flux = perm_ave_over_dist(2) * rel_perm * &
-                    delta_pressure
-          density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
+        tot_mole_flux = perm_ave_over_dist(2) * rel_perm * &
+                        delta_pressure
+        ! Store flux calculation for consistency with transport
+        well_up%qg(iup) = tot_mole_flux
+
+        density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
         ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-          q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
-                               well_dn%area(idn))
+        q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
+                            well_dn%area(idn))
         ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
         !                             density_ave[kmol phase/m^3 phase]
         ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
         !                                 xmol[kmol comp/kmol phase]
-          Res(2) = Res(2) + tot_mole_flux
+        Res(2) = Res(2) + tot_mole_flux
     case default
 
   end select
@@ -5056,6 +5062,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         !                    dP[Pa]]
         v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
+        ! Store boundary flux for consistency with transport
+        well%ql_bc(1) = v_darcy
+
         density_ave = (well%liq%rho(1)+boundary_rho) / &
                       (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(1)
@@ -5104,6 +5113,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
         v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
+        ! Store boundary flux for consistency with transport
+        well%qg_bc(1) = v_darcy
+
         density_ave = (well%gas%rho(1)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
@@ -5112,6 +5124,10 @@ subroutine PMWellBCFlux(pm_well,well,Res)
       else if (pm_well%flow_soln%bh_q) then
         !Neumann flux at the bottom
         v_darcy = well%bh_ql
+
+        ! Store boundary flux for consistency with transport
+        well%ql_bc(1) = v_darcy
+
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_l(1) / fmw_comp(ONE_INTEGER)
         else
@@ -5122,6 +5138,10 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         Res(1) = Res(1) + tot_mole_flux
 
         v_darcy = well%bh_qg
+
+        ! Store boundary flux for consistency with transport
+        well%qg_bc(1) = v_darcy
+
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_g(1) / fmw_comp(TWO_INTEGER)
         else
@@ -5167,6 +5187,10 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         !                    dP[Pa]]
         v_darcy = -1.d0 *perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
+
+        ! Store boundary flux for consistency with transport
+        well%ql_bc(2) = v_darcy
+
         density_ave = (well%liq%rho(itop)+boundary_rho) / &
                       (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(itop)
@@ -5215,6 +5239,10 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
         v_darcy = -1.d0 * perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
+
+        ! Store boundary flux for consistency with transport
+        well%qg_bc(2) = v_darcy
+
         density_ave = (well%gas%rho(itop)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
