@@ -4954,8 +4954,8 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   res_dn = res_up
 
   ! upgradient derivatives
-  do idof = 1,pm_well%nphase
-    call PMWellFlux(pm_well,pm_well%well_pert(idof),pm_well%well,iup,idn, &
+  do iphase = 1,pm_well%nphase
+    call PMWellFlux(pm_well,pm_well%well_pert(iphase),pm_well%well,iup,idn, &
                     res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
       Jup(irow,iphase) = (res_pert(irow)-res_up(irow)) / &
@@ -4964,8 +4964,8 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   enddo
 
   ! downgradient derivatives
-  do idof = 1,pm_well%nphase
-    call PMWellFlux(pm_well,pm_well%well,pm_well%well_pert(idof),iup,idn, &
+  do iphase = 1,pm_well%nphase
+    call PMWellFlux(pm_well,pm_well%well,pm_well%well_pert(iphase),iup,idn, &
                     res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
       Jdn(irow,iphase) = (res_pert(irow)-res_dn(irow)) / &
