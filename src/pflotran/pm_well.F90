@@ -4425,6 +4425,8 @@ end subroutine PMWellUpdateWellQ
 subroutine PMWellCalcVelocity(this)
   !
   ! Calculates the Darcy flux in the well given the well pressures.
+  ! THIS IS NOW DEPRECIATED AND SHOULD NOT BE USED BECAUSE Q'S ARE NOW
+  ! CALCULATED WITHIN THE FLOW SUBROUTINES, PMWellFlux() and PMWellBCFlux().
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/16/2022
@@ -4940,7 +4942,7 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   implicit none
 
   type(pm_well_type) :: pm_well
-  PetscInt :: iup, idn, idof, irow
+  PetscInt :: iup, idn, iphase, irow
   PetscReal :: Jup(pm_well%nphase,pm_well%nphase), &
                Jdn(pm_well%nphase,pm_well%nphase)
 
@@ -4956,8 +4958,8 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
     call PMWellFlux(pm_well,pm_well%well_pert(idof),pm_well%well,iup,idn, &
                     res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
-      Jup(irow,idof) = (res_pert(irow)-res_up(irow)) / &
-                       pm_well%pert(iup,idof)
+      Jup(irow,iphase) = (res_pert(irow)-res_up(irow)) / &
+                         pm_well%pert(iup,iphase)
     enddo !irow
   enddo
 
@@ -4966,8 +4968,8 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
     call PMWellFlux(pm_well,pm_well%well,pm_well%well_pert(idof),iup,idn, &
                     res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
-      Jdn(irow,idof) = (res_pert(irow)-res_dn(irow)) / &
-                       pm_well%pert(idn,idof)
+      Jdn(irow,iphase) = (res_pert(irow)-res_dn(irow)) / &
+                         pm_well%pert(idn,iphase)
     enddo !irow
   enddo
 
