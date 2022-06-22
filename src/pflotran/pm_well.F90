@@ -1963,6 +1963,7 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%qg(nsegments-1))
   allocate(this%well%ql_bc(2))
   allocate(this%well%qg_bc(2))
+  
   if (this%transport) then
     allocate(this%well%aqueous_conc(this%nspecies,nsegments))
     allocate(this%well%aqueous_mass(this%nspecies,nsegments))
@@ -2265,7 +2266,7 @@ subroutine PMWellInitializeWell(this)
   this%well%liq%visc = this%reservoir%visc_l
   this%well%gas%visc = this%reservoir%visc_g
   ! update the Darcy fluxes within the well
-  call PMWellCalcVelocity(this)
+  !call PMWellCalcVelocity(this)
 
   this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
   this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
@@ -2534,12 +2535,14 @@ subroutine PMWellResidualFlow(this)
     !-------------------------------------------------------------------------
     case('WIPP_DARCY')
 
-      call PMWellBCFlux(this,this%well,res_flux_bc)
+      call PMWellBCFlux(this,this%well,res_flux_bc,PETSC_TRUE)
 
       do i = 1,this%well_grid%nsegments
         iup = i
         idn = i + 1
-        call PMWellFlux(this,this%well,this%well,iup,idn,res_flux)
+        if (i < this%well_grid%nsegments) then
+          call PMWellFlux(this,this%well,this%well,iup,idn,res_flux,PETSC_TRUE)
+        endif
         call PMWellAccumulationFlow(this,this%well,i,res_accum)
         call PMWellSrcSink(this,this%well,i,res_src_sink)
 
@@ -3655,7 +3658,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   call PMWellUpdateWellQ(this%well,this%reservoir)
 
   ! update the Darcy fluxes within the well
-  call PMWellCalcVelocity(this)
+  !call PMWellCalcVelocity(this)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
@@ -4769,7 +4772,7 @@ end subroutine PMWellSrcSinkDerivative
 
 ! ************************************************************************** !
 
-subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
+subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
   !
   ! Computes the internal flux terms for the residual based on
   ! the chosen well model.
@@ -4784,6 +4787,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
   type(well_type) :: well_up, well_dn
   PetscInt :: iup, idn
   PetscReal :: Res(pm_well%nphase)
+  PetscBool :: save_flux
 
   type(well_grid_type), pointer :: well_grid
 
@@ -4861,7 +4865,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
         tot_mole_flux = perm_ave_over_dist(1) * rel_perm * &
                   delta_pressure
         ! Store flux calculation for consistency with transport
-        well_up%ql(iup) = tot_mole_flux
+        if (save_flux) then
+          well_up%ql(iup) = tot_mole_flux
+        endif
 
         density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
         ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
@@ -4901,7 +4907,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
         tot_mole_flux = perm_ave_over_dist(2) * rel_perm * &
                         delta_pressure
         ! Store flux calculation for consistency with transport
-        well_up%qg(iup) = tot_mole_flux
+        if (save_flux) then
+          well_up%qg(iup) = tot_mole_flux
+        endif
 
         density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
         ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
@@ -4939,14 +4947,14 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   PetscReal :: res_up(pm_well%nphase),res_dn(pm_well%nphase), &
                res_pert(pm_well%nphase)
 
-  call PMWellFlux(pm_well,pm_well%well,pm_well%well,iup,idn,res_up)
+  call PMWellFlux(pm_well,pm_well%well,pm_well%well,iup,idn,res_up,PETSC_FALSE)
 
   res_dn = res_up
 
   ! upgradient derivatives
   do idof = 1,pm_well%nphase
     call PMWellFlux(pm_well,pm_well%well_pert(idof),pm_well%well,iup,idn, &
-                    res_pert)
+                    res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
       Jup(irow,idof) = (res_pert(irow)-res_up(irow)) / &
                        pm_well%pert(iup,idof)
@@ -4956,7 +4964,7 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   ! downgradient derivatives
   do idof = 1,pm_well%nphase
     call PMWellFlux(pm_well,pm_well%well,pm_well%well_pert(idof),iup,idn, &
-                    res_pert)
+                    res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
       Jdn(irow,idof) = (res_pert(irow)-res_dn(irow)) / &
                        pm_well%pert(idn,idof)
@@ -4967,7 +4975,7 @@ end subroutine PMWellFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine PMWellBCFlux(pm_well,well,Res)
+subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
   !
   ! Computes the boundary flux terms for the residual based on the
   ! chosen well model.
@@ -4987,6 +4995,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   type(pm_well_type) :: pm_well
   type(well_type) :: well
   PetscReal :: Res(2*pm_well%nphase)
+  PetscBool :: save_flux
 
   type(option_type), pointer :: option
   type(well_grid_type), pointer :: well_grid
@@ -5063,7 +5072,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
         ! Store boundary flux for consistency with transport
-        well%ql_bc(1) = v_darcy
+        if (save_flux) then
+          well%ql_bc(1) = v_darcy
+        endif
 
         density_ave = (well%liq%rho(1)+boundary_rho) / &
                       (2.d0 * fmw_comp(ONE_INTEGER))
@@ -5114,7 +5125,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
         ! Store boundary flux for consistency with transport
-        well%qg_bc(1) = v_darcy
+        if (save_flux) then
+          well%qg_bc(1) = v_darcy
+        endif
 
         density_ave = (well%gas%rho(1)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(1)
@@ -5126,7 +5139,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         v_darcy = well%bh_ql
 
         ! Store boundary flux for consistency with transport
-        well%ql_bc(1) = v_darcy
+        if (save_flux) then
+          well%ql_bc(1) = v_darcy
+        endif
 
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_l(1) / fmw_comp(ONE_INTEGER)
@@ -5140,7 +5155,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         v_darcy = well%bh_qg
 
         ! Store boundary flux for consistency with transport
-        well%qg_bc(1) = v_darcy
+        if (save_flux) then
+          well%qg_bc(1) = v_darcy
+        endif
 
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_g(1) / fmw_comp(TWO_INTEGER)
@@ -5189,7 +5206,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
                   delta_pressure
 
         ! Store boundary flux for consistency with transport
-        well%ql_bc(2) = v_darcy
+        if (save_flux) then
+          well%ql_bc(2) = v_darcy
+        endif
 
         density_ave = (well%liq%rho(itop)+boundary_rho) / &
                       (2.d0 * fmw_comp(ONE_INTEGER))
@@ -5241,7 +5260,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
                   delta_pressure
 
         ! Store boundary flux for consistency with transport
-        well%qg_bc(2) = v_darcy
+        if (save_flux) then
+          well%qg_bc(2) = v_darcy
+        endif 
 
         density_ave = (well%gas%rho(itop)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(itop)
@@ -5250,6 +5271,12 @@ subroutine PMWellBCFlux(pm_well,well,Res)
       else
         !Neumann flux at the top
         v_darcy = well%th_ql
+
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%ql_bc(2) = v_darcy
+        endif
+
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_l(itop) / fmw_comp(ONE_INTEGER)
         else
@@ -5260,6 +5287,12 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         Res(3) = Res(3) + tot_mole_flux
 
         v_darcy = well%th_qg
+
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%qg_bc(2) = v_darcy
+        endif
+
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_g(itop) / fmw_comp(TWO_INTEGER)
         else
@@ -5294,14 +5327,14 @@ subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   PetscInt :: idof, irow
   PetscReal :: res(2*pm_well%flow_soln%ndof),res_pert(2*pm_well%flow_soln%ndof)
 
-  call PMWellBCFlux(pm_well,pm_well%well,res)
+  call PMWellBCFlux(pm_well,pm_well%well,res,PETSC_FALSE)
 
   Jtop = 0.d0
   Jbtm = 0.d0
 
   ! downgradient derivatives
   do idof = 1,pm_well%nphase
-    call PMWellBCFlux(pm_well,pm_well%well_pert(idof),res_pert)
+    call PMWellBCFlux(pm_well,pm_well%well_pert(idof),res_pert,PETSC_FALSE)
     do irow = 1, pm_well%nphase
       Jbtm(irow,idof) = (res_pert(irow)-res(irow)) / &
                         pm_well%pert(1,idof)
@@ -5802,6 +5835,8 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%pg)
   call DeallocateArray(this%well%ql)
   call DeallocateArray(this%well%qg)
+  call DeallocateArray(this%well%ql_bc)
+  call DeallocateArray(this%well%qg_bc)
   if (this%transport) then
     call DeallocateArray(this%well%aqueous_conc)
     call DeallocateArray(this%well%aqueous_mass)
