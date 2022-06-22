@@ -2265,7 +2265,7 @@ subroutine PMWellInitializeWell(this)
   this%well%liq%visc = this%reservoir%visc_l
   this%well%gas%visc = this%reservoir%visc_g
   ! update the Darcy fluxes within the well
-  call PMWellCalcVelocity(this)
+  !call PMWellCalcVelocity(this)
 
   this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
   this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
@@ -3655,7 +3655,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   call PMWellUpdateWellQ(this%well,this%reservoir)
 
   ! update the Darcy fluxes within the well
-  call PMWellCalcVelocity(this)
+  !call PMWellCalcVelocity(this)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
@@ -4422,6 +4422,8 @@ end subroutine PMWellUpdateWellQ
 subroutine PMWellCalcVelocity(this)
   !
   ! Calculates the Darcy flux in the well given the well pressures.
+  ! THIS IS NOW DEPRECIATED AND SHOULD NOT BE USED BECAUSE Q'S ARE NOW
+  ! CALCULATED WITHIN THE FLOW SUBROUTINES, PMWellFlux() and PMWellBCFlux().
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/16/2022
@@ -4932,7 +4934,7 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   implicit none
 
   type(pm_well_type) :: pm_well
-  PetscInt :: iup, idn, idof, irow
+  PetscInt :: iup, idn, iphase, irow
   PetscReal :: Jup(pm_well%nphase,pm_well%nphase), &
                Jdn(pm_well%nphase,pm_well%nphase)
 
@@ -4944,22 +4946,22 @@ subroutine PMWellFluxDerivative(pm_well,iup,idn,Jup,Jdn)
   res_dn = res_up
 
   ! upgradient derivatives
-  do idof = 1,pm_well%nphase
-    call PMWellFlux(pm_well,pm_well%well_pert(idof),pm_well%well,iup,idn, &
+  do iphase = 1,pm_well%nphase
+    call PMWellFlux(pm_well,pm_well%well_pert(iphase),pm_well%well,iup,idn, &
                     res_pert)
     do irow = 1, pm_well%nphase
-      Jup(irow,idof) = (res_pert(irow)-res_up(irow)) / &
-                       pm_well%pert(iup,idof)
+      Jup(irow,iphase) = (res_pert(irow)-res_up(irow)) / &
+                         pm_well%pert(iup,iphase)
     enddo !irow
   enddo
 
   ! downgradient derivatives
-  do idof = 1,pm_well%nphase
-    call PMWellFlux(pm_well,pm_well%well,pm_well%well_pert(idof),iup,idn, &
+  do iphase = 1,pm_well%nphase
+    call PMWellFlux(pm_well,pm_well%well,pm_well%well_pert(iphase),iup,idn, &
                     res_pert)
     do irow = 1, pm_well%nphase
-      Jdn(irow,idof) = (res_pert(irow)-res_dn(irow)) / &
-                       pm_well%pert(idn,idof)
+      Jdn(irow,iphase) = (res_pert(irow)-res_dn(irow)) / &
+                         pm_well%pert(idn,iphase)
     enddo !irow
   enddo
 
