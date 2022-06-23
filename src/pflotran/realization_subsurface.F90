@@ -2968,7 +2968,10 @@ subroutine RealizationGetObservedVariables(realization)
 #include "petsc/finclude/petscvec.h"
   use petscvec
 
+  use Inversion_Measurement_Aux_module
   use Inversion_TS_Aux_module
+  use Realization_Base_class
+  use String_module
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
                                SOLUTE_CONCENTRATION
 
@@ -2979,23 +2982,26 @@ subroutine RealizationGetObservedVariables(realization)
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
+  PetscInt :: icount
+  PetscInt :: ivar
+  PetscInt :: ghosted_id
   PetscInt :: iert_measurement
   PetscErrorCode :: ierr
 
   inversion_forward_aux => realization%patch%aux%inversion_forward_aux
   if (associated(inversion_forward_aux)) then
-    select case(inversion_forward_aux%iobsfunc)
+    select case(inversion_forward_aux%iobs_var)
       case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION)
-        select case(inversion_forward_aux%iobsfunc)
+        select case(inversion_forward_aux%iobs_var)
           case(OBS_LIQUID_PRESSURE)
-            i = LIQUID_PRESSURE
+            ivar = LIQUID_PRESSURE
           case(OBS_LIQUID_SATURATION)
-            i = LIQUID_SATURATION
+            ivar = LIQUID_SATURATION
           case(OBS_SOLUTE_CONCENTRATION)
-            i = SOLUTE_CONCENTRATION
+            ivar = SOLUTE_CONCENTRATION
         end select
         call RealizationGetVariable(realization,realization%field%work, &
-                                    i,ZERO_INTEGER)
+                                    ivar,ZERO_INTEGER)
         call VecScatterBegin(inversion_forward_aux% &
                                scatter_global_to_measurement, &
                              realization%field%work, &
@@ -3016,10 +3022,39 @@ subroutine RealizationGetObservedVariables(realization)
         call VecRestoreArrayF90(inversion_forward_aux%measurement_vec, &
                                 vec_ptr,ierr);CHKERRQ(ierr)
       case default
-        realization%option%io_buffer = 'Unrecognized observation function &
-          &in RealizationGetObservedVariable.'
+        realization%option%io_buffer = 'Unrecognized observed variable &
+          &in RealizationGetObservedVariable: ' // &
+          StringWrite(inversion_forward_aux%iobs_var)
         call PrintErrMsg(realization%option)
     end select
+#if 0
+    icount = 0
+    do i=1, size(inversion_forward_aux%measurements)
+      if (UnInitialized(inversion_forward_aux%measurements(i)%local_id)) &
+        cycle
+      icount = icount + 1
+      select case(inversion_forward_aux%measurements(i)%ivariable)
+        case(OBS_ERT_MEASUREMENT)
+          iert_measurement = inversion_forward_aux%measurements(i)%cell_id
+          vec_ptr(icount) = realization%survey%dsim(iert_measurement)
+        case default
+          select case(inversion_forward_aux%iobsfunc)
+            case(OBS_LIQUID_PRESSURE)
+              ivar = LIQUID_PRESSURE
+            case(OBS_LIQUID_SATURATION)
+              ivar = LIQUID_SATURATION
+            case(OBS_SOLUTE_CONCENTRATION)
+              ivar = SOLUTE_CONCENTRATION
+          end select
+          ghosted_id = &
+            realization%patch%grid%nL2G(inversion_forward_aux%&
+                                        measurements(i)%local_id)
+          inversion_aux_forward%local_measurement_values(icount) = &
+            RealizGetVariableValueAtCell(realization,ghosted_id, &
+                                         ivar,ZERO_INTEGER)
+      end select
+    enddo
+#endif
   endif
 
 end subroutine RealizationGetObservedVariables

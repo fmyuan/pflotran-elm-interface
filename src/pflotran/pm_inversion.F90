@@ -162,8 +162,13 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   ! Date: 06/10/22
 
   use Inversion_TS_Aux_module
+  use Inversion_Measurement_Aux_module
   use Option_module
+  use Realization_Base_class
   use Realization_Subsurface_class
+  use String_module
+  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
+                               SOLUTE_CONCENTRATION
   use Utility_module
 
   implicit none
@@ -173,14 +178,67 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscErrorCode :: ierr
 
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  type(inversion_measurement_aux_type), pointer :: measurements(:)
+  PetscInt :: imeasurement
+  PetscInt :: iert_measurement
+  PetscInt :: icount
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscInt :: ivar
+  PetscReal, pointer :: vec_ptr(:)
+
+
+  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
+  nullify(measurements)
 
   ierr = 0
-  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
   if (associated(inversion_forward_aux)) then
+    measurements => inversion_forward_aux%measurements
     if (Equal(inversion_forward_aux%sync_times( &
                 inversion_forward_aux%isync_time),time)) then
-      call RealizationGetObservedVariables(this%realization)
-      call InversionForwardAuxMeasure(inversion_forward_aux,time,this%option)
+      inversion_forward_aux%isync_time = inversion_forward_aux%isync_time + 1
+!gehremove      call RealizationGetObservedVariables(this%realization)
+!gehremove      call InversionForwardAuxMeasure(inversion_forward_aux,time,this%option)
+      icount = 0
+      do imeasurement = 1, size(measurements)
+        local_id = measurements(imeasurement)%local_id
+        if (Initialized(local_id)) then
+          icount = icount + 1
+          if (.not.measurements(imeasurement)%measured .and. &
+              Equal(measurements(imeasurement)%time,time)) then
+!          if (Equal(measurements(imeasurement)%time,time)) then
+            select case(measurements(imeasurement)%iobs_var)
+              case(OBS_ERT_MEASUREMENT)
+                iert_measurement = measurements(imeasurement)%cell_id
+                vec_ptr(icount) = this%realization%survey%dsim(iert_measurement)
+              case default
+                select case(measurements(imeasurement)%iobs_var)
+                  case(OBS_LIQUID_PRESSURE)
+                    ivar = LIQUID_PRESSURE
+                  case(OBS_LIQUID_SATURATION)
+                    ivar = LIQUID_SATURATION
+                  case(OBS_SOLUTE_CONCENTRATION)
+                    ivar = SOLUTE_CONCENTRATION
+                  case default
+                    this%option%io_buffer = 'Unrecognized observed variable in &
+                      &PMInversionInversionMeasurement: ' // &
+                      StringWrite(measurements(imeasurement)%iobs_var)
+                    call PrintErrMsgByRank(this%option)
+                end select
+                ghosted_id = this%realization%patch%grid%nL2G(local_id)
+                if (Initialized(inversion_forward_aux%local_measurement_values_ptr(icount))) then
+                  this%option%io_buffer = 'Duplicate measurement in &
+                    &PMInversionInversionMeasurement for measurement: ' // &
+                    trim(StringWrite(imeasurement))
+                  call PrintErrMsgByRank(this%option)
+                endif
+                inversion_forward_aux%local_measurement_values_ptr(icount) = &
+                  RealizGetVariableValueAtCell(this%realization,ghosted_id, &
+                                                ivar,ZERO_INTEGER)
+            end select
+          endif
+        endif
+      enddo
     else
       call PrintMsg(this%option,'  No measurement requested at this time.')
     endif

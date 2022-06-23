@@ -11,11 +11,18 @@ module Inversion_Measurement_Aux_module
 
  PetscInt, public :: inv_meas_reporting_verbosity
 
+  PetscInt, parameter, public :: OBS_LIQUID_PRESSURE = 1
+  PetscInt, parameter, public :: OBS_LIQUID_SATURATION = 2
+  PetscInt, parameter, public :: OBS_SOLUTE_CONCENTRATION = 3
+  PetscInt, parameter, public :: OBS_ERT_MEASUREMENT = 4
+
   type, public :: inversion_measurement_aux_type
     PetscInt :: id
     PetscReal :: time
     character(len=4) :: time_units
     PetscInt :: cell_id
+    PetscInt :: local_id
+    PetscInt :: iobs_var
     PetscReal :: value
     PetscReal :: simulated_value
     PetscBool :: first_lambda
@@ -31,6 +38,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementPrint, &
             InversionMeasurementMeasure, &
             InversionMeasurementAuxRead, &
+            InvMeasAuxReadObservedVariable, &
             InversionMeasureAuxListDestroy, &
             InversionMeasurementAuxStrip, &
             InversionMeasurementAuxDestroy
@@ -75,6 +83,8 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%time = UNINITIALIZED_DOUBLE
   measurement%time_units = ''
   measurement%cell_id = UNINITIALIZED_INTEGER
+  measurement%local_id = UNINITIALIZED_INTEGER
+  measurement%iobs_var = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
   measurement%simulated_value = UNINITIALIZED_DOUBLE
   measurement%first_lambda = PETSC_FALSE
@@ -120,6 +130,8 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%time = measurement%time
   measurement2%time_units = measurement%time_units
   measurement2%cell_id = measurement%cell_id
+  measurement2%local_id = measurement%local_id
+  measurement2%iobs_var = measurement%iobs_var
   measurement2%value = measurement%value
   measurement2%simulated_value = measurement%simulated_value
   call GeometryCopyCoordinate(measurement%coordinate,measurement2%coordinate)
@@ -186,6 +198,9 @@ function InversionMeasurementAuxRead(input,error_string,option)
       case('VALUE')
         call InputReadDouble(input,option,new_measurement%value)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('OBSERVED_VARIABLE')
+        new_measurement%iobs_var = &
+          InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -206,6 +221,47 @@ function InversionMeasurementAuxRead(input,error_string,option)
   InversionMeasurementAuxRead => new_measurement
 
 end function InversionMeasurementAuxRead
+
+! ************************************************************************** !
+
+function InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
+  !
+  ! Reads the observed variable and returns a corresponding integer ID
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/20/22
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  PetscInt :: InvMeasAuxReadObservedVariable
+
+  character(len=MAXWORDLENGTH) :: word
+
+  call InputReadWord(input,option,word,PETSC_TRUE)
+  call InputErrorMsg(input,option,keyword,error_string)
+  call StringToUpper(word)
+  select case(word)
+    case('LIQUID_PRESSURE')
+      InvMeasAuxReadObservedVariable = OBS_LIQUID_PRESSURE
+    case('LIQUID_SATURATION')
+      InvMeasAuxReadObservedVariable = OBS_LIQUID_SATURATION
+    case('SOLUTE_CONCENTRATION')
+      InvMeasAuxReadObservedVariable = OBS_SOLUTE_CONCENTRATION
+    case('ERT_MEASUREMENT')
+      InvMeasAuxReadObservedVariable = OBS_ERT_MEASUREMENT
+    case default
+      call InputKeywordUnrecognized(input,word,trim(error_string)// &
+                                    & ','//trim(word),option)
+  end select
+
+end function InvMeasAuxReadObservedVariable
 
 ! ************************************************************************** !
 
