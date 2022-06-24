@@ -645,7 +645,7 @@ subroutine InversionSubsurfInitialize(this)
     int_array = -1
     do i = 1, num_measurements
       if (this%measurements(i)%iobs_var == OBS_ERT_MEASUREMENT) then
-        max_int(1) = max(temp_int,this%measurements(i)%cell_id)
+        max_int(1) = max(max_int(1),this%measurements(i)%cell_id)
       else
         if (Initialized(this%measurements(i)%coordinate%x)) then
           call GridGetLocalIDFromCoordinate(patch%grid, &
@@ -657,7 +657,7 @@ subroutine InversionSubsurfInitialize(this)
             this%measurements(i)%local_id = local_id
           endif
         endif
-        max_int(2) = max(temp_int,this%measurements(i)%cell_id)
+        max_int(2) = max(max_int(2),this%measurements(i)%cell_id)
         int_array(i) = this%measurements(i)%cell_id
       endif
     enddo

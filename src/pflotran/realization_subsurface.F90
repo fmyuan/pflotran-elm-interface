@@ -94,8 +94,7 @@ private
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
             RealizationLimitDTByCFL, &
-            RealizationReadGeopSurveyFile, &
-            RealizationGetObservedVariables
+            RealizationReadGeopSurveyFile
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -2955,109 +2954,6 @@ subroutine RealizationReadGeopSurveyFile(realization)
   call InputDestroy(input_tmp)
 
 end subroutine RealizationReadGeopSurveyFile
-
-! ************************************************************************** !
-
-subroutine RealizationGetObservedVariables(realization)
-  !
-  ! Stores observation variable to the inversion measurement vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/23/22
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-
-  use Inversion_Measurement_Aux_module
-  use Inversion_TS_Aux_module
-  use Realization_Base_class
-  use String_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: i
-  PetscInt :: icount
-  PetscInt :: ivar
-  PetscInt :: ghosted_id
-  PetscInt :: iert_measurement
-  PetscErrorCode :: ierr
-
-  inversion_forward_aux => realization%patch%aux%inversion_forward_aux
-  if (associated(inversion_forward_aux)) then
-    select case(inversion_forward_aux%iobs_var)
-      case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION)
-        select case(inversion_forward_aux%iobs_var)
-          case(OBS_LIQUID_PRESSURE)
-            ivar = LIQUID_PRESSURE
-          case(OBS_LIQUID_SATURATION)
-            ivar = LIQUID_SATURATION
-          case(OBS_SOLUTE_CONCENTRATION)
-            ivar = SOLUTE_CONCENTRATION
-        end select
-        call RealizationGetVariable(realization,realization%field%work, &
-                                    ivar,ZERO_INTEGER)
-        call VecScatterBegin(inversion_forward_aux% &
-                               scatter_global_to_measurement, &
-                             realization%field%work, &
-                             inversion_forward_aux%measurement_vec, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-        call VecScatterEnd(inversion_forward_aux% &
-                             scatter_global_to_measurement, &
-                           realization%field%work, &
-                           inversion_forward_aux%measurement_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-      case(OBS_ERT_MEASUREMENT)
-        call VecGetArrayF90(inversion_forward_aux%measurement_vec, &
-                            vec_ptr,ierr);CHKERRQ(ierr)
-        do i=1, size(inversion_forward_aux%measurements)
-          iert_measurement = inversion_forward_aux%measurements(i)%cell_id
-          vec_ptr(i) = realization%survey%dsim(iert_measurement)
-        enddo
-        call VecRestoreArrayF90(inversion_forward_aux%measurement_vec, &
-                                vec_ptr,ierr);CHKERRQ(ierr)
-      case default
-        realization%option%io_buffer = 'Unrecognized observed variable &
-          &in RealizationGetObservedVariable: ' // &
-          StringWrite(inversion_forward_aux%iobs_var)
-        call PrintErrMsg(realization%option)
-    end select
-#if 0
-    icount = 0
-    do i=1, size(inversion_forward_aux%measurements)
-      if (UnInitialized(inversion_forward_aux%measurements(i)%local_id)) &
-        cycle
-      icount = icount + 1
-      select case(inversion_forward_aux%measurements(i)%ivariable)
-        case(OBS_ERT_MEASUREMENT)
-          iert_measurement = inversion_forward_aux%measurements(i)%cell_id
-          vec_ptr(icount) = realization%survey%dsim(iert_measurement)
-        case default
-          select case(inversion_forward_aux%iobsfunc)
-            case(OBS_LIQUID_PRESSURE)
-              ivar = LIQUID_PRESSURE
-            case(OBS_LIQUID_SATURATION)
-              ivar = LIQUID_SATURATION
-            case(OBS_SOLUTE_CONCENTRATION)
-              ivar = SOLUTE_CONCENTRATION
-          end select
-          ghosted_id = &
-            realization%patch%grid%nL2G(inversion_forward_aux%&
-                                        measurements(i)%local_id)
-          inversion_aux_forward%local_measurement_values(icount) = &
-            RealizGetVariableValueAtCell(realization,ghosted_id, &
-                                         ivar,ZERO_INTEGER)
-      end select
-    enddo
-#endif
-  endif
-
-end subroutine RealizationGetObservedVariables
 
 ! ************************************************************************** !
 

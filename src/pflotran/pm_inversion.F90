@@ -185,8 +185,6 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: ivar
-  PetscReal, pointer :: vec_ptr(:)
-
 
   inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
   nullify(measurements)
@@ -197,8 +195,6 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
     if (Equal(inversion_forward_aux%sync_times( &
                 inversion_forward_aux%isync_time),time)) then
       inversion_forward_aux%isync_time = inversion_forward_aux%isync_time + 1
-!gehremove      call RealizationGetObservedVariables(this%realization)
-!gehremove      call InversionForwardAuxMeasure(inversion_forward_aux,time,this%option)
       icount = 0
       do imeasurement = 1, size(measurements)
         local_id = measurements(imeasurement)%local_id
@@ -206,11 +202,11 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
           icount = icount + 1
           if (.not.measurements(imeasurement)%measured .and. &
               Equal(measurements(imeasurement)%time,time)) then
-!          if (Equal(measurements(imeasurement)%time,time)) then
             select case(measurements(imeasurement)%iobs_var)
               case(OBS_ERT_MEASUREMENT)
                 iert_measurement = measurements(imeasurement)%cell_id
-                vec_ptr(icount) = this%realization%survey%dsim(iert_measurement)
+                inversion_forward_aux%local_measurement_values_ptr(icount) = &
+                  this%realization%survey%dsim(iert_measurement)
               case default
                 select case(measurements(imeasurement)%iobs_var)
                   case(OBS_LIQUID_PRESSURE)

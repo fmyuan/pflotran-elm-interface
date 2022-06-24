@@ -45,7 +45,6 @@ module Inversion_TS_Aux_module
   public :: InversionForwardAuxCreate, &
             InvForwardAuxResetMeasurements, &
             InversionForwardAuxStep, &
-            InversionForwardAuxMeasure, &
             InvForwardAuxDestroyList, &
             InversionForwardAuxDestroy, &
             InversionTSAuxCreate, &
@@ -138,37 +137,6 @@ subroutine InversionForwardAuxStep(aux,time)
   endif
 
 end subroutine InversionForwardAuxStep
-
-! ************************************************************************** !
-
-subroutine InversionForwardAuxMeasure(aux,time,option)
-  !
-  ! Appends a time step to the linked list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/14/22
-
-  use Option_module
-
-  implicit none
-
-  type(inversion_forward_aux_type), pointer :: aux
-  PetscReal :: time
-  type(option_type) :: option
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: imeasurement
-  PetscErrorCode :: ierr
-
-  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  do imeasurement = 1, size(aux%measurements)
-    call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
-                                     vec_ptr(imeasurement),option)
-  enddo
-  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr, &
-                              ierr);CHKERRQ(ierr)
-
-end subroutine InversionForwardAuxMeasure
 
 ! ************************************************************************** !
 
