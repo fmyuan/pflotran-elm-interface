@@ -49,7 +49,6 @@ module Inversion_Subsurface_class
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
     PetscBool :: local_adjoint
-    VecScatter :: scatter_global_to_measurement
     VecScatter :: scatter_measure_to_dist_measure
     VecScatter :: scatter_param_to_dist_param
     VecScatter :: scatter_global_to_dist_param
@@ -153,7 +152,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%debug_adjoint = PETSC_FALSE
   this%local_adjoint = PETSC_FALSE
   this%debug_verbosity = UNINITIALIZED_INTEGER
-  this%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   this%scatter_measure_to_dist_measure = PETSC_NULL_VECSCATTER
   this%scatter_param_to_dist_param = PETSC_NULL_VECSCATTER
   this%scatter_global_to_dist_param = PETSC_NULL_VECSCATTER
@@ -711,17 +709,6 @@ subroutine InversionSubsurfInitialize(this)
     int_array = int_array - 1
     call DiscretAOApplicationToPetsc(this%realization%discretization, &
                                      int_array)
-    !TODO(geh): deprecated once heterogeneous measurement is implemented
-    if (.not. iflag) then ! there are no ERT measurements
-      ! map the global work vec to the measurement
-      call ISCreateGeneral(this%driver%comm%mycomm,num_measurements,int_array, &
-                          PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
-      call VecScatterCreate(this%realization%field%work,is_petsc, &
-                            this%measurement_vec,PETSC_NULL_IS, &
-                            this%scatter_global_to_measurement, &
-                            ierr);CHKERRQ(ierr)
-      call ISDestroy(is_petsc,ierr)
-    endif
 
     ! create mapping between local measurements and redundant measurement_vec
     ! find local measurements
@@ -779,15 +766,11 @@ subroutine InversionSubsurfInitialize(this)
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_measure,ierr)
 
-    this%inversion_aux%scatter_global_to_measurement = &
-      this%scatter_global_to_measurement
     this%inversion_aux%measurements => this%measurements
     this%inversion_aux%measurement_vec = this%measurement_vec
 
     inversion_forward_aux => InversionForwardAuxCreate()
     inversion_forward_aux%iobs_var = this%iobs_var
-    inversion_forward_aux%scatter_global_to_measurement = &
-      this%scatter_global_to_measurement
     inversion_forward_aux%measurements => this%measurements
     inversion_forward_aux%measurement_vec = this%measurement_vec
     inversion_forward_aux%local_measurement_values_ptr => &
@@ -2432,10 +2415,6 @@ subroutine InversionSubsurfaceStrip(this)
   endif
   if (this%dist_measurement_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
-  endif
-  if (this%scatter_global_to_measurement /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(this%scatter_global_to_measurement, &
-                           ierr);CHKERRQ(ierr)
   endif
   if (this%scatter_measure_to_dist_measure /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(this%scatter_measure_to_dist_measure, &

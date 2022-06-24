@@ -21,7 +21,6 @@ module Inversion_TS_Aux_module
     type(inversion_forward_ts_aux_type), pointer :: last
     type(inversion_forward_ts_aux_type), pointer :: current
     type(inversion_measurement_aux_type), pointer :: measurements(:)
-    VecScatter :: scatter_global_to_measurement
     Vec :: measurement_vec
     PetscReal, pointer :: local_measurement_values_ptr(:)
   end type inversion_forward_aux_type
@@ -83,7 +82,6 @@ function InversionForwardAuxCreate()
   nullify(aux%last)
   nullify(aux%current)
   nullify(aux%measurements)
-  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
 
@@ -278,7 +276,6 @@ subroutine InversionForwardAuxDestroy(aux)
   aux%M_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%measurements)
-  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
 
