@@ -426,6 +426,7 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
           end select
         endif
       endif
+      if (stop_flag == TS_STOP_FAILURE) return
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt

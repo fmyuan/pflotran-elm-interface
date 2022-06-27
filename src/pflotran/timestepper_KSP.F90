@@ -292,6 +292,7 @@ subroutine TimestepperKSPStepDT(this,process_model,stop_flag)
           ! add any verbose logging (see timestepper_BE)
         endif
       endif
+      if (stop_flag == TS_STOP_FAILURE) return
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt
