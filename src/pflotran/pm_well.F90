@@ -4579,11 +4579,12 @@ subroutine PMWellComputeWellIndex(this)
   implicit none
 
   class(pm_well_type) :: this
-  PetscReal :: r0(this%well_grid%nsegments)
-  PetscReal, parameter :: PI=3.141592653589793d0
 
-  PetscReal :: temp_real(this%well_grid%nsegments)
+  PetscReal :: r0
+  PetscReal, parameter :: PI=3.141592653589793d0
+  PetscReal :: temp_real
   type(option_type), pointer :: option
+  PetscInt :: k
 
   option => this%option
 
@@ -4592,34 +4593,41 @@ subroutine PMWellComputeWellIndex(this)
   select case(this%well%WI_model)
     case(PEACEMAN_ISO)
 
-      temp_real = log(2.079d-1*this%reservoir%dx/ &
-                      (this%well%diameter/2.d0))
+      do k = 1,this%well_grid%nsegments
+        temp_real = log(2.079d-1*this%reservoir%dx(k)/ &
+                        (this%well%diameter(k)/2.d0))
 
-      if (any(temp_real <= 0.d0)) then
-        option%io_buffer = 'Wellbore diameter is too large relative to &
-        &reservor dx. For the PEACEMAN_ISO model, wellbore diameter must &
-        & be smaller than 0.4158 * reservoir dx.'
-        call PrintErrMsg(option)
-      endif
+        if (temp_real <= 0.d0) then
+          option%io_buffer = 'Wellbore diameter is too large relative to &
+          &reservor dx. For the PEACEMAN_ISO model, wellbore diameter must &
+          &be smaller than 0.4158 * reservoir dx.'
+          call PrintErrMsg(option)
+        endif
 
-      this%well%WI = 2.d0*PI*this%reservoir%kx*this%well_grid%dh/temp_real
+        this%well%WI(k) = 2.d0*PI*this%reservoir%kx(k)*this%well_grid%dh(k)/ &
+                          temp_real
+       enddo
+
     case(PEACEMAN_ANISOTROPIC)
-      r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky/this%reservoir%kx)* &
-           this%reservoir%dx**2 + sqrt(this%reservoir%kx/this%reservoir%ky)* &
-           this%reservoir%dy**2) / ((this%reservoir%ky/this%reservoir%kx)** &
-           2.5d-1 + (this%reservoir%kx/this%reservoir%ky)**2.5d-1))
+      do k = 1,this%well_grid%nsegments
+        r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky(k)/this%reservoir%kx(k))* &
+             this%reservoir%dx(k)**2 + sqrt(this%reservoir%kx(k)/ &
+             this%reservoir%ky(k))*this%reservoir%dy(k)**2) / &
+             ((this%reservoir%ky(k)/this%reservoir%kx(k))**2.5d-1 + &
+             (this%reservoir%kx(k)/this%reservoir%ky(k))**2.5d-1))
 
-      temp_real = log(r0/(this%well%diameter/2.d0))
+        temp_real = log(r0/(this%well%diameter(k)/2.d0))
 
-      if (any(temp_real <= 0.d0)) then
-        option%io_buffer = 'Wellbore diameter is too large relative to &
-        &reservor discretization and permeability for the PEACEMAN_ANISOTROPIC &
-        &well model.'
-        call PrintErrMsg(option)
-      endif
+        if (temp_real <= 0.d0) then
+          option%io_buffer = 'Wellbore diameter is too large relative to &
+          &reservor discretization and permeability for the &
+          &PEACEMAN_ANISOTROPIC well model.'
+          call PrintErrMsg(option)
+        endif
 
-      this%well%WI = 2.d0*PI*sqrt(this%reservoir%kx*this%reservoir%ky)* &
-                     this%well_grid%dh/temp_real
+        this%well%WI(k) = 2.d0*PI*sqrt(this%reservoir%kx(k)* &
+                          this%reservoir%ky(k))*this%well_grid%dh(k)/temp_real
+      enddo
       
   end select
 
