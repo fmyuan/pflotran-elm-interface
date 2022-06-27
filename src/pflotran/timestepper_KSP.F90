@@ -189,15 +189,12 @@ subroutine TimestepperKSPUpdateDT(this,process_model)
     update_time_step = PETSC_FALSE
   endif
 
-  if (update_time_step) then
-
-    call process_model%UpdateTimestep(this%dt, &
-                                      this%dt_min, &
-                                      this%dt_max, &
-                                      dummy_int, dummy_int, dummy_array, &
-                                      this%time_step_max_growth_factor)
-
-  endif
+  call process_model%UpdateTimestep(update_time_step, &
+                                    this%dt, &
+                                    this%dt_min, &
+                                    this%dt_max, &
+                                    dummy_int, dummy_int, dummy_array, &
+                                    this%time_step_max_growth_factor)
 
 end subroutine TimestepperKSPUpdateDT
 

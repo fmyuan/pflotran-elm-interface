@@ -935,7 +935,8 @@ end subroutine PMNWTFinalizeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMNWTUpdateTimestep(this,update_dt, &
+                               dt,dt_min,dt_max,iacceleration, &
                                num_newton_iterations,tfac, &
                                time_step_max_growth_factor)
   !
@@ -946,6 +947,7 @@ subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_nwt_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -957,47 +959,49 @@ subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: ifac
   PetscReal, parameter :: pert = 1.d-20
 
-  if (this%controls%volfrac_change_governor < 1.d0) then
-    ! with volume fraction potentially scaling the time step
-    if (iacceleration > 0) then
-      fac = 0.5d0
-      if (num_newton_iterations >= iacceleration) then
-        fac = 0.33d0
-        uvf = 0.d0
+  if (update_dt .and. iacceleration /= 0) then
+    if (this%controls%volfrac_change_governor < 1.d0) then
+      ! with volume fraction potentially scaling the time step
+      if (iacceleration > 0) then
+        fac = 0.5d0
+        if (num_newton_iterations >= iacceleration) then
+          fac = 0.33d0
+          uvf = 0.d0
+        else
+          uvf = this%controls%volfrac_change_governor/ &
+                (maxval(this%controls%max_volfrac_change)+pert)
+        endif
+        dtt = fac * dt * (1.d0 + uvf)
       else
-        uvf = this%controls%volfrac_change_governor/ &
-              (maxval(this%controls%max_volfrac_change)+pert)
+        ifac = max(min(num_newton_iterations,size(tfac)),1)
+        dt_tfac = tfac(ifac) * dt
+
+        fac = 0.5d0
+        uvf= this%controls%volfrac_change_governor/ &
+            (maxval(this%controls%max_volfrac_change)+pert)
+        dt_vf = fac * dt * (1.d0 + uvf)
+
+        dtt = min(dt_tfac,dt_vf)
       endif
-      dtt = fac * dt * (1.d0 + uvf)
     else
-      ifac = max(min(num_newton_iterations,size(tfac)),1)
-      dt_tfac = tfac(ifac) * dt
-
-      fac = 0.5d0
-      uvf= this%controls%volfrac_change_governor/ &
-           (maxval(this%controls%max_volfrac_change)+pert)
-      dt_vf = fac * dt * (1.d0 + uvf)
-
-      dtt = min(dt_tfac,dt_vf)
+      ! original implementation
+      ! this overrides the default setting of iacceleration = 5
+      ! by default size(tfac) is 13, so this is safe
+      dtt = dt
+      iacceleration = size(tfac)
+      if (num_newton_iterations <= iacceleration) then
+        dtt = tfac(num_newton_iterations) * dt
+      else
+        dtt = this%controls%dt_cut * dt
+      endif
     endif
-  else
-    ! original implementation
-    ! this overrides the default setting of iacceleration = 5
-    ! by default size(tfac) is 13, so this is safe
-    dtt = dt
-    iacceleration = size(tfac)
-    if (num_newton_iterations <= iacceleration) then
-      dtt = tfac(num_newton_iterations) * dt
-    else
-      dtt = this%controls%dt_cut * dt
-    endif
+
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: see comment above under flow stepper
+    dtt = max(dtt,dt_min)
+    dt = dtt
   endif
-
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: see comment above under flow stepper
-  dtt = max(dtt,dt_min)
-  dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%controls%cfl_governor, &
                                dt,dt_max)

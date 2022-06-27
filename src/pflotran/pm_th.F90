@@ -405,7 +405,8 @@ end subroutine PMTHPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMTHUpdateTimestep(this,update_dt, &
+                              dt,dt_min,dt_max,iacceleration, &
                               num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
   !
@@ -419,6 +420,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_th_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -439,38 +441,40 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call PrintMsg(this%option,'PMTH%UpdateTimestep()')
 #endif
 
-  if (iacceleration > 0) then
-    fac = 0.5d0
-    if (num_newton_iterations >= iacceleration) then
-      fac = 0.33d0
-      ut = 0.d0
+  if (update_dt .and. iacceleration /= 0) then
+    if (iacceleration > 0) then
+      fac = 0.5d0
+      if (num_newton_iterations >= iacceleration) then
+        fac = 0.33d0
+        ut = 0.d0
+      else
+        up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+        utmp = this%temperature_change_governor/ &
+              (this%max_temperature_change+1.d-5)
+        ut = min(up,utmp)
+      endif
+      dtt = fac * dt * (1.d0 + ut)
     else
+      ifac = max(min(num_newton_iterations,size(tfac)),1)
+      dt_tfac = tfac(ifac) * dt
+
+      fac = 0.5d0
       up = this%pressure_change_governor/(this%max_pressure_change+0.1)
       utmp = this%temperature_change_governor/ &
-             (this%max_temperature_change+1.d-5)
+            (this%max_temperature_change+1.d-5)
       ut = min(up,utmp)
+      dt_u = fac * dt * (1.d0 + ut)
+
+      dtt = min(dt_tfac,dt_u)
     endif
-    dtt = fac * dt * (1.d0 + ut)
-  else
-    ifac = max(min(num_newton_iterations,size(tfac)),1)
-    dt_tfac = tfac(ifac) * dt
 
-    fac = 0.5d0
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    utmp = this%temperature_change_governor/ &
-           (this%max_temperature_change+1.d-5)
-    ut = min(up,utmp)
-    dt_u = fac * dt * (1.d0 + ut)
-
-    dtt = min(dt_tfac,dt_u)
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: There used to be code here that cut the time step if it is too
+    !      large relative to the simulation time.  This has been removed.
+    dtt = max(dtt,dt_min)
+    dt = dtt
   endif
-
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: There used to be code here that cut the time step if it is too
-  !      large relative to the simulation time.  This has been removed.
-  dtt = max(dtt,dt_min)
-  dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
 
