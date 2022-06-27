@@ -1640,7 +1640,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
               string = trim(string) // ' : ' // &
                 StringFormatDouble(this%converged_real(idof,istate,itol))
-              call OptionPrint(string,option)
+              call PrintMsg(option,string)
             endif
           endif
         enddo
@@ -1649,18 +1649,18 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x," R:",9es8.1)') this%converged_real(:,:,RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"SR:",9es8.1)') &
         this%converged_real(:,:,SCALED_RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"AU:",9es8.1)') &
         this%converged_real(:,:,ABS_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"RU:",9es8.1)') &
         this%converged_real(:,:,REL_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
     endif
 
     if (it >= this%solver%newton_max_iterations) then
@@ -1668,14 +1668,14 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
       if (this%logging_verbosity > 0) then
         string = '    Exceeded Hydrate Mode Max Newton Iterations'
-        call OptionPrint(string,option)
+        call PrintMsg(option,string)
       endif
     endif
 
     if (hydrate_high_temp_ts_cut) then
       hydrate_high_temp_ts_cut = PETSC_FALSE
       string = '    Exceeded Hydrate Mode EOS max temperature'
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
 
@@ -1859,20 +1859,15 @@ subroutine PMHydrateMaxChange(this)
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
                      ierr);CHKERRQ(ierr)
   ! print them out
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-      & " dsg= ",1pe12.4,/,15x," dsh= ",1pe12.4," dsl= ",1pe12.4,&
-      & " dsi= ",1pe12.4)') &
-      max_change_global(1:9)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
-      & " dsg= ",1pe12.4,/,15x," dsh= ",1pe12.4," dsl= ",1pe12.4,&
-      & " dsi= ",1pe12.4)') &
-      max_change_global(1:9)
-  endif
+  write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4, " dpg= ",&
+                         &1pe12.4," dpa= ",1pe12.4)') max_change_global(1:3)
+  call PrintMsg(option)
+  write(option%io_buffer,'(17x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+                         &" dsg= ",1pe12.4)') max_change_global(4:6)
+  call PrintMsg(option)
+  write(option%io_buffer,'(17x," dsh= ",1pe12.4," dsl= ",1pe12.4,&
+                         &" dsi= ",1pe12.4)') max_change_global(7:9)
+  call PrintMsg(option)
 
   ! max change variables:[LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
   !                       LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION,

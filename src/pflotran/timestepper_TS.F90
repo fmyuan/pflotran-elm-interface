@@ -184,8 +184,10 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
 #include "petsc/finclude/petscts.h"
   use petscts
   use PM_Base_class
+  use PM_Subsurface_Flow_class
   use Option_module
   use Output_module, only : Output
+  use String_module
 
   implicit none
 
@@ -200,7 +202,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   type(option_type), pointer :: option
   Vec :: residual_vec
   PetscReal :: fnorm, inorm, scaled_fnorm
-  PetscInt :: ts_reason
+  TSConvergedReason :: ts_reason
   PetscInt :: num_linear_iterations
   PetscInt :: num_newton_iterations
   PetscLogDouble :: log_start_time
@@ -257,49 +259,35 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
 
   this%steps = this%steps + 1
 
-  if (option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-         & " [",a,"]", " ts_conv_reason: ",i4,/,"  newton = ",i3, &
-         & " [",i8,"]", " linear = ",i5," [",i10,"]")') &
-      this%steps, &
-      this%target_time/process_model%output_option%tconv, &
-      dtime/process_model%output_option%tconv, &
-      trim(process_model%output_option%tunit), &
-      ts_reason, &
-      this%num_newton_iterations, this%cumulative_newton_iterations, &
-      this%num_linear_iterations, this%cumulative_linear_iterations
+  call TimestepperBasePrintStepInfo(this,process_model%output_option, &
+                                    ts_reason,option)
+  write(option%io_buffer,'("  newton = ",i3," [",i8,"]", " linear = ",i5, &
+                         &" [",i10,"]")') &
+           num_newton_iterations,this%cumulative_newton_iterations, &
+           num_linear_iterations,this%cumulative_linear_iterations
+  call PrintMsg(option)
 
-    if (associated(process_model%realization_base%discretization%grid)) then
-       scaled_fnorm = fnorm/process_model%realization_base% &
-                        discretization%grid%nmax
-    else
-       scaled_fnorm = fnorm
-    endif
+  select type(process_model)
+    class is (pm_subsurface_flow_type)
+      scaled_fnorm = fnorm/process_model%realization_base% &
+                     discretization%grid%nmax
+    class default
+      scaled_fnorm = fnorm
+  end select
 
-    print *,' --> TS SNES Linear/Non-Linear Iterations = ', &
-             this%num_linear_iterations,' / ',this%num_newton_iterations
-    write(*,'("  --> TS SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm
-
-  endif
-
-  if (option%print_file_flag) then
-    write(option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-         & " [",a,"]", " ts_conv_reason: ",i4,/,"  newton = ",i3, &
-         & " [",i8,"]", " linear = ",i5," [",i10,"]")') &
-      this%steps, &
-      this%target_time/process_model%output_option%tconv, &
-      dtime/process_model%output_option%tconv, &
-      trim(process_model%output_option%tunit), &
-      ts_reason, &
-      this%num_newton_iterations, this%cumulative_newton_iterations, &
-      this%num_linear_iterations, this%cumulative_linear_iterations
-  endif
+  option%io_buffer = '  --> TS SNES Linear/Non-Linear Iterations = ' // &
+    trim(StringWrite(this%num_linear_iterations)) // ' / ' // &
+    trim(StringWrite(this%num_newton_iterations))
+  call PrintMsg(option)
+  option%io_buffer = '  --> TS SNES Residual: ' // &
+    trim(StringWrite('(e14.6)',fnorm)) // ' ' // &
+    trim(StringWrite('(e14.6)',scaled_fnorm)) // ' ' // &
+    trim(StringWrite('(e14.6)',inorm))
+  call PrintMsg(option)
 
   call process_model%FinalizeTimestep()
 
   call process_model%PostSolve()
-
-  if (option%print_screen_flag) print *, ""
 
 end subroutine TimestepperTSStepDT
 
@@ -471,7 +459,7 @@ end subroutine TimestepperTSReset
 
 ! ************************************************************************** !
 
-subroutine TimestepperTSPrintInfo(this,option)
+subroutine TimestepperTSPrintInfo(this,aux_string,option)
   !
   ! Prints settings for base timestepper.
   !
@@ -485,16 +473,17 @@ subroutine TimestepperTSPrintInfo(this,option)
 #include "petsc/finclude/petscts.h"
 
   class(timestepper_TS_type) :: this
+  character(len=*) :: aux_string
   type(option_type) :: option
 
   PetscErrorCode :: ierr
 
+  call TimestepperBasePrintInfo(this,'TS',option)
   if (OptionPrintToScreen(option)) then
     write(*,*) ' '
     write(*,*) 'TS Solver:'
     call TSView(this%solver%ts,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
-  call TimestepperBasePrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
 
@@ -627,9 +616,9 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
   !
   ! Author: Gautam Bisht
   ! Date: 07/03/18
-  !
 
   use Option_module
+  use String_module
 
   implicit none
 
@@ -642,18 +631,16 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
   call PrintMsg(option,'TimestepperSNESFinalizeRun()')
 #endif
 
-  if (OptionPrintToScreen(option)) then
-    write(*,'(/,x,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
-            & " cuts = ",i6)') &
-            trim(this%name), &
-            this%steps, &
-            this%cumulative_newton_iterations, &
-            this%cumulative_linear_iterations, &
-            this%cumulative_time_step_cuts
-    write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(x,a)') trim(this%name) // ' PETSc TS SNES time = ' // &
-      trim(adjustl(string)) // ' seconds'
-  endif
+  string = ' ' // trim(this%name) // &
+    ' PETSc TS steps = ' // trim(StringWrite(this%steps)) // &
+    ' newton = ' // trim(StringWrite(this%cumulative_newton_iterations)) // &
+    ' linear = ' // trim(StringWrite(this%cumulative_linear_iterations)) // &
+    ' cuts = ' // trim(StringWrite(this%cumulative_time_step_cuts))
+  call PrintMsg(option,string)
+  string = ' ' // trim(this%name) // &
+    ' PETSc TS time = ' // &
+    trim(StringWrite('(f12.1)',this%cumulative_solver_time)) // ' seconds'
+  call PrintMsg(option,string)
 
 end subroutine TimestepperTSFinalizeRun
 

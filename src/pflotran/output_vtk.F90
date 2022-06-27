@@ -69,7 +69,7 @@ subroutine OutputVTK(realization_base)
   filename = OutputFilename(output_option,option,'vtk','')
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write vtk output file: ' // trim(filename)
+    option%io_buffer = ' --> write vtk output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
 
@@ -204,7 +204,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   filename = OutputFilename(output_option,option,'vtk','vel')
 
   if (OptionIsIORank(option)) then
-   option%io_buffer = '--> write vtk velocity output file: ' // &
+   option%io_buffer = ' --> write vtk velocity output file: ' // &
                       trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")

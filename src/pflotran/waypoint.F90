@@ -469,10 +469,10 @@ subroutine WaypointListRemoveExtraWaypnts(waypoint_list,option)
     if (.not.associated(waypoint)) exit
     prev_waypoint => waypoint
     waypoint => waypoint%next
-    write(option%io_buffer,'("Waypoint at time:", 1pe12.4, &
-  &       " is beyond the end of simulation")') &
+    write(option%io_buffer,'("WARNING: Waypoint at time:", 1pe12.4, &
+                           &" is beyond the end of simulation")') &
           prev_waypoint%time
-    call PrintWrnMsg(option)
+    call PrintMsg(option)
     call WaypointDestroy(prev_waypoint)
     waypoint_list%num_waypoints = waypoint_list%num_waypoints - 1
   enddo
@@ -718,12 +718,9 @@ subroutine WaypointListFindDuplicateTimes(list,option)
           option%io_buffer = 'Duplicate waypoint times (in seconds):'
           call PrintMsg(option)
         endif
-        write(word,*) cur_waypoint%next%time
-        option%io_buffer = adjustl(word)
-        write(word,*) cur_waypoint%time
-        option%io_buffer = trim(option%io_buffer) // ' - ' // adjustl(word)
-        write(word,*) cur_waypoint%next%time-cur_waypoint%time
-        option%io_buffer = trim(option%io_buffer) // ' = ' // adjustl(word)
+        option%io_buffer = trim(StringWrite(cur_waypoint%next%time)) // &
+                  ' - ' // trim(StringWrite(cur_waypoint%time)) // ' = ' // &
+                  trim(StringWrite(cur_waypoint%next%time-cur_waypoint%time))
         call PrintMsg(option)
         if (fix_duplicate_waypoints) then
           ! obtain pointer for next%next

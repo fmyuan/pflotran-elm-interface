@@ -778,23 +778,23 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           endif
           string = trim(string) // ' : ' // &
             StringFormatDouble(this%converged_real(itol))
-          call OptionPrint(string,option)
+          call PrintMsg(option,string)
         endif
       endif
     enddo
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x," R:",es8.1)') this%converged_real(RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"SR:",es8.1)') &
         this%converged_real(SCALED_RESIDUAL_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"AU:",es8.1)') this%converged_real(ABS_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
       write(string,'(4x,"RU:",es8.1)') this%converged_real(REL_UPDATE_INDEX)
-      call OptionPrint(string,option)
+      call PrintMsg(option,string)
     endif
   endif
 
@@ -875,11 +875,11 @@ subroutine PMRichardsMaxChange(this)
   implicit none
 
   class(pm_richards_type) :: this
-  character(len=MAXSTRINGLENGTH) :: string
 
   call RichardsMaxChange(this%realization,this%max_pressure_change)
-  write(string,'("  --> max chng: dpmx= ",1pe12.4)') this%max_pressure_change
-  call OptionPrint(string,this%option)
+  write(this%option%io_buffer,'("  --> max change: dpmx= ",1pe12.4)') &
+        this%max_pressure_change
+  call PrintMsg(this%option)
 
 end subroutine PMRichardsMaxChange
 

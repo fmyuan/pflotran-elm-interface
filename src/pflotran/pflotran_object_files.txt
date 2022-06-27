@@ -57,6 +57,7 @@ mode_process_model_obj = \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
+	${common_src}pm_inversion.o \
 	${common_src}pm_wipp_flow.o \
 	${common_src}pm_mphase.o \
 	${common_src}pm_nwt.o \
@@ -247,8 +248,8 @@ misc_obj = \
 	${common_src}matrix_buffer.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
-	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
+	${common_src}pmc_general.o \
 	${common_src}pmc_linear.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_subsurface_osrt.o \

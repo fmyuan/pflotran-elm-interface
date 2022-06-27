@@ -3438,7 +3438,7 @@ subroutine PMWellPreSolveFlow(this)
   write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," sec.")') &
                    (this%flow_soln%n_steps+1),cur_time,this%dt_flow
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveFlow
 
@@ -3464,7 +3464,7 @@ subroutine PMWellPreSolveTran(this)
   write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," sec.")') &
                    (this%tran_soln%n_steps+1),cur_time,this%dt_tran
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveTran
 
@@ -3489,7 +3489,7 @@ subroutine PMWellSolve(this,time,ierr)
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
     write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
-    call OptionPrint(out_string,this%option)
+    call PrintMsg(this%option,out_string)
     ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs!
     return
   endif
@@ -3576,7 +3576,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
         flow_soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of FLOW Newton iterations reached. &
                       &Cutting timestep!'
-        call OptionPrint(out_string,this%option); WRITE(*,*) ""
+        call PrintMsg(this%option,out_string); WRITE(*,*) ""
         call PMWellCutTimestepFlow(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -3722,7 +3722,7 @@ subroutine PMWellSolveTran(this,time,ierr)
         soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
-        call OptionPrint(out_string,this%option); WRITE(*,*) ""
+        call PrintMsg(this%option,out_string); WRITE(*,*) ""
         call PMWellCutTimestepTran(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -4027,7 +4027,7 @@ subroutine PMWellPostSolveFlow(this)
   WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," sec &
                      & Total Newton Its =",i8)') &
                     this%option%time,this%flow_soln%n_newton
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
   WRITE(*,*) ""
 
 end subroutine PMWellPostSolveFlow
@@ -4048,7 +4048,7 @@ subroutine PMWellPostSolveTran(this)
   WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," sec &
                      & Total Newton Its =",i8)') &
                     this%option%time,this%tran_soln%n_newton
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
   WRITE(*,*) ""
 
 end subroutine PMWellPostSolveTran
@@ -4216,13 +4216,13 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
         n_iter,max_absolute_residual,max_scaled_residual, &
         max_absolute_update_p,max_absolute_update_s, &
         max_relative_update_p,max_relative_update_s
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     flow_soln%converged = PETSC_TRUE
     flow_soln%not_converged = PETSC_FALSE
     out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
-    call OptionPrint(out_string,this%option); WRITE(*,*) ""
+    call PrintMsg(this%option,out_string); WRITE(*,*) ""
     this%cumulative_dt_flow = this%cumulative_dt_flow + this%dt_flow
     this%flow_soln%prev_soln%pl = this%well%pl
     this%flow_soln%prev_soln%sg = this%well%gas%s
@@ -4338,13 +4338,14 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
 
   write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  rU:",es10.2)') &
         n_iter,max_absolute_residual,max_scaled_residual,max_update
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     soln%converged = PETSC_TRUE
     soln%not_converged = PETSC_FALSE
     out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
-    call OptionPrint(out_string,this%option); WRITE(*,*) ""
+    call PrintMsg(this%option,out_string)
+    call PrintMsg(this%option,'')
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
     soln%prev_soln%aqueous_conc = this%well%aqueous_conc
     soln%prev_soln%aqueous_mass = this%well%aqueous_mass

@@ -22,7 +22,8 @@ module Factory_Subsurface_module
             FactorySubsurfReadUFDBiospherePM, &
             FactorySubsurfReadWellPM, &
             FactorySubsurfaceReadMTPM, &
-            FactorySubsurfReadGeophysicsPM
+            FactorySubsurfReadGeophysicsPM, &
+            FactorySubsurfSetPMCWaypointPtrs
 
 contains
 
@@ -301,7 +302,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
                             associated(pm_ufd_decay),realization,input,option)
 
   if (associated(pm_auxiliary)) &
-    call AddPMCAuxiliary(simulation,pm_auxiliary,'SALINITY',realization,option)
+    call AddPMCGeneral(simulation,pm_auxiliary,'SALINITY',realization,option)
 
   if (associated(pm_well)) &
     call AddPMCWell(simulation,pm_well,'PMCWell',realization,input,option)
@@ -492,8 +493,8 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   if (.not.associated(simulation%process_model_coupler_list)) then
     simulation%process_model_coupler_list => pmc_subsurface
   else
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_subsurface),PM_CHILD, &
-                      PMCCastToBase(simulation%flow_process_model_coupler), &
+    call PMCBaseSetChildPeerPtr(pmc_subsurface%CastToBase(),PM_CHILD, &
+                      simulation%flow_process_model_coupler%CastToBase(), &
                       pmc_dummy,PM_INSERT)
   endif
 
@@ -571,8 +572,8 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   ! set up logging stage
   string = 'WASTE_FORM_GENERAL'
   call LoggingCreateStage(string,pmc_waste_form%stage)
-  call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_waste_form),PM_CHILD, &
-         PMCCastToBase(simulation%tran_process_model_coupler), &
+  call PMCBaseSetChildPeerPtr(pmc_waste_form%CastToBase(),PM_CHILD, &
+         simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
 
 end subroutine AddPMCWasteForm
@@ -635,8 +636,8 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
   ! set up logging stage
   string = 'UFD_DECAY'
   call LoggingCreateStage(string,pmc_ufd_decay%stage)
-  call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_ufd_decay),PM_CHILD, &
-         PMCCastToBase(simulation%tran_process_model_coupler), &
+  call PMCBaseSetChildPeerPtr(pmc_ufd_decay%CastToBase(),PM_CHILD, &
+         simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
 
 end subroutine AddPMCUFDDecay
@@ -704,8 +705,8 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
   ! set up logging stage
   string = 'UFD_BIOSPHERE'
   call LoggingCreateStage(string,pmc_ufd_biosphere%stage)
-  call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_ufd_biosphere),PM_CHILD, &
-         PMCCastToBase(simulation%tran_process_model_coupler), &
+  call PMCBaseSetChildPeerPtr(pmc_ufd_biosphere%CastToBase(),PM_CHILD, &
+         simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
 
 end subroutine AddPMCUDFBiosphere
@@ -782,8 +783,8 @@ end subroutine AddPMCSubsurfaceGeophysics
 
 ! ************************************************************************** !
 
-subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
-                           realization,option)
+subroutine AddPMCGeneral(simulation,pm_auxiliary,pmc_name, &
+                         realization,option)
 
   !
   ! Adds an auxiliary PMC
@@ -794,7 +795,7 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
 
   use PMC_Base_class
   use PM_Auxiliary_class
-  use PMC_Auxiliary_class
+  use PMC_General_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
   use Option_module
@@ -810,7 +811,7 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
-  class(pmc_auxiliary_type), pointer :: pmc_auxiliary
+  class(pmc_general_type), pointer :: pmc_general
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
 
@@ -821,9 +822,9 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
   string = 'salinity'
   if (StringCompareIgnoreCase(pm_auxiliary%ctype,string)) then
     if (option%itranmode == RT_MODE) then
-      pmc_auxiliary => PMCAuxiliaryCreate(pmc_name,pm_auxiliary)
-      call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
-             PMCCastToBase(simulation%tran_process_model_coupler), &
+      pmc_general => PMCGeneralCreate(pmc_name,pm_auxiliary%CastToBase())
+      call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
+             simulation%tran_process_model_coupler%CastToBase(), &
              pmc_dummy,PM_APPEND)
     else
       option%io_buffer = 'Reactive transport must be included in the &
@@ -832,10 +833,9 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
     endif
   endif
 
-  call LoggingCreateStage(string,pmc_auxiliary%stage)
+  call LoggingCreateStage(string,pmc_general%stage)
 
-end subroutine AddPMCAuxiliary
-
+end subroutine AddPMCGeneral
 
 ! ************************************************************************** !
 
@@ -893,16 +893,16 @@ subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
   ! Material transform is child of flow and peer of transport
   if (associated(simulation%tran_process_model_coupler) .and. &
       associated(simulation%flow_process_model_coupler)) then
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
-           PM_CHILD,PMCCastToBase(simulation%flow_process_model_coupler), &
-           PMCCastToBase(simulation%tran_process_model_coupler),PM_INSERT)
+    call PMCBaseSetChildPeerPtr(pmc_material_transform%CastToBase(), &
+           PM_CHILD,simulation%flow_process_model_coupler%CastToBase(), &
+           simulation%tran_process_model_coupler%CastToBase(),PM_INSERT)
   elseif(associated(simulation%flow_process_model_coupler)) then
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
-           PM_CHILD,PMCCastToBase(simulation%flow_process_model_coupler), &
+    call PMCBaseSetChildPeerPtr(pmc_material_transform%CastToBase(), &
+           PM_CHILD,simulation%flow_process_model_coupler%CastToBase(), &
            pmc_dummy,PM_INSERT)
   elseif(associated(simulation%tran_process_model_coupler)) then
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
-           PM_PEER,PMCCastToBase(simulation%tran_process_model_coupler), &
+    call PMCBaseSetChildPeerPtr(pmc_material_transform%CastToBase(), &
+           PM_PEER,simulation%tran_process_model_coupler%CastToBase(), &
            pmc_dummy,PM_APPEND)
   endif
 
@@ -975,12 +975,12 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
 
   if ( (option%itranmode /= NULL_MODE) .and. &
        (option%itranmode == NWT_MODE) ) then
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
-         PMCCastToBase(simulation%tran_process_model_coupler), &
+    call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
+         simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
   else
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
-         PMCCastToBase(simulation%flow_process_model_coupler), &
+    call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
+         simulation%flow_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
   endif
 
@@ -1811,12 +1811,13 @@ subroutine SubsurfaceInitSimulation(simulation)
   use Strata_module
   use Regression_module
   use PMC_Subsurface_class
-  use PMC_Auxiliary_class
+  use PMC_General_class
   use PMC_Base_class
+  use PM_Auxiliary_class
   use PM_Base_class
   use PM_Base_Pointer_module
+  use PM_Inversion_class
   use PM_Subsurface_Flow_class
-  use PM_Auxiliary_class
   use Timestepper_SNES_class
   use Waypoint_module
 
@@ -1824,10 +1825,11 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_auxiliary_type), pointer :: pmc_auxiliary
+  class(pmc_general_type), pointer :: pmc_general
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
   class(pmc_base_type), pointer :: pmc_dummy
   class(pm_auxiliary_type), pointer :: pm_aux
+  class(pm_inversion_type), pointer :: pm_inv
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
@@ -1843,7 +1845,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
                                     simulation%waypoint_list_subsurface)
 
-  !TODO(geh): refactor
   ! initialize global auxiliary variable object
   call GlobalSetup(realization)
 
@@ -1880,28 +1881,50 @@ subroutine SubsurfaceInitSimulation(simulation)
     pm_aux%realization => realization
     pm_aux%option => option
 
-    pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
+    pmc_general => PMCGeneralCreate('',pm_aux%CastToBase())
+    pmc_general%evaluate_at_end_of_simulation = PETSC_FALSE
     ! place the material process model as %peer for the top pmc
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
-           PMCCastToBase(simulation%process_model_coupler_list), &
+    call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
+           simulation%process_model_coupler_list%CastToBase(), &
            pmc_dummy,PM_APPEND)
     nullify(pm_aux)
+    nullify(pmc_general)
   endif
 
   if (associated(option%inversion)) then
-    allocate(pm_aux)
-    call PMAuxiliaryInit(pm_aux)
-    string = 'INVERSION'
-    call PMAuxiliarySetFunctionPointer(pm_aux,string)
-    pm_aux%realization => realization
-    pm_aux%option => option
+    allocate(pm_inv)
+    call PMInversionInit(pm_inv)
+    string = 'INVERSION_MEASUREMENT'
+    call PMInversionSetFunctionPointer(pm_inv,string)
+    pm_inv%realization => realization
+    pm_inv%option => option
 
-    pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
+    pmc_general => PMCGeneralCreate('',pm_inv%CastToBase())
     ! place the material process model as %peer for the top pmc
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_CHILD, &
-           PMCCastToBase(simulation%process_model_coupler_list), &
+    call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
+           simulation%process_model_coupler_list%CastToBase(), &
            pmc_dummy,PM_APPEND)
-    nullify(pm_aux)
+    nullify(pm_inv)
+    nullify(pmc_general)
+  endif
+
+  if (associated(option%inversion)) then
+    if (.not.option%inversion%use_perturbation) then
+      allocate(pm_inv)
+      call PMInversionInit(pm_inv)
+      string = 'INVERSION_ADJOINT'
+      call PMInversionSetFunctionPointer(pm_inv,string)
+      pm_inv%realization => realization
+      pm_inv%option => option
+
+      pmc_general => PMCGeneralCreate('',pm_inv%CastToBase())
+      ! place the material process model as %peer for the top pmc
+      call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_CHILD, &
+            simulation%process_model_coupler_list%CastToBase(), &
+            pmc_dummy,PM_APPEND)
+      nullify(pm_inv)
+      nullify(pmc_general)
+    endif
   endif
 
   ! For each ProcessModel, set:
@@ -1923,18 +1946,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   ! setup the outer waypoint lists
   call SetupWaypointList(simulation)
-  if (associated(simulation%flow_process_model_coupler)) then
-    call simulation%flow_process_model_coupler% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
-  if (associated(simulation%tran_process_model_coupler)) then
-    call simulation%tran_process_model_coupler% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
-  if (associated(simulation%geop_process_model_coupler)) then
-    call simulation%geop_process_model_coupler% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
+  call FactorySubsurfSetPMCWaypointPtrs(simulation)
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)
@@ -2190,7 +2202,6 @@ subroutine SetupWaypointList(simulation)
   ! Author: Gautam Bisht
   ! Date: 06/05/18
   !
-
   use Checkpoint_module
   use Realization_Subsurface_class
   use Option_module
@@ -2212,6 +2223,7 @@ subroutine SetupWaypointList(simulation)
     WaypointCreateSyncWaypointList(simulation%waypoint_list_subsurface)
 
   ! merge in outer waypoints (e.g. checkpoint times)
+  ! creates a copy of outer and merges to subsurface
   call WaypointListCopyAndMerge(simulation%waypoint_list_subsurface, &
                                 simulation%waypoint_list_outer,option)
 
@@ -2238,6 +2250,34 @@ subroutine SetupWaypointList(simulation)
   endif
 
 end subroutine SetupWaypointList
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfSetPMCWaypointPtrs(simulation)
+  !
+  ! Sets the process model coupler waypoint pointers to the first waypoint
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/26/22
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+
+  if (associated(simulation%flow_process_model_coupler)) then
+    call simulation%flow_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+  if (associated(simulation%tran_process_model_coupler)) then
+    call simulation%tran_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+  if (associated(simulation%geop_process_model_coupler)) then
+    call simulation%geop_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+
+end subroutine FactorySubsurfSetPMCWaypointPtrs
 
 ! ************************************************************************** !
 

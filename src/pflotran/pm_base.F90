@@ -29,6 +29,7 @@ module PM_Base_class
     class(pm_base_type), pointer :: next
   contains
     procedure, public :: Setup => PMBaseSetup
+    procedure, public :: CastToBase => PMBaseCastToBase
     procedure, public :: ReadSimulationOptionsBlock => PMBaseReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMBaseReadSelectCaseStop
     procedure, public :: ReadTSBlock => PMBaseReadSelectCaseStop
@@ -106,6 +107,20 @@ subroutine PMBaseInit(this)
   nullify(this%next)
 
 end subroutine PMBaseInit
+
+! ************************************************************************** !
+
+function PMBaseCastToBase(this)
+
+  implicit none
+
+  class(pm_base_type), target :: this
+
+  class(pm_base_type), pointer :: PMBaseCastToBase
+
+  PMBaseCastToBase => this
+
+end function PMBaseCastToBase
 
 ! ************************************************************************** !
 
@@ -460,12 +475,15 @@ subroutine PMBasePrintHeader(this)
   ! Author: Glenn Hammond
   ! Date: 08/06/18
   !
+  use Option_module
   use Utility_module
 
   implicit none
 
   class(pm_base_type) :: this
 
+  ! spacing
+  call PrintMsg(this%option,'')
   call PrintHeader(this%header,this%option)
 
 end subroutine PMBasePrintHeader
