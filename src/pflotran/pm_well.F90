@@ -20,6 +20,9 @@ module PM_Well_class
   PetscBool :: initialize_well = PETSC_TRUE
   PetscReal, parameter :: gravity = -9.8 !-9.80665d0 ! [m/s2]
 
+  PetscInt, parameter :: PEACEMAN_ISO = 1
+  PetscInt, parameter :: PEACEMAN_ANISOTROPIC = 2
+
   type :: well_grid_type
     ! number of well segments
     PetscInt :: nsegments
@@ -109,7 +112,7 @@ module PM_Well_class
     ! total well index for each well segment (including reservoir effects)
     PetscReal, pointer :: WI(:)
     ! well index model (probably has to get moved out of well_type)
-    character(len=MAXWORDLENGTH) :: WI_model
+    PetscInt :: WI_model = PEACEMAN_ISO
     ! well liquid pressure [Pa]
     PetscReal, pointer :: pl(:)
     ! well gas pressure [Pa]
@@ -1244,7 +1247,18 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
             pm_well%well%WI_base(1:num_read) = temp_well_index(1:num_read)
         !-----------------------------
           case('WELL_INDEX_MODEL')
-            call InputReadWord(input,option,pm_well%well%WI_model,PETSC_TRUE)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            select case(word)
+              case('PEACEMAN_ISO')
+                pm_well%well%WI_model = PEACEMAN_ISO 
+              case('PEACEMAN_ANISOTROPIC')
+                pm_well%well%WI_model = PEACEMAN_ANISOTROPIC
+              case default
+                option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
+                &in the ' // trim(error_string) // ' block. Default is isotropic &
+                &Peaceman (PEACEMAN_ISO).'
+              call PrintErrMsg(option)
+            end select
             call InputErrorMsg(input,option,'WELL_INDEX_MODEL',error_string)
         !-----------------------------
           case default
@@ -4567,20 +4581,45 @@ subroutine PMWellComputeWellIndex(this)
   PetscReal :: r0(this%well_grid%nsegments)
   PetscReal, parameter :: PI=3.141592653589793d0
 
+  PetscReal :: temp_real(this%well_grid%nsegments)
+  type(option_type), pointer :: option
+
+  option => this%option
+
   ! Peaceman Model: default = anisotropic
   ! This assumes z is vertical (not true for WIPP)
   select case(this%well%WI_model)
-    case('PEACEMAN_ISO')
-      this%well%WI = 2.d0*PI*this%reservoir%kx*this%well_grid%dh/ &
-                     (log(2.079d-1*this%reservoir%dx/ &
-                      (this%well%diameter/2.d0)))
-    case('PEACEMAN_ANISOTROPIC')
+    case(PEACEMAN_ISO)
+
+      temp_real = log(2.079d-1*this%reservoir%dx/ &
+                      (this%well%diameter/2.d0))
+
+      if (any(temp_real <= 0.d0)) then
+        option%io_buffer = 'Wellbore diameter is too large relative to &
+        &reservor dx. For the PEACEMAN_ISO model, wellbore diameter must &
+        & be smaller than 0.4158 * reservoir dx.'
+        call PrintErrMsg(option)
+      endif
+
+      this%well%WI = 2.d0*PI*this%reservoir%kx*this%well_grid%dh/temp_real
+    case(PEACEMAN_ANISOTROPIC)
       r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky/this%reservoir%kx)* &
            this%reservoir%dx**2 + sqrt(this%reservoir%kx/this%reservoir%ky)* &
            this%reservoir%dy**2) / ((this%reservoir%ky/this%reservoir%kx)** &
            2.5d-1 + (this%reservoir%kx/this%reservoir%ky)**2.5d-1))
+
+      temp_real = log(r0/(this%well%diameter/2.d0))
+
+      if (any(temp_real <= 0.d0)) then
+        option%io_buffer = 'Wellbore diameter is too large relative to &
+        &reservor discretization and permeability for the PEACEMAN_ANISOTROPIC &
+        &well model.'
+        call PrintErrMsg(option)
+      endif
+
       this%well%WI = 2.d0*PI*sqrt(this%reservoir%kx*this%reservoir%ky)* &
-                     this%well_grid%dh/log((this%well%diameter/2.d0)/r0)
+                     this%well_grid%dh/temp_real
+      
   end select
 
   this%well%WI = this%well%WI*this%well%WI_base
