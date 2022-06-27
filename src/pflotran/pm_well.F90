@@ -3239,12 +3239,16 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   ! units of Qin = [kmol-liq/sec]
   ! units of SS = [m3-liq/sec]
 
+  ! From the flow solution:
+  ! + Q goes into well from reservoir
+  ! - Q goes out of well into reservoir
+
   vol = this%well%volume(isegment)
 
-  if (this%well%liq%Q(isegment) < 0.d0) then ! Q into well
+  if (this%well%liq%Q(isegment) < 0.d0) then ! Q out of well
+      Qin = 0.d0 
+  else ! Q into well
       Qin = this%well%liq%Q(isegment)
-  else ! Q out of well
-      Qin = 0.d0
   endif
   SS = Qin * FMWH2O / this%well%liq%rho(isegment)
 
