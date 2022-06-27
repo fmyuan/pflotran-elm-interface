@@ -2731,20 +2731,30 @@ subroutine PMWellResidualTranSrcSink(this)
   ! aqueous conc in [mol-species/m^3-liq]
   ! residual in [mol-species/sec]
 
-  ! + Q goes out of well to reservoir
-  ! - Q goes into well from reservoir
+  ! From the flow solution:
+  ! + Q goes into well from reservoir       old:out of well to reservoir
+  ! - Q goes out of well into reservoir     old:goes into well from reservoir
 
   well => this%well
   resr => this%reservoir
 
   do isegment = 1,this%well_grid%nsegments
 
-    if (well%liq%Q(isegment) < 0.d0) then ! Q into well
-      coef_Qin = well%liq%Q(isegment)
-      coef_Qout = 0.d0
-    else ! Q out of well
+  ! old:
+  !  if (well%liq%Q(isegment) < 0.d0) then ! Q into well
+  !    coef_Qin = well%liq%Q(isegment)
+  !    coef_Qout = 0.d0
+  !  else ! Q out of well
+  !    coef_Qin = 0.d0
+  !    coef_Qout = well%liq%Q(isegment)
+  !  endif
+
+    if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
       coef_Qin = 0.d0
       coef_Qout = well%liq%Q(isegment)
+    else ! Q into well
+      coef_Qin = well%liq%Q(isegment)
+      coef_Qout = 0.d0
     endif
 
     offset = (isegment-1)*this%nspecies
