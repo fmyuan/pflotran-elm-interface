@@ -169,6 +169,12 @@ module Option_module
   interface PrintMsg
     module procedure PrintMsg1
     module procedure PrintMsg2
+    module procedure PrintMsg3
+  end interface
+
+  interface PrintMsgNoAdvance
+    module procedure PrintMsgNoAdvance1
+    module procedure PrintMsgNoAdvance2
   end interface
 
   interface PrintMsgAnyRank
@@ -217,16 +223,15 @@ module Option_module
             PrintErrMsgByRankToDev, &
             PrintWrnMsg, &
             PrintMsg, &
+            PrintMsgNoAdvance, &
             PrintMsgAnyRank, &
             PrintMsgByRank, &
             PrintMsgByCell, &
             PrintErrMsgNoStopByRank, &
             PrintVerboseMsg, &
             OptionCheckTouch, &
-            OptionPrint, &
             OptionPrintToScreen, &
             OptionPrintToFile, &
-            OptionGetFIDs, &
             OptionInitRealization, &
             OptionMeanVariance, &
             OptionMaxMinMeanVariance, &
@@ -288,6 +293,8 @@ subroutine OptionSetDriver(option,driver)
       &will not function properly.'
     call PrintErrMsg(option)
   endif
+  option%print_screen_flag = driver%PrintToScreen()
+  option%print_file_flag = PETSC_FALSE
 
 end subroutine OptionSetDriver
 
@@ -870,19 +877,53 @@ end subroutine PrintWrnMsg2
 
 ! ************************************************************************** !
 
-subroutine PrintMsg1(option)
+subroutine PrintMsgNoAdvance1(option)
   !
-  ! Prints the message from p0
+  ! Prints output to the screen and/or output file
   !
   ! Author: Glenn Hammond
-  ! Date: 11/14/07
+  ! Date: 06/10/22
   !
-
   implicit none
 
   type(option_type) :: option
 
-  call PrintMsg2(option,option%io_buffer)
+  call PrintMsgNoAdvance2(option,option%io_buffer)
+
+end subroutine PrintMsgNoAdvance1
+
+! ************************************************************************** !
+
+subroutine PrintMsgNoAdvance2(option,string)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/22
+  !
+  implicit none
+
+  type(option_type) :: option
+  character(len=*) :: string
+
+  call PrintMsg3(option,string,PETSC_FALSE)
+
+end subroutine PrintMsgNoAdvance2
+
+! ************************************************************************** !
+
+subroutine PrintMsg1(option)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07
+  !
+  implicit none
+
+  type(option_type) :: option
+
+  call PrintMsg3(option,option%io_buffer,PETSC_TRUE)
 
 end subroutine PrintMsg1
 
@@ -890,20 +931,52 @@ end subroutine PrintMsg1
 
 subroutine PrintMsg2(option,string)
   !
-  ! Prints the message from p0
+  ! Prints output to the screen and/or output file
   !
   ! Author: Glenn Hammond
-  ! Date: 11/14/07
+  ! Date: 11/14/07, 06/03/22
   !
-
   implicit none
 
   type(option_type) :: option
   character(len=*) :: string
 
-  if (OptionPrintToScreen(option)) print *, trim(string)
+  call PrintMsg3(option,string,PETSC_TRUE)
 
 end subroutine PrintMsg2
+
+! ************************************************************************** !
+
+subroutine PrintMsg3(option,string,advance_)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07, 06/03/22
+  !
+  implicit none
+
+  type(option_type) :: option
+  character(len=*) :: string
+  PetscBool :: advance_
+
+  ! note that these flags can be toggled off specific time steps
+  if (option%print_screen_flag) then
+    if (.not.advance_) then
+      write(STDOUT_UNIT,'(a)',advance='no') trim(string)
+    else
+      write(STDOUT_UNIT,'(a)') trim(string)
+    endif
+  endif
+  if (option%print_file_flag) then
+    if (.not.advance_) then
+      write(option%fid_out,'(a)',advance='no') trim(string)
+    else
+      write(option%fid_out,'(a)') trim(string)
+    endif
+  endif
+
+end subroutine PrintMsg3
 
 ! ************************************************************************** !
 
@@ -1104,53 +1177,6 @@ function OptionPrintToFile(option)
   OptionPrintToFile = option%driver%PrintToFile()
 
 end function OptionPrintToFile
-
-! ************************************************************************** !
-
-subroutine OptionPrint(string,option)
-  !
-  ! Determines whether printing to file should occur
-  !
-  ! Author: Glenn Hammond
-  ! Date: 01/29/09
-  !
-  use PFLOTRAN_Constants_module
-
-  implicit none
-
-  character(len=*) :: string
-  type(option_type) :: option
-
-  ! note that these flags can be toggled off specific time steps
-  if (option%print_screen_flag) then
-    write(STDOUT_UNIT,'(a)') trim(string)
-  endif
-  if (option%print_file_flag) then
-    write(option%fid_out,'(a)') trim(string)
-  endif
-
-end subroutine OptionPrint
-
-! ************************************************************************** !
-
-function OptionGetFIDs(option)
-  !
-  ! Determines whether printing to file should occur
-  !
-  ! Author: Glenn Hammond
-  ! Date: 01/29/09
-  !
-  implicit none
-
-  type(option_type) :: option
-
-  PetscInt :: OptionGetFIDs(2)
-
-  OptionGetFIDs = -1
-  if (OptionPrintToScreen(option)) OptionGetFIDs(1) = STDOUT_UNIT
-  if (OptionPrintToFile(option)) OptionGetFIDs(2) = option%fid_out
-
-end function OptionGetFIDs
 
 ! ************************************************************************** !
 

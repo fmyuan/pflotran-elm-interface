@@ -94,14 +94,10 @@ recursive subroutine PMCGeophysicsInitializeRun(this)
 
   class(pmc_geophysics_type) :: this
 
-  select type(pm=>this%pm_ptr%pm)
-    class is(pm_ert_type)
-      this%cur_waypoint => pm%waypoint_list%first
-    class default
-      this%option%io_buffer = 'PMCGeophysicsInitializeRun implemented only &
-                              &for ERT geophysics process model.'
-      call PrintErrMsg(this%option)
-  end select
+  class(pm_ert_type), pointer :: pm_ert
+
+  pm_ert => PMERTCast(this%pm_ptr%pm)
+  this%cur_waypoint => pm_ert%waypoint_list%first
 
   ! ensure that the first waypoint is not at time zero.
   if (associated(this%cur_waypoint)) then
@@ -179,6 +175,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   PetscLogDouble :: log_end_time
   PetscInt :: local_stop_flag
   PetscInt :: linear_iterations_in_step
+  PetscBool :: skip_survey
   PetscErrorCode :: ierr
 
   if (stop_flag == TS_STOP_FAILURE) return
@@ -187,66 +184,51 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   call this%PrintHeader()
 
   option => this%option
-  output_option => this%pm_ptr%pm%output_option
+  pm_ert => PMERTCast(this%pm_ptr%pm)
+  output_option => pm_ert%output_option
   timestepper => TimestepperSteadyCast(this%timestepper)
   linear_iterations_in_step = 0
 
-  if (associated(this%cur_waypoint)) then
-    if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
-      this%cur_waypoint => this%cur_waypoint%next
-    else
-      if (this%option%print_screen_flag) then
-        write(*, '(/," Time= ",1pe12.5," [",a,"]", &
-              &" Skipping geophysics as this is not a survey time.",/)') &
-           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+  skip_survey = PETSC_TRUE
+  if (pm_ert%waypoint_list%num_waypoints > 0) then
+    if (associated(this%cur_waypoint)) then
+      if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
+        skip_survey = PETSC_FALSE
+        this%cur_waypoint => this%cur_waypoint%next
       endif
-      if (this%option%print_file_flag) then
-        write(this%option%fid_out, '(/," Time= ",1pe12.5," [",a,"]", &
-              &" Skipping geophysics as this is not a survey time.",/)') &
-           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
-      endif
-      return
     endif
+  elseif (option%iflowmode /= NULL_MODE .or. &
+          option%itranmode /= NULL_MODE) then
+    option%io_buffer = 'SURVEY_TIMES must be listed under &
+      &SUBSURFACE_GEOPHYSICS OPTIONS when geophysics is coupled to flow &
+      &or transport.'
+    call PrintErrMsg(option)
   else
-    if (option%iflowmode /= NULL_MODE .or. option%itranmode /= NULL_MODE) then
-      option%io_buffer = 'SURVEY_TIMES must be listed under &
-        &SUBSURFACE_GEOPHYSICS OPTIONS when geophysics is coupled to flow &
-        &or transport.'
-       call PrintErrMsg(option)
-    endif
+    skip_survey = PETSC_FALSE
   endif
 
-  pm_base => this%pm_ptr%pm
-  select type(pm=>this%pm_ptr%pm)
-    class is(pm_ert_type)
-      pm_ert => pm
-      call pm_ert%PreSolve()
-      call pm_ert%Solve(timestepper%target_time,ierr)
-      linear_iterations_in_step = pm_ert%linear_iterations_in_step
-    class default
-      option%io_buffer = 'RunToTime implemented only for ERT &
-                          &geophysics process model.'
-      call PrintErrMsg(option)
-  end select
+  if (skip_survey) then
+    write(this%option%io_buffer,'(" Time= ",1pe12.5," [",a,"]", &
+          &" Skipping geophysics as this is not a survey time.")') &
+      timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+    call PrintMsg(this%option)
+    return
+  endif
+
+  call pm_ert%PreSolve()
+  call pm_ert%Solve(timestepper%target_time,ierr)
+  linear_iterations_in_step = pm_ert%linear_iterations_in_step
   if (ierr /= 0) stop_flag = TS_STOP_FAILURE
 
   timestepper%steps = timestepper%steps + 1
   timestepper%cumulative_linear_iterations = &
     timestepper%cumulative_linear_iterations + linear_iterations_in_step
-  if (this%option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-         & /,"  linear = ",i5," [",i10,"]")') &
-         timestepper%steps, timestepper%target_time/output_option%tconv, &
-         trim(output_option%tunit), linear_iterations_in_step, &
-         timestepper%cumulative_linear_iterations
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-         & /,"  linear = ",i5," [",i10,"]")') &
-         timestepper%steps, this%timestepper%target_time/output_option%tconv, &
-         trim(output_option%tunit), linear_iterations_in_step, &
-         timestepper%cumulative_linear_iterations
-  endif
+  write(this%option%io_buffer,'(" Step ",i6," Time= ",1pe12.5," [",a,"]", &
+                              &a,"  linear = ",i5," [",i10,"]")') &
+       timestepper%steps, timestepper%target_time/output_option%tconv, &
+       trim(output_option%tunit),new_line('a'), &
+       linear_iterations_in_step,timestepper%cumulative_linear_iterations
+  call PrintMsg(this%option)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
@@ -275,18 +257,16 @@ recursive subroutine PMCGeophysicsFinalizeRun(this)
   class(pmc_geophysics_type) :: this
 
   class(timestepper_steady_type), pointer :: timestepper
+  class(pm_ert_type), pointer :: pm_ert
 
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCGeophysics%FinalizeRun()')
 #endif
 
   nullify(this%realization)
-  select type(pm=>this%pm_ptr%pm)
-    class is(pm_ert_type)
-      timestepper => TimestepperSteadyCast(this%timestepper)
-      timestepper%cumulative_solver_time = pm%ksp_time
-    class default
-  end select
+  pm_ert => PMERTCast(this%pm_ptr%pm)
+  timestepper => TimestepperSteadyCast(this%timestepper)
+  timestepper%cumulative_solver_time = pm_ert%ksp_time
   call PMCBaseFinalizeRun(this)
 
 end subroutine PMCGeophysicsFinalizeRun

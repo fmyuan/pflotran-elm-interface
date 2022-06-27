@@ -403,9 +403,9 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+    option%io_buffer = ' --> creating hdf5 output file: ' // trim(filename)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+    option%io_buffer = ' --> appending to hdf5 output file: ' // trim(filename)
   endif
   call PrintMsg(option)
 
@@ -588,9 +588,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
+    option%io_buffer = ' --> creating hdf5 output file: ' // trim(filename_path)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename_path)
+    option%io_buffer = ' --> appending to hdf5 output file: ' // trim(filename_path)
   endif
   call PrintMsg(option)
 
@@ -603,7 +603,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   endif
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write xmf output file: ' // trim(filename_path)
+    option%io_buffer = ' --> write xmf output file: ' // trim(filename_path)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeader(OUTPUT_UNIT, &
@@ -987,9 +987,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
+    option%io_buffer = ' --> creating hdf5 output file: ' // trim(filename_path)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // &
+    option%io_buffer = ' --> appending to hdf5 output file: ' // &
                        trim(filename_path)
   endif
   call PrintMsg(option)
@@ -1072,7 +1072,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
 
   if (write_xdmf) then
-    option%io_buffer = '--> write xmf output file: ' // trim(xmf_filename)
+    option%io_buffer = ' --> write xmf output file: ' // trim(xmf_filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeader(OUTPUT_UNIT, &
@@ -3576,9 +3576,9 @@ subroutine OutputH5OpenFile(option, h5obj, filename, file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
   if (h5obj%first_write) then
-    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+    option%io_buffer = ' --> creating hdf5 output file: ' // trim(filename)
   else
-    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+    option%io_buffer = ' --> appending to hdf5 output file: ' // trim(filename)
   endif
   call PrintMsg(option)
 
@@ -3628,7 +3628,7 @@ subroutine OutputXMFOpenFile(option, filename, fid)
   PetscInt :: fid
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write xmf output file: ' // trim(filename)
+    option%io_buffer = ' --> write xmf output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=fid,file=filename,action="write")
   endif

@@ -70,6 +70,7 @@ module Reaction_Sandbox_Cyber_class
     PetscInt :: offset_auxiliary
     PetscBool :: store_cumulative_mass
     PetscBool :: mobile_biomass
+    PetscBool :: inhibit_by_nh4
     PetscInt, pointer :: nrow(:)
     PetscInt, pointer :: ncol(:)
     PetscInt, pointer :: irow(:,:)
@@ -149,6 +150,7 @@ function CyberCreate()
   CyberCreate%carbon_consumption_species = ''
   CyberCreate%store_cumulative_mass = PETSC_FALSE
   CyberCreate%mobile_biomass = PETSC_FALSE
+  CyberCreate%inhibit_by_nh4 = PETSC_FALSE
   nullify(CyberCreate%nrow)
   nullify(CyberCreate%ncol)
   nullify(CyberCreate%irow)
@@ -276,6 +278,8 @@ subroutine CyberRead(this,input,option)
         this%store_cumulative_mass = PETSC_TRUE
       case('MOBILE_BIOMASS')
         this%mobile_biomass = PETSC_TRUE
+      case('INHIBIT_BY_NH4')
+        this%inhibit_by_nh4 = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
@@ -601,6 +605,11 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: volume, rate_scale
   PetscReal :: dX_dbiomass
 
+  PetscReal :: nh4_inhibition, dnh4_inhibition_dnh4
+  PetscReal :: tempreal
+  PetscReal :: inhibited_rate(3)
+  PetscReal, parameter :: threshold_f = 1.d8
+
   PetscReal :: rate(3), derivative_col(6,3)
 
   volume = material_auxvar%volume
@@ -648,6 +657,18 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
     dX_dbiomass =  1.d0
   endif
 
+  nh4_inhibition = 1.d0
+  dnh4_inhibition_dnh4 = 0.d0
+  if (this%inhibit_by_nh4) then
+    tempreal = (Cnh4 - 1.d6)*threshold_f
+    nh4_inhibition = 0.5d0 + atan(tempreal)/PI
+    ! derivative of atan(X) = 1 / (1 + X^2) dX
+    dnh4_inhibition_dnh4 = threshold_f * &
+                           rt_auxvar%pri_act_coef(this%nh4_id) * &
+                           molality_to_molarity / &
+                           (1.d0 + tempreal*tempreal) / PI
+  endif
+
   k1_scaled = this%k1 * temperature_scaling_factor
   k2_scaled = this%k2 * temperature_scaling_factor
   k3_scaled = this%k3 * temperature_scaling_factor
@@ -688,12 +709,14 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   rate(2) = u2*r2kin
   rate(3) = u3*r3kin
 
+  inhibited_rate(:) = rate(:) * nh4_inhibition
+
   do irxn = 1, this%nrxn
     do i = 1, this%nrow(irxn)
       ! mol/sec
       ! X is in [M]
       Residual(this%irow(i,irxn)) = Residual(this%irow(i,irxn)) - &
-        this%stoich_row(i,irxn) * rate(irxn) * X * volume
+        this%stoich_row(i,irxn) * inhibited_rate(irxn) * X * volume
     enddo
   enddo
 
@@ -723,40 +746,40 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
     i = this%offset_auxiliary + NH4_MASS_STORAGE_INDEX
     rt_auxvar%auxiliary_data(i) = &
       ! stoichiometries on left side of reaction are negative
-      -1.d0 * rate(ONE_INTEGER) * this%stoich_1_nh4 * rate_scale
+      -1.d0 * inhibited_rate(ONE_INTEGER) * this%stoich_1_nh4 * rate_scale
     rt_auxvar%auxiliary_data(i) = rt_auxvar%auxiliary_data(i) - &
-      rate(TWO_INTEGER) * this%stoich_2_nh4 * rate_scale
+      inhibited_rate(TWO_INTEGER) * this%stoich_2_nh4 * rate_scale
     rt_auxvar%auxiliary_data(i) = rt_auxvar%auxiliary_data(i) - &
-      rate(THREE_INTEGER) * this%stoich_3_nh4 * rate_scale
+      inhibited_rate(THREE_INTEGER) * this%stoich_3_nh4 * rate_scale
     ! no3
     i = this%offset_auxiliary + NO3_MASS_STORAGE_INDEX
     rt_auxvar%auxiliary_data(i) = &
-      -1.d0 * rate(ONE_INTEGER) * this%stoich_1_no3 * rate_scale
+      -1.d0 * inhibited_rate(ONE_INTEGER) * this%stoich_1_no3 * rate_scale
     ! no2
     i = this%offset_auxiliary + NO2_MASS_STORAGE_INDEX
     rt_auxvar%auxiliary_data(i) = &
-      -1.d0 * rate(TWO_INTEGER) * this%stoich_2_no2 * rate_scale
+      -1.d0 * inhibited_rate(TWO_INTEGER) * this%stoich_2_no2 * rate_scale
     ! o2
     i = this%offset_auxiliary + O2_MASS_STORAGE_INDEX
     rt_auxvar%auxiliary_data(i) = &
-      -1.d0 * rate(THREE_INTEGER) * this%stoich_3_o2 * rate_scale
+      -1.d0 * inhibited_rate(THREE_INTEGER) * this%stoich_3_o2 * rate_scale
     ! doc
     i = this%offset_auxiliary + DOC_MASS_STORAGE_INDEX
     rt_auxvar%auxiliary_data(i) = &
-      -1.d0 * rate(ONE_INTEGER) * this%stoich_1_doc * rate_scale
+      -1.d0 * inhibited_rate(ONE_INTEGER) * this%stoich_1_doc * rate_scale
     rt_auxvar%auxiliary_data(i) = rt_auxvar%auxiliary_data(i) - &
-      rate(TWO_INTEGER) * this%stoich_2_doc * rate_scale
+      inhibited_rate(TWO_INTEGER) * this%stoich_2_doc * rate_scale
     rt_auxvar%auxiliary_data(i) = rt_auxvar%auxiliary_data(i) - &
-      rate(THREE_INTEGER) * this%stoich_3_doc * rate_scale
+      inhibited_rate(THREE_INTEGER) * this%stoich_3_doc * rate_scale
     ! co2
     i = this%offset_auxiliary + CO2_MASS_STORAGE_INDEX
     rt_auxvar%auxiliary_data(i) = &
       ! stoichiometries on right side of reaction are positive
-      rate(ONE_INTEGER) * this%stoich_1_co2 * rate_scale
+      inhibited_rate(ONE_INTEGER) * this%stoich_1_co2 * rate_scale
     rt_auxvar%auxiliary_data(i) = rt_auxvar%auxiliary_data(i) + &
-      rate(TWO_INTEGER) * this%stoich_2_co2 * rate_scale
+      inhibited_rate(TWO_INTEGER) * this%stoich_2_co2 * rate_scale
     rt_auxvar%auxiliary_data(i) = rt_auxvar%auxiliary_data(i) + &
-      rate(THREE_INTEGER) * this%stoich_3_co2 * rate_scale
+      inhibited_rate(THREE_INTEGER) * this%stoich_3_co2 * rate_scale
   endif
 
   if (compute_derivative) then
@@ -850,15 +873,27 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
           Jacobian(this%irow(i,irxn),this%icol(j,irxn)) = &
             Jacobian(this%irow(i,irxn),this%icol(j,irxn)) - &
             ! units of derivative_col = kg water/mol biomass/sec
-            this%stoich_row(i,irxn) * derivative_col(j,irxn) * X * volume
+            this%stoich_row(i,irxn) * derivative_col(j,irxn) * &
+            nh4_inhibition * &
+            X * volume
         enddo
+      enddo
+      ! nh4 inhibition
+      do i = 1, this%nrow(irxn)
+        ! units = kg water/sec
+        Jacobian(this%irow(i,irxn),this%nh4_id) = &
+          Jacobian(this%irow(i,irxn),this%nh4_id) - &
+          ! units of derivative_col = kg water/mol biomass/sec
+          this%stoich_row(i,irxn) * rate(irxn) * &
+          dnh4_inhibition_dnh4 * &
+          X * volume
       enddo
       do i = 1, this%nrow(irxn)
         ! units = mol/mol biomass/m^3 bulk/sec
         Jacobian(this%irow(i,irxn),this%biomass_id) = &
           Jacobian(this%irow(i,irxn),this%biomass_id) - &
           ! units of rate = mol/mol biomass/sec
-          this%stoich_row(i,irxn) * rate(irxn) * dX_dbiomass * volume
+          this%stoich_row(i,irxn) * inhibited_rate(irxn) * dX_dbiomass * volume
       enddo
     enddo
 

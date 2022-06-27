@@ -925,19 +925,11 @@ subroutine PMNWTFinalizeTimestep(this)
   endif
 
   call NWTMaxChange(this%realization,this%controls%max_concentration_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
-      maxval(this%controls%max_concentration_change), &
-      maxval(this%controls%max_concentration_change)/this%option%tran_dt
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,&
-            '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
-      maxval(this%controls%max_concentration_change), &
-      maxval(this%controls%max_concentration_change)/this%option%tran_dt
-  endif
+  write(this%option%io_buffer,'("  --> max change: dcmx= ",1pe12.4,&
+                              &"  dc/dt= ",1pe12.4," [mol/s]")') &
+    maxval(this%controls%max_concentration_change), &
+    maxval(this%controls%max_concentration_change)/this%option%tran_dt
+  call PrintMsg(this%option)
 
 end subroutine PMNWTFinalizeTimestep
 
@@ -1495,7 +1487,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   write(out_string,'(i3,"   aR:",es10.3," sR:",es10.3," rUP:",es10.3)') &
         newton_iter_number, max_absolute_residual, max_scaled_residual, &
         max_relative_change
-  call OptionPrint(out_string,option)
+  call PrintMsg(option,out_string)
 
   !WRITE(*,*)  ' --------------------------------------------------------------'
   !WRITE(*,*)  '          max scaled residual = ', max_scaled_residual
@@ -1525,14 +1517,14 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     write(string,'(L2)') idof_cnvgd_due_to_residual(i)
     out_string = trim(out_string) // trim(string)
   enddo
-  call OptionPrint(out_string,option)
+  call PrintMsg(option,out_string)
 
   out_string = "     update converged (T/F) = "
   do i = 1,option%ntrandof
     write(string,'(L2)') idof_cnvgd_due_to_update(i)
     out_string = trim(out_string) // trim(string)
   enddo
-  call OptionPrint(out_string,option)
+  call PrintMsg(option,out_string)
 
   ! get global minimum
   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &

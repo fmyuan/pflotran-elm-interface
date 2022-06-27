@@ -173,28 +173,30 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           &mode: '// option%flowmode
         call PrintErrMsg(option)
       endif
-      if (OptionPrintToScreen(option)) then
-        write(*,'(" number of dofs = ",i3,", number of &
-                  &phases = ",i3,i2)') option%nflowdof,option%nphase
-        select case(option%iflowmode)
-          case(MPH_MODE)
-            write(*,'(" mode = MPH: p, T, s/X")')
-          case(TH_MODE)
-            write(*,'(" mode = TH: p, T")')
-          case(RICHARDS_MODE)
-            write(*,'(" mode = Richards: p")')
-          case(PNF_MODE)
-            write(*,'(" mode = PNF: h")')
-          case(ZFLOW_MODE)
-            write(*,'(" mode = ZFlow: p")')
-          case(G_MODE)
-            write(*,'(" mode = General: p, sg/X, T")')
-          case(H_MODE)
-            write(*,'(" mode = Hydrate: p, sg/sh/si/X, T")')
-          case(WF_MODE)
-            write(*,'(" mode = WIPP Flow: p, sg")')
-        end select
-      endif
+      write(option%io_buffer,'(" number of dofs = ",i3,", number of &
+                &phases = ",i3,i2)') option%nflowdof,option%nphase
+      call PrintMsg(option)
+      select case(option%iflowmode)
+        case(MPH_MODE)
+          string = " mode = MPH: p, T, s/X"
+        case(TH_MODE)
+          string = " mode = TH: p, T"
+        case(RICHARDS_MODE)
+          string = " mode = Richards: p"
+        case(PNF_MODE)
+          string = " mode = PNF: h"
+        case(ZFLOW_MODE)
+          string = " mode = ZFlow: p"
+        case(G_MODE)
+          string = " mode = General: p, sg/X, T"
+        case(H_MODE)
+          string = " mode = Hydrate: p, sg/sh/si/X, T"
+        case(WF_MODE)
+          string = " mode = WIPP Flow: p, sg"
+        case default
+          string = "mode unknown"
+      end select
+      call PrintMsg(option,string)
 
 ! ----- Set up the J and Jpre matrices -----
 ! 1) If neither J_mat_type or Jpre_mat_type are specified, set to default.
@@ -355,9 +357,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       check_update = pm%realization%reaction%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
-      if (OptionPrintToScreen(option)) then
-        write(*,'(" mode = Reactive Transport")')
-      endif
+      option%io_buffer = "mode = Reactive Transport"
+      call PrintMsg(option)
   ! ----- nuclear waste transport
     class is(pm_nwt_type)
       check_post_convergence = pm%controls%check_post_convergence
@@ -366,9 +367,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       check_update = pm%controls%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
-      if (OptionPrintToScreen(option)) then
-        write(*,'(" mode = Nuclear Waste Transport")')
-      endif
+      option%io_buffer = "mode = Nuclear Waste Transport"
+      call PrintMsg(option)
   end select
 
   if (itranmode == RT_MODE .or. itranmode == NWT_MODE) then
@@ -552,16 +552,16 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
           call PrintErrMsg(option)
         end select
 
-        if (OptionPrintToScreen(option)) then
-          write(*,'(" number of dofs = ",i3,", number of &
-                    &phases = ",i3,i2)') option%nflowdof,option%nphase
-          select case(option%iflowmode)
-            case(RICHARDS_TS_MODE)
-              write(*,'(" mode = Richards: p")')
-            case(TH_TS_MODE)
-              write(*,'(" mode = TH: p, T")')
-          end select
-        endif
+        write(option%io_buffer,'(" number of dofs = ",i3,", number of &
+                  &phases = ",i3,i2)') option%nflowdof,option%nphase
+        call PrintMsg(option)
+        select case(option%iflowmode)
+          case(RICHARDS_TS_MODE)
+            option%io_buffer = " mode = Richards: p"
+          case(TH_TS_MODE)
+            option%io_buffer = " mode = TH: p, T"
+        end select
+        call PrintMsg(option)
 
         call TSSetOptionsPrefix(solver%ts,"flow_",ierr);CHKERRQ(ierr)
         call TSSetFromOptions(solver%ts,ierr);CHKERRQ(ierr)

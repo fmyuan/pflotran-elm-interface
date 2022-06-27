@@ -1,0 +1,262 @@
+#Description: 3D Geophysics Electrical Resistivity Tomography  problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+          SOLUTE_TRANSPORT
+        /
+        LIQUID_DENSITY 998.32d0 kg/m^3
+        LIQUID_VISCOSITY 8.9d-4 
+      / 
+    /
+    SUBSURFACE_GEOPHYSICS geophysics
+      MODE ERT
+      OPTIONS
+        COMPUTE_JACOBIAN
+        TRACER_CONDUCTIVITY 1.d-7
+        SURVEY_TIMES h 2.7778d-4 6.d0 12.d0 24.d0 # 2.778d-4 ~= 1 second
+        OUTPUT_ALL_SURVEYS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER FLOW
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d-2
+  /
+END
+
+NUMERICAL_METHODS GEOPHYSICS
+  LINEAR_SOLVER
+    SOLVER BCGS
+    PC_TYPE BLOCK_JACOBI
+    ATOL 1.d-12
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 3
+  CELL_IDS
+    93
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+    SOLUTE_CONCENTRATION
+    ELECTRICAL_CONDUCTIVITY
+    ELECTRICAL_POTENTIAL 2
+    ELECTRICAL_JACOBIAN 1
+  /
+END
+
+#=========================== Geophysics survey  ================================
+SURVEY
+  FILE_NAME ert.srv
+  FORMAT E4D_SRV
+END  
+
+#=========================== Output options ==-================================
+OUTPUT
+  FORMAT HDF5
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 4 6
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  ELECTRICAL_CONDUCTIVITY 1.12d0
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION top1
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 3.d0
+    2.d0 4.d0 3.d0
+  /
+END
+
+REGION top2
+  FACE TOP
+  COORDINATES
+    3.d0 0.d0 3.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 4.d0 3.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 0.d0 3.d0
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.d0 4.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION infiltrometer
+  FACE TOP
+  COORDINATES
+    2.d0 1.d0 3.d0
+    3.d0 4.d0 3.d0
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d0 h
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    CONCENTRATION DIRICHLET
+  /
+  DATUM 0.d0 0.d0 1.5d0
+  LIQUID_PRESSURE 101325.d0
+  CONCENTRATION 1.d-10
+END
+
+FLOW_CONDITION infiltrometer
+  TYPE
+    LIQUID_FLUX NEUMANN
+    CONCENTRATION DIRICHLET
+  /
+  LIQUID_FLUX 100 cm/yr
+  CONCENTRATION 1.d-3
+END
+
+#=========================== geophyscs conditions =============================
+GEOPHYSICS_CONDITION boundary_potential
+  TYPE DIRICHLET
+END
+
+GEOPHYSICS_CONDITION zero_flux
+  TYPE ZERO_GRADIENT
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION all
+END
+
+BOUNDARY_CONDITION top_bc1
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION zero_flux
+  REGION top1
+END
+
+BOUNDARY_CONDITION infiltrometer
+  FLOW_CONDITION infiltrometer
+  GEOPHYSICS_CONDITION zero_flux
+  REGION infiltrometer
+END
+
+BOUNDARY_CONDITION top_bc2
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION zero_flux
+  REGION top2
+END
+
+BOUNDARY_CONDITION east_bc
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION east
+END
+
+BOUNDARY_CONDITION west_bc
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION west
+END
+
+BOUNDARY_CONDITION south_bc
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION south
+END
+
+BOUNDARY_CONDITION north_bc
+  FLOW_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION north
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

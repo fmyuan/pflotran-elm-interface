@@ -77,17 +77,16 @@ for irow in range(num_rows):
         value1 = array1[irow][icol]
         value2 = array2[irow][icol]
         rel_diff = 0.
-        diff = 0.
+        diff = value1-value2
         if abs(value1) > 0.:
-            diff = value1-value2
             rel_diff = diff/value1
         elif abs(value2) > 0.:
-            print('Both values are not zero.')
+            rel_diff = diff/value2
         print('{} {} {:.8e} {:.8e} {:.5f} {:.3e}'.format(irow+1,icol+1,value1,value2,rel_diff,diff/max_abs_val))
         for i in range(num_max):
             if abs(rel_diff) > abs(max_tpl[i][0]):
-                 max_tpl[i] = (rel_diff,value1,value2,irow+1,icol+1)
-                 break
+                max_tpl[i] = (rel_diff,value1,value2,irow+1,icol+1)
+                break
             
 for i in range(num_max):
     tpl = max_tpl[i]

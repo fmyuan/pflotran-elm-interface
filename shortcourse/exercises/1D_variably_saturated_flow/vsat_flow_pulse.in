@@ -20,8 +20,6 @@ NUMERICAL_METHODS FLOW
 
 END
 
-#=========================== solver options ===================================
-
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED

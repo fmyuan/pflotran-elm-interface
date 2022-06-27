@@ -265,7 +265,7 @@ subroutine OutputTecplotBlock(realization_base)
   filename = OutputFilename(output_option,option,'tec','')
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write tecplot output file: ' // trim(filename)
+    option%io_buffer = ' --> write tecplot output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
     call OutputTecplotHeader(OUTPUT_UNIT,realization_base,icolumn)
@@ -469,7 +469,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   filename = OutputFilename(output_option,option,'tec','vel')
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write tecplot velocity output file: ' // &
+    option%io_buffer = ' --> write tecplot velocity output file: ' // &
                        trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -707,7 +707,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   filename = trim(filename) // '-' // trim(string) // '.tec'
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write tecplot velocity flux output file: ' // &
+    option%io_buffer = ' --> write tecplot velocity flux output file: ' // &
                        trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -989,7 +989,7 @@ subroutine OutputTecplotPoint(realization_base)
   filename = OutputFilename(output_option,option,'tec','')
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write tecplot output file: ' // &
+    option%io_buffer = ' --> write tecplot output file: ' // &
                        trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -1103,7 +1103,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   filename = OutputFilename(output_option,option,'tec','vel')
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write tecplot velocity output file: ' // &
+    option%io_buffer = ' --> write tecplot velocity output file: ' // &
                        trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -1273,7 +1273,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
 
   ! open file
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write tecplot output file: ' // trim(filename)
+    option%io_buffer = ' --> write tecplot output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
 
@@ -2252,7 +2252,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
                                 density)
 
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write rate output file: ' // &
+    option%io_buffer = ' --> write rate output file: ' // &
                        trim(filename)
     call PrintMsg(option)
   endif
@@ -2412,7 +2412,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
                // trim(adjustl(string2)) // '-' // trim(string3) // '.tec'
 
     if (OptionIsIORank(option)) then
-      option%io_buffer = '--> write tecplot output file: ' // trim(filename)
+      option%io_buffer = ' --> write tecplot output file: ' // trim(filename)
       call PrintMsg(option)
     endif
 

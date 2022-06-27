@@ -1068,7 +1068,7 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
     case(GEOPHYSICS_CLASS)
       prefix = '-geop_'
   end select
-  
+
   found = PETSC_TRUE
   select case(trim(keyword))
     case('SNES_TYPE')
@@ -1399,8 +1399,8 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   character(len=*) :: header
   type(option_type) :: option
 
-  PetscInt :: fids(2)
-  character(len=MAXSTRINGLENGTH) :: strings(20)
+  PetscInt :: i
+  character(len=MAXSTRINGLENGTH) :: strings(10)
   PetscErrorCode :: ierr
 
 #if !defined(PETSC_HAVE_MUMPS)
@@ -1413,9 +1413,9 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   endif
 #endif
 
-  fids = OptionGetFIDs(option)
-  call StringWriteToUnits(fids,'')
-  call StringWriteToUnits(fids,trim(header) // ' Linear Solver')
+  call PrintMsg(option,'')
+  option%io_buffer = trim(header) // ' Linear Solver'
+  call PrintMsg(option)
   strings(:) = ''
   strings(1) = 'solver: '// StringWrite(solver%ksp_type)
   strings(2) = 'preconditioner: '// StringWrite(solver%pc_type)
@@ -1429,7 +1429,9 @@ subroutine SolverPrintLinearInfo(solver,header,option)
                                    StringWrite(solver%linear_zero_pivot_tol)
   endif
   call StringsCenter(strings,30,':')
-  call StringWriteToUnits(fids,strings)
+  do i = 1, size(strings)
+    if (len_trim(strings(i)) > 0) call PrintMsg(option,strings(i))
+  enddo
 
   if (solver%verbose_logging) then
     call KSPView(solver%ksp,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
@@ -1457,13 +1459,13 @@ subroutine SolverPrintNewtonInfo(solver,header,option)
   character(len=*) :: header
   type(option_type) :: option
 
-  PetscInt :: fids(2)
+  PetscInt :: i
   character(len=MAXSTRINGLENGTH) :: strings(20)
   PetscErrorCode :: ierr
 
-  fids = OptionGetFIDs(option)
-  call StringWriteToUnits(fids,'')
-  call StringWriteToUnits(fids,trim(header) // ' Newton Solver')
+  call PrintMsg(option,'')
+  option%io_buffer = trim(header) // ' Newton Solver'
+  call PrintMsg(option)
   strings(:) = ''
   strings(1) = 'atol: '// StringWrite(solver%newton_atol)
   strings(2) = 'rtol: '// StringWrite(solver%newton_rtol)
@@ -1489,7 +1491,9 @@ subroutine SolverPrintNewtonInfo(solver,header,option)
               StringWrite(String1Or2(solver%check_infinity_norm,'on','off'))
 
   call StringsCenter(strings,30,':')
-  call StringWriteToUnits(fids,strings)
+  do i = 1, size(strings)
+    if (len_trim(strings(i)) > 0) call PrintMsg(option,strings(i))
+  enddo
 
   if (solver%verbose_logging) then
     call SNESView(solver%snes,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
