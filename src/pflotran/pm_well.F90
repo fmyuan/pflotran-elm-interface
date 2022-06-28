@@ -2832,17 +2832,15 @@ subroutine PMWellResidualTranFlux(this)
   PetscInt :: n_up, n_dn
   PetscReal :: area_up, area_dn
   PetscReal :: q_up, q_dn
-  PetscReal :: sat, conc
+  PetscReal :: conc
   PetscReal :: diffusion
   PetscReal :: Res(this%nspecies)
   PetscReal :: Res_up(this%nspecies), Res_dn(this%nspecies)
 
   ! residual in [mol-species/sec]
   ! area in [m2-bulk]
-  ! q in [m3-liq/m2-bulk-sec]
+  ! q_up, d_dn in [m3-liq/m2-bulk-sec]
   ! conc in [mol-species/m3-liq]
-  ! sat in [m2-liq/m2-void] and is not needed according to units
-  !                         this is why sat is set to 1.0 for now
 
   ! NOTE: The up direction is towards well top, and the dn direction is
   !       towards the well bottom.
@@ -2875,26 +2873,22 @@ subroutine PMWellResidualTranFlux(this)
 
       ! north surface:
       if (q_up < 0.d0) then ! flow is up well
-        sat = 1.d0 !this%well%liq%s(isegment)
         conc = this%well%aqueous_conc(k,isegment)
-        Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+        Res_up(k) = (n_up*area_up)*(q_up*conc - diffusion)
       elseif (q_up > 0.d0) then ! flow is down well
-        sat = 1.d0 !this%well%liq%s(isegment+1)
         conc = this%well%aqueous_conc(k,isegment+1)
-        Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+        Res_up(k) = (n_up*area_up)*(q_up*conc - diffusion)
       else ! q_up = 0
         Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
       endif
 
       ! south surface:
       if (q_dn < 0.d0) then ! flow is up well
-        sat = 1.d0 !this%well%liq%s(isegment-1)
         conc = this%well%aqueous_conc(k,isegment-1)
-        Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+        Res_dn(k) = (n_dn*area_dn)*(q_dn*conc - diffusion)
       elseif (q_dn > 0.d0) then ! flow is down well
-        sat = 1.d0 !this%well%liq%s(isegment)
         conc = this%well%aqueous_conc(k,isegment)
-        Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+        Res_dn(k) = (n_dn*area_dn)*(q_dn*conc - diffusion)
       else ! q_dn = 0
         Res_dn(k) = (n_dn*area_dn)*(0.d0 - diffusion)
       endif
@@ -2927,26 +2921,22 @@ subroutine PMWellResidualTranFlux(this)
 
     ! north surface:
     if (q_up < 0.d0) then ! flow is up the well
-      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
-      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+      Res_up(k) = (n_up*area_up)*(q_up*conc - diffusion)
     elseif (q_up > 0.d0) then ! flow is down the well
-      sat = 1.d0 !this%well%liq%s(isegment+1)
       conc = this%well%aqueous_conc(k,isegment+1)
-      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+      Res_up(k) = (n_up*area_up)*(q_up*conc - diffusion)
     else ! q_up = 0
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
     endif
 
     ! south surface:
     if (q_dn < 0.d0) then ! flow is up the well
-      sat = 1.d0 !(1.d0 - this%well%bh_sg)
       conc = this%reservoir%aqueous_conc(k,isegment)
-      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*conc - diffusion)
     elseif (q_dn > 0.d0) then ! flow is down the well
-      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
-      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*conc - diffusion)
     else ! q_dn = 0
       Res_dn(k) = (n_dn*area_dn)*(0.d0 - diffusion)
     endif
@@ -2977,26 +2967,22 @@ subroutine PMWellResidualTranFlux(this)
 
     ! north surface:
     if (q_up < 0.d0) then ! flow is up the well
-      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
-      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+      Res_up(k) = (n_up*area_up)*(q_up*conc - diffusion)
     elseif (q_up > 0.d0) then ! flow is down the well
-      sat = 1.d0 !(1.d0 - this%well%th_sg)
       conc = this%well%aqueous_conc_th(ispecies)
-      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+      Res_up(k) = (n_up*area_up)*(q_up*conc - diffusion)
     else ! q_up = 0
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
     endif
 
     ! south surface:
     if (q_dn < 0.d0) then ! flow is up the well
-      sat = 1.d0 !this%well%liq%s(isegment-1)
       conc = this%well%aqueous_conc(k,isegment-1)
-      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*conc - diffusion)
     elseif (q_dn > 0.d0) then ! flow is down the well
-      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
-      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*conc - diffusion)
     else ! q_dn = 0
       Res_dn(k) = (n_dn*area_dn)*(0.d0 - diffusion)
     endif
