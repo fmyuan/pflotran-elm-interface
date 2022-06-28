@@ -300,9 +300,10 @@ end function PMOSRTAcceptSolution
 
 ! ************************************************************************** !
 
-subroutine PMOSRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMOSRTUpdateTimestep(this,update_dt, &
+                                dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
-                              time_step_max_growth_factor)
+                                time_step_max_growth_factor)
   !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
@@ -312,28 +313,31 @@ subroutine PMOSRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_osrt_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
-  PetscInt :: iacceleration
-  PetscInt :: num_newton_iterations
-  PetscReal :: tfac(:)
+  PetscInt :: iacceleration ! dummy
+  PetscInt :: num_newton_iterations ! dummy
+  PetscReal :: tfac(:) ! dummy
   PetscReal :: time_step_max_growth_factor
 
   PetscReal, parameter :: pert = 1.d-20
   PetscReal :: dtt
   PetscReal :: uvf
 
-  dtt = 1.d20
-  if (this%volfrac_change_governor < 1.d0) then
-    uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
-    dtt = 0.5d0 * dt * (1.d0 + uvf)
-  endif
+  if (update_dt) then
+    dtt = 1.d20
+    if (this%volfrac_change_governor < 1.d0) then
+      uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
+      dtt = 0.5d0 * dt * (1.d0 + uvf)
+    endif
 
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: see comment above under flow stepper
-  dtt = max(dtt,dt_min)
-  dt = dtt
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: see comment above under flow stepper
+    dtt = max(dtt,dt_min)
+    dt = dtt
+  endif
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
 

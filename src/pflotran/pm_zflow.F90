@@ -492,7 +492,8 @@ end subroutine PMZFlowPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMZFlowUpdateTimestep(this,update_dt, &
+                                 dt,dt_min,dt_max,iacceleration, &
                                  num_newton_iterations,tfac, &
                                  time_step_max_growth_factor)
   !
@@ -506,6 +507,7 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_zflow_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -518,29 +520,30 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: sat_ratio, pres_ratio
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  sat_ratio = (2.d0*this%liq_sat_change_ts_governor)/ &
-              (this%liq_sat_change_ts_governor+this%max_saturation_change)
-  pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
-               (this%liq_pres_change_ts_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(sat_ratio,pres_ratio)*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (min(sat_ratio,pres_ratio) > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else if (sat_ratio < pres_ratio) then
-      string = 'liquid saturation governor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    sat_ratio = (2.d0*this%liq_sat_change_ts_governor)/ &
+                (this%liq_sat_change_ts_governor+this%max_saturation_change)
+    pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
+                (this%liq_pres_change_ts_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(min(sat_ratio,pres_ratio)*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (min(sat_ratio,pres_ratio) > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else if (sat_ratio < pres_ratio) then
+        string = 'liquid saturation governor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call PrintMsg(this%option,string)
   endif
 
   if (Initialized(this%cfl_governor)) then

@@ -597,7 +597,8 @@ end subroutine PMGeneralPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMGeneralUpdateTimestep(this,update_dt, &
+                                   dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
   !
@@ -617,6 +618,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_general_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -639,57 +641,59 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call PrintMsg(this%option,'PMGeneral%UpdateTimestep()')
 #endif
 
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    umin = 0.d0
-  else
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
-    ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
-    us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
-    umin = min(up,ut,ux,us)
-  endif
-  ifac = max(min(num_newton_iterations,size(tfac)),1)
-  umin_scale = fac * (1.d0 + umin)
-  governed_dt = umin_scale * dt
-  dtt = min(time_step_max_growth_factor*dt,governed_dt)
-  dt = min(dtt,tfac(ifac)*dt,dt_max)
-  dt = max(dt,dt_min)
-
-   ! Inform user that time step is being limited by a state variable.
-  if (Equal(dt,governed_dt)) then
-    umin = umin * (1.d0 + 1.d-8)
-    if (up < umin) then
-      string = 'Pressure'
-      value = this%max_pressure_change
-      governor_value = this%pressure_change_governor
-    else if (ut < umin) then
-      string = 'Temperature'
-      value = this%max_temperature_change
-      governor_value = this%temperature_change_governor
-    else if (ux < umin) then
-      string = 'Mole Fraction'
-      value = this%max_xmol_change
-      governor_value = this%xmol_change_governor
-    else if (us < umin) then
-      string = 'Saturation'
-      value = this%max_saturation_change
-      governor_value = this%saturation_change_governor
+  if (update_dt .and. iacceleration /= 0) then
+    fac = 0.5d0
+    if (num_newton_iterations >= iacceleration) then
+      fac = 0.33d0
+      umin = 0.d0
     else
-      string = 'Unknown'
-      value = -999.d0
-      governor_value = -999.d0
+      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+      ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+      ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
+      us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
+      umin = min(up,ut,ux,us)
     endif
-    string = ' Dt limited by ' // trim(string) // ': Val=' // &
-      trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
-      trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
-      trim(StringWriteF('(f4.2)',umin_scale))
-    if (OptionPrintToScreen(this%option)) then
-      write(*,'(a,/)') trim(string)
-    endif
-    if (OptionPrintToFile(this%option)) then
-      write(this%option%fid_out,'(a,/)') trim(string)
+    ifac = max(min(num_newton_iterations,size(tfac)),1)
+    umin_scale = fac * (1.d0 + umin)
+    governed_dt = umin_scale * dt
+    dtt = min(time_step_max_growth_factor*dt,governed_dt)
+    dt = min(dtt,tfac(ifac)*dt,dt_max)
+    dt = max(dt,dt_min)
+
+    ! Inform user that time step is being limited by a state variable.
+    if (Equal(dt,governed_dt)) then
+      umin = umin * (1.d0 + 1.d-8)
+      if (up < umin) then
+        string = 'Pressure'
+        value = this%max_pressure_change
+        governor_value = this%pressure_change_governor
+      else if (ut < umin) then
+        string = 'Temperature'
+        value = this%max_temperature_change
+        governor_value = this%temperature_change_governor
+      else if (ux < umin) then
+        string = 'Mole Fraction'
+        value = this%max_xmol_change
+        governor_value = this%xmol_change_governor
+      else if (us < umin) then
+        string = 'Saturation'
+        value = this%max_saturation_change
+        governor_value = this%saturation_change_governor
+      else
+        string = 'Unknown'
+        value = -999.d0
+        governor_value = -999.d0
+      endif
+      string = ' Dt limited by ' // trim(string) // ': Val=' // &
+        trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
+        trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
+        trim(StringWriteF('(f4.2)',umin_scale))
+      if (OptionPrintToScreen(this%option)) then
+        write(*,'(a,/)') trim(string)
+      endif
+      if (OptionPrintToFile(this%option)) then
+        write(this%option%fid_out,'(a,/)') trim(string)
+      endif
     endif
   endif
 
