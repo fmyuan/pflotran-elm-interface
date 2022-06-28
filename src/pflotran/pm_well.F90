@@ -135,9 +135,9 @@ module PM_Well_class
     PetscReal, pointer :: species_decay_rate(:)
     ! well species' parent decay rate [1/sec]
     PetscReal, pointer :: species_parent_decay_rate(:)
-    ! well species aqueous concentration [mol/m3-liq] (idof,conc@segment)
+    ! well species aqueous concentration [mol/m3-liq] (ispecies,conc@segment)
     PetscReal, pointer :: aqueous_conc(:,:)
-    ! well species aqueous mass [mol] (idof,mass@segment)
+    ! well species aqueous mass [mol] (ispecies,mass@segment)
     PetscReal, pointer :: aqueous_mass(:,:)
     ! well species aqueous concentration top of hole BC [mol/m3-liq]
     PetscReal, pointer :: aqueous_conc_th(:)
@@ -3291,17 +3291,22 @@ subroutine PMWellJacTranFlux(this,Jblock,isegment)
   PetscReal :: Jblock(this%nspecies,this%nspecies)
   PetscInt :: isegment
 
+  type(well_type), pointer :: well
   PetscInt :: istart, iend, ispecies
   PetscInt :: n_up, n_dn
   PetscReal :: d_diffusion_dM
   PetscReal :: J_up, J_dn
   PetscReal :: area_up, area_dn
-  PetscReal :: q_up, q_dn
+  PetscReal :: sat_up, sat_dn, por_up, por_dn
+  PetscReal :: u_up, u_dn
 
   ! units of Jac = [m^3-bulk/sec]
   ! area in [m2-bulk]
   ! q in [m3-liq/m2-bulk-sec]
-  ! sat in [m2-liq/m2-void] and is not needed according to units
+  ! u in [m-liq/sec]
+  ! sat in [m2-liq/m2-void] 
+
+  well => this%well
 
   ! NOTE: The up direction is towards well top, and the dn direction is
   !       towards the well bottom.
@@ -3316,38 +3321,53 @@ subroutine PMWellJacTranFlux(this,Jblock,isegment)
   if ((isegment > 1) .and. (isegment < this%well_grid%nsegments)) then
   ! ----------------------------------------INTERIOR-FLUXES------------------
 
-    area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
-    area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+    ! define face values with arithmetic averages:
+    area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
+    area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
+    por_up = 0.5d0 * (well%phi(isegment) + well%phi(isegment+1)) 
+    por_dn = 0.5d0 * (well%phi(isegment) + well%phi(isegment-1))    
+    sat_up = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment+1)) 
+    sat_dn = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment-1)) 
 
-    q_up = this%well%ql(isegment)
-    q_dn = this%well%ql(isegment-1)
+    u_up = well%ql(isegment)/(sat_up*por_up)
+    u_dn = well%ql(isegment-1)/(sat_dn*por_dn)
 
   ! ----------------------------------------BOUNDARY-FLUXES------------------
   else if (isegment == 1) then
     ! ----- bottom of well -----
 
-    area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
-    area_dn = this%well%area(isegment)
+    ! define face values with arithmetic averages:
+    area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
+    area_dn = well%area(isegment)
+    por_up = 0.5d0 * (well%phi(isegment) + well%phi(isegment+1)) 
+    por_dn = well%phi(isegment)   
+    sat_up = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment+1)) 
+    sat_dn = well%liq%s(isegment)
 
-    q_up = this%well%ql(isegment)
-    q_dn = this%well%ql_bc(1) ! bottom of hole ql
+    u_up = well%ql(isegment)/(sat_up*por_up)
+    u_dn = well%ql_bc(1)/(sat_dn*por_dn)        ! bottom of hole ql = ql_bc(1)
 
   else if (isegment == this%well_grid%nsegments) then
     ! ----- top of well -----
 
+    ! define face values with arithmetic averages:
     area_up = this%well%area(isegment)
     area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+    por_up = well%phi(isegment)
+    por_dn = 0.5d0 * (well%phi(isegment) + well%phi(isegment-1))    
+    sat_up = well%liq%s(isegment)
+    sat_dn = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment-1)) 
 
-    q_up = this%well%ql_bc(2) ! top of hole ql
-    q_dn = this%well%ql(isegment-1)
+    u_up = this%well%ql_bc(2)/(sat_up*por_up)      ! top of hole ql = ql_bc(2)
+    u_dn = this%well%ql(isegment-1)/(sat_dn*por_dn)
 
   endif
 
   ! north surface:
-  J_up = (n_up*area_up)*(q_up - d_diffusion_dM)
+  J_up = (n_up*area_up)*(u_up - d_diffusion_dM)
 
   ! south surface:
-  J_dn = (n_dn*area_dn)*(q_dn - d_diffusion_dM)
+  J_dn = (n_dn*area_dn)*(u_dn - d_diffusion_dM)
 
   istart = 1
   iend = this%nspecies
@@ -3838,24 +3858,27 @@ subroutine PMWellUpdateSolutionTran(this)
 
   PetscInt :: ispecies, isegment, k
   PetscInt :: offset, istart, iend
+  PetscInt :: nspecies 
   PetscReal :: vol
 
   ! update in [mol/m3-bulk]
   ! volume in [m3-bulk]
 
+  nspecies = this%nspecies 
+
   do isegment = 1,this%well_grid%nsegments
 
-    offset = (isegment-1)*this%nspecies
+    offset = (isegment-1)*nspecies
     istart = offset + 1
-    iend = offset + this%nspecies
+    iend = offset + nspecies
 
     vol = this%well%volume(isegment)
 
-    this%well%aqueous_mass(istart:iend,isegment) = &              ! [mol]
-                           this%well%aqueous_mass(istart:iend,isegment) + &
+    this%well%aqueous_mass(1:nspecies,isegment) = &              ! [mol]
+                           this%well%aqueous_mass(1:nspecies,isegment) + &
                            (this%tran_soln%update(istart:iend) * vol)
-    this%well%aqueous_conc(istart:iend,isegment) = &
-          this%well%aqueous_mass(istart:iend,isegment) / &        ! [mol]
+    this%well%aqueous_conc(1:nspecies,isegment) = &
+          this%well%aqueous_mass(1:nspecies,isegment) / &        ! [mol]
           (this%well%phi(isegment)*vol*this%well%liq%s(isegment)) ! [m3-liq]
 
   enddo
@@ -4597,6 +4620,7 @@ subroutine PMWellComputeWellIndex(this)
   PetscReal :: temp_real
   type(option_type), pointer :: option
   PetscInt :: k
+  character(len=8) :: diameter_string
 
   option => this%option
 
@@ -4606,13 +4630,14 @@ subroutine PMWellComputeWellIndex(this)
     case(PEACEMAN_ISO)
 
       do k = 1,this%well_grid%nsegments
+        write(diameter_string,'(F7.4)') this%well%diameter(k)
         temp_real = log(2.079d-1*this%reservoir%dx(k)/ &
                         (this%well%diameter(k)/2.d0))
 
         if (temp_real <= 0.d0) then
-          option%io_buffer = 'Wellbore diameter is too large relative to &
-          &reservor dx. For the PEACEMAN_ISO model, wellbore diameter must &
-          &be smaller than 0.4158 * reservoir dx.'
+          option%io_buffer = 'Wellbore diameter (' // diameter_string // '&
+          & m) is too large relative to reservoir dx. For the PEACEMAN_ISO &
+          &model, wellbore diameter must be smaller than 0.4158 * reservoir dx.'
           call PrintErrMsg(option)
         endif
 
@@ -4622,6 +4647,7 @@ subroutine PMWellComputeWellIndex(this)
 
     case(PEACEMAN_ANISOTROPIC)
       do k = 1,this%well_grid%nsegments
+        write(diameter_string,'(F7.4)') this%well%diameter(k)
         r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky(k)/this%reservoir%kx(k))* &
              this%reservoir%dx(k)**2 + sqrt(this%reservoir%kx(k)/ &
              this%reservoir%ky(k))*this%reservoir%dy(k)**2) / &
@@ -4631,9 +4657,9 @@ subroutine PMWellComputeWellIndex(this)
         temp_real = log(r0/(this%well%diameter(k)/2.d0))
 
         if (temp_real <= 0.d0) then
-          option%io_buffer = 'Wellbore diameter is too large relative to &
-          &reservor discretization and permeability for the &
-          &PEACEMAN_ANISOTROPIC well model.'
+          option%io_buffer = 'Wellbore diameter (' // diameter_string // ' m)&
+          & is too large relative to reservoir discretization and &
+          &permeability for the PEACEMAN_ANISOTROPIC well model.'
           call PrintErrMsg(option)
         endif
 
@@ -5260,8 +5286,13 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         v_darcy = -1.d0 *perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !v_darcy = perm_ave_over_dist * rel_perm / visl * &
+        !          delta_pressure
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         ! Store boundary flux for consistency with transport
         if (save_flux) then
