@@ -2732,28 +2732,20 @@ subroutine PMWellResidualTranSrcSink(this)
   ! residual in [mol-species/sec]
 
   ! From the flow solution:
-  ! + Q goes into well from reservoir       old:out of well to reservoir
-  ! - Q goes out of well into reservoir     old:goes into well from reservoir
+  ! + Q goes into well from reservoir       
+  ! - Q goes out of well into reservoir     
 
   well => this%well
   resr => this%reservoir
 
   do isegment = 1,this%well_grid%nsegments
 
-  ! old:
-  !  if (well%liq%Q(isegment) < 0.d0) then ! Q into well
-  !    coef_Qin = well%liq%Q(isegment)
-  !    coef_Qout = 0.d0
-  !  else ! Q out of well
-  !    coef_Qin = 0.d0
-  !    coef_Qout = well%liq%Q(isegment)
-  !  endif
-
+    ! units of coef = [m^3-liq/sec]
     if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
       coef_Qin = 0.d0
-      coef_Qout = well%liq%Q(isegment)
+      coef_Qout = well%liq%Q(isegment)*FMWH2O/well%liq%rho(isegment)
     else ! Q into well
-      coef_Qin = well%liq%Q(isegment)
+      coef_Qin = well%liq%Q(isegment)*FMWH2O/resr%rho_l(isegment)
       coef_Qout = 0.d0
     endif
 
@@ -2763,10 +2755,8 @@ subroutine PMWellResidualTranSrcSink(this)
 
     do ispecies = 1,this%nspecies
       k = ispecies
-      Qin = coef_Qin*resr%aqueous_conc(ispecies,isegment)*FMWH2O / &
-                                            resr%rho_l(isegment)
-      Qout = coef_Qout*well%aqueous_conc(ispecies,isegment)*FMWH2O / &
-                                            well%liq%rho(isegment)
+      Qin = coef_Qin*resr%aqueous_conc(ispecies,isegment)
+      Qout = coef_Qout*well%aqueous_conc(ispecies,isegment)
       Res(k) = Qin + Qout
     enddo
 
@@ -3231,13 +3221,21 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   PetscReal :: Jblock(this%nspecies,this%nspecies)
   PetscInt :: isegment
 
+  type(well_type), pointer :: well
+  type(well_reservoir_type), pointer :: resr
   PetscInt :: istart, iend, ispecies
-  PetscReal :: vol, Qin, SS
+  PetscReal :: Qin, Qout
+  PetscReal :: SSin, SSout, SS
+  PetscReal :: vol 
 
   ! units of Jac = [m^3-bulk/sec]
   ! units of volume = [m^3-bulk]
-  ! units of Qin = [kmol-liq/sec]
-  ! units of SS = [m3-liq/sec]
+  ! units of liq%Q = [kmol-liq/sec]
+  ! units of Qin = [m^3-liq/sec]
+  ! units of SS = [m^3-bulk/sec]
+
+  well => this%well
+  resr => this%reservoir
 
   ! From the flow solution:
   ! + Q goes into well from reservoir
@@ -3245,12 +3243,28 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
 
   vol = this%well%volume(isegment)
 
-  if (this%well%liq%Q(isegment) < 0.d0) then ! Q out of well
-      Qin = 0.d0 
+  ! units of Qin/out = [m^3-liq/sec]
+  if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
+    Qin = 0.d0
+    Qout = well%liq%Q(isegment)*FMWH2O/well%liq%rho(isegment)
+    if (well%liq%s(isegment) < 1.d-40) then
+      this%option%io_buffer = 'HINT: The liquid saturation is zero. &
+        &Division by zero will occur in PMWellJacTranSrcSink().'
+      call PrintMsg(this%option)
+    endif
   else ! Q into well
-      Qin = this%well%liq%Q(isegment)
+    Qin = well%liq%Q(isegment)*FMWH2O/resr%rho_l(isegment)
+    Qout = 0.d0
+    if (resr%s_l(isegment) < 1.d-40) then
+      this%option%io_buffer = 'HINT: The liquid saturation is zero. &
+        &Division by zero will occur in PMWellJacTranSrcSink().'
+      call PrintMsg(this%option)
+    endif
   endif
-  SS = Qin * FMWH2O / this%well%liq%rho(isegment)
+
+  SSin = Qin / (resr%e_por(isegment)*resr%s_l(isegment))    ! [m3-bulk/sec]
+  SSout = Qout / (well%phi(isegment)*well%liq%s(isegment))            ! [m3-bulk/sec]
+  SS = SSin + SSout
 
   istart = 1
   iend = this%nspecies
@@ -3260,8 +3274,6 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
     Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) - vol*(SS/vol)
 
   enddo
-  ! NOTE: There is an inconsistency in the units:
-  !       Jac [m3-bulk/sec] vs SS [m3-liq/sec]
 
 end subroutine PMWellJacTranSrcSink
 
