@@ -10,6 +10,15 @@ END
 
 SUBSURFACE
 
+#=========================== Numerical Methods ================================
+
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+END
+
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
@@ -64,20 +73,20 @@ END
 
 #=========================== characteristic curves ============================
 CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION BROOKS_COREY
-    ALPHA 4.d-4
-    LAMBDA 2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LOOP_INVARIANT
+    UNSATURATED_EXTENSION ECPC
+    ALPHA  1.d-4
+    M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
-    CALCULATE_INTERFACIAL_TENSION
+    MAX_CAPILLARY_PRESSURE 1.d8
   /
-  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
-    PHASE LIQUID
-    LAMBDA 2
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
   /
-  PERMEABILITY_FUNCTION BURDINE_BC_GAS
-    PHASE GAS
-    LAMBDA 2
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
     GAS_RESIDUAL_SATURATION 0.1d0
   /
@@ -165,7 +174,7 @@ END
 #=========================== output options ===================================
 OUTPUT
   SNAPSHOT_FILE
-    TIMES y .05d0 0.1d0 1.d0 5.d0 
+    TIMES y .05d0 0.1d0 2.5d0 5.d0 
     FORMAT TECPLOT POINT
   /
 END

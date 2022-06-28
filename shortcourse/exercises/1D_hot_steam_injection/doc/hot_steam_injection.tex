@@ -66,7 +66,7 @@ The ``1D Hot Steam Injection Scenario'' simulates injection of hot steam into th
     \footnotesize
     \item $k \eq 10^{-14}$ [m$^2$]
     \item $\varphi \eq 0.25$
-    \item Saturation function: Brooks-Corey
+    \item Saturation function: Van Genuchten
   \end{itemize}
   \item Total simulation time: 5 y
 \end{itemize}
@@ -100,6 +100,28 @@ END
 SUBSURFACE
  ...
 END_SUBSURFACE
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Numerical Methods}
+
+\begin{frame}[fragile]\frametitle{NUMERICAL METHODS}
+
+\begin{itemize}
+\item Add a numerical methods block
+\item Newton Solver sub-block
+\end{itemize}
+
+\begin{semiverbatim}
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+END
+
 \end{semiverbatim}
 
 \end{frame}
@@ -199,35 +221,33 @@ END
 \begin{frame}[fragile,containsverbatim, allowframebreaks]\frametitle{CHARACTERISTIC\_CURVES}
 
 \begin{itemize}
-\item Set Brooks-Corey parameters
+\item Set Van Genuchten parameters
 \end{itemize}
 
 \begin{semiverbatim}
 CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION BROOKS_COREY
-    ALPHA 4.d-4
-    LAMBDA 2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LOOP_INVARIANT
+    UNSATURATED_EXTENSION ECPC
+    ALPHA  1.d-4
+    M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
-    CALCULATE_INTERFACIAL_TENSION 
-     \bluecomment{        ! Interfacial tension as f(T)}
+    MAX_CAPILLARY_PRESSURE 1.d8
   /
 \end{semiverbatim}
 
 \newpage
 \begin{itemize}
-\item Burdine relative permeability
+\item Mualem relative permeability
 \end{itemize}
 
 \begin{semiverbatim}
-  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
-    PHASE LIQUID
-    LAMBDA 2
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
   /
-
-  PERMEABILITY_FUNCTION BURDINE_BC_GAS
-    PHASE GAS
-    LAMBDA 2
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.5d0
     LIQUID_RESIDUAL_SATURATION 0.1d0
     GAS_RESIDUAL_SATURATION 0.1d0
   /
@@ -411,7 +431,7 @@ END
 \begin{frame}[fragile]\frametitle{OUTPUT}
 
 \begin{itemize}
-\item Set output times to 0.05 0.1 1.0 5.0 years
+\item Set output times to 0.05 0.1 2.5 5.0 years
 \end{itemize}
 
 
@@ -419,7 +439,7 @@ END
 
 OUTPUT
   SNAPSHOT_FILE
-  \magentacomment{TIMES y  .05d0 0.1d0 1.d0 5.d0}   
+  \magentacomment{TIMES y  .05d0 0.1d0 2.5d0 5.d0}   
   FORMAT TECPLOT POINT            
 END
 
@@ -433,7 +453,7 @@ END
 \begin{frame}[fragile]\frametitle{TIME}
 
 \begin{itemize}
-\item Change final simulation time to 5 years
+\item Set final simulation time to 5 years
 \end{itemize}
 
 \begin{semiverbatim}
@@ -444,21 +464,6 @@ TIME
   MAXIMUM_TIMESTEP_SIZE 5.d-1 y
 END
 
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Running hot_steam_injection.in}
-
-\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
-
-\begin{semiverbatim}
-
-> cd $PFLOTRAN_DIR
-> cd shortcourse/exercises/1D_hot_steam_injection
-> pflotran -input_prefix hot_steam_injection
-> CTRL-C \bluecomment{! to stop simulation}
 \end{semiverbatim}
 
 \end{frame}
@@ -504,114 +509,6 @@ END
 
 \end{semiverbatim}
 
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Edit the Input Deck 1}
-
-\begin{frame}[fragile]\frametitle{Edit the Input Deck}
-
-\begin{semiverbatim}
-
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-      /
-    /
-  /
-END
-
-\end{semiverbatim}
-
-\end{frame}
-%-----------------------------------------------------------------------------
-\subsection{Running hot_steam_injection.in again}
-
-\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
-
-\begin{semiverbatim}
-
-> cd $PFLOTRAN_DIR
-> cd shortcourse/exercises/1D_hot_steam_injection
-> pflotran -input_prefix hot_steam_injection
-> python hot_steam_injection.py
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Edit the Input Deck 2}
-
-\begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
-
-\begin{itemize}
-\item Add a numerical methods block 
-\item Newton Solver sub-block
-\end{itemize}
-
-\begin{semiverbatim}
-NUMERICAL_METHODS FLOW
-  NEWTON_SOLVER
-    NUMERICAL_JACOBIAN
-  /
-END
-
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Running hot_steam_injection.in 3}
-
-\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
-
-\begin{semiverbatim}
-
-> cd $PFLOTRAN_DIR
-> cd shortcourse/exercises/1D_hot_steam_injection
-> pflotran -input_prefix hot_steam_injection
-> CTRL-C
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Edit the Input Deck 3}
-
-\begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
-
-\begin{itemize}
-\item Edit numerical methods block
-\end{itemize}
-
-\begin{semiverbatim}
-NUMERICAL_METHODS FLOW
-  NEWTON_SOLVER
-    NUMERICAL_JACOBIAN
-    USE_INFINITY_NORM_CONVERGENCE
-  /
-END
-
-\end{semiverbatim}
-
-\end{frame}
-%-----------------------------------------------------------------------------
-\subsection{Running hot_steam_injection.in again}
-
-\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
-
-\begin{semiverbatim}
-
-> cd $PFLOTRAN_DIR
-> cd shortcourse/exercises/1D_hot_steam_injection
-> pflotran -input_prefix hot_steam_injection
-> python hot_steam_injection.py
-\end{semiverbatim}
 
 \end{frame}
 
