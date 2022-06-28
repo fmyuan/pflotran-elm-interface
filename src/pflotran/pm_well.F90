@@ -4910,23 +4910,18 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
           rel_perm = well_dn%liq%kr(idn)
         endif
 
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
+        !kmol/sec
         tot_mole_flux = perm_ave_over_dist(1) * rel_perm * &
                   delta_pressure
+        density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
+        ! v_darcy = kmol/sec / kmol/m^3 / area[m^2]
+        v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup)+ &
+                  well_dn%area(idn)))
         ! Store flux calculation for consistency with transport
         if (save_flux) then
-          well_up%ql(iup) = tot_mole_flux
+          well_up%ql(iup) = v_darcy
         endif
 
-        density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
-        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-        q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
-                             well_dn%area(idn))
-        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-        !                             density_ave[kmol phase/m^3 phase]
-        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-        !                                 xmol[kmol comp/kmol phase]
         Res(1) = Res(1) + tot_mole_flux
 
         ! Gas flux
@@ -4952,24 +4947,20 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
           rel_perm = well_dn%gas%kr(idn)
         endif
 
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
+        !kmol/sec
         tot_mole_flux = perm_ave_over_dist(2) * rel_perm * &
                         delta_pressure
+        density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
+        ! v_darcy [m/sec] = mole flux [kmol/sec] / den [kmol/m^3] / area[m^2]
+        v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup) + &
+                            well_dn%area(idn)))
+        Res(2) = Res(2) + tot_mole_flux
+
         ! Store flux calculation for consistency with transport
         if (save_flux) then
-          well_up%qg(iup) = tot_mole_flux
+          well_up%qg(iup) = v_darcy
         endif
 
-        density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
-        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-        q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
-                            well_dn%area(idn))
-        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-        !                             density_ave[kmol phase/m^3 phase]
-        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-        !                                 xmol[kmol comp/kmol phase]
-        Res(2) = Res(2) + tot_mole_flux
     case default
 
   end select
