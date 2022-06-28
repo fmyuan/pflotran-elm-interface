@@ -554,8 +554,7 @@ module PM_Waste_Form_class
             PMWFMechanismWIPPCreate, &
             PMWFMechanismCustomCreate, &
             PMWFMechanismFMDMCreate, &
-            PMWFMechanismFMDMSurrogateCreate, &
-            PMWFRadSpeciesCreate
+            PMWFMechanismFMDMSurrogateCreate
 
 contains
 
@@ -842,32 +841,29 @@ end function PMWFMechanismCustomCreate
 
 ! ************************************************************************** !
 
-function PMWFRadSpeciesCreate()
+subroutine PMWFRadSpeciesInit(rad_species)
   !
-  ! Creates a radioactive species in the waste form mechanism package
+  ! Initializes a radioactive species in the waste form mechanism package
   !
   ! Author: Jenn Frederick
   ! Date: 03/09/16
 
   implicit none
 
-! LOCAL VARIABLES:
-! ================
-! PMWFRadSpeciesCreate (output): new radionuclide species object
 ! ----------------------------------------------
-  type(rad_species_type) :: PMWFRadSpeciesCreate
+  type(rad_species_type) :: rad_species
 ! ----------------------------------------------
 
-  PMWFRadSpeciesCreate%name = ''
-  PMWFRadSpeciesCreate%daughter = ''
-  PMWFRadSpeciesCreate%daugh_id = UNINITIALIZED_INTEGER
-  PMWFRadSpeciesCreate%formula_weight = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%decay_constant = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%mass_fraction = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%inst_release_fraction = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%ispecies = UNINITIALIZED_INTEGER
+  rad_species%name = ''
+  rad_species%daughter = ''
+  rad_species%daugh_id = UNINITIALIZED_INTEGER
+  rad_species%formula_weight = UNINITIALIZED_DOUBLE
+  rad_species%decay_constant = UNINITIALIZED_DOUBLE
+  rad_species%mass_fraction = UNINITIALIZED_DOUBLE
+  rad_species%inst_release_fraction = UNINITIALIZED_DOUBLE
+  rad_species%ispecies = UNINITIALIZED_INTEGER
 
-end function PMWFRadSpeciesCreate
+end subroutine PMWFRadSpeciesInit
 
 ! ************************************************************************** !
 
@@ -1325,7 +1321,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: temp_buf
-  type(rad_species_type), pointer :: temp_species_array(:)
+  type(rad_species_type), allocatable :: temp_species_array(:)
   class(wf_mechanism_base_type), pointer :: new_mechanism, cur_mechanism
   PetscInt :: k, j
   PetscReal :: double
@@ -1338,7 +1334,6 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   found = PETSC_TRUE
   added = PETSC_FALSE
   input%ierr = 0
-  allocate(temp_species_array(50))
   k = 0
   num_errors = 0
 
@@ -1401,7 +1396,6 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
       !---------------------------------
         case('CUSTOM')
           error_string = trim(error_string) // ' CUSTOM'
-          allocate(new_mechanism)
           new_mechanism => PMWFMechanismCustomCreate()
       !---------------------------------
         case default
@@ -1754,6 +1748,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
              end select
         !--------------------------
           case('SPECIES')
+            allocate(temp_species_array(50))
             do
               call InputReadPflotranString(input,option)
               if (InputCheckExit(input,option)) exit
@@ -1766,7 +1761,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                        'if reducing to less than 50 is not &
                                        &an option.')
               endif
-              temp_species_array(k) = PMWFRadSpeciesCreate()
+              call PMWFRadSpeciesInit(temp_species_array(k))
               ! read species name
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'SPECIES name',error_string)
@@ -2122,7 +2117,6 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   select case(trim(keyword))
   !-------------------------------------
     case('WASTE_FORM')
-      allocate(new_waste_form)
       new_waste_form => PMWFWasteFormCreate()
       call InputPushBlock(input,option)
       do

@@ -169,10 +169,7 @@ subroutine PMMaterialTransformSetup(this)
   found = PETSC_FALSE
 
   ! pass material transform list from PM to realization
-  if (associated(this%material_transform_list)) then
-    call MaterialTransformAddToList(this%material_transform_list, &
-                                    this%realization%material_transform)
-  endif
+  this%realization%material_transform => this%material_transform_list
 
   ! set up mapping for material transform functions
   patch%material_transform => this%realization%material_transform
@@ -1582,15 +1579,7 @@ subroutine PMMaterialTransformStrip(this)
   ! --------------------------------
 
   nullify(this%realization)
-  cur_m_transform => this%material_transform_list
-  do
-    if (.not. associated(cur_m_transform)) exit
-    prev_m_transform => cur_m_transform
-    cur_m_transform => cur_m_transform%next
-    call MaterialTransformDestroy(prev_m_transform)
-  enddo
-  deallocate(this%material_transform_list)
-  nullify(this%material_transform_list)
+  call MaterialTransformDestroy(this%material_transform_list)
 
 end subroutine PMMaterialTransformStrip
 
