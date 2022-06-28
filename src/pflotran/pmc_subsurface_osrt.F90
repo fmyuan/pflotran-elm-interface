@@ -192,6 +192,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: istart, iend
   PetscInt :: nimmobile
   PetscInt :: num_iterations
+  PetscInt :: sum_newton_iterations
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_linear_iterations_temp
@@ -241,6 +242,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
   tconv = process_model%output_option%tconv
   tunit = process_model%output_option%tunit
+  sum_newton_iterations = 0
   sum_linear_iterations = 0
   sum_linear_iterations_temp = 0
   sum_wasted_linear_iterations = 0
@@ -385,6 +387,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
                   global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
                   num_iterations,reaction,grid%nG2A(ghosted_id),option, &
                   PETSC_TRUE,PETSC_TRUE,rreact_error)
+      sum_newton_iterations = sum_newton_iterations + num_iterations
       if (rreact_error /= 0) exit
       ! set primary dependent var back to free-ion molality
       iend = offset_global + reaction%naqcomp
@@ -402,62 +405,14 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_reaction_time = &
       process_model%cumulative_reaction_time + log_end_time - log_start_time
+    process_model%cumulative_newton_iterations = &
+      process_model%cumulative_newton_iterations + sum_newton_iterations
 
     if (rreact_error /= 0) then
       !TODO(geh): move to timestepper base and call from daughters.
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
         sum_linear_iterations_temp
-      icut = icut + 1
-      timestepper%time_step_cut_flag = PETSC_TRUE
-      ! if a cut occurs on the last time step, the stop_flag will have been
-      ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
-      ! premature ending of simulation.
-      if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
-
-      if (icut > timestepper%max_time_step_cuts .or. &
-          timestepper%dt < timestepper%dt_min) then
-
-        if (icut > timestepper%max_time_step_cuts) then
-          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
-          call PrintMsg(option)
-          write(option%io_buffer, &
-                '("    icut =",i3,", max_time_step_cuts=",i3)') &
-                icut,timestepper%max_time_step_cuts
-          call PrintMsg(option)
-        endif
-        if (timestepper%dt < timestepper%dt_min) then
-          option%io_buffer = ' Stopping: Time step size is less than the &
-                             &minimum allowable time step.'
-          call PrintMsg(option)
-          write(option%io_buffer, &
-                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
-               timestepper%dt/tconv,timestepper%dt_min/tconv,trim(tunit)
-          call PrintMsg(option)
-       endif
-
-        ! print snapshot only
-        process_model%output_option%plot_name = trim(process_model%name) // &
-          '_cut_to_failure'
-        snapshot_plot_flag = PETSC_TRUE
-        observation_plot_flag = PETSC_FALSE
-        massbal_plot_flag = PETSC_FALSE
-        call Output(process_model%realization_base,snapshot_plot_flag, &
-                    observation_plot_flag,massbal_plot_flag)
-        stop_flag = TS_STOP_FAILURE
-        return
-      endif
-
-      timestepper%target_time = this%timestepper%target_time - timestepper%dt
-
-      timestepper%dt = timestepper%time_step_reduction_factor * timestepper%dt
-
-      write(option%io_buffer,'(''-> Cut time step: icut='',i2, &
-           &   ''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-           &   1pe12.5)')  icut, &
-           timestepper%cumulative_time_step_cuts+icut, &
-           option%time/tconv, &
-           timestepper%dt/tconv
-      call PrintMsg(option)
+      call timestepper%CutDT(process_model,icut,stop_flag,'osrt_rxn',-999,option)
       timestepper%target_time = timestepper%target_time + timestepper%dt
       option%dt = timestepper%dt
       call process_model%TimeCut()
@@ -474,14 +429,15 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     timestepper%cumulative_wasted_linear_iterations + &
     sum_wasted_linear_iterations
 
-  if (option%print_screen_flag) then
-      write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-           & " [",a,"]", " cuts = ",i2, " [",i4,"]")') &
-           this%timestepper%steps, &
-           this%timestepper%target_time/tconv, &
-           this%timestepper%dt/tconv,trim(tunit),icut, &
-           this%timestepper%cumulative_time_step_cuts
-  endif
+  call TimestepperBasePrintStepInfo(timestepper,process_model%output_option, &
+                                    UNINITIALIZED_INTEGER,option)
+  write(option%io_buffer,'("  newton = ",i3," [",i8,"]", " linear = ",i5, &
+                         &" [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+           sum_newton_iterations,process_model%cumulative_newton_iterations, &
+           sum_linear_iterations,timestepper%cumulative_linear_iterations, &
+           icut,timestepper%cumulative_time_step_cuts
+  call PrintMsg(option)
+
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + &

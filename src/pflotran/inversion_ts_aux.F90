@@ -9,10 +9,17 @@ module Inversion_TS_Aux_module
 
   private
 
+  PetscInt, parameter, public :: OBS_LIQUID_PRESSURE = 1
+  PetscInt, parameter, public :: OBS_LIQUID_SATURATION = 2
+  PetscInt, parameter, public :: OBS_SOLUTE_CONCENTRATION = 3
+  PetscInt, parameter, public :: OBS_ERT_MEASUREMENT = 4
+
   type, public :: inversion_forward_aux_type
     PetscBool :: store_adjoint
     PetscInt :: num_timesteps
     PetscInt :: iobsfunc
+    PetscInt :: isync_time
+    PetscReal, pointer :: sync_times(:)
     Mat :: M_ptr
     Vec :: solution_ptr
     type(inversion_forward_ts_aux_type), pointer :: first
@@ -42,6 +49,7 @@ module Inversion_TS_Aux_module
   public :: InversionForwardAuxCreate, &
             InvForwardAuxResetMeasurements, &
             InversionForwardAuxStep, &
+            InversionForwardAuxMeasure, &
             InvForwardAuxDestroyList, &
             InversionForwardAuxDestroy, &
             InversionTSAuxCreate, &
@@ -72,6 +80,8 @@ function InversionForwardAuxCreate()
   aux%store_adjoint = PETSC_TRUE
   aux%num_timesteps = 0
   aux%iobsfunc = UNINITIALIZED_INTEGER
+  aux%isync_time = 1
+  nullify(aux%sync_times)
   aux%M_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%first)
@@ -89,7 +99,7 @@ end function InversionForwardAuxCreate
 
 subroutine InvForwardAuxResetMeasurements(aux)
   !
-  ! Appends a time step to the linked list
+  ! Resets flags for forward run back to original settings.
   !
   ! Author: Glenn Hammond
   ! Date: 02/21/22
@@ -98,8 +108,9 @@ subroutine InvForwardAuxResetMeasurements(aux)
 
   PetscInt :: imeasurement
 
+  aux%isync_time = 1
   do imeasurement = 1, size(aux%measurements)
-    aux%measurements(imeasurement)%measured = PETSC_FALSE
+    call InversionMeasurementAuxReset(aux%measurements(imeasurement))
   enddo
 
 end subroutine InvForwardAuxResetMeasurements
@@ -113,12 +124,12 @@ subroutine InversionForwardAuxStep(aux,time)
   ! Author: Glenn Hammond
   ! Date: 02/14/22
 
+  use Utility_module
+
+  implicit none
+
   type(inversion_forward_aux_type), pointer :: aux
   PetscReal :: time
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: imeasurement
-  PetscErrorCode :: ierr
 
   if (associated(aux%current)) then
     aux%current%time = time
@@ -129,14 +140,39 @@ subroutine InversionForwardAuxStep(aux,time)
     aux%last => aux%current
   endif
 
+end subroutine InversionForwardAuxStep
+
+! ************************************************************************** !
+
+subroutine InversionForwardAuxMeasure(aux,time,option)
+  !
+  ! Appends a time step to the linked list
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+
+  use Option_module
+
+  implicit none
+
+  type(inversion_forward_aux_type), pointer :: aux
+  PetscReal :: time
+  type(option_type) :: option
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: imeasurement
+  PetscErrorCode :: ierr
+
   call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(aux%measurements)
     call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
-                                     vec_ptr(imeasurement))
+                                     vec_ptr(imeasurement),option)
   enddo
-  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  aux%isync_time = aux%isync_time + 1
 
-end subroutine InversionForwardAuxStep
+end subroutine InversionForwardAuxMeasure
 
 ! ************************************************************************** !
 
@@ -269,6 +305,9 @@ subroutine InversionForwardAuxDestroy(aux)
   type(inversion_forward_aux_type), pointer :: aux
 
   call InvForwardAuxDestroyList(aux,PETSC_FALSE)
+
+  call DeallocateArray(aux%sync_times)
+
   ! simply nullify
   nullify(aux%last)
   nullify(aux%current)

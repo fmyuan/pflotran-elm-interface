@@ -15,10 +15,6 @@ END
 SUBSURFACE
 
 #=========================== numerical methods ================================
-NUMERICAL_METHODS FLOW
-
-END
-
 NUMERICAL_METHODS TRANSPORT
 
   TIMESTEPPER
@@ -157,9 +153,6 @@ CHEMISTRY
     ALL
   /
 END
-
-#=========================== solver options ===================================
-
 
 #=========================== discretization ===================================
 GRID

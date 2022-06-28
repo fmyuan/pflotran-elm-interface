@@ -2987,7 +2987,7 @@ end subroutine PMWFSetup
   ! Author: Glenn Hammond
   ! Date: 08/25/15
   use Reaction_Aux_module
-  use Reaction_Gas_aux_module
+  use Reaction_Gas_Aux_module
   use Reaction_Sandbox_module
   use Realization_Base_class
 

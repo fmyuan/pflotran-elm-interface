@@ -1860,15 +1860,13 @@ subroutine MTransformConvertListToArray(list, array, option)
     array(count)%ptr => cur_material_transform
     call OptionSetBlocking(option,PETSC_FALSE)
     if (OptionIsIORank(option)) then
-      if (associated(cur_material_transform%illitization% &
-          illitization_function)) then
+      if (associated(cur_material_transform%illitization)) then
         if (cur_material_transform%illitization%test) then
           call cur_material_transform%illitization%illitization_function%Test( &
             cur_material_transform%illitization%name,option)
         endif
       endif
-      ! if (associated(cur_material_transform%buffer_erosion% &
-      !     buffer_erosion_model)) then
+      ! if (associated(cur_material_transform%buffer_erosion)) then
       !   if (cur_material_transform%buffer_erosion%test) then
       !     call cur_material_transform%buffer_erosion%buffer_erosion_model% &
       !       Test(cur_material_transform%buffer_erosion_model%name,option)
@@ -2156,8 +2154,7 @@ subroutine MaterialTransformInputRecord(material_transform_list)
     write(id,'(a)') adjustl(trim(cur_material_transform%name))
 
     ! Illitization
-    if (associated(cur_material_transform%illitization% &
-        illitization_function)) then
+    if (associated(cur_material_transform%illitization)) then
       write(id,'(a29)') '--------------: '
       write(id,'(a29)',advance='no') 'illitization model: '
       select type (illitization_function => cur_material_transform% &

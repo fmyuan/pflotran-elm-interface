@@ -194,8 +194,7 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA
 
   type(inversion_parameter_type) :: inversion_parameter
   type(driver_type) :: driver
@@ -234,8 +233,7 @@ function InversionParameterIntToQOIArray(inversion_parameter)
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
 
   type(inversion_parameter_type) :: inversion_parameter

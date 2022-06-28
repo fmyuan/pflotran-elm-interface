@@ -54,6 +54,7 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.out'
   if (OptionIsIORank(option) .and. OptionPrintToFile(option)) then
     open(option%fid_out, file=filename, action="write", status="unknown")
+    option%print_file_flag = driver%PrintToFile()
   endif
 
   call OptionPrintPFLOTRANHeader(option)

@@ -20,6 +20,9 @@ module PM_Well_class
   PetscBool :: initialize_well = PETSC_TRUE
   PetscReal, parameter :: gravity = -9.8 !-9.80665d0 ! [m/s2]
 
+  PetscInt, parameter :: PEACEMAN_ISO = 1
+  PetscInt, parameter :: PEACEMAN_ANISOTROPIC = 2
+
   type :: well_grid_type
     ! number of well segments
     PetscInt :: nsegments
@@ -109,7 +112,7 @@ module PM_Well_class
     ! total well index for each well segment (including reservoir effects)
     PetscReal, pointer :: WI(:)
     ! well index model (probably has to get moved out of well_type)
-    character(len=MAXWORDLENGTH) :: WI_model
+    PetscInt :: WI_model = PEACEMAN_ISO
     ! well liquid pressure [Pa]
     PetscReal, pointer :: pl(:)
     ! well gas pressure [Pa]
@@ -1244,7 +1247,18 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
             pm_well%well%WI_base(1:num_read) = temp_well_index(1:num_read)
         !-----------------------------
           case('WELL_INDEX_MODEL')
-            call InputReadWord(input,option,pm_well%well%WI_model,PETSC_TRUE)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            select case(word)
+              case('PEACEMAN_ISO')
+                pm_well%well%WI_model = PEACEMAN_ISO 
+              case('PEACEMAN_ANISOTROPIC')
+                pm_well%well%WI_model = PEACEMAN_ANISOTROPIC
+              case default
+                option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
+                &in the ' // trim(error_string) // ' block. Default is isotropic &
+                &Peaceman (PEACEMAN_ISO).'
+              call PrintErrMsg(option)
+            end select
             call InputErrorMsg(input,option,'WELL_INDEX_MODEL',error_string)
         !-----------------------------
           case default
@@ -3436,7 +3450,7 @@ subroutine PMWellPreSolveFlow(this)
   write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," sec.")') &
                    (this%flow_soln%n_steps+1),cur_time,this%dt_flow
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveFlow
 
@@ -3462,7 +3476,7 @@ subroutine PMWellPreSolveTran(this)
   write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," sec.")') &
                    (this%tran_soln%n_steps+1),cur_time,this%dt_tran
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveTran
 
@@ -3487,7 +3501,7 @@ subroutine PMWellSolve(this,time,ierr)
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
     write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
-    call OptionPrint(out_string,this%option)
+    call PrintMsg(this%option,out_string)
     ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs!
     return
   endif
@@ -3574,7 +3588,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
         flow_soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of FLOW Newton iterations reached. &
                       &Cutting timestep!'
-        call OptionPrint(out_string,this%option); WRITE(*,*) ""
+        call PrintMsg(this%option,out_string); WRITE(*,*) ""
         call PMWellCutTimestepFlow(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -3720,7 +3734,7 @@ subroutine PMWellSolveTran(this,time,ierr)
         soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
-        call OptionPrint(out_string,this%option); WRITE(*,*) ""
+        call PrintMsg(this%option,out_string); WRITE(*,*) ""
         call PMWellCutTimestepTran(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -4025,7 +4039,7 @@ subroutine PMWellPostSolveFlow(this)
   WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," sec &
                      & Total Newton Its =",i8)') &
                     this%option%time,this%flow_soln%n_newton
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
   WRITE(*,*) ""
 
 end subroutine PMWellPostSolveFlow
@@ -4046,7 +4060,7 @@ subroutine PMWellPostSolveTran(this)
   WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," sec &
                      & Total Newton Its =",i8)') &
                     this%option%time,this%tran_soln%n_newton
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
   WRITE(*,*) ""
 
 end subroutine PMWellPostSolveTran
@@ -4214,13 +4228,13 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
         n_iter,max_absolute_residual,max_scaled_residual, &
         max_absolute_update_p,max_absolute_update_s, &
         max_relative_update_p,max_relative_update_s
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     flow_soln%converged = PETSC_TRUE
     flow_soln%not_converged = PETSC_FALSE
     out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
-    call OptionPrint(out_string,this%option); WRITE(*,*) ""
+    call PrintMsg(this%option,out_string); WRITE(*,*) ""
     this%cumulative_dt_flow = this%cumulative_dt_flow + this%dt_flow
     this%flow_soln%prev_soln%pl = this%well%pl
     this%flow_soln%prev_soln%sg = this%well%gas%s
@@ -4336,13 +4350,14 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
 
   write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  rU:",es10.2)') &
         n_iter,max_absolute_residual,max_scaled_residual,max_update
-  call OptionPrint(out_string,this%option)
+  call PrintMsg(this%option,out_string)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     soln%converged = PETSC_TRUE
     soln%not_converged = PETSC_FALSE
     out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
-    call OptionPrint(out_string,this%option); WRITE(*,*) ""
+    call PrintMsg(this%option,out_string)
+    call PrintMsg(this%option,'')
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
     soln%prev_soln%aqueous_conc = this%well%aqueous_conc
     soln%prev_soln%aqueous_mass = this%well%aqueous_mass
@@ -4576,23 +4591,56 @@ subroutine PMWellComputeWellIndex(this)
   implicit none
 
   class(pm_well_type) :: this
-  PetscReal :: r0(this%well_grid%nsegments)
+
+  PetscReal :: r0
   PetscReal, parameter :: PI=3.141592653589793d0
+  PetscReal :: temp_real
+  type(option_type), pointer :: option
+  PetscInt :: k
+
+  option => this%option
 
   ! Peaceman Model: default = anisotropic
   ! This assumes z is vertical (not true for WIPP)
   select case(this%well%WI_model)
-    case('PEACEMAN_ISO')
-      this%well%WI = 2.d0*PI*this%reservoir%kx*this%well_grid%dh/ &
-                     (log(2.079d-1*this%reservoir%dx/ &
-                      (this%well%diameter/2.d0)))
-    case('PEACEMAN_ANISOTROPIC')
-      r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky/this%reservoir%kx)* &
-           this%reservoir%dx**2 + sqrt(this%reservoir%kx/this%reservoir%ky)* &
-           this%reservoir%dy**2) / ((this%reservoir%ky/this%reservoir%kx)** &
-           2.5d-1 + (this%reservoir%kx/this%reservoir%ky)**2.5d-1))
-      this%well%WI = 2.d0*PI*sqrt(this%reservoir%kx*this%reservoir%ky)* &
-                     this%well_grid%dh/log((this%well%diameter/2.d0)/r0)
+    case(PEACEMAN_ISO)
+
+      do k = 1,this%well_grid%nsegments
+        temp_real = log(2.079d-1*this%reservoir%dx(k)/ &
+                        (this%well%diameter(k)/2.d0))
+
+        if (temp_real <= 0.d0) then
+          option%io_buffer = 'Wellbore diameter is too large relative to &
+          &reservor dx. For the PEACEMAN_ISO model, wellbore diameter must &
+          &be smaller than 0.4158 * reservoir dx.'
+          call PrintErrMsg(option)
+        endif
+
+        this%well%WI(k) = 2.d0*PI*this%reservoir%kx(k)*this%well_grid%dh(k)/ &
+                          temp_real
+       enddo
+
+    case(PEACEMAN_ANISOTROPIC)
+      do k = 1,this%well_grid%nsegments
+        r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky(k)/this%reservoir%kx(k))* &
+             this%reservoir%dx(k)**2 + sqrt(this%reservoir%kx(k)/ &
+             this%reservoir%ky(k))*this%reservoir%dy(k)**2) / &
+             ((this%reservoir%ky(k)/this%reservoir%kx(k))**2.5d-1 + &
+             (this%reservoir%kx(k)/this%reservoir%ky(k))**2.5d-1))
+
+        temp_real = log(r0/(this%well%diameter(k)/2.d0))
+
+        if (temp_real <= 0.d0) then
+          option%io_buffer = 'Wellbore diameter is too large relative to &
+          &reservor discretization and permeability for the &
+          &PEACEMAN_ANISOTROPIC well model.'
+          call PrintErrMsg(option)
+        endif
+
+        this%well%WI(k) = 2.d0*PI*sqrt(this%reservoir%kx(k)* &
+                          this%reservoir%ky(k))*this%well_grid%dh(k)/temp_real
+      enddo
+      
   end select
 
   this%well%WI = this%well%WI*this%well%WI_base
@@ -4808,7 +4856,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
   PetscInt :: i, ghosted_id
   PetscReal :: pres_up, pres_dn
 
-  PetscReal :: perm_ave_over_dist(2), perm_rho_mu_area_up(2), &
+  PetscReal :: perm_rho_mu_area_ave_over_dist(2), perm_rho_mu_area_up(2), &
                perm_rho_mu_area_dn(2)
   PetscReal :: perm_up, perm_dn, dist_up, dist_dn, density_kg_ave, rel_perm
   PetscReal :: gravity_term, delta_pressure, v_darcy
@@ -4847,8 +4895,13 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
                               fmw_comp(TWO_INTEGER) / well_dn%gas%visc(idn) * &
                               PI * (well_dn%diameter(idn)/2.d0)**2
 
-        perm_ave_over_dist = (perm_rho_mu_area_up * perm_rho_mu_area_dn) / &
-                     (dist_up*perm_rho_mu_area_dn + dist_dn*perm_rho_mu_area_up)
+        perm_rho_mu_area_ave_over_dist(1) = &
+               (perm_rho_mu_area_up(1) * perm_rho_mu_area_dn(1)) / &
+               (dist_up*perm_rho_mu_area_dn(1) + dist_dn*perm_rho_mu_area_up(1))
+
+        perm_rho_mu_area_ave_over_dist(2) = &
+               (perm_rho_mu_area_up(2) * perm_rho_mu_area_dn(2)) / &
+               (dist_up*perm_rho_mu_area_dn(2) + dist_dn*perm_rho_mu_area_up(2))
 
         ! Liquid flux
         density_kg_ave = 0.5d0*(well_up%liq%rho(iup)+well_dn%liq%rho(idn))
@@ -4874,23 +4927,18 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
           rel_perm = well_dn%liq%kr(idn)
         endif
 
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
-        tot_mole_flux = perm_ave_over_dist(1) * rel_perm * &
+        !kmol/sec
+        tot_mole_flux = perm_rho_mu_area_ave_over_dist(1) * rel_perm * &
                   delta_pressure
+        density_ave_kmol = density_kg_ave / fmw_comp(ONE_INTEGER)
+        ! v_darcy = kmol/sec / kmol/m^3 / area[m^2]
+        v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup)+ &
+                  well_dn%area(idn)))
         ! Store flux calculation for consistency with transport
         if (save_flux) then
-          well_up%ql(iup) = tot_mole_flux
+          well_up%ql(iup) = v_darcy
         endif
 
-        density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
-        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-        q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
-                             well_dn%area(idn))
-        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-        !                             density_ave[kmol phase/m^3 phase]
-        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-        !                                 xmol[kmol comp/kmol phase]
         Res(1) = Res(1) + tot_mole_flux
 
         ! Gas flux
@@ -4916,24 +4964,20 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
           rel_perm = well_dn%gas%kr(idn)
         endif
 
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
-        tot_mole_flux = perm_ave_over_dist(2) * rel_perm * &
+        !kmol/sec
+        tot_mole_flux = perm_rho_mu_area_ave_over_dist(2) * rel_perm * &
                         delta_pressure
+        density_ave_kmol = density_kg_ave / fmw_comp(TWO_INTEGER)
+        ! v_darcy [m/sec] = mole flux [kmol/sec] / den [kmol/m^3] / area[m^2]
+        v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup) + &
+                            well_dn%area(idn)))
+        Res(2) = Res(2) + tot_mole_flux
+
         ! Store flux calculation for consistency with transport
         if (save_flux) then
-          well_up%qg(iup) = tot_mole_flux
+          well_up%qg(iup) = v_darcy
         endif
 
-        density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
-        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-        q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
-                            well_dn%area(idn))
-        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-        !                             density_ave[kmol phase/m^3 phase]
-        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-        !                                 xmol[kmol comp/kmol phase]
-        Res(2) = Res(2) + tot_mole_flux
     case default
 
   end select

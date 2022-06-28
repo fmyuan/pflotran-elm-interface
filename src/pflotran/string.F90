@@ -61,9 +61,8 @@ module String_module
             StringsCenter, &
             StringCenter, &
             StringWrite, &
+            StringWriteBracket, &
             StringWriteF, &
-            StringWriteToUnit, &
-            StringWriteToUnits, &
             String1Or2, &
             StringGetMaximumLength, &
             StringGetFilename, &
@@ -71,7 +70,8 @@ module String_module
             StringStripFilenameSuffix
 
   interface StringWrite
-    module procedure StringWriteI
+    module procedure StringWriteI1
+    module procedure StringWriteI2
     module procedure StringWriteES1
     module procedure StringWriteES2
     module procedure StringWriteString
@@ -80,14 +80,14 @@ module String_module
     module procedure StringWriteESArray2
   end interface
 
+  interface StringWriteBracket
+    module procedure StringWriteBracketI
+    module procedure StringWriteBracketString
+  end interface StringWriteBracket
+
   interface StringWriteF
     module procedure StringWriteF1
     module procedure StringWriteF2
-  end interface
-
-  interface StringWriteToUnits
-    module procedure StringWriteStringToUnits
-    module procedure StringWriteStringsToUnits
   end interface
 
   interface StringCompare
@@ -885,7 +885,8 @@ function StringCenter(string,center_column,center_characters)
     icol = center_column - index(string,center_characters)
     if (icol > 0) then
       buffer(1:icol) = ''
-      string = trim(buffer(1:icol)) // string
+      ! DO NOT trim()
+      string = buffer(1:icol) // string
     endif
   else if (len(center_characters) > 0) then
     string = trim(center_characters) // string
@@ -976,7 +977,7 @@ end function StringWriteESArray2
 
 ! ************************************************************************** !
 
-function StringWriteI(i)
+function StringWriteI1(i)
   !
   ! Writes an integer to a string
   !
@@ -986,14 +987,56 @@ function StringWriteI(i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteI
+  character(len=MAXSTRINGLENGTH) :: StringWriteI1
 
   PetscInt :: i
 
-  write(StringWriteI,*) i
-  StringWriteI = adjustl(StringWriteI)
+  write(StringWriteI1,*) i
+  StringWriteI1 = adjustl(StringWriteI1)
 
-end function StringWriteI
+end function StringWriteI1
+
+! ************************************************************************** !
+
+function StringWriteI2(format_string,i)
+  !
+  ! Writes an integer to a string using a specific format
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/22
+  !
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH) :: StringWriteI2
+
+  character(len=*) format_string
+  PetscInt :: i
+
+  write(StringWriteI2,format_string) i
+  StringWriteI2 = adjustl(StringWriteI2)
+
+end function StringWriteI2
+
+! ************************************************************************** !
+
+function StringWriteBracketI(i)
+  !
+  ! Writes a bracketed integer to a string
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  !
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH) :: StringWriteBracketI
+
+  PetscInt :: i
+
+  StringWriteBracketI = '[' // trim(adjustl(StringWrite(i))) // ']'
+
+end function StringWriteBracketI
 
 ! ************************************************************************** !
 
@@ -1083,7 +1126,7 @@ end function StringWriteF2
 
 function StringWriteString(s)
   !
-  ! Writes a double precision number in floating point notaton to a string
+  ! Writes a string to a string
   !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
@@ -1101,77 +1144,23 @@ end function StringWriteString
 
 ! ************************************************************************** !
 
-subroutine StringWriteToUnit(fid,string)
+function StringWriteBracketString(s)
   !
-  ! Writes a string to a file unit (which could be the screen). ! This
-  ! routine WILL NOT SKIP empty lines.
+  ! Writes a bracketed string to a string
   !
   ! Author: Glenn Hammond
-  ! Date: 08/06/18
+  ! Date: 06/03/22
   !
 
   implicit none
 
-  PetscInt :: fid
-  character(len=*) :: string
+  character(len=MAXSTRINGLENGTH) :: StringWriteBracketString
 
-  write(fid,'(a)') trim(string)
+  character(len=*) :: s
 
-end subroutine StringWriteToUnit
+  StringWriteBracketString = '[' // StringWrite(s) // ']'
 
-! ************************************************************************** !
-
-subroutine StringWriteStringToUnits(fids,string)
-  !
-  ! Writes a SINGLE string to multiple file units (one of which could
-  ! be the screen)
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/06/18
-  !
-
-  implicit none
-
-  PetscInt :: fids(:)
-  character(len=*) :: string
-
-  PetscInt :: i
-
-  do i = 1, size(fids)
-    if (fids(i) > 0) call StringWriteToUnit(fids(i),string)
-  enddo
-
-end subroutine StringWriteStringToUnits
-
-! ************************************************************************** !
-
-subroutine StringWriteStringsToUnits(fids,strings)
-  !
-  ! Writes MULTIPLE strings to multiple file units (one of which could
-  ! be the screen).  This routine WILL SKIP empty lines.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/06/18
-  !
-
-  implicit none
-
-  PetscInt :: fids(:)
-  character(len=*) :: strings(:)
-
-  PetscInt :: ifile, istring
-
-  do istring = 1, size(strings)
-    if (len_trim(strings(istring)) > 0) then
-      do ifile = 1, size(fids)
-        if (fids(ifile) > 0) then
-          call StringWriteToUnit(fids(ifile),strings(istring))
-        endif
-      enddo
-    endif
-  enddo
-
-end subroutine StringWriteStringsToUnits
+end function StringWriteBracketString
 
 ! ************************************************************************** !
 

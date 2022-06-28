@@ -109,7 +109,7 @@ OUTPUT
   SNAPSHOT_FILE !this will print only the final time step
     #NO_PRINT_FINAL
     NO_PRINT_INITIAL
-    FORMAT VTK
+    FORMAT HDF5
   /
 END
 

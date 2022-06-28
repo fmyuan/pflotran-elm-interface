@@ -102,8 +102,7 @@ module PMC_Base_class
             PMCBaseSetChildPeerPtr, &
             PMCBaseFinalizeRun, &
             PMCBaseStrip, &
-            SetOutputFlags, &
-            PMCCastToBase
+            SetOutputFlags
 
 contains
 
@@ -164,7 +163,7 @@ subroutine PMCBaseInit(this)
   nullify(this%child)
   nullify(this%peer)
   nullify(this%sim_aux)
-  this%Output => Null()
+  this%Output => null()
 
   allocate(this%pm_ptr)
   nullify(this%pm_ptr%pm)
@@ -840,6 +839,7 @@ recursive subroutine PMCBaseFinalizeRun(this)
   ! Date: 03/18/13
   !
   use Option_module
+  use String_module
 
   implicit none
 
@@ -851,10 +851,12 @@ recursive subroutine PMCBaseFinalizeRun(this)
   call PrintMsg(this%option,'PMCBase%FinalizeRun()')
 #endif
 
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'(/,a,/," Total Time: ", es12.4, " [sec]")') &
-            trim(this%name), this%cumulative_time
-  endif
+  call PrintMsg(this%option,'')
+  this%option%io_buffer = this%name
+  call PrintMsg(this%option)
+  this%option%io_buffer = ' Total Time: ' // &
+    trim(StringWrite('(es12.4)',this%cumulative_time))
+  call PrintMsg(this%option)
 
   if (associated(this%timestepper)) then
     call this%timestepper%FinalizeRun(this%option)
@@ -1048,7 +1050,7 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
     viewer = PETSC_NULL_VIEWER
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
-          '("      Seconds to write to checkpoint file: ", f10.2)') &
+          '(6x,"Seconds to write to checkpoint file: ", f10.2)') &
       tend-tstart
     call PrintMsg(this%option)
     call PetscLogEventEnd(logging%event_checkpoint,ierr);CHKERRQ(ierr)

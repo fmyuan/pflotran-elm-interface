@@ -160,7 +160,7 @@ module Condition_module
             FlowConditionIsTransient, &
             FlowConditionIsHydrostatic, &
             ConditionReadValues, &
-            GetSubConditionName, &
+            GetSubConditionType, &
             FlowConditionUnknownItype, &
             FlowCondInputRecord, &
             TranCondInputRecord, &
@@ -3405,7 +3405,7 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   write(option%fid_out,'(/,4x,''Sub Condition: '',a)') trim(subcondition%name)
-  string = GetSubConditionName(subcondition%itype)
+  string = GetSubConditionType(subcondition%itype)
 
   105 format(6x,'Type: ',a)
   write(option%fid_out,105) trim(string)
@@ -3426,7 +3426,7 @@ end subroutine FlowConditionPrintSubCondition
 
 ! ************************************************************************** !
 
-function GetSubConditionName(subcon_itype)
+function GetSubConditionType(subcon_itype)
   !
   ! SubConditionName: Return name of subcondition
   !
@@ -3439,7 +3439,7 @@ function GetSubConditionName(subcon_itype)
   PetscInt :: subcon_itype
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: GetSubConditionName
+  character(len=MAXSTRINGLENGTH) :: GetSubConditionType
 
   select case(subcon_itype)
     case(DIRICHLET_BC)
@@ -3500,11 +3500,13 @@ function GetSubConditionName(subcon_itype)
       string = 'surface_zero_gradheight'
     case(SURFACE_SPILLOVER)
       string = 'surface_spillover'
-    end select
+    case default
+      string = 'unknown'
+  end select
 
-  GetSubConditionName = trim(string)
+  GetSubConditionType = trim(string)
 
-end function GetSubConditionName
+end function GetSubConditionType
 
 ! ************************************************************************** !
 
