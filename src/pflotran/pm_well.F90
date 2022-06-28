@@ -4918,7 +4918,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         !kmol/sec
         tot_mole_flux = perm_rho_mu_area_ave_over_dist(1) * rel_perm * &
                   delta_pressure
-        density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
+        density_ave_kmol = density_kg_ave / fmw_comp(ONE_INTEGER)
         ! v_darcy = kmol/sec / kmol/m^3 / area[m^2]
         v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup)+ &
                   well_dn%area(idn)))
@@ -4955,7 +4955,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         !kmol/sec
         tot_mole_flux = perm_rho_mu_area_ave_over_dist(2) * rel_perm * &
                         delta_pressure
-        density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
+        density_ave_kmol = density_kg_ave / fmw_comp(TWO_INTEGER)
         ! v_darcy [m/sec] = mole flux [kmol/sec] / den [kmol/m^3] / area[m^2]
         v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup) + &
                             well_dn%area(idn)))
