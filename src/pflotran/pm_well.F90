@@ -4844,7 +4844,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
   PetscInt :: i, ghosted_id
   PetscReal :: pres_up, pres_dn
 
-  PetscReal :: perm_ave_over_dist(2), perm_rho_mu_area_up(2), &
+  PetscReal :: perm_rho_mu_area_ave_over_dist(2), perm_rho_mu_area_up(2), &
                perm_rho_mu_area_dn(2)
   PetscReal :: perm_up, perm_dn, dist_up, dist_dn, density_kg_ave, rel_perm
   PetscReal :: gravity_term, delta_pressure, v_darcy
@@ -4883,8 +4883,13 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
                               fmw_comp(TWO_INTEGER) / well_dn%gas%visc(idn) * &
                               PI * (well_dn%diameter(idn)/2.d0)**2
 
-        perm_ave_over_dist = (perm_rho_mu_area_up * perm_rho_mu_area_dn) / &
-                     (dist_up*perm_rho_mu_area_dn + dist_dn*perm_rho_mu_area_up)
+        perm_rho_mu_area_ave_over_dist(1) = &
+               (perm_rho_mu_area_up(1) * perm_rho_mu_area_dn(1)) / &
+               (dist_up*perm_rho_mu_area_dn(1) + dist_dn*perm_rho_mu_area_up(1))
+
+        perm_rho_mu_area_ave_over_dist(2) = &
+               (perm_rho_mu_area_up(2) * perm_rho_mu_area_dn(2)) / &
+               (dist_up*perm_rho_mu_area_dn(2) + dist_dn*perm_rho_mu_area_up(2))
 
         ! Liquid flux
         density_kg_ave = 0.5d0*(well_up%liq%rho(iup)+well_dn%liq%rho(idn))
@@ -4911,7 +4916,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         endif
 
         !kmol/sec
-        tot_mole_flux = perm_ave_over_dist(1) * rel_perm * &
+        tot_mole_flux = perm_rho_mu_area_ave_over_dist(1) * rel_perm * &
                   delta_pressure
         density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
         ! v_darcy = kmol/sec / kmol/m^3 / area[m^2]
@@ -4948,7 +4953,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         endif
 
         !kmol/sec
-        tot_mole_flux = perm_ave_over_dist(2) * rel_perm * &
+        tot_mole_flux = perm_rho_mu_area_ave_over_dist(2) * rel_perm * &
                         delta_pressure
         density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
         ! v_darcy [m/sec] = mole flux [kmol/sec] / den [kmol/m^3] / area[m^2]
