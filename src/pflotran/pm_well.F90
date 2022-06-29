@@ -96,6 +96,8 @@ module PM_Well_class
   type :: well_type
     ! type of well model to use
     character(len=MAXWORDLENGTH) :: well_model_type
+    ! mass balance of liquid [kmol/s????????]
+    PetscReal, pointer :: mass_balance_liq(:)
     ! well fluid properties
     type(well_fluid_type), pointer :: liq
     type(well_fluid_type), pointer :: gas
@@ -336,6 +338,7 @@ function PMWellCreate()
 
   ! create the well object:
   allocate(PMWellCreate%well)
+  nullify(PMWellCreate%well%mass_balance_liq)
   nullify(PMWellCreate%well%area)
   nullify(PMWellCreate%well%diameter)
   nullify(PMWellCreate%well%volume)
@@ -373,6 +376,7 @@ function PMWellCreate()
 
   ! create the well_pert object:
   allocate(PMWellCreate%well_pert(TWO_INTEGER))
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%mass_balance_liq)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%area)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%diameter)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%volume)
@@ -390,6 +394,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%phi)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%mass_balance_liq)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%area)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%diameter)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%volume)
@@ -841,6 +846,8 @@ subroutine PMWellSetup(this)
 
   allocate(this%well%liq%visc(nsegments))
   allocate(this%well%gas%visc(nsegments))
+
+  allocate(this%well%mass_balance_liq(nsegments))
 
   this%flow_soln%ndof = this%nphase
 
@@ -3986,6 +3993,8 @@ subroutine PMWellNewtonFlow(this)
 
     call PMWellUpdateSolutionFlow(this)
 
+    call PMWellMassBalance(this)
+
   !--------------------------------------
   end select
 
@@ -5872,6 +5881,93 @@ subroutine PMWellOutput(this)
   close(fid)
 
 end subroutine PMWellOutput
+
+! ************************************************************************** !
+
+subroutine PMWellMassBalance(this)
+  !
+  ! Verify the mass balance in the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 06/28/2022
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  type(well_type), pointer :: well
+  PetscInt :: isegment, nsegments
+  PetscInt :: n_up, n_dn
+  PetscReal :: area_up, area_dn 
+  PetscReal :: rho_kg_up, rho_kg_dn
+  PetscReal :: mass_rate_up, mass_rate_dn
+  PetscReal :: q_up, q_dn
+
+  ! q in [m3-liq/m2-bulk-sec]
+  ! area in [m2-bulk]
+
+  ! (+) mass balance rate means net mass is being lost
+  ! (-) mass balance rate means net mass is being gained
+
+  well => this%well
+  nsegments = this%well_grid%nsegments
+
+  n_dn = +1
+  n_up = -1
+
+  do isegment = 1,nsegments
+
+    if ((isegment > 1) .and. (isegment < nsegments)) then
+    ! ----------------------------------------INTERIOR-FLUXES----------------
+
+      ! define face values with arithmetic averages:
+      area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
+      area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
+      rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
+      rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
+      q_up = well%ql(isegment)
+      q_dn = well%ql(isegment-1)
+      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
+      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
+      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
+
+    ! ----------------------------------------BOUNDARY-FLUXES----------------
+    else if (isegment == 1) then
+    ! ----- bottom of well -----
+
+      ! define face values with arithmetic averages:
+      area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
+      area_dn = well%area(isegment)
+      rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
+      rho_kg_dn = well%liq%rho(isegment)
+      q_up = well%ql(isegment)
+      q_dn = well%ql_bc(1)            ! bottom of hole ql = ql_bc(1)
+      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
+      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
+      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
+
+    else if (isegment == this%well_grid%nsegments) then
+    ! ----- top of well -----
+
+      ! define face values with arithmetic averages:
+      area_up = this%well%area(isegment)
+      area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+      rho_kg_up = well%liq%rho(isegment)
+      rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
+      q_up = this%well%ql_bc(2)          ! top of hole ql = ql_bc(2)
+      q_dn = this%well%ql(isegment-1)
+      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
+      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
+      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
+
+    endif
+
+    well%mass_balance_liq(isegment) = mass_rate_up + mass_rate_dn &
+                                      - well%liq%Q(isegment)
+
+  enddo
+
+end subroutine PMWellMassBalance
 
 ! ************************************************************************** !
 
