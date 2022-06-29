@@ -5503,8 +5503,8 @@ subroutine PMWellPerturb(pm_well)
                         pm_well%realization%option)
 
   ! Update perturbed source/sink term from the reservoir
-  call PMWellUpdateWellQ(pm_well%well_pert(ONE_INTEGER),pm_well%reservoir)
-  call PMWellUpdateWellQ(pm_well%well_pert(TWO_INTEGER),pm_well%reservoir)
+  !call PMWellUpdateWellQ(pm_well%well_pert(ONE_INTEGER),pm_well%reservoir)
+  !call PMWellUpdateWellQ(pm_well%well_pert(TWO_INTEGER),pm_well%reservoir)
 
   pm_well%pert = pert
 
