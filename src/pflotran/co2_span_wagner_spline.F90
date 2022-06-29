@@ -23,7 +23,7 @@
   contains
 subroutine sw_spline_read
 
-  use spline_module
+  use Spline_module
 
   PetscInt :: i,ipx,j,n,iunit=9
 
@@ -125,7 +125,7 @@ end subroutine sw_spline_read
 
 subroutine sw_prop(tx,px,rho,h,u,fg)
 
-       use spline_module
+       use Spline_module
 
 !     density of liquid or vapor co2.
 
