@@ -280,11 +280,13 @@ end subroutine PMBaseSetupLinearSystem
 
 !TODO(geh): replace anything TS BE-related with an array that can be
 !           packed/unpacked on either side.
-subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMBaseUpdateTimestep(this,update_dt, &
+                                dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
                                 time_step_max_growth_factor)
   implicit none
   class(pm_base_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration

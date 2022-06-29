@@ -358,6 +358,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                   endif
                 endif
                 Kd(i,:) = temp_real_array(1:j)
+                call DeallocateArray(temp_real_array)
               enddo
               if (i == 0) then
                 option%io_buffer = 'No KD/material combinations specified &
@@ -2095,6 +2096,7 @@ subroutine PMUFDDecayDestroy(this)
   call DeallocateArray(this%isotope_to_primary_species)
   call DeallocateArray(this%isotope_to_mineral)
   call DeallocateArray(this%isotope_decay_rate)
+  call DeallocateArray(this%isotope_tot_mass)
   call DeallocateArray(this%isotope_daughters)
   call DeallocateArray(this%isotope_daughter_stoich)
   call DeallocateArray(this%isotope_parents)

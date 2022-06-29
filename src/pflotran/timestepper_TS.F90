@@ -594,17 +594,14 @@ subroutine TimestepperTSUpdateDT(this,process_model)
     update_time_step = PETSC_FALSE
   endif
 
-  if (update_time_step .and. this%iaccel /= 0) then
-
-    call process_model%UpdateTimestep(this%dt, &
-                                      this%dt_min, &
-                                      this%dt_max, &
-                                      this%iaccel, &
-                                      this%num_newton_iterations, &
-                                      this%tfac, &
-                                      this%time_step_max_growth_factor)
-
-  endif
+  call process_model%UpdateTimestep(update_time_step, &
+                                    this%dt, &
+                                    this%dt_min, &
+                                    this%dt_max, &
+                                    this%iaccel, &
+                                    this%num_newton_iterations, &
+                                    this%tfac, &
+                                    this%time_step_max_growth_factor)
 
 end subroutine TimestepperTSUpdateDT
 

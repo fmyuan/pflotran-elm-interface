@@ -2223,11 +2223,29 @@ subroutine ILTDestroy(illitization_function)
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
 
+  use Utility_module
+
   implicit none
 
   class(illitization_base_type), pointer :: illitization_function
 
   if (.not. associated(illitization_function)) return
+  if (associated(illitization_function%shift_perm)) then
+    call DeallocateArray(illitization_function%shift_perm%f_perm)
+    if (associated(illitization_function%shift_perm%f_perm_mode)) then
+      deallocate(illitization_function%shift_perm%f_perm_mode)
+      nullify(illitization_function%shift_perm%f_perm_mode)
+    endif
+    deallocate(illitization_function%shift_perm)
+    nullify(illitization_function%shift_perm)
+  endif
+  if (associated(illitization_function%shift_kd_list)) then
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd)
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd_mode)
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd_element)
+    deallocate(illitization_function%shift_kd_list)
+    nullify(illitization_function%shift_kd_list)
+  endif
   deallocate(illitization_function)
   nullify(illitization_function)
 
@@ -2381,6 +2399,7 @@ recursive subroutine MaterialTransformDestroy(material_transform)
     call BufferErosionDestroy(material_transform%buffer_erosion)
   endif
 
+  deallocate(material_transform)
   nullify(material_transform)
 
 end subroutine MaterialTransformDestroy

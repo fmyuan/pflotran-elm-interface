@@ -9,12 +9,23 @@ SIMULATION
       OPTIONS
         GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2
         ISOTHERMAL ! ignore energy component for this simulation
+        LOGGING_VERBOSITY 1
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== Numerical Methods ================================
+
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+    #REL_UPDATE_INF_TOL 1.d-2
+  /
+END
 
 #=========================== discretization ===================================
 GRID
