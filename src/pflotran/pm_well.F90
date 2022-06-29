@@ -4025,7 +4025,7 @@ subroutine PMWellNewtonTran(this)
   call LUBackSubstitution(this%flow_soln%Jacobian,nm,indx, &
                           this%tran_soln%residual)
 
-  this%tran_soln%update = this%tran_soln%residual ! [mol/m3-bulk]
+  this%tran_soln%update = -1.0d0 * this%tran_soln%residual ! [mol/m3-bulk]
 
   call PMWellUpdateSolutionTran(this)
 
