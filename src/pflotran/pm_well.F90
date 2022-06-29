@@ -878,6 +878,12 @@ subroutine PMWellSetup(this)
     source_sink%flow_condition%general%rate => FlowGeneralSubConditionPtr( &
       input_dummy,string,source_sink%flow_condition%general,option)
     source_sink%flow_condition%general%rate%itype = MASS_RATE_SS ! [kg/s]
+    source_sink%flow_condition%general%liquid_pressure => &
+          FlowGeneralSubConditionPtr(input_dummy,string,source_sink% &
+                                     flow_condition%general,option)
+    source_sink%flow_condition%general%gas_pressure => &
+          FlowGeneralSubConditionPtr(input_dummy,string,source_sink% &
+                                     flow_condition%general,option)
     allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
     source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0
 
@@ -2505,6 +2511,7 @@ subroutine PMWellUpdateReservoirSrcSink(this)
   character(len=MAXSTRINGLENGTH) :: srcsink_name
   type(coupler_type), pointer :: source_sink
   PetscInt :: k
+  PetscReal :: well_delta_liq, well_delta_gas
 
   do k = 1,this%well_grid%nsegments
     write(string,'(I0.4)') k
@@ -2519,6 +2526,16 @@ subroutine PMWellUpdateReservoirSrcSink(this)
           -1.d0 * this%well%liq%Q(k) * FMWH2O ! [kg/s]
         source_sink%flow_condition%general%rate%dataset%rarray(2) = &
           -1.d0 * this%well%gas%Q(k) * fmw_comp(TWO_INTEGER) ! [kg/s]
+        source_sink%flow_condition%general%liquid_pressure%aux_real(1) = &
+                                                           this%well%pl(k)
+        source_sink%flow_condition%general%gas_pressure%aux_real(1) = &
+                                                           this%well%pg(k)
+        well_delta_liq = this%well%pl(k) - this%reservoir%p_l(k)
+        well_delta_gas = this%well%pg(k) - this%reservoir%p_g(k)
+        source_sink%flow_condition%general%liquid_pressure%aux_real(2) = &
+                                                           well_delta_liq
+        source_sink%flow_condition%general%gas_pressure%aux_real(2) = &
+                                                           well_delta_gas
         exit
       endif
 
@@ -3589,13 +3606,13 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ss_step_count = 0
   steps_to_declare_ss = 10
 
-  ! update the well src/sink Q vector
+  ! update the well src/sink Q vector at start of well model
   call PMWellUpdateWellQ(this%well,this%reservoir)
 
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt)
 
     ! Tighter coupling
-    ! update the well src/sink Q vector
+    ! update the well src/sink Q vector between timesteps
     call PMWellUpdateWellQ(this%well,this%reservoir)
 
     call PMWellPreSolveFlow(this)
@@ -3622,6 +3639,12 @@ subroutine PMWellSolveFlow(this,time,ierr)
         n_iter = 0
         ts_cut = ts_cut + 1
         easy_converge_count = 0
+
+        if (ss_step_count > 2) then
+          steady_state = PETSC_TRUE
+          this%cumulative_dt_flow = this%realization%option%flow_dt
+        endif
+
         exit
       endif
       if (ts_cut > flow_soln%max_ts_cut) then
@@ -3641,8 +3664,8 @@ subroutine PMWellSolveFlow(this,time,ierr)
       call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
 
       ! Tighter coupling:
-      ! update the well src/sink Q vector
-      call PMWellUpdateWellQ(this%well,this%reservoir)
+      ! update the well src/sink Q vector within NR iteration
+      !call PMWellUpdateWellQ(this%well,this%reservoir)
 
     enddo
 
@@ -3709,7 +3732,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ! grid permeability and discretization are static
   call PMWellComputeWellIndex(this)
 
-  ! update the well src/sink Q vector
+  ! update the well src/sink Q vector after well solve
   call PMWellUpdateWellQ(this%well,this%reservoir)
 
   ! update the Darcy fluxes within the well

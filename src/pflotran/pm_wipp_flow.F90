@@ -1824,6 +1824,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   use Material_Aux_module
   use WIPP_Flow_Aux_module
   use Convergence_module
+  use Coupler_module
+  use Connection_module
 
   implicit none
 
@@ -1851,6 +1853,9 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   type(patch_type), pointer :: patch
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
+
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
@@ -1884,6 +1889,9 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: i
   PetscMPIInt :: int_mpi
   PetscBool :: cell_id_match
+
+  PetscInt :: sum_connection, local_start, local_end, iconn
+  PetscReal :: well_delta_liq, well_delta_gas
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -2157,6 +2165,48 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       reason_string(10:10) = 'S'
     endif
   endif
+
+  ! Add check on delta pressure with well model
+  source_sink => patch%source_sink_list%first
+  sum_connection = 0
+  !How do I know which ones are well source/sinks?
+  do
+    if (.not.associated(source_sink)) exit
+
+    cur_connection_set => source_sink%connection_set
+
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      local_end = local_id * option%nflowdof
+      local_start = local_end - option%nflowdof + 1
+
+      if (Initialized(source_sink%flow_condition%general%liquid_pressure% &
+          aux_real(1))) then 
+        well_delta_liq = source_sink%flow_condition%general%liquid_pressure% &
+                         aux_real(2)
+        if (well_delta_liq > 0.d0) then
+          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) < &
+              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
+            converged_flag = CONVERGENCE_CUT_TIMESTEP
+            reason_string(2:2) = 'W'
+          endif
+        elseif (well_delta_liq < 0.d0) then
+          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) > &
+              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
+            converged_flag = CONVERGENCE_CUT_TIMESTEP
+            reason_string(2:2) = 'W'
+          endif 
+        endif
+      endif
+    enddo
+    source_sink => source_sink%next
+  enddo
+
+
   if (OptionPrintToScreen(option)) then
     !TODO(geh): add the option to report only violated tolerances, zeroing
     !           the others.

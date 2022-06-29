@@ -630,14 +630,14 @@ pm_well.o : characteristic_curves.o characteristic_curves_base.o \
             pm_base.o realization_subsurface.o strata.o string.o \
             transport_constraint.o transport_constraint_base.o \
             transport_constraint_nwt.o utility.o wipp_flow_aux.o
-pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
-                 dataset_common_hdf5.o debug.o discretization.o field.o \
-                 global.o global_aux.o grid.o hdf5.o input_aux.o material.o \
-                 material_aux.o option.o patch.o pflotran_constants.o \
-                 pm_base.o pm_subsurface_flow.o pm_wipp_srcsink.o \
-                 realization_base.o realization_subsurface.o region.o \
-                 saturation_function.o string.o upwind_direction.o utility.o \
-                 variables.o wipp_flow.o wipp_flow_aux.o
+pm_wipp_flow.o : checkpoint.o connection.o convergence.o coupler.o dataset.o \
+                 dataset_base.o dataset_common_hdf5.o debug.o discretization.o \
+                 field.o global.o global_aux.o grid.o hdf5.o input_aux.o \
+                 material.o material_aux.o option.o patch.o \
+                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
+                 pm_wipp_srcsink.o realization_base.o realization_subsurface.o \
+                 region.o saturation_function.o string.o upwind_direction.o \
+                 utility.o variables.o wipp_flow.o wipp_flow_aux.o
 pm_wipp_srcsink.o : data_mediator_vec.o discretization.o eos_gas.o eos_water.o \
                     field.o global_aux.o grid.o hdf5.o input_aux.o material.o \
                     material_aux.o option.o output_aux.o patch.o \
