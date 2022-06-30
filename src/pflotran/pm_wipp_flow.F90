@@ -2167,6 +2167,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   endif
 
   ! Add check on delta pressure with well model
+  if (converged_flag == CONVERGENCE_CONVERGED) then
   source_sink => patch%source_sink_list%first
   sum_connection = 0
   !How do I know which ones are well source/sinks?
@@ -2205,7 +2206,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     enddo
     source_sink => source_sink%next
   enddo
-
+  endif
 
   if (OptionPrintToScreen(option)) then
     !TODO(geh): add the option to report only violated tolerances, zeroing
