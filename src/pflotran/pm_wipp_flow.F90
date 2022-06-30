@@ -2172,7 +2172,13 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   sum_connection = 0
   !How do I know which ones are well source/sinks?
   do
-    if (.not.associated(source_sink)) exit
+    if (.not. associated(source_sink)) exit
+
+    if (.not. associated(source_sink%flow_condition%general%liquid_pressure)) &
+        then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     cur_connection_set => source_sink%connection_set
 
