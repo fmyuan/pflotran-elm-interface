@@ -1771,6 +1771,21 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     call permeability_function%SetupPolynomials(option,error_string)
   endif
 
+  select type(rpf => permeability_function)
+    class is(rpf_Burdine_VG_liq_type)
+      if (.not.smooth) then
+        option%io_buffer = 'Burdine-van Genuchten relative permeability &
+          &function is being used without SMOOTH option.'
+        call PrintWrnMsg(option)
+      endif
+    class is(rpf_Mualem_VG_liq_type)
+      if (.not.smooth) then
+        option%io_buffer = 'Mualem-van Genuchten relative permeability &
+          &function is being used without SMOOTH option.'
+        call PrintWrnMsg(option)
+      endif
+  end select
+
 end function PermeabilityFunctionRead
 
 ! ************************************************************************** !
