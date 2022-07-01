@@ -3669,7 +3669,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
     enddo
 
-    if (easy_converge_count > 10 ) then
+    if (easy_converge_count > 4 ) then
       if (this%cumulative_dt_flow + this%dt_flow * &
           flow_soln%ts_cut_factor < this%realization%option%flow_dt) then
         this%dt_flow = this%dt_flow * flow_soln%ts_cut_factor
