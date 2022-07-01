@@ -1221,6 +1221,13 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
         scale = 1.d0
       endif
 
+      if (Initialized(wippflo_auxvars(ZERO_INTEGER,ghosted_id)%well%pl)) then
+        scale = dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
+                pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
+                well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
+                well%dpl)
+      endif
+
       call WIPPFloSrcSink(option,source_sink%flow_condition%general%rate% &
                                   dataset%rarray(:), &
                           source_sink%flow_condition%general%rate%itype, &

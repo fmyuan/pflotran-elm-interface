@@ -877,7 +877,7 @@ subroutine PMWellSetup(this)
     string = 'RATE'
     source_sink%flow_condition%general%rate => FlowGeneralSubConditionPtr( &
       input_dummy,string,source_sink%flow_condition%general,option)
-    source_sink%flow_condition%general%rate%itype = MASS_RATE_SS ! [kg/s]
+    source_sink%flow_condition%general%rate%itype = SCALED_MASS_RATE_SS ! [kg/s]
     source_sink%flow_condition%general%liquid_pressure => &
           FlowGeneralSubConditionPtr(input_dummy,string,source_sink% &
                                      flow_condition%general,option)
@@ -2509,13 +2509,18 @@ subroutine PMWellUpdateReservoirSrcSink(this)
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: srcsink_name
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvar
   type(coupler_type), pointer :: source_sink
-  PetscInt :: k
+  PetscInt :: k, ghosted_id
   PetscReal :: well_delta_liq, well_delta_gas
 
   do k = 1,this%well_grid%nsegments
     write(string,'(I0.4)') k
     srcsink_name = 'well_segment_' // trim(string)
+
+    ghosted_id = this%well_grid%h_ghosted_id(k)
+    wippflo_auxvar => &
+      this%realization%patch%aux%wippflo%auxvars(0,ghosted_id)
 
     source_sink => this%realization%patch%source_sink_list%first
     do
@@ -2536,6 +2541,18 @@ subroutine PMWellUpdateReservoirSrcSink(this)
                                                            well_delta_liq
         source_sink%flow_condition%general%gas_pressure%aux_real(2) = &
                                                            well_delta_gas
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%pl = this%well%pl(k)
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%pg = this%well%pg(k)
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%dpl = well_delta_liq
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%dpg = well_delta_gas
+!        wippflo_auxvar%well%pl = this%well%pl(k)
+!        wippflo_auxvar%well%pg = this%well%pg(k)
+!        wippflo_auxvar%well%dpl = well_delta_liq
+!        wippflo_auxvar%well%dpg = well_delta_gas
         exit
       endif
 
@@ -4442,7 +4459,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   type(well_fluid_type), pointer :: liq
   type(well_fluid_type), pointer :: gas
 
-  PetscReal, parameter :: threshold_p = 0.d0 !1.d-3
+  PetscReal, parameter :: threshold_p = 1.d-2 !1.d-1
   PetscReal :: mobility, den_ave
   PetscBool :: upwind
   PetscInt :: i, nsegments

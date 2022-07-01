@@ -1585,6 +1585,15 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscInt :: idof, irow
 
   option%iflag = -3
+
+  if (Initialized(wippflo_auxvars(ZERO_INTEGER)%well%pl)) then
+    scale = dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER)% &
+            well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl)
+  endif
+
+
   ! unperturbed wippflo_auxvars value
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvars(ZERO_INTEGER),global_auxvar, &
@@ -1592,6 +1601,15 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
 
   ! perturbed wippflo_auxvars values
   do idof = 1, option%nflowdof
+
+  if (Initialized(wippflo_auxvars(idof)%well%pl)) then
+    scale = dabs(wippflo_auxvars(idof)% &
+            pres(ONE_INTEGER)-wippflo_auxvars(idof)% &
+            well%pl)/dabs(wippflo_auxvars(idof)% &
+            well%dpl)
+  endif
+
+
     call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvars(idof),global_auxvar, &
                         material_auxvar,dummy_real, &

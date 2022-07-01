@@ -85,6 +85,13 @@ module WIPP_Flow_Aux_module
   ! radiolysis
   PetscBool, public :: wippflo_radiolysis = PETSC_FALSE
 
+  type, public :: wippflo_well_aux_type
+    PetscReal :: pl
+    PetscReal :: pg
+    PetscReal :: dpl
+    PetscReal :: dpg
+  end type wippflo_well_aux_type
+
   type, public :: wippflo_auxvar_type
     PetscReal :: pres(6)   ! (iphase)
     PetscReal :: sat(2)    ! (iphase)
@@ -102,6 +109,7 @@ module WIPP_Flow_Aux_module
     PetscReal :: elevation
     PetscReal :: fracture_perm_scaling_factor
     PetscReal :: klinkenberg_scaling_factor(3)
+    type(wippflo_well_aux_type) :: well
   end type wippflo_auxvar_type
 
   type, public :: wippflo_parameter_type
@@ -227,6 +235,11 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%mobility = 0.d0
   auxvar%kr = 0.d0
   auxvar%mu = 0.d0
+  auxvar%well%pl = UNINITIALIZED_DOUBLE
+  auxvar%well%pg = UNINITIALIZED_DOUBLE
+  auxvar%well%dpl = UNINITIALIZED_DOUBLE
+  auxvar%well%dpg = UNINITIALIZED_DOUBLE
+
 
 end subroutine WIPPFloAuxVarInit
 
@@ -259,6 +272,7 @@ subroutine WIPPFloAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pert = auxvar%pert
   auxvar2%elevation = auxvar%elevation
   auxvar2%alpha = auxvar%alpha
+  auxvar2%well = auxvar%well
 
 end subroutine WIPPFloAuxVarCopy
 
@@ -333,6 +347,20 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   wippflo_auxvar%pres(lid) = x(WIPPFLO_LIQUID_PRESSURE_DOF)
   wippflo_auxvar%sat(gid) = x(WIPPFLO_GAS_SATURATION_DOF)
   ! calculate saturation pressure as reference.
+
+  ! Prevent well oscillation by capping pressure change
+  if (Initialized(wippflo_auxvar%well%pl)) then
+    if (wippflo_auxvar%well%dpl > 0.d0) then
+      if (wippflo_auxvar%pres(lid) > wippflo_auxvar%well%pl) then
+        wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
+      endif
+    elseif (wippflo_auxvar%well%dpl < 0.d0) then
+      if (wippflo_auxvar%pres(lid) < wippflo_auxvar%well%pl) then
+        wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
+      endif
+    endif
+  endif
+
   call EOSWaterSaturationPressure(wippflo_auxvar%temp, &
                                   wippflo_auxvar%pres(spid),ierr)
   wippflo_auxvar%sat(lid) = 1.d0 - wippflo_auxvar%sat(gid)
