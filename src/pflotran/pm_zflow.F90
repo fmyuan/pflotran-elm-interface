@@ -314,6 +314,13 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   error_string = 'ZFLOW Newton Solver'
 
+  select case(trim(keyword))
+    case('ITOL_UPDATE')
+      option%io_buffer = 'ITOL_UPDATE not supported with ZFLOW. Please &
+        &use MAX_ALLOW_LIQ_PRES_CHANGE_NI.'
+      call PrintErrMsg(option)
+  end select
+
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                             error_string,option)
