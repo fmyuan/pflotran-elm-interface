@@ -490,6 +490,7 @@ subroutine InversionSubsurfInitialize(this)
   use Coupler_module
   use Discretization_module
   use Grid_module
+  use Material_module
   use Option_module
   use Patch_module
   use String_module
@@ -502,6 +503,7 @@ subroutine InversionSubsurfInitialize(this)
 
   type(patch_type), pointer :: patch
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  type(material_property_type), pointer :: material_property
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: iflag
   PetscInt :: i
@@ -777,6 +779,32 @@ subroutine InversionSubsurfInitialize(this)
       this%local_measurement_values
     ! set up pointer to M matrix
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
+
+    ! if permeability is the parameter of interest, ensure that it is
+    ! isotropic
+    iflag = PETSC_FALSE
+    if (this%qoi_is_full_vector) then
+      if (MaterialAnisotropyExists(patch%material_properties)) then
+        iflag = PETSC_TRUE
+      endif
+    else
+      do i = 1, size(this%parameters)
+        if (this%parameters(i)%iparameter == PERMEABILITY) then
+          material_property => &
+            MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
+                                        patch%material_property_array)
+          if (.not.material_property%isotropic_permeability) then
+            iflag = PETSC_TRUE
+            exit
+          endif
+        endif
+      enddo
+    endif
+    if (iflag) then
+      call this%driver%PrintErrMsg('Anisotropic permeability is a parameter &
+                      &of interest in the forward simulation and is not &
+                      &supported for inversion.')
+    endif
 
   endif
 
