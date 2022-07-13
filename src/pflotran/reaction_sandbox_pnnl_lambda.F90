@@ -286,11 +286,11 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
             material_auxvar%volume*1.d3 ! m^3 -> L
 
   molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3
-    ! concentrations are molarities [M]
+  ! concentrations are molarities [M]
 
   do icomp = 1, this%n_species
-      C_aq(icomp) = rt_auxvar%pri_molal(icomp)* &
-        rt_auxvar%pri_act_coef(icomp)*molality_to_molarity
+    C_aq(icomp) = rt_auxvar%pri_molal(icomp)* &
+                  rt_auxvar%pri_act_coef(icomp)*molality_to_molarity
   enddo
 
   vh_L = 1000*this%vh  !converting vh from m^3 as input to L
