@@ -229,7 +229,7 @@ subroutine LambdaSetup(this,reaction,option)
     enddo
     if (UnInitialized(this%i_donor(irxn))) then
       option%io_buffer = 'No DONOR is specified for the reaction. &
-        &Please ensure -DONOR is used to specify the carbon donor(s) &
+        &Please ensure DONOR is used to specify the carbon donor(s) &
         &for each reaction.'
       call PrintErrMsg(option)
     endif
@@ -282,8 +282,8 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt :: icomp, irxn, i_biomass, i_carbon
 
-  L_water = material_auxvar%volume*global_auxvar%sat(iphase)* &
-    material_auxvar%volume*1.d3 ! m^3 -> L
+  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+            material_auxvar%volume*1.d3 ! m^3 -> L
 
   molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3
     ! concentrations are molarities [M]
@@ -297,10 +297,11 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   do irxn = 1, this%n_rxn
     i_carbon = this%i_donor(irxn)
-      rkin(irxn) = this%mu_max * exp(-(ABS(this%stoich(i_carbon,irxn)) &
-        / (vh_L * C_aq(i_carbon)))) * &
-        exp(-(ABS(this%stoich(this%i_o2,irxn)) &
-        / (vh_L * C_aq(this%i_o2))))  ![1/sec]
+    rkin(irxn) = this%mu_max * &
+                 exp(-(ABS(this%stoich(i_carbon,irxn)) / &
+                   (vh_L * C_aq(i_carbon)))) * &
+                 exp(-(ABS(this%stoich(this%i_o2,irxn)) / &
+                   (vh_L * C_aq(this%i_o2))))  ![1/sec]
   enddo
 
   ! Cybernetic Formulation
