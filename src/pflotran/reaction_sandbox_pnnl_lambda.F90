@@ -184,7 +184,9 @@ subroutine LambdaSetup(this,reaction,option)
   call ReactionNetworkToStoich(reaction,this%reaction_network_filename, &
                                species_ids,stoich,option)
 
-  ! Determines the number of rxns and species in the problem and allocates arrays
+  ! Determines the number of rxns and species in the problem
+  ! and allocates arrays
+
   this%n_rxn = size(species_ids,2)
   this%n_species = size(reaction%primary_species_names)
 
@@ -199,28 +201,38 @@ subroutine LambdaSetup(this,reaction,option)
       this%stoich(species_ids(i,irxn),irxn) = stoich(i,irxn)
     enddo
   enddo
-call DeallocateArray(stoich)
+
+  call DeallocateArray(stoich)
 
   word = 'O2(aq)'
   this%i_o2 = &
-  GetPrimarySpeciesIDFromName(word,reaction,option)
+    GetPrimarySpeciesIDFromName(word,reaction,option)
 
   word = 'NH4+'
   this%i_nh4 = &
-  GetPrimarySpeciesIDFromName(word,reaction,option)
+    GetPrimarySpeciesIDFromName(word,reaction,option)
 
   word = 'BIOMASS'
   this%i_biomass = &
-  GetPrimarySpeciesIDFromName(word,reaction,option)
+    GetPrimarySpeciesIDFromName(word,reaction,option)
 
-! Input file must have carbon species indicated by the word "DONOR" to be used as donor
+  ! Input file must have carbon species indicated by the word "DONOR"
+  ! to be used as donor
+
   do irxn = 1, this%n_rxn
     do i = 1, species_ids(0,irxn)
-      if (index(reaction%primary_species_names(species_ids(i,irxn)),'DONOR') > 0) then
+      if (index(reaction%primary_species_names(species_ids(i,irxn)),'DONOR') &
+        > 0) then
         this%i_donor(irxn) = species_ids(i,irxn)
         exit
       endif
     enddo
+    if (UnInitialized(this%i_donor(irxn))) then
+      option%io_buffer = 'No DONOR is specified for the reaction. &
+        &Please ensure -DONOR is used to specify the carbon donor(s) &
+        &for each reaction.'
+      call PrintErrMsg(option)
+    endif
   enddo
 
   call DeallocateArray(species_ids)
@@ -256,10 +268,6 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: L_water
-  PetscReal :: kg_water
-  PetscReal :: volume
-  PetscReal :: porosity
-  PetscReal :: liquid_saturation
   PetscReal :: molality_to_molarity
   PetscReal :: vh_L, sumkin, Biomass_mod
   PetscReal :: nh4_inhibition, tempreal, threshold_f
@@ -270,12 +278,12 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Rate(this%n_species)
   PetscReal :: inhibited_rate(this%n_rxn)
   PetscReal :: u(this%n_rxn)
+  PetscReal :: n_carbon
 
   PetscInt :: icomp, irxn, i_biomass, i_carbon
 
-  volume = material_auxvar%volume
-  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-            volume*1.d3 ! m^3 -> L
+  L_water = material_auxvar%volume*global_auxvar%sat(iphase)* &
+    material_auxvar%volume*1.d3 ! m^3 -> L
 
   molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3
     ! concentrations are molarities [M]
@@ -289,51 +297,44 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   do irxn = 1, this%n_rxn
     i_carbon = this%i_donor(irxn)
-          rkin(irxn) = this%mu_max * exp(-(ABS(this%stoich(i_carbon,irxn)) / (vh_L * C_aq(i_carbon))))* &
-            exp(-(ABS(this%stoich(this%i_o2,irxn)) / (vh_L * C_aq(this%i_o2))))  ![1/sec]
+      rkin(irxn) = this%mu_max * exp(-(ABS(this%stoich(i_carbon,irxn)) &
+        / (vh_L * C_aq(i_carbon)))) * &
+        exp(-(ABS(this%stoich(this%i_o2,irxn)) &
+        / (vh_L * C_aq(this%i_o2))))  ![1/sec]
   enddo
 
-! Cybernetic Formulation
-! Relative contribution, ui (unitless)
-
-  sumkin=0.d0
+  ! Cybernetic Formulation
+  ! Relative contribution, ui (unitless)
+  sumkin = 0.d0
   do irxn = 1, this%n_rxn
     sumkin = sumkin + rkin(irxn)
   enddo
 
-  u = rkin/sumkin
-  R = u * rkin
+  u = rkin / sumkin
+  R = u * rkin ![1/sec]
 
-! NH4 inhibition (Threshold)
+  ! NH4 inhibition (Threshold)
   threshold_f = 1.d8
   tempreal = (C_aq(this%i_nh4) - this%nh4_inhibit) * threshold_f
   nh4_inhibition = 0.5d0 + atan(tempreal)/PI
 
-! Reactions are modulated by biomass concentration
-! Biomass is moduluated by a carrying capacity (CC)
-  Biomass_mod = C_aq(this%i_biomass) * (1-C_aq(this%i_biomass)/this%cc)
+  ! Reactions are modulated by biomass concentration
+  ! Biomass is moduluated by a carrying capacity (CC)
+  Biomass_mod = C_aq(this%i_biomass) * (1 - C_aq(this%i_biomass) / this%cc)
 
   Rate = 0.d0
 
-  ! If reaction has NH4 as a rectant, then apply the nh4_inhibition to R
-  do icomp = 1, this%n_species
-    do irxn = 1, this%n_rxn
-      if (this%stoich(this%i_nh4,irxn) < 0) then
-        R(irxn) = R(irxn) * nh4_inhibition
-      endif
-      if (this%stoich(icomp,irxn) /= 0) then
-        Rate(icomp) = Rate(icomp) + this%stoich(icomp,irxn) * R(irxn)
-      endif
-    if (icomp == this%i_biomass) then
-      Rate(icomp) = Rate(icomp) - this%k_deg
+  do irxn = 1, this%n_rxn
+    if (this%stoich(this%i_nh4,irxn) < 0.d0) then
+      R(irxn) = R(irxn) * nh4_inhibition
     endif
-    enddo
+    Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
   enddo
-
+  Rate(this%i_biomass) = Rate(this%i_biomass) - this%k_deg
   Rate(:) = Rate(:) * Biomass_mod * L_water
 
-!Residuals
-Residual(:) = Residual(:) - Rate(:)
+  ! Residuals
+  Residual(:) = Residual(:) - Rate(:)
 
 end subroutine LambdaEvaluate
 
