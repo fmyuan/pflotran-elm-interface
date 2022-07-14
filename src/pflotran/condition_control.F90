@@ -254,6 +254,35 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
+              case(LGP_STATE)  
+                if (.not. &
+                     (general%gas_pressure%itype == DIRICHLET_BC .or. &
+                     general%gas_pressure%itype == HYDROSTATIC_BC)) then
+                   option%io_buffer = 'Gas pressure ' // trim(string)
+                   call PrintErrMsg(option)
+                endif
+                if (.not. &
+                     (general%gas_saturation%itype == DIRICHLET_BC .or. &
+                     general%gas_saturation%itype == HYDROSTATIC_BC)) then
+                   option%io_buffer = 'Gas saturation ' // trim(string)
+                   call PrintErrMsg(option)
+                endif
+                if (option%nflowdof == 4 .and. general_soluble_matrix) then
+                   if (.not. &
+                        (general%porosity%itype == DIRICHLET_BC .or. &
+                        general%porosity%itype == HYDROSTATIC_BC)) then
+                      option%io_buffer = 'Porosity ' // trim(string)
+                      call PrintErrMsg(option)
+                   endif
+                endif
+                if (option%nflowdof == 4) then
+                   if (.not. &
+                        (general%precipitate_saturation%itype == DIRICHLET_BC .or. &
+                        general%precipitate_saturation%itype == HYDROSTATIC_BC)) then
+                      option%io_buffer = 'Precipitate saturation ' // trim(string)
+                      call PrintErrMsg(option)
+                   endif
+                endif
               case(LIQUID_STATE)
                 if (.not. &
                     (general%liquid_pressure%itype == DIRICHLET_BC .or. &
@@ -266,6 +295,51 @@ subroutine CondControlAssignFlowInitCond(realization)
                       general%mole_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Mole fraction ' // trim(string)
                   call PrintErrMsg(option)
+                endif
+                if (option%nflowdof == 4 .and. general_soluble_matrix) then
+                  if (.not. &
+                       (general%porosity%itype == DIRICHLET_BC .or. &
+                         general%porosity%itype == HYDROSTATIC_BC)) then
+                    option%io_buffer = 'Porosity ' // trim(string)
+                    call PrintErrMsg(option)
+                  endif
+                endif
+                if (option%nflowdof == 4) then
+                  if (.not. &
+                       (general%solute_fraction%itype == DIRICHLET_BC .or. &
+                         general%solute_fraction%itype == HYDROSTATIC_BC)) then
+                    option%io_buffer = 'Solute fraction ' // trim(string)
+                    call PrintErrMsg(option)
+                  endif
+                endif
+              case(LP_STATE)
+                if (.not. &
+                    (general%liquid_pressure%itype == DIRICHLET_BC .or. &
+                      general%liquid_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (general%mole_fraction%itype == DIRICHLET_BC .or. &
+                      general%mole_fraction%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Mole fraction ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (option%nflowdof == 4 .and. general_soluble_matrix) then
+                  if (.not. &
+                       (general%porosity%itype == DIRICHLET_BC .or. &
+                         general%porosity%itype == HYDROSTATIC_BC)) then
+                    option%io_buffer = 'Porosity ' // trim(string)
+                    call PrintErrMsg(option)
+                  endif
+                endif
+                if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+                  if (.not. &
+                       (general%precipitate_saturation%itype == DIRICHLET_BC .or. &
+                         general%precipitate_saturation%itype == HYDROSTATIC_BC)) then
+                    option%io_buffer = 'Precipitate saturation ' // trim(string)
+                    call PrintErrMsg(option)
+                  endif
                 endif
               case(GAS_STATE)
                 if (.not. &
@@ -280,15 +354,37 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
+             case(GP_STATE)
+                if (.not. &
+                     (general%gas_pressure%itype == DIRICHLET_BC .or. &
+                     general%gas_pressure%itype == HYDROSTATIC_BC)) then
+                   option%io_buffer = 'Gas pressure ' // trim(string)
+                   call PrintErrMsg(option)
+                endif
+                if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+                  if (.not. &
+                       (general%mole_fraction%itype == DIRICHLET_BC .or. &
+                        general%mole_fraction%itype == HYDROSTATIC_BC)) then
+                       option%io_buffer = 'Gas saturation ' // trim(string)
+                     call PrintErrMsg(option)
+                  endif
+                elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+                  if (.not. &
+                       (general%porosity%itype == DIRICHLET_BC .or. &
+                        general%porosity%itype == HYDROSTATIC_BC)) then
+                        option%io_buffer = 'Porosity ' // trim(string)
+                    call PrintErrMsg(option)
+                  endif
+                endif
             end select
             if (.not. &
                 (general%temperature%itype == DIRICHLET_BC .or. &
                   general%temperature%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Temperature ' // trim(string)
               call PrintErrMsg(option)
-            endif
-
-
+            endif                              
+              
+              
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
               ghosted_id = grid%nL2G(local_id)
@@ -317,6 +413,28 @@ subroutine CondControlAssignFlowInitCond(realization)
                       general%gas_pressure%dataset%rarray(1) - &
                       p_sat
                   endif
+                case(LGP_STATE)
+                  xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
+                       general%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+GENERAL_GAS_SATURATION_DOF) = &
+                       general%gas_saturation%dataset%rarray(1)
+                  temperature = general%temperature%dataset%rarray(1)
+                  if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
+                     xx_p(ibegin+GENERAL_ENERGY_DOF) = temperature
+                  else
+                     call EOSWaterSaturationPressure(temperature,p_sat,ierr)
+                     ! p_a = p_g - p_s(T)
+                     xx_p(ibegin+GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
+                          general%gas_pressure%dataset%rarray(1) - &
+                          p_sat
+                  endif
+                  if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+                    xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = &
+                         general%precipitate_saturation%dataset%rarray(1)
+                  elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+                    xx_p(ibegin+GENERAL_POROSITY_DOF) = &
+                         general%porosity%dataset%rarray(1)
+                  endif
                 case(LIQUID_STATE)
                   xx_p(ibegin+GENERAL_LIQUID_PRESSURE_DOF) = &
                     general%liquid_pressure%dataset%rarray(1)
@@ -324,6 +442,10 @@ subroutine CondControlAssignFlowInitCond(realization)
                     general%mole_fraction%dataset%rarray(1)
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                     general%temperature%dataset%rarray(1)
+                  if (option%nflowdof == 4) then
+                    xx_p(ibegin+GENERAL_LIQUID_STATE_S_MOLE_DOF) = &
+                      general%solute_fraction%dataset%rarray(1)
+                  endif
                 case(GAS_STATE)
                   xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
                     general%gas_pressure%dataset%rarray(1)
@@ -338,6 +460,43 @@ subroutine CondControlAssignFlowInitCond(realization)
                   endif
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                     general%temperature%dataset%rarray(1)
+                case(P_STATE)
+                case(LP_STATE)
+                  !DF: fix general_2ph_energy_dof
+                  xx_p(ibegin+GENERAL_LIQUID_PRESSURE_DOF) = &
+                       general%liquid_pressure%dataset%rarray(1)
+                  if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+                    xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = &
+                         general%precipitate_saturation%dataset%rarray(1)
+                  elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+                     xx_p(ibegin+GENERAL_POROSITY_DOF) = &
+                          general%porosity%dataset%rarray(1)
+                  endif
+                  xx_p(ibegin+GENERAL_ENERGY_DOF) = &
+                       general%temperature%dataset%rarray(1)
+                  xx_p(ibegin+GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
+                     general%mole_fraction%dataset%rarray(1)
+                case(GP_STATE)
+                  xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
+                       general%gas_pressure%dataset%rarray(1)
+                  if (general_gas_air_mass_dof == &
+                       GENERAL_AIR_PRESSURE_INDEX) then
+                     xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+                          general%gas_pressure%dataset%rarray(1) * &
+                          general%mole_fraction%dataset%rarray(1)
+                  else
+                     xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+                          general%mole_fraction%dataset%rarray(1)
+                  endif
+                  xx_p(ibegin+GENERAL_ENERGY_DOF) = &
+                       general%temperature%dataset%rarray(1)
+                  if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+                    xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = &
+                         general%precipitate_saturation%dataset%rarray(1)
+                  elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+                    xx_p(ibegin+GENERAL_POROSITY_DOF) = &
+                         general%porosity%dataset%rarray(1)
+                  endif
               end select
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase

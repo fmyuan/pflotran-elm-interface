@@ -53,6 +53,7 @@ module Option_module
     PetscInt :: gas_phase
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
+    PetscInt :: precipitate_phase
     PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
@@ -76,6 +77,7 @@ module Option_module
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
     PetscInt :: energy_id  ! index of energy dof
+    PetscInt :: solute_id ! index of solute dof
 
     PetscInt :: ntrandof
 
@@ -450,6 +452,7 @@ subroutine OptionInitRealization(option)
   option%gas_phase     = UNINITIALIZED_INTEGER
   option%hydrate_phase = UNINITIALIZED_INTEGER
   option%ice_phase = UNINITIALIZED_INTEGER
+  option%precipitate_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -459,6 +462,7 @@ subroutine OptionInitRealization(option)
   option%water_id = 0
   option%air_id = 0
   option%energy_id = 0
+  option%solute_id = 0
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters

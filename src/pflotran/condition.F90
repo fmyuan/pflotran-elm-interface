@@ -49,7 +49,10 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: liquid_pressure
     type(flow_sub_condition_type), pointer :: gas_pressure
     type(flow_sub_condition_type), pointer :: gas_saturation
+    type(flow_sub_condition_type), pointer :: precipitate_saturation
     type(flow_sub_condition_type), pointer :: mole_fraction
+    type(flow_sub_condition_type), pointer :: solute_fraction
+    type(flow_sub_condition_type), pointer :: porosity
     type(flow_sub_condition_type), pointer :: relative_humidity
     type(flow_sub_condition_type), pointer :: temperature
     type(flow_sub_condition_type), pointer :: rate
@@ -303,8 +306,11 @@ function FlowGeneralConditionCreate(option)
   nullify(general_condition%liquid_pressure)
   nullify(general_condition%gas_pressure)
   nullify(general_condition%gas_saturation)
+  nullify(general_condition%precipitate_saturation)
   nullify(general_condition%relative_humidity)
   nullify(general_condition%mole_fraction)
+  nullify(general_condition%solute_fraction)
+  nullify(general_condition%porosity)
   nullify(general_condition%temperature)
   nullify(general_condition%liquid_flux)
   nullify(general_condition%gas_flux)
@@ -399,6 +405,13 @@ function FlowGeneralSubConditionPtr(input,sub_condition_name,general, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         general%gas_saturation => sub_condition_ptr
       endif
+    case('PRECIPITATE_SATURATION')
+      if (associated(general%precipitate_saturation)) then
+         sub_condition_ptr => general%precipitate_saturation
+      else
+         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+         general%precipitate_saturation => sub_condition_ptr
+      endif
     case('TEMPERATURE')
       if (associated(general%temperature)) then
         sub_condition_ptr => general%temperature
@@ -419,6 +432,20 @@ function FlowGeneralSubConditionPtr(input,sub_condition_name,general, &
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         general%mole_fraction => sub_condition_ptr
+      endif
+    case('SOLUTE_FRACTION')
+      if (associated(general%solute_fraction)) then
+        sub_condition_ptr => general%solute_fraction
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        general%solute_fraction => sub_condition_ptr
+      endif
+    case('POROSITY')
+      if (associated(general%porosity)) then
+         sub_condition_ptr => general%porosity
+      else
+         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+         general%porosity => sub_condition_ptr
       endif
     case('LIQUID_FLUX')
       if (associated(general%liquid_flux)) then
@@ -1905,7 +1932,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
       case('LIQUID_PRESSURE','GAS_PRESSURE','LIQUID_SATURATION', &
            'GAS_SATURATION', 'TEMPERATURE','MOLE_FRACTION','RATE', &
-           'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
+           'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY', &
+           'SOLUTE_FRACTION','PRECIPITATE_SATURATION','POROSITY')
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
             sub_condition_ptr => &
@@ -1916,7 +1944,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           case('LIQUID_PRESSURE','GAS_PRESSURE')
             internal_units = 'Pa'
           case('LIQUID_SATURATION','GAS_SATURATION','MOLE_FRACTION', &
-                'RELATIVE_HUMIDITY')
+                'RELATIVE_HUMIDITY','SOLUTE_FRACTION', &
+                'PRECIPITATE_SATURATION','POROSITY')
             internal_units = 'unitless'
           case('TEMPERATURE')
             internal_units = 'C'
@@ -1927,8 +1956,14 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               case(WF_MODE)
                 internal_units = trim(rate_string) // ',' // trim(rate_string)
               case(G_MODE)
-                internal_units = trim(rate_string) // ',' // &
-                  trim(rate_string) // ',MJ/sec|MW'
+                if (option%nflowdof == 3) then
+                  internal_units = trim(rate_string) // ',' // &
+                                   trim(rate_string) // ',MJ/sec|MW'
+                elseif (option%nflowdof == 4) then
+                  internal_units = trim(rate_string) // ',' // &
+                                   trim(rate_string) // ',' // &
+                                   trim(rate_string) // ',MJ/sec|MW'
+                endif
             end select
           case('LIQUID_FLUX','GAS_FLUX')
             internal_units = 'meter/sec'
@@ -2022,16 +2057,43 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         else if (associated(general%gas_pressure) .and. &
                 associated(general%gas_saturation)) then
           ! two phase condition
-          condition%iphase = TWO_PHASE_STATE
+          if (general_soluble_matrix) then
+            condition%iphase = LGP_STATE
+          else
+            condition%iphase = TWO_PHASE_STATE
+          endif
+        else if (associated(general%liquid_pressure) .and. &
+            (associated(general%precipitate_saturation)) .and. &
+            (associated(general%mole_fraction))) then
+          ! liquid-precipitate condition
+          condition%iphase = LP_STATE
+        else if ((associated(general%liquid_pressure) .or. &
+                 associated(general%gas_pressure)) .and. &
+                associated(general%gas_saturation) .and. &
+                associated(general%precipitate_saturation)) then
+          ! liquid-gas-precipitate condition
+          condition%iphase = LGP_STATE
         else if (associated(general%liquid_pressure) .and. &
                  associated(general%mole_fraction)) then
-          ! liquid phase condition
-          condition%iphase = LIQUID_STATE
+          if (((option%nflowdof == 4) .and. (associated(general%solute_fraction) &
+               .or. associated(general%porosity)) &
+               .or. (option%nflowdof == 3))) then
+            ! liquid phase condition
+            if (general_soluble_matrix) then
+              condition%iphase = LP_STATE
+            else
+              condition%iphase = LIQUID_STATE
+            endif
+          endif
         else if (associated(general%gas_pressure) .and. &
                  (associated(general%mole_fraction) .or. &
                   associated(general%relative_humidity))) then
           ! gas phase condition
-          condition%iphase = GAS_STATE
+          if (general_soluble_matrix) then
+            condition%iphase = GP_STATE
+          else
+            condition%iphase = GAS_STATE
+          endif
         endif
       else
         if (.not.associated(general%liquid_pressure)) then
@@ -2044,7 +2106,11 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             &a gas saturation'
           call PrintErrMsg(option)
         endif
-        condition%iphase = TWO_PHASE_STATE
+        if (.not. general_soluble_matrix) then
+          condition%iphase = TWO_PHASE_STATE
+        elseif (general_soluble_matrix) then
+          condition%iphase = LGP_STATE
+        endif
       endif
     endif
     if (condition%iphase == NULL_STATE) then
@@ -2067,6 +2133,10 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,general%gas_saturation, &
                               default_time_storage, &
                               PETSC_TRUE)
+  word = 'precipitate saturation'
+  call FlowSubConditionVerify(option,condition,word,general%precipitate_saturation, &
+                              default_time_storage, &
+                              PETSC_TRUE)
   word = 'relative humidity'
   call FlowSubConditionVerify(option,condition,word,general%relative_humidity, &
                               default_time_storage, &
@@ -2075,6 +2145,11 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,general%mole_fraction, &
                               default_time_storage, &
                               PETSC_TRUE)
+  word = 'solute fraction'
+  call FlowSubConditionVerify(option,condition,word,general%solute_fraction, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+
   word = 'temperature'
   call FlowSubConditionVerify(option,condition,word,general%temperature, &
                               default_time_storage, &
@@ -2104,9 +2179,15 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
   if (associated(general%gas_saturation)) &
     i = i + 1
+  if (associated(general%precipitate_saturation)) &
+    i = i + 1
   if (associated(general%relative_humidity)) &
     i = i + 1
   if (associated(general%mole_fraction)) &
+    i = i + 1
+  if (associated(general%solute_fraction)) &
+    i = i + 1
+  if (associated(general%porosity)) &
     i = i + 1
   if (associated(general%temperature)) &
     i = i + 1
@@ -2136,6 +2217,10 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%gas_saturation
   endif
+  if (associated(general%precipitate_saturation)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => general%precipitate_saturation
+  endif
   if (associated(general%relative_humidity)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%relative_humidity
@@ -2143,6 +2228,14 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   if (associated(general%mole_fraction)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%mole_fraction
+  endif
+  if (associated(general%solute_fraction)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => general%solute_fraction
+  endif
+  if (associated(general%porosity)) then
+     i = i + 1
+     condition%sub_condition_ptr(i)%ptr => general%porosity
   endif
   if (associated(general%temperature)) then
     i = i + 1

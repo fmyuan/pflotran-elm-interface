@@ -18,6 +18,7 @@ module Fluid_module
     character(len=MAXWORDLENGTH) :: phase_name
     PetscInt :: phase_id
     PetscReal :: diffusion_coefficient
+    PetscReal :: solute_diffusion_coefficient
     PetscReal :: gas_diffusion_coefficient
     PetscReal :: diffusion_activation_energy
     PetscReal :: nacl_concentration
@@ -56,6 +57,7 @@ function FluidPropertyCreate()
   fluid_property%phase_id = 0
   fluid_property%diffusion_coefficient = 1.d-9
   fluid_property%gas_diffusion_coefficient = 2.13D-5
+  fluid_property%solute_diffusion_coefficient = 1.d-9
   ! for liquid, one can use 12.6 kJ/mol as an activation energy
   fluid_property%diffusion_activation_energy = 0.d0
   fluid_property%nacl_concentration = 0.d0
@@ -112,6 +114,13 @@ subroutine FluidPropertyRead(fluid_property,input,option)
         call InputReadAndConvertUnits(input, &
                                       fluid_property%diffusion_coefficient, &
                        'm^2/sec','FLUID_PROPERTY,diffusion_coefficient',option)
+      case('SOLUTE_DIFFUSION_COEFFICIENT')
+         call InputReadDouble(input,option,fluid_property%solute_diffusion_coefficient)
+         call InputErrorMsg(input,option,'solute diffusion coefficient', &
+                            'FLUID_PROPERTY')
+         call InputReadAndConvertUnits(input, &
+                fluid_property%solute_diffusion_coefficient, &
+                'm^2/sec','FLUID_PROPERTY,solute_diffusion_coefficient',option)
       case('DIFFUSION_ACTIVATION_ENERGY')
         call InputReadDouble(input,option, &
                              fluid_property%diffusion_activation_energy)
