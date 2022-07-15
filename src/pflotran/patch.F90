@@ -667,8 +667,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
           call PrintErrMsg(option)
         endif
         call MPI_Allreduce(observation%region%num_cells,temp_int, &
-                           ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, & 
-                           ierr);CHKERRQ(ierr) 
+                           ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                           ierr);CHKERRQ(ierr)
         if (temp_int == 0) then
           option%io_buffer = 'Region "' // trim(observation%region%name) // &
             '" is used in an observation point but lies outside the &
@@ -1532,14 +1532,16 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       coupler%flow_aux_mapping(GENERAL_POROSITY_INDEX) = 4
     endif
   endif
-  
+
   select case(flow_condition%iphase)
     case(MULTI_STATE)
         if (.not. general_soluble_matrix) then
         select type(dataset => general%gas_saturation%dataset)
           class is(dataset_ascii_type)
             gas_sat = general%gas_saturation%dataset%rarray(1)
-            precipitate_sat = general%precipitate_saturation%dataset%rarray(1)
+	    if (option%nflowdof == 4) then
+              precipitate_sat = general%precipitate_saturation%dataset%rarray(1)
+	    endif
             if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
                 TWO_PHASE_STATE
@@ -2221,7 +2223,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
              call PrintErrMsg(option)
           end select
        endif
- 
+
       ! ---------------------------------------------------------------------- !
         case(ANY_STATE)
           ! temperature; 2nd dof ------------------------- !

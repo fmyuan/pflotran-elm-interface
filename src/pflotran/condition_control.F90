@@ -254,7 +254,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
-              case(LGP_STATE)  
+              case(LGP_STATE)
                 if (.not. &
                      (general%gas_pressure%itype == DIRICHLET_BC .or. &
                      general%gas_pressure%itype == HYDROSTATIC_BC)) then
@@ -382,9 +382,9 @@ subroutine CondControlAssignFlowInitCond(realization)
                   general%temperature%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Temperature ' // trim(string)
               call PrintErrMsg(option)
-            endif                              
-              
-              
+            endif
+
+
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
               ghosted_id = grid%nL2G(local_id)

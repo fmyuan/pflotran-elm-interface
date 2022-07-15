@@ -36,7 +36,7 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
   PetscInt, public :: general_sub_newton_iter_num = 0
-  PetscInt, public :: general_newtontrdc_prev_iter_num = 0 
+  PetscInt, public :: general_newtontrdc_prev_iter_num = 0
 
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: general_allow_state_change = PETSC_TRUE

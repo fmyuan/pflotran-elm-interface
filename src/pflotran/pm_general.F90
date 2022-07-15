@@ -58,36 +58,36 @@ module PM_General_class
     procedure, public :: RestartBinary => PMGeneralRestartBinary
     procedure, public :: Destroy => PMGeneralDestroy
   end type pm_general_type
-  
+
   public :: PMGeneralCreate, &
             PMGeneralSetFlowMode
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMGeneralCreate()
-  ! 
+  !
   ! Creates General process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Upwind_Direction_module
   use Option_module
 
   implicit none
-  
+
   class(pm_general_type), pointer :: PMGeneralCreate
 
   class(pm_general_type), pointer :: this
 
   type(option_type), pointer :: option
 
-#ifdef PM_GENERAL_DEBUG  
+#ifdef PM_GENERAL_DEBUG
   print *, 'PMGeneralCreate()'
-#endif  
+#endif
 
   allocate(this)
   call PMSubsurfaceFlowInit(this)
@@ -99,7 +99,7 @@ function PMGeneralCreate()
   fix_upwind_direction = PETSC_FALSE
 
   PMGeneralCreate => this
-  
+
 end function PMGeneralCreate
 
 ! ************************************************************************** !
@@ -127,7 +127,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   PetscReal, parameter :: ref_pres = 101325.d0 !Pa
   PetscReal, parameter :: ref_sat = 0.5
   PetscReal, parameter :: ref_xmol = 1.d-6
-                                             
+
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
@@ -140,7 +140,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
   PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
   PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5
-                                          
+
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
@@ -159,13 +159,13 @@ subroutine PMGeneralSetFlowMode(pm,option)
   option%iflowmode = G_MODE
   allocate(general_max_states)
   allocate(max_change_index)
-  
+
 
   option%use_isothermal = PETSC_FALSE
-  
+
   option%liquid_phase = 1  ! liquid_pressure
   option%gas_phase = 2     ! gas_pressure
-  
+
   option%air_pressure_id = 3
   option%capillary_pressure_id = 4
   option%vapor_pressure_id = 5
@@ -228,7 +228,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
                           LIQUID_MOLE_FRACTION, TEMPERATURE, &
                           GAS_SATURATION]
     allocate(pm%max_change_isubvar(6))
-                                     ! UNINITIALIZED_INTEGER avoids zeroing of 
+                                     ! UNINITIALIZED_INTEGER avoids zeroing of
                                      ! pressures not represented in phase
                                          ! 2 = air in xmol(air,liquid)
     pm%max_change_isubvar = [0,0,0,2,0,0]
@@ -282,9 +282,9 @@ end subroutine PMGeneralSetFlowMode
 
 ! ************************************************************************** !
 subroutine PMGeneralReadSimOptionsBlock(this,input)
-  ! 
+  !
   ! Read simulation options for GENERAL mode
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/04/15
   !
@@ -293,11 +293,11 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   use Input_Aux_module
   use String_module
   use Option_module
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: keyword, word
   class(pm_general_type) :: this
   type(option_type), pointer :: option
@@ -316,24 +316,24 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   sid = option%solute_id
 
   error_string = 'General Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     found = PETSC_FALSE
     call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
-                                       error_string,option)    
+                                       error_string,option)
     if (found) cycle
-    
+
     select case(trim(keyword))
       case('DIFFUSE_XMASS')
         general_diffuse_xmol = PETSC_FALSE
@@ -431,7 +431,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
-  
+
   enddo
   call InputPopBlock(input,option)
 
@@ -481,19 +481,19 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
   sid = option%solute_id
 
   error_string = 'GENERAL Newton Solver'
- 
+
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                             error_string,option)
   if (found) return
-  
+
   found = PETSC_TRUE
   select case(trim(keyword))
     case('MAX_NEWTON_ITERATIONS')
       call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                   'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
     ! Tolerances
-  
+
     ! All Residual
     case('RESIDUAL_INF_TOL')
       call InputReadDouble(input,option,tempreal)
@@ -1225,7 +1225,7 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
   PetscReal :: dX_abs, dX_X0
@@ -1238,7 +1238,7 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_relative
-  
+
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
@@ -1251,7 +1251,7 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   allocate(converged_rel_update_cell(option%nflowdof,general_max_states))
   allocate(converged_abs_update_real(option%nflowdof,general_max_states))
   allocate(converged_rel_update_real(option%nflowdof,general_max_states))
-  
+
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
@@ -1355,7 +1355,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscInt :: local_id, ghosted_id, natural_id
@@ -1379,7 +1379,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   character(len=17), pointer :: dof_string(:,:)
   character(len=15), parameter :: tol_string(MAX_INDEX) = &
     ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
-  
+
   patch => this%realization%patch
   option => this%realization%option
   field => this%realization%field
@@ -1426,7 +1426,14 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ',&
              'Precipitate Sat. '],shape(dof_string))
   endif
+  call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
+  if (this%option%flow%using_newtontrdc) then
+    if (general_newtontrdc_prev_iter_num == it) then
+      general_sub_newton_iter_num = general_sub_newton_iter_num + 1
+    endif
+    general_newtontrdc_prev_iter_num = it
+  endif
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
@@ -1497,7 +1504,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                        converged_scaled_residual_real(:,:)
     this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
                                        converged_scaled_residual_cell(:,:)
-    ! do not perform an all reduce on cell id as this info is not printed 
+    ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
 
     ! geh: since we need to pack other flags into this global reduction,
@@ -1519,9 +1526,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     mpi_int = option%nflowdof*general_max_index*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
-                                          
+
     option%convergence = CONVERGENCE_CONVERGED
-    
+
     do itol = 1, MAX_INDEX
       do istate = 1, general_max_states
         do idof = 1, option%nflowdof
@@ -1530,7 +1537,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             if (this%logging_verbosity > 0) then
               if (trim(tol_string(itol)) == 'Residual' .or. &
                   trim(tol_string(itol)) == 'Scaled Residual') then
-                if (idof == 1) then 
+                if (idof == 1) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Water Mass'
                 elseif (idof == 2) then
@@ -1723,9 +1730,9 @@ subroutine PMGeneralMaxChange(this)
                                GAS_SATURATION, PRECIPITATE_SATURATION, &
                                POROSITY
   implicit none
-  
+
   class(pm_general_type) :: this
-  
+
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -1738,9 +1745,9 @@ subroutine PMGeneralMaxChange(this)
   PetscInt :: i, j, max_change_index
   PetscInt :: local_id, ghosted_id
 
-  
+
   PetscErrorCode :: ierr
-  
+
   realization => this%realization
   option => realization%option
   field => realization%field
@@ -1757,7 +1764,7 @@ subroutine PMGeneralMaxChange(this)
   allocate(max_change_global(max_change_index))
   max_change_global = 0.d0
   max_change_local = 0.d0
-  
+
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
   !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION(]), &
   !                        POROSITY (OR) PRECIPITATE_SATURATION]
@@ -1833,23 +1840,23 @@ subroutine PMGeneralMaxChange(this)
   elseif (option%nflowdof == 4) then
     this%max_saturation_change = maxval(max_change_global(6:7))
   endif
-  
+
 end subroutine PMGeneralMaxChange
 ! ************************************************************************** !
 
 subroutine PMGeneralComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use General_module, only : GeneralComputeMassBalance
 
   implicit none
-  
+
   class(pm_general_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   call GeneralComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMGeneralComputeMassBalance

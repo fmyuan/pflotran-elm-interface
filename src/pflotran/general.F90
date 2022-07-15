@@ -197,10 +197,10 @@ subroutine GeneralSetup(realization)
     call MatrixZeroingInitRowZeroing(patch%aux%General%matrix_zeroing, &
                                      grid%nlmax)
   endif
-  
+
   ! initialize parameters
   cur_fluid_property => realization%fluid_properties
-  do 
+  do
     if (.not.associated(cur_fluid_property)) exit
     patch%aux%General%general_parameter% &
       diffusion_coefficient(cur_fluid_property%phase_id) = &
@@ -209,7 +209,7 @@ subroutine GeneralSetup(realization)
       solute_diffusion_coefficient = &
         cur_fluid_property%solute_diffusion_coefficient
     cur_fluid_property => cur_fluid_property%next
-  enddo  
+  enddo
   ! check whether diffusion coefficients are initialized.
   if (Uninitialized(patch%aux%General%general_parameter% &
       diffusion_coefficient(LIQUID_PHASE))) then
@@ -235,7 +235,7 @@ subroutine GeneralSetup(realization)
   call GeneralSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
   call GeneralSetPlotVariables(realization,list)
-  
+
   general_ts_count = 0
   general_ts_cut_count = 0
   general_ni_count = 0
@@ -694,7 +694,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                         gen_auxvars_ss(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
-  
+
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
@@ -708,7 +708,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   PetscReal :: qsrc(realization%option%nflowdof)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal :: xxbc(realization%option%nflowdof), & 
+  PetscReal :: xxbc(realization%option%nflowdof), &
                xxss(realization%option%nflowdof)
   PetscReal :: cell_pressure,qsrc_vol(realization%option%nflowdof-1),scale
   PetscReal :: Res_dummy(realization%option%nflowdof)
@@ -829,7 +829,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                 case(DIRICHLET_BC,HYDROSTATIC_BC)
                   real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
                   xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
-              end select   
+              end select
             enddo
           case(TWO_PHASE_STATE,LGP_STATE)
             !DF: conditions for LGP_STATE need to be filled out
@@ -916,7 +916,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                     call PrintErrMsg(option)
                   endif
               end select
-            enddo  
+            enddo
         end select
       else
         ! we do this for all BCs; Neumann bcs will be set later
@@ -936,9 +936,9 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           endif
         enddo
       endif
-          
+
       ! set this based on data given
-      if (istate <= 5) then 
+      if (istate <= 5) then
         global_auxvars_bc(sum_connection)%istate = istate
       else
         if (.not. general_soluble_matrix) then
@@ -967,7 +967,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                   option)
       endif
       if (update_state_bc) then
-        ! update state and update aux var; this could result in two update to 
+        ! update state and update aux var; this could result in two update to
         ! the aux var as update state updates if the state changes
         if (option%nflowdof == 3) then
           call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
@@ -988,7 +988,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-  
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   solute_comp_id = option%solute_id
@@ -1054,16 +1054,16 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
         xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity
       endif
 
-    
+
       cell_pressure = maxval(gen_auxvars(ZERO_INTEGER,ghosted_id)% &
-                             pres(option%liquid_phase:option%gas_phase))    
-    
+                             pres(option%liquid_phase:option%gas_phase))
+
       if (qsrc(wat_comp_id)<0 .or. qsrc(air_comp_id)<0.d0) then
         xxss(1) = cell_pressure
         xxss(2) = gen_auxvars(ZERO_INTEGER,ghosted_id)%sat(air_comp_id)
         xxss(3) = gen_auxvars(ZERO_INTEGER,ghosted_id)%temp
       endif
-    
+
       if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
           dabs(qsrc(air_comp_id)) > 0.d0) then
         global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
@@ -1082,15 +1082,15 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           global_auxvars_ss(sum_connection)%istate = LGP_STATE
         endif
       endif
-    
+
       if (global_auxvars_ss(sum_connection)%istate /= &
           global_auxvars(ghosted_id)%istate) then
         global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       endif
-    
+
       option%iflag = GENERAL_UPDATE_FOR_SS
-    
-      ! Compute state variables 
+
+      ! Compute state variables
       call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -1105,7 +1105,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           general_analytical_derivatives, &
                           PETSC_TRUE, & ! aux_var_compute_only
                           local_id == general_debug_cell_id)
-      
+
     enddo
     source_sink => source_sink%next
   enddo
@@ -1280,13 +1280,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt, save :: iplot = 0
   PetscInt :: flow_src_sink_type
-  
+
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
-  
+
   PetscReal :: qsrc(realization%option%nflowdof)
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
@@ -1412,8 +1412,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
-  sum_connection = 0  
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
@@ -1422,15 +1422,15 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping
 
-      imat_up = patch%imat(ghosted_id_up) 
-      imat_dn = patch%imat(ghosted_id_dn) 
+      imat_up = patch%imat(ghosted_id_up)
+      imat_dn = patch%imat(ghosted_id_dn)
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
       icct_up = patch%cct_id(ghosted_id_up)
       icct_dn = patch%cct_id(ghosted_id_dn)
-      
+
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -1584,10 +1584,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
-      endif      
+      endif
       if (associated(patch%ss_flow_fluxes)) then
         patch%ss_flow_fluxes(:,sum_connection) = Res(:)
-      endif      
+      endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
         if (option%nflowdof == 4) then
@@ -1614,13 +1614,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       r_p(patch%aux%General%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
-  
+
   if (general_high_temp_ts_cut) then
     r_p(:) = MAX_DOUBLE
   endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  
+
   call GeneralSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                         gen_auxvars,option)
 
@@ -1779,9 +1779,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   else
     J = A
   endif
-  
+
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-  
+
   if (.not.general_analytical_derivatives) then
     ! Perturb aux vars
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
@@ -1804,10 +1804,10 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       endif
     enddo
   endif
-  
+
 #ifdef DEBUG_GENERAL_LOCAL
   call GeneralOutputAuxVars(gen_auxvars,global_auxvars,option)
-#endif 
+#endif
 
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...
@@ -2253,28 +2253,28 @@ subroutine GeneralSetPlotVariables(realization,list)
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
                                 LIQUID_SATURATION)
-    
+
     name = 'Gas Saturation'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
                                 GAS_SATURATION)
-    
+
     name = 'Liquid Density'
     units = 'kg/m^3'
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 LIQUID_DENSITY)
-    
+
     name = 'Gas Density'
     units = 'kg/m^3'
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 GAS_DENSITY)
-    
+
     name = 'X_g^l'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 LIQUID_MOLE_FRACTION, &
                                 realization%option%air_id)
-    
+
     name = 'X_l^l'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
@@ -2293,53 +2293,53 @@ subroutine GeneralSetPlotVariables(realization,list)
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 GAS_MOLE_FRACTION, &
                                 realization%option%air_id)
-    
+
     name = 'X_l^g'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 GAS_MOLE_FRACTION, &
                                 realization%option%water_id)
-  
+
   endif
-  
+
   if (list%energy_vars) then
-  
+
     name = 'Temperature'
     units = 'C'
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 TEMPERATURE)
-    
+
     name = 'Liquid Energy'
     units = 'MJ/kmol'
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 LIQUID_ENERGY)
-    
+
     name = 'Gas Energy'
     units = 'MJ/kmol'
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 GAS_ENERGY)
-    
+
     name = 'Thermodynamic State'
     units = ''
     output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
     output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
     output_variable%iformat = 1 ! integer
-    call OutputVariableAddToList(list,output_variable)   
-  
+    call OutputVariableAddToList(list,output_variable)
+
   endif
-  
+
 end subroutine GeneralSetPlotVariables
 
 ! ************************************************************************** !
 
 function GeneralAverageDensity(iphase,istate_up,istate_dn, &
                                density_up,density_dn,dden_up,dden_dn)
-  ! 
+  !
   ! Averages density, using opposite cell density if phase non-existent
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/14
-  ! 
+  !
 
   implicit none
 

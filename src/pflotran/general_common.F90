@@ -25,12 +25,12 @@ module General_Common_module
 #define ENERGY_SRCSINK
 #define SOLUTE_SRCSINK
 
-!#define DEBUG_FLUXES  
+!#define DEBUG_FLUXES
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24  
-  
+  PetscReal, parameter :: floweps   = 1.d-24
+
   public :: GeneralAccumulation, &
             GeneralFlux, &
             GeneralBCFlux, &
@@ -39,28 +39,28 @@ module General_Common_module
             GeneralFluxDerivative, &
             GeneralBCFluxDerivative, &
             GeneralSrcSinkDerivative
-            
+
   public :: GeneralDiffJacobian, &
             GeneralAuxVarDiff
 
 contains
 
 ! ************************************************************************** !
-    
+
 subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
                                analytical_derivatives,debug_cell)
-  ! 
+  !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/09/11
-  ! 
+  !
 
   use Option_module
   use Material_Aux_module
-  
+
   implicit none
 
   type(general_auxvar_type) :: gen_auxvar
@@ -69,33 +69,33 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: soil_heat_capacity
   PetscReal :: void_volume, volume
   type(option_type) :: option
-  PetscReal :: Res(option%nflowdof) 
+  PetscReal :: Res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   PetscBool :: analytical_derivatives
   PetscBool :: debug_cell
-  
+
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_id
   PetscInt :: icomp, iphase, spec_loop
-  
+
   PetscReal :: porosity
   PetscReal :: volume_over_dt
-  
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
   solute_id = option%solute_id
-  
+
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
-  ! must use gen_auxvar%effective porosity here as it enables numerical 
+  ! must use gen_auxvar%effective porosity here as it enables numerical
   ! derivatives to be employed
   porosity = gen_auxvar%effective_porosity
-  
+
   ! accumulation term units = kmol/s
   Res = 0.d0
   do iphase = 1, option%nphase
-    ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] * 
-    !                           den[kmol phase/m^3 phase] * 
+    ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] *
+    !                           den[kmol phase/m^3 phase] *
     !                           xmol[kmol comp/kmol phase]
     do icomp = 1, option%nflowspec
 #ifdef DEBUG_GENERAL
@@ -115,7 +115,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   enddo
 
   ! scale by porosity * volume / dt
-  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] * 
+  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] *
   !                 vol[m^3 bulk] / dt[sec]
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
@@ -145,15 +145,15 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
     endif
 #endif
   enddo
-  ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] + 
-  !                (1-por)[m^3 rock/m^3 bulk] * 
+  ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] +
+  !                (1-por)[m^3 rock/m^3 bulk] *
   !                  dencpr[kg rock/m^3 rock * MJ/kg rock-K] * T[C]) &
   !               vol[m^3 bulk] / dt[sec]
   Res(energy_id) = (Res(energy_id) * porosity + &
                     (1.d0 - porosity) * &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * gen_auxvar%temp) * volume_over_dt
-  
+
   if (analytical_derivatives) then
     Jac = 0.d0
     select case(global_auxvar%istate)
@@ -465,7 +465,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: upweight
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_comp_id
   PetscInt :: iphase
-  
+
   PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
@@ -485,7 +485,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist, tempreal
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
-  
+
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
 
@@ -493,7 +493,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
   PetscReal :: ddelta_pressure_dpaup, ddelta_pressure_dpadn
   PetscReal :: ddelta_pressure_dTup, ddelta_pressure_dTdn
-  
+
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
   PetscReal :: tot_mole_flux_ddel_pressure
@@ -520,7 +520,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: ddiffusion_coef_dpup, ddiffusion_coef_dpdn
   PetscReal :: dtot_mole_flux_ddiffusion_coef
   PetscReal :: dstpd_ave_over_dist_dstpd_up, dstpd_ave_over_dist_dstpd_dn
-  
+
   ! Conduction
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
   PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
@@ -530,13 +530,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
   !Non darcy
   PetscReal :: K, I, grad
-  
+
   ! DELETE
-  
+
   PetscReal :: Jlup(3,3), Jldn(3,3)
   PetscReal :: Jgup(3,3), Jgdn(3,3)
   PetscReal :: Jcup(3,3), Jcdn(3,3)
-   
+
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
@@ -546,7 +546,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                                     dist_gravity,upweight)
   call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
   call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
-  
+
 #if 0
 !TODO(geh): remove for now
   ! Fracture permeability change only available for structured grid (Heeho)
@@ -663,8 +663,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
           dist_up,dist_dn,perm_ave_over_dist(iphase),kr,mobility,density_ave, &
           area,v_darcy(iphase),tot_mole_flux_ddel_pressure,q,tot_mole_flux)
       endif
-      
-      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
       air_mole_flux = tot_mole_flux * xmol(air_comp_id)
@@ -675,7 +675,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         solute_mole_flux = tot_mole_flux * xmol(solute_comp_id)
         Res(solute_comp_id) = Res(solute_comp_id) + solute_mole_flux
       endif
-      
+
       if (analytical_derivatives) then
         Jlup = 0.d0
         Jldn = 0.d0
@@ -1588,7 +1588,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
     dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/tempreal
     dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/tempreal
-    
+
     if (general_diffuse_xmol) then ! delta of mole fraction
       delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
                    gen_auxvar_dn%xmol(air_comp_id,iphase)
@@ -1613,7 +1613,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
       delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
     endif
-    
+
     ! units = mole/sec
     dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
                              general_parameter%diffusion_coefficient(iphase) * &
@@ -1633,16 +1633,16 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
       Res(solute_comp_id) = Res(solute_comp_id) + tot_mole_flux1
     endif
-    
+
     if (analytical_derivatives) then
-    
+
       Jlup = 0.d0
       Jldn = 0.d0
       select case(global_auxvar_up%istate)
         case(LIQUID_STATE)
           ! derivative wrt liquid pressure
           ! derivative total mole flux wrt liquid pressure
-          dtot_mole_flux_dp = & 
+          dtot_mole_flux_dp = &
             ! liquid density and porosity
             dtot_mole_flux_dstpd * dstpd_ave_over_dist_dstpd_up * &
             (dstpd_up_dporup * gen_auxvar_up%d%por_p + &
@@ -2559,11 +2559,11 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: update_upwind_direction_
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
-  
+
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_comp_id
   PetscInt :: icomp, iphase
   PetscInt :: bc_type
-  PetscReal :: xmol(option%nflowspec)  
+  PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
   PetscReal :: perm_dn_adj(option%nphase)
@@ -2578,7 +2578,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
   PetscReal :: k_eff_dn, k_eff_ave, heat_flux
   PetscReal :: boundary_pressure
-  PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass  
+  PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
   PetscReal :: xmol_air_up, xmol_air_dn
   PetscReal :: tempreal
   PetscReal :: delta_X_whatever
@@ -2809,10 +2809,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           xmol(option%solute_id) = auxvars(GENERAL_LIQUID_STATE_S_MOLE_DOF)
           xmol(iphase) = 1.d0 - xmol(option%solute_id)
         endif
-        if (v_darcy(iphase) > 0.d0) then 
+        if (v_darcy(iphase) > 0.d0) then
           density_ave = gen_auxvar_up%den(iphase)
           uH = gen_auxvar_up%H(iphase)
-        else 
+        else
           dn_scale = 1.d0
           density_ave = gen_auxvar_dn%den(iphase)
           uH = gen_auxvar_dn%H(iphase)
@@ -2826,14 +2826,14 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   end select
   if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area  
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
-    !                             density_ave[kmol phase/m^3 phase]        
+    q = v_darcy(iphase) * area
+    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+    !                             density_ave[kmol phase/m^3 phase]
     tot_mole_flux = q*density_ave
     tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
                                   density_ave
     tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
+    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
     air_mole_flux = tot_mole_flux * xmol(air_comp_id)
@@ -3429,14 +3429,14 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     endif
     stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
               gen_auxvar_dn%effective_porosity*den_dn
-              
+
     dstpd_dn_dpordn = stpd_dn / gen_auxvar_dn%effective_porosity
     dstpd_dn_dsatdn = stpd_dn / sat_dn
     dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
     ! units = [mole/m^4 bulk]
     dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
     stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
-    
+
     if (general_diffuse_xmol) then ! delta of mole fraction
       delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
                    gen_auxvar_dn%xmol(air_comp_id,iphase)
@@ -3476,14 +3476,14 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
       Res(solute_comp_id) = Res(air_comp_id) + tot_mole_flux1
     endif
-    
+
     if (analytical_derivatives) then
       Jl = 0.d0
       select case(global_auxvar_dn%istate)
         case(LIQUID_STATE)
           ! derivative wrt liquid pressure
           ! derivative total mole flux wrt liquid pressure
-          dtot_mole_flux_dp = & 
+          dtot_mole_flux_dp = &
             ! liquid density and porosity
             dtot_mole_flux_dstpd * dstpd_ave_over_dist_dstpd_dn * &
             (dstpd_dn_dpordn * gen_auxvar_dn%d%por_p + &
@@ -4000,25 +4000,25 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscInt :: natural_id
   PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
-  PetscReal :: J(option%nflowdof,option%nflowdof)  
-  PetscBool :: analytical_derivatives  
-  PetscBool :: aux_var_compute_only  
+  PetscReal :: J(option%nflowdof,option%nflowdof)
+  PetscBool :: analytical_derivatives
+  PetscBool :: aux_var_compute_only
   PetscBool :: debug_cell
-  
+
   PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_comp_id
-  PetscReal :: Jl(option%nflowdof,option%nflowdof)  
-  PetscReal :: Jg(option%nflowdof,option%nflowdof)  
-  PetscReal :: Je(option%nflowdof,option%nflowdof)  
+  PetscReal :: Jl(option%nflowdof,option%nflowdof)
+  PetscReal :: Jg(option%nflowdof,option%nflowdof)
+  PetscReal :: Je(option%nflowdof,option%nflowdof)
   PetscReal :: dden_bool
   PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscErrorCode :: ierr
   PetscReal :: mob_tot
   PetscReal :: cell_pressure
-  PetscReal :: xxss(option%nflowdof) 
+  PetscReal :: xxss(option%nflowdof)
   PetscInt :: lid, gid, pid, apid
 
   lid = option%liquid_phase
@@ -4029,7 +4029,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   air_comp_id = option%air_id
   energy_id = option%energy_id
   solute_comp_id = option%solute_id
-  
+
   Res = 0.d0
   J = 0.d0
 
@@ -4124,9 +4124,9 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   endif
   if (aux_var_compute_only) return
 
-  qsrc_mol = 0.d0 
+  qsrc_mol = 0.d0
   if (flow_src_sink_type == TOTAL_MASS_RATE_SS) then
-    !MAN: this has only been tested for an extraction well. Scales the mass of 
+    !MAN: this has only been tested for an extraction well. Scales the mass of
     !water and gas extracted by the mobility ratio.
     mob_tot = gen_auxvar_ss%mobility(lid) + &
               gen_auxvar_ss%mobility(gid)
@@ -4221,7 +4221,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         !if (gen_auxvar_ss%sat(gid) )
       endif
   else
-  
+
 #ifdef WATER_SRCSINK
   qsrc_mol = 0.d0
   dden_bool = 0.d0
@@ -4384,11 +4384,11 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       case(MASS_RATE_SS)
         qsrc_mol = qsrc(solute_comp_id)/fmw_comp(solute_comp_id) ! kg/sec -> kmol/sec
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-        qsrc_mol = qsrc(solute_comp_id)/fmw_comp(solute_comp_id)*scale 
+        qsrc_mol = qsrc(solute_comp_id)/fmw_comp(solute_comp_id)*scale
       case(VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec
         ! den = kmol/m^3
-        qsrc_mol = qsrc(solute_comp_id)*gen_auxvar_ss%den(solute_comp_id) 
+        qsrc_mol = qsrc(solute_comp_id)*gen_auxvar_ss%den(solute_comp_id)
         dden_bool = 1.d0
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec             ! den = kmol/m^3
@@ -4404,7 +4404,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     !   Jg = 0.d0
     !   select case(global_auxvar%istate)
     !     case(LIQUID_STATE)
-    !       if (dabs(Res(solute_comp_id)) > 1.d-40 .and. dden_bool > 0.d0) then      
+    !       if (dabs(Res(solute_comp_id)) > 1.d-40 .and. dden_bool > 0.d0) then
     !         option%io_buffer = 'Volumetric air injection not set up for &
     !           &liquid state in GeneralAuxVarComputeAndSrcSink as there is &
     !           &no air density.'
@@ -4484,20 +4484,20 @@ endif
     if (flow_src_sink_type /= TOTAL_MASS_RATE_SS) then
       if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
         if (associated(gen_auxvar_ss%d)) then
-          hw_dp = gen_auxvar_ss%d%Hl_pl          
+          hw_dp = gen_auxvar_ss%d%Hl_pl
           hw_dT = gen_auxvar_ss%d%Hl_T
         endif
         enthalpy = gen_auxvar_ss%h(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy       
+        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
           Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT        
+          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT
         endif
         J = J + Je
       endif
-      
+
       if (dabs(qsrc(air_comp_id)) > 1.d-40) then
         ! this is pure air, we use the enthalpy of air, NOT the air/water
         ! mixture in gas
@@ -4516,7 +4516,7 @@ endif
           Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
           Je(3,2) = Jg(2,2) * enthalpy
           Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
-        endif 
+        endif
         J = J + Je
       endif
       if (dabs(qsrc(solute_comp_id)) > 1.d-40) then
@@ -4530,7 +4530,7 @@ endif
          endif
 
          internal_energy = gen_auxvar_ss%u(solute_comp_id)
-         enthalpy = gen_auxvar_ss%h(solute_comp_id)                                 
+         enthalpy = gen_auxvar_ss%h(solute_comp_id)
          ! enthalpy units: MJ/kmol                       ! air component mass
          Res(energy_id) = Res(energy_id) + Res(solute_comp_id) * enthalpy
          if (analytical_derivatives) then
@@ -4545,24 +4545,24 @@ endif
     Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
     ! no derivative
   endif
-  
+
 end subroutine GeneralAuxVarComputeAndSrcSink
 
 ! ************************************************************************** !
 
 subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
                                   soil_heat_capacity,option,J)
-  ! 
+  !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/09/11
-  ! 
+  !
 
   use Option_module
   use Material_Aux_module
-  
+
   implicit none
 
   type(general_auxvar_type) :: gen_auxvar(0:)
@@ -4571,19 +4571,19 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
-     
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
-  
+
 !geh:print *, 'GeneralAccumDerivative'
 
   call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,soil_heat_capacity,option, &
                            res,jac,general_analytical_derivatives, &
                            PETSC_FALSE)
-                           
+
   if (general_analytical_derivatives) then
     J = jac
   else
@@ -4871,19 +4871,19 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  
+
   PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
-  
+
   qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
   flow_src_sink_type = source_sink%flow_condition%general%rate%itype
 
   option%iflag = -3
-  
+
   ! Index 0 contains user-specified conditions
   ! Index 1 contains auxvars to be used in src/sink calculations
   call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
@@ -5558,9 +5558,9 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
 
   use Option_module
   use Utility_module
-  
+
   implicit none
-  
+
   character(len=*) :: string
   type(general_auxvar_type) :: general_auxvar(0:)
   type(option_type) :: option
@@ -5570,9 +5570,9 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
   PetscReal :: residual_pert(option%nflowdof,option%nflowdof)
   PetscReal :: perturbation(option%nflowdof)
   PetscReal :: perturbation_tolerance
-  
+
   PetscInt :: irow, icol
-  
+
 100 format(2i2,2es13.5,x,a2,es16.8)
 
   if (len_trim(string) > 1) then
