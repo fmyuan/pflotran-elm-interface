@@ -667,8 +667,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
           call PrintErrMsg(option)
         endif
         call MPI_Allreduce(observation%region%num_cells,temp_int, &
-                           ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
-                           ierr);CHKERRQ(ierr)
+                           ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, & 
+                           ierr);CHKERRQ(ierr) 
         if (temp_int == 0) then
           option%io_buffer = 'Region "' // trim(observation%region%name) // &
             '" is used in an observation point but lies outside the &
@@ -2400,11 +2400,11 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     if (dof4) then
       dof_count_local(4) = 1
       call MPI_Allreduce(dof_count_local,dof_count_global,FOUR_INTEGER_MPI, &
-           MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+           MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     endif
   else
       call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
-                         MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+                         MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   endif
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
@@ -5192,7 +5192,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,PRECIPITATE_SATURATION,&
-         DERIVATIVE,MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
+         DERIVATIVE,MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION,&
+	 SOLUTE_CONCENTRATION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)

@@ -359,6 +359,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         ! this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         general_harmonic_diff_density = PETSC_TRUE
+      case('NEWTONTRDC_HOLD_INNER_ITERATIONS',&
+           'HOLD_INNER_ITERATIONS','NEWTONTRDC_HOLD_INNER')
+        !heeho: only used when using newtontrd-c
+        general_newtontrdc_hold_inner = PETSC_TRUE
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
       case('ISOTHERMAL')
@@ -395,6 +399,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('WINDOW_EPSILON')
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,keyword,error_string)
+     case('CALCULATE_SURFACE_TENSION')
+        general_compute_surface_tension = PETSC_TRUE
+      case('VAPOR_PRESSURE_KELVIN')
+        general_kelvin_equation = PETSC_TRUE
       case('NUMBER_OF_EQUATIONS')
         call InputReadInt(input,option,tempint)
         option%nflowdof = tempint
@@ -1501,7 +1509,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       .not.general_high_temp_ts_cut
     mpi_int = option%nflowdof*general_max_states*MAX_INDEX+1
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
-                       MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+                       MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
 
     this%converged_flag = reshape(flags(1:option%nflowdof*general_max_states*MAX_INDEX),&
                             (/option%nflowdof,general_max_states,MAX_INDEX/))
@@ -1510,7 +1518,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
     mpi_int = option%nflowdof*general_max_index*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
                                           
     option%convergence = CONVERGENCE_CONVERGED
     
