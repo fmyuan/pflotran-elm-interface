@@ -280,6 +280,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
                                PERMEABILITY, POROSITY, &
                                VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
+  use Units_module
   use Utility_module
 
   class(inversion_subsurface_type) :: this
@@ -300,6 +301,9 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   type(inversion_parameter_type), pointer :: last_parameter
   PetscInt :: i
   PetscInt :: observed_variable
+  PetscReal :: measurement_time
+  character(len=4) :: measurement_time_units
+  character(len=MAXWORDLENGTH) :: internal_units
 
   nullify(new_measurement)
   nullify(last_measurement)
@@ -322,6 +326,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       call PrintErrMsg(option)
     case('MEASUREMENTS')
       observed_variable = UNINITIALIZED_INTEGER
+      measurement_time = UNINITIALIZED_DOUBLE
+      measurement_time_units = ''
       string = trim(error_string)//keyword
       input%ierr = 0
       call InputPushBlock(input,option)
@@ -346,6 +352,12 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
                 call PrintErrMsg(option)
               endif
             endif
+            if (Uninitialized(new_measurement%time)) then
+              if (Initialized(measurement_time)) then
+                new_measurement%time = measurement_time
+                new_measurement%time_units = measurement_time_units
+              endif
+            endif
             if (associated(last_measurement)) then
               last_measurement%next => new_measurement
               new_measurement%id = last_measurement%id + 1
@@ -355,6 +367,15 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             endif
             last_measurement => new_measurement
             nullify(new_measurement)
+          case('TIME')
+            call InputReadDouble(input,option,measurement_time)
+            call InputErrorMsg(input,option,keyword,error_string)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            if (input%ierr /= 0) word = 'sec'
+            measurement_time_units = trim(word)
+            internal_units = 'sec'
+            measurement_time = measurement_time* &
+                               UnitsConvertToInternal(word,internal_units,option)
           case('OBSERVED_VARIABLE')
             observed_variable = &
               InvMeasAuxReadObservedVariable(input,keyword,error_string,option)

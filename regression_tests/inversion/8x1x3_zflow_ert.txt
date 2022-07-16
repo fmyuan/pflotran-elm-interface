@@ -1,7 +1,7 @@
 #=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW
   NEWTON_SOLVER
-    ITOL_UPDATE 1.d0
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d0
     MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d-2
   /
   LINEAR_SOLVER

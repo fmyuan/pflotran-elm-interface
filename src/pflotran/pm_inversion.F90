@@ -185,6 +185,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: ivar
+  PetscReal :: tempreal
 
   inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
   nullify(measurements)
@@ -202,11 +203,11 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
           icount = icount + 1
           if (.not.measurements(imeasurement)%measured .and. &
               Equal(measurements(imeasurement)%time,time)) then
+            tempreal = UNINITIALIZED_DOUBLE
             select case(measurements(imeasurement)%iobs_var)
               case(OBS_ERT_MEASUREMENT)
                 iert_measurement = measurements(imeasurement)%cell_id
-                inversion_forward_aux%local_measurement_values_ptr(icount) = &
-                  this%realization%survey%dsim(iert_measurement)
+                tempreal = this%realization%survey%dsim(iert_measurement)
               case default
                 select case(measurements(imeasurement)%iobs_var)
                   case(OBS_LIQUID_PRESSURE)
@@ -222,16 +223,23 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                     call PrintErrMsgByRank(this%option)
                 end select
                 ghosted_id = this%realization%patch%grid%nL2G(local_id)
-                if (Initialized(inversion_forward_aux%local_measurement_values_ptr(icount))) then
+                if (Initialized(inversion_forward_aux% &
+                                  local_measurement_values_ptr(icount))) then
                   this%option%io_buffer = 'Duplicate measurement in &
                     &PMInversionInversionMeasurement for measurement: ' // &
                     trim(StringWrite(imeasurement))
                   call PrintErrMsgByRank(this%option)
                 endif
-                inversion_forward_aux%local_measurement_values_ptr(icount) = &
+                tempreal = &
                   RealizGetVariableValueAtCell(this%realization,ghosted_id, &
                                                 ivar,ZERO_INTEGER)
             end select
+            inversion_forward_aux%local_measurement_values_ptr(icount) = &
+              tempreal
+            this%option%io_buffer = &
+               InvMeasAnnounceToString(measurements(imeasurement), &
+                                       tempreal,this%option)
+            call PrintMsgByRank(this%option)
           endif
         endif
       enddo

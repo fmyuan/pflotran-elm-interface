@@ -9,7 +9,16 @@ module Inversion_Measurement_Aux_module
 
   private
 
- PetscInt, public :: inv_meas_reporting_verbosity
+  PetscInt, public :: inv_meas_reporting_verbosity
+
+  character(len=MAXWORDLENGTH), parameter :: OBS_LIQUID_PRESSURE_STRING = &
+                                               'LIQUID_PRESSURE'
+  character(len=MAXWORDLENGTH), parameter :: OBS_LIQUID_SATURATION_STRING = &
+                                               'LIQUID_SATURATION'
+  character(len=MAXWORDLENGTH), parameter :: OBS_SOLUTE_CONCENTRATION_STRING = &
+                                               'SOLUTE_CONCENTRATION'
+  character(len=MAXWORDLENGTH), parameter :: OBS_ERT_MEASUREMENT_STRING = &
+                                               'ERT_MEASUREMENT'
 
   PetscInt, parameter, public :: OBS_LIQUID_PRESSURE = 1
   PetscInt, parameter, public :: OBS_LIQUID_SATURATION = 2
@@ -36,6 +45,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxReset, &
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
+            InvMeasAnnounceToString, &
             InversionMeasurementMeasure, &
             InversionMeasurementAuxRead, &
             InvMeasAuxReadObservedVariable, &
@@ -247,21 +257,75 @@ function InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
   call InputReadWord(input,option,word,PETSC_TRUE)
   call InputErrorMsg(input,option,keyword,error_string)
   call StringToUpper(word)
-  select case(word)
-    case('LIQUID_PRESSURE')
-      InvMeasAuxReadObservedVariable = OBS_LIQUID_PRESSURE
-    case('LIQUID_SATURATION')
-      InvMeasAuxReadObservedVariable = OBS_LIQUID_SATURATION
-    case('SOLUTE_CONCENTRATION')
-      InvMeasAuxReadObservedVariable = OBS_SOLUTE_CONCENTRATION
-    case('ERT_MEASUREMENT')
-      InvMeasAuxReadObservedVariable = OBS_ERT_MEASUREMENT
-    case default
-      call InputKeywordUnrecognized(input,word,trim(error_string)// &
-                                    & ','//trim(word),option)
-  end select
+  InvMeasAuxReadObservedVariable = InvMeasAuxObsVarStringToInt(word)
+  if (Uninitialized(InvMeasAuxReadObservedVariable)) then
+    call InputKeywordUnrecognized(input,word,trim(error_string)// &
+                                  & ','//trim(word),option)
+  endif
 
 end function InvMeasAuxReadObservedVariable
+
+! ************************************************************************** !
+
+function InvMeasAuxObsVarStringToInt(string)
+  !
+  ! Maps an observation variable string to its integer ID
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/15/22
+  !
+  character(len=*) :: string
+
+  PetscInt :: InvMeasAuxObsVarStringToInt
+
+  InvMeasAuxObsVarStringToInt = UNINITIALIZED_INTEGER
+  select case(string)
+    case(OBS_LIQUID_PRESSURE_STRING)
+      InvMeasAuxObsVarStringToInt = OBS_LIQUID_PRESSURE
+    case(OBS_LIQUID_SATURATION_STRING)
+      InvMeasAuxObsVarStringToInt = OBS_LIQUID_SATURATION
+    case(OBS_SOLUTE_CONCENTRATION_STRING)
+      InvMeasAuxObsVarStringToInt = OBS_SOLUTE_CONCENTRATION
+    case(OBS_ERT_MEASUREMENT_STRING)
+      InvMeasAuxObsVarStringToInt = OBS_ERT_MEASUREMENT
+  end select
+
+end function InvMeasAuxObsVarStringToInt
+
+! ************************************************************************** !
+
+function InvMeasAuxObsVarIDToString(id,option)
+  !
+  ! Maps an observation variable integer ID to string
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/15/22
+  !
+  use Option_module
+  use String_module
+
+  PetscInt :: id
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: InvMeasAuxObsVarIDToString
+
+  InvMeasAuxObsVarIDToString = ''
+  select case(id)
+    case(OBS_LIQUID_PRESSURE)
+      InvMeasAuxObsVarIDToString = OBS_LIQUID_PRESSURE_STRING
+    case(OBS_LIQUID_SATURATION)
+      InvMeasAuxObsVarIDToString = OBS_LIQUID_SATURATION_STRING
+    case(OBS_SOLUTE_CONCENTRATION)
+      InvMeasAuxObsVarIDToString = OBS_SOLUTE_CONCENTRATION_STRING
+    case(OBS_ERT_MEASUREMENT)
+      InvMeasAuxObsVarIDToString = OBS_ERT_MEASUREMENT_STRING
+    case default
+      option%io_buffer = 'Unknown measurement variable integer ID in &
+        &InvMeasAuxObsVarIDToString: ' // StringWrite(id)
+      call PrintErrMsg(option)
+  end select
+
+end function InvMeasAuxObsVarIDToString
 
 ! ************************************************************************** !
 
@@ -332,7 +396,7 @@ subroutine InversionMeasurementPrint(measurement,option)
   character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
-  if (optionPrintToScreen(option)) then
+  if (OptionPrintToScreen(option)) then
     print *, 'Measurment: ' // trim(StringWrite(measurement%id))
     word = 'sec'
     print *, '             Time: ' // &
@@ -347,6 +411,49 @@ subroutine InversionMeasurementPrint(measurement,option)
   endif
 
 end subroutine InversionMeasurementPrint
+
+! ************************************************************************** !
+
+function InvMeasAnnounceToString(measurement,rvalue,option)
+  !
+  ! Announces the recording of a measurement for inversion
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/15/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  type(inversion_measurement_aux_type) :: measurement
+  PetscReal :: rvalue
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: InvMeasAnnounceToString
+
+  character(len=MAXWORDLENGTH), parameter :: word = 'sec'
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscErrorCode :: ierr
+
+  string = 'Measurement #' // trim(StringWrite(measurement%id)) // &
+    ' at Cell ID ' // trim(StringWrite(measurement%cell_id))
+  if (Initialized(measurement%coordinate%x)) then
+    string = trim(string) // ' (' // &
+      trim(adjustl(StringWriteF('(f20.2)',measurement%coordinate%x))) // ',' // &
+      trim(adjustl(StringWriteF('(f20.2)',measurement%coordinate%y))) // ',' // &
+      trim(adjustl(StringWriteF('(f20.2)',measurement%coordinate%z))) // ')'
+  endif
+  string = trim(string) // ' for variable "' // &
+           trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
+           '" recorded as ' // &
+           trim(StringWrite('(es22.14)',rvalue)) // ' at ' // &
+           trim(StringWrite(measurement%time / &
+                      UnitsConvertToInternal(measurement%time_units,word, &
+                                             option,ierr))) // ' ' // &
+           measurement%time_units
+  InvMeasAnnounceToString = string
+
+end function InvMeasAnnounceToString
 
 ! ************************************************************************** !
 
