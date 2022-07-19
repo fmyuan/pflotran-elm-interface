@@ -3994,7 +3994,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   type(option_type) :: option
   type(general_auxvar_type) :: gen_auxvar,gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar,global_auxvar_ss
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
   class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
@@ -4519,27 +4519,29 @@ endif
         endif
         J = J + Je
       endif
-      if (dabs(qsrc(solute_comp_id)) > 1.d-40) then
-         ! DF: Need a second look at this.
-         ! this is pure air, we use the enthalpy of air, NOT the air/water
-         ! mixture in gas
-         ! air enthalpy is only a function of temperature
-         if (associated(gen_auxvar_ss%d)) then
-            ha_dp = gen_auxvar_ss%d%Ha_pg
-            ha_dT = gen_auxvar_ss%d%Ha_T
-         endif
+      if (option%nflowdof == 4) then
+        if (dabs(qsrc(solute_comp_id)) > 1.d-40) then
+           ! DF: Need a second look at this.
+           ! this is pure air, we use the enthalpy of air, NOT the air/water
+           ! mixture in gas
+           ! air enthalpy is only a function of temperature
+           if (associated(gen_auxvar_ss%d)) then
+              ha_dp = gen_auxvar_ss%d%Ha_pg
+              ha_dT = gen_auxvar_ss%d%Ha_T
+           endif
 
-         internal_energy = gen_auxvar_ss%u(solute_comp_id)
-         enthalpy = gen_auxvar_ss%h(solute_comp_id)
-         ! enthalpy units: MJ/kmol                       ! air component mass
-         Res(energy_id) = Res(energy_id) + Res(solute_comp_id) * enthalpy
-         if (analytical_derivatives) then
-            Je = 0.d0
-            Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
-            Je(3,2) = Jg(2,2) * enthalpy
-            Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
-         endif
-         J = J + Je
+           internal_energy = gen_auxvar_ss%u(solute_comp_id)
+           enthalpy = gen_auxvar_ss%h(solute_comp_id)
+           ! enthalpy units: MJ/kmol                       ! air component mass
+           Res(energy_id) = Res(energy_id) + Res(solute_comp_id) * enthalpy
+           if (analytical_derivatives) then
+              Je = 0.d0
+              Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
+              Je(3,2) = Jg(2,2) * enthalpy
+              Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
+           endif
+           J = J + Je
+        endif
       endif
     endif
     Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s

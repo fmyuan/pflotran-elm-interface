@@ -122,6 +122,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
 
   type(option_type) :: option
   class(pm_general_type) :: pm!, pointer, intent(inout) :: pm
+  !class(pm_general_type), pointer, intent(inout) :: pm
 
   PetscReal, parameter :: ref_temp = 20.d0 !degrees C
   PetscReal, parameter :: ref_pres = 101325.d0 !Pa
@@ -151,11 +152,15 @@ subroutine PMGeneralSetFlowMode(pm,option)
   PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
   PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
 
-  PetscReal, pointer :: residual_abs_inf_tol(:)
-  PetscReal, pointer :: residual_scaled_inf_tol(:)
-  PetscReal, pointer :: abs_update_inf_tol(:,:)
-  PetscReal, pointer :: rel_update_inf_tol(:,:)
+!   PetscReal, pointer :: residual_abs_inf_tol(:)
+!   PetscReal, pointer :: residual_scaled_inf_tol(:)
+!   PetscReal, pointer :: abs_update_inf_tol(:,:)
+!   PetscReal, pointer :: rel_update_inf_tol(:,:)
 
+   PetscReal, allocatable :: residual_abs_inf_tol(:)
+   PetscReal, allocatable :: residual_scaled_inf_tol(:)
+   PetscReal, allocatable :: abs_update_inf_tol(:,:)
+   PetscReal, allocatable :: rel_update_inf_tol(:,:)
   option%iflowmode = G_MODE
   allocate(general_max_states)
   allocate(max_change_index)
@@ -670,11 +675,11 @@ recursive subroutine PMGeneralInitializeRun(this)
   PetscErrorCode :: ierr
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
+  call VecDuplicateVecsF90(this%realization%field%work,max_change_index, &
                            this%realization%field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
-  do i = 1, 6
+  do i = 1, max_change_index
     call RealizationGetVariable(this%realization, &
                                 this%realization%field%max_change_vecs(i), &
                                 this%max_change_ivar(i), &
@@ -1362,12 +1367,18 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
   PetscReal, parameter :: A_zero = 1.d-15
-  PetscBool, pointer :: converged_abs_residual_flag(:,:)
-  PetscReal, pointer:: converged_abs_residual_real(:,:)
-  PetscInt, pointer :: converged_abs_residual_cell(:,:)
-  PetscBool, pointer :: converged_scaled_residual_flag(:,:)
-  PetscReal, pointer :: converged_scaled_residual_real(:,:)
-  PetscInt, pointer :: converged_scaled_residual_cell(:,:)
+!  PetscBool, pointer :: converged_abs_residual_flag(:,:)
+!  PetscReal, pointer:: converged_abs_residual_real(:,:)
+!  PetscInt, pointer :: converged_abs_residual_cell(:,:)
+!  PetscBool, pointer :: converged_scaled_residual_flag(:,:)
+!  PetscReal, pointer :: converged_scaled_residual_real(:,:)
+!  PetscInt, pointer :: converged_scaled_residual_cell(:,:)
+  PetscBool, allocatable :: converged_abs_residual_flag(:,:)
+  PetscReal, allocatable :: converged_abs_residual_real(:,:)
+  PetscInt, allocatable :: converged_abs_residual_cell(:,:)
+  PetscBool, allocatable :: converged_scaled_residual_flag(:,:)
+  PetscReal, allocatable :: converged_scaled_residual_real(:,:)
+  PetscInt, allocatable :: converged_scaled_residual_cell(:,:)
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
@@ -1375,8 +1386,8 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscBool, pointer :: flags(:)
   PetscBool :: rho_flag
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=12), pointer :: state_string(:)
-  character(len=17), pointer :: dof_string(:,:)
+  character(len=12), allocatable :: state_string(:)
+  character(len=17), allocatable :: dof_string(:,:)
   character(len=15), parameter :: tol_string(MAX_INDEX) = &
     ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
 
@@ -1523,12 +1534,11 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     ! due to the 'and' operation, must invert the boolean using .not.
     general_high_temp_ts_cut = .not.flags(option%nflowdof*general_max_states*MAX_INDEX+1)
 
-    mpi_int = option%nflowdof*general_max_index*MAX_INDEX
+    mpi_int = option%nflowdof*general_max_states*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
 
     option%convergence = CONVERGENCE_CONVERGED
-
     do itol = 1, MAX_INDEX
       do istate = 1, general_max_states
         do idof = 1, option%nflowdof
