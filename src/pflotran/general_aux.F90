@@ -2446,7 +2446,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
     endif
   else
-    !material_auxvar%porosity = gen_auxvar%effective_porosity
+    material_auxvar%porosity = gen_auxvar%effective_porosity
   endif
   if (associated(gen_auxvar%d)) then
     gen_auxvar%d%por_p = dpor_dp
