@@ -2642,6 +2642,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  solute_comp_id = option%solute_id
 
   Res = 0.d0
   J = 0.d0
