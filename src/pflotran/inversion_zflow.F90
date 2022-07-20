@@ -716,40 +716,36 @@ subroutine InversionZFlowInitialize(this)
 
   call InversionSubsurfInitialize(this)
 
-  call VecDuplicate(this%parameter_vec,this%parameter_tmp_vec, &
-                    ierr);CHKERRQ(ierr)
   call VecDuplicate(this%dist_parameter_vec,this%dist_parameter_tmp_vec, &
                     ierr);CHKERRQ(ierr)
 
-!  if (this%qoi_is_full_vector) then
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
+  ! check to ensure that quantity of interest exists
+  exists = PETSC_FALSE
+  iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+  select case(iqoi(1))
+    case(PERMEABILITY)
+      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'PERMEABILITY'
+    case(ELECTRICAL_CONDUCTIVITY)
+      if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'ELECTRICAL_CONDUCTIVITY'
+    case default
+  end select
+  if (.not.exists) then
+    this%realization%option%io_buffer = 'Inversion for ' // trim(word) // &
+      &' cannot be performed with the specified process models.'
+    call PrintErrMsg(this%realization%option)
+  endif
 
-    ! check to ensure that quantity of interest exists
-    exists = PETSC_FALSE
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
-    select case(iqoi(1))
-      case(PERMEABILITY)
-        if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-        word = 'PERMEABILITY'
-      case(ELECTRICAL_CONDUCTIVITY)
-        if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
-        word = 'ELECTRICAL_CONDUCTIVITY'
-      case default
-    end select
-    if (.not.exists) then
-      this%realization%option%io_buffer = 'Inversion for ' // trim(word) // &
-        &' cannot be performed with the specified process models.'
-      call PrintErrMsg(this%realization%option)
-    endif
-  ! end TODO(piyoosh)
+  call InversionZFlowConstrainedArraysFromList(this)
 
-    call InversionZFlowConstrainedArraysFromList(this)
+  ! Build Wm matrix
+  call InversionZFlowBuildWm(this)
 
-    ! Build Wm matrix
-    call InversionZFlowBuildWm(this)
-!  endif
+  if (.not.this%qoi_is_full_vector) then
+    call VecDuplicate(this%parameter_vec,this%parameter_tmp_vec, &
+                      ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine InversionZFlowInitialize
 
@@ -2126,7 +2122,6 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   num_measurement = size(this%measurements)
 
-  call VecZeroEntries(this%parameter_tmp_vec,ierr);CHKERRQ(ierr)
   call VecZeroEntries(this%dist_parameter_tmp_vec,ierr);CHKERRQ(ierr)
 
   ! Model part -> s2
@@ -2173,6 +2168,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   else
 
+    call VecZeroEntries(this%parameter_tmp_vec,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%parameter_tmp_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
     s2vec_ptr = 0.d0
 
