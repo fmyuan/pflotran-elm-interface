@@ -378,7 +378,7 @@ subroutine InversionZFlowConstrainedArraysFromList(this)
           MaterialPropGetPtrFromArray(cur_constrained_block%name, &
                                       patch%material_property_array)
       if (.not.associated(material_property)) then
-        option%io_buffer = 'Contrained block " &
+        option%io_buffer = 'Constrained block " &
                            &' // trim(cur_constrained_block%name) // &
                            &'" not found in material list'
         call PrintErrMsg(option)
@@ -408,7 +408,7 @@ subroutine InversionZFlowConstrainedArraysFromList(this)
         if (.not.associated(material_property)) then
           option%io_buffer = 'Linked block "&
                              &'//trim(cur_constrained_block%block_link(i)) // &
-                             &'" in contrained block "&
+                             &'" in constrained block "&
                              &'//trim(cur_constrained_block%name) // &
                              &'" not found in material list'
           call PrintErrMsg(option)
