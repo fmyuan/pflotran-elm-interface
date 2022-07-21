@@ -458,7 +458,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
                                   this%pm_ptr,PETSC_NULL_FUNCTION, &
                                   ierr);CHKERRQ(ierr)
     endif
-    if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
+    if (this%pm_ptr%pm%print_EKG .or. option%use_sc .or. &
         check_post_convergence) then
       select case(solver%snes_type)
         case(SNESNEWTONLS)

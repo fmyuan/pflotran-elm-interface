@@ -619,7 +619,7 @@ subroutine PMUFDDecayInit(this)
   do ghosted_id = 1, grid%ngmax
     allocate(rt_auxvars(ghosted_id)%total_sorb_eq(reaction%naqcomp))
     rt_auxvars(ghosted_id)%total_sorb_eq = 0.d0
-    if (option%use_mc) then
+    if (option%use_sc) then
        rt_sec_transport_vars =>  this%realization%patch%aux%SC_RT%sec_transport_vars
       do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
          allocate(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq(reaction%naqcomp))
@@ -648,7 +648,7 @@ subroutine PMUFDDecayInit(this)
   this%element_solubility = 0.d0
   allocate(this%element_name(this%num_elements))
   this%element_name = ''
-  if (option%use_mc) then
+  if (option%use_sc) then
      allocate(this%element_Kd(this%num_elements,size(material_property_array),2))
      num_continuum = 2
   else
@@ -1032,7 +1032,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
         rt_auxvars(ghosted_id)%total_sorb_eq(ipri) = &   ! [mol/m3-bulk]
             rt_auxvars(ghosted_id)%pri_molal(ipri) * &   ! [mol/kg-water]
             kd_kgw_m3b                                   ! [kg-water/m3-bulk]
-        if (this%option%use_mc) then
+        if (this%option%use_sc) then
           rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
           kd_kgw_m3b = this%element_Kd(iele,imat,2)
           do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
@@ -1277,7 +1277,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       cycle
     endif
     den_w_kg = global_auxvars(ghosted_id)%den_kg(1)
-    if (option%use_mc) then
+    if (option%use_sc) then
       rt_sec_transport_vars =  patch%aux%SC_RT%sec_transport_vars(ghosted_id)
       sat = global_auxvars(ghosted_id)%sat(1)
       por = patch%material_property_array(1)%ptr%multicontinuum%porosity

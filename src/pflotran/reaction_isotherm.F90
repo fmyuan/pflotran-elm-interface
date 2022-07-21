@@ -74,7 +74,7 @@ subroutine IsothermRead(isotherm,input,option)
     isotherm%neqkdrxn = isotherm%neqkdrxn + 1
     isotherm_rxn => IsothermLinkCreate()
     isotherm_rxn%species_name = trim(word)
-    if (option%use_mc) then
+    if (option%use_sc) then
       sec_cont_isotherm_rxn => IsothermLinkCreate()
       sec_cont_isotherm_rxn%species_name = isotherm_rxn%species_name
       sec_cont_isotherm_rxn%Kd = UNINITIALIZED_DOUBLE
@@ -110,7 +110,7 @@ subroutine IsothermRead(isotherm,input,option)
                     'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
                     option)
           end select
-          if (option%use_mc) then
+          if (option%use_sc) then
             sec_cont_isotherm_rxn%itype = isotherm_rxn%itype
           endif
         case('KD')
