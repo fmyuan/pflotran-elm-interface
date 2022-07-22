@@ -1612,6 +1612,7 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   use String_module
   use Timer_class
   use ZFlow_Aux_module
+  use Units_module
   use Utility_module
   use Variables_module
 
@@ -1643,6 +1644,7 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   Vec :: natural_vec
   class(timer_type), pointer :: timer
   PetscReal, parameter :: tol = 1.d-6
+  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
@@ -1689,6 +1691,15 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
       cycle
     endif
     if (.not.this%measurements(imeasurement)%first_lambda) then
+      if (OptionPrintToScreen(option)) then
+        word = 'sec'
+        print *, trim(StringWrite( &
+          inversion_forward_ts_aux%time / &
+          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
+                                 word,option,ierr))) // ' ' // &
+          trim(this%measurements(imeasurement)%time_units) // &
+          ' : ' // trim(StringWrite(imeasurement))
+      endif
       this%measurements(imeasurement)%first_lambda = PETSC_TRUE
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
