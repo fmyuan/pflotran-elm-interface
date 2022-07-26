@@ -1005,7 +1005,10 @@ subroutine RegionReadSideSet(sideset,filename,option)
           case('L')
             num_vertices = 2
           case default
-            option%io_buffer = 'Unknown face type: ' // trim(word)
+            option%io_buffer = 'Unknown face type "' // trim(word) // &
+              '" in sideset file "' // trim(filename) // '". Please use &
+              &"Q" (quadrilateral) or "T" (triangle).'
+            call PrintErrMsgByRank(option)
         end select
         do ivertex = 1, num_vertices
           call InputReadInt(input,option,temp_int_array(ivertex,iface))
