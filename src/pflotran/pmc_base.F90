@@ -694,6 +694,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
              massbal_plot_at_this_timestep_flag)) .or. &
           ! checkpointing
           (this%is_master .and. &
+            this%pm_list%output_option%force_synchronized_output .and. & 
             (checkpoint_at_this_time_flag .or. &
              checkpoint_at_this_timestep_flag))) then
         call this%SetAuxData()
