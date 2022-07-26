@@ -3569,7 +3569,7 @@ subroutine BasisInit(reaction,option)
 
     cur_isotherm_rxn => reaction%isotherm%isotherm_list
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       call IsothermRxnCreate(reaction%isotherm%multicontinuum_isotherm_rxn, &
                              reaction%isotherm)
       sec_cont_cur_isotherm_rxn => &
@@ -3617,7 +3617,7 @@ subroutine BasisInit(reaction,option)
 
       cur_isotherm_rxn => cur_isotherm_rxn%next
 
-      if (option%use_mc) then
+      if (option%use_sc) then
         reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermcoeff(irxn) = &
           sec_cont_cur_isotherm_rxn%Kd
         reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermlangmuirb(irxn) = &

@@ -1555,7 +1555,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   rt_auxvars => realization%patch%aux%RT%auxvars
   global_auxvars => realization%patch%aux%Global%auxvars
   reaction => realization%reaction
-  if (option%use_mc) then
+  if (option%use_sc) then
     rt_sec_transport_vars => realization%patch%aux%SC_RT%sec_transport_vars
   endif
 
@@ -1565,7 +1565,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
 
   max_inf_norm_sec = 0.d0
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle

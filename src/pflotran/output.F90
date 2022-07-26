@@ -1116,7 +1116,7 @@ subroutine Output(realization_base,snapshot_plot_flag, &
     endif
 
     ! Print secondary continuum variables vs sec. continuum dist.
-    if (option%use_mc) then
+    if (option%use_sc) then
       if (realization_base%output_option%print_tecplot) then
         call PetscTime(tstart,ierr);CHKERRQ(ierr)
         call PetscLogEventBegin(logging%event_output_secondary_tecplot, &
