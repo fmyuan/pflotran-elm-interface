@@ -2488,7 +2488,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         endif
         !geh: for some reason, we need this with CHEMISTRY read for
         !     multicontinuum
- !       option%use_mc = PETSC_TRUE
+ !       option%use_sc = PETSC_TRUE
         call ReactionInit(realization%reaction,input,option)
         realization%reaction_base => realization%reaction
 
@@ -3089,7 +3089,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !......................
 
       case('SECONDARY_CONTINUUM_SOLVER')
-        if (.not.option%use_mc) then
+        if (.not.option%use_sc) then
           option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can only be used &
                              &with MULTIPLE_CONTINUUM keyword.'
           call PrintErrMsg(option)
@@ -3112,7 +3112,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case('SECONDARY_CONSTRAINT')
-        if (.not.option%use_mc) then
+        if (.not.option%use_sc) then
           option%io_buffer = 'SECONDARY_CONSTRAINT can only be used with &
                              &MULTIPLE_CONTINUUM keyword.'
           call PrintErrMsg(option)

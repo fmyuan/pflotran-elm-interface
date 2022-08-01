@@ -338,7 +338,7 @@ subroutine THSetupPatch(realization)
   enddo
 
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     initial_condition => patch%initial_condition_list%first
     allocate(TH_sec_heat_vars(grid%nlmax))
 
@@ -1047,7 +1047,7 @@ subroutine THUpdateSolutionPatch(realization)
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   endif
 
@@ -1055,7 +1055,7 @@ subroutine THUpdateSolutionPatch(realization)
     call THUpdateMassBalancePatch(realization)
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -1199,7 +1199,7 @@ subroutine THUpdateFixedAccumPatch(realization)
     endif
 
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
     endif
 
@@ -4208,7 +4208,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
     endif
 
@@ -4221,7 +4221,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
   enddo
 
   ! ================== Secondary continuum heat source terms ==================
-  if (option%use_mc) then
+  if (option%use_sc) then
   ! Secondary continuum contribution (Added by SK 06/02/2012)
   ! only one secondary continuum for now for each primary continuum node
     do local_id = 1, grid%nlmax  ! For each local node do...
@@ -5115,7 +5115,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     istart = iend-option%nflowdof+1
     icc = patch%cc_id(ghosted_id)
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = sec_heat_vars(local_id)%epsilon
     endif
 
@@ -5137,7 +5137,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
                             thermal_cc, &
                             vol_frac_prim,Jup)
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
                         th_parameter%ckwet(icct), &
                         th_parameter%dencpr(icct), &

@@ -1363,7 +1363,7 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     select type(constraint=>realization%sec_transport_constraint)
       class is (tran_constraint_rt_type)
         call ReactionProcessConstraint(realization%reaction, &

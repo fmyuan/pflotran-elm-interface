@@ -855,7 +855,7 @@ recursive subroutine PMCBaseFinalizeRun(this)
   this%option%io_buffer = this%name
   call PrintMsg(this%option)
   this%option%io_buffer = ' Total Time: ' // &
-    trim(StringWrite('(es12.4)',this%cumulative_time))
+    trim(StringWrite('(es12.4)',this%cumulative_time)) // ' seconds'
   call PrintMsg(this%option)
 
   if (associated(this%timestepper)) then

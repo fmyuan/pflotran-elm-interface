@@ -96,7 +96,7 @@ subroutine OutputObservation(realization_base)
       call OutputObsH5(realization_base)
     endif
 
-    if (realization_base%option%use_mc) then
+    if (realization_base%option%use_sc) then
       call OutputObservationTecplotSecTXT(realization_base)
     endif
   endif
