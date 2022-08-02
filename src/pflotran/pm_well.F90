@@ -271,6 +271,8 @@ module PM_Well_class
     PetscReal :: min_dt_flow, min_dt_tran       ! [sec]
     PetscReal :: cumulative_dt_flow             ! [sec]
     PetscReal :: cumulative_dt_tran             ! [sec]
+    PetscReal :: min_dz
+    PetscInt :: well_res_ratio
     PetscBool :: transport
     PetscBool :: ss_check
   contains
@@ -319,6 +321,8 @@ function PMWellCreate()
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
   PMWellCreate%ss_check = PETSC_FALSE
+  PMWellCreate%min_dz = UNINITIALIZED_DOUBLE
+  PMWellCreate%well_res_ratio = 1
 
   nullify(PMWellCreate%pert)
 
@@ -573,7 +577,7 @@ subroutine PMWellSetup(this)
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
   type(point3d_type) :: dummy_h
-  class(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
+  class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscInt, pointer :: h_global_id_unique(:)
   PetscReal :: diff_x,diff_y,diff_z
@@ -583,11 +587,14 @@ subroutine PMWellSetup(this)
   PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: local_id_well, local_id_res
-  PetscInt :: nsegments
+  PetscReal :: dz_list(10000)
+  PetscReal :: min_dz, dz, z
+  PetscInt :: cell_id_list(10000)
+  PetscInt :: local_id, ghosted_id, cur_id
+  PetscInt :: local_id_well, local_id_res, res_cell_count
+  PetscInt :: nsegments, nsegments_save
   PetscInt :: max_val, min_val
-  PetscInt :: k
+  PetscInt :: k, i
   PetscInt :: count1_local, count2_local
   PetscInt :: count1_global, count2_global
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
@@ -605,17 +612,6 @@ subroutine PMWellSetup(this)
   call PrintMsg(option)
   option%io_buffer = 'WELLBORE_MODEL: Creating well grid discretization.... '
   call PrintMsg(option)
-
-  allocate(well_grid%dh(nsegments))
-  allocate(well_grid%h(nsegments))
-  allocate(well_grid%h_local_id(nsegments))
-  allocate(well_grid%h_ghosted_id(nsegments))
-  allocate(well_grid%h_global_id(nsegments))
-  allocate(well_grid%strata_id(nsegments))
-
-  well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-
-  well_grid%nconnections = well_grid%nsegments - 1
 
   top_of_reservoir = res_grid%z_max_global
   top_of_hole = well_grid%tophole(3)
@@ -661,34 +657,137 @@ subroutine PMWellSetup(this)
     call PrintErrMsg(option)
   endif
 
-  dh_x = diff_x/nsegments
-  dh_y = diff_y/nsegments
-  dh_z = diff_z/nsegments
+  if (nsegments == UNINITIALIZED_INTEGER) then
+  ! Use reservoir grid info: 1 well cell per reservoir cell
+    dz_list = UNINITIALIZED_DOUBLE
 
-  diff_x = diff_x*diff_x
-  diff_y = diff_y*diff_y
-  diff_z = diff_z*diff_z
+    if (Initialized(this%min_dz)) then
+      min_dz = this%min_dz
+    else
+      min_dz = 1.d-5
+    endif
 
-  total_length = sqrt(diff_x+diff_y+diff_z)
+    dz = min_dz
+    z = well_grid%bottomhole(3) 
+    dummy_h%x = well_grid%bottomhole(1)
+    dummy_h%y = well_grid%bottomhole(2) 
+    dummy_h%z = z
+    call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+    cell_id_list(1) = local_id
+    cur_id = local_id
+    z = z + min_dz
+    dummy_h%z = z
+    nsegments = 1
+    nsegments_save = 0
+    res_cell_count = 1
+    do
+      if (z > well_grid%tophole(3)) exit
+      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
 
-  do k = 1,well_grid%nsegments
-    well_grid%h(k)%id = k
-    well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
-    well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
-    well_grid%h(k)%z = well_grid%bottomhole(3)+(dh_z*(k-0.5))
-  enddo
+      res_cell_count = res_cell_count + 1
+      if (res_cell_count <= this%well_res_ratio .and. cur_id == local_id) then
+        nsegments = nsegments + 1
+        cell_id_list(nsegments) = local_id
+        dz = dz + min_dz
+      elseif (cur_id /= local_id) then
+        dz = dz / (nsegments-nsegments_save)
+        dz_list(nsegments_save+1:nsegments) = dz
+        res_cell_count = 1
+        cur_id = local_id
+        nsegments_save = nsegments
+        nsegments = nsegments+1
+        cell_id_list(nsegments) = local_id
+        dz = min_dz
+      else
+        dz = dz + min_dz
+      endif
 
-  well_grid%dh(:) = total_length/nsegments
+      z = z + min_dz
+      dummy_h%z = z
+    enddo
+    dz = dz / (nsegments-nsegments_save)
+    dz_list(nsegments_save+1:nsegments) = dz
 
-  ! Get the local_id for each well segment center from the reservoir grid
-  well_grid%h_local_id(:) = -1
-  do k = 1,well_grid%nsegments
-    call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
-                                      option,local_id)
-    well_grid%h_local_id(k) = local_id
-    well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
-    well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-  enddo
+    allocate(well_grid%dh(nsegments))
+    allocate(well_grid%h(nsegments))
+    allocate(well_grid%h_local_id(nsegments))
+    allocate(well_grid%h_ghosted_id(nsegments))
+    allocate(well_grid%h_global_id(nsegments))
+    allocate(well_grid%strata_id(nsegments))
+
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+    this%well_grid%nsegments = nsegments
+    well_grid%nconnections = well_grid%nsegments - 1
+
+    well_grid%h(1)%id = 1
+    well_grid%h(1)%x = well_grid%bottomhole(1)
+    well_grid%h(1)%y = well_grid%bottomhole(2)
+    well_grid%h(1)%z = well_grid%bottomhole(3) + dz_list(1)/2.d0
+    well_grid%dh(1) = dz_list(1)
+
+    local_id = cell_id_list(1)
+    well_grid%h_local_id(1) = local_id
+    well_grid%h_ghosted_id(1) = res_grid%nL2G(local_id)
+    well_grid%h_global_id(1) = res_grid%nG2A(well_grid%h_ghosted_id(1))
+
+    do k = 2,nsegments
+      well_grid%h(k)%id = k
+      well_grid%h(k)%x = well_grid%bottomhole(1)
+      well_grid%h(k)%y = well_grid%bottomhole(2)
+      well_grid%h(k)%z = well_grid%bottomhole(3) + &
+                         sum(dz_list(1:k-1)) + dz_list(k)/2.d0
+      well_grid%dh(k) = dz_list(k)
+
+      local_id = cell_id_list(k)
+      well_grid%h_local_id(k) = local_id
+      well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+      well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+
+    enddo
+
+  else
+  ! Build an equally-spaced grid
+    allocate(well_grid%dh(nsegments))
+    allocate(well_grid%h(nsegments))
+    allocate(well_grid%h_local_id(nsegments))
+    allocate(well_grid%h_ghosted_id(nsegments))
+    allocate(well_grid%h_global_id(nsegments))
+    allocate(well_grid%strata_id(nsegments))
+
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+
+    well_grid%nconnections = well_grid%nsegments - 1
+
+    dh_x = diff_x/nsegments
+    dh_y = diff_y/nsegments
+    dh_z = diff_z/nsegments
+
+    diff_x = diff_x*diff_x
+    diff_y = diff_y*diff_y
+    diff_z = diff_z*diff_z
+
+    total_length = sqrt(diff_x+diff_y+diff_z)
+
+    do k = 1,well_grid%nsegments
+      well_grid%h(k)%id = k
+      well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
+      well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
+      well_grid%h(k)%z = well_grid%bottomhole(3)+(dh_z*(k-0.5))
+    enddo
+
+    well_grid%dh(:) = total_length/nsegments
+
+    ! Get the local_id for each well segment center from the reservoir grid
+    well_grid%h_local_id(:) = -1
+    do k = 1,well_grid%nsegments
+      call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
+                                        option,local_id)
+      well_grid%h_local_id(k) = local_id
+      well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+      well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+    enddo
+
+  endif
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -987,6 +1086,18 @@ subroutine PMWellReadPMBlock(this,input)
                            error_string)
         cycle
     !-------------------------------------
+      case('MIN_DZ')
+        call InputReadDouble(input,option,this%min_dz)
+        call InputErrorMsg(input,option,'MIN_DZ', &
+                           error_string)
+        cycle
+    !-------------------------------------
+      case('MAX_WELL_RESERVOIR_CELL_RATIO')
+        call InputReadInt(input,option,this%well_res_ratio)
+        call InputErrorMsg(input,option,'MAX_WELL_RESERVOIR_CELL_RATIO', &
+                           error_string)
+        cycle
+    !-------------------------------------
     end select
 
     ! Read sub-blocks within WELLBORE_MODEL block:
@@ -1111,18 +1222,18 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (Uninitialized(pm_well%well_grid%nsegments)) then
-        option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
-                           &in the ' // trim(error_string) // ' block.'
-        call PrintMsg(option)
-        num_errors = num_errors + 1
-      endif
-      if (pm_well%well_grid%nsegments < 3) then
-        option%io_buffer = 'ERROR: The well must consist of >= 3 segments &
-                           &in the ' // trim(error_string) // ' block.'
-        call PrintMsg(option)
-        num_errors = num_errors + 1
-      endif
+      !if (Uninitialized(pm_well%well_grid%nsegments)) then
+      !  option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
+      !                     &in the ' // trim(error_string) // ' block.'
+      !  call PrintMsg(option)
+      !  num_errors = num_errors + 1
+      !endif
+      !if (pm_well%well_grid%nsegments < 3) then
+      !  option%io_buffer = 'ERROR: The well must consist of >= 3 segments &
+      !                     &in the ' // trim(error_string) // ' block.'
+      !  call PrintMsg(option)
+      !  num_errors = num_errors + 1
+      !endif
       if (Uninitialized(pm_well%well_grid%tophole(1)) .or. &
           Uninitialized(pm_well%well_grid%tophole(2)) .or. &
           Uninitialized(pm_well%well_grid%tophole(3))) then
@@ -1901,7 +2012,7 @@ recursive subroutine PMWellInitializeRun(this)
   type(species_type), pointer :: species
   type(tran_condition_type), pointer :: tran_condition
   class(tran_constraint_base_type), pointer :: cur_constraint
-  PetscInt :: nsegments, k
+  PetscInt :: nsegments, k, i, j
   PetscReal :: curr_time
 
   curr_time = this%option%time
@@ -1962,7 +2073,11 @@ recursive subroutine PMWellInitializeRun(this)
   this%flow_soln%update(:) = UNINITIALIZED_DOUBLE
 
   allocate(this%flow_soln%Jacobian(this%nphase*nsegments,this%nphase*nsegments))
-  this%flow_soln%Jacobian = UNINITIALIZED_DOUBLE
+  do i = 1,this%nphase*nsegments
+    do j = 1,this%nphase*nsegments
+      this%flow_soln%Jacobian(i,j) = UNINITIALIZED_DOUBLE
+    enddo
+  enddo
 
   allocate(this%flow_soln%prev_soln%pl(nsegments))
   allocate(this%flow_soln%prev_soln%sg(nsegments))
@@ -2428,9 +2543,15 @@ subroutine PMWellUpdateReservoir(this)
     this%reservoir%kz(k) = material_auxvar%permeability(3)
     this%reservoir%volume(k) = material_auxvar%volume
 
-    this%reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id)
-    this%reservoir%dy(k) = res_grid%structured_grid%dy(ghosted_id)
-    this%reservoir%dz(k) = res_grid%structured_grid%dz(ghosted_id)
+    if (res_grid%itype == STRUCTURED_GRID) then
+      this%reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id)
+      this%reservoir%dy(k) = res_grid%structured_grid%dy(ghosted_id)
+      this%reservoir%dz(k) = res_grid%structured_grid%dz(ghosted_id)
+    else
+      this%reservoir%dx(k) = material_auxvar%volume ** (0.3333d0)
+      this%reservoir%dy(k) = this%reservoir%dx(k)
+      this%reservoir%dz(k) = this%reservoir%dx(k)
+    endif
 
     if (this%transport) then
       this%reservoir%aqueous_conc(:,k) = nwt_auxvar%aqueous_eq_conc(:)
@@ -3074,6 +3195,7 @@ subroutine PMWellJacobianFlow(this)
   PetscInt :: irow, iconn
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: i,k
   Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(this%nphase,this%nphase), &
@@ -3146,7 +3268,13 @@ subroutine PMWellJacobianFlow(this)
 
   end select
 
-  this%flow_soln%Jacobian = Jac
+  do i = 1,this%nphase*this%well_grid%nsegments
+    do k = 1,this%nphase*this%well_grid%nsegments
+      this%flow_soln%Jacobian(i,k) = Jac(i,k)
+    enddo
+  enddo
+
+  !this%flow_soln%Jacobian = Jac
 
 end subroutine PMWellJacobianFlow
 
@@ -4583,7 +4711,8 @@ subroutine PMWellCalcVelocity(this)
 
         ! ------- liquid Darcy flux -------
         density_kg_ave = 0.5d0*(well%liq%rho(iup)+well%liq%rho(idn))
-        gravity_term = density_kg_ave*gravity*well_grid%dh(iup)
+        gravity_term = density_kg_ave*gravity* &
+                       0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
         delta_pressure = well%pl(iup) - well%pl(idn) + gravity_term
         well%ql(k) = -perm_ave_over_dist*well%liq%kr(idn)/ &
                       well%liq%visc(idn)*delta_pressure
@@ -4591,7 +4720,8 @@ subroutine PMWellCalcVelocity(this)
 
         ! ------- gas Darcy flux ----------
         density_kg_ave = 0.5d0*(well%gas%rho(iup)+well%gas%rho(idn))
-        gravity_term = density_kg_ave*gravity*well_grid%dh(iup)
+        gravity_term = density_kg_ave*gravity* &
+                       0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
         delta_pressure = well%pg(iup) - well%pg(idn) + gravity_term
         well%qg(k) = -perm_ave_over_dist*well%gas%kr(idn)/ &
                       well%gas%visc(idn)*delta_pressure

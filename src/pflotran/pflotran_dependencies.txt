@@ -824,9 +824,10 @@ reaction_sandbox_pnnl_lambda.o : global_aux.o input_aux.o material_aux.o \
                                  reaction_sandbox_base.o \
                                  reactive_transport_aux.o string.o units.o \
                                  utility.o
-reaction_sandbox_simple.o : global_aux.o input_aux.o material_aux.o option.o \
+reaction_sandbox_simple.o : global_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
-                            reaction_sandbox_base.o reactive_transport_aux.o
+                            reaction_immobile_aux.o reaction_sandbox_base.o \
+                            reactive_transport_aux.o
 reaction_sandbox_ufd_wp.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
