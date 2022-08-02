@@ -5115,7 +5115,8 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         ! Assuming the well is always vertical and gravity is in the
         ! (-) direction
         ! And assuming dh is the connection length
-        gravity_term = density_kg_ave * gravity * well_grid%dh(iup)
+        gravity_term = density_kg_ave * gravity * &
+                       0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
         ! No capillary pressure yet.
         delta_pressure = well_up%pl(iup) - well_dn%pl(idn) + &
                          gravity_term
@@ -5154,7 +5155,8 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         density_kg_ave = 0.5d0*(well_up%gas%rho(iup)+well_dn%gas%rho(idn))
         ! Assuming the well is always vertical and gravity is in the
         ! (-) direction
-        gravity_term = density_kg_ave * gravity * well_grid%dh(iup)
+        gravity_term = density_kg_ave * gravity * &
+                       0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
         ! No capillary pressure yet.
         delta_pressure = well_up%pg(iup) - well_dn%pg(idn) + &
                          gravity_term
@@ -5467,13 +5469,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        v_darcy = -1.d0 *perm_ave_over_dist * rel_perm / visl * &
+        v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !v_darcy = perm_ave_over_dist * rel_perm / visl * &
-        !          delta_pressure
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         ! Store boundary flux for consistency with transport
         if (save_flux) then
@@ -5526,7 +5523,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           visg = well%gas%visc(itop)
         endif
 
-        v_darcy = -1.d0 * perm_ave_over_dist * rel_perm/visg * &
+        v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
 
         ! Store boundary flux for consistency with transport
