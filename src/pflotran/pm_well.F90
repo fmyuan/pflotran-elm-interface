@@ -5982,6 +5982,10 @@ subroutine PMWellOutputHeader(this)
     units_string = 'm/s'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'Well Liq Mass Bal'
+    units_string = 'kmol/s'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
     if (this%transport) then
       do j = 1,this%nspecies
         variable_string = 'Well Aqueous Conc. ' // &
@@ -6062,6 +6066,7 @@ subroutine PMWellOutput(this)
       write(fid,100,advance="no") this%well%ql(k), &
                                   this%well%qg(k)
     endif
+    write(fid,100,advance="no") this%well%mass_balance_liq(k)
     if (this%transport) then
       do j = 1,this%nspecies
         write(fid,100,advance="no") this%well%aqueous_conc(j,k), &
