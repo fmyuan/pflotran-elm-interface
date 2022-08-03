@@ -4651,140 +4651,6 @@ end subroutine PMWellUpdateWellQ
 
 ! ************************************************************************** !
 
-subroutine PMWellCalcVelocity(this)
-  !
-  ! Calculates the Darcy flux in the well given the well pressures.
-  ! THIS IS NOW DEPRECIATED AND SHOULD NOT BE USED BECAUSE Q'S ARE NOW
-  ! CALCULATED WITHIN THE FLOW SUBROUTINES, PMWellFlux() and PMWellBCFlux().
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 02/16/2022
-
-  implicit none
-
-  class(pm_well_type) :: this
-
-  type(well_grid_type), pointer :: well_grid
-  type(well_type), pointer :: well
-  PetscReal :: perm_up, perm_dn
-  PetscReal :: dist_up, dist_dn
-  PetscReal :: perm_ave_over_dist
-  PetscReal :: density_kg_ave
-  PetscReal :: gravity_term
-  PetscReal :: delta_pressure
-  PetscInt :: iup, idn
-  PetscInt :: k
-
-  PetscReal, parameter :: eps = 1.d-8
-
-  well_grid => this%well_grid
-  well => this%well
-
-  ! iup/idn convention:
-  ! up direction goes towards well bottom (towards lower k value)
-  ! dn direction goes towards well top (towards higher k value)
-
-  ! the routines for calculating velocity must match PMWellFlux()
-  ! and PMWellBCFlux() exactly
-
-  select case(well%well_model_type)
-    !-------------------------------------------------------------------------
-    case('CONSTANT_PRESSURE_HYDROSTATIC')
-    !-------------------------------------------------------------------------
-    case('CONSTANT_PRESSURE')
-    !-------------------------------------------------------------------------
-    case('CONSTANT_RATE')
-    !-------------------------------------------------------------------------
-    case('WIPP_DARCY')
-      !---------------------------------------INTERIOR-FLUXES-----------------
-      do k = 1,(well_grid%nsegments-1)
-        iup = k
-        idn = k+1
-
-        perm_up = well%permeability(iup)
-        perm_dn = well%permeability(idn)
-        dist_up = well_grid%dh(iup)/2.d0
-        dist_dn = well_grid%dh(idn)/2.d0
-
-        perm_ave_over_dist = (perm_up * perm_dn) / &
-                             (dist_up*perm_dn + dist_dn*perm_up)
-
-        ! ------- liquid Darcy flux -------
-        density_kg_ave = 0.5d0*(well%liq%rho(iup)+well%liq%rho(idn))
-        gravity_term = density_kg_ave*gravity* &
-                       0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
-        delta_pressure = well%pl(iup) - well%pl(idn) + gravity_term
-        well%ql(k) = -perm_ave_over_dist*well%liq%kr(idn)/ &
-                      well%liq%visc(idn)*delta_pressure
-
-
-        ! ------- gas Darcy flux ----------
-        density_kg_ave = 0.5d0*(well%gas%rho(iup)+well%gas%rho(idn))
-        gravity_term = density_kg_ave*gravity* &
-                       0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
-        delta_pressure = well%pg(iup) - well%pg(idn) + gravity_term
-        well%qg(k) = -perm_ave_over_dist*well%gas%kr(idn)/ &
-                      well%gas%visc(idn)*delta_pressure
-
-      enddo
-      !---------------------------------------BOUNDARY-FLUXES-----------------
-      if (this%flow_soln%bh_p) then
-        perm_ave_over_dist = well%permeability(1)/(well_grid%dh(1)/2.d0)
-
-        ! ------- liquid Darcy flux -------
-        gravity_term = well%liq%rho(1)*gravity*(well_grid%dh(1)/2.d0)
-        delta_pressure = well%bh_p - well%pl(1) + gravity_term
-        well%ql_bc(1) = -perm_ave_over_dist*well%liq%kr(1)/well%liq%visc(1)* &
-                        delta_pressure
-
-        ! ------- gas Darcy flux ----------
-        gravity_term = well%gas%rho(1)*gravity*(well_grid%dh(1)/2.d0)
-        delta_pressure = well%bh_p - well%pg(1) + gravity_term
-        well%qg_bc(1) = -perm_ave_over_dist*well%gas%kr(1)/well%gas%visc(1)* &
-                        delta_pressure
-
-      elseif (this%flow_soln%bh_q) then
-        well%ql_bc(1) = this%well%bh_ql
-        well%qg_bc(1) = this%well%bh_qg
-
-      else
-        ! error message
-      endif
-
-      if (this%flow_soln%th_p) then
-        perm_ave_over_dist = well%permeability(well_grid%nsegments)/ &
-                             (well_grid%dh(well_grid%nsegments)/2.d0)
-
-        ! ------- liquid Darcy flux -------
-        gravity_term = well%liq%rho(well_grid%nsegments)*gravity* &
-                       (well_grid%dh(well_grid%nsegments)/2.d0)
-        delta_pressure = well%th_p - well%pl(well_grid%nsegments) + gravity_term
-        well%ql_bc(2) = -perm_ave_over_dist*well%liq%kr(well_grid%nsegments)/ &
-                        well%liq%visc(well_grid%nsegments)*delta_pressure
-
-        ! ------- gas Darcy flux ----------
-        gravity_term = well%gas%rho(well_grid%nsegments)*gravity* &
-                       (well_grid%dh(well_grid%nsegments)/2.d0)
-        delta_pressure = well%th_p - well%pg(well_grid%nsegments) + gravity_term
-        well%qg_bc(2) = -perm_ave_over_dist*well%gas%kr(well_grid%nsegments)/ &
-                        well%gas%visc(well_grid%nsegments)*delta_pressure
-
-      elseif (this%flow_soln%th_q) then
-        well%ql_bc(2) = this%well%th_ql
-        well%qg_bc(2) = this%well%th_qg
-
-      else
-        ! error message
-      endif
-    !-------------------------------------------------------------------------
-    case('FULL_MOMENTUM')
-    !-------------------------------------------------------------------------
-  end select
-
-end subroutine PMWellCalcVelocity
-
-! ************************************************************************** !
-
 subroutine PMWellComputeWellIndex(this)
   !
   ! Computes the well index.
@@ -5313,15 +5179,16 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
         ! Water Residual
 
-        perm_ave_over_dist = well%permeability(1) / (well_grid%dh(1)/2.d0)
-        boundary_pressure = well%bh_p
-        gravity_term = well%liq%rho(1) * gravity * &
-                       well_grid%dh(1)/2.d0
-        delta_pressure = boundary_pressure - well%pl(1) + gravity_term
-
         call EOSWaterSaturationPressure(t,Psat,ierr)
         call EOSWaterDensityBRAGFLO(t,boundary_pressure,PETSC_FALSE, &
                                 boundary_rho,dwmol,dwp,dwt,ierr)
+
+        perm_ave_over_dist = well%permeability(1) / (well_grid%dh(1)/2.d0)
+        boundary_pressure = well%bh_p
+        density_ave = (well%liq%rho(1)+boundary_rho) / 2.d0
+        gravity_term = density_ave * gravity * &
+                       well_grid%dh(1)/2.d0
+        delta_pressure = boundary_pressure - well%pl(1) + gravity_term
 
         upwind = delta_pressure > 0.d0
         if (upwind) then
@@ -5343,10 +5210,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%ql_bc(1) = v_darcy
         endif
 
-        density_ave = (well%liq%rho(1)+boundary_rho) / &
-                      (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(1)
-        tot_mole_flux = q * density_ave
+        tot_mole_flux = q * density_ave / fmw_comp(ONE_INTEGER)
         Res(1) = Res(1) + tot_mole_flux
 
         ! Gas Residual
@@ -5372,11 +5237,12 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
                RelativePermeability(1.d0-well%bh_sg,boundary_krg, &
                dkrg_dsatl,option)
 
-        gravity_term = well%gas%rho(1) * gravity * &
+        call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
+        density_ave = (well%gas%rho(1)+boundary_rho) / 2.d0
+
+        gravity_term = density_ave * gravity * &
                        well_grid%dh(1)/2.d0
         delta_pressure = boundary_pg - well%pg(1) + gravity_term
-
-        call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
 
         upwind = delta_pressure > 0.d0
         if (upwind) then
@@ -5396,9 +5262,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%qg_bc(1) = v_darcy
         endif
 
-        density_ave = (well%gas%rho(1)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(1)
-        tot_mole_flux = q * density_ave
+        tot_mole_flux = q * density_ave / fmw_comp(TWO_INTEGER)
         Res(2) = Res(2) + tot_mole_flux
 
       else if (pm_well%flow_soln%bh_q) then
@@ -5434,8 +5299,6 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(2) = Res(2) + tot_mole_flux
-      else
-        ! this should not happen once error messaging is updated
       endif
 
       if (pm_well%flow_soln%th_p) then
@@ -5448,23 +5311,26 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
         perm_ave_over_dist = well%permeability(itop) / (well_grid%dh(itop)/2.d0)
         boundary_pressure = well%th_p
-        gravity_term = well%liq%rho(itop) * gravity * &
-                       well_grid%dh(itop)/2.d0
-        delta_pressure = well%pl(itop) - boundary_pressure + gravity_term
 
         call EOSWaterSaturationPressure(t,Psat,ierr)
         call EOSWaterDensityBRAGFLO(t,boundary_pressure,PETSC_FALSE, &
                                 boundary_rho,dwmol,dwp,dwt,ierr)
+        density_ave = (well%liq%rho(itop)+boundary_rho) / 2.d0 
 
-        upwind = delta_pressure < 0.d0
+        gravity_term = density_ave * gravity * &
+                       well_grid%dh(itop)/2.d0
+        delta_pressure = well%pl(itop) - boundary_pressure + gravity_term
+
+
+        upwind = delta_pressure > 0.d0
         if (upwind) then
-          call characteristic_curves%liq_rel_perm_function% &
-               RelativePermeability(1.d0-well%th_sg,rel_perm,dkrl_dsatl,option)
-          call EOSWaterViscosity(t,boundary_pressure,Psat,visl,ierr)
-        else
           dn_scale = 1.d0
           rel_perm = well%liq%kr(itop)
           visl = well%liq%visc(itop)
+        else
+          call characteristic_curves%liq_rel_perm_function% &
+               RelativePermeability(1.d0-well%th_sg,rel_perm,dkrl_dsatl,option)
+          call EOSWaterViscosity(t,boundary_pressure,Psat,visl,ierr)
         endif
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -5477,11 +5343,9 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%ql_bc(2) = v_darcy
         endif
 
-        density_ave = (well%liq%rho(itop)+boundary_rho) / &
-                      (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(itop)
-        tot_mole_flux = q * density_ave
-        Res(3) = Res(3) + tot_mole_flux
+        tot_mole_flux = q * density_ave / fmw_comp(ONE_INTEGER)
+        Res(3) = Res(3) - tot_mole_flux
 
         ! Gas Residual
 
@@ -5506,11 +5370,13 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
                RelativePermeability(1.d0-well%th_sg,boundary_krg, &
                dkrg_dsatl,option)
 
-        gravity_term = well%gas%rho(itop) * gravity * &
+        call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
+
+        density_ave = (well%gas%rho(itop)+boundary_rho) / 2.d0 
+
+        gravity_term = density_ave * gravity * &
                        well_grid%dh(itop)/2.d0
         delta_pressure = well%pg(itop) - boundary_pressure + gravity_term
-
-        call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
 
         upwind = delta_pressure < 0.d0
         if (upwind) then
@@ -5531,10 +5397,9 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%qg_bc(2) = v_darcy
         endif 
 
-        density_ave = (well%gas%rho(itop)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(itop)
-        tot_mole_flux = q * density_ave
-        Res(4) = Res(4) + tot_mole_flux
+        tot_mole_flux = q * density_ave / fmw_comp(TWO_INTEGER)
+        Res(4) = Res(4) - tot_mole_flux
       else
         !Neumann flux at the top
         v_darcy = well%th_ql
@@ -5708,6 +5573,8 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
   PetscReal :: t,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
   PetscReal :: Pc,dpc_dsatl,krl,dkrl_dsatl,krg,dkrg_dsatl
   PetscErrorCode :: ierr
+
+  t = 25.d0 !Constant temperature
 
   nsegments =this%well_grid%nsegments
 
