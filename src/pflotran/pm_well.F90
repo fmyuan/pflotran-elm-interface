@@ -5468,11 +5468,11 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        v_darcy = -1.d0 *perm_ave_over_dist * rel_perm / visl * &
-                  delta_pressure
+        !v_darcy = -1.d0 *perm_ave_over_dist * rel_perm / visl * &
+        !         delta_pressure
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !v_darcy = perm_ave_over_dist * rel_perm / visl * &
-        !          delta_pressure
+        v_darcy = perm_ave_over_dist * rel_perm / visl * &
+                  delta_pressure
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         ! Store boundary flux for consistency with transport
@@ -5526,7 +5526,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           visg = well%gas%visc(itop)
         endif
 
-        v_darcy = -1.d0 * perm_ave_over_dist * rel_perm/visg * &
+        v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
 
         ! Store boundary flux for consistency with transport
