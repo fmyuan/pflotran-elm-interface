@@ -5919,13 +5919,9 @@ subroutine PMWellOutput(this)
       write(fid,100,advance="no") this%well%ql_bc(1), &
                                   this%well%qg_bc(1)
     endif
-    if (k == this%well_grid%nsegments) then
-      write(fid,100,advance="no") this%well%ql_bc(2), &
-                                  this%well%qg_bc(2)
-    endif
-    if (k > 1 .and. k < this%well_grid%nsegments) then
-      write(fid,100,advance="no") this%well%ql(k), &
-                                  this%well%qg(k)
+    if (k > 1) then
+      write(fid,100,advance="no") this%well%ql(k-1), &
+                                  this%well%qg(k-1)
     endif
     write(fid,100,advance="no") this%well%mass_balance_liq(k)
     if (this%transport) then
@@ -5983,8 +5979,8 @@ subroutine PMWellMassBalance(this)
       area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
       rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
       rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
-      q_up = well%ql(isegment)
-      q_dn = well%ql(isegment-1)
+      q_up = well%ql(isegment+1)
+      q_dn = well%ql(isegment)
       ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
       mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
       mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
@@ -6013,7 +6009,7 @@ subroutine PMWellMassBalance(this)
       rho_kg_up = well%liq%rho(isegment)
       rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
       q_up = this%well%ql_bc(2)          ! top of hole ql = ql_bc(2)
-      q_dn = this%well%ql(isegment-1)
+      q_dn = this%well%ql(isegment)
       ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
       mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
       mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
