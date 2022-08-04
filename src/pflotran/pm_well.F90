@@ -5423,7 +5423,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         Res(4) = Res(4) - tot_mole_flux
       else
         !Neumann flux at the top
-        v_darcy = well%th_ql
+        v_darcy = -well%th_ql
 
         ! Store boundary flux for consistency with transport
         if (save_flux) then
@@ -5437,13 +5437,13 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         endif
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
-        Res(3) = Res(3) + tot_mole_flux
+        Res(3) = Res(3) - tot_mole_flux
 
         v_darcy = well%th_qg
 
         ! Store boundary flux for consistency with transport
         if (save_flux) then
-          well%qg_bc(2) = v_darcy
+          well%qg_bc(2) = -v_darcy
         endif
 
         if (v_darcy > 0.d0) then
@@ -5453,7 +5453,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         endif
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
-        Res(4) = Res(4) + tot_mole_flux
+        Res(4) = Res(4) - tot_mole_flux
       endif
     case default
 
