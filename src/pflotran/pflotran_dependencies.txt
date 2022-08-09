@@ -2634,6 +2634,7 @@ reaction_sandbox.o : \
   reaction_sandbox_base.o \
   reaction_sandbox_bioTH.o \
   reaction_sandbox_biohill.o \
+  reaction_sandbox_calcite.o \
   reaction_sandbox_clm_cn.o \
   reaction_sandbox_example.o \
   reaction_sandbox_flexbiohill.o \
@@ -2676,6 +2677,19 @@ reaction_sandbox_biohill.o : \
   reaction_immobile_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o
+reaction_sandbox_calcite.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  output_aux.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_mineral_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  variables.o
 reaction_sandbox_clm_cn.o : \
   global_aux.o \
   input_aux.o \

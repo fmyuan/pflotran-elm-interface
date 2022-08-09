@@ -4,6 +4,7 @@ module Reaction_Sandbox_module
   use petscsys
 
   use Reaction_Sandbox_Base_class
+  use Reaction_Sandbox_Calcite_class
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
@@ -178,6 +179,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => FlexBioHillCreate()
       case('BIOPARTICLE')
         new_sandbox => BioTH_Create()
+      case('CALCITE')
+        new_sandbox => CalciteCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)
