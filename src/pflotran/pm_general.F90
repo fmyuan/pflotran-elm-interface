@@ -414,6 +414,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('SOLUBLE_MATRIX')
         general_soluble_matrix = PETSC_TRUE
+      case('UPDATE_PERMEABILITY')
+        general_update_permeability = PETSC_TRUE
+        call InputReadDouble(input,option,permeability_func_porosity_exp)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('SET_POROSITY')
         general_set_porosity = PETSC_TRUE
       ! This belongs somewhere else

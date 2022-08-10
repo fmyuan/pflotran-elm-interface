@@ -121,6 +121,8 @@ module General_Aux_module
   PetscBool, public :: general_no_air = PETSC_FALSE
   PetscBool, public :: general_soluble_matrix = PETSC_FALSE
   PetscBool, public :: general_set_porosity = PETSC_FALSE
+  PetscBool, public :: general_update_permeability = PETSC_FALSE
+  PetscReal, public :: permeability_func_porosity_exp = 1.d0
   PetscInt, public :: solubility_function = 1
 
   type, public :: general_auxvar_type
@@ -141,6 +143,7 @@ module General_Aux_module
     PetscReal, pointer :: kr(:)
     PetscReal, pointer :: mobility(:) ! relative perm / kinematic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
+    PetscReal :: perm_base
     PetscReal :: pert
 !    PetscReal, pointer :: dmobility_dp(:)
     type(general_derivative_auxvar_type), pointer :: d
@@ -365,6 +368,7 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
+  auxvar%perm_base = -999.9d0
 
   allocate(auxvar%pres(option%nphase+FOUR_INTEGER))
   auxvar%pres = 0.d0
@@ -2662,7 +2666,15 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 #endif
     endif
   endif ! istate /= LIQUID_STATE
-
+  if (general_soluble_matrix .and. general_update_permeability) then
+    if (gen_auxvar%perm_base < -999.d0) then
+      gen_auxvar%perm_base = material_auxvar%permeability(1)**(1/permeability_func_porosity_exp) /&
+                             material_auxvar%porosity
+    else
+      material_auxvar%permeability(:) = gen_auxvar%perm_base * &
+        material_auxvar%porosity ** permeability_func_porosity_exp
+    endif
+  endif
   if (global_auxvar%istate == LIQUID_STATE .or. &
       global_auxvar%istate == TWO_PHASE_STATE .or. &
       global_auxvar%istate == LP_STATE .or. &
