@@ -4859,6 +4859,12 @@ subroutine PMWFOutput(this)
                                 cur_waste_form%volume, &
                                 cur_waste_form%eff_canister_vit_rate, &
                                 cur_waste_form%canister_vitality*100.d0
+
+    if (associated(cur_waste_form%spacer_mechanism)) then
+      write(fid,100,advance="no") cur_waste_form%spacer_vitality_rate, &
+                                  cur_waste_form%spacer_vitality
+    endif
+
     cur_waste_form => cur_waste_form%next
   enddo
   close(fid)
@@ -5026,6 +5032,18 @@ subroutine PMWFOutputHeader(this)
     units_string = '%'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+
+    if (associated(cur_waste_form%spacer_mechanism)) then
+      variable_string = 'Spacer Vitality Deg. Rate'
+      units_string = '1/yr'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+
+      variable_string = 'Spacer Vitality'
+      units_string = '%'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+    endif
 
     cur_waste_form => cur_waste_form%next
   enddo
