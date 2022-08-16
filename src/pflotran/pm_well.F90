@@ -4673,7 +4673,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   type(well_fluid_type), pointer :: liq
   type(well_fluid_type), pointer :: gas
 
-  PetscReal, parameter :: threshold_p = 1.d-2 !1.d-1
+  PetscReal, parameter :: threshold_p = 0.d0 !1.d-2 !1.d-1
   PetscReal :: mobility, den_ave
   PetscBool :: upwind
   PetscInt :: i, nsegments
