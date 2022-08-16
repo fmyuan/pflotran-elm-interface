@@ -149,6 +149,14 @@ module PM_Well_class
     PetscReal, pointer :: ql_bc(:)
     ! well gas Darcy flux [m3/m2-s] of top/bottom boundaries
     PetscReal, pointer :: qg_bc(:)
+    ! well liquid mass flux [kmol/s] of interior interfaces
+    PetscReal, pointer :: ql_kmol(:)
+    ! well gas mass flux [kmol/s] of interior interfaces
+    PetscReal, pointer :: qg_kmol(:)
+    ! well liquid mass flux [kmol/s] of top/bottom boundaries
+    PetscReal, pointer :: ql_kmol_bc(:)
+    ! well gas mass flux [kmol/s] of top/bottom boundaries
+    PetscReal, pointer :: qg_kmol_bc(:)
     ! well species names
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
     ! well species parent id number
@@ -377,6 +385,10 @@ function PMWellCreate()
   nullify(PMWellCreate%well%qg)
   nullify(PMWellCreate%well%ql_bc)
   nullify(PMWellCreate%well%qg_bc)
+  nullify(PMWellCreate%well%ql_kmol)
+  nullify(PMWellCreate%well%qg_kmol)
+  nullify(PMWellCreate%well%ql_kmol_bc)
+  nullify(PMWellCreate%well%qg_kmol_bc)
   nullify(PMWellCreate%well%species_names)
   nullify(PMWellCreate%well%species_parent_id)
   nullify(PMWellCreate%well%species_radioactive)
@@ -415,6 +427,10 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_bc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_bc)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_kmol)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_kmol)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_kmol_bc)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_kmol_bc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_conc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_mass)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
@@ -2127,6 +2143,10 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%qg(nsegments-1))
   allocate(this%well%ql_bc(2))
   allocate(this%well%qg_bc(2))
+  allocate(this%well%ql_kmol(nsegments-1))
+  allocate(this%well%qg_kmol(nsegments-1))
+  allocate(this%well%ql_kmol_bc(2))
+  allocate(this%well%qg_kmol_bc(2))
   
   if (this%transport) then
     allocate(this%well%aqueous_conc(this%nspecies,nsegments))
@@ -5077,6 +5097,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         ! Store flux calculation for consistency with transport
         if (save_flux) then
           well_up%ql(iup) = v_darcy
+          well_up%ql_kmol(iup) = tot_mole_flux
         endif
 
         Res(1) = Res(1) + tot_mole_flux
@@ -5112,12 +5133,13 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         ! v_darcy [m/sec] = mole flux [kmol/sec] / den [kmol/m^3] / area[m^2]
         v_darcy = tot_mole_flux/density_ave_kmol/(5.d-1*(well_up%area(iup) + &
                             well_dn%area(idn)))
-        Res(2) = Res(2) + tot_mole_flux
-
         ! Store flux calculation for consistency with transport
         if (save_flux) then
           well_up%qg(iup) = v_darcy
+          well_up%qg_kmol(iup) = tot_mole_flux
         endif
+
+        Res(2) = Res(2) + tot_mole_flux
 
     case default
 
@@ -5270,11 +5292,6 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         !                    dP[Pa]]
         v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
-        ! Store boundary flux for consistency with transport
-        if (save_flux) then
-          well%ql_bc(1) = v_darcy
-        endif
-
         if (upwind) then
           density_ave = boundary_rho
         else
@@ -5283,6 +5300,11 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         endif
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%ql_bc(1) = v_darcy
+          well%ql_kmol_bc(1) = tot_mole_flux
+        endif
         Res(1) = Res(1) + tot_mole_flux
 
         ! Gas Residual
@@ -5327,30 +5349,24 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
         v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
-        ! Store boundary flux for consistency with transport
-        if (save_flux) then
-          well%qg_bc(1) = v_darcy
-        endif
-
         if (upwind) then
           density_ave = boundary_rho
         else
           density_ave = (well%gas%rho(1)+boundary_rho) / &
                         (2.d0 *fmw_comp(TWO_INTEGER))
         endif
-
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%qg_bc(1) = v_darcy
+          well%qg_kmol_bc(1) = tot_mole_flux
+        endif
         Res(2) = Res(2) + tot_mole_flux
 
       else if (pm_well%flow_soln%bh_q) then
         !Neumann flux at the bottom
         v_darcy = well%bh_ql
-
-        ! Store boundary flux for consistency with transport
-        if (save_flux) then
-          well%ql_bc(1) = v_darcy
-        endif
 
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_l(1) / fmw_comp(ONE_INTEGER)
@@ -5359,14 +5375,14 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         endif
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%ql_bc(1) = v_darcy
+          well%ql_kmol_bc(1) = tot_mole_flux
+        endif
         Res(1) = Res(1) + tot_mole_flux
 
         v_darcy = well%bh_qg
-
-        ! Store boundary flux for consistency with transport
-        if (save_flux) then
-          well%qg_bc(1) = v_darcy
-        endif
 
         if (v_darcy > 0.d0) then
           density_ave = reservoir%rho_g(1) / fmw_comp(TWO_INTEGER)
@@ -5375,6 +5391,11 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         endif
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%qg_bc(1) = v_darcy
+          well%qg_kmol_bc(1) = tot_mole_flux
+        endif
         Res(2) = Res(2) + tot_mole_flux
       else
         ! this should not happen once error messaging is updated
@@ -5414,15 +5435,15 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
 
-        ! Store boundary flux for consistency with transport
-        if (save_flux) then
-          well%ql_bc(2) = v_darcy
-        endif
-
         density_ave = (well%liq%rho(itop)+boundary_rho) / &
                       (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%ql_bc(2) = v_darcy
+          well%ql_kmol_bc(2) = tot_mole_flux
+        endif
         Res(3) = Res(3) - tot_mole_flux
 
         ! Gas Residual
@@ -5468,43 +5489,41 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
 
-        ! Store boundary flux for consistency with transport
-        if (save_flux) then
-          well%qg_bc(2) = v_darcy
-        endif 
-
         density_ave = (well%gas%rho(itop)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
+        ! Store boundary flux for consistency with transport
+        if (save_flux) then
+          well%qg_bc(2) = v_darcy
+          well%qg_kmol_bc(2) = tot_mole_flux
+        endif
         Res(4) = Res(4) - tot_mole_flux
       else
         !Neumann flux at the top
         v_darcy = -well%th_ql
 
+        ! Always take well density with tophole flux bc
+        density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
+        q = v_darcy * well%area(itop)
+        tot_mole_flux = q * density_ave
         ! Store boundary flux for consistency with transport
         if (save_flux) then
           well%ql_bc(2) = v_darcy
+          well%ql_kmol_bc(2) = tot_mole_flux
         endif
-
-        ! Always take well density with tophole flux bc
-        density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
-
-        q = v_darcy * well%area(itop)
-        tot_mole_flux = q * density_ave
         Res(3) = Res(3) - tot_mole_flux
 
         v_darcy = well%th_qg
 
+        ! Always take well density with tophole flux bc
+        density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
+        q = v_darcy * well%area(itop)
+        tot_mole_flux = q * density_ave
         ! Store boundary flux for consistency with transport
         if (save_flux) then
           well%qg_bc(2) = -v_darcy
+          well%qg_kmol_bc(2) = -tot_mole_flux
         endif
-
-        ! Always take well density with tophole flux bc
-        density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
-
-        q = v_darcy * well%area(itop)
-        tot_mole_flux = q * density_ave
         Res(4) = Res(4) - tot_mole_flux
       endif
     case default
@@ -6048,47 +6067,26 @@ subroutine PMWellMassBalance(this)
     if ((isegment > 1) .and. (isegment < nsegments)) then
     ! ----------------------------------------INTERIOR-FLUXES----------------
 
-      ! define face values with arithmetic averages:
-      area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
-      area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
-      rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
-      rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
-      q_up = well%ql(isegment+1)
-      q_dn = well%ql(isegment)
-      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
-      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
-      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
+      ! [kmol/sec] 
+      mass_rate_up = well%ql_kmol(isegment)
+      mass_rate_dn = well%ql_kmol(isegment-1)
 
     ! ----------------------------------------BOUNDARY-FLUXES----------------
     else if (isegment == 1) then
     ! ----- bottom of well -----
 
-      ! define face values with arithmetic averages:
-      area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
-      area_dn = well%area(isegment)
-      rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
-      rho_kg_dn = well%liq%rho(isegment)
-      q_up = well%ql(isegment)
-      q_dn = well%ql_bc(1)            ! bottom of hole ql = ql_bc(1)
-      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
-      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
-      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
-      !WRITE(*,*) 'mass_rate_Q_bot =', well%liq%Q(isegment), ' kmol/sec'
+      ! [kmol/sec] 
+      mass_rate_up = well%ql_kmol(isegment)
+      mass_rate_dn = well%ql_kmol_bc(1)
+      WRITE(*,*) 'mass_rate_Q_bot =', well%liq%Q(isegment), ' kmol/sec'
 
     else if (isegment == this%well_grid%nsegments) then
     ! ----- top of well -----
 
-      ! define face values with arithmetic averages:
-      area_up = this%well%area(isegment)
-      area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
-      rho_kg_up = well%liq%rho(isegment)
-      rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
-      q_up = this%well%ql_bc(2)          ! top of hole ql = ql_bc(2)
-      q_dn = this%well%ql(isegment)
-      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
-      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
-      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
-      !WRITE(*,*) 'mass_rate_top =', mass_rate_up, ' kmol/sec'
+      ! [kmol/sec] 
+      mass_rate_up = well%ql_kmol_bc(2)
+      mass_rate_dn = well%ql_kmol(isegment-1)
+      WRITE(*,*) 'mass_rate_top =', mass_rate_up, ' kmol/sec'
 
     endif
 
