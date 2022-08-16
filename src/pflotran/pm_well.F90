@@ -6067,47 +6067,26 @@ subroutine PMWellMassBalance(this)
     if ((isegment > 1) .and. (isegment < nsegments)) then
     ! ----------------------------------------INTERIOR-FLUXES----------------
 
-      ! define face values with arithmetic averages:
-      area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
-      area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
-      rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
-      rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
-      q_up = well%ql(isegment+1)
-      q_dn = well%ql(isegment)
-      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
-      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
-      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
+      ! [kmol/sec] 
+      mass_rate_up = well%ql_kmol(isegment)
+      mass_rate_dn = well%ql_kmol(isegment-1)
 
     ! ----------------------------------------BOUNDARY-FLUXES----------------
     else if (isegment == 1) then
     ! ----- bottom of well -----
 
-      ! define face values with arithmetic averages:
-      area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
-      area_dn = well%area(isegment)
-      rho_kg_up = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment+1))
-      rho_kg_dn = well%liq%rho(isegment)
-      q_up = well%ql(isegment)
-      q_dn = well%ql_bc(1)            ! bottom of hole ql = ql_bc(1)
-      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
-      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
-      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
-      !WRITE(*,*) 'mass_rate_Q_bot =', well%liq%Q(isegment), ' kmol/sec'
+      ! [kmol/sec] 
+      mass_rate_up = well%ql_kmol(isegment)
+      mass_rate_dn = well%ql_kmol_bc(1)
+      WRITE(*,*) 'mass_rate_Q_bot =', well%liq%Q(isegment), ' kmol/sec'
 
     else if (isegment == this%well_grid%nsegments) then
     ! ----- top of well -----
 
-      ! define face values with arithmetic averages:
-      area_up = this%well%area(isegment)
-      area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
-      rho_kg_up = well%liq%rho(isegment)
-      rho_kg_dn = 0.5d0 * (well%liq%rho(isegment) + well%liq%rho(isegment-1))
-      q_up = this%well%ql_bc(2)          ! top of hole ql = ql_bc(2)
-      q_dn = this%well%ql(isegment)
-      ! [kmol/sec] = [-]*[m2-bulk]*[m3-liq/m2-bulk-sec]*[kg/m3-liq]*[kmol/kg]
-      mass_rate_up = n_up*area_up*q_up*rho_kg_up*FMWH2O
-      mass_rate_dn = n_dn*area_dn*q_dn*rho_kg_dn*FMWH2O
-      !WRITE(*,*) 'mass_rate_top =', mass_rate_up, ' kmol/sec'
+      ! [kmol/sec] 
+      mass_rate_up = well%ql_kmol_bc(2)
+      mass_rate_dn = well%ql_kmol(isegment-1)
+      WRITE(*,*) 'mass_rate_top =', mass_rate_up, ' kmol/sec'
 
     endif
 
