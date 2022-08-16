@@ -3787,7 +3787,11 @@ subroutine PMWellSolveFlow(this,time,ierr)
         if (ss_step_count > 2) then
           steady_state = PETSC_TRUE
           this%cumulative_dt_flow = this%realization%option%flow_dt
+          WRITE(out_string,'(" PM Well FLOW convergence declared due to &
+            &automatic time step control criterion. ")')
+          call PrintMsg(this%option,out_string)
         endif
+
 
         exit
       endif
@@ -4280,6 +4284,9 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%flow_soln%ndof*this%well_grid%nsegments)
 
+  PetscReal, parameter :: zero_saturation = 1.d-15
+  PetscReal, parameter :: zero_accumulation = 1.d-15
+
   type(well_soln_flow_type), pointer :: flow_soln
   character(len=MAXSTRINGLENGTH) :: out_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
@@ -4296,6 +4303,8 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   PetscBool :: cnvgd_due_to_rel_update_p(this%well_grid%nsegments)
   PetscBool :: cnvgd_due_to_rel_update_s(this%well_grid%nsegments)
   PetscBool :: cnvgd_due_to_rel_update(this%well_grid%nsegments)
+  PetscBool :: cnvgd_on_pressure(this%well_grid%nsegments)
+  PetscBool :: cnvgd_on_saturation(this%well_grid%nsegments)
   PetscReal :: update_p(this%well_grid%nsegments) ! liquid pressure
   PetscReal :: update_s(this%well_grid%nsegments) ! gas saturation
   PetscReal :: temp_real
@@ -4323,6 +4332,8 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   cnvgd_due_to_rel_update_p = PETSC_FALSE
   cnvgd_due_to_rel_update_s = PETSC_FALSE
   cnvgd_due_to_rel_update = PETSC_FALSE
+  cnvgd_on_pressure = PETSC_FALSE
+  cnvgd_on_saturation = PETSC_FALSE
   update_p = UNINITIALIZED_DOUBLE
   update_s = UNINITIALIZED_DOUBLE
   rsn_string = ''
@@ -4341,8 +4352,14 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     if (temp_real < flow_soln%itol_abs_update_p) then
       cnvgd_due_to_abs_update_p(k) = PETSC_TRUE
     endif
+
     temp_real = dabs(update_s(k))
-    if (temp_real < flow_soln%itol_abs_update_s) then
+    if (temp_real > 0.d0) then
+      if ((-1.d0*log10(temp_real)) >= &
+           (-1.d0*log10(flow_soln%itol_abs_update_s))) then
+        cnvgd_due_to_abs_update_s(k) = PETSC_TRUE
+      endif
+    else
       cnvgd_due_to_abs_update_s(k) = PETSC_TRUE
     endif
 
@@ -4355,19 +4372,43 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     if (temp_real < flow_soln%itol_rel_update_s) then
       cnvgd_due_to_rel_update_s(k) = PETSC_TRUE
     endif
-  enddo
 
-  do k = 1,(this%well_grid%nsegments*flow_soln%ndof)
-    ! Absolute Residual
-    temp_real = dabs(flow_soln%residual(k))
-    if (temp_real < flow_soln%itol_abs_res) then
-      cnvgd_due_to_abs_res(k) = PETSC_TRUE
+    ! Liquid (water) Component
+    if (dabs(fixed_accum(idof)) > zero_accumulation) then
+      ! Absolute Residual
+      temp_real = dabs(flow_soln%residual(idof))
+      if (temp_real <= flow_soln%itol_abs_res) then
+        cnvgd_due_to_abs_res(idof) = PETSC_TRUE
+      endif
+
+      ! Scaled Residual
+      temp_real = dabs(flow_soln%residual(idof) / &
+                       (fixed_accum(idof)/this%dt_flow))
+      if (temp_real <= flow_soln%itol_scaled_res) then
+        cnvgd_due_to_scaled_res(idof) = PETSC_TRUE
+      endif
+    else
+      cnvgd_due_to_abs_res(idof) = PETSC_TRUE
+      cnvgd_due_to_scaled_res(idof) = PETSC_TRUE
     endif
 
-    ! Scaled Residual
-    temp_real = dabs(flow_soln%residual(k)/(fixed_accum(k)/this%dt_flow))
-    if (temp_real < flow_soln%itol_scaled_res) then
-      cnvgd_due_to_scaled_res(k) = PETSC_TRUE
+    ! Gas (air) Component
+    if (dabs(fixed_accum(idof+1)) > zero_accumulation) then
+      ! Absolute Residual
+      temp_real = dabs(flow_soln%residual(idof+1))
+      if (temp_real <= flow_soln%itol_abs_res) then
+        cnvgd_due_to_abs_res(idof+1) = PETSC_TRUE
+      endif
+
+      ! Scaled Residual
+      temp_real = dabs(flow_soln%residual(idof+1) / &
+                       (fixed_accum(idof+1)/this%dt_flow))
+      if (temp_real <= flow_soln%itol_scaled_res) then
+        cnvgd_due_to_scaled_res(idof+1) = PETSC_TRUE
+      endif
+    else
+      cnvgd_due_to_abs_res(idof+1) = PETSC_TRUE
+      cnvgd_due_to_scaled_res(idof+1) = PETSC_TRUE
     endif
   enddo
 
@@ -4391,21 +4432,21 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   max_relative_update_s = maxval(dabs(update_s/this%well%gas%s))
   loc_max_rel_update_s = maxloc(dabs(update_s/this%well%gas%s),1)
 
-  do k = 1,(this%well_grid%nsegments*flow_soln%ndof)
+  do k = 1,this%well_grid%nsegments*flow_soln%ndof
     if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
       cnvgd_due_to_residual(k) = PETSC_TRUE
     endif
   enddo
-  do k = 1,(this%well_grid%nsegments)
-    if (cnvgd_due_to_abs_update_p(k) .and. &
-        cnvgd_due_to_abs_update_s(k)) then
-      cnvgd_due_to_abs_update(k) = PETSC_TRUE
+  do k = 1,this%well_grid%nsegments
+    if (cnvgd_due_to_abs_update_p(k) .or. &
+        cnvgd_due_to_rel_update_p(k)) then
+      cnvgd_on_pressure(k) = PETSC_TRUE
     endif
-    if (cnvgd_due_to_rel_update_p(k) .and. &
+    if (cnvgd_due_to_abs_update_s(k) .or. &
         cnvgd_due_to_rel_update_s(k)) then
-      cnvgd_due_to_rel_update(k) = PETSC_TRUE
+      cnvgd_on_saturation(k) = PETSC_TRUE
     endif
-    if (cnvgd_due_to_abs_update(k) .or. cnvgd_due_to_rel_update(k)) then
+    if (cnvgd_on_pressure(k) .and. cnvgd_on_saturation(k)) then
       cnvgd_due_to_update(k) = PETSC_TRUE
     endif
   enddo
