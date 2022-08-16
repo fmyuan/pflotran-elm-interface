@@ -2763,6 +2763,7 @@ subroutine PMWellResidualFlow(this)
           call PMWellFlux(this,this%well,this%well,iup,idn,res_flux,PETSC_TRUE)
         endif
         call PMWellAccumulationFlow(this,this%well,i,res_accum)
+        !call PMWellUpdateWellQ(this%well,this%reservoir)
         call PMWellSrcSink(this,this%well,i,res_src_sink)
 
         this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
@@ -3794,19 +3795,24 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ss_step_count = 0
   steps_to_declare_ss = 10
 
+  ! update well index (should not need to be updated every time if
+  ! grid permeability and discretization are static
+  call PMWellComputeWellIndex(this)
+
   ! update the well src/sink Q vector at start of well model
-  call PMWellUpdateWellQ(this%well,this%reservoir)
+  !call PMWellUpdateWellQ(this%well,this%reservoir)
 
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt)
 
     ! Tighter coupling
     ! update the well src/sink Q vector between timesteps
-    call PMWellUpdateWellQ(this%well,this%reservoir)
+    !call PMWellUpdateWellQ(this%well,this%reservoir)
 
     call PMWellPreSolveFlow(this)
 
     ! Fixed accumulation term
     res_fixed = 0.d0
+    res = 0.d0
     do i = 1,this%well_grid%nsegments
       call PMWellAccumulationFlow(this,this%well,i,res)
       istart = flow_soln%ndof*(i-1)+1
@@ -3828,7 +3834,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
         ts_cut = ts_cut + 1
         easy_converge_count = 0
 
-        if (ss_step_count > 2) then
+        if (ss_step_count > 2 .and. this%ss_check) then
           steady_state = PETSC_TRUE
           this%cumulative_dt_flow = this%realization%option%flow_dt
           WRITE(out_string,'(" PM Well FLOW convergence declared due to &
@@ -3921,14 +3927,8 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
   call PMWellPostSolveFlow(this)
 
-  ! update well index (should not need to be updated every time if
-  ! grid permeability and discretization are static
-  call PMWellComputeWellIndex(this)
-
   ! update the well src/sink Q vector after well solve
   call PMWellUpdateWellQ(this%well,this%reservoir)
-
-  ! update the Darcy fluxes within the well
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
@@ -4835,10 +4835,10 @@ subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
     !---------------------------------------------
     case('WIPP_DARCY')
       ! liquid accumulation term
-      Res(1) = (Res(1) + well%liq%s(id) * well%liq%rho(id)) / FMWH2O * &
+      Res(1) = Res(1) + well%liq%s(id) * well%liq%rho(id) / FMWH2O * &
                 well%phi(id) * well%volume(id) / pm_well%dt_flow
       ! gas accumulation term
-      Res(2) = (Res(2) + well%gas%s(id) * well%gas%rho(id)) / &
+      Res(2) = Res(2) + well%gas%s(id) * well%gas%rho(id) / &
                 fmw_comp(TWO_INTEGER) * well%phi(id) * well%volume(id) / &
                 pm_well%dt_flow
     !---------------------------------------------
@@ -4869,6 +4869,8 @@ subroutine PMWellSrcSink(pm_well,well,id,Res)
   PetscInt :: iphase
 
   Res = 0.d0
+
+  call PMWellUpdateWellQ(pm_well%well,pm_well%reservoir)
 
   select case(well%well_model_type)
     !---------------------------------------------
@@ -4980,9 +4982,11 @@ subroutine PMWellSrcSinkDerivative(pm_well,local_id,Jac)
   PetscInt :: idof, irow
   PetscReal :: res(pm_well%nphase),res_pert(pm_well%nphase)
 
+  !call PMWellUpdateWellQ(pm_well%well,pm_well%reservoir)
   call PMWellSrcSink(pm_well,pm_well%well,local_id,res)
 
   do idof = 1, pm_well%nphase
+    !call PMWellUpdateWellQ(pm_well%well_pert(idof),pm_well%reservoir)
     call PMWellSrcSink(pm_well,pm_well%well_pert(idof),local_id,res_pert)
     do irow = 1, pm_well%nphase
       Jac(irow,idof) = (res_pert(irow)-res(irow))/pm_well%pert(local_id,idof)
