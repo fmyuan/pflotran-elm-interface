@@ -5275,8 +5275,12 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%ql_bc(1) = v_darcy
         endif
 
-        density_ave = (well%liq%rho(1)+boundary_rho) / &
-                      (2.d0 * fmw_comp(ONE_INTEGER))
+        if (upwind) then
+          density_ave = boundary_rho
+        else
+          density_ave = (well%liq%rho(1)+boundary_rho) / &
+                        (2.d0 * fmw_comp(ONE_INTEGER))
+        endif
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(1) = Res(1) + tot_mole_flux
@@ -5328,7 +5332,13 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%qg_bc(1) = v_darcy
         endif
 
-        density_ave = (well%gas%rho(1)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
+        if (upwind) then
+          density_ave = boundary_rho
+        else
+          density_ave = (well%gas%rho(1)+boundary_rho) / &
+                        (2.d0 *fmw_comp(TWO_INTEGER))
+        endif
+
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(2) = Res(2) + tot_mole_flux
@@ -5476,11 +5486,9 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%ql_bc(2) = v_darcy
         endif
 
-        if (v_darcy > 0.d0) then
-          density_ave = reservoir%rho_l(itop) / fmw_comp(ONE_INTEGER)
-        else
-          density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
-        endif
+        ! Always take well density with tophole flux bc
+        density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
+
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(3) = Res(3) - tot_mole_flux
@@ -5492,11 +5500,9 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
           well%qg_bc(2) = -v_darcy
         endif
 
-        if (v_darcy > 0.d0) then
-          density_ave = reservoir%rho_g(itop) / fmw_comp(TWO_INTEGER)
-        else
-          density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
-        endif
+        ! Always take well density with tophole flux bc
+        density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
+
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(4) = Res(4) - tot_mole_flux
