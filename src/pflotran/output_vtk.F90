@@ -393,6 +393,9 @@ subroutine WriteVTKGrid(fid,realization_base)
       write(fid,'(a)') ""
 
     endif
+  else
+    option%io_buffer = 'VTK output only supported for structured grids.'
+    call PrintErrMsg(option)
   endif
 
   call PetscLogEventEnd(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
