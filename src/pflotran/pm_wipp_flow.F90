@@ -2167,52 +2167,52 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   endif
 
   ! Add check on delta pressure with well model
-  if (converged_flag == CONVERGENCE_CONVERGED) then
-  source_sink => patch%source_sink_list%first
-  sum_connection = 0
-  !How do I know which ones are well source/sinks?
-  do
-    if (.not. associated(source_sink)) exit
-
-    if (.not. associated(source_sink%flow_condition%general%liquid_pressure)) &
-        then
-      source_sink => source_sink%next
-      cycle
-    endif
-
-    cur_connection_set => source_sink%connection_set
-
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-      local_end = local_id * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
-
-      if (Initialized(source_sink%flow_condition%general%liquid_pressure% &
-          aux_real(1))) then 
-        well_delta_liq = source_sink%flow_condition%general%liquid_pressure% &
-                         aux_real(2)
-        if (well_delta_liq > 0.d0) then
-          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) < &
-              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
-            converged_flag = CONVERGENCE_CUT_TIMESTEP
-            reason_string(2:2) = 'W'
-          endif
-        elseif (well_delta_liq < 0.d0) then
-          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) > &
-              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
-            converged_flag = CONVERGENCE_CUT_TIMESTEP
-            reason_string(2:2) = 'W'
-          endif 
-        endif
-      endif
-    enddo
-    source_sink => source_sink%next
-  enddo
-  endif
+!  if (converged_flag == CONVERGENCE_CONVERGED) then
+!  source_sink => patch%source_sink_list%first
+!  sum_connection = 0
+!  !How do I know which ones are well source/sinks?
+!  do
+!    if (.not. associated(source_sink)) exit
+!
+!    if (.not. associated(source_sink%flow_condition%general%liquid_pressure)) &
+!        then
+!      source_sink => source_sink%next
+!      cycle
+!    endif
+!
+!    cur_connection_set => source_sink%connection_set
+!
+!    do iconn = 1, cur_connection_set%num_connections
+!      sum_connection = sum_connection + 1
+!      local_id = cur_connection_set%id_dn(iconn)
+!      ghosted_id = grid%nL2G(local_id)
+!      if (patch%imat(ghosted_id) <= 0) cycle
+!
+!      local_end = local_id * option%nflowdof
+!      local_start = local_end - option%nflowdof + 1
+!
+!      if (Initialized(source_sink%flow_condition%general%liquid_pressure% &
+!          aux_real(1))) then 
+!        well_delta_liq = source_sink%flow_condition%general%liquid_pressure% &
+!                         aux_real(2)
+!        if (well_delta_liq > 0.d0) then
+!          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) < &
+!              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
+!            converged_flag = CONVERGENCE_CUT_TIMESTEP
+!            reason_string(2:2) = 'W'
+!          endif
+!        elseif (well_delta_liq < 0.d0) then
+!          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) > &
+!              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
+!            converged_flag = CONVERGENCE_CUT_TIMESTEP
+!            reason_string(2:2) = 'W'
+!          endif 
+!        endif
+!      endif
+!    enddo
+!    source_sink => source_sink%next
+!  enddo
+!  endif
 
   if (OptionPrintToScreen(option)) then
     !TODO(geh): add the option to report only violated tolerances, zeroing

@@ -1587,10 +1587,15 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   option%iflag = -3
 
   if (Initialized(wippflo_auxvars(ZERO_INTEGER)%well%pl)) then
-    scale = dabs(wippflo_auxvars(ZERO_INTEGER)% &
-            pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER)% &
-            well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER)% &
-            well%dpl)
+    if (dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl) < 1.d-15) then
+      scale = 0.d0
+    else
+      scale = dabs(wippflo_auxvars(ZERO_INTEGER)% &
+              pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER)% &
+              well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER)% &
+              well%dpl)
+    endif
   endif
 
 
@@ -1603,10 +1608,15 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   do idof = 1, option%nflowdof
 
   if (Initialized(wippflo_auxvars(idof)%well%pl)) then
-    scale = dabs(wippflo_auxvars(idof)% &
-            pres(ONE_INTEGER)-wippflo_auxvars(idof)% &
-            well%pl)/dabs(wippflo_auxvars(idof)% &
-            well%dpl)
+    if (dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl) < 1.d-15) then
+      scale = 0.d0
+    else
+      scale = dabs(wippflo_auxvars(idof)% &
+              pres(ONE_INTEGER)-wippflo_auxvars(idof)% &
+              well%pl)/dabs(wippflo_auxvars(idof)% &
+              well%dpl)
+    endif
   endif
 
 

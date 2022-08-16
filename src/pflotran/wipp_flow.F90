@@ -1222,10 +1222,15 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       endif
 
       if (Initialized(wippflo_auxvars(ZERO_INTEGER,ghosted_id)%well%pl)) then
-        scale = dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
-                well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
-                well%dpl)
+        if (dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)%well%dpl) < &
+            1.d-15) then
+          scale = 0.d0
+        else
+          scale = dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  well%dpl)
+        endif
       endif
 
       call WIPPFloSrcSink(option,source_sink%flow_condition%general%rate% &

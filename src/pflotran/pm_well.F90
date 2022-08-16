@@ -4857,11 +4857,11 @@ subroutine PMWellSrcSink(pm_well,well,id,Res)
     !---------------------------------------------
     case('WIPP_DARCY')
       ! liquid accumulation term
-      ! kg/s --> kmol/s
-      Res(1) = Res(1) + well%liq%Q(id) / FMWH2O
+      ! kmol/s
+      Res(1) = Res(1) + well%liq%Q(id)
       ! gas accumulation term
-      ! kg/s --> kmol/s
-      Res(2) = Res(2) + well%gas%Q(id) / fmw_comp(TWO_INTEGER)
+      ! kmol/s
+      Res(2) = Res(2) + well%gas%Q(id)
     !---------------------------------------------
     case default
     !---------------------------------------------
