@@ -3542,7 +3542,7 @@ subroutine PMWFInitializeTimestep(this)
             ! time value passed to lookup table
             if (crit_inventory%use_log10_time) then
               if (option%time <= 0) then
-                t_crit_inv = 1.d-24 ! substitute for zero
+                t_crit_inv = log10(1.d-24) ! substitute for zero
               else
                 t_crit_inv = log10(option%time)
               endif
