@@ -8196,6 +8196,7 @@ function CritInventoryCreate()
   ci%allow_implicit = PETSC_FALSE
   ci%allow_extrap   = PETSC_FALSE
   ci%continue_lookup = PETSC_FALSE
+  ci%use_log10_time = PETSC_FALSE
 
   CritInventoryCreate => ci
 
