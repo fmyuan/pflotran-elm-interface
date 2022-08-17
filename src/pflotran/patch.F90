@@ -5775,7 +5775,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD,TOTAL_SORBED,TOTAL_SORBED_MOBILE, &
          COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK,IMMOBILE_SPECIES, &
-         GAS_CONCENTRATION,REACTION_AUXILIARY)
+         GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE,REACTION_AUXILIARY)
 
       select case(ivar)
         case(PH)
@@ -5898,7 +5898,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               endif
             enddo
           endif
-        case(GAS_CONCENTRATION)
+        case(GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE)
           iphase = 2
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
@@ -5909,6 +5909,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               vec_ptr(local_id) = 0.d0
             endif
           enddo
+          if (ivar == GAS_CONCENTRATION) then
+            ! 1.d5 Pa [1 bar] / Pa-m^3/mol-K = mol-K/m^3
+            tempreal = 1.d5/IDEAL_GAS_CONSTANT 
+            do local_id=1,grid%nlmax
+              ! mol/m^3 gas
+              vec_ptr(local_id) = vec_ptr(local_id) * &
+                tempreal / &
+                (patch%aux%Global%auxvars(grid%nL2G(local_id))%temp+273.15d0)
+            enddo
+          endif
         case(MINERAL_VOLUME_FRACTION)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &

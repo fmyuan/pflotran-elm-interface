@@ -173,5 +173,6 @@ module Variables_module
   PetscInt, parameter, public :: NWT_AUXILIARY = 139
 
   PetscInt, parameter, public :: SMECTITE                = 140
+  PetscInt, parameter, public :: GAS_PARTIAL_PRESSURE    = 141
 
 end module Variables_module
