@@ -494,6 +494,7 @@ module PM_Waste_Form_class
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
     PetscBool :: continue_lookup
+    PetscBool :: use_log10_time
     type(crit_inventory_lookup_type), pointer :: radionuclide_table
     class(crit_inventory_type), pointer :: next
   contains
@@ -3257,6 +3258,7 @@ subroutine PMWFInitializeTimestep(this)
   PetscInt :: it, iiso, idaughter
 ! -----------------------------------------------------------
   PetscReal :: t_low, t_high
+  PetscReal :: t_crit_inv
   PetscReal, pointer :: times(:)
   PetscBool :: dataset_solution
   PetscBool :: expanded_dataset_solution
@@ -3537,10 +3539,21 @@ subroutine PMWFInitializeTimestep(this)
           if (rad_species(j)%name == inventory_table%name) then
             k = j
 
+            ! time value passed to lookup table
+            if (crit_inventory%use_log10_time) then
+              if (option%time <= 0) then
+                t_crit_inv = 1.d-24 ! substitute for zero
+              else
+                t_crit_inv = log10(option%time)
+              endif
+            else
+              t_crit_inv = option%time
+            endif
+
             cur_waste_form%rad_mass_fraction(k) = &
               inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
                                        cur_criticality%crit_heat, &
-                                       option%time)
+                                       t_crit_inv)
 
             if (inventory_table%lookup%axis3%extrapolate .and. &
                 .not. crit_inventory%allow_extrap) then
@@ -6824,6 +6837,19 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           call PrintErrMsg(option)
                         endif
                     !-----------------------------
+                      case('LOG10_TIME_INTERPOLATION')
+                        ! This allows for time interpolation to be based on the
+                        !   log10 values
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%use_log10_time = &
+                            PETSC_TRUE
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
                       case default
                         call InputKeywordUnrecognized(input,word,error_string, &
                                                       option)
@@ -7632,6 +7658,10 @@ subroutine CritInventoryRead(this,filename,option)
   this%power_datamax = maxval(tmpaxis2)
   this%real_time_datamax = maxval(tmpaxis3)
 
+  if (this%use_log10_time) then
+    call CritInventoryUseLog10(tmpaxis3,option)
+  endif
+
   ! Setup nuclide lookup tables after file read
   num_partitions = (this%num_start_times*this%num_powers)
 
@@ -8021,6 +8051,49 @@ subroutine CritInventoryCheckDuplicates(this,string,option)
   endif
 
 end subroutine CritInventoryCheckDuplicates
+
+! ************************************************************************** !
+
+subroutine CritInventoryUseLog10(array1,option)
+  !
+  ! Use log10 of array values
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/16/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: array2(:)
+  PetscInt :: i, array_size
+  PetscReal :: tval, zero_substitute
+  ! ----------------------------------
+
+  array_size = size(array1)
+
+  allocate(array2(array_size))
+
+  ! if zero is present in array, replace with a substitute value
+  !   (needed for log10 interpolation)
+  zero_substitute = 1.d-24
+
+  ! create array of the log10 values
+  do i = 1, array_size
+    tval = array1(i)
+    if (tval <= 0) tval = zero_substitute
+    array2(i) = log10(tval)
+  enddo
+
+  ! replace original array with the log10 array
+  array1(1:array_size) = array2(1:array_size)
+  deallocate(array2)
+  nullify(array2)
+
+end subroutine
 
 ! ************************************************************************** !
 
