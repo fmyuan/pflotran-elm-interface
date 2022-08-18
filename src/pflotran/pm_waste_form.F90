@@ -6843,6 +6843,8 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                         if (associated(new_crit_mech%inventory_dataset)) then
                           new_crit_mech%inventory_dataset%use_log10_time = &
                             PETSC_TRUE
+                          call CritInventoryUseLog10(new_crit_mech% &
+                                                     inventory_dataset,option)
                         else
                           option%io_buffer = 'Option "' // trim(word) // &
                                              '" requires specification of ' //&
@@ -7658,10 +7660,6 @@ subroutine CritInventoryRead(this,filename,option)
   this%power_datamax = maxval(tmpaxis2)
   this%real_time_datamax = maxval(tmpaxis3)
 
-  if (this%use_log10_time) then
-    call CritInventoryUseLog10(tmpaxis3,option)
-  endif
-
   ! Setup nuclide lookup tables after file read
   num_partitions = (this%num_start_times*this%num_powers)
 
@@ -8054,9 +8052,97 @@ end subroutine CritInventoryCheckDuplicates
 
 ! ************************************************************************** !
 
-subroutine CritInventoryUseLog10(array1,option)
+subroutine CritInventoryUseLog10(inventory,option)
   !
-  ! Use log10 of array values
+  ! Modify axis 3 values of lookup table to use log10 values
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/17/2022
+  !
+  use Option_module
+  use Lookup_Table_module
+  !
+  implicit none
+  ! ----------------------------------
+  type(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  type(lookup_table_general_type), pointer :: lut ! lookup table
+  PetscReal, pointer :: ax(:) ! axis values
+  PetscInt :: i, j, asize, psize
+  PetscReal :: tval ! values from axis that are modified
+  PetscReal, parameter :: zero_substitute = 1.0d-24 ! replace instances of zero
+  ! ----------------------------------
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+
+    lut => inv%lookup
+
+    if (allocated(lut%axis3%partition)) then
+      
+      psize = size(lut%axis3%partition)
+      
+      do i = 1, psize
+        
+        asize = size(lut%axis3%partition(i)%data)
+        
+        allocate(ax(asize))
+        
+        do j = 1, asize
+          
+          tval = lut%axis3%partition(i)%data(j)
+          if (tval <= 0) tval = zero_substitute
+          ax(j) = log10(tval)
+          
+        enddo
+        
+        lut%axis3%partition(i)%data(1:asize) = ax(1:asize)
+        
+        deallocate(ax)
+        nullify(ax)
+
+      enddo
+      
+    else
+      
+      asize = size(lut%axis3%values)
+      
+      allocate(ax(asize))
+      
+      do j = 1, asize
+        
+        tval = lut%axis3%values(j)
+        if (tval <= 0) tval = zero_substitute
+        ax(j) = log10(tval)
+        
+      enddo
+      
+      lut%axis3%values(1:asize) = ax(1:asize)
+      
+      deallocate(ax)
+      nullify(ax)
+      
+      exit
+      
+    endif
+
+    nullify(lut)
+
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryUseLog10
+
+! ************************************************************************** !
+
+subroutine CritInventoryArrayLog10(array1,option)
+  !
+  ! Modify array to use log10 of original values
   !
   ! Author: Alex Salazar III
   ! Date: 08/16/2022
@@ -8093,7 +8179,7 @@ subroutine CritInventoryUseLog10(array1,option)
   deallocate(array2)
   nullify(array2)
 
-end subroutine
+end subroutine CritInventoryArrayLog10
 
 ! ************************************************************************** !
 
