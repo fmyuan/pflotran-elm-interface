@@ -3212,6 +3212,10 @@ subroutine ReactionReadOutput(reaction,input,option)
       case('MOLALITY')
         reaction%print_free_conc_type = PRIMARY_MOLALITY
         reaction%print_tot_conc_type = TOTAL_MOLALITY
+      case('GAS_PARTIAL_PRESSURE')
+        reaction%gas%print_partial_pressure = PETSC_TRUE
+      case('GAS_CONCENTRATION')
+        reaction%gas%print_concentration = PETSC_TRUE
       case('AGE')
         reaction%print_age = PETSC_TRUE
         reaction%use_full_geochemistry = PETSC_TRUE
@@ -5957,14 +5961,40 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   enddo
 #endif
 
-  do i=1,reaction%gas%nactive_gas
-    if (reaction%gas%active_print_me(i)) then
-      name = 'Active Gas ' // trim(reaction%gas%active_names(i))
-      units = trim('Bar')
-      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
-          GAS_CONCENTRATION,i)
-    endif
-  enddo
+  ! if neither gas partial pressure or concentration is TRUE and there are
+  ! gases to print, use partial pressure by default
+  if (reaction%gas%nactive_gas > 0 .and. &
+      .not.(reaction%gas%print_partial_pressure .or. &
+            reaction%gas%print_concentration)) then
+    do i=1,reaction%gas%nactive_gas
+      if (reaction%gas%active_print_me(i)) then
+        reaction%gas%print_partial_pressure = PETSC_TRUE
+        exit
+      endif
+    enddo
+  endif
+
+  if (reaction%gas%print_partial_pressure) then
+    do i=1,reaction%gas%nactive_gas
+      if (reaction%gas%active_print_me(i)) then
+        name = 'Active Gas ' // trim(reaction%gas%active_names(i))
+        units = trim('Bar')
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+            GAS_PARTIAL_PRESSURE,i)
+      endif
+    enddo
+  endif
+
+  if (reaction%gas%print_concentration) then
+    do i=1,reaction%gas%nactive_gas
+      if (reaction%gas%active_print_me(i)) then
+        name = 'Active Gas ' // trim(reaction%gas%active_names(i))
+        units = trim('mol/m^3 gas')
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+            GAS_CONCENTRATION,i)
+      endif
+    enddo
+  endif
 
   if (reaction%print_total_bulk) then
     do i=1,reaction%naqcomp

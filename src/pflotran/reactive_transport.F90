@@ -394,7 +394,7 @@ subroutine RTSetup(realization)
   if (rt_parameter%species_dependent_diffusion) then
     if (reaction%gas%nactive_gas > 0) then
       if (maxval(reaction%gas%acteqspecid(0,:)) > 1) then
-        option%io_buffer = 'Active gas transprot is not supported when &
+        option%io_buffer = 'Active gas transport is not supported when &
           &gas species are not defined as a one to one match with the &
           &primary species [e.g. O2(aq) <-> O2(g)].'
         call PrintErrMsg(option)

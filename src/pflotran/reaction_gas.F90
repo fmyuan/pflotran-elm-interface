@@ -106,16 +106,20 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal
-  PetscReal :: RT
+  PetscReal :: RT_scaled
   PetscReal :: gas_concentration
   type(gas_type), pointer :: gas
 
   rt_auxvar%total(:,iphase) = 0.d0 !debugging
 
   gas => reaction%gas
-  ! units of ideal gas constant = J/mol-K = kPa-L/mol-K
-  ! units of RT = Pa-L/mol
-  RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
+  ! units of ideal gas constant = J/mol-K or Pa-m^3/mol-K
+  ! J/mol-K
+  ! N-m/mol-K
+  ! Pa-m^3/mol-K
+
+  ! units of RT_scaled: Pa-m^3/mol-K * K * 1000 L/m^3  =  Pa-L/mol
+  RT_scaled = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
 
   ln_conc = log(rt_auxvar%pri_molal)
   ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
@@ -139,8 +143,8 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     enddo
     ! units = bars
     rt_auxvar%gas_pp(igas) = exp(lnQK)
-    ! unit = mol/L gas
-    gas_concentration = rt_auxvar%gas_pp(igas) * 1.d5 / RT
+    ! unit = mol/L gas                                ! Pa-L/mol
+    gas_concentration = rt_auxvar%gas_pp(igas) * 1.d5 / RT_scaled
 
     ! add contribution to primary totals
     ! units of total = mol/L gas
@@ -155,7 +159,8 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     ! units of dtotal = kg water / L gas
     do j = 1, ncomp
       jcomp = gas%acteqspecid(j,igas)
-      tempreal = gas%acteqstoich(j,igas)*exp(lnQK-ln_conc(jcomp))*1.d5/RT
+      tempreal = gas%acteqstoich(j,igas)*exp(lnQK-ln_conc(jcomp)) * &
+                 1.d5 / RT_scaled
       do i = 1, ncomp
         icomp = gas%acteqspecid(i,igas)
         rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) = &

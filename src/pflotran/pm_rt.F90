@@ -664,6 +664,8 @@ subroutine PMRTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
+  else if (this%realization%reaction%update_mineral_surface_area) then
+    call RealizationUpdatePropertiesTS(this%realization)
   endif
 
   call RTMaxChange(this%realization,this%max_concentration_change, &
