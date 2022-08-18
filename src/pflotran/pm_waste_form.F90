@@ -8093,11 +8093,11 @@ subroutine CritInventoryUseLog10(inventory,option)
     if (allocated(inv%lookup%axis3%partition)) then
       psize = size(inv%lookup%axis3%partition)
       do i = 1, psize
-        call CritInventoryArrayLog10(inv%lookup%axis3%partition(i)%data, &
+        call CritInventoryLog10Array(inv%lookup%axis3%partition(i)%data, &
                                      zero_sub,option)
       enddo
     else
-      call CritInventoryArrayLog10(inv%lookup%axis3%values,zero_sub,option)
+      call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
       exit
     endif
     inv => inv%next
@@ -8108,7 +8108,7 @@ end subroutine CritInventoryUseLog10
 
 ! ************************************************************************** !
 
-subroutine CritInventoryArrayLog10(array1,zero_sub,option)
+subroutine CritInventoryLog10Array(array1,zero_sub,option)
   !
   ! Modify array to use log10 of original values
   !
@@ -8145,7 +8145,7 @@ subroutine CritInventoryArrayLog10(array1,zero_sub,option)
   deallocate(array2)
   nullify(array2)
 
-end subroutine CritInventoryArrayLog10
+end subroutine CritInventoryLog10Array
 
 ! ************************************************************************** !
 
