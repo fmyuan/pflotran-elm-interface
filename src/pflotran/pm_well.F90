@@ -157,6 +157,10 @@ module PM_Well_class
     PetscReal, pointer :: ql_kmol_bc(:)
     ! well gas mass flux [kmol/s] of top/bottom boundaries
     PetscReal, pointer :: qg_kmol_bc(:)
+    ! well liquid cumulative mass [kmol] in each segment
+    PetscReal, pointer :: liq_cum_mass(:)
+    ! well liquid instantaneous mass [kmol] in each segment
+    PetscReal, pointer :: liq_mass(:)
     ! well species names
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
     ! well species parent id number
@@ -389,6 +393,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well%qg_kmol)
   nullify(PMWellCreate%well%ql_kmol_bc)
   nullify(PMWellCreate%well%qg_kmol_bc)
+  nullify(PMWellCreate%well%liq_cum_mass)
+  nullify(PMWellCreate%well%liq_mass)
   nullify(PMWellCreate%well%species_names)
   nullify(PMWellCreate%well%species_parent_id)
   nullify(PMWellCreate%well%species_radioactive)
@@ -431,9 +437,11 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_kmol)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_kmol_bc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_kmol_bc)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%liq_cum_mass)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%liq_mass)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_conc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_mass)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ccid)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%phi)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%mass_balance_liq)
@@ -449,6 +457,12 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_bc)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_bc)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_kmol)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_kmol)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_kmol_bc)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_kmol_bc)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%liq_cum_mass)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%liq_mass)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%aqueous_conc)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%aqueous_mass)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%ccid)
@@ -2147,6 +2161,10 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%qg_kmol(nsegments-1))
   allocate(this%well%ql_kmol_bc(2))
   allocate(this%well%qg_kmol_bc(2))
+  allocate(this%well%liq_cum_mass(nsegments))
+  allocate(this%well%liq_mass(nsegments))
+  this%well%liq_cum_mass = 0.d0 
+  this%well%liq_mass = 0.d0
   
   if (this%transport) then
     allocate(this%well%aqueous_conc(this%nspecies,nsegments))
@@ -2652,6 +2670,10 @@ subroutine PMWellFinalizeTimestep(this)
 
   call PMWellUpdateReservoirSrcSink(this)
 
+  call PMWellUpdateMass(this)
+
+  call PMWellMassBalance(this)
+
   call PMWellOutput(this)
 
 end subroutine PMWellFinalizeTimestep
@@ -2944,6 +2966,7 @@ subroutine PMWellResidualTranSrcSink(this)
   type(well_reservoir_type), pointer :: resr
   PetscReal :: coef_Qin, coef_Qout ! into well, out of well
   PetscReal :: Qin, Qout
+  PetscReal :: rho_avg
 
   ! Q src/sink is in [kmol-liq/sec]
   ! FMWH2O is in [kmol-liq/kg-liq] where liq = water
@@ -2960,12 +2983,13 @@ subroutine PMWellResidualTranSrcSink(this)
 
   do isegment = 1,this%well_grid%nsegments
 
+    rho_avg = 0.5d0*(well%liq%rho(isegment)+resr%rho_l(isegment))
     ! units of coef = [m^3-liq/sec]
     if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
       coef_Qin = 0.d0
-      coef_Qout = well%liq%Q(isegment)/FMWH2O/well%liq%rho(isegment)
+      coef_Qout = well%liq%Q(isegment)/FMWH2O/rho_avg
     else ! Q into well
-      coef_Qin = well%liq%Q(isegment)/FMWH2O/resr%rho_l(isegment)
+      coef_Qin = well%liq%Q(isegment)/FMWH2O/rho_avg
       coef_Qout = 0.d0
     endif
 
@@ -2983,7 +3007,7 @@ subroutine PMWellResidualTranSrcSink(this)
     ! NOTE: It should be - Res according to documentation, but it also seems ok
     !       being + Res. I'm not sure!
     this%tran_soln%residual(istart:iend) = &
-                          this%tran_soln%residual(istart:iend) - Res(:)
+                          this%tran_soln%residual(istart:iend) + Res(:)
   enddo
 
 end subroutine PMWellResidualTranSrcSink
@@ -3441,7 +3465,7 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   PetscInt :: istart, iend, ispecies
   PetscReal :: Qin, Qout
   PetscReal :: SSin, SSout, SS
-  PetscReal :: vol 
+  PetscReal :: vol, rho_avg 
 
   ! units of Jac = [m^3-bulk/sec]
   ! units of volume = [m^3-bulk]
@@ -3457,18 +3481,19 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   ! - Q goes out of well into reservoir
 
   vol = this%well%volume(isegment)
+  rho_avg = 0.5d0*(well%liq%rho(isegment)+resr%rho_l(isegment))
 
   ! units of Qin/out = [m^3-liq/sec]
   if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
     Qin = 0.d0
-    Qout = well%liq%Q(isegment)/FMWH2O/well%liq%rho(isegment)
+    Qout = well%liq%Q(isegment)/FMWH2O/rho_avg
     if (well%liq%s(isegment) < 1.d-40) then
       this%option%io_buffer = 'HINT: The liquid saturation is zero. &
         &Division by zero will occur in PMWellJacTranSrcSink().'
       call PrintMsg(this%option)
     endif
   else ! Q into well
-    Qin = well%liq%Q(isegment)/FMWH2O/resr%rho_l(isegment)
+    Qin = well%liq%Q(isegment)/FMWH2O/rho_avg
     Qout = 0.d0
     if (resr%s_l(isegment) < 1.d-40) then
       this%option%io_buffer = 'HINT: The liquid saturation is zero. &
@@ -3486,7 +3511,8 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
 
   do ispecies = istart,iend
 
-    Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) - vol*(SS/vol)
+    ! NOTE: It should be - SS according to documentation
+    Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) + vol*(SS/vol)
 
   enddo
 
@@ -4210,8 +4236,6 @@ subroutine PMWellNewtonFlow(this)
     this%flow_soln%update = new_dx
 
     call PMWellUpdateSolutionFlow(this)
-
-    call PMWellMassBalance(this)
 
   !--------------------------------------
   end select
@@ -5944,6 +5968,10 @@ subroutine PMWellOutputHeader(this)
     units_string = 'kmol/s'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'Well Liq Mass'
+    units_string = 'kmol'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
     if (this%transport) then
       do j = 1,this%nspecies
         variable_string = 'Well Aqueous Conc. ' // &
@@ -6020,7 +6048,8 @@ subroutine PMWellOutput(this)
       write(fid,100,advance="no") this%well%ql(k-1), &
                                   this%well%qg(k-1)
     endif
-    write(fid,100,advance="no") this%well%mass_balance_liq(k)
+    write(fid,100,advance="no") this%well%mass_balance_liq(k), &
+                                this%well%liq_mass(k)
     if (this%transport) then
       do j = 1,this%nspecies
         write(fid,100,advance="no") this%well%aqueous_conc(j,k), &
@@ -6082,7 +6111,10 @@ subroutine PMWellMassBalance(this)
       ! [kmol/sec] 
       mass_rate_up = well%ql_kmol(isegment)
       mass_rate_dn = well%ql_kmol_bc(1)
-      WRITE(*,*) 'mass_rate_Q_bot =', well%liq%Q(isegment), ' kmol/sec'
+      WRITE(*,*) 'BOTTOM Q =', well%liq%Q(isegment), ' kmol/sec'
+      WRITE(*,*) 'BOTTOM q_up =', mass_rate_up, ' kmol/sec'
+      WRITE(*,*) 'BOTTOM q_dn =', mass_rate_dn, ' kmol/sec'
+      WRITE(*,*) 'BOTTOM ratio (Q/up) =', well%liq%Q(isegment)/mass_rate_up
 
     else if (isegment == this%well_grid%nsegments) then
     ! ----- top of well -----
@@ -6090,7 +6122,9 @@ subroutine PMWellMassBalance(this)
       ! [kmol/sec] 
       mass_rate_up = well%ql_kmol_bc(2)
       mass_rate_dn = well%ql_kmol(isegment-1)
-      WRITE(*,*) 'mass_rate_top =', mass_rate_up, ' kmol/sec'
+      WRITE(*,*) 'TOP q_up =', mass_rate_up, ' kmol/sec'
+      WRITE(*,*) 'TOP q_dn =', mass_rate_dn, ' kmol/sec'
+      WRITE(*,*) 'TOP ratio (up/dn) =', mass_rate_up/mass_rate_dn
 
     endif
 
@@ -6100,6 +6134,39 @@ subroutine PMWellMassBalance(this)
   enddo
 
 end subroutine PMWellMassBalance
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateMass(this)
+  !
+  ! Verify the mass balance in the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/17/2022
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  type(well_type), pointer :: well
+  PetscInt :: isegment, nsegments
+  PetscReal :: inst_mass
+
+  well => this%well
+  nsegments = this%well_grid%nsegments
+
+  do isegment = 1,nsegments
+
+    ! [kmol]
+    inst_mass = well%volume(isegment)*well%phi(isegment)* &
+                well%liq%s(isegment)*well%liq%rho(isegment)*FMWH2O
+
+    well%liq_mass(isegment) = inst_mass
+    well%liq_cum_mass(isegment) = well%liq_cum_mass(isegment) + inst_mass
+
+  enddo
+
+end subroutine PMWellUpdateMass
 
 ! ************************************************************************** !
 
