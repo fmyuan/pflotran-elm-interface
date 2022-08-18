@@ -8060,7 +8060,6 @@ subroutine CritInventoryUseLog10(inventory,option)
   ! Date: 08/17/2022
   !
   use Option_module
-  use Lookup_Table_module
   !
   implicit none
   ! ----------------------------------
@@ -8068,70 +8067,22 @@ subroutine CritInventoryUseLog10(inventory,option)
   type(option_type) :: option
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
-  type(lookup_table_general_type), pointer :: lut ! lookup table
-  PetscReal, pointer :: ax(:) ! axis values
-  PetscInt :: i, j, asize, psize
-  PetscReal :: tval ! values from axis that are modified
-  PetscReal, parameter :: zero_substitute = 1.0d-24 ! replace instances of zero
+  PetscInt :: i, j, psize
   ! ----------------------------------
 
   ! loop through linked list of lookup tables and modify axis 3 values
   inv => inventory%radionuclide_table
   do
     if (.not. associated(inv)) exit
-
-    lut => inv%lookup
-
-    if (allocated(lut%axis3%partition)) then
-      
-      psize = size(lut%axis3%partition)
-      
+    if (allocated(inv%lookup%axis3%partition)) then
+      psize = size(inv%lookup%axis3%partition)
       do i = 1, psize
-        
-        asize = size(lut%axis3%partition(i)%data)
-        
-        allocate(ax(asize))
-        
-        do j = 1, asize
-          
-          tval = lut%axis3%partition(i)%data(j)
-          if (tval <= 0) tval = zero_substitute
-          ax(j) = log10(tval)
-          
-        enddo
-        
-        lut%axis3%partition(i)%data(1:asize) = ax(1:asize)
-        
-        deallocate(ax)
-        nullify(ax)
-
+        call CritInventoryArrayLog10(inv%lookup%axis3%partition(i)%data,option)
       enddo
-      
     else
-      
-      asize = size(lut%axis3%values)
-      
-      allocate(ax(asize))
-      
-      do j = 1, asize
-        
-        tval = lut%axis3%values(j)
-        if (tval <= 0) tval = zero_substitute
-        ax(j) = log10(tval)
-        
-      enddo
-      
-      lut%axis3%values(1:asize) = ax(1:asize)
-      
-      deallocate(ax)
-      nullify(ax)
-      
+      call CritInventoryArrayLog10(inv%lookup%axis3%values,option)
       exit
-      
     endif
-
-    nullify(lut)
-
     inv => inv%next
   enddo
   nullify(inv)
@@ -8155,27 +8106,25 @@ subroutine CritInventoryArrayLog10(array1,option)
   type(option_type) :: option
   ! ----------------------------------
   PetscReal, pointer :: array2(:)
-  PetscInt :: i, array_size
-  PetscReal :: tval, zero_substitute
+  PetscInt :: i, asize
+  PetscReal :: tval ! values from array to be modified
+  PetscReal, parameter :: zero_substitute = 1.0d-24 ! replace instances of zero
   ! ----------------------------------
 
-  array_size = size(array1)
+  ! allocate dummy array for log10 transformation
+  asize = size(array1)
+  allocate(array2(asize))
 
-  allocate(array2(array_size))
-
-  ! if zero is present in array, replace with a substitute value
-  !   (needed for log10 interpolation)
-  zero_substitute = 1.d-24
-
-  ! create array of the log10 values
-  do i = 1, array_size
+  ! populate dummy array with log10 values of original array
+  do i = 1, asize
     tval = array1(i)
+    ! replace zeros in original array with a substitute value
     if (tval <= 0) tval = zero_substitute
     array2(i) = log10(tval)
   enddo
 
   ! replace original array with the log10 array
-  array1(1:array_size) = array2(1:array_size)
+  array1(1:asize) = array2(1:asize)
   deallocate(array2)
   nullify(array2)
 
