@@ -475,6 +475,7 @@ module PM_Waste_Form_class
     class(lookup_table_general_type), pointer :: lookup
     type(crit_inventory_lookup_type), pointer :: next
     character(len=MAXWORDLENGTH) :: name
+    PetscBool :: use_log10_time
   contains
     procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
@@ -494,7 +495,6 @@ module PM_Waste_Form_class
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
     PetscBool :: continue_lookup
-    PetscBool :: use_log10_time
     PetscReal :: log10_time_zero_sub
     type(crit_inventory_lookup_type), pointer :: radionuclide_table
     class(crit_inventory_type), pointer :: next
@@ -3259,7 +3259,6 @@ subroutine PMWFInitializeTimestep(this)
   PetscInt :: it, iiso, idaughter
 ! -----------------------------------------------------------
   PetscReal :: t_low, t_high
-  PetscReal :: t_crit_inv
   PetscReal, pointer :: times(:)
   PetscBool :: dataset_solution
   PetscBool :: expanded_dataset_solution
@@ -3540,21 +3539,10 @@ subroutine PMWFInitializeTimestep(this)
           if (rad_species(j)%name == inventory_table%name) then
             k = j
 
-            ! time value passed to lookup table
-            if (crit_inventory%use_log10_time) then
-              if (option%time <= 0) then
-                t_crit_inv = log10(1.d-20) ! substitute for zero
-              else
-                t_crit_inv = log10(option%time)
-              endif
-            else
-              t_crit_inv = option%time
-            endif
-
             cur_waste_form%rad_mass_fraction(k) = &
               inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
                                        cur_criticality%crit_heat, &
-                                       t_crit_inv)
+                                       option%time)
 
             if (inventory_table%lookup%axis3%extrapolate .and. &
                 .not. crit_inventory%allow_extrap) then
@@ -6840,10 +6828,8 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                     !-----------------------------
                       case('LOG10_TIME_INTERPOLATION')
                         ! Use log10 basis for time interpolation
-                        if (associated(new_crit_mech%inventory_dataset)) then
-                          new_crit_mech%inventory_dataset%use_log10_time = &
-                            PETSC_TRUE
-                        else
+                        if (.not. associated(new_crit_mech% &
+                                             inventory_dataset)) then
                           option%io_buffer = 'Option "' // trim(word) // &
                                              '" requires specification of ' //&
                                              'EXPANDED_DATASET.'
@@ -8083,15 +8069,20 @@ subroutine CritInventoryUseLog10(inventory,option)
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
   PetscReal :: zero_sub ! substitute value for instances of zero
   PetscInt :: i, j, psize
+  PetscBool :: modified
   ! ----------------------------------
 
   ! substitute instances of zero
   zero_sub = inventory%log10_time_zero_sub
 
+  ! axis3 is modified (rectangular array)
+  modified = PETSC_FALSE
+
   ! loop through linked list of lookup tables and modify axis 3 values
   inv => inventory%radionuclide_table
   do
     if (.not. associated(inv)) exit
+    inv%use_log10_time = PETSC_TRUE
     if (allocated(inv%lookup%axis3%partition)) then
       ! time axis has defined partitions (non-rectangular)
       psize = size(inv%lookup%axis3%partition)
@@ -8101,8 +8092,10 @@ subroutine CritInventoryUseLog10(inventory,option)
       enddo
     else
       ! time axis is described by the dim(3) value (rectangular)
-      call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
-      exit
+      if (.not. modified) then
+        call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
+        modified = PETSC_TRUE
+      endif
     endif
     inv => inv%next
   enddo
@@ -8293,20 +8286,34 @@ end function CritHeatEvaluate
 
 function CritInventoryEvaluate(this,start_time,power,time)
   !
+  ! Evaluate radionuclide mass fraction from lookup table
+  !
   ! Author: Alex Salazar III
   ! Date: 02/21/2022
   !
-
   implicit none
-
+  ! ----------------------------------
   class(crit_inventory_lookup_type) :: this
   PetscReal :: start_time
   PetscReal :: power
   PetscReal :: time
-
   PetscReal :: CritInventoryEvaluate
+  ! ----------------------------------
+  PetscReal :: t ! time value passed to lookup table
+  ! ----------------------------------
 
-  CritInventoryEvaluate = this%lookup%Sample(start_time,power,time)
+  ! time value passed to lookup table
+  if (this%use_log10_time) then
+    if (time <= 0) then
+      t = log10(1.d-20) ! substitute for zero
+    else
+      t = log10(time)
+    endif
+  else
+    t = time
+  endif
+
+  CritInventoryEvaluate = this%lookup%Sample(start_time,power,t)
 
 end function CritInventoryEvaluate
 
@@ -8370,7 +8377,6 @@ function CritInventoryCreate()
   ci%allow_implicit = PETSC_FALSE
   ci%allow_extrap   = PETSC_FALSE
   ci%continue_lookup = PETSC_FALSE
-  ci%use_log10_time = PETSC_FALSE
   ci%log10_time_zero_sub  = 1.0d-20
 
   CritInventoryCreate => ci
@@ -8393,6 +8399,9 @@ function CritInventoryLookupCreate()
   allocate(cl)
   nullify(cl%next)
   nullify(cl%lookup)
+
+  cl%name = ''
+  cl%use_log10_time = PETSC_FALSE
 
   CritInventoryLookupCreate => cl
 
