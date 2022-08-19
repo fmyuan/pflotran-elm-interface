@@ -6839,8 +6839,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                         endif
                     !-----------------------------
                       case('LOG10_TIME_INTERPOLATION')
-                        ! This allows for time interpolation to be based on the
-                        !   log10 values
+                        ! Use log10 basis for time interpolation
                         if (associated(new_crit_mech%inventory_dataset)) then
                           new_crit_mech%inventory_dataset%use_log10_time = &
                             PETSC_TRUE
@@ -6851,6 +6850,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           call PrintErrMsg(option)
                         endif
 
+                        ! User can specify substitute value for zero (optional)
                         internal_units = 's'
                         call InputReadDouble(input,option,new_crit_mech% &
                                inventory_dataset%log10_time_zero_sub)
@@ -6859,9 +6859,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                internal_units,trim(error_string) &
                                //',LOG10_TIME_INTERPOLATION,' &
                                //' ZERO SUBSTITUTE',option)
-
                         call CritInventoryCheckZeroSub(new_crit_mech% &
                                                        inventory_dataset,option)
+
+                        ! Modify lookup tables
                         call CritInventoryUseLog10(new_crit_mech% &
                                                    inventory_dataset,option)
                     !-----------------------------
@@ -8067,7 +8068,7 @@ end subroutine CritInventoryCheckDuplicates
 
 subroutine CritInventoryUseLog10(inventory,option)
   !
-  ! Modify axis 3 values of lookup table to use log10 values
+  ! Transform radionuclide inventory lookup tables to use log10(time) basis
   !
   ! Author: Alex Salazar III
   ! Date: 08/17/2022
@@ -8080,10 +8081,11 @@ subroutine CritInventoryUseLog10(inventory,option)
   type(option_type) :: option
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
-  PetscInt :: i, j, psize
   PetscReal :: zero_sub ! substitute value for instances of zero
+  PetscInt :: i, j, psize
   ! ----------------------------------
 
+  ! substitute instances of zero
   zero_sub = inventory%log10_time_zero_sub
 
   ! loop through linked list of lookup tables and modify axis 3 values
@@ -8091,12 +8093,14 @@ subroutine CritInventoryUseLog10(inventory,option)
   do
     if (.not. associated(inv)) exit
     if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
       psize = size(inv%lookup%axis3%partition)
       do i = 1, psize
         call CritInventoryLog10Array(inv%lookup%axis3%partition(i)%data, &
                                      zero_sub,option)
       enddo
     else
+      ! time axis is described by the dim(3) value (rectangular)
       call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
       exit
     endif
@@ -8171,6 +8175,7 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
   character(len=MAXSTRINGLENGTH) :: word1, word2
   ! ----------------------------------
 
+  ! substitute value
   zero_sub = inventory%log10_time_zero_sub
 
   ! loop through linked list of lookup tables and modify axis 3 values
@@ -8178,6 +8183,7 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
   do
     if (.not. associated(inv)) exit
     if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
       psize = size(inv%lookup%axis3%partition)
       do i = 1, psize
         min_nonzero = &
@@ -8188,12 +8194,13 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
           option%io_buffer = 'For log10 time interpolation, zero substitute (' &
                            // trim(word1) &
                            //') must remain below minimum nonzero value (' &
-                           // trim(word2) &
-                           //') in REAL_TIME array.'
+                           // trim(word2) //') in REAL_TIME array in file "' &
+                           // trim(inventory%file_name) // '."'
           call PrintErrMsg(option)
         endif
       enddo
     else
+      ! time axis is described by the dim(3) value (rectangular)
       min_nonzero = CritInventoryMinNonzeroTime(inv%lookup%axis3%values,option)
       if (zero_sub >= min_nonzero) then
         write(word1,'(es11.5)') zero_sub
@@ -8201,8 +8208,8 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
         option%io_buffer = 'For log10 time interpolation, zero substitute (' &
                          // trim(word1) &
                          //') must remain below minimum nonzero value (' &
-                         // trim(word2) &
-                         //') in REAL_TIME array.'
+                         // trim(word2) //') in REAL_TIME array in file "' &
+                         // trim(inventory%file_name) // '."'
         call PrintErrMsg(option)
       endif
       exit
