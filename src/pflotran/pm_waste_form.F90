@@ -476,6 +476,7 @@ module PM_Waste_Form_class
     type(crit_inventory_lookup_type), pointer :: next
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: use_log10_time
+    PetscReal :: log10_time_zero_sub
   contains
     procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
@@ -495,7 +496,6 @@ module PM_Waste_Form_class
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
     PetscBool :: continue_lookup
-    PetscReal :: log10_time_zero_sub
     type(crit_inventory_lookup_type), pointer :: radionuclide_table
     class(crit_inventory_type), pointer :: next
   contains
@@ -6602,6 +6602,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
 
   PetscBool :: found, added
   PetscInt :: num_errors
+  PetscReal :: tempreal
 
   character(len=MAXWORDLENGTH) :: word
   class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
@@ -6610,6 +6611,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
   added = PETSC_FALSE
   found = PETSC_TRUE
   num_errors = 0
+  tempreal = UNINITIALIZED_DOUBLE
   select case(trim(keyword))
   !-------------------------------------
     case('CRITICALITY_MECH')
@@ -6838,15 +6840,20 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
 
                         ! User can specify substitute value for zero (optional)
                         internal_units = 's'
-                        call InputReadDouble(input,option,new_crit_mech% &
-                               inventory_dataset%log10_time_zero_sub)
-                        call InputReadAndConvertUnits(input,new_crit_mech% &
-                               inventory_dataset%log10_time_zero_sub, &
-                               internal_units,trim(error_string) &
-                               //',LOG10_TIME_INTERPOLATION,' &
-                               //' ZERO SUBSTITUTE',option)
-                        call CritInventoryCheckZeroSub(new_crit_mech% &
-                                                       inventory_dataset,option)
+                        call InputReadDouble(input,option,tempreal)
+                        if (Initialized(tempreal)) then
+                          call InputReadAndConvertUnits(input,tempreal, &
+                                 internal_units,trim(error_string) &
+                                 //',EXPANDED_DATASET,OPTION' &
+                                 //',LOG10_TIME_INTERPOLATION,' &
+                                 //' zero substitute (' &
+                                 //trim(new_crit_mech%inventory_dataset% &
+                                 file_name)//')',option)
+                          call CritInventoryCheckZeroSub(tempreal, &
+                                                         new_crit_mech% &
+                                                         inventory_dataset, &
+                                                         option)
+                        endif
 
                         ! Modify lookup tables
                         call CritInventoryUseLog10(new_crit_mech% &
@@ -8072,9 +8079,6 @@ subroutine CritInventoryUseLog10(inventory,option)
   PetscBool :: modified
   ! ----------------------------------
 
-  ! substitute instances of zero
-  zero_sub = inventory%log10_time_zero_sub
-
   ! axis3 is modified (rectangular array)
   modified = PETSC_FALSE
 
@@ -8083,6 +8087,7 @@ subroutine CritInventoryUseLog10(inventory,option)
   do
     if (.not. associated(inv)) exit
     inv%use_log10_time = PETSC_TRUE
+    zero_sub = inv%log10_time_zero_sub
     if (allocated(inv%lookup%axis3%partition)) then
       ! time axis has defined partitions (non-rectangular)
       psize = size(inv%lookup%axis3%partition)
@@ -8146,7 +8151,7 @@ end subroutine CritInventoryLog10Array
 
 ! ************************************************************************** !
 
-subroutine CritInventoryCheckZeroSub(inventory,option)
+subroutine CritInventoryCheckZeroSub(zero_sub,inventory,option)
   !
   ! For log10 interpolation, make sure zero substitute is below minimum nonzero
   !   value in the time arrays
@@ -8158,23 +8163,23 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
   !
   implicit none
   ! ----------------------------------
+  PetscReal :: zero_sub ! substitute value for instances of zero
   type(crit_inventory_type), pointer :: inventory ! criticality inventory data
   type(option_type) :: option
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
   PetscInt :: i, j, psize
-  PetscReal :: zero_sub ! substitute value for instances of zero
   PetscReal :: min_nonzero ! smallest nonzero number in array
   character(len=MAXSTRINGLENGTH) :: word1, word2
+  PetscBool :: checked
   ! ----------------------------------
 
-  ! substitute value
-  zero_sub = inventory%log10_time_zero_sub
-
   ! loop through linked list of lookup tables and modify axis 3 values
+  checked = PETSC_FALSE
   inv => inventory%radionuclide_table
   do
     if (.not. associated(inv)) exit
+    inv%log10_time_zero_sub = zero_sub
     if (allocated(inv%lookup%axis3%partition)) then
       ! time axis has defined partitions (non-rectangular)
       psize = size(inv%lookup%axis3%partition)
@@ -8192,7 +8197,7 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
           call PrintErrMsg(option)
         endif
       enddo
-    else
+    elseif (.not. checked) then
       ! time axis is described by the dim(3) value (rectangular)
       min_nonzero = CritInventoryMinNonzeroTime(inv%lookup%axis3%values,option)
       if (zero_sub >= min_nonzero) then
@@ -8205,7 +8210,7 @@ subroutine CritInventoryCheckZeroSub(inventory,option)
                          // trim(inventory%file_name) // '."'
         call PrintErrMsg(option)
       endif
-      exit
+      checked = PETSC_TRUE
     endif
     inv => inv%next
   enddo
@@ -8300,12 +8305,14 @@ function CritInventoryEvaluate(this,start_time,power,time)
   PetscReal :: CritInventoryEvaluate
   ! ----------------------------------
   PetscReal :: t ! time value passed to lookup table
+  PetscReal :: zero_sub ! substitute time for t=0 (log10 interpolation)
   ! ----------------------------------
 
   ! time value passed to lookup table
   if (this%use_log10_time) then
-    if (time <= 0) then
-      t = log10(1.d-20) ! substitute for zero
+    if (time <= 0.d0) then
+      zero_sub = this%log10_time_zero_sub
+      t = log10(zero_sub) ! substitute for zero
     else
       t = log10(time)
     endif
@@ -8377,7 +8384,6 @@ function CritInventoryCreate()
   ci%allow_implicit = PETSC_FALSE
   ci%allow_extrap   = PETSC_FALSE
   ci%continue_lookup = PETSC_FALSE
-  ci%log10_time_zero_sub  = 1.0d-20
 
   CritInventoryCreate => ci
 
@@ -8402,6 +8408,7 @@ function CritInventoryLookupCreate()
 
   cl%name = ''
   cl%use_log10_time = PETSC_FALSE
+  cl%log10_time_zero_sub = 1.0d-20
 
   CritInventoryLookupCreate => cl
 
