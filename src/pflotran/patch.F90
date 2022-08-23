@@ -6951,7 +6951,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD, TOTAL_SORBED, &
          TOTAL_SORBED_MOBILE,COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK, &
-         IMMOBILE_SPECIES,GAS_CONCENTRATION,REACTION_AUXILIARY)
+         IMMOBILE_SPECIES,GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE, &
+         REACTION_AUXILIARY)
 
       select case(ivar)
         case(PH)
@@ -7014,12 +7015,17 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
               enddo
             endif
           endif
-        case(GAS_CONCENTRATION)
+        case(GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE)
           iphase = 2
           if (patch%aux%Global%auxvars(ghosted_id)%sat(iphase) > 0.d0) then
             value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
           else
             value = 0.d0
+          endif
+          if (ivar == GAS_CONCENTRATION) then
+            ! 1.d5 Pa [1 bar] / Pa-m^3/mol-K = mol-K/m^3
+            value = value * 1.d5 / IDEAL_GAS_CONSTANT / &
+                    (patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0)
           endif
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)
