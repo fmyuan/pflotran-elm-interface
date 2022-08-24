@@ -121,6 +121,12 @@ subroutine TimeStorageVerify(default_time, time_storage, &
       allocate(time_storage%times(array_size))
       time_storage%times = default_time
     endif
+  else
+    if (time_storage%times(1) > 1.d-40) then
+      option%io_buffer = 'The first time in transient datasets must be zero. &
+        See ' // trim(header) // '.'
+      call PrintErrMsg(option)
+    endif
   endif
   time_storage%max_time_index = size(time_storage%times,1)
   time_storage%cur_time_index = 1
