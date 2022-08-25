@@ -130,6 +130,7 @@ end subroutine TimestepperSteadyUpdateDT
 ! ************************************************************************** !
 
 subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
+                                          sync_flag, &
                                           snapshot_plot_flag, &
                                           observation_plot_flag, &
                                           massbal_plot_flag,checkpoint_flag)
@@ -149,6 +150,7 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   PetscReal :: sync_time
   type(option_type) :: option
   PetscInt :: stop_flag
+  PetscBool :: sync_flag
   PetscBool :: snapshot_plot_flag
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
@@ -159,6 +161,8 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
     if (.not.associated(this%cur_waypoint)) exit
     if (sync_time >= this%cur_waypoint%time) then
       if (Equal(sync_time,this%cur_waypoint%time)) then
+        if (this%cur_waypoint%print_snap_output) &
+          sync_flag = PETSC_TRUE
         if (this%cur_waypoint%print_snap_output) &
           snapshot_plot_flag = PETSC_TRUE
         if (this%cur_waypoint%print_obs_output) &
@@ -191,6 +195,7 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use PM_Base_class
+  use PM_Subsurface_Flow_class
   use Option_module
   use Output_module, only : Output, OutputFindNaNOrInfInVec
   use Output_EKG_module, only : IUNIT_EKG
@@ -213,8 +218,6 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   PetscInt :: num_newton_iterations
   PetscInt :: num_linear_iterations
 
-  PetscReal :: tconv
-  character(len=MAXWORDLENGTH) :: tunit
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
@@ -227,8 +230,6 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   num_newton_iterations = 0
 
   option%time = this%target_time
-  tconv = process_model%output_option%tconv
-  tunit = process_model%output_option%tunit
 
   call process_model%InitializeTimestep()
 
@@ -236,8 +237,8 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
-  call SNESSolve(solver%snes,PETSC_NULL_VEC, &
-                 process_model%solution_vec,ierr);CHKERRQ(ierr)
+  call SNESSolve(solver%snes,PETSC_NULL_VEC,process_model%solution_vec, &
+                 ierr);CHKERRQ(ierr)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
@@ -264,9 +265,8 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
       select case(snes_reason)
         case(SNES_DIVERGED_FNORM_NAN)
           ! attempt to find cells with NaNs.
-          call SNESGetFunction(solver%snes,residual_vec, &
-                               PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
-                             ierr);CHKERRQ(ierr)
+          call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+                               PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
           call OutputFindNaNOrInfInVec(residual_vec, &
                                        process_model%realization_base% &
                                          discretization%grid,option)
@@ -291,73 +291,66 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
-  if (option%print_screen_flag) then
-      write(*, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-           &" snes_conv_reason: ",i4,/,"  newton = ",i3, &
-           & " [",i8,"]", " linear = ",i5," [",i10,"]")') &
-           this%steps, &
-           this%target_time/tconv, &
-           trim(tunit),snes_reason,num_newton_iterations, &
-           this%cumulative_newton_iterations,num_linear_iterations, &
-           this%cumulative_linear_iterations
 
-    print *,' --> SNES Linear/Non-Linear Iterations = ', &
-             num_linear_iterations,' / ',num_newton_iterations
-    write(*,'("  --> SNES Residual: ",1p2e14.6)') fnorm, inorm
-  endif
+  call TimestepperBasePrintStepInfo(this,process_model%output_option, &
+                                snes_reason,option)
+  write(option%io_buffer,'("  newton = ",i3," [",i8,"]", " linear = ",i5, &
+                         &" [",i10,"]")') &
+           num_newton_iterations,this%cumulative_newton_iterations, &
+           num_linear_iterations,this%cumulative_linear_iterations
+  call PrintMsg(option)
 
-  if (option%print_file_flag) then
-    write(option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-            &" snes_conv_reason: ",i4,/,"  newton = ",i3, &
-            & " [",i8,"]", " linear = ",i5," [",i10,"]")') &
-            this%steps, &
-            this%target_time/tconv, &
-            trim(tunit),snes_reason,num_newton_iterations, &
-            this%cumulative_newton_iterations,num_linear_iterations, &
-            this%cumulative_linear_iterations
-  endif
+  select type(process_model)
+    class is (pm_subsurface_flow_type)
+      scaled_fnorm = fnorm/process_model%realization_base% &
+                     discretization%grid%nmax
+    class default
+      scaled_fnorm = fnorm
+  end select
+
+  option%io_buffer = '  --> SNES Linear/Non-Linear Iterations = ' // &
+    trim(StringWrite(num_linear_iterations)) // ' / ' // &
+    trim(StringWrite(num_newton_iterations))
+  call PrintMsg(option)
+  option%io_buffer = '  --> SNES Residual: ' // &
+    trim(StringWrite('(e14.6)',fnorm)) // ' ' // &
+    trim(StringWrite('(e14.6)',scaled_fnorm)) // ' ' // &
+    trim(StringWrite('(e14.6)',inorm))
+  call PrintMsg(option)
 
   option%time = this%target_time
   call process_model%FinalizeTimestep()
 
   if (this%print_ekg .and. OptionPrintToFile(option)) then
 100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i3,i5,i5,i10)
-    write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
-      trim(tunit), &
+    write(IUNIT_EKG,100) trim(this%name), this%steps, &
+      this%target_time/process_model%output_option%tconv, &
+      trim(process_model%output_option%tunit), &
       num_newton_iterations, this%cumulative_newton_iterations, &
       num_linear_iterations, this%cumulative_linear_iterations
   endif
-
-  if (option%print_screen_flag) print *, ""
 
 end subroutine TimestepperSteadyStepDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperSteadyPrintInfo(this,option)
+subroutine TimestepperSteadyPrintInfo(this,aux_string,option)
   !
   ! Prints settings for steady timestepper.
   !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
   !
+  use Timestepper_Base_class
   use Option_module
-  use String_module
 
   implicit none
 
   class(timestepper_steady_type) :: this
+  character(len=*) :: aux_string
   type(option_type) :: option
 
-  PetscInt :: fids(2)
-  PetscInt :: i
-  character(len=MAXSTRINGLENGTH), allocatable :: strings(:)
-
-  fids = OptionGetFIDs(option)
-  call StringWriteToUnits(fids,' ')
-  call StringWriteToUnits(fids,trim(this%name) // &
-       ' Time Stepper (steady state)')
-
+  call TimestepperSNESPrintInfo(this,'SNES (Steady)',option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
 
@@ -397,8 +390,8 @@ recursive subroutine TimestepperSteadyFinalizeRun(this,option)
   ! Author: Glenn Hammond
   ! Date: 03/19/21
   !
-
   use Option_module
+  use String_module
 
   implicit none
 
@@ -411,29 +404,24 @@ recursive subroutine TimestepperSteadyFinalizeRun(this,option)
   call PrintMsg(option,'TimestepperSteadyFinalizeRun()')
 #endif
 
-  if (OptionPrintToScreen(option)) then
-    if (this%cumulative_newton_iterations > 0) then
-      write(*,'(/,x,a," TS Steady steps = ",i6," newton = ",i8,&
-              &" linear = ",i10)') &
-              trim(this%name), &
-              this%steps, &
-              this%cumulative_newton_iterations, &
-              this%cumulative_linear_iterations
-      write(string,'(f12.1)') this%cumulative_solver_time
-      write(*,'(x,a)') trim(this%name) // ' TS Steady SNES time = ' // &
-                       trim(adjustl(string)) // ' seconds'
-    else if (this%cumulative_linear_iterations > 0) then
-      write(*,'(/,x,a," TS Steady steps = ",i6," linear = ",i10)') &
-              trim(this%name), &
-              this%steps, this%cumulative_linear_iterations
-      write(string,'(f12.1)') this%cumulative_solver_time
-      write(*,'(x,a)') trim(this%name) // ' TS Steady KSP time = ' // &
-                       trim(adjustl(string)) // ' seconds'
-    else if (this%steps > 0) then
-      write(*,'(/,x,a," TS Steady steps = ",i6)') &
-              trim(this%name), this%steps
-    endif
+  if (this%cumulative_newton_iterations > 0) then
+    string = ' ' // trim(this%name) // &
+      ' TS Steady steps = ' // trim(StringWrite(this%steps)) // &
+      ' newton = ' // trim(StringWrite(this%cumulative_newton_iterations)) // &
+      ' linear = ' // trim(StringWrite(this%cumulative_linear_iterations))
+  else if (this%cumulative_linear_iterations > 0) then
+    string = ' ' // trim(this%name) // &
+      ' TS Steady steps = ' // trim(StringWrite(this%steps)) // &
+      ' linear = ' // trim(StringWrite(this%cumulative_linear_iterations))
+  else
+    string = ' ' // trim(this%name) // &
+      ' TS Steady steps = ' // trim(StringWrite(this%steps))
   endif
+  call PrintMsg(option,string)
+  string = ' ' // trim(this%name) // &
+    ' TS Steady time = ' // &
+    trim(StringWrite('(f12.1)',this%cumulative_solver_time)) // ' seconds'
+  call PrintMsg(option,string)
 
 end subroutine TimestepperSteadyFinalizeRun
 

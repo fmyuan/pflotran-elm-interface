@@ -4,17 +4,17 @@ module Reaction_Gas_module
   use petscsys
 
   use Reaction_Aux_module
-  use Reactive_Transport_Aux_module  
+  use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Reaction_Gas_Aux_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
- 
+
   private
 
-  
+
   public :: RGasRead, &
             RTotalGas, &
             RTotalCO2
@@ -24,25 +24,25 @@ contains
 ! ************************************************************************** !
 
 subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
-  ! 
+  !
   ! Reads immobile species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/02/13/ 08/01/16
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
   use Utility_module
-  
+
   implicit none
-  
+
   type(gas_species_type), pointer :: gas_species_list
   PetscInt :: gas_type
   character(len=MAXSTRINGLENGTH) :: error_msg
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   type(gas_species_type), pointer :: new_gas_species, &
                                      prev_gas_species
 
@@ -64,8 +64,8 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     new_gas_species => GasSpeciesCreate()
-    call InputReadCard(input,option,new_gas_species%name)  
-    call InputErrorMsg(input,option,'keyword',error_msg)    
+    call InputReadCard(input,option,new_gas_species%name)
+    call InputErrorMsg(input,option,'keyword',error_msg)
     new_gas_species%itype = gas_type
     if (associated(prev_gas_species)) then
       prev_gas_species%next => new_gas_species
@@ -76,53 +76,57 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     endif
     prev_gas_species => new_gas_species
     nullify(new_gas_species)
-  enddo         
+  enddo
   call InputPopBlock(input,option)
-                                          
+
 end subroutine RGasRead
 
 ! ************************************************************************** !
 
 subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
-  ! 
+  !
   ! Computes the total component concentrations and derivative with
   ! respect to free-ion
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/01/16
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  
+
   PetscInt, parameter :: iphase = 2
   PetscInt :: i, j, igas, icomp, jcomp, ncomp
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal
-  PetscReal :: RT
+  PetscReal :: RT_scaled
   PetscReal :: gas_concentration
   type(gas_type), pointer :: gas
-  
-  rt_auxvar%total(:,iphase) = 0.d0 !debugging 
-  
+
+  rt_auxvar%total(:,iphase) = 0.d0 !debugging
+
   gas => reaction%gas
-  ! units of ideal gas constant = J/mol-K = kPa-L/mol-K
-  ! units of RT = Pa-L/mol
-  RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
-  
+  ! units of ideal gas constant = J/mol-K or Pa-m^3/mol-K
+  ! J/mol-K
+  ! N-m/mol-K
+  ! Pa-m^3/mol-K
+
+  ! units of RT_scaled: Pa-m^3/mol-K * K * 1000 L/m^3  =  Pa-L/mol
+  RT_scaled = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
+
   ln_conc = log(rt_auxvar%pri_molal)
   ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
-  
+
   ! initialize derivatives
   rt_auxvar%aqueous%dtotal(:,:,iphase) = 0.d0
-   
+
   do igas = 1, gas%nactive_gas ! for each secondary species
     ! compute secondary species concentration
     lnQK = -gas%acteqlogK(igas)*LOG_TO_LN
@@ -139,8 +143,8 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     enddo
     ! units = bars
     rt_auxvar%gas_pp(igas) = exp(lnQK)
-    ! unit = mol/L gas
-    gas_concentration = rt_auxvar%gas_pp(igas) * 1.d5 / RT
+    ! unit = mol/L gas                                ! Pa-L/mol
+    gas_concentration = rt_auxvar%gas_pp(igas) * 1.d5 / RT_scaled
 
     ! add contribution to primary totals
     ! units of total = mol/L gas
@@ -150,12 +154,13 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
                                       gas%acteqstoich(i,igas)* &
                                       gas_concentration
     enddo
-    
+
     ! add contribution to derivatives of total with respect to free
     ! units of dtotal = kg water / L gas
     do j = 1, ncomp
       jcomp = gas%acteqspecid(j,igas)
-      tempreal = gas%acteqstoich(j,igas)*exp(lnQK-ln_conc(jcomp))*1.d5/RT
+      tempreal = gas%acteqstoich(j,igas)*exp(lnQK-ln_conc(jcomp)) * &
+                 1.d5 / RT_scaled
       do i = 1, ncomp
         icomp = gas%acteqspecid(i,igas)
         rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) = &
@@ -170,20 +175,20 @@ end subroutine RTotalGas
 ! ************************************************************************** !
 
 subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
-  ! 
+  !
   ! Computes the total component concentrations and derivative with
   ! respect to free-ion for CO2 modes; this is legacy cod3
-  ! 
+  !
   ! Author: Glenn Hammond, but originally by Chuan Lu
   ! Date: 08/01/16
-  ! 
+  !
 
   use Option_module
   use EOS_Water_module
   use co2eos_module, only: Henry_duan_sun
 
   implicit none
-  
+
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(reaction_rt_type) :: reaction
@@ -202,7 +207,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: pressure, temperature, xphico2
   PetscInt :: iactgas
 
-! *********** Add SC phase and gas contributions ***********************  
+! *********** Add SC phase and gas contributions ***********************
   ! CO2-specific
   iphase = 2
 
@@ -219,7 +224,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
       temperature = global_auxvar%temp
       xphico2 = global_auxvar%fugacoeff(1)
       den = global_auxvar%den(2)
- 
+
       call EOSWaterSaturationPressure(temperature, sat_pressure, ierr)
       pco2 = pressure - sat_pressure
 !     call co2_span_wagner(pressure*1.D-6,temperature+273.15D0,dg,dddt,dddp,fg, &
@@ -241,24 +246,24 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
           call Henry_duan_sun(temperature,pressure*1D-5,muco2, &
                 lngamco2,option%m_nacl,option%m_nacl)
         endif
-        !lnQk = - log(muco2) 
+        !lnQk = - log(muco2)
         lnQk = - log(muco2)-lngamco2
-           
-      else   
+
+      else
         lngamco2 = 0.d0
         lnQK = -reaction%gas%acteqlogK(iactgas)*LOG_TO_LN
-      endif 
-          
+      endif
+
       if (reaction%gas%acteqh2oid(iactgas) > 0) then
         lnQK = lnQK + reaction%gas%acteqh2ostoich(iactgas)*rt_auxvar%ln_act_h2o
       endif
-   
-   ! contribute to %total          
+
+   ! contribute to %total
    !     do i = 1, ncomp
    ! removed loop over species, suppose only one primary species is related
       icomp = reaction%gas%acteqspecid(1,iactgas)
       pressure = pressure * 1.D-5
-        
+
 !     rt_auxvar%gas_pp(iactgas) = &
 !         exp(lnQK+lngamco2)*rt_auxvar%pri_molal(icomp) &
 !         /(IDEAL_GAS_CONSTANT*1.d-2*(temperature+273.15D0)*xphico2)
@@ -293,5 +298,5 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   endif
 
 end subroutine RTotalCO2
-  
+
 end module Reaction_Gas_module

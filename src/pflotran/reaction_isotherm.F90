@@ -2,7 +2,7 @@ module Reaction_Isotherm_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  
+
   use PFLOTRAN_Constants_module
   use Reaction_Isotherm_Aux_module
   use Reactive_Transport_Aux_module
@@ -17,29 +17,29 @@ contains
 ! ************************************************************************** !
 
 subroutine IsothermRead(isotherm,input,option)
-  ! 
+  !
   ! Reads chemical species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/16/12
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
   use Utility_module
-  
+
   implicit none
 
   type(isotherm_type) :: isotherm
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: word, word2
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: kd_units
   character(len=MAXWORDLENGTH) :: multi_kd_units
   PetscInt :: ikd_units, imulti_kd_units
-  
+
   type(isotherm_link_type), pointer :: isotherm_rxn, prev_isotherm_rxn
   type(isotherm_link_type), pointer :: sec_cont_isotherm_rxn, &
                                        sec_cont_prev_isotherm_rxn
@@ -55,7 +55,7 @@ subroutine IsothermRead(isotherm,input,option)
   nullify(prev_isotherm_rxn)
   nullify(sec_cont_isotherm_rxn)
   nullify(sec_cont_prev_isotherm_rxn)
- 
+
   ! set default units
   isotherm%ikd_units = UNINITIALIZED_INTEGER
 
@@ -74,14 +74,14 @@ subroutine IsothermRead(isotherm,input,option)
     isotherm%neqkdrxn = isotherm%neqkdrxn + 1
     isotherm_rxn => IsothermLinkCreate()
     isotherm_rxn%species_name = trim(word)
-    if (option%use_mc) then
+    if (option%use_sc) then
       sec_cont_isotherm_rxn => IsothermLinkCreate()
       sec_cont_isotherm_rxn%species_name = isotherm_rxn%species_name
       sec_cont_isotherm_rxn%Kd = UNINITIALIZED_DOUBLE
     endif
 
     call InputPushBlock(input,option)
-    do 
+    do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
       if (InputCheckExit(input,option)) exit
@@ -90,7 +90,7 @@ subroutine IsothermRead(isotherm,input,option)
       call InputErrorMsg(input,option,'keyword', &
                          'CHEMISTRY,ISOTHERM_REACTIONS')
       call StringToUpper(word)
-                  
+
       ! default type is linear
       isotherm_rxn%itype = SORPTION_LINEAR
       select case(trim(word))
@@ -110,7 +110,7 @@ subroutine IsothermRead(isotherm,input,option)
                     'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
                     option)
           end select
-          if (option%use_mc) then
+          if (option%use_sc) then
             sec_cont_isotherm_rxn%itype = isotherm_rxn%itype
           endif
         case('KD')
@@ -151,7 +151,7 @@ subroutine IsothermRead(isotherm,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'KD_MINERAL_NAME', &
                              'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
-          isotherm_rxn%kd_mineral_name = word                      
+          isotherm_rxn%kd_mineral_name = word
         case default
           call InputKeywordUnrecognized(input,word, &
                  'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
@@ -198,7 +198,7 @@ subroutine IsothermRead(isotherm,input,option)
     else
       isotherm%ikd_units = ikd_units
     endif
-      
+
     ! add to list
     if (.not.associated(isotherm%isotherm_list)) then
       isotherm%isotherm_list => isotherm_rxn
@@ -209,7 +209,7 @@ subroutine IsothermRead(isotherm,input,option)
       isotherm_rxn%id = prev_isotherm_rxn%id + 1
     endif
     prev_isotherm_rxn => isotherm_rxn
-    nullify(isotherm_rxn)               
+    nullify(isotherm_rxn)
 
     if (associated(sec_cont_isotherm_rxn)) then
       ! add to list
@@ -239,7 +239,7 @@ subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
 
   use Option_module
   use Units_module
-   
+
   implicit none
 
   PetscReal :: kd
@@ -275,17 +275,17 @@ end subroutine IsothermConvertKDUnits
 ! ************************************************************************** !
 subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
                         isotherm_rxn,option)
-  ! 
+  !
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion for the linear
   ! K_D model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/30/2010
-  ! 
+  !
 
   use Option_module
-   
+
   use Global_Aux_module
   use Material_Aux_module
 
@@ -297,7 +297,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
   type(isotherm_type) :: isotherm
   type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
-  
+
   PetscInt :: irxn
   PetscInt :: icomp
   PetscReal :: res
@@ -306,7 +306,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
   PetscReal :: tempreal
   PetscReal :: one_over_n
   PetscReal :: molality_one_over_n
-  PetscReal :: kd_kgw_m3b  
+  PetscReal :: kd_kgw_m3b
 
   PetscInt, parameter :: iphase = 1
 
@@ -315,7 +315,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
     molality = rt_auxvar%pri_molal(icomp)
     if (isotherm%ikd_units == KD_UNIT_MLW_GSOIL) then
                    !KD units [mL water/g soil]
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn) * & 
+      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn) * &
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &
                    material_auxvar%soil_particle_density * &
@@ -323,13 +323,13 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
 
     else
       ! kd_unit = KD_UNIT_KG_M3_BULK
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn)              
+      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn)
     endif
     if (isotherm%eqkdmineral(irxn) > 0) then
-      ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
-      ! nothing to do with the soil volume; that is calculated through as a 
+      ! NOTE: mineral volume fraction here is solely a scaling factor.  It has
+      ! nothing to do with the soil volume; that is calculated through as a
       ! function of porosity.
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn) * &
+      kd_kgw_m3b = kd_kgw_m3b * &
                    (rt_auxvar%mnrl_volfrac(isotherm%eqkdmineral(irxn)))
     endif
     select case(isotherm%eqisothermtype(irxn))
@@ -356,7 +356,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
     end select
     rt_auxvar%total_sorb_eq(icomp) = rt_auxvar%total_sorb_eq(icomp) + res
     rt_auxvar%dtotal_sorb_eq(icomp,icomp) = &
-      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dres_dc 
+      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dres_dc
   enddo
 
 end subroutine RTotalSorbKD

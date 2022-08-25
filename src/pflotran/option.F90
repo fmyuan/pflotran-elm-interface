@@ -102,7 +102,7 @@ module Option_module
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
 
     PetscBool :: use_isothermal
-    PetscBool :: use_mc           ! If true, multiple continuum formulation is used.
+    PetscBool :: use_sc           ! If true, multiple continuum formulation is used.
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
@@ -169,6 +169,12 @@ module Option_module
   interface PrintMsg
     module procedure PrintMsg1
     module procedure PrintMsg2
+    module procedure PrintMsg3
+  end interface
+
+  interface PrintMsgNoAdvance
+    module procedure PrintMsgNoAdvance1
+    module procedure PrintMsgNoAdvance2
   end interface
 
   interface PrintMsgAnyRank
@@ -217,16 +223,15 @@ module Option_module
             PrintErrMsgByRankToDev, &
             PrintWrnMsg, &
             PrintMsg, &
+            PrintMsgNoAdvance, &
             PrintMsgAnyRank, &
             PrintMsgByRank, &
             PrintMsgByCell, &
             PrintErrMsgNoStopByRank, &
             PrintVerboseMsg, &
             OptionCheckTouch, &
-            OptionPrint, &
             OptionPrintToScreen, &
             OptionPrintToFile, &
-            OptionGetFIDs, &
             OptionInitRealization, &
             OptionMeanVariance, &
             OptionMaxMinMeanVariance, &
@@ -288,6 +293,8 @@ subroutine OptionSetDriver(option,driver)
       &will not function properly.'
     call PrintErrMsg(option)
   endif
+  option%print_screen_flag = driver%PrintToScreen()
+  option%print_file_flag = PETSC_FALSE
 
 end subroutine OptionSetDriver
 
@@ -407,7 +414,7 @@ subroutine OptionInitRealization(option)
 
   option%use_isothermal = PETSC_FALSE
   option%use_matrix_free = PETSC_FALSE
-  option%use_mc = PETSC_FALSE
+  option%use_sc = PETSC_FALSE
 
   option%flowmode = ""
   option%iflowmode = NULL_MODE
@@ -548,42 +555,36 @@ subroutine OptionCheckCommandLine(option)
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: string
 
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-buffer_matrix", &
-                           option%use_matrix_buffer, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-snes_mf", &
-                           option%use_matrix_free, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_isothermal", &
-                           option%use_isothermal, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mc", &
-                           option%use_mc, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-buffer_matrix",option%use_matrix_buffer, &
+                           ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-snes_mf", &
+                           option%use_matrix_free,ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-use_isothermal",option%use_isothermal, &
+                           ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_sc", &
+                           option%use_sc,ierr);CHKERRQ(ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
-                             '-restart', option%restart_filename, &
-                             option%restart_flag, ierr);CHKERRQ(ierr)
+                             '-restart',option%restart_filename, &
+                             option%restart_flag,ierr);CHKERRQ(ierr)
   ! check on possible modes
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_richards", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-use_richards",option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "richards"
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_thc", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_thc", &
+                           option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "thc"
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mph", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_mph", &
+                           option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "mph"
   option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_flash2", &
-                           option_found, ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-use_flash2",option_found,ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "flash2"
 
 end subroutine OptionCheckCommandLine
@@ -631,8 +632,8 @@ subroutine PrintErrMsg2(option,string)
     print *, 'Stopping!'
   endif
   if (option%blocking) then
-    call MPI_Barrier(option%mycomm,ierr)
-    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+    call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
@@ -667,11 +668,11 @@ subroutine OptionCheckNonBlockingError(option)
   PetscErrorCode :: ierr
 
   mpi_int = 1
-  call MPI_Allreduce(MPI_IN_PLACE,option%error_while_nonblocking, &
-                     mpi_int,MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,option%error_while_nonblocking,mpi_int, &
+                     MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (option%error_while_nonblocking) then
-    call MPI_Barrier(option%mycomm,ierr)
-    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+    call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
@@ -876,19 +877,53 @@ end subroutine PrintWrnMsg2
 
 ! ************************************************************************** !
 
-subroutine PrintMsg1(option)
+subroutine PrintMsgNoAdvance1(option)
   !
-  ! Prints the message from p0
+  ! Prints output to the screen and/or output file
   !
   ! Author: Glenn Hammond
-  ! Date: 11/14/07
+  ! Date: 06/10/22
   !
-
   implicit none
 
   type(option_type) :: option
 
-  call PrintMsg2(option,option%io_buffer)
+  call PrintMsgNoAdvance2(option,option%io_buffer)
+
+end subroutine PrintMsgNoAdvance1
+
+! ************************************************************************** !
+
+subroutine PrintMsgNoAdvance2(option,string)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/22
+  !
+  implicit none
+
+  type(option_type) :: option
+  character(len=*) :: string
+
+  call PrintMsg3(option,string,PETSC_FALSE)
+
+end subroutine PrintMsgNoAdvance2
+
+! ************************************************************************** !
+
+subroutine PrintMsg1(option)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07
+  !
+  implicit none
+
+  type(option_type) :: option
+
+  call PrintMsg3(option,option%io_buffer,PETSC_TRUE)
 
 end subroutine PrintMsg1
 
@@ -896,20 +931,52 @@ end subroutine PrintMsg1
 
 subroutine PrintMsg2(option,string)
   !
-  ! Prints the message from p0
+  ! Prints output to the screen and/or output file
   !
   ! Author: Glenn Hammond
-  ! Date: 11/14/07
+  ! Date: 11/14/07, 06/03/22
   !
-
   implicit none
 
   type(option_type) :: option
   character(len=*) :: string
 
-  if (OptionPrintToScreen(option)) print *, trim(string)
+  call PrintMsg3(option,string,PETSC_TRUE)
 
 end subroutine PrintMsg2
+
+! ************************************************************************** !
+
+subroutine PrintMsg3(option,string,advance_)
+  !
+  ! Prints output to the screen and/or output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/14/07, 06/03/22
+  !
+  implicit none
+
+  type(option_type) :: option
+  character(len=*) :: string
+  PetscBool :: advance_
+
+  ! note that these flags can be toggled off specific time steps
+  if (option%print_screen_flag) then
+    if (.not.advance_) then
+      write(STDOUT_UNIT,'(a)',advance='no') trim(string)
+    else
+      write(STDOUT_UNIT,'(a)') trim(string)
+    endif
+  endif
+  if (option%print_file_flag) then
+    if (.not.advance_) then
+      write(option%fid_out,'(a)',advance='no') trim(string)
+    else
+      write(option%fid_out,'(a)') trim(string)
+    endif
+  endif
+
+end subroutine PrintMsg3
 
 ! ************************************************************************** !
 
@@ -1062,7 +1129,7 @@ function OptionCheckTouch(option,filename)
 
   if (is_io_rank) open(unit=fid,file=trim(filename),status='old',iostat=ios)
   call MPI_Bcast(ios,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
-                 option%mycomm,ierr)
+                 option%mycomm,ierr);CHKERRQ(ierr)
 
   if (ios == 0) then
     if (is_io_rank) close(fid,status='delete')
@@ -1113,53 +1180,6 @@ end function OptionPrintToFile
 
 ! ************************************************************************** !
 
-subroutine OptionPrint(string,option)
-  !
-  ! Determines whether printing to file should occur
-  !
-  ! Author: Glenn Hammond
-  ! Date: 01/29/09
-  !
-  use PFLOTRAN_Constants_module
-
-  implicit none
-
-  character(len=*) :: string
-  type(option_type) :: option
-
-  ! note that these flags can be toggled off specific time steps
-  if (option%print_screen_flag) then
-    write(STDOUT_UNIT,'(a)') trim(string)
-  endif
-  if (option%print_file_flag) then
-    write(option%fid_out,'(a)') trim(string)
-  endif
-
-end subroutine OptionPrint
-
-! ************************************************************************** !
-
-function OptionGetFIDs(option)
-  !
-  ! Determines whether printing to file should occur
-  !
-  ! Author: Glenn Hammond
-  ! Date: 01/29/09
-  !
-  implicit none
-
-  type(option_type) :: option
-
-  PetscInt :: OptionGetFIDs(2)
-
-  OptionGetFIDs = -1
-  if (OptionPrintToScreen(option)) OptionGetFIDs(1) = STDOUT_UNIT
-  if (OptionPrintToFile(option)) OptionGetFIDs(2) = option%fid_out
-
-end function OptionGetFIDs
-
-! ************************************************************************** !
-
 subroutine OptionMaxMinMeanVariance(value,max,min,mean,variance, &
                                     calculate_variance,option)
   !
@@ -1187,8 +1207,8 @@ subroutine OptionMaxMinMeanVariance(value,max,min,mean,variance, &
   temp_real_in(1) = value
   temp_real_in(2) = -1.d0*value
   call MPI_Allreduce(temp_real_in,temp_real_out,TWO_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION, &
-                     MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   max = temp_real_out(1)
   min = -1.d0*temp_real_out(2)
 
@@ -1219,15 +1239,15 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
   PetscErrorCode :: ierr
 
   call MPI_Allreduce(value,temp_real,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                     MPI_SUM,option%mycomm,ierr)
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   mean = temp_real / dble(option%comm%mycommsize)
 
   if (calculate_variance) then
     temp_real = value-mean
     temp_real = temp_real*temp_real
     call MPI_Allreduce(temp_real,variance,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION, &
-                       MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     variance = variance / dble(option%comm%mycommsize)
   endif
 

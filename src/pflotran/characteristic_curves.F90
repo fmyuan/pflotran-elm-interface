@@ -370,7 +370,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   ! Lexicon of compiled parameters
   character(len=MAXWORDLENGTH) :: unsat_ext
-  PetscBool :: loop_invariant, tension
+  PetscBool :: loop_invariant
   PetscInt :: vg_rpf_opt
   PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg
 
@@ -382,7 +382,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
   nullify(sf_swap)
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
-  tension = PETSC_FALSE
   unsat_ext = ''
   vg_rpf_opt = 1 ! Mualem. Burdine option in progress
   alpha = 0d0
@@ -390,6 +389,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   Pcmax = 1d9
   Slj = 0d0
   Sr = 0d0
+  Srg = 0d0
   wipp_krp = 0
   wipp_kpc = 0
   wipp_expon = 0d0
@@ -454,9 +454,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
         saturation_function%Pcmax = Pcmax
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
                             error_string)
-      case('CALCULATE_INTERFACIAL_TENSION')
-        tension = PETSC_TRUE
-        saturation_function%calc_int_tension = PETSC_TRUE
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -585,6 +582,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP1',option)
@@ -617,6 +618,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP2',option)
@@ -656,6 +661,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP3',option)
@@ -695,6 +704,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP4',option)
@@ -730,6 +743,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP5',option)
@@ -768,6 +785,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP8',option)
@@ -830,6 +851,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
@@ -884,7 +909,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (loop_invariant) then
     ! Use default junction saturation if not specified
-    if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Sr)
+    if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Srg-Sr)
     ! Call constructor
     if (wipp_krp /= 0) then ! WIPP invariants flagged by wipp_krp
       if (wipp_krp == 12) then ! wipp_s_min replaces Sr, wipp_s_effmin replaces Slj
@@ -908,15 +933,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
       end select
     end if
 
-    ! If successful, write tension option to the new object
-    if (associated(sf_swap)) then
-      sf_swap%calc_int_tension = tension
-    else
-    ! Throw an error the contructor failed. Most likley an invalid parameter
-      option%io_buffer = 'Construction of the saturation function object &
-      & failed.'
-      call PrintErrMsg(option)
-    end if
   else if (unsat_ext /= '') then
     ! Throw an error if unsaturated extensions are with loop_invariant
     option%io_buffer = 'Unsaturated extensions are unavailable without the &
@@ -1754,6 +1770,21 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (smooth) then
     call permeability_function%SetupPolynomials(option,error_string)
   endif
+
+  select type(rpf => permeability_function)
+    class is(rpf_Burdine_VG_liq_type)
+      if (.not.smooth) then
+        option%io_buffer = 'Burdine-van Genuchten relative permeability &
+          &function is being used without SMOOTH option.'
+        call PrintWrnMsg(option)
+      endif
+    class is(rpf_Mualem_VG_liq_type)
+      if (.not.smooth) then
+        option%io_buffer = 'Mualem-van Genuchten relative permeability &
+          &function is being used without SMOOTH option.'
+        call PrintWrnMsg(option)
+      endif
+  end select
 
 end function PermeabilityFunctionRead
 

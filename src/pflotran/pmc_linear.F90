@@ -101,18 +101,17 @@ subroutine PMCLinearSetupSolvers(this)
   ! ----- subsurface flow
     class is(pm_subsurface_flow_type)
       call PrintMsg(option,"  Beginning setup of FLOW KSP ")
-      if (OptionPrintToScreen(option)) then
-        write(*,'(" number of dofs = ",i3)') option%nflowdof
-        select case(option%iflowmode)
-          case(PNF_MODE)
-            write(*,'(" mode = PNF: h")')
-          case default
-            option%io_buffer = 'Flow mode ' // trim(option%flowmode) // &
-              ' not supported by PMC Linear.'
-            call PrintErrMsg(option)
-        end select
-      endif
-
+      write(option%io_buffer,'(" number of dofs = ",i3)') option%nflowdof
+      call PrintMsg(option)
+      select case(option%iflowmode)
+        case(PNF_MODE)
+          write(option%io_buffer,'(" mode = PNF: h")')
+          call PrintMsg(option)
+        case default
+          option%io_buffer = 'Flow mode ' // trim(option%flowmode) // &
+            ' not supported by PMC Linear.'
+          call PrintErrMsg(option)
+      end select
       call KSPSetOptionsPrefix(solver%ksp,"flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
 
@@ -155,7 +154,7 @@ subroutine PMCLinearSetupSolvers(this)
       option%io_buffer = 'Process model not supported by PMCLinearSetupSolvers'
       call PrintErrMsg(option)
   end select
-  ! have to set operators so that any KSPSetup() calls within 
+  ! have to set operators so that any KSPSetup() calls within
   ! SolverSetKSPOptions have access to Mats and Vecs
   call KSPSetOperators(solver%ksp,solver%M,solver%Mpre,ierr);CHKERRQ(ierr)
   call SolverSetKSPOptions(solver,option)

@@ -3,7 +3,7 @@ module Matrix_Buffer_module
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use Grid_module
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -30,25 +30,25 @@ module Matrix_Buffer_module
             MatrixBufferAdd, &
             MatrixBufferZeroRows, &
             MatrixBufferSetValues
- 
+
 contains
 
 ! ************************************************************************** !
 
 function MatrixBufferCreate()
-  ! 
+  !
   ! Creates a matrix object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
-  
+  !
+
   implicit none
 
   type(matrix_buffer_type), pointer :: MatrixBufferCreate
-  
+
   type(matrix_buffer_type), pointer :: matrix_buffer
-  
+
   allocate(matrix_buffer)
   matrix_buffer%matrix_type = 0
   nullify(matrix_buffer%grid)
@@ -64,19 +64,19 @@ end function MatrixBufferCreate
 ! ************************************************************************** !
 
 subroutine MatrixBufferInit(A,matrix_buffer,grid)
-  ! 
+  !
   ! Initializes matrix buffer object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
+  !
 
   use Grid_Structured_module
 
   implicit none
 
   Mat :: A
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+  type(matrix_buffer_type), pointer :: matrix_buffer
   type(grid_type), target :: grid
 
   MatType :: mat_type
@@ -94,13 +94,13 @@ subroutine MatrixBufferInit(A,matrix_buffer,grid)
     case(MATMPIAIJ,MATSEQAIJ,MATMPIBAIJ,MATSEQBAIJ)
       matrix_buffer%matrix_type = AIJ
       matrix_buffer%i_width = 1
-      matrix_buffer%j_width = structured_grid%ngx 
+      matrix_buffer%j_width = structured_grid%ngx
       matrix_buffer%k_width = structured_grid%ngxy
       allocate(matrix_buffer%icol(7,structured_grid%ngmax))
       allocate(matrix_buffer%values(7,structured_grid%ngmax))
       ! compute fill indices
       ! initialize all to zero
-      matrix_buffer%icol = 0 
+      matrix_buffer%icol = 0
       local_id = 0
       do k=structured_grid%kstart,structured_grid%kend
         do j=structured_grid%jstart,structured_grid%jend
@@ -134,11 +134,11 @@ subroutine MatrixBufferInit(A,matrix_buffer,grid)
       enddo
       ! convert to zero-based
       ! inactive entries will become -1, which is constistent with PETSc
-      matrix_buffer%icol = matrix_buffer%icol - 1 
+      matrix_buffer%icol = matrix_buffer%icol - 1
     case(MATHYPRESTRUCT)
       matrix_buffer%matrix_type = HYPRESTRUCT
       matrix_buffer%i_width = 1
-      matrix_buffer%j_width = structured_grid%ngx 
+      matrix_buffer%j_width = structured_grid%ngx
       matrix_buffer%k_width = structured_grid%ngxy
       allocate(matrix_buffer%values(7,structured_grid%ngmax))
   end select
@@ -149,16 +149,16 @@ end subroutine MatrixBufferInit
 ! ************************************************************************** !
 
 subroutine MatrixBufferZero(matrix_buffer)
-  ! 
+  !
   ! Zeros matrix buffer values
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
+  !
 
   implicit none
-  
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+
+  type(matrix_buffer_type), pointer :: matrix_buffer
 
   matrix_buffer%values = 0.d0
 
@@ -167,19 +167,19 @@ end subroutine MatrixBufferZero
 ! ************************************************************************** !
 
 subroutine MatrixBufferAdd(matrix_buffer,irow,icol,value)
-  ! 
+  !
   ! Adds values to matrix buffer object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
+  !
 
   implicit none
-  
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+
+  type(matrix_buffer_type), pointer :: matrix_buffer
   PetscInt :: irow, icol
   PetscReal :: value
-  
+
   PetscInt :: index
 
   if (icol < 0) then
@@ -209,22 +209,22 @@ end subroutine MatrixBufferAdd
 ! ************************************************************************** !
 
 subroutine MatrixBufferZeroRows(matrix_buffer,nrows,rows)
-  ! 
+  !
   ! Zeros rows in a matrix buffer object, placing 1
   ! on the diagonal
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/14/09
-  ! 
+  !
 
   implicit none
-  
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+
+  type(matrix_buffer_type), pointer :: matrix_buffer
   PetscInt :: nrows
   PetscInt, pointer :: rows(:)
 
   PetscInt :: irow, irow_local
-  
+
   select case(matrix_buffer%matrix_type)
     case(AIJ)
       do irow = 1, nrows
@@ -244,17 +244,17 @@ end subroutine MatrixBufferZeroRows
 ! ************************************************************************** !
 
 subroutine MatrixBufferSetValues(A,matrix_buffer)
-  ! 
+  !
   ! Sets values in PETSc matrix
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/14/09
-  ! 
+  !
 
   implicit none
 
   Mat :: A
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+  type(matrix_buffer_type), pointer :: matrix_buffer
 
   select case(matrix_buffer%matrix_type)
     case(AIJ)
@@ -268,25 +268,24 @@ end subroutine MatrixBufferSetValues
 ! ************************************************************************** !
 
 subroutine MatrixBufferSetValuesHypre(A,matrix_buffer)
-  ! 
+  !
   ! Sets values in PETSc Hypre matrix
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
+  !
 
   implicit none
 
   Mat :: A
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+  type(matrix_buffer_type), pointer :: matrix_buffer
 
   PetscInt :: icol
   PetscErrorCode :: ierr
 
   do icol = 1, 7
-    call MatSetValuesLocal(A,1,0,1,icol-1, &
-                           matrix_buffer%values(icol,1),INSERT_VALUES, &
-                           ierr);CHKERRQ(ierr)
+    call MatSetValuesLocal(A,1,0,1,icol-1,matrix_buffer%values(icol,1), &
+                           INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
 end subroutine MatrixBufferSetValuesHypre
@@ -294,17 +293,17 @@ end subroutine MatrixBufferSetValuesHypre
 ! ************************************************************************** !
 
 subroutine MatrixBufferSetValuesAij(A,matrix_buffer)
-  ! 
+  !
   ! MatrixBufferSetValues: Sets values in PETSc Aij matrix
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
+  !
 
   implicit none
 
   Mat :: A
-  type(matrix_buffer_type), pointer :: matrix_buffer  
+  type(matrix_buffer_type), pointer :: matrix_buffer
 
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
@@ -323,27 +322,27 @@ end subroutine MatrixBufferSetValuesAij
 ! ************************************************************************** !
 
 subroutine MatrixBufferDestroy(matrix_buffer)
-  ! 
+  !
   ! Destroys a matrix buffer object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/13/09
-  ! 
+  !
 
   implicit none
-  
+
   type(matrix_buffer_type), pointer :: matrix_buffer
-  
+
   if (.not.associated(matrix_buffer)) return
-  
+
   if (associated(matrix_buffer%values)) deallocate(matrix_buffer%values)
   nullify(matrix_buffer%values)
   if (associated(matrix_buffer%icol)) deallocate(matrix_buffer%icol)
   nullify(matrix_buffer%icol)
-  
+
   deallocate(matrix_buffer)
   nullify(matrix_buffer)
-  
+
 end subroutine MatrixBufferDestroy
 
 end module Matrix_Buffer_module

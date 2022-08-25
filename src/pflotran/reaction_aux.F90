@@ -2,7 +2,7 @@ module Reaction_Aux_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  
+
   use Reaction_Base_module
   use Reaction_Database_Aux_module
   use Reaction_Mineral_Aux_module
@@ -11,8 +11,8 @@ module Reaction_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Gas_Aux_module
   use Reaction_Isotherm_Aux_module
-  
-#ifdef SOLID_SOLUTION  
+
+#ifdef SOLID_SOLUTION
   use Reaction_Solid_Soln_Aux_module
 #endif
 
@@ -20,8 +20,8 @@ module Reaction_Aux_module
   use Generic_module
 
   implicit none
-  
-  private 
+
+  private
 
   ! activity coefficients
   PetscInt, parameter, public :: ACT_COEF_FREQUENCY_OFF = 0
@@ -43,7 +43,7 @@ module Reaction_Aux_module
     PetscInt :: water_age_id
     PetscInt :: tracer_age_id
   end type species_idx_type
-  
+
   type, public :: aq_species_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
@@ -92,7 +92,7 @@ module Reaction_Aux_module
     PetscReal :: KD_low
     PetscReal :: KD_power
     type(dynamic_kd_rxn_type), pointer :: next
-  end type dynamic_kd_rxn_type    
+  end type dynamic_kd_rxn_type
 
   type, public :: radioactive_decay_rxn_type
     PetscInt :: id
@@ -194,7 +194,7 @@ module Reaction_Aux_module
     PetscBool :: use_activity_h2o
     PetscBool :: calculate_water_age
     PetscBool :: calculate_tracer_age
-    
+
     ! new reaction objects
     type(surface_complexation_type), pointer :: surface_complexation
     type(mineral_type), pointer :: mineral
@@ -202,11 +202,11 @@ module Reaction_Aux_module
     type(immobile_type), pointer :: immobile
     type(gas_type), pointer :: gas
     type(isotherm_type), pointer :: isotherm
-    
-#ifdef SOLID_SOLUTION    
+
+#ifdef SOLID_SOLUTION
     type(solid_solution_type), pointer :: solid_solution_list
-#endif    
-    
+#endif
+
     ! phases
     PetscInt :: nphase
 
@@ -216,19 +216,19 @@ module Reaction_Aux_module
     PetscInt :: naqcomp
     PetscInt :: ncollcomp
     PetscInt :: nimcomp
-    
+
     ! offsets
     PetscInt :: offset_aqueous
     PetscInt :: offset_colloid
     PetscInt :: offset_collcomp
     PetscInt :: offset_immobile
-    
+
     character(len=MAXWORDLENGTH), pointer :: primary_species_names(:)
     PetscBool, pointer :: primary_species_print(:)
     PetscReal, pointer :: primary_spec_a0(:)
     PetscReal, pointer :: primary_spec_Z(:)
     PetscReal, pointer :: primary_spec_molar_wt(:)
-    
+
     ! aqueous complexes
     PetscInt :: neqcplx
     character(len=MAXWORDLENGTH), pointer :: secondary_species_names(:)
@@ -256,18 +256,18 @@ module Reaction_Aux_module
 
     ! ionx exchange reactions
     PetscInt :: neqionxrxn
-    PetscInt :: neqionxcation 
+    PetscInt :: neqionxcation
     PetscBool, pointer :: eqionx_rxn_Z_flag(:)
     PetscInt, pointer :: eqionx_rxn_cation_X_offset(:)
     PetscReal, pointer :: eqionx_rxn_CEC(:)
     PetscInt, pointer :: eqionx_rxn_to_surf(:)
     PetscReal, pointer :: eqionx_rxn_k(:,:)
     PetscInt, pointer :: eqionx_rxn_cationid(:,:)
-#if 0    
+#if 0
     PetscReal, pointer :: kinionx_rxn_CEC(:)
     PetscReal, pointer :: kinionx_rxn_k(:,:)
     PetscInt, pointer :: kinionx_rxn_cationid(:)
-#endif    
+#endif
 
     ! colloids
     PetscInt :: ncoll
@@ -278,14 +278,14 @@ module Reaction_Aux_module
     PetscInt, pointer :: coll_spec_to_pri_spec(:)
     PetscBool, pointer :: total_sorb_mobile_print(:)
     PetscBool, pointer :: colloid_print(:)
-    
+
     ! radioactive decay rxn
     PetscInt :: nradiodecay_rxn
     ! ids and stoichiometries for species involved in reaction
     PetscInt, pointer :: radiodecayspecid(:,:)
     PetscReal, pointer :: radiodecaystoich(:,:)
     ! index of radiodecayspecid for species in forward
-    ! reaction equation 
+    ! reaction equation
     PetscInt, pointer :: radiodecayforwardspecid(:)
     PetscReal, pointer :: radiodecay_kf(:)
 
@@ -295,17 +295,17 @@ module Reaction_Aux_module
     PetscInt, pointer :: generalspecid(:,:)
     PetscReal, pointer :: generalstoich(:,:)
     ! index of generalspecid & generalstoich for species in forward
-    ! reaction equation 
+    ! reaction equation
     PetscInt, pointer :: generalforwardspecid(:,:)
     PetscReal, pointer :: generalforwardstoich(:,:)
     ! index of generalspecid & generalstoich for species in backward
-    ! reaction equation 
+    ! reaction equation
     PetscInt, pointer :: generalbackwardspecid(:,:)
     PetscReal, pointer :: generalbackwardstoich(:,:)
     PetscInt, pointer :: generalh2oid(:)
     PetscReal, pointer :: generalh2ostoich(:)
     PetscReal, pointer :: general_kf(:)
-    PetscReal, pointer :: general_kr(:)  
+    PetscReal, pointer :: general_kr(:)
 
     ! dynamic kd rxn
     PetscInt :: neqdynamickdrxn
@@ -315,11 +315,11 @@ module Reaction_Aux_module
     PetscReal, pointer :: eqdynamickdlow(:)
     PetscReal, pointer :: eqdynamickdhigh(:)
     PetscReal, pointer :: eqdynamickdpower(:)
-    
+
     PetscReal :: max_dlnC
     PetscReal :: max_relative_change_tolerance
     PetscReal :: max_residual_tolerance
-    
+
     PetscBool :: update_permeability
     PetscBool :: update_tortuosity
     PetscBool :: update_porosity
@@ -333,7 +333,7 @@ module Reaction_Aux_module
     PetscBool :: use_sandbox
     PetscInt :: nauxiliary
     PetscInt :: mc_flag
-    
+
  end type reaction_rt_type
 
 
@@ -341,11 +341,11 @@ module Reaction_Aux_module
     module procedure GetPrimarySpeciesIDFromName1
     module procedure GetPrimarySpeciesIDFromName2
   end interface
-  
+
   interface GetSecondarySpeciesIDFromName
     module procedure GetSecondarySpeciesIDFromName1
     module procedure GetSecondarySpeciesIDFromName2
-  end interface  
+  end interface
 
   public :: ReactionCreate, &
             ReactionCast, &
@@ -391,26 +391,27 @@ module Reaction_Aux_module
             IonExchangeRxnCreate, &
             IonExchangeCationCreate, &
             ReactionInputRecord, &
+            ReactionNetworkToStoich, &
             ReactionDestroy
-             
+
 contains
 
 ! ************************************************************************** !
 
 function ReactionCreate()
-  ! 
+  !
   ! Allocate and initialize reaction object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/02/08
-  ! 
+  !
   implicit none
-  
+
   class(reaction_rt_type), pointer :: ReactionCreate
-  
+
   class(reaction_rt_type), pointer :: reaction
 
-  allocate(reaction)  
+  allocate(reaction)
   call ReactionBaseInit(reaction)
 
   reaction%database_filename = ''
@@ -452,7 +453,7 @@ function ReactionCreate()
   reaction%print_free_conc_type = 0
   reaction%print_tot_conc_type = 0
   reaction%print_secondary_conc_type = 0
-  
+
   nullify(reaction%species_idx)
 
   nullify(reaction%primary_species_list)
@@ -465,7 +466,7 @@ function ReactionCreate()
   nullify(reaction%redox_species_list)
   nullify(reaction%aq_diffusion_coefficients)
   nullify(reaction%gas_diffusion_coefficients)
-  
+
   ! new reaction objects
   reaction%surface_complexation => SurfaceComplexationCreate()
   reaction%mineral => MineralCreate()
@@ -473,10 +474,10 @@ function ReactionCreate()
   reaction%immobile => ImmobileCreate()
   reaction%gas => GasCreate()
   reaction%isotherm => IsothermCreate()
-#ifdef SOLID_SOLUTION  
+#ifdef SOLID_SOLUTION
   nullify(reaction%solid_solution_list)
 #endif
-  
+
   nullify(reaction%primary_species_names)
   nullify(reaction%secondary_species_names)
   nullify(reaction%eqcplx_basis_names)
@@ -490,7 +491,7 @@ function ReactionCreate()
   nullify(reaction%total_sorb_print)
   nullify(reaction%total_sorb_mobile_print)
   nullify(reaction%colloid_print)
-  
+
   reaction%nphase = 0
   reaction%ncomp = 0
   reaction%naqcomp = 0
@@ -503,7 +504,7 @@ function ReactionCreate()
   nullify(reaction%primary_spec_a0)
   nullify(reaction%primary_spec_Z)
   nullify(reaction%primary_spec_molar_wt)
-  
+
   reaction%neqcplx = 0
   nullify(reaction%eqcplxspecid)
   nullify(reaction%eqcplxstoich)
@@ -514,10 +515,10 @@ function ReactionCreate()
   nullify(reaction%eqcplx_molar_wt)
   nullify(reaction%eqcplx_logK)
   nullify(reaction%eqcplx_logKcoef)
-  
-  reaction%debyeA = 0.5114d0 
-  reaction%debyeB = 0.3288d0 
-  reaction%debyeBdot = 0.0410d0 
+
+  reaction%debyeA = 0.5114d0
+  reaction%debyeB = 0.3288d0
+  reaction%debyeBdot = 0.0410d0
 
   reaction%nsorb = 0
   reaction%neqsorb = 0
@@ -530,7 +531,7 @@ function ReactionCreate()
   nullify(reaction%eqionx_rxn_to_surf)
   nullify(reaction%eqionx_rxn_k)
   nullify(reaction%eqionx_rxn_cationid)
-#if 0  
+#if 0
   nullify(reaction%kinionx_CEC)
   nullify(reaction%kinionx_k)
   nullify(reaction%kinionx_cationid)
@@ -540,7 +541,7 @@ function ReactionCreate()
   nullify(reaction%pri_spec_to_coll_spec)
   nullify(reaction%coll_spec_to_pri_spec)
   nullify(reaction%colloid_mobile_fraction)
-  
+
   reaction%ngeneral_rxn = 0
   nullify(reaction%generalspecid)
   nullify(reaction%generalstoich)
@@ -552,7 +553,7 @@ function ReactionCreate()
   nullify(reaction%generalh2ostoich)
   nullify(reaction%general_kf)
   nullify(reaction%general_kr)
-  
+
   reaction%nradiodecay_rxn = 0
   nullify(reaction%radiodecayspecid)
   nullify(reaction%radiodecaystoich)
@@ -566,7 +567,7 @@ function ReactionCreate()
   nullify(reaction%eqdynamickdlow)
   nullify(reaction%eqdynamickdhigh)
   nullify(reaction%eqdynamickdpower)
-       
+
   reaction%max_dlnC = 5.d0
   reaction%max_relative_change_tolerance = 1.d-6
   reaction%max_residual_tolerance = 1.d-12
@@ -586,18 +587,18 @@ function ReactionCreate()
   reaction%mc_flag = 0
 
   ReactionCreate => reaction
-  
+
 end function ReactionCreate
 
 ! ************************************************************************** !
 
 function ReactionCast(reaction_base)
-  ! 
+  !
   ! Casts a reaction_base type to reaction_nw type if applicable.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/21/19
-  ! 
+  !
   implicit none
 
   class(reaction_base_type), pointer :: reaction_base
@@ -618,20 +619,20 @@ end function ReactionCast
 ! ************************************************************************** !
 
 function SpeciesIndexCreate()
-  ! 
+  !
   ! Allocate and initialize a species index object
-  ! 
+  !
   ! Author: Peter Lichtner
   ! Date: 01/29/10
-  ! 
+  !
 
   implicit none
-  
+
   type(species_idx_type), pointer :: SpeciesIndexCreate
-  
+
   type(species_idx_type), pointer :: species_idx
 
-  allocate(species_idx) 
+  allocate(species_idx)
 
   species_idx%h2o_aq_id = 0
   species_idx%h_ion_id = 0
@@ -645,26 +646,26 @@ function SpeciesIndexCreate()
   species_idx%water_age_id = 0
 
   SpeciesIndexCreate => species_idx
-  
+
 end function SpeciesIndexCreate
 
 ! ************************************************************************** !
 
 function AqueousSpeciesCreate()
-  ! 
+  !
   ! Allocate and initialize an aqueous species object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/02/08
-  ! 
+  !
   implicit none
-  
+
   type(aq_species_type), pointer :: AqueousSpeciesCreate
-  
+
   type(aq_species_type), pointer :: species
 
-  allocate(species) 
-  species%id = 0 
+  allocate(species)
+  species%id = 0
   species%name = ''
   species%a0 = 0.d0
   species%molar_weight = 0.d0
@@ -675,25 +676,25 @@ function AqueousSpeciesCreate()
   nullify(species%next)
 
   AqueousSpeciesCreate => species
-  
+
 end function AqueousSpeciesCreate
 
 ! ************************************************************************** !
 
 function ColloidCreate()
-  ! 
+  !
   ! Allocate and initialize a colloid object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/24/10
-  ! 
+  !
   implicit none
-  
+
   type(colloid_type), pointer :: ColloidCreate
-  
+
   type(colloid_type), pointer :: colloid
 
-  allocate(colloid)  
+  allocate(colloid)
   colloid%id = 0
   colloid%itype = 0
   colloid%name = ''
@@ -704,80 +705,80 @@ function ColloidCreate()
   colloid%molar_weight = 0.d0
   colloid%print_me = PETSC_FALSE
   nullify(colloid%next)
-  
+
   ColloidCreate => colloid
-  
+
 end function ColloidCreate
 
 ! ************************************************************************** !
 
 function IonExchangeRxnCreate()
-  ! 
+  !
   ! Allocate and initialize an ion exchange reaction
-  ! 
+  !
   ! Author: Peter Lichtner
   ! Date: 10/24/08
-  ! 
+  !
 
   implicit none
-    
+
   type(ion_exchange_rxn_type), pointer :: IonExchangeRxnCreate
 
   type(ion_exchange_rxn_type), pointer :: ionxrxn
-  
+
   allocate(ionxrxn)
   ionxrxn%id = 0
   ionxrxn%mineral_name = ''
   ionxrxn%CEC = 0.d0
   nullify(ionxrxn%cation_list)
   nullify(ionxrxn%next)
-  
+
   IonExchangeRxnCreate => ionxrxn
-  
+
 end function IonExchangeRxnCreate
 
 ! ************************************************************************** !
 
 function IonExchangeCationCreate()
-  ! 
+  !
   ! Allocate and initialize a cation associated with
   ! an ion exchange reaction
-  ! 
+  !
   ! Author: Peter Lichtner
   ! Date: 10/24/08
-  ! 
+  !
 
   implicit none
-    
+
   type(ion_exchange_cation_type), pointer :: IonExchangeCationCreate
 
   type(ion_exchange_cation_type), pointer :: cation
-  
+
   allocate(cation)
   cation%name = ''
   cation%k = 0.d0
   nullify(cation%next)
-  
+
   IonExchangeCationCreate => cation
-  
+
 end function IonExchangeCationCreate
 
 ! ************************************************************************** !
 
 function RadioactiveDecayRxnCreate()
-  ! 
+  !
   ! Allocate and initialize a radioactive decay
   ! reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/07/14
-  ! 
+  !
   implicit none
-    
+
   type(radioactive_decay_rxn_type), pointer :: RadioactiveDecayRxnCreate
 
   type(radioactive_decay_rxn_type), pointer :: rxn
-  
+
   allocate(rxn)
   rxn%id = 0
   rxn%reaction = ''
@@ -786,26 +787,26 @@ function RadioactiveDecayRxnCreate()
   rxn%print_me = PETSC_FALSE
   nullify(rxn%dbaserxn)
   nullify(rxn%next)
-  
+
   RadioactiveDecayRxnCreate => rxn
-  
+
 end function RadioactiveDecayRxnCreate
 
 ! ************************************************************************** !
 
 function GeneralRxnCreate()
-  ! 
+  !
   ! Allocate and initialize a general reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/03/10
-  ! 
+  !
   implicit none
-    
+
   type(general_rxn_type), pointer :: GeneralRxnCreate
 
   type(general_rxn_type), pointer :: rxn
-  
+
   allocate(rxn)
   rxn%id = 0
   rxn%reaction = ''
@@ -814,27 +815,27 @@ function GeneralRxnCreate()
   rxn%print_me = PETSC_FALSE
   nullify(rxn%dbaserxn)
   nullify(rxn%next)
-  
+
   GeneralRxnCreate => rxn
-  
+
 end function GeneralRxnCreate
 
 ! ************************************************************************** !
 
 function DynamicKDRxnCreate()
-  ! 
+  !
   ! Allocate and initialize a dynamic KD sorption reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/21/19
-  ! 
+  !
 
   implicit none
-    
+
   type(dynamic_kd_rxn_type), pointer :: DynamicKDRxnCreate
 
   type(dynamic_kd_rxn_type), pointer :: rxn
-  
+
   allocate(rxn)
   rxn%id = 0
   rxn%kd_species_name = ''
@@ -844,31 +845,31 @@ function DynamicKDRxnCreate()
   rxn%KD_high = UNINITIALIZED_DOUBLE
   rxn%KD_power = UNINITIALIZED_DOUBLE
   nullify(rxn%next)
-  
+
   DynamicKDRxnCreate => rxn
-  
+
 end function DynamicKDRxnCreate
 
 ! ************************************************************************** !
 
 function AqueousSpeciesConstraintCreate(reaction,option)
-  ! 
+  !
   ! Creates an aqueous species constraint
   ! object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   type(aq_species_constraint_type), pointer :: AqueousSpeciesConstraintCreate
 
   type(aq_species_constraint_type), pointer :: constraint
-  
+
   allocate(constraint)
   allocate(constraint%names(reaction%naqcomp))
   constraint%names = ''
@@ -892,24 +893,24 @@ end function AqueousSpeciesConstraintCreate
 ! ************************************************************************** !
 
 function GuessConstraintCreate(reaction,option)
-  ! 
+  !
   ! Creates an aqueous species constraint
   ! object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   type(guess_constraint_type), pointer :: GuessConstraintCreate
 
   type(guess_constraint_type), pointer :: constraint
-  
+
   allocate(constraint)
   allocate(constraint%names(reaction%naqcomp))
   constraint%names = ''
@@ -923,22 +924,22 @@ end function GuessConstraintCreate
 ! ************************************************************************** !
 
 function ColloidConstraintCreate(reaction,option)
-  ! 
+  !
   ! Creates a colloid constraint object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/12/10
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   type(colloid_constraint_type), pointer :: ColloidConstraintCreate
 
-  type(colloid_constraint_type), pointer :: constraint  
+  type(colloid_constraint_type), pointer :: constraint
 
   allocate(constraint)
   allocate(constraint%names(reaction%ncoll))
@@ -959,15 +960,15 @@ end function ColloidConstraintCreate
 ! ************************************************************************** !
 
 function GetPrimarySpeciesNames(reaction)
-  ! 
+  !
   ! Returns the names of primary species in an array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/02/08
-  ! 
+  !
 
   implicit none
-  
+
   character(len=MAXWORDLENGTH), pointer :: GetPrimarySpeciesNames(:)
   class(reaction_rt_type) :: reaction
 
@@ -977,7 +978,7 @@ function GetPrimarySpeciesNames(reaction)
 
   count = GetPrimarySpeciesCount(reaction)
   allocate(names(count))
-  
+
   count = 1
   species => reaction%primary_species_list
   do
@@ -988,21 +989,21 @@ function GetPrimarySpeciesNames(reaction)
   enddo
 
   GetPrimarySpeciesNames => names
-  
+
 end function GetPrimarySpeciesNames
 
 ! ************************************************************************** !
 
 function GetPrimarySpeciesCount(reaction)
-  ! 
+  !
   ! Returns the number of primary species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/02/08
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: GetPrimarySpeciesCount
   class(reaction_rt_type) :: reaction
 
@@ -1021,17 +1022,17 @@ end function GetPrimarySpeciesCount
 ! ************************************************************************** !
 
 function GetPrimarySpeciesIDFromName1(name,reaction,option)
-  ! 
+  !
   ! Returns the id of named primary species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/30/12
-  ! 
+  !
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: name
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
@@ -1046,18 +1047,18 @@ end function GetPrimarySpeciesIDFromName1
 ! ************************************************************************** !
 
 function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
-  ! 
+  !
   ! Returns the id of named primary species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/30/12
-   
+
 
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: name
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
@@ -1069,7 +1070,7 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
   PetscBool :: return_error
 
   GetPrimarySpeciesIDFromName2 = UNINITIALIZED_INTEGER
-  
+
   ! if the primary species name list exists
   if (associated(reaction%primary_species_names)) then
     do i = 1, size(reaction%primary_species_names)
@@ -1098,21 +1099,21 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
       '" not found among primary species in GetPrimarySpeciesIDFromName().'
     call PrintErrMsg(option)
   endif
-  
+
 end function GetPrimarySpeciesIDFromName2
 
 ! ************************************************************************** !
 
 function GetSecondarySpeciesNames(reaction)
-  ! 
+  !
   ! Returns the names of secondary species in an array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/02/08
-  ! 
+  !
 
   implicit none
-  
+
   character(len=MAXWORDLENGTH), pointer :: GetSecondarySpeciesNames(:)
   class(reaction_rt_type) :: reaction
 
@@ -1122,7 +1123,7 @@ function GetSecondarySpeciesNames(reaction)
 
   count = GetSecondarySpeciesCount(reaction)
   allocate(names(count))
-  
+
   count = 1
   species => reaction%secondary_species_list
   do
@@ -1133,21 +1134,21 @@ function GetSecondarySpeciesNames(reaction)
   enddo
 
   GetSecondarySpeciesNames => names
-  
+
 end function GetSecondarySpeciesNames
 
 ! ************************************************************************** !
 
 function GetSecondarySpeciesCount(reaction)
-  ! 
+  !
   ! Returns the number of secondary species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/02/08
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: GetSecondarySpeciesCount
   class(reaction_rt_type) :: reaction
 
@@ -1166,12 +1167,12 @@ end function GetSecondarySpeciesCount
 ! ************************************************************************** !
 
 function GetSecondarySpeciesIDFromName1(name,reaction,option)
-  ! 
+  !
   ! Returns the id of named secondary species
-  ! 
+  !
   ! Author: Peter Rieke
   ! Date: 09/16/2016
-  ! 
+  !
   use Option_module
   use String_module
   implicit none
@@ -1182,18 +1183,18 @@ function GetSecondarySpeciesIDFromName1(name,reaction,option)
   PetscInt :: GetSecondarySpeciesIDFromName1
   GetSecondarySpeciesIDFromName1 = &
     GetSecondarySpeciesIDFromName2(name,reaction, PETSC_TRUE, option)
-    
+
 end function GetSecondarySpeciesIDFromName1
 
 ! ************************************************************************** !
 
 function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
-  ! 
+  !
   ! Returns the id of named secondary species
-  ! 
+  !
   ! Author: Peter Rieke
   ! Date: 09/16/2016
-  ! 
+  !
   use Option_module
   use String_module
   implicit none
@@ -1206,7 +1207,7 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
   PetscBool :: return_error
 
   GetSecondarySpeciesIDFromName2 = UNINITIALIZED_INTEGER
-  
+
   ! if the Secondary species name list exists
   if (associated(reaction%Secondary_species_names)) then
     do i = 1, size(reaction%Secondary_species_names)
@@ -1235,23 +1236,23 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
       '" not found among Secondary species in GetSecondarySpeciesIDFromName().'
     call PrintErrMsg(option)
   endif
-  
+
 end function GetSecondarySpeciesIDFromName2
 
 ! ************************************************************************** !
 
 function GetColloidIDFromName(reaction,name)
-  ! 
+  !
   ! Returns the id of colloid with the corresponding name
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/24/10
-  ! 
+  !
 
   use String_module
-  
+
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   character(len=MAXWORDLENGTH) :: name
 
@@ -1259,7 +1260,7 @@ function GetColloidIDFromName(reaction,name)
   type(colloid_type), pointer :: colloid
 
   GetColloidIDFromName = -1
- 
+
   colloid => reaction%colloid_list
   do
     if (.not.associated(colloid)) exit
@@ -1275,15 +1276,15 @@ end function GetColloidIDFromName
 ! ************************************************************************** !
 
 function GetColloidNames(reaction)
-  ! 
+  !
   ! Returns the names of colloids in an array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/04/08
-  ! 
+  !
 
   implicit none
-  
+
   character(len=MAXWORDLENGTH), pointer :: GetColloidNames(:)
   class(reaction_rt_type) :: reaction
 
@@ -1293,7 +1294,7 @@ function GetColloidNames(reaction)
 
   count = GetColloidCount(reaction)
   allocate(names(count))
-  
+
   count = 1
   colloid => reaction%colloid_list
   do
@@ -1304,21 +1305,21 @@ function GetColloidNames(reaction)
   enddo
 
   GetColloidNames => names
-  
+
 end function GetColloidNames
 
 ! ************************************************************************** !
 
 function GetColloidCount(reaction)
-  ! 
+  !
   ! Returns the number of colloids
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/24/10
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: GetColloidCount
   class(reaction_rt_type) :: reaction
 
@@ -1337,41 +1338,41 @@ end function GetColloidCount
 ! ************************************************************************** !
 
 function GetImmobileCount(reaction)
-  ! 
+  !
   ! Returns the number of immobile species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/02/13
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: GetImmobileCount
   class(reaction_rt_type) :: reaction
 
   GetImmobileCount = ImmobileGetCount(reaction%immobile)
-  
+
 end function GetImmobileCount
 
 ! ************************************************************************** !
 
 subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
-  ! 
+  !
   ! Least squares fit to log K over database temperature
   ! range
-  ! 
+  !
   ! Author: P.C. Lichtner
   ! Date: 02/13/09
-  ! 
+  !
 
   use Option_module
   use Utility_module
 
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   PetscReal :: coefs(FIVE_INTEGER)
-  character(len=MAXWORDLENGTH) :: name 
+  character(len=MAXWORDLENGTH) :: name
   PetscReal :: logK(reaction%num_dbase_temperatures)
   type(option_type) :: option
 
@@ -1382,9 +1383,9 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
                temperature_kelvin
 
   PetscInt :: i, j, k, iflag
-  
+
   ! need to fill in vec with equations for temperatures vs coefs.
-  
+
   do i = 1, reaction%num_dbase_temperatures
     temperature_kelvin = reaction%dbase_temperatures(i) + 273.15d0
     vec(1,i) = log(temperature_kelvin)
@@ -1393,7 +1394,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
     vec(4,i) = 1.d0/temperature_kelvin
     vec(5,i) = 1.d0/(temperature_kelvin*temperature_kelvin)
   enddo
-  
+
   iflag = 0
   do j = 1, FIVE_INTEGER
     coefs(j) = 0.d0
@@ -1433,31 +1434,31 @@ end subroutine ReactionFitLogKCoef
 ! ************************************************************************** !
 
 subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
-  ! 
+  !
   ! Least squares fit to log K over database temperature range
-  ! 
+  !
   ! Author: P.C. Lichtner
   ! Date: 02/13/09
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   PetscReal :: logKcoef(FIVE_INTEGER)
   PetscReal :: logKs(reaction%num_dbase_temperatures)
   PetscReal :: logK, logK_1D_Array(ONE_INTEGER)
   type(option_type) :: option
-  
+
   PetscReal :: coefs(FIVE_INTEGER,ONE_INTEGER)
   PetscReal :: temperature
   PetscInt :: itemperature
   PetscInt :: i
-  
+
   ! we always initialize on reference temperature
   temperature = option%flow%reference_temperature
-  
+
   itemperature = 0
   if (option%use_isothermal) then ! find database temperature if relevant
     do i = 1, reaction%num_dbase_temperatures
@@ -1468,7 +1469,7 @@ subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
       endif
     enddo
   endif
-  
+
   if (itemperature > 0) then ! use database temperature
     logK = logKs(itemperature)
   else                       ! interpolate
@@ -1482,24 +1483,24 @@ end subroutine ReactionInitializeLogK
 ! ************************************************************************** !
 
 subroutine ReactionInterpolateLogK(coefs,logKs,temp,n)
-  ! 
+  !
   ! Interpolation log K function: temp - temperature [C]
   ! b - fit coefficients determined from fit(...)
-  ! 
+  !
   ! Author: P.C. Lichtner
   ! Date: 02/13/09
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: n
   PetscReal :: coefs(5,n), logKs(n), temp
 
   PetscInt :: i
   PetscReal :: temp_kelvin
-  
+
   temp_kelvin = temp + 273.15d0
-  
+
   do i = 1, n
     logKs(i) = coefs(1,i)*log(temp_kelvin) &
              + coefs(2,i)           &
@@ -1507,38 +1508,38 @@ subroutine ReactionInterpolateLogK(coefs,logKs,temp,n)
              + coefs(4,i)/temp_kelvin      &
              + coefs(5,i)/(temp_kelvin*temp_kelvin)
   enddo
-  
+
 end subroutine ReactionInterpolateLogK
 
 ! ************************************************************************** !
 
 subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
-  ! 
+  !
   ! ReactionInitializeLogK: Least squares fit to log K over database temperature range
-  ! 
+  !
   ! Author: Chuan Lu
   ! Date: 12/29/11
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(reaction_rt_type) :: reaction
   PetscReal :: logKcoef(17)
   PetscReal :: logK, logK_1D_Array(ONE_INTEGER)
   type(option_type) :: option
-  
+
   PetscReal :: coefs(17,ONE_INTEGER)
   PetscReal :: temperature, pressure
   PetscInt :: itemperature
   PetscInt :: i
-  
+
   ! we always initialize on reference temperature
   temperature = option%flow%reference_temperature
-  pressure = option%flow%reference_pressure 
-  
-  
+  pressure = option%flow%reference_pressure
+
+
   coefs(:,ONE_INTEGER) = logKcoef(:)
   call ReactionInterpolateLogK_hpt(coefs,logK_1D_Array,temperature,pressure, &
                                    ONE_INTEGER)
@@ -1550,27 +1551,27 @@ end subroutine ReactionInitializeLogK_hpt
 ! ************************************************************************** !
 
 subroutine ReactionInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
-  ! 
+  !
   ! ReactionInterpolateLogK: Interpolation log K function: temp - temperature [C]
   ! b - fit coefficients determined from fit(...)
-  ! 
+  !
   ! Author: P.C. Lichtner
   ! Date: 02/13/09
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: n
   PetscReal :: coefs(17,n), logKs(n), temp, pres
 
   PetscInt :: i
   PetscReal :: temp_kelvin, tr, pr, logtr
-  
+
   temp_kelvin = temp + 273.15d0
   tr = temp_kelvin/273.15d0
   pr = pres/1.d7
-  logtr = log(tr)/log(10.d0) 
-  
+  logtr = log(tr)/log(10.d0)
+
   do i = 1, n
     logKs(i) = coefs(1,i)                 &
              + coefs(2,i) * tr            &
@@ -1588,7 +1589,7 @@ subroutine ReactionInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
              + coefs(14,i) / pr / tr      &
              + coefs(15,i) * pr * pr      &
              + coefs(16,i) * pr * pr * tr &
-             + coefs(17,i) * pr * pr / tr 
+             + coefs(17,i) * pr * pr / tr
   enddo
  ! print *,'ReactionInterpolateLogK_hpt: ', pres,temp, logKs, coefs
 end subroutine ReactionInterpolateLogK_hpt
@@ -1596,19 +1597,19 @@ end subroutine ReactionInterpolateLogK_hpt
 ! ************************************************************************** !
 
 subroutine ReactionInputRecord(rxn)
-  ! 
-  ! Prints ingested chemistry and reactive transport information to the input 
+  !
+  ! Prints ingested chemistry and reactive transport information to the input
   ! record file.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 04/12/2016
-  ! 
+  !
   use Reaction_Immobile_Aux_module
 
   implicit none
 
   class(reaction_rt_type), pointer :: rxn
-  
+
   type(aq_species_type), pointer :: cur_aq_species
   type(gas_species_type), pointer :: cur_gas_species
   type(immobile_species_type), pointer :: cur_imm_species
@@ -1623,9 +1624,9 @@ subroutine ReactionInputRecord(rxn)
        &-----------------------'
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'CHEMISTRY'
-  
+
   if (.not.associated(rxn)) return
-  
+
 ! --------- primary species list ---------------------------------------------
   if (associated(rxn%primary_species_list)) then
     write(id,'(a29)',advance='no') 'primary species list: '
@@ -1702,30 +1703,30 @@ subroutine ReactionInputRecord(rxn)
     enddo
     write(id,'(a29)') '---------------------------: '
   endif
-  
+
 ! --------- radioactive decay reaction list ----------------------------------
   if (associated(rxn%radioactive_decay_rxn_list)) then
     cur_rad_decay_rxn => rxn%radioactive_decay_rxn_list
     do
       if (.not.associated(cur_rad_decay_rxn)) exit
       write(id,'(a29)',advance='no') 'radioactive decay reaction: '
-      write(id,'(a)') adjustl(trim(cur_rad_decay_rxn%reaction))  
+      write(id,'(a)') adjustl(trim(cur_rad_decay_rxn%reaction))
       write(id,'(a29)',advance='no') 'decay rate: '
       write(word1,*) cur_rad_decay_rxn%rate_constant
       write(id,'(a)') adjustl(trim(word1)) // ' 1/sec'
-      
+
       write(id,'(a29)') '---------------------------: '
       cur_rad_decay_rxn => cur_rad_decay_rxn%next
     enddo
   endif
-  
+
 ! --------- sorption isotherm reaction list ----------------------------------
   if (associated(rxn%isotherm%isotherm_list)) then
     cur_isotherm_rxn => rxn%isotherm%isotherm_list
     do
       if (.not.associated(cur_isotherm_rxn)) exit
       write(id,'(a29)',advance='no') 'sorption, isotherm reaction: '
-      write(id,'(a)') adjustl(trim(cur_isotherm_rxn%species_name))  
+      write(id,'(a)') adjustl(trim(cur_isotherm_rxn%species_name))
       write(id,'(a29)',advance='no') 'type: '
       select case (cur_isotherm_rxn%itype)
         case (SORPTION_LINEAR)
@@ -1734,7 +1735,7 @@ subroutine ReactionInputRecord(rxn)
           write(id,'(a)') 'langmuir sorption'
           write(id,'(a29)',advance='no') 'langmuir b: '
           write(word1,*) cur_isotherm_rxn%Langmuir_B
-          write(id,'(a)') adjustl(trim(word1)) 
+          write(id,'(a)') adjustl(trim(word1))
         case (SORPTION_FREUNDLICH)
           write(id,'(a)') 'freundlich sorption'
           write(id,'(a29)',advance='no') 'freundlich n: '
@@ -1751,29 +1752,107 @@ subroutine ReactionInputRecord(rxn)
       write(id,'(a29)',advance='no') 'distribution coeff. / Kd: '
       write(word1,*) cur_isotherm_rxn%Kd
       write(id,'(a)') adjustl(trim(word1)) // adjustl(trim(word2))
-      
+
       write(id,'(a29)') '---------------------------: '
       cur_isotherm_rxn => cur_isotherm_rxn%next
     enddo
   endif
-  
+
 end subroutine ReactionInputRecord
 
 ! ************************************************************************** !
 
-subroutine SpeciesIndexDestroy(species_idx)
-  ! 
-  ! Deallocates a species index object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/29/10
-  ! 
+subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
+ 
+  ! Reads in a reaction network and parses the stoichiometries and species ids
+
+  ! Authors: Glenn Hammond
+  ! Date: 05/24/22
+
+  use Input_Aux_module
+  use Option_module
+  use Reaction_Database_Aux_module
 
   implicit none
-    
+
+  type(reaction_rt_type) :: reaction
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt, pointer :: spec_ids(:,:)
+  PetscReal, pointer :: stoich(:,:)
+  type(option_type) :: option
+
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: icomp, irxn, nrxn
+  type(database_rxn_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
+
+  input => InputCreate(IUNIT_TEMP,filename,option)
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  nullify(rxn_list)
+  nrxn = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    cur_rxn => DatabaseRxnPtrCreate()
+    string = input%buf
+    cur_rxn%dbaserxn => &
+      DatabaseRxnCreateFromRxnString(string, &
+                                     reaction%naqcomp, &
+                                     reaction%offset_aqueous, &
+                                     reaction%primary_species_names, &
+                                     reaction%nimcomp, &
+                                     reaction%offset_immobile, &
+                                     reaction%immobile%names, &
+                                     PETSC_FALSE,option)
+    if (.not.associated(rxn_list)) then
+      rxn_list => cur_rxn
+    else
+      last_rxn%next => cur_rxn
+    endif
+    last_rxn => cur_rxn
+    nrxn = nrxn + 1
+  enddo
+  call InputPopBlock(input,option)
+  call InputDestroy(input)
+
+  allocate(spec_ids(0:reaction%naqcomp,nrxn))
+  allocate(stoich(reaction%naqcomp,nrxn))
+  spec_ids = 0
+  stoich = 0.d0
+
+  cur_rxn => rxn_list
+  irxn = 0
+  do
+    if (.not.associated(cur_rxn)) exit
+    irxn = irxn + 1
+    spec_ids(0,irxn) = cur_rxn%dbaserxn%nspec
+    spec_ids(1:cur_rxn%dbaserxn%nspec,irxn) = &
+      cur_rxn%dbaserxn%spec_ids(:)
+    stoich(1:cur_rxn%dbaserxn%nspec,irxn) = cur_rxn%dbaserxn%stoich(:)
+    cur_rxn => cur_rxn%next
+  enddo
+
+  call DatabaseRxnPtrDestroy(rxn_list)
+
+end subroutine ReactionNetworkToStoich
+
+! ************************************************************************** !
+
+subroutine SpeciesIndexDestroy(species_idx)
+  !
+  ! Deallocates a species index object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/29/10
+  !
+
+  implicit none
+
   type(species_idx_type), pointer :: species_idx
 
-  if (associated(species_idx)) deallocate(species_idx)  
+  if (associated(species_idx)) deallocate(species_idx)
   nullify(species_idx)
 
 end subroutine SpeciesIndexDestroy
@@ -1781,19 +1860,19 @@ end subroutine SpeciesIndexDestroy
 ! ************************************************************************** !
 
 subroutine AqueousSpeciesDestroy(species)
-  ! 
+  !
   ! Deallocates an aqueous species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/29/08
-  ! 
+  !
 
   implicit none
-    
+
   type(aq_species_type), pointer :: species
 
   if (associated(species%dbaserxn)) call DatabaseRxnDestroy(species%dbaserxn)
-  deallocate(species)  
+  deallocate(species)
   nullify(species)
 
 end subroutine AqueousSpeciesDestroy
@@ -1801,18 +1880,18 @@ end subroutine AqueousSpeciesDestroy
 ! ************************************************************************** !
 
 subroutine AqueousSpeciesListDestroy(aq_species_list)
-  ! 
+  !
   ! Deallocates an aqueous species
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/03/10
-  ! 
+  !
 
   !TODO(geh): make these destructors recursive
   implicit none
-    
-  type(aq_species_type), pointer :: aq_species_list  
-    
+
+  type(aq_species_type), pointer :: aq_species_list
+
   type(aq_species_type), pointer :: species, prev_species
 
   species => aq_species_list
@@ -1821,7 +1900,7 @@ subroutine AqueousSpeciesListDestroy(aq_species_list)
     prev_species => species
     species => species%next
     call AqueousSpeciesDestroy(prev_species)
-  enddo  
+  enddo
   nullify(aq_species_list)
 
 end subroutine AqueousSpeciesListDestroy
@@ -1829,18 +1908,18 @@ end subroutine AqueousSpeciesListDestroy
 ! ************************************************************************** !
 
 subroutine ColloidDestroy(colloid)
-  ! 
+  !
   ! Deallocates a colloid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/24/10
-  ! 
+  !
 
   implicit none
-    
+
   type(colloid_type), pointer :: colloid
 
-  deallocate(colloid)  
+  deallocate(colloid)
   nullify(colloid)
 
 end subroutine ColloidDestroy
@@ -1848,21 +1927,21 @@ end subroutine ColloidDestroy
 ! ************************************************************************** !
 
 subroutine IonExchangeRxnDestroy(ionxrxn)
-  ! 
+  !
   ! Deallocates an ion exchange reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/24/08
-  ! 
+  !
 
   implicit none
-    
+
   type(ion_exchange_rxn_type), pointer :: ionxrxn
-  
+
   type(ion_exchange_cation_type), pointer :: cur_cation, prev_cation
 
   if (.not.associated(ionxrxn)) return
-  
+
   cur_cation => ionxrxn%cation_list
   do
     if (.not.associated(cur_cation)) exit
@@ -1871,10 +1950,10 @@ subroutine IonExchangeRxnDestroy(ionxrxn)
     deallocate(prev_cation)
     nullify(prev_cation)
   enddo
-  
+
   nullify(ionxrxn%next)
 
-  deallocate(ionxrxn)  
+  deallocate(ionxrxn)
   nullify(ionxrxn)
 
 end subroutine IonExchangeRxnDestroy
@@ -1882,25 +1961,25 @@ end subroutine IonExchangeRxnDestroy
 ! ************************************************************************** !
 
 subroutine RadioactiveDecayRxnDestroy(rxn)
-  ! 
+  !
   ! Deallocates a general reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/07/14
-  ! 
+  !
 
   implicit none
-    
+
   type(radioactive_decay_rxn_type), pointer :: rxn
 
   if (.not.associated(rxn)) return
-  
+
   if (associated(rxn%dbaserxn)) &
     call DatabaseRxnDestroy(rxn%dbaserxn)
   nullify(rxn%dbaserxn)
   nullify(rxn%next)
 
-  deallocate(rxn)  
+  deallocate(rxn)
   nullify(rxn)
 
 end subroutine RadioactiveDecayRxnDestroy
@@ -1908,25 +1987,25 @@ end subroutine RadioactiveDecayRxnDestroy
 ! ************************************************************************** !
 
 subroutine GeneralRxnDestroy(rxn)
-  ! 
+  !
   ! Deallocates a general reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/03/10
-  ! 
+  !
 
   implicit none
-    
+
   type(general_rxn_type), pointer :: rxn
 
   if (.not.associated(rxn)) return
-  
+
   if (associated(rxn%dbaserxn)) &
     call DatabaseRxnDestroy(rxn%dbaserxn)
   nullify(rxn%dbaserxn)
   nullify(rxn%next)
 
-  deallocate(rxn)  
+  deallocate(rxn)
   nullify(rxn)
 
 end subroutine GeneralRxnDestroy
@@ -1934,20 +2013,20 @@ end subroutine GeneralRxnDestroy
 ! ************************************************************************** !
 
 subroutine DynamicKDRxnDestroy(rxn)
-  ! 
+  !
   ! Deallocates a dynamic KD reaction
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/21/19
-  ! 
+  !
 
   implicit none
-    
+
   type(dynamic_kd_rxn_type), pointer :: rxn
 
   if (.not.associated(rxn)) return
-  
-  deallocate(rxn)  
+
+  deallocate(rxn)
   nullify(rxn)
 
 end subroutine DynamicKDRxnDestroy
@@ -1955,22 +2034,22 @@ end subroutine DynamicKDRxnDestroy
 ! ************************************************************************** !
 
 subroutine AqueousSpeciesConstraintDestroy(constraint)
-  ! 
+  !
   ! Destroys an aqueous species constraint
   ! object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
-  
+
   implicit none
-  
+
   type(aq_species_constraint_type), pointer :: constraint
-  
+
   if (.not.associated(constraint)) return
-  
+
   call DeallocateArray(constraint%names)
   call DeallocateArray(constraint%constraint_conc)
   call DeallocateArray(constraint%basis_molarity)
@@ -1987,22 +2066,22 @@ end subroutine AqueousSpeciesConstraintDestroy
 ! ************************************************************************** !
 
 subroutine GuessConstraintDestroy(constraint)
-  ! 
+  !
   ! Destroys an aqueous species constraint
   ! object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
-  
+
   implicit none
-  
+
   type(guess_constraint_type), pointer :: constraint
-  
+
   if (.not.associated(constraint)) return
-  
+
   call DeallocateArray(constraint%names)
   call DeallocateArray(constraint%conc)
 
@@ -2014,21 +2093,21 @@ end subroutine GuessConstraintDestroy
 ! ************************************************************************** !
 
 subroutine ColloidConstraintDestroy(constraint)
-  ! 
+  !
   ! Destroys a colloid constraint object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/12/10
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
 
   implicit none
-  
+
   type(colloid_constraint_type), pointer :: constraint
-  
+
   if (.not.associated(constraint)) return
-  
+
   call DeallocateArray(constraint%names)
   call DeallocateArray(constraint%constraint_conc_mob)
   call DeallocateArray(constraint%constraint_conc_imb)
@@ -2043,20 +2122,20 @@ end subroutine ColloidConstraintDestroy
 ! ************************************************************************** !
 
 subroutine ReactionDestroy(reaction,option)
-  ! 
+  !
   ! Deallocates a reaction object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/29/08
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
   use Option_module
-  
+
   implicit none
 
   class(reaction_rt_type), pointer :: reaction
-  
+
   type(aq_species_type), pointer :: aq_species, prev_aq_species
   type(gas_species_type), pointer :: gas_species, prev_gas_species
   type(mineral_rxn_type), pointer :: mineral, prev_mineral
@@ -2072,7 +2151,7 @@ subroutine ReactionDestroy(reaction,option)
   if (.not.associated(reaction)) return
 
   call ReactionBaseStrip(reaction)
-  
+
   !species index
   call SpeciesIndexDestroy(reaction%species_idx)
 
@@ -2085,7 +2164,7 @@ subroutine ReactionDestroy(reaction,option)
   if (associated(reaction%secondary_species_list)) &
     call AqueousSpeciesListDestroy(reaction%secondary_species_list)
   nullify(reaction%secondary_species_list)
-  
+
   ! colloid species
   colloid => reaction%colloid_list
   do
@@ -2093,9 +2172,9 @@ subroutine ReactionDestroy(reaction,option)
     prev_colloid => colloid
     colloid => colloid%next
     call ColloidDestroy(prev_colloid)
-  enddo    
+  enddo
   nullify(reaction%colloid_list)
-  
+
   ! ionx exchange reactions
   ionxrxn => reaction%ion_exchange_rxn_list
   do
@@ -2103,7 +2182,7 @@ subroutine ReactionDestroy(reaction,option)
     prev_ionxrxn => ionxrxn
     ionxrxn => ionxrxn%next
     call IonExchangeRxnDestroy(prev_ionxrxn)
-  enddo    
+  enddo
   nullify(reaction%ion_exchange_rxn_list)
 
   ! radioactive decay reactions
@@ -2113,9 +2192,9 @@ subroutine ReactionDestroy(reaction,option)
     prev_radioactive_decay_rxn => radioactive_decay_rxn
     radioactive_decay_rxn => radioactive_decay_rxn%next
     call RadioactiveDecayRxnDestroy(prev_radioactive_decay_rxn)
-  enddo    
+  enddo
   nullify(reaction%radioactive_decay_rxn_list)
-  
+
   ! general reactions
   general_rxn => reaction%general_rxn_list
   do
@@ -2123,9 +2202,9 @@ subroutine ReactionDestroy(reaction,option)
     prev_general_rxn => general_rxn
     general_rxn => general_rxn%next
     call GeneralRxnDestroy(prev_general_rxn)
-  enddo    
+  enddo
   nullify(reaction%general_rxn_list)
-  
+
   ! dynamic kd reactions
   dynamic_kd_rxn => reaction%dynamic_kd_rxn_list
   do
@@ -2133,23 +2212,23 @@ subroutine ReactionDestroy(reaction,option)
     prev_dynamic_kd_rxn => dynamic_kd_rxn
     dynamic_kd_rxn => dynamic_kd_rxn%next
     call DynamicKDRxnDestroy(prev_dynamic_kd_rxn)
-  enddo    
+  enddo
   nullify(reaction%dynamic_kd_rxn_list)
-  
+
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
   call ImmobileDestroy(reaction%immobile)
   call GasDestroy(reaction%gas)
   call IsothermDestroy(reaction%isotherm,option)
-#ifdef SOLID_SOLUTION  
+#ifdef SOLID_SOLUTION
   call SolidSolutionDestroy(reaction%solid_solution_list)
-#endif  
+#endif
 
   if (associated(reaction%dbase_temperatures)) &
     deallocate(reaction%dbase_temperatures)
-  nullify(reaction%dbase_temperatures)  
-  
+  nullify(reaction%dbase_temperatures)
+
   ! redox species
   if (associated(reaction%redox_species_list)) &
     call AqueousSpeciesListDestroy(reaction%redox_species_list)
@@ -2157,13 +2236,13 @@ subroutine ReactionDestroy(reaction,option)
 
   call GenericParameterDestroy(reaction%aq_diffusion_coefficients)
   call GenericParameterDestroy(reaction%gas_diffusion_coefficients)
-  
+
   call DeallocateArray(reaction%primary_species_names)
   call DeallocateArray(reaction%secondary_species_names)
   call DeallocateArray(reaction%eqcplx_basis_names)
   call DeallocateArray(reaction%colloid_names)
-  call DeallocateArray(reaction%colloid_species_names)  
-  
+  call DeallocateArray(reaction%colloid_species_names)
+
   call DeallocateArray(reaction%primary_species_print)
   call DeallocateArray(reaction%secondary_species_print)
   call DeallocateArray(reaction%eqcplx_basis_print)
@@ -2171,11 +2250,11 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%total_sorb_print)
   call DeallocateArray(reaction%total_sorb_mobile_print)
   call DeallocateArray(reaction%colloid_print)
-  
+
   call DeallocateArray(reaction%primary_spec_a0)
   call DeallocateArray(reaction%primary_spec_Z)
   call DeallocateArray(reaction%primary_spec_molar_wt)
-  
+
   call DeallocateArray(reaction%eqcplxspecid)
   call DeallocateArray(reaction%eqcplxstoich)
   call DeallocateArray(reaction%eqcplxh2oid)
@@ -2185,29 +2264,29 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%eqcplx_molar_wt)
   call DeallocateArray(reaction%eqcplx_logK)
   call DeallocateArray(reaction%eqcplx_logKcoef)
-  
+
   call DeallocateArray(reaction%eqionx_rxn_Z_flag)
   call DeallocateArray(reaction%eqionx_rxn_cation_X_offset)
   call DeallocateArray(reaction%eqionx_rxn_to_surf)
   call DeallocateArray(reaction%eqionx_rxn_CEC)
   call DeallocateArray(reaction%eqionx_rxn_k)
   call DeallocateArray(reaction%eqionx_rxn_cationid)
-  
-#if 0  
+
+#if 0
   call DeallocateArray(reaction%kinionx_CEC)
   call DeallocateArray(reaction%kinionx_k)
   call DeallocateArray(reaction%kinionx_cationid)
 #endif
-  
+
   call DeallocateArray(reaction%pri_spec_to_coll_spec)
   call DeallocateArray(reaction%coll_spec_to_pri_spec)
   call DeallocateArray(reaction%colloid_mobile_fraction)
-  
+
   call DeallocateArray(reaction%radiodecayspecid)
   call DeallocateArray(reaction%radiodecaystoich)
   call DeallocateArray(reaction%radiodecayforwardspecid)
   call DeallocateArray(reaction%radiodecay_kf)
-  
+
   call DeallocateArray(reaction%generalspecid)
   call DeallocateArray(reaction%generalstoich)
   call DeallocateArray(reaction%generalforwardspecid)
@@ -2225,7 +2304,7 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%eqdynamickdlow)
   call DeallocateArray(reaction%eqdynamickdhigh)
   call DeallocateArray(reaction%eqdynamickdpower)
-  
+
   deallocate(reaction)
   nullify(reaction)
 

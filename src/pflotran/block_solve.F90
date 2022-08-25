@@ -3,11 +3,11 @@ module Block_Solve_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   private
-  
+
   public :: bl3dfac, &
             bl3dsolf, &
             bl3dsolb
-      
+
 contains
 
 ! ************************************************************************** !
@@ -17,7 +17,7 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 !       This version of bl3dfac dated March 15, 2000.
 
 ! Modified from bl3dfac.f, bl3dsol.f - Fortran codes of
-! P. Keast, http://www.mscs.dal.ca/ keast/research/pubs.html, 
+! P. Keast, http://www.mscs.dal.ca/ keast/research/pubs.html,
 ! Mathematics and Statistics Department, Dalhousie University, Canada.
 
 !************************************************************************
@@ -39,12 +39,12 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 
 !       The L matrix is NOT unit lower triangular, but the U matrix
 !       is unit UPPER triangular, with the identity matrix on the
-!       diagonal. 
+!       diagonal.
 
 !************************************************************************
 
 !       Uses: Lapack routines dgetrf and dgetrs for Gauss LU factorization
-!       and solution, and the BLAS routine dgemm for matrix-matrix 
+!       and solution, and the BLAS routine dgemm for matrix-matrix
 !       multiplication.
 
 !************************************************************************
@@ -88,7 +88,7 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 ! First, in main blocks 1 to n-1:
 
   trans = 'N'
-        
+
   do j = 1, n-1
 
 !  compute 1-norm: only needed for computing condition nr.
@@ -146,7 +146,7 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
   endif
 
   return
-  
+
 end subroutine bl3dfac
 
 ! ************************************************************************** !
@@ -178,7 +178,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
 
 !************************************************************************
 
-!       Uses: 
+!       Uses:
 
 !************************************************************************
 
@@ -197,18 +197,18 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
 !       n             Integer, the number of blocks.
 !       k             Integer, the size of the blocks.
 !       E(k,k,n-1)    Double precision, the sub-diagonal blocks.
-!       D(k,k,n)      Double precision, the diagonal blocks, after factoring 
+!       D(k,k,n)      Double precision, the diagonal blocks, after factoring
 !                     by bl3dfac.
-!       F(k,k,n-1)    Double precision, the super-diagonal blocks, after 
+!       F(k,k,n-1)    Double precision, the super-diagonal blocks, after
 !                     modification in bl3dfac.
-!       pivot(k,n)    Integer pivot vector returned by bl3dfac, used in 
+!       pivot(k,n)    Integer pivot vector returned by bl3dfac, used in
 !                     factoring the diagonal blocks.
-!                     pivot(1:k,p) records the pivoting done in diagonal 
+!                     pivot(1:k,p) records the pivoting done in diagonal
 !                     block p.
 !       nrhs          integer, the number of right hand sides.
 !       rhs(k,nrhs,n) Double precision, right hand sides. These are stored
-!                     by blocks - that is, the nrhs right hand sides 
-!                     associated with each k by k block are stored 
+!                     by blocks - that is, the nrhs right hand sides
+!                     associated with each k by k block are stored
 !                     consecutively. For example, for n = 3, k = 2 and
 !                     nrhs = 3, the elements of the right hand sides
 !                     are stored in the following order:
@@ -225,7 +225,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
 !       Output:
 
 !       rhs(k,nrhs,n) double precision, the solutions.
-!       
+!
 !       Local variables:
 
         PetscInt :: j, info
@@ -236,7 +236,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
 !       Executable statements.
 
 !************************************************************************
-        
+
 !       Modification of the right hand sides, that is, solve the
 !       block bi-diagonal lower triangular system L.x = b, overwriting
 !       b with the solution.
@@ -244,7 +244,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
         trans = 'N'
 
 
-        if ( trans .eq. 'n' .or. trans .eq. 'N' ) then 
+        if ( trans .eq. 'n' .or. trans .eq. 'N' ) then
 
 !          First, solve D(1).x(1..k) = b(1..k).
            call dgetrs(trans, k, nrhs, D(1,1,1), k, pivot(1,1), &
@@ -255,12 +255,12 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
               return
            endif
 
-!          Then, for j = 2 to n solve 
-!          D(j)x((j-1)*k+1..j*k) = b((j-1)*k+1..j*k) 
+!          Then, for j = 2 to n solve
+!          D(j)x((j-1)*k+1..j*k) = b((j-1)*k+1..j*k)
 !                                - F(j-1)x((j-2)*k+1..(j-1)*k)
 
            do j = 2, n
-           
+
               call dgemm(trans, trans, k, nrhs, k, -one, F(1,1,j-1), k, &
                          rhs(1,1,j-1), k, one, rhs(1,1,j), k)
 
@@ -276,7 +276,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
 !        Now, the back substitution.
 
            do j = n-1,1,-1
-   
+
 !             Form rhs(:,:,j) = rhs(:,:,j) - E(j)*rhs(:,:,j+1)
 
               call dgemm(trans, trans, k, nrhs, k, -one, E(1,1,j), k, &
@@ -308,7 +308,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
             return
          endif
 
-!          For j = n-1 down to 1, solve 
+!          For j = n-1 down to 1, solve
 !          D(j)^T.rhs(:,:,j) = rhs(:,:,j) - F(j)^T.rhs(:,:,j+1)
 
          do j = n-1,1,-1
@@ -327,7 +327,7 @@ subroutine bl3dsol(n, k, E, D, F, pivot, nrhs, rhs)
       endif
 
       return
-      
+
 end subroutine bl3dsol
 
 ! ************************************************************************** !
@@ -359,7 +359,7 @@ subroutine bl3dsolf(n, k, E, D, F, pivot, nrhs, rhs)
 
 !************************************************************************
 
-!       Uses: 
+!       Uses:
 
 !************************************************************************
 
@@ -378,18 +378,18 @@ subroutine bl3dsolf(n, k, E, D, F, pivot, nrhs, rhs)
 !       n             Integer, the number of blocks.
 !       k             Integer, the size of the blocks.
 !       E(k,k,n-1)    Double precision, the sub-diagonal blocks.
-!       D(k,k,n)      Double precision, the diagonal blocks, after factoring 
+!       D(k,k,n)      Double precision, the diagonal blocks, after factoring
 !                     by bl3dfac.
-!       F(k,k,n-1)    Double precision, the super-diagonal blocks, after 
+!       F(k,k,n-1)    Double precision, the super-diagonal blocks, after
 !                     modification in bl3dfac.
-!       pivot(k,n)    Integer pivot vector returned by bl3dfac, used in 
+!       pivot(k,n)    Integer pivot vector returned by bl3dfac, used in
 !                     factoring the diagonal blocks.
-!                     pivot(1:k,p) records the pivoting done in diagonal 
+!                     pivot(1:k,p) records the pivoting done in diagonal
 !                     block p.
 !       nrhs          integer, the number of right hand sides.
 !       rhs(k,nrhs,n) Double precision, right hand sides. These are stored
-!                     by blocks - that is, the nrhs right hand sides 
-!                     associated with each k by k block are stored 
+!                     by blocks - that is, the nrhs right hand sides
+!                     associated with each k by k block are stored
 !                     consecutively. For example, for n = 3, k = 2 and
 !                     nrhs = 3, the elements of the right hand sides
 !                     are stored in the following order:
@@ -406,7 +406,7 @@ subroutine bl3dsolf(n, k, E, D, F, pivot, nrhs, rhs)
 !       Output:
 
 !       rhs(k,nrhs,n) double precision, the solutions.
-!       
+!
 !       Local variables:
 
         PetscInt :: j, info
@@ -417,7 +417,7 @@ subroutine bl3dsolf(n, k, E, D, F, pivot, nrhs, rhs)
 !       Executable statements.
 
 !************************************************************************
-        
+
 !       Modification of the right hand sides, that is, solve the
 !       block bi-diagonal lower triangular system L.x = b, overwriting
 !       b with the solution.
@@ -425,7 +425,7 @@ subroutine bl3dsolf(n, k, E, D, F, pivot, nrhs, rhs)
           trans = 'N'
 
 
-!       if ( trans .eq. 'n' .or. trans .eq. 'N' ) then 
+!       if ( trans .eq. 'n' .or. trans .eq. 'N' ) then
 
 !          First, solve D(1).x(1..k) = b(1..k).
            call dgetrs(trans, k, nrhs, D(1,1,1), k, pivot(1,1), &
@@ -436,12 +436,12 @@ subroutine bl3dsolf(n, k, E, D, F, pivot, nrhs, rhs)
               return
            endif
 
-!          Then, for j = 2 to n solve 
-!          D(j)x((j-1)*k+1..j*k) = b((j-1)*k+1..j*k) 
+!          Then, for j = 2 to n solve
+!          D(j)x((j-1)*k+1..j*k) = b((j-1)*k+1..j*k)
 !                                - F(j-1)x((j-2)*k+1..(j-1)*k)
 
            do j = 2, n
-           
+
               call dgemm(trans, trans, k, nrhs, k, -one, F(1,1,j-1), k, &
                          rhs(1,1,j-1), k, one, rhs(1,1,j), k)
 
@@ -487,7 +487,7 @@ subroutine bl3dsolb(n, k, E, D, F, pivot, nrhs, rhs)
 
 !************************************************************************
 
-!       Uses: 
+!       Uses:
 
 !************************************************************************
 
@@ -506,18 +506,18 @@ subroutine bl3dsolb(n, k, E, D, F, pivot, nrhs, rhs)
 !       n             Integer, the number of blocks.
 !       k             Integer, the size of the blocks.
 !       E(k,k,n-1)    Double precision, the sub-diagonal blocks.
-!       D(k,k,n)      Double precision, the diagonal blocks, after factoring 
+!       D(k,k,n)      Double precision, the diagonal blocks, after factoring
 !                     by bl3dfac.
-!       F(k,k,n-1)    Double precision, the super-diagonal blocks, after 
+!       F(k,k,n-1)    Double precision, the super-diagonal blocks, after
 !                     modification in bl3dfac.
-!       pivot(k,n)    Integer pivot vector returned by bl3dfac, used in 
+!       pivot(k,n)    Integer pivot vector returned by bl3dfac, used in
 !                     factoring the diagonal blocks.
-!                     pivot(1:k,p) records the pivoting done in diagonal 
+!                     pivot(1:k,p) records the pivoting done in diagonal
 !                     block p.
 !       nrhs          integer, the number of right hand sides.
 !       rhs(k,nrhs,n) Double precision, right hand sides. These are stored
-!                     by blocks - that is, the nrhs right hand sides 
-!                     associated with each k by k block are stored 
+!                     by blocks - that is, the nrhs right hand sides
+!                     associated with each k by k block are stored
 !                     consecutively. For example, for n = 3, k = 2 and
 !                     nrhs = 3, the elements of the right hand sides
 !                     are stored in the following order:
@@ -534,7 +534,7 @@ subroutine bl3dsolb(n, k, E, D, F, pivot, nrhs, rhs)
 !       Output:
 
 !       rhs(k,nrhs,n) double precision, the solutions.
-!       
+!
 !       Local variables:
 
         PetscInt :: j !, info
@@ -545,7 +545,7 @@ subroutine bl3dsolb(n, k, E, D, F, pivot, nrhs, rhs)
 !        Now, the back substitution.
 
            do j = n-1,1,-1
-   
+
 !             Form rhs(:,:,j) = rhs(:,:,j) - E(j)*rhs(:,:,j+1)
 
               call dgemm(trans, trans, k, nrhs, k, -one, E(1,1,j), k, &
@@ -560,4 +560,4 @@ end subroutine bl3dsolb
 
 !************************ END OF bl3dsol ********************************
 end module Block_Solve_module
-  
+

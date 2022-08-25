@@ -13,13 +13,13 @@ module Simulation_Geomechanics_class
   use PFLOTRAN_Constants_module
   use Waypoint_module
   use Simulation_Aux_module
-  use Output_Aux_module 
+  use Output_Aux_module
   use Utility_module, only : Equal
-  
+
   implicit none
 
   private
-  
+
   type, public, extends(simulation_subsurface_type) :: &
     simulation_geomechanics_type
     ! pointer to geomechanics coupler
@@ -34,21 +34,21 @@ module Simulation_Geomechanics_class
     procedure, public :: FinalizeRun => GeomechanicsSimulationFinalizeRun
     procedure, public :: Strip => GeomechanicsSimulationStrip
   end type simulation_geomechanics_type
-  
+
   public :: GeomechanicsSimulationCreate, &
             GeomechanicsSimulationDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function GeomechanicsSimulationCreate(driver,option)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
   use Driver_module
   use Option_module
 
@@ -69,13 +69,13 @@ end function GeomechanicsSimulationCreate
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimulationInit(this,driver,option)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! Modified: Satish Karra, 06/01/2016
-  ! 
+  !
   use Waypoint_module
   use Driver_module
   use Option_module
@@ -96,12 +96,12 @@ end subroutine GeomechanicsSimulationInit
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimulationInitializeRun(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
   use Output_module
   use PMC_Geomechanics_class
@@ -123,21 +123,21 @@ end subroutine GeomechanicsSimulationInitializeRun
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  ! 
+  !
   use Output_module
-  
+
   implicit none
-  
+
   class(simulation_geomechanics_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
- 
+
   write(id,'(a29)',advance='no') 'simulation type: '
   write(id,'(a)') 'geomechanics'
 
@@ -149,20 +149,20 @@ end subroutine GeomechanicsSimInputRecord
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimulationExecuteRun(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
   use Waypoint_module
   use Timestepper_Base_class, only : TS_CONTINUE
 
   implicit none
-  
+
   class(simulation_geomechanics_type) :: this
-  
+
   PetscReal :: time
   PetscReal :: final_time
   PetscReal :: dt
@@ -197,7 +197,7 @@ subroutine GeomechanicsSimulationExecuteRun(this)
         call this%RunToTime(time)
 
         if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
- 
+
         if (time >= final_time) exit
       enddo
     endif
@@ -209,9 +209,9 @@ end subroutine GeomechanicsSimulationExecuteRun
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimulationFinalizeRun(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! Modified by Satish Karra, 06/22/16
@@ -250,49 +250,49 @@ end subroutine GeomechanicsSimulationFinalizeRun
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimulationStrip(this)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! Modified by Satish Karra, 06/01/16
-  ! 
+  !
 
   implicit none
-  
+
   class(simulation_geomechanics_type) :: this
-  
+
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
-  
+
   call SimSubsurfStrip(this)
   call GeomechanicsRegressionDestroy(this%geomech_regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
   call WaypointListDestroy(this%waypoint_list_geomechanics)
-   
+
 end subroutine GeomechanicsSimulationStrip
 
 ! ************************************************************************** !
 
 subroutine GeomechanicsSimulationDestroy(simulation)
-  ! 
+  !
   ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
   implicit none
-  
+
   class(simulation_geomechanics_type), pointer :: simulation
-  
+
   call PrintMsg(simulation%option,'GeomehanicsSimulationDestroy()')
-  
+
   if (.not.associated(simulation)) return
-  
+
   call simulation%Strip()
   deallocate(simulation)
   nullify(simulation)
-  
+
 end subroutine GeomechanicsSimulationDestroy
 
 end module Simulation_Geomechanics_class

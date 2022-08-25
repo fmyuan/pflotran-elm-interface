@@ -57,6 +57,7 @@ mode_process_model_obj = \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
+	${common_src}pm_inversion.o \
 	${common_src}pm_wipp_flow.o \
 	${common_src}pm_mphase.o \
 	${common_src}pm_nwt.o \
@@ -70,9 +71,11 @@ mode_process_model_obj = \
 	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
 	${common_src}pm_waste_form.o \
+	${common_src}pm_well.o \
 	${common_src}pm_wipp_srcsink.o \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}pm_zflow.o \
+	${common_src}pm_material_transform.o \
 
 mode_obj = \
 	${common_src}general.o \
@@ -130,11 +133,13 @@ chem_obj = \
 	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
+	${common_src}reaction_sandbox_calcite.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_biohill.o \
 	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
+	${common_src}reaction_sandbox_pnnl_lambda.o \
 	${common_src}reaction_sandbox_gas.o \
 	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_bioTH.o \
@@ -171,6 +176,7 @@ relations_obj = \
 	${common_src}characteristic_curves_common.o \
 	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_thermal.o \
+	${common_src}material_transform.o \
 	${common_src}characteristic_curves_loop_invariant.o \
 	${common_src}characteristic_curves_wipp_invariant.o \
 	${common_src}mphase_pckr_mod.o
@@ -198,6 +204,7 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
+    ${common_src}output_obs_h5.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
@@ -235,7 +242,7 @@ misc_obj = \
 	${common_src}inversion_base.o \
 	${common_src}inversion_ert.o \
 	${common_src}inversion_measurement_aux.o \
-	${common_src}inversion_perturbation.o \
+	${common_src}inversion_parameter.o \
 	${common_src}inversion_subsurface.o \
 	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
@@ -243,8 +250,8 @@ misc_obj = \
 	${common_src}matrix_buffer.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
-	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
+	${common_src}pmc_general.o \
 	${common_src}pmc_linear.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_subsurface_osrt.o \

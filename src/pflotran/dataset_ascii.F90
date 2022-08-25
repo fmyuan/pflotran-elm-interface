@@ -1,10 +1,10 @@
 module Dataset_Ascii_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use Dataset_Base_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -14,7 +14,7 @@ module Dataset_Ascii_class
   type, public, extends(dataset_base_type) :: dataset_ascii_type
     PetscInt :: array_width
   end type dataset_ascii_type
-  
+
   public :: DatasetAsciiCreate, &
             DatasetAsciiInit, &
             DatasetAsciiVerify, &
@@ -26,50 +26,50 @@ module Dataset_Ascii_class
             DatasetAsciiPrint, &
             DatasetAsciiStrip, &
             DatasetAsciiDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function DatasetAsciiCreate()
-  ! 
+  !
   ! Creates ascii dataset class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(dataset_ascii_type), pointer :: dataset
 
   class(dataset_ascii_type), pointer :: DatasetAsciiCreate
-  
+
   allocate(dataset)
   call DatasetAsciiInit(dataset)
 
   DatasetAsciiCreate => dataset
-    
+
 end function DatasetAsciiCreate
 
 ! ************************************************************************** !
 
 function DatasetAsciiCast(this)
-  ! 
+  !
   ! Casts a dataset_base_type to database_ascii_type
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
+  !
 
   use Dataset_Base_class
-  
+
   implicit none
 
   class(dataset_base_type), pointer :: this
 
   class(dataset_ascii_type), pointer :: DatasetAsciiCast
-  
+
   nullify(DatasetAsciiCast)
   if (.not.associated(this)) return
   select type (this)
@@ -78,53 +78,53 @@ function DatasetAsciiCast(this)
     class default
       !geh: have default here to pass a null pointer if not of type ascii
   end select
-    
+
 end function DatasetAsciiCast
 
 ! ************************************************************************** !
 
 subroutine DatasetAsciiInit(this)
-  ! 
+  !
   ! Initializes members of ascii dataset class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(dataset_ascii_type) :: this
-  
+
   call DatasetBaseInit(this)
   this%array_width = 0
-    
+
 end subroutine DatasetAsciiInit
 
 ! ************************************************************************** !
 
 subroutine DatasetAsciiReadFile(this,filename,data_external_units, &
                                 data_internal_units,error_string,option)
-  ! 
+  !
   ! Opens a file and calls the load routine.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
+  !
 
   use Input_Aux_module
   use Option_module
-  
+
   implicit none
-  
+
   class(dataset_ascii_type) :: this
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=*) :: data_external_units
   character(len=*) :: data_internal_units
   character(len=*) :: error_string
   type(option_type) :: option
-  
+
   type(input_type), pointer :: input
-  
+
   input => InputCreate(IUNIT_TEMP,filename,option)
   call DatasetAsciiReadList(this,input,data_external_units, &
                             data_internal_units,error_string,option)
@@ -136,22 +136,22 @@ end subroutine DatasetAsciiReadFile
 
 subroutine DatasetAsciiReadList(this,input,data_external_units, &
                                 data_internal_units,error_string,option)
-  ! 
+  !
   ! Reads a text-based dataset from an ASCII file.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
+  !
 
   use Input_Aux_module
   use String_module
   use Utility_module, only : ReallocateArray
   use Option_module
   use Units_module, only : UnitsConvertToInternal
-  use Time_Storage_module  
+  use Time_Storage_module
 
   implicit none
-  
+
   class(dataset_ascii_type) :: this
   type(input_type), pointer :: input
   character(len=*) :: data_external_units
@@ -161,7 +161,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
 
   character(len=MAXWORDLENGTH) :: time_units
   character(len=MAXSTRINGLENGTH) :: string, data_units
-  character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:) 
+  character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:)
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscReal, pointer :: temp_array(:,:)
   PetscReal :: temp_time
@@ -172,12 +172,12 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   PetscBool :: force_units_for_all_data
   PetscBool :: is_cyclic
   PetscErrorCode :: ierr
-  
+
   time_units = ''
   data_units = ''
   is_cyclic = PETSC_FALSE
   max_size = 1000
-  
+
   internal_data_units_strings => StringSplit(data_internal_units,',')
 
   row_count = 0
@@ -216,12 +216,12 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
           call InputReadWord(string,word,PETSC_TRUE,ierr)
           call InputPushCard(input,word,option)
           input%ierr = ierr
-          call InputErrorMsg(input,option,'INTERPOLATION',error_string)   
+          call InputErrorMsg(input,option,'INTERPOLATION',error_string)
           call StringToUpper(word)
           select case(word)
             case('STEP')
               default_interpolation_method = INTERPOLATION_STEP
-            case('LINEAR') 
+            case('LINEAR')
               default_interpolation_method = INTERPOLATION_LINEAR
             case default
               error_string = trim(error_string) // 'INTERPOLATION'
@@ -236,15 +236,27 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
             call InputErrorMsg(input,option,'DATA_UNITS',error_string)
           endif
           cycle
+        case('TIME_UNIT','DATA_UNIT')
+          option%io_buffer = 'Incorrect card "' // trim(word) // &
+            '" in ascii dataset read.'
+          select case(word)
+            case('TIME_UNIT')
+              word = 'TIME_UNITS'
+            case('DATA_UNIT')
+              word = 'DATA_UNITS'
+          end select
+          option%io_buffer = trim(option%io_buffer) // ' Use "' // &
+            trim(word) // '".'
+          call PrintErrMsg(option)
         case default
-          ! copy the first row of actual data and count up the number of 
+          ! copy the first row of actual data and count up the number of
           ! columns.
           string = input%buf
           column_count = 0
           do
             ierr = 0
             call InputReadWord(string,word,PETSC_TRUE,ierr)
-            if (ierr /= 0) exit   
+            if (ierr /= 0) exit
             column_count = column_count + 1
           enddo
           ! allocate the 2d array to max_size rows and col_count columns.
@@ -255,27 +267,27 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
     endif
 
     row_count = row_count + 1
-    
+
     ! read columns of data, including the time in the first column
     do i = 1, column_count
       call InputReadDouble(input,option,temp_array(i,row_count))
-      call InputErrorMsg(input,option,'column data','ascii dataset file') 
+      call InputErrorMsg(input,option,'column data','ascii dataset file')
     enddo
-    
+
     ! enlarge the array as needed.
     if (row_count+1 > max_size) then
-      call ReallocateArray(temp_array,max_size) 
-    endif  
+      call ReallocateArray(temp_array,max_size)
+    endif
   enddo
   call InputPopBlock(input,option)
-  
+
   if (row_count == 0) then
     option%io_buffer = 'No values provided in Ascii Dataset.'
     call PrintErrMsg(option)
   else if (row_count == 1) then
     default_interpolation_method = INTERPOLATION_STEP
   endif
-  
+
   this%data_type = DATASET_REAL
   this%rank = 2
   allocate(this%dims(this%rank))
@@ -289,7 +301,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   this%time_storage%times = temp_array(1,1:row_count)
   allocate(this%rbuffer(data_count*row_count))
   this%rbuffer = 0.d0 ! we copy after units conversion for efficiency sake
-  
+
   ! time units conversion
   if (len_trim(time_units) > 0) then
     internal_units = 'sec'
@@ -310,7 +322,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         ! the conditional immediately below will force 'conversion' to be
         ! calculated for each column. if a unit does not exist, the input
         ! error below will be spawned.
-        if (i > 1) force_units_for_all_data = PETSC_TRUE 
+        if (i > 1) force_units_for_all_data = PETSC_TRUE
         ierr = 0
         call InputReadWord(data_units,word,PETSC_TRUE,ierr)
         input%ierr = ierr
@@ -333,7 +345,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
       temp_array(2:column_count,i)
     offset = offset + data_count
   enddo
-  
+
   deallocate(temp_array)
   nullify(temp_array)
 
@@ -360,7 +372,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
 
   deallocate(internal_data_units_strings)
   nullify(internal_data_units_strings)
-  
+
   if (default_interpolation_method /= INTERPOLATION_NULL) then
     this%time_storage%time_interpolation_method = default_interpolation_method
   endif
@@ -371,12 +383,12 @@ end subroutine DatasetAsciiReadList
 
 subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
                                   data_internal_units,error_string,option)
-  ! 
+  !
   ! Reads single line dataset with no time data into ascii dataset.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/15/18
-  ! 
+  !
 
   use Input_Aux_module
   use String_module
@@ -384,7 +396,7 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
   use Units_module, only : UnitsConvertToInternal
 
   implicit none
-  
+
   class(dataset_ascii_type) :: this
   type(input_type), pointer :: input
   character(len=*) :: data_external_units
@@ -394,8 +406,8 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
-  character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:) 
-  character(len=MAXSTRINGLENGTH), pointer :: external_data_units_strings(:) 
+  character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:)
+  character(len=MAXSTRINGLENGTH), pointer :: external_data_units_strings(:)
   PetscInt :: icol
 
   nullify(external_data_units_strings)
@@ -453,23 +465,23 @@ end subroutine DatasetAsciiReadSingle
 ! ************************************************************************** !
 
 subroutine DatasetAsciiUpdate(this,option)
-  ! 
+  !
   ! Updates an ascii dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/08/13
-  ! 
+  !
 
   use Option_module
   use Time_Storage_module
-  
+
   implicit none
-  
+
   class(dataset_ascii_type) :: this
   type(option_type) :: option
-  
+
   if (.not. associated(this%time_storage)) return
-  
+
   call TimeStorageUpdate(this%time_storage)
   call DatasetBaseInterpolateTime(this)
 
@@ -478,18 +490,18 @@ end subroutine DatasetAsciiUpdate
 ! ************************************************************************** !
 
 subroutine DatasetAsciiVerify(this,dataset_error,option)
-  ! 
+  !
   ! Verifies that data structure is properly set up.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/08/13
-  ! 
-  
+  !
+
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   class(dataset_ascii_type) :: this
   PetscBool :: dataset_error
   type(option_type) :: option
@@ -508,69 +520,69 @@ subroutine DatasetAsciiVerify(this,dataset_error,option)
     ! set initial values
     this%rarray(:) = this%rbuffer(1:this%array_width)
   endif
-    
+
 end subroutine DatasetAsciiVerify
 
 ! ************************************************************************** !
 
 subroutine DatasetAsciiPrint(this,option)
-  ! 
+  !
   ! Prints dataset info
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(dataset_ascii_type) :: this
   type(option_type) :: option
-  
+
   write(option%fid_out,'(10x,''Array Rank: '',i2)') this%array_width
-  
+
 end subroutine DatasetAsciiPrint
 
 ! ************************************************************************** !
 
 subroutine DatasetAsciiStrip(this)
-  ! 
+  !
   ! Strips allocated objects within Ascii dataset object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
+  !
 
   implicit none
-  
+
   class(dataset_ascii_type) :: this
-  
+
   call DatasetBaseStrip(this)
-  
+
 end subroutine DatasetAsciiStrip
 
 ! ************************************************************************** !
 
 subroutine DatasetAsciiDestroy(this)
-  ! 
+  !
   ! Destroys a dataset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13
-  ! 
+  !
 
   implicit none
-  
+
   class(dataset_ascii_type), pointer :: this
-  
+
   if (.not.associated(this)) return
-  
+
   call DatasetAsciiStrip(this)
-  
+
   deallocate(this)
   nullify(this)
-  
+
 end subroutine DatasetAsciiDestroy
 
 end module Dataset_Ascii_class

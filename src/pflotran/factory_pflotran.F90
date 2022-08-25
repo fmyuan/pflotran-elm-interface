@@ -195,14 +195,14 @@ subroutine FactoryPFLOTRANFinalize(driver)
 
   PetscErrorCode :: ierr
 
-  call MPI_Barrier(driver%comm%global_comm,ierr)
+  call MPI_Barrier(driver%comm%global_comm,ierr);CHKERRQ(ierr)
   call LoggingDestroy() ! can only be called once, even for mult-realization
   call HDF5Finalize()
-  call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                            '-options_left','no',ierr);CHKERRQ(ierr)
+  call PetscOptionsSetValue(PETSC_NULL_OPTIONS,'-options_left','no', &
+                            ierr);CHKERRQ(ierr)
   ! list any PETSc objects that have not been freed - for debugging
-  call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                            '-objects_left','yes',ierr);CHKERRQ(ierr)
+  call PetscOptionsSetValue(PETSC_NULL_OPTIONS,'-objects_left','yes', &
+                            ierr);CHKERRQ(ierr)
   call PetscFinalize(ierr);CHKERRQ(ierr)
 
 end subroutine FactoryPFLOTRANFinalize

@@ -9,7 +9,7 @@ module PM_Subsurface_Flow_class
   use Realization_Subsurface_class
   use Communicator_Base_class
   use Option_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -68,7 +68,7 @@ module PM_Subsurface_Flow_class
     procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
-  
+
   public :: PMSubsurfaceFlowInit, &
             PMSubsurfaceFlowSetup, &
             PMSubsurfaceFlowInitializeTimestepA, &
@@ -89,22 +89,22 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowReadTSSelectCase, &
             PMSubsurfaceFlowReadNewtonSelectCase, &
             PMSubsurfaceFlowDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInit(this)
-  ! 
+  !
   ! Intializes shared members of subsurface process models
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   call PMBaseInit(this)
   nullify(this%realization)
   nullify(this%comm1)
@@ -113,7 +113,7 @@ subroutine PMSubsurfaceFlowInit(this)
   this%check_post_convergence = PETSC_FALSE
   this%revert_parameters_on_restart = PETSC_FALSE
   this%replace_init_params_on_restart = PETSC_FALSE
-  
+
   ! defaults
   this%max_pressure_change = 0.d0
   this%max_temperature_change = 0.d0
@@ -136,10 +136,10 @@ end subroutine PMSubsurfaceFlowInit
 
 subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                          error_string,option)
-  ! 
-  ! Reads input file parameters associated with the subsurface flow process 
+  !
+  ! Reads input file parameters associated with the subsurface flow process
   ! model. SC stands for "select case"
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/05/16
 
@@ -147,9 +147,9 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
   use String_module
   use Option_module
   use Upwind_Direction_module
- 
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
   type(input_type) :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -172,7 +172,7 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
     case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
+      option%use_sc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')
       this%replace_init_params_on_restart = PETSC_TRUE
     case('REVERT_PARAMETERS_ON_RESTART')
@@ -184,17 +184,17 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
-  end select  
-  
+  end select
+
 end subroutine PMSubsurfFlowReadSimOptionsSC
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
                                             error_string,option)
-  ! 
+  !
   ! Read timestepper settings specific to this process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
 
@@ -202,9 +202,9 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
   use String_module
   use Option_module
   use Upwind_Direction_module
- 
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -218,7 +218,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-  
+
     case('PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -226,7 +226,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
     case('TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
-  
+
     case('CONCENTRATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%xmol_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -238,20 +238,20 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
-
+      
     case default
       found = PETSC_FALSE
-  end select  
-  
+  end select
+
 end subroutine PMSubsurfaceFlowReadTSSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
                                                 error_string,option)
-  ! 
+  !
   ! Read Newton solver tolerances specific to this process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/09/20
 
@@ -259,15 +259,16 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
   use String_module
   use Option_module
   use Upwind_Direction_module
- 
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
   type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: keyword, word
   PetscBool :: found
-  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: error_string, string
   type(option_type), pointer :: option
+  PetscErrorCode :: ierr
 
 !  found = PETSC_FALSE
 !  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
@@ -275,7 +276,7 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-  
+
     case('PRESSURE_DAMPENING_FACTOR')
       call InputReadDouble(input,option,this%pressure_dampening_factor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -283,11 +284,11 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
     case('SATURATION_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%saturation_change_limit)
       call InputErrorMsg(input,option,keyword,error_string)
-                           
+
     case('PRESSURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%pressure_change_limit)
       call InputErrorMsg(input,option,keyword,error_string)
-                           
+
     case('TEMPERATURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%temperature_change_limit)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -307,16 +308,16 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case default
       found = PETSC_FALSE
-  end select  
-  
+  end select
+
 end subroutine PMSubsurfaceFlowReadNewtonSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowSetup(this)
-  ! 
+  !
   ! Initializes variables associated with subsurface process models
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
@@ -329,9 +330,9 @@ subroutine PMSubsurfaceFlowSetup(this)
   use Option_module
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   PetscErrorCode :: ierr
   class(characteristic_curves_type), pointer :: cur_cc
 
@@ -352,7 +353,7 @@ subroutine PMSubsurfaceFlowSetup(this)
       this%store_porosity_for_transport = PETSC_TRUE
     endif
   endif
-  
+
   ! check on WIPP_type characteristic curves against simulation mode
   !TODO(geh): move this code into a lower wipp-specific module
   if (this%option%iflowmode /= WF_MODE) then   ! 10 = twophase_mode
@@ -380,41 +381,47 @@ subroutine PMSubsurfaceFlowSetup(this)
       cur_cc => cur_cc%next
     enddo
   endif
-  
+
 end subroutine PMSubsurfaceFlowSetup
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowSetRealization(this,realization)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Realization_Subsurface_class
+  use Option_module
   use Grid_module
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
   class(realization_subsurface_type), pointer :: realization
-  
+
   this%realization => realization
   this%realization_base => realization
 
-  this%solution_vec = realization%field%flow_xx
+  ! scale pressures down to the range near saturation (0 to 1)
+  if (this%option%flow%scale_all_pressure) then 
+    this%solution_vec = realization%field%flow_scaled_xx
+  else
+    this%solution_vec = realization%field%flow_xx
+  endif
   this%residual_vec = realization%field%flow_r
-  
+
 end subroutine PMSubsurfaceFlowSetRealization
 
 ! ************************************************************************** !
 
 recursive subroutine PMSubsurfaceFlowInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
   ! Extended in pm_general only with theseo operations occuring last
-  ! 
+  !
   ! Author: Glenn Hammond
-  ! Date: 04/21/14 
+  ! Date: 04/21/14
   use Condition_Control_module
   use Material_module
   use Variables_module, only : POROSITY
@@ -424,7 +431,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Utility_module, only : Equal
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
   PetscBool :: update_initial_porosity
 
@@ -446,7 +453,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
                                     this%realization%field%porosity0)
     endif
   endif
-  
+
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
   if (associated(this%realization%reaction)) then
@@ -468,7 +475,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
                                  POROSITY,POROSITY_INITIAL)
     if (.not.this%realization%option%restart_flag .or. &
         this%revert_parameters_on_restart) then
-      ! POROSITY_BASE should not be updated to porosity0 if we are 
+      ! POROSITY_BASE should not be updated to porosity0 if we are
       ! restarting unless the revert_parameters on restart flag is true.
       call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                    this%realization%field%work_loc, &
@@ -478,7 +485,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
 
   call this%PreSolve()
   call this%UpdateAuxVars()
-  call this%UpdateSolution() 
+  call this%UpdateSolution()
 
   ! ensure that time step size was set to zero
   if (.not.Equal(this%option%flow_dt,0.d0)) then
@@ -492,12 +499,12 @@ end subroutine PMSubsurfaceFlowInitializeRun
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
-  ! 
+  !
   ! Deallocates a realization
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/06/16
-  ! 
+  !
   use Realization_Subsurface_class
   use Realization_Base_class
   use Patch_module
@@ -510,8 +517,8 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Fracture_module
-  use Variables_module, only : MAXIMUM_PRESSURE, LIQUID_PRESSURE, & 
-                      SOIL_REFERENCE_PRESSURE 
+  use Variables_module, only : MAXIMUM_PRESSURE, LIQUID_PRESSURE, &
+                      SOIL_REFERENCE_PRESSURE
 
   implicit none
 
@@ -543,7 +550,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   dataset_vec = PETSC_NULL_VEC
 
   if (option%iflowmode == PNF_MODE) return
-  
+
   if (option%iflowmode == WF_MODE) then
     call RealizationGetVariable(realization,realization%field%work, &
                                 LIQUID_PRESSURE,ZERO_INTEGER)
@@ -551,13 +558,13 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
     call RealizationGetVariable(realization,realization%field%work, &
                                 MAXIMUM_PRESSURE,ZERO_INTEGER)
   endif
-  
+
   call DiscretizationGlobalToLocal(realization%discretization, &
                                    realization%field%work, &
                                    realization%field%work_loc, &
                                    ONEDOF)
   call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
-                          ierr); CHKERRQ(ierr)
+                          ierr);CHKERRQ(ierr)
 
   ref_pres_set_by_initial = PETSC_FALSE
   ! read in any user-defined property fields
@@ -571,7 +578,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
                                            realization%field%work_loc, &
                                            dataset_vec)
       endif
-      call VecZeroEntries(realization%field%work,ierr)
+      call VecZeroEntries(realization%field%work,ierr);CHKERRQ(ierr)
       vec_int_ptr = dataset_vec
       select type(dataset => material_property%soil_reference_pressure_dataset)
         class is(dataset_gridded_hdf5_type)
@@ -600,7 +607,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
     else
       cycle
     endif
-    call VecGetArrayReadF90(vec_int_ptr,vec_loc_p,ierr); CHKERRQ(ierr)
+    call VecGetArrayReadF90(vec_int_ptr,vec_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax
       if (patch%imat(ghosted_id) /= material_property%internal_id) cycle
       if (associated(material_auxvars(ghosted_id)%fracture)) then
@@ -611,7 +618,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
                                   SOIL_REFERENCE_PRESSURE, &
                                   vec_loc_p(ghosted_id))
     enddo
-    call VecRestoreArrayReadF90(vec_int_ptr,vec_loc_p,ierr); CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(vec_int_ptr,vec_loc_p,ierr);CHKERRQ(ierr)
   enddo
 
   if (ref_pres_set_by_initial .and. option%time > 0.d0) then
@@ -630,7 +637,7 @@ end subroutine PMSubsurfaceFlowSetSoilRefPres
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInitializeTimestepA(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
@@ -639,9 +646,9 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
                                PERMEABILITY_Y, PERMEABILITY_Z
   use Material_module
   use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
-  
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
 
   this%option%flow_dt = this%option%dt
@@ -662,7 +669,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
                                  POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_base_store)
-                                 
+
   endif
 
 
@@ -671,7 +678,7 @@ end subroutine PMSubsurfaceFlowInitializeTimestepA
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInitializeTimestepB(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
@@ -680,9 +687,9 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
                                PERMEABILITY_Y, PERMEABILITY_Z
   use Material_module
   use Material_Aux_module, only : POROSITY_CURRENT, POROSITY_BASE
-  
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
   PetscViewer :: viewer
   PetscErrorCode :: ierr
@@ -697,8 +704,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
       call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                     this%realization%field%porosity_t)
     endif
-  endif 
-  
+  endif
+
   ! update porosity for time t+dt
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%update_porosity .or. &
@@ -716,7 +723,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
     call this%comm1%GlobalToLocal(this%realization%field% &
                                     porosity_geomech_store, &
                                   this%realization%field%work_loc)
-    ! push values to porosity_base, which will overwrite anything due to 
+    ! push values to porosity_base, which will overwrite anything due to
     ! reaction above
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
@@ -724,8 +731,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
 
 #ifdef GEOMECH_DEBUG
     call PetscViewerASCIIOpen(PETSC_COMM_SELF, &
-                              'porosity_geomech_store_timestep.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+                              'porosity_geomech_store_timestep.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(this%realization%field%porosity_geomech_store,viewer, &
                  ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -738,18 +745,30 @@ end subroutine PMSubsurfaceFlowInitializeTimestepB
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowPreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Global_module
   use Data_Mediator_module
+  use Option_module
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
 
-  this%norm_history = 0.d0
+  PetscErrorCode :: ierr
+  PetscReal :: inverse_factor
+
+  if (this%option%flow%scale_all_pressure) then
+    call VecCopy(this%realization%field%flow_xx, &
+                 this%realization%field%flow_scaled_xx,ierr);CHKERRQ(ierr)
+    inverse_factor = this%option%flow%pressure_scaling_factor**(-1.d0)
+    call VecStrideScale(this%realization%field%flow_scaled_xx,ZERO_INTEGER, &
+                        inverse_factor, ierr);CHKERRQ(ierr)
+  endif 
+
+  this%norm_history = 0.d0  
   call DataMediatorUpdate(this%realization%flow_data_mediator_list, &
                           this%realization%field%flow_mass_transfer, &
                           this%realization%option)
@@ -759,19 +778,19 @@ end subroutine PMSubsurfaceFlowPreSolve
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowPostSolve(this)
-  ! 
+  !
   ! PMSubsurfaceFlowUpdatePostSolve:
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   this%option%io_buffer = 'PMSubsurfaceFlowPostSolve() must be extended.'
   call PrintErrMsg(this%option)
-  
+
 end subroutine PMSubsurfaceFlowPostSolve
 
 ! ************************************************************************** !
@@ -780,7 +799,7 @@ subroutine PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm, &
                                             fnorm,reason,ierr)
   ! Author: Glenn Hammond
   ! Date: 11/15/17
-  ! 
+  !
   use Convergence_module
 
   implicit none
@@ -825,40 +844,40 @@ subroutine PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm, &
       call PrintWrnMsg(this%option)
     endif
   endif
-  
+
 end subroutine PMSubsurfaceFlowCheckConvergence
 
 ! ************************************************************************** !
 
 function PMSubsurfaceFlowAcceptSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   PetscBool :: PMSubsurfaceFlowAcceptSolution
-  
+
   ! do nothing
   PMSubsurfaceFlowAcceptSolution = PETSC_TRUE
-  
+
 end function PMSubsurfaceFlowAcceptSolution
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowUpdatePropertiesNI(this)
-  ! 
+  !
   ! Updates parameters/properties at each Newton iteration
   !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   call RealizationUpdatePropertiesNI(this%realization)
 
 end subroutine PMSubsurfaceFlowUpdatePropertiesNI
@@ -866,22 +885,22 @@ end subroutine PMSubsurfaceFlowUpdatePropertiesNI
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
-  ! Date: 04/21/14 
+  ! Date: 04/21/14
   use Material_module
   use Variables_module, only : POROSITY
   use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
-  
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   PetscErrorCode :: ierr
-  
+
   this%option%flow_dt = this%option%dt
-  call VecCopy(this%realization%field%flow_yy, &
-               this%realization%field%flow_xx,ierr);CHKERRQ(ierr)
+  call VecCopy(this%realization%field%flow_yy,this%realization%field%flow_xx, &
+               ierr);CHKERRQ(ierr)
   if (this%store_porosity_for_transport) then
     ! store base properties for reverting at time step cut
     call this%comm1%GlobalToLocal(this%realization%field%porosity_base_store, &
@@ -889,7 +908,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc,POROSITY, &
                                  POROSITY_BASE)
-  endif            
+  endif
   if (this%option%ngeomechdof > 0) then
     !TODO(geh): merge with above since they both set POROSITY_BASE?
     call this%comm1%GlobalToLocal(this%realization%field%porosity_base_store, &
@@ -897,7 +916,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc,POROSITY, &
                                  POROSITY_BASE)
- endif 
+ endif
 
 
 end subroutine PMSubsurfaceFlowTimeCut
@@ -905,21 +924,21 @@ end subroutine PMSubsurfaceFlowTimeCut
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowTimeCutPostInit(this)
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 08/23/17
   use Material_module
   use Variables_module, only : POROSITY
   use Material_Aux_module, only : POROSITY_BASE
-  
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   PetscErrorCode :: ierr
-  
+
   this%option%flow_dt = this%option%dt
-           
+
   if (this%option%ngeomechdof > 0) then
     call this%comm1%GlobalToLocal(this%realization%field% &
                                     porosity_geomech_store, &
@@ -927,14 +946,14 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc,POROSITY, &
                                  POROSITY_BASE)
- endif 
+ endif
 
 end subroutine PMSubsurfaceFlowTimeCutPostInit
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowFinalizeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
   use Material_module
@@ -943,10 +962,10 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
   use Material_Aux_module, only : POROSITY_CURRENT
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
 
-  if (this%option%ntrandof > 0) then 
+  if (this%option%ntrandof > 0) then
     ! store final saturations, etc. for transport
     call GlobalUpdateAuxVars(this%realization,TIME_TpDT,this%option%time)
     if (this%store_porosity_for_transport) then
@@ -956,17 +975,17 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
                                    POROSITY_CURRENT)
       call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                     this%realization%field%porosity_tpdt)
-    endif    
+    endif
   endif
-  
+
   call this%MaxChange()
-  
+
 end subroutine PMSubsurfaceFlowFinalizeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowUpdateSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
@@ -975,15 +994,15 @@ subroutine PMSubsurfaceFlowUpdateSolution(this)
   use SrcSink_Sandbox_module
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   PetscBool :: force_update_flag = PETSC_FALSE
   PetscErrorCode :: ierr
 
-  call VecCopy(this%realization%field%flow_xx, &
-               this%realization%field%flow_yy,ierr);CHKERRQ(ierr)
-  
+  call VecCopy(this%realization%field%flow_xx,this%realization%field%flow_yy, &
+               ierr);CHKERRQ(ierr)
+
   ! begin from RealizationUpdate()
   call FlowConditionUpdate(this%realization%flow_conditions, &
                            this%realization%option)
@@ -1002,30 +1021,30 @@ subroutine PMSubsurfaceFlowUpdateSolution(this)
   endif
   ! end from RealizationUpdate()
 
-end subroutine PMSubsurfaceFlowUpdateSolution  
+end subroutine PMSubsurfaceFlowUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
 
   this%option%io_buffer = 'PMSubsurfaceFlowUpdateAuxVars() must be extended.'
   call PrintErrMsg(this%option)
 
-end subroutine PMSubsurfaceFlowUpdateAuxVars   
+end subroutine PMSubsurfaceFlowUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowCheckpointBinary(this,viewer)
-  ! 
+  !
   ! Checkpoints data associated with Subsurface PM
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
@@ -1035,17 +1054,17 @@ subroutine PMSubsurfaceFlowCheckpointBinary(this,viewer)
 
   class(pm_subsurface_flow_type) :: this
   PetscViewer :: viewer
-  
-  call CheckpointFlowProcessModelBinary(viewer,this%realization) 
-  
+
+  call CheckpointFlowProcessModelBinary(viewer,this%realization)
+
 end subroutine PMSubsurfaceFlowCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
-  ! 
+  !
   ! Restarts data associated with Subsurface PM
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
   use Checkpoint_module
@@ -1054,10 +1073,10 @@ subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
 
   class(pm_subsurface_flow_type) :: this
   PetscViewer :: viewer
-  
+
   call RestartFlowProcessModelBinary(viewer,this%realization)
   call PMSubsurfaceFlowRestartUpdate(this)
-  
+
 end subroutine PMSubsurfaceFlowRestartBinary
 
 ! ************************************************************************** !
@@ -1106,9 +1125,9 @@ end subroutine PMSubsurfaceFlowRestartHDF5
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowRestartUpdate(this)
-  ! 
+  !
   ! Performs revert, replace, etc, after restart has been loaded
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/31/19
 
@@ -1138,39 +1157,39 @@ end subroutine PMSubsurfaceFlowRestartUpdate
 ! ************************************************************************** !
 
 recursive subroutine PMSubsurfaceFlowFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Upwind_Direction_module
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   ! do something here
   call UpwindDirectionPrintStats(this%option)
-  
+
   if (associated(this%next)) then
     call this%next%FinalizeRun()
-  endif  
-  
+  endif
+
 end subroutine PMSubsurfaceFlowFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -1186,21 +1205,21 @@ end subroutine PMSubsurfaceFlowInputRecord
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowDestroy(this)
-  ! 
+  !
   ! Destroys Subsurface process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   implicit none
-  
+
   class(pm_subsurface_flow_type) :: this
-  
+
   call PMBaseDestroy(this)
   ! destroyed in realization
   nullify(this%realization)
   nullify(this%comm1)
-  
+
 end subroutine PMSubsurfaceFlowDestroy
-  
+
 end module PM_Subsurface_Flow_class

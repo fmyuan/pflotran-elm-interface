@@ -5,13 +5,13 @@ module Strata_module
 
   use Region_module
   use Material_module
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
- 
+
   type, public :: strata_type
     PetscInt :: id                                       ! id of strata
     PetscBool :: active
@@ -25,26 +25,28 @@ module Strata_module
     type(region_type), pointer :: region                ! pointer to region in region array/list
     PetscReal :: start_time
     PetscReal :: final_time
+    PetscBool :: well
     type(strata_type), pointer :: next            ! pointer to next strata
   end type strata_type
-  
+
   type, public :: strata_ptr_type
     type(strata_type), pointer :: ptr
   end type strata_ptr_type
-    
+
   type, public :: strata_list_type
     PetscInt :: num_strata
     type(strata_type), pointer :: first
     type(strata_type), pointer :: last
-    type(strata_ptr_type), pointer :: array(:)    
+    type(strata_ptr_type), pointer :: array(:)
   end type strata_list_type
-  
+
   interface StrataCreate
     module procedure StrataCreate1
     module procedure StrataCreateFromStrata
   end interface
-  
+
   public :: StrataCreate, &
+            StrataCreateFromStrata, &
             StrataDestroy, &
             StrataInitList, &
             StrataAddToList, &
@@ -53,24 +55,24 @@ module Strata_module
             StrataEvolves, &
             StrataInputRecord, &
             StrataDestroyList
-  
+
 contains
 
 ! ************************************************************************** !
 
 function StrataCreate1()
-  ! 
+  !
   ! Creates a strata
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
   implicit none
 
   type(strata_type), pointer :: StrataCreate1
-  
+
   type(strata_type), pointer :: strata
-  
+
   allocate(strata)
   strata%id = 0
   strata%active = PETSC_TRUE
@@ -82,10 +84,11 @@ function StrataCreate1()
   strata%imaterial_property = 0
   strata%start_time = UNINITIALIZED_DOUBLE
   strata%final_time = UNINITIALIZED_DOUBLE
+  strata%well = PETSC_FALSE
   nullify(strata%region)
   nullify(strata%material_property)
   nullify(strata%next)
-  
+
   StrataCreate1 => strata
 
 end function StrataCreate1
@@ -93,12 +96,12 @@ end function StrataCreate1
 ! ************************************************************************** !
 
 function StrataCreateFromStrata(strata)
-  ! 
+  !
   ! Creates a strata
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
 
@@ -106,9 +109,9 @@ function StrataCreateFromStrata(strata)
   type(strata_type), pointer :: strata
 
   type(strata_type), pointer :: new_strata
-  
+
   new_strata => StrataCreate1()
-  
+
   new_strata%id = strata%id
   new_strata%active = strata%active
   new_strata%material_property_name = strata%material_property_name
@@ -118,11 +121,12 @@ function StrataCreateFromStrata(strata)
   new_strata%iregion = strata%iregion
   new_strata%start_time = strata%start_time
   new_strata%final_time = strata%final_time
+  new_strata%well = strata%well
   ! keep these null
   nullify(new_strata%region)
   nullify(new_strata%material_property)
   nullify(new_strata%next)
-  
+
   StrataCreateFromStrata => new_strata
 
 end function StrataCreateFromStrata
@@ -130,17 +134,17 @@ end function StrataCreateFromStrata
 ! ************************************************************************** !
 
 subroutine StrataInitList(list)
-  ! 
+  !
   ! Initializes a strata list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
 
   implicit none
 
   type(strata_list_type) :: list
-  
+
   nullify(list%first)
   nullify(list%last)
   nullify(list%array)
@@ -151,23 +155,23 @@ end subroutine StrataInitList
 ! ************************************************************************** !
 
 subroutine StrataRead(strata,input,option)
-  ! 
+  !
   ! Reads a strata from the input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
   use Input_Aux_module
   use Option_module
   use String_module
   use Units_module
-  
+
   implicit none
-  
+
   type(strata_type) :: strata
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -176,16 +180,16 @@ subroutine StrataRead(strata,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
-    
-    if (InputCheckExit(input,option)) exit  
+
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','STRATA')   
-      
+    call InputErrorMsg(input,option,'keyword','STRATA')
+
     select case(trim(keyword))
-    
+
       case('FILE')
         call InputReadFilename(input,option,strata%material_property_filename)
         call InputErrorMsg(input,option,'material property filename','STRATA')
@@ -218,12 +222,14 @@ subroutine StrataRead(strata,input,option)
           strata%final_time = strata%final_time * &
                        UnitsConvertToInternal(word,internal_units,option)
         endif
+      case('WELL')
+        strata%well = PETSC_TRUE
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(input,keyword,'STRATA',option)
-    end select 
-  
+    end select
+
   enddo
   call InputPopBlock(input,option)
 
@@ -235,7 +241,7 @@ subroutine StrataRead(strata,input,option)
       &to read material IDs from a file.'
     call PrintErrMsg(option)
   endif
-  
+
   if ((Initialized(strata%start_time) .and. &
        Uninitialized(strata%final_time)) .or. &
       (Uninitialized(strata%start_time) .and. &
@@ -248,76 +254,76 @@ subroutine StrataRead(strata,input,option)
   if (Initialized(strata%start_time)) then
     option%flow%transient_porosity = PETSC_TRUE
   endif
-  
+
 end subroutine StrataRead
 
 ! ************************************************************************** !
 
 subroutine StrataAddToList(new_strata,list)
-  ! 
+  !
   ! Adds a new strata to a strata list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
 
   implicit none
-  
+
   type(strata_type), pointer :: new_strata
   type(strata_list_type) :: list
-  
+
   list%num_strata = list%num_strata + 1
   new_strata%id = list%num_strata
   if (.not.associated(list%first)) list%first => new_strata
   if (associated(list%last)) list%last%next => new_strata
   list%last => new_strata
-  
+
 end subroutine StrataAddToList
 
 ! ************************************************************************** !
 
 function StrataWithinTimePeriod(strata,time)
-  ! 
+  !
   ! Determines whether the strata is defined for the time specified.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/14
-  ! 
+  !
   implicit none
 
   type(strata_type) :: strata
   PetscReal :: time
-  
+
   PetscBool :: StrataWithinTimePeriod
-  
+
   StrataWithinTimePeriod = PETSC_TRUE
   if (Initialized(strata%start_time)) then
     StrataWithinTimePeriod = (time >= strata%start_time - 1.d0 .and. &
                               time < strata%final_time - 1.d0)
   endif
-  
+
 end function StrataWithinTimePeriod
 
 ! ************************************************************************** !
 
 function StrataEvolves(strata_list)
-  ! 
+  !
   ! Determines whether the strata is defined for the time specified.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/14
-  ! 
+  !
   implicit none
 
   type(strata_list_type) :: strata_list
-  
+
   type(strata_type), pointer :: strata
 
   PetscBool :: StrataEvolves
-  
+
   StrataEvolves = PETSC_FALSE
   strata => strata_list%first
-  do 
+  do
     if (.not.associated(strata)) exit
     if (Initialized(strata%start_time) .or. Initialized(strata%final_time)) then
       StrataEvolves = PETSC_TRUE
@@ -325,23 +331,23 @@ function StrataEvolves(strata_list)
     endif
     strata => strata%next
   enddo
-  
+
 end function StrataEvolves
 
 ! **************************************************************************** !
 
 subroutine StrataInputRecord(strata_list)
-  ! 
+  !
   ! Prints ingested strata information to the input record file
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 04/07/2016
-  ! 
+  !
 
   implicit none
 
   type(strata_list_type), pointer :: strata_list
-  
+
   type(strata_type), pointer :: cur_strata
   character(len=MAXWORDLENGTH) :: word1, word2
   character(len=MAXSTRINGLENGTH) :: string
@@ -352,36 +358,36 @@ subroutine StrataInputRecord(strata_list)
                   &-----------------------'
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'STRATA'
-  
+
   cur_strata => strata_list%first
   do
     if (.not.associated(cur_strata)) exit
-    
+
     write(id,'(a29)',advance='no') 'strata material name: '
     write(id,'(a)') adjustl(trim(cur_strata%material_property_name))
-    
+
     if (len_trim(cur_strata%material_property_filename) > 0) then
       write(id,'(a29)',advance='no') 'from file: '
-      write(id,'(a)') adjustl(trim(cur_strata%material_property_filename)) 
+      write(id,'(a)') adjustl(trim(cur_strata%material_property_filename))
     endif
-    
+
     write(id,'(a29)',advance='no') 'associated region name: '
     write(id,'(a)') adjustl(trim(cur_strata%region_name))
-    
+
     write(id,'(a29)',advance='no') 'strata is: '
     if (cur_strata%active) then
       write(id,'(a)') 'active'
     else
       write(id,'(a)') 'inactive'
     endif
-    
+
     write(id,'(a29)',advance='no') 'realization-dependent: '
     if (cur_strata%realization_dependent) then
       write(id,'(a)') 'TRUE'
     else
       write(id,'(a)') 'FALSE'
     endif
-    
+
     if (initialized(cur_strata%start_time)) then
       write(id,'(a29)',advance='no') 'start time: '
       write(word1,*) cur_strata%start_time
@@ -390,44 +396,44 @@ subroutine StrataInputRecord(strata_list)
       write(word1,*) cur_strata%final_time
       write(id,'(a)') adjustl(trim(word1)) // ' sec'
     endif
-    
+
     write(id,'(a29)') '---------------------------: '
     cur_strata => cur_strata%next
   enddo
-  
+
 end subroutine StrataInputRecord
 
 ! ************************************************************************** !
 
 subroutine StrataDestroyList(strata_list)
-  ! 
+  !
   ! Deallocates a list of stratas
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
 
   implicit none
-  
+
   type(strata_list_type), pointer :: strata_list
-  
+
   type(strata_type), pointer :: strata, prev_strata
-  
-  
+
+
   strata => strata_list%first
-  do 
+  do
     if (.not.associated(strata)) exit
     prev_strata => strata
     strata => strata%next
     call StrataDestroy(prev_strata)
   enddo
-  
+
   strata_list%num_strata = 0
   nullify(strata_list%first)
   nullify(strata_list%last)
   if (associated(strata_list%array)) deallocate(strata_list%array)
   nullify(strata_list%array)
-  
+
   deallocate(strata_list)
   nullify(strata_list)
 
@@ -436,23 +442,23 @@ end subroutine StrataDestroyList
 ! ************************************************************************** !
 
 subroutine StrataDestroy(strata)
-  ! 
+  !
   ! Destroys a strata
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
-  
+
   type(strata_type), pointer :: strata
-  
+
   if (.not.associated(strata)) return
-  
+
   ! since strata%region is a pointer to a region in a list, nullify instead
   ! of destroying since the list will be destroyed separately
   nullify(strata%region)
-  
+
   deallocate(strata)
   nullify(strata)
 

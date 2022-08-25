@@ -1,11 +1,11 @@
 module Petsc_Utility_module
 
- ! Wrapper routines for simplifying the interface between PFLOTRAN and 
+ ! Wrapper routines for simplifying the interface between PFLOTRAN and
  ! PETSc
 
 #include "petsc/finclude/petscmat.h"
   use petscmat
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -14,7 +14,7 @@ module Petsc_Utility_module
 
   public :: PetUtilMatSVBL, &
             PetUtilVecSVBL
- 
+
 contains
 
 ! ************************************************************************** !

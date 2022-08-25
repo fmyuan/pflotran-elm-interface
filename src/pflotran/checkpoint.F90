@@ -6,7 +6,7 @@ module Checkpoint_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
 
   type :: checkpoint_header_type
@@ -72,7 +72,7 @@ function CheckpointFilename(append_name, option)
   !
   ! Author: Gautam Bisht, LBNL
   ! Date: 07/30/15
-  ! 
+  !
 
   use Option_module
   use String_module, only : StringNull
@@ -98,7 +98,7 @@ function CheckpointAppendNameAtTime(checkpoint_option,time,option)
   !
   ! Author: Jenn Frederick
   ! Date: 1/29/2016
-  ! 
+  !
 
   use Output_Aux_module
   use Units_module
@@ -120,7 +120,7 @@ function CheckpointAppendNameAtTime(checkpoint_option,time,option)
   write(word,'(f15.4)') temp_time
   CheckpointAppendNameAtTime = '-' // trim(adjustl(word)) // &
                              trim(adjustl(checkpoint_option%tunit))
-    
+
 end function CheckpointAppendNameAtTime
 
 ! ************************************************************************** !
@@ -131,7 +131,7 @@ function CheckpointAppendNameAtTimestep(checkpoint_option,timestep,option)
   !
   ! Author: Jenn Frederick
   ! Date: 1/29/2016
-  ! 
+  !
 
   use Output_Aux_module
   use Units_module
@@ -142,7 +142,7 @@ function CheckpointAppendNameAtTimestep(checkpoint_option,timestep,option)
   type(checkpoint_option_type) :: checkpoint_option
   PetscInt :: timestep
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: CheckpointAppendNameAtTimestep
   character(len=MAXWORDLENGTH) :: word
 
@@ -154,12 +154,12 @@ end function CheckpointAppendNameAtTimestep
 ! ************************************************************************** !
 
 subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
-  ! 
+  !
   ! Opens checkpoint file; sets format
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/26/13
-  ! 
+  !
   use Option_module
 
   implicit none
@@ -174,7 +174,7 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   filename = CheckpointFilename(append_name,option)
   filename = trim(filename) // '.chk'
 
-  !geh: To skip .info file, need to split PetscViewerBinaryOpen() 
+  !geh: To skip .info file, need to split PetscViewerBinaryOpen()
   !     into the routines it calls so that PetscViewerBinarySkipInfo()
   !     can be called after PetscViewerSetType(), but before
   !     PetscViewerFileSetName().  See note in PETSc docs.
@@ -185,7 +185,7 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   call PetscViewerFileSetMode(viewer,FILE_MODE_WRITE,ierr);CHKERRQ(ierr)
   call PetscViewerBinarySkipInfo(viewer,ierr);CHKERRQ(ierr)
   call PetscViewerFileSetName(viewer,filename,ierr);CHKERRQ(ierr)
-  
+
   option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
   call PrintMsg(option)
 
@@ -194,10 +194,10 @@ end subroutine CheckpointOpenFileForWriteBinary
 ! ************************************************************************** !
 
 subroutine CheckPointWriteCompatibilityBinary(viewer,option)
-  ! 
+  !
   ! Writes a PetscBag holding the version number and the size of a
   ! complex extended class to ensure that the size of the class matches.
-  ! The purpose of this test is to catch incompatibility.  
+  ! The purpose of this test is to catch incompatibility.
   !
   ! Technically, the BagSize should be 8 * the number of objects (int, real,
   ! etc.).  If we use 4 for PetscInt, the size is incorrect (due to padding
@@ -209,13 +209,13 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   ! class(whatever_type), pointer :: header
   ! type(whatever_type) :: dummy_header
   ! character(len=1),pointer :: dummy_char(:)
-  ! PetscSizeT :: bagsize = size(transfer(dummy_header,dummy_char)) 
-  ! 
+  ! PetscSizeT :: bagsize = size(transfer(dummy_header,dummy_char))
+  !
   ! Author: Glenn Hammond
   ! Date: 003/26/15
-  ! 
+  !
   use Option_module
-  
+
   implicit none
 
   PetscViewer :: viewer
@@ -235,10 +235,10 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%version,0, &
-                           "checkpoint_version","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%test_header_size,0, &
-                           "test_header_size","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%version,0,"checkpoint_version","", &
+                           ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%test_header_size,0,"test_header_size", &
+                           "",ierr);CHKERRQ(ierr)
   header%version = CHECKPOINT_REVISION_NUMBER
   header%test_header_size = size(transfer(test_header,dummy_char))
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
@@ -249,10 +249,10 @@ end subroutine CheckPointWriteCompatibilityBinary
 ! ************************************************************************** !
 
 subroutine CheckPointReadCompatibilityBinary(viewer,option)
-  ! 
+  !
   ! Reads in a PetscBag holding the version number and the size of a
   ! complex extended class to ensure that the size of the class matches.
-  ! The purpose of this test is to catch incompatibility.  
+  ! The purpose of this test is to catch incompatibility.
   !
   ! Technically, the BagSize should be 8 * the number of objects (int, real,
   ! etc.).  If we use 4 for PetscInt, the size is incorrect (due to padding
@@ -262,13 +262,13 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   ! class(whatever_type), pointer :: header
   ! type(whatever_type) :: dummy_header
   ! character(len=1),pointer :: dummy_char(:)
-  ! PetscSizeT :: bagsize = size(transfer(dummy_header,dummy_char)) 
-  ! 
+  ! PetscSizeT :: bagsize = size(transfer(dummy_header,dummy_char))
+  !
   ! Author: Glenn Hammond
   ! Date: 003/26/15
-  ! 
+  !
   use Option_module
-  
+
   implicit none
 
   PetscViewer :: viewer
@@ -290,10 +290,10 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%version,0, &
-                           "checkpoint_version","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%test_header_size,0, &
-                           "test_header_size","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%version,0,"checkpoint_version","", &
+                           ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%test_header_size,0,"test_header_size", &
+                           "",ierr);CHKERRQ(ierr)
   call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
 
   ! check compatibility
@@ -305,7 +305,7 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
       trim(adjustl(word2)) // ').'
     call PrintErrMsg(option)
   endif
-  
+
   temp_int = size(transfer(test_header,dummy_char))
   if (header%test_header_size /= temp_int) then
     write(word,*) header%test_header_size
@@ -323,12 +323,12 @@ end subroutine CheckPointReadCompatibilityBinary
 ! ************************************************************************** !
 
 subroutine CheckpointFlowProcessModelBinary(viewer,realization)
-  ! 
+  !
   ! Checkpoints flow process model vectors
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/26/13
-  ! 
+  !
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -339,7 +339,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
-  
+
   implicit none
 
   PetscViewer :: viewer
@@ -351,24 +351,24 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   Vec :: global_vec
-  
+
   option => realization%option
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
-  
+
   global_vec = PETSC_NULL_VEC
-  
+
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                     global_vec,GLOBAL,option)
-    ! grid%flow_xx is the vector into which all of the primary variables are 
+    ! grid%flow_xx is the vector into which all of the primary variables are
     ! packed for the SNESSolve().
-    call VecView(field%flow_xx, viewer, ierr);CHKERRQ(ierr)
+    call VecView(field%flow_xx,viewer,ierr);CHKERRQ(ierr)
 
 
-    ! If we are running with multiple phases, we need to dump the vector 
-    ! that indicates what phases are present, as well as the 'var' vector 
+    ! If we are running with multiple phases, we need to dump the vector
+    ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
@@ -379,11 +379,11 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
         call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-    end select 
+        call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+    end select
 
     ! Porosity and permeability.
-    ! (We only write diagonal terms of the permeability tensor for now, 
+    ! (We only write diagonal terms of the permeability tensor for now,
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
                                   field%work_loc,POROSITY,POROSITY_BASE)
@@ -405,25 +405,25 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                       global_vec,ONEDOF)
     call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
-  
+
   endif
-  
+
   if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-  endif  
-  
+  endif
+
 end subroutine CheckpointFlowProcessModelBinary
 
 ! ************************************************************************** !
 
 subroutine RestartFlowProcessModelBinary(viewer,realization)
-  ! 
+  !
   ! Restarts flow process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/26/13
-  ! 
-      
+  !
+
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -434,7 +434,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
-  
+
   implicit none
 
   PetscViewer :: viewer
@@ -446,14 +446,14 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   Vec :: global_vec
-  
+
   option => realization%option
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
-  
+
   global_vec = PETSC_NULL_VEC
-  
+
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                     global_vec,GLOBAL,option)
@@ -472,7 +472,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
         call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
                                    ZERO_INTEGER)
     end select
-    
+
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
@@ -494,11 +494,11 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
                                   field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
   endif
-  
+
   if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-  endif  
-  
+  endif
+
 end subroutine RestartFlowProcessModelBinary
 
 ! ************************************************************************** !
@@ -597,11 +597,11 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   !
   ! Author: Gautam Bisht
   ! Date: 07/30/15
-  ! 
+  !
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
-  
+
   implicit none
 
   integer(HID_T) :: chk_grp_id
@@ -621,7 +621,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   PetscErrorCode :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: data_int_array(:)
 
@@ -680,11 +680,11 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   !
   ! Author: Gautam Bisht
   ! Date: 07/30/15
-  ! 
+  !
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
-  
+
   implicit none
 
   integer(HID_T) :: chk_grp_id
@@ -760,11 +760,11 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   !
   ! Author: Gautam Bisht
   ! Date: 08/16/15
-  ! 
+  !
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
-  
+
   implicit none
 
 
@@ -785,7 +785,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   PetscErrorCode :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: data_int_array(:)
 
@@ -834,11 +834,11 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   !
   ! Author: Gautam Bisht
   ! Date: 08/16/15
-  ! 
+  !
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
-  
+
   implicit none
 
   integer(HID_T) :: chk_grp_id
@@ -920,7 +920,7 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
 
@@ -975,7 +975,7 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   character(len=MAXWORDLENGTH) :: word, word2
@@ -996,7 +996,7 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
 
   call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
        dims, start, length, stride, int_array, option)
-  
+
   if (int_array(1) /= CHECKPOINT_REVISION_NUMBER) then
     write(word,*) int_array(1)
     write(word2,*) CHECKPOINT_REVISION_NUMBER
@@ -1067,7 +1067,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     dataset_name = "Primary_Variables" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
          pm_grp_id, H5T_NATIVE_DOUBLE)
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL,option)
@@ -1133,8 +1133,8 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
                                              pm_grp_id, H5T_NATIVE_DOUBLE)
 
-    call VecDestroy(global_vec, ierr);CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine CheckpointFlowProcessModelHDF5
@@ -1195,8 +1195,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
                                      field%flow_xx_loc,NFLOWDOF)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
-    
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL,option)
@@ -1263,8 +1263,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
                                  field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
 
-    call VecDestroy(global_vec, ierr);CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr);CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine RestartFlowProcessModelHDF5
@@ -1272,12 +1272,12 @@ end subroutine RestartFlowProcessModelHDF5
 ! ************************************************************************** !
 
 subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
-  ! 
+  !
   ! Reads the CHECKPOINT card in an input file.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 01/29/2016
-  !  
+  !
 
   use Option_module
   use Input_Aux_module
@@ -1292,7 +1292,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   type(option_type) :: option
   type(checkpoint_option_type), pointer :: checkpoint_option
   type(waypoint_list_type) :: waypoint_list
-  
+
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: temp_string
@@ -1309,7 +1309,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   if (.not.associated(checkpoint_option)) then
     checkpoint_option => CheckpointOptionCreate()
   endif
-  
+
   format_binary = PETSC_FALSE
   format_hdf5 = PETSC_FALSE
   default_time_units = ''
@@ -1379,11 +1379,11 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
           call InputReadDouble(input,option,temp_real)
           if (input%ierr /= 0) exit
           call InputErrorMsg(input,option,'checkpoint time', &
-                              'CHECKPOINT,TIMES') 
+                              'CHECKPOINT,TIMES')
           waypoint => WaypointCreate()
           waypoint%time = temp_real * units_conversion
           waypoint%print_checkpoint = PETSC_TRUE
-          call WaypointInsertInList(waypoint,waypoint_list)     
+          call WaypointInsertInList(waypoint,waypoint_list)
         enddo
 #endif
       case ('FORMAT')
@@ -1426,19 +1426,19 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   else ! default
     checkpoint_option%format = CHECKPOINT_BINARY
   endif
-  
+
 end subroutine CheckpointRead
 
 ! ************************************************************************** !
 
 subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
                                            option)
-  ! 
+  !
   ! Inserts periodic time waypoints into list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/03/16
-  !  
+  !
 
   use Option_module
   use Waypoint_module
@@ -1456,7 +1456,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
   PetscReal :: temp_real
   PetscReal :: num_waypoints, warning_num_waypoints
   PetscInt :: k
-  
+
   final_time = WaypointListGetFinalTime(waypoint_list)
   warning_num_waypoints = 15000.0
 
@@ -1465,7 +1465,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
       &Send your input deck to pflotran-dev.'
     call PrintMsg(option)
   endif
-  
+
   ! add waypoints for periodic checkpoint
   if (associated(checkpoint_option)) then
     if (Initialized(checkpoint_option%periodic_time_incr)) then
@@ -1497,16 +1497,16 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
   endif
 
 end subroutine CheckpointPeriodicTimeWaypoints
-  
+
 ! ************************************************************************** !
 
 subroutine CheckpointInputRecord(checkpoint_option,waypoint_list)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  !  
+  !
   use Output_Aux_module
   use Waypoint_module
 
@@ -1514,7 +1514,7 @@ subroutine CheckpointInputRecord(checkpoint_option,waypoint_list)
 
   type(checkpoint_option_type), pointer :: checkpoint_option
   type(waypoint_list_type), pointer :: waypoint_list
-  
+
   type(waypoint_type), pointer :: cur_waypoint
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
@@ -1572,7 +1572,7 @@ subroutine CheckpointInputRecord(checkpoint_option,waypoint_list)
   else
     write(id,'(a)') 'OFF'
   endif
-  
+
 end subroutine CheckpointInputRecord
 
 end module Checkpoint_module

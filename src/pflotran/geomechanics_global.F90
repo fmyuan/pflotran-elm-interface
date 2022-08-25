@@ -8,7 +8,7 @@ module Geomechanics_Global_module
   implicit none
 
   private
-  
+
   public :: GeomechGlobalSetup, &
             GeomechGlobalSetAuxVarScalar, &
             GeomechGlobalSetAuxVarVecLoc, &
@@ -19,34 +19,34 @@ contains
 ! ************************************************************************** !
 
 subroutine GeomechGlobalSetup(geomech_realization)
-  ! 
+  !
   ! Set up global aux vars in a realization
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
-  
+
   implicit none
 
   class(realization_geomech_type) :: geomech_realization
-  
+
   ! There is only one patch in each realization
   call GeomechGlobalSetupPatch(geomech_realization)
-  
+
 end subroutine GeomechGlobalSetup
 
 ! ************************************************************************** !
 
 subroutine GeomechGlobalSetupPatch(geomech_realization)
-  ! 
+  !
   ! Strips a geomech global auxvar
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
@@ -54,9 +54,9 @@ subroutine GeomechGlobalSetupPatch(geomech_realization)
   use Geomechanics_Coupler_module
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
- 
+
   implicit none
-  
+
   class(realization_geomech_type) :: geomech_realization
 
   type(option_type), pointer :: option
@@ -68,31 +68,31 @@ subroutine GeomechGlobalSetupPatch(geomech_realization)
   PetscInt :: ghosted_id
   type(geomech_global_auxvar_type), pointer :: aux_vars(:)
   PetscInt :: ivertex
-  
+
   option => geomech_realization%option
   patch => geomech_realization%geomech_patch
   grid => patch%geomech_grid
 
   patch%geomech_aux%GeomechGlobal => GeomechGlobalAuxCreate()
-  
+
   allocate(aux_vars(grid%ngmax_node))
   do ghosted_id = 1, grid%ngmax_node
     call GeomechGlobalAuxVarInit(aux_vars(ghosted_id),option)
   enddo
   patch%geomech_aux%GeomechGlobal%aux_vars => aux_vars
   patch%geomech_aux%GeomechGlobal%num_aux = grid%ngmax_node
-   
+
 end subroutine GeomechGlobalSetupPatch
 
 ! ************************************************************************** !
 
 subroutine GeomechGlobalSetAuxVarScalar(geomech_realization,value,ivar)
-  ! 
+  !
   ! Strips a geomech global auxvar
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
@@ -102,23 +102,23 @@ subroutine GeomechGlobalSetAuxVarScalar(geomech_realization,value,ivar)
   class(realization_geomech_type) :: geomech_realization
   PetscReal :: value
   PetscInt :: ivar
-  
+
   type(geomech_patch_type), pointer :: cur_patch
-  
+
   cur_patch => geomech_realization%geomech_patch
   call GeomechGlobalSetAuxVarScalarPatch(geomech_realization,value,ivar)
- 
+
 end subroutine GeomechGlobalSetAuxVarScalar
 
 ! ************************************************************************** !
 
 subroutine GeomechGlobalSetAuxVarScalarPatch(geomech_realization,value,ivar)
-  ! 
+  !
   ! Strips a geomech global auxvar
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Geomechanics_Realization_class
   use Option_module
@@ -126,7 +126,7 @@ subroutine GeomechGlobalSetAuxVarScalarPatch(geomech_realization,value,ivar)
   use Variables_module, only : GEOMECH_DISP_X, &
                                GEOMECH_DISP_Y, &
                                GEOMECH_DISP_Z
-  
+
   implicit none
 
   class(realization_geomech_type) :: geomech_realization
@@ -135,12 +135,12 @@ subroutine GeomechGlobalSetAuxVarScalarPatch(geomech_realization,value,ivar)
 
   type(option_type), pointer :: option
   type(geomech_patch_type), pointer :: patch
-    
+
   PetscInt :: i
-  
+
   patch => geomech_realization%geomech_patch
-  option => geomech_realization%option  
-  
+  option => geomech_realization%option
+
   select case(ivar)
     case(GEOMECH_DISP_X)
       do i=1, patch%geomech_aux%GeomechGlobal%num_aux
@@ -158,19 +158,19 @@ subroutine GeomechGlobalSetAuxVarScalarPatch(geomech_realization,value,ivar)
           GEOMECH_DISP_Z_DOF) = value
       enddo
   end select
-  
+
 end subroutine GeomechGlobalSetAuxVarScalarPatch
 
 ! ************************************************************************** !
 
 subroutine GeomechGlobalSetAuxVarVecLoc(geomech_realization,vec_loc,ivar, &
                                         isubvar)
-  ! 
+  !
   ! Strips a geomech global auxvar
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -183,7 +183,7 @@ subroutine GeomechGlobalSetAuxVarVecLoc(geomech_realization,vec_loc,ivar, &
   Vec :: vec_loc
   PetscInt :: ivar
   PetscInt :: isubvar
-  
+
   type(geomech_patch_type), pointer :: cur_patch
 
   cur_patch => geomech_realization%geomech_patch
@@ -195,12 +195,12 @@ end subroutine GeomechGlobalSetAuxVarVecLoc
 
 subroutine GeomechGlobalSetAuxVarVecLocPatch(geomech_realization,vec_loc,ivar,&
                                              isubvar)
-  ! 
+  !
   ! Strips a geomech global auxvar
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -212,28 +212,28 @@ subroutine GeomechGlobalSetAuxVarVecLocPatch(geomech_realization,vec_loc,ivar,&
   use Variables_module, only : GEOMECH_DISP_X, &
                                GEOMECH_DISP_Y, &
                                GEOMECH_DISP_Z
-  
+
   implicit none
 
   class(realization_geomech_type) :: geomech_realization
   Vec :: vec_loc
   PetscInt :: ivar
-  PetscInt :: isubvar  
-  
+  PetscInt :: isubvar
+
   type(option_type), pointer :: option
   type(geomech_patch_type), pointer :: patch
   type(geomech_grid_type), pointer :: grid
-  
+
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
   PetscErrorCode :: ierr
-  
+
   patch => geomech_realization%geomech_patch
   grid => patch%geomech_grid
   option => geomech_realization%option
-  
+
   call GeomechGridVecGetArrayF90(grid,vec_loc,vec_loc_p,ierr)
-  
+
   select case(ivar)
     case(GEOMECH_DISP_X)
       select case(isubvar)
@@ -271,12 +271,12 @@ end subroutine GeomechGlobalSetAuxVarVecLocPatch
 ! ************************************************************************** !
 
 subroutine GeomechGlobalUpdateAuxVars(geomech_realization,time_level)
-  ! 
+  !
   ! Strips a geomech global auxvar
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
-  ! 
+  !
 
   use Geomechanics_Realization_class
   use Geomechanics_Field_module
@@ -285,16 +285,16 @@ subroutine GeomechGlobalUpdateAuxVars(geomech_realization,time_level)
   use Variables_module, only : GEOMECH_DISP_X, &
                                GEOMECH_DISP_Y, &
                                GEOMECH_DISP_Z
-  
+
   class(realization_geomech_type) :: geomech_realization
   PetscInt :: time_level
-  
+
   type(geomech_field_type), pointer :: geomech_field
   type(option_type), pointer :: option
-  
+
   option => geomech_realization%option
   geomech_field => geomech_realization%geomech_field
-  
+
   ! x displacement
   call GeomechRealizGetDataset(geomech_realization,geomech_field%work, &
                                GEOMECH_DISP_X,ZERO_INTEGER)
@@ -304,7 +304,7 @@ subroutine GeomechGlobalUpdateAuxVars(geomech_realization,time_level)
   call GeomechGlobalSetAuxVarVecLoc(geomech_realization,&
                                     geomech_field%work_loc, &
                                     GEOMECH_DISP_X,time_level)
-                                  
+
   ! y displacement
   call GeomechRealizGetDataset(geomech_realization,geomech_field%work, &
                                GEOMECH_DISP_Y,ZERO_INTEGER)

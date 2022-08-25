@@ -378,14 +378,14 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
                   cur_connection_set%dist(0,iconn)
       endif
       if (local_id_up > 0) then
-        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                               tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1,tempreal, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
       if (local_id_dn > 0) then
-        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                               tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1,tempreal, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
@@ -417,8 +417,8 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
             tempreal = g_sup_h_constant * area**2 / &  ! w^3*b
                       cur_connection_set%dist(0,iconn)
           endif
-          call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1, &
-                                 tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,tempreal, &
+                                 ADD_VALUES,ierr);CHKERRQ(ierr)
           tempreal = tempreal * rvalue
         case(NEUMANN_BC)
           if (this%use_darcy) then
@@ -539,8 +539,8 @@ subroutine PMPNFCalculateVelocities(this)
 
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(this%realization%field%flow_xx_loc, &
-                          vec_loc_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(this%realization%field%flow_xx_loc,vec_loc_ptr, &
+                          ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -599,16 +599,17 @@ subroutine PMPNFCalculateVelocities(this)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayReadF90(this%realization%field%flow_xx_loc, &
-                              vec_loc_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(this%realization%field%flow_xx_loc,vec_loc_ptr, &
+                              ierr);CHKERRQ(ierr)
 
 end subroutine PMPNFCalculateVelocities
 
 ! ************************************************************************** !
 
-subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                 num_newton_iterations,tfac, &
-                                 time_step_max_growth_factor)
+subroutine PMPNFUpdateTimestep(this,update_dt, &
+                               dt,dt_min,dt_max,iacceleration, &
+                               num_newton_iterations,tfac, &
+                               time_step_max_growth_factor)
   !
   ! Author: Glenn Hammond
   ! Date: 08/27/21
@@ -623,6 +624,7 @@ subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_pnf_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -635,25 +637,26 @@ subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: pres_ratio
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  pres_ratio = (2.d0*this%pressure_change_governor)/ &
-               (this%pressure_change_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(pres_ratio*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (pres_ratio > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    pres_ratio = (2.d0*this%pressure_change_governor)/ &
+                (this%pressure_change_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(pres_ratio*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (pres_ratio > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call OptionPrint(string,this%option)
   endif
 
   if (Initialized(this%cfl_governor)) then
@@ -782,16 +785,12 @@ subroutine PMPNFMaxChange(this)
                           ierr);CHKERRQ(ierr)
   call VecCopy(field%work,this%max_pressure_change_vec,ierr);CHKERRQ(ierr)
   call MPI_Allreduce(max_change_local,max_change_global,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
   ! print them out
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4)') &
-      max_change_global(1)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4)') &
-      max_change_global(1)
-  endif
+  write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4)') &
+        max_change_global(1)
+  call PrintMsg(option)
 
   this%max_pressure_change = max_change_global(1)
 

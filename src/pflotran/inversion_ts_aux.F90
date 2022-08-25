@@ -12,15 +12,17 @@ module Inversion_TS_Aux_module
   type, public :: inversion_forward_aux_type
     PetscBool :: store_adjoint
     PetscInt :: num_timesteps
-    PetscInt :: iobsfunc
+    PetscInt :: iobs_var
+    PetscInt :: isync_time
+    PetscReal, pointer :: sync_times(:)
     Mat :: M_ptr
     Vec :: solution_ptr
     type(inversion_forward_ts_aux_type), pointer :: first
     type(inversion_forward_ts_aux_type), pointer :: last
     type(inversion_forward_ts_aux_type), pointer :: current
     type(inversion_measurement_aux_type), pointer :: measurements(:)
-    VecScatter :: scatter_global_to_measurement
     Vec :: measurement_vec
+    PetscReal, pointer :: local_measurement_values_ptr(:)
   end type inversion_forward_aux_type
 
   type, public :: inversion_forward_ts_aux_type
@@ -71,15 +73,17 @@ function InversionForwardAuxCreate()
 
   aux%store_adjoint = PETSC_TRUE
   aux%num_timesteps = 0
-  aux%iobsfunc = UNINITIALIZED_INTEGER
+  aux%iobs_var = UNINITIALIZED_INTEGER
+  aux%isync_time = 1
+  nullify(aux%sync_times)
   aux%M_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%first)
   nullify(aux%last)
   nullify(aux%current)
   nullify(aux%measurements)
-  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   aux%measurement_vec = PETSC_NULL_VEC
+  nullify(aux%local_measurement_values_ptr)
 
   InversionForwardAuxCreate => aux
 
@@ -89,7 +93,7 @@ end function InversionForwardAuxCreate
 
 subroutine InvForwardAuxResetMeasurements(aux)
   !
-  ! Appends a time step to the linked list
+  ! Resets flags for forward run back to original settings.
   !
   ! Author: Glenn Hammond
   ! Date: 02/21/22
@@ -98,8 +102,9 @@ subroutine InvForwardAuxResetMeasurements(aux)
 
   PetscInt :: imeasurement
 
+  aux%isync_time = 1
   do imeasurement = 1, size(aux%measurements)
-    aux%measurements(imeasurement)%measured = PETSC_FALSE
+    call InversionMeasurementAuxReset(aux%measurements(imeasurement))
   enddo
 
 end subroutine InvForwardAuxResetMeasurements
@@ -113,12 +118,12 @@ subroutine InversionForwardAuxStep(aux,time)
   ! Author: Glenn Hammond
   ! Date: 02/14/22
 
+  use Utility_module
+
+  implicit none
+
   type(inversion_forward_aux_type), pointer :: aux
   PetscReal :: time
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: imeasurement
-  PetscErrorCode :: ierr
 
   if (associated(aux%current)) then
     aux%current%time = time
@@ -128,13 +133,6 @@ subroutine InversionForwardAuxStep(aux,time)
     aux%current => InversionTSAuxCreate(aux%current,aux%M_ptr)
     aux%last => aux%current
   endif
-
-  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr)
-  do imeasurement = 1, size(aux%measurements)
-    call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
-                                     vec_ptr(imeasurement))
-  enddo
-  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr)
 
 end subroutine InversionForwardAuxStep
 
@@ -204,8 +202,8 @@ subroutine InvTSAuxAllocate(aux,M_ptr,ndof,ncell)
   PetscInt :: ncell
   PetscErrorCode :: ierr
 
-  call MatDuplicate(M_ptr,MAT_SHARE_NONZERO_PATTERN, &
-                    aux%dResdparam,ierr);CHKERRQ(ierr)
+  call MatDuplicate(M_ptr,MAT_SHARE_NONZERO_PATTERN,aux%dResdparam, &
+                    ierr);CHKERRQ(ierr)
   allocate(aux%dRes_du_k(ndof,ndof,ncell))
   aux%dRes_du_k = 0.d0
 
@@ -245,8 +243,8 @@ subroutine InvTSAuxStoreCopyGlobalMatVecs(forward_aux,ts_aux)
 
   PetscErrorCode :: ierr
 
-  call MatDuplicate(forward_aux%M_ptr,MAT_COPY_VALUES, &
-                    ts_aux%dResdu,ierr);CHKERRQ(ierr)
+  call MatDuplicate(forward_aux%M_ptr,MAT_COPY_VALUES,ts_aux%dResdu, &
+                    ierr);CHKERRQ(ierr)
   if (forward_aux%solution_ptr /= PETSC_NULL_VEC) then
     call VecDuplicate(forward_aux%solution_ptr,ts_aux%solution, &
                       ierr);CHKERRQ(ierr)
@@ -269,14 +267,17 @@ subroutine InversionForwardAuxDestroy(aux)
   type(inversion_forward_aux_type), pointer :: aux
 
   call InvForwardAuxDestroyList(aux,PETSC_FALSE)
+
+  call DeallocateArray(aux%sync_times)
+
   ! simply nullify
   nullify(aux%last)
   nullify(aux%current)
   aux%M_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%measurements)
-  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   aux%measurement_vec = PETSC_NULL_VEC
+  nullify(aux%local_measurement_values_ptr)
 
   deallocate(aux)
   nullify(aux)

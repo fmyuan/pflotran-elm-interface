@@ -172,7 +172,8 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
       if (.not.associated(strata)) exit
       ! if not within time period specified, skip the strata.
       ! use a one second tolerance on the start time and end time
-      if (StrataWithinTimePeriod(strata,option%time)) then
+      if (StrataWithinTimePeriod(strata,option%time) .and. &
+          (.not. strata%well)) then
         ! Read in cell by cell material ids if they exist
         if (.not.associated(strata%region) .and. strata%active) then
           call SubsurfReadMaterialIDsFromFile(realization, &
@@ -311,7 +312,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call VecGetArrayF90(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
     endif
     if (soil_compressibility_index > 0) then
-      call VecGetArrayF90(field%compressibility0,compress_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(field%compressibility0,compress_p, &
+                          ierr);CHKERRQ(ierr)
     endif
   endif
   call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
@@ -327,11 +329,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                        matrixlength0);
     call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
- 
+
   ! geophysics
   if (option%ngeopdof > 0) then
     call VecGetArrayF90(field%electrical_conductivity,cond_p, &
-      ierr);CHKERRQ(ierr)
+                        ierr);CHKERRQ(ierr)
   endif
 
   ! have to use Material%auxvars() and not material_auxvars() due to memory
@@ -472,10 +474,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
   if (matrix_length_index > 0) then
     call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
- 
+
   if (option%ngeopdof > 0) then
     call VecRestoreArrayF90(field%electrical_conductivity,cond_p, &
-      ierr);CHKERRQ(ierr)
+                            ierr);CHKERRQ(ierr)
   endif
 
   ! read in any user-defined property fields
@@ -510,7 +512,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
             endif
           enddo
           call VecRestoreArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(field%tortuosity0,tor0_p, &
+                                  ierr);CHKERRQ(ierr)
         endif
       endif
       if (associated(material_property%tortuosity_dataset)) then
@@ -600,15 +603,15 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  EPSILON,ZERO_INTEGER)
-    call VecDestroy(epsilon0,ierr);CHKERRQ(ierr);
+    call VecDestroy(epsilon0,ierr);CHKERRQ(ierr)
   endif
   if (matrix_length_index > 0) then
     call DiscretizationGlobalToLocal(discretization,matrixlength0, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  MATRIX_LENGTH,ZERO_INTEGER)
-    call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr);
-  endif  
+    call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr)
+  endif
 
   if (option%ngeopdof > 0) then
      call DiscretizationGlobalToLocal(discretization, &
@@ -636,12 +639,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   enddo
 
   if (option%geomech_on) then
-    call VecCopy(field%porosity0,field%porosity_geomech_store,ierr);CHKERRQ(ierr)
+    call VecCopy(field%porosity0,field%porosity_geomech_store, &
+                 ierr);CHKERRQ(ierr)
 #ifdef GEOMECH_DEBUG
     print *, 'InitSubsurfAssignMatProperties'
     call PetscViewerASCIIOpen(realization%option%mycomm, &
-                              'porosity_geomech_store_por0.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+                              'porosity_geomech_store_por0.out',viewer, &
+                              ierr);CHKERRQ(ierr)
     call VecView(field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
@@ -1342,7 +1346,7 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
   enddo
 
   call MPI_Allreduce(n_inactive_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_MAX,option%mycomm,ierr)
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   if (flag > 0) then
     inactive_cells_exist = PETSC_TRUE
   endif

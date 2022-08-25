@@ -1,17 +1,17 @@
 module SrcSink_Sandbox_WIPP_Well_class
 
 ! Sandbox srcsink for WIPP well source terms
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
-  
+
   implicit none
-  
+
   private
-  
+
   PetscInt, parameter, public :: WIPP_WELL_LIQUID_MOBILITY = 1
   PetscInt, parameter, public :: WIPP_WELL_GAS_MOBILITY = 2
   PetscInt, parameter, public :: WIPP_WELL_LIQUID_PRESSURE = 3
@@ -41,48 +41,48 @@ contains
 ! ************************************************************************** !
 
 function WIPPWellCreate()
-  ! 
+  !
   ! Allocates WIPP well src/sink object.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/11/14
-  ! 
+  !
 
   implicit none
-  
+
   class(srcsink_sandbox_wipp_well_type), pointer :: WIPPWellCreate
 
   allocate(WIPPWellCreate)
-  call SSSandboxBaseInit(WIPPWellCreate)  
-  nullify(WIPPWellCreate%next)  
-      
+  call SSSandboxBaseInit(WIPPWellCreate)
+  nullify(WIPPWellCreate%next)
+
 end function WIPPWellCreate
 
 ! ************************************************************************** !
 
 subroutine WIPPWellRead(this,input,option)
-  ! 
+  !
   ! Reads input deck for WIPP well src/sink parameters
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/11/14
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
   use Units_module, only : UnitsConvertToInternal
-  
+
   implicit none
-  
+
   class(srcsink_sandbox_wipp_well_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscBool :: found
-  
+
   call InputPushBlock(input,option)
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
@@ -90,11 +90,11 @@ subroutine WIPPWellRead(this,input,option)
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SRCSINK_SANDBOX,WIPP')
-    call StringToUpper(word)   
+    call StringToUpper(word)
 
     call SSSandboxBaseSelectCase(this,input,option,word,found)
     if (found) cycle
-    
+
     select case(trim(word))
       case('WELL_PRESSURE')
         call InputReadDouble(input,option,this%well_pressure)
@@ -119,38 +119,38 @@ end subroutine WIPPWellRead
 ! ************************************************************************** !
 
 subroutine WIPPWellSetup(this,grid,option)
-    
+
   use Option_module
   use Grid_module
-  
+
   implicit none
-  
+
   class(srcsink_sandbox_wipp_well_type) :: this
   type(grid_type) :: grid
   type(option_type) :: option
-    
+
   call SSSandboxBaseSetup(this,grid,option)
 
-end subroutine WIPPWellSetup 
+end subroutine WIPPWellSetup
 
 ! ************************************************************************** !
 
 subroutine WIPPWellSrcSink(this,Residual,Jacobian,compute_derivative, &
                            material_auxvar,aux_real,option)
-  ! 
+  !
   ! Evaluates src/sink storing residual and/or Jacobian
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/11/14
-  ! 
+  !
 
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module
-  
+
   implicit none
-  
-  class(srcsink_sandbox_wipp_well_type) :: this  
+
+  class(srcsink_sandbox_wipp_well_type) :: this
   type(option_type) :: option
   PetscBool :: compute_derivative
   PetscReal :: Residual(option%nflowdof)
@@ -158,10 +158,10 @@ subroutine WIPPWellSrcSink(this,Residual,Jacobian,compute_derivative, &
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: aux_real(:)
   PetscReal :: q_liquid, q_gas
-  
+
   ! q_i = rho_i*I*(kr_i/mu_i)*(p_i-p_well)
   ! units: m^3/s
-  
+
   q_liquid = -1.d0 * &
             this%productivity_index * &
             aux_real(WIPP_WELL_LIQUID_MOBILITY) * &
@@ -178,7 +178,7 @@ subroutine WIPPWellSrcSink(this,Residual,Jacobian,compute_derivative, &
                           q_gas * aux_real(WIPP_WELL_XMOL_WATER_IN_GAS) * &
                           aux_real(WIPP_WELL_GAS_DENSITY)
   ! air equation
-  Residual(TWO_INTEGER) = q_liquid * aux_real(WIPP_WELL_XMOL_AIR_IN_LIQUID) * & 
+  Residual(TWO_INTEGER) = q_liquid * aux_real(WIPP_WELL_XMOL_AIR_IN_LIQUID) * &
                           aux_real(WIPP_WELL_LIQUID_DENSITY) + &
                           q_gas * aux_real(WIPP_WELL_GAS_DENSITY) * &
                           (1.d0-aux_real(WIPP_WELL_XMOL_WATER_IN_GAS))
@@ -188,34 +188,34 @@ subroutine WIPPWellSrcSink(this,Residual,Jacobian,compute_derivative, &
                             aux_real(WIPP_WELL_LIQUID_ENTHALPY) + &
                             q_gas * aux_real(WIPP_WELL_GAS_DENSITY) * &
                             aux_real(WIPP_WELL_GAS_ENTHALPY)
-  
+
   if (associated(this%instantaneous_mass_rate)) then
     this%instantaneous_mass_rate(:) = -1.d0*Residual(:)
   endif
-                            
+
   if (compute_derivative) then
     option%io_buffer = 'WIPPWellSrcSink is not configured for &
       &analytical derivatives.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine WIPPWellSrcSink
 
 ! ************************************************************************** !
 
 subroutine WIPPWellDestroy(this)
-  ! 
+  !
   ! Destroys allocatable or pointer objects created in this
   ! module
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/11/14
-  ! 
+  !
 
   implicit none
-  
+
   class(srcsink_sandbox_wipp_well_type) :: this
-  
+
   call SSSandboxBaseDestroy(this)
 
 end subroutine WIPPWellDestroy

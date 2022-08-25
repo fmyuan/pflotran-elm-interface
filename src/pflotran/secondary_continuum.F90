@@ -1,14 +1,14 @@
 ! added by S. Karra 07/11/12
 
 module Secondary_Continuum_module
-  
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Secondary_Continuum_Aux_module
 
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
-  
+
   implicit none
 
   private
@@ -42,18 +42,18 @@ contains
 subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
             volm,dm1,dm2,aperture,epsilon,log_spacing,outer_spacing, &
             interfacial_area,option)
-  ! 
+  !
   ! The area, volume, grid sizes for secondary continuum
   ! are calculated based on the input dimensions and geometry
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 07/11/12
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(sec_continuum_type) :: sec_continuum
 
   type(option_type) :: option
@@ -75,14 +75,14 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
   igeom = sec_continuum%itype
   option%nsec_cells = nmat
-    
-  select case (igeom)      
+
+  select case (igeom)
     case(SLAB)
       if (Initialized(epsilon) .and. Initialized(aperture) .and. &
           Initialized(sec_continuum%slab%length)) then
         option%io_buffer = 'SLAB GEOMETRY OVERDEFINED. DEFINE ONLY &
                             &EPSILON and APERTURE, LENGTH and APERTURE &
-                            &or LENGTH and EPSILON ' 
+                            &or LENGTH and EPSILON '
         call PrintErrMsg(option)
       else if (Initialized(epsilon) .and. Initialized(aperture)) then
         sec_continuum%slab%length = 2.d0 * aperture / ((1.d0 - epsilon) ** (-1.d0/3.d0) - 1.d0)
@@ -93,7 +93,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
       else
         option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE &
                            &or LENGTH and EPSILON &
-                           &must be specified for SLAB type ' 
+                           &must be specified for SLAB type '
         call PrintErrMsg(option)
       endif
       if (Initialized(sec_continuum%slab%area)) then
@@ -113,7 +113,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           dm1(m) = grid_spacing(m)
           dm2(m) = grid_spacing(m)
         enddo
-        
+
       else
         dy = sec_continuum%slab%length/nmat
         do m = 1, nmat
@@ -136,20 +136,20 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         write(option%fid_out,'(2x,"epsilon: ",18x,1pe12.4)') epsilon
         write(option%fid_out,'(2x,"specific interfacial area: ",1pe12.4," m^(-1)")') interfacial_area
         do m = 1, nmat
-          if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")') 
+          if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")')
           write(option%fid_out,'(2x,i3,3x,1pe12.4)') m,volm(m)/vm0 !*(1.d0 - epsilon)
         enddo
 !       aperture = r0*(1.d0/(1.d0-epsilon)**(1.d0/3.d0)-1.d0)
 !       write(option%fid_out,'(2x,"aperture: ",17x,1pe12.4," m")') aperture
       endif
-      
+
       ! Store the distances
       sec_continuum%distance(1) = dm1(1)
       do m = 2, nmat
         sec_continuum%distance(m) = sec_continuum%distance(m-1) + &
                                       dm2(m-1) + dm1(m)
       enddo
-          
+
     case(NESTED_CUBES)
 
       if (Initialized(sec_continuum%nested_cube%fracture_spacing)) then
@@ -169,10 +169,10 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         else
           option%io_buffer = 'EPSILON, APERTURE, or MATRIX BOCK SIZE' // &
                              ' must be specified for FRACTURE SPACING' // &
-                             ' in NESTED_CUBES type ' 
+                             ' in NESTED_CUBES type '
           call PrintErrMsg(option)
         endif
-                                            
+
       else if (Initialized(sec_continuum%nested_cube%matrix_block_size)) then
 
         r0 = sec_continuum%nested_cube%matrix_block_size
@@ -186,17 +186,17 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           aperture = fracture_spacing - r0
         else
           option%io_buffer = 'EPSILON or APERTURE must be specified for' // &
-                             ' MATRIX BLOCK SIZE in NESTED_CUBES type ' 
+                             ' MATRIX BLOCK SIZE in NESTED_CUBES type '
           call PrintErrMsg(option)
         endif
       endif
-      
-      if (log_spacing) then 
-        
+
+      if (log_spacing) then
+
         matrix_block_size = r0
         call SecondaryContinuumCalcLogSpacing(matrix_block_size,outer_spacing, &
                                               nmat,grid_spacing,option)
-        
+
         r0 = 2.d0*grid_spacing(1)
         dm1(1) = 0.5d0*grid_spacing(1)
         dm2(1) = 0.5d0*grid_spacing(1)
@@ -217,7 +217,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
       else
         dy = r0/nmat/2.d0
-     
+
         r0 = 2.d0*dy
         volm(1) = r0**3.d0
         do m = 2, nmat
@@ -225,7 +225,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           volm(m) = r1**3.d0 - r0**3.d0
           r0 = r1
         enddo
-      
+
         r0 = 2.d0*dy
         aream(1) = 6.d0*r0**2.d0
         dm1(1) = 0.5d0*dy
@@ -273,12 +273,12 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
       do m = 2, nmat
         sec_continuum%distance(m) = sec_continuum%distance(m-1) + &
                                       dm2(m-1) + dm1(m)
-      enddo     
+      enddo
 
     case(NESTED_SPHERES)
-      if (Uninitialized(epsilon)) then 
+      if (Uninitialized(epsilon)) then
         option%io_buffer = 'EPSILON must be specified in' // &
-                           ' NESTED_SPHERES type ' 
+                           ' NESTED_SPHERES type '
         call PrintErrMsg(option)
       endif
       dy = sec_continuum%nested_sphere%radius/nmat
@@ -290,7 +290,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         volm(m) = 4.d0/3.d0*pi*(r1**3.d0 - r0**3.d0)
         r0 = r1
       enddo
-      
+
       r0 = dy
       aream(1) = 4.d0*pi*r0**2.d0
       dm1(1) = 0.5d0*dy
@@ -318,70 +318,70 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         write(option%fid_out,'(2x,"epsilon: ",18x,1pe12.4)') epsilon
         write(option%fid_out,'(2x,"specific interfacial area: ",1pe12.4," m^(-1)")') interfacial_area
         do m = 1, nmat
-          if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")') 
+          if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")')
           write(option%fid_out,'(2x,i3,3x,1pe12.4)') m,volm(m)/vm0*(1.d0 - epsilon)
         enddo
 
 !       aperture = r0*(1.d0/(1.d0-epsilon)**(1.d0/3.d0)-1.d0)
 !       write(option%fid_out,'(2x,"aperture: ",17x,1pe12.4," m")') aperture
       endif
-      
+
       ! Store the distances
       sec_continuum%distance(1) = dm1(1)
       do m = 2, nmat
         sec_continuum%distance(m) = sec_continuum%distance(m-1) + &
                                       dm2(m-1) + dm1(m)
       enddo
-                        
+
   end select
-  
-  
+
+
   sum = 0.d0
   do m = 1,nmat
     if (volm(m)/vm0 > 1.d0) then
       print *, 'Error: volume fraction for cell', m, 'is greater than 1.'
       stop
-    else 
+    else
       sum = sum + volm(m)/vm0
     endif
   enddo
-  
+
   if (icall /= 2 .and. OptionPrintToFile(Option)) then
     icall = 2
     write(option%fid_out,'(/,"sum of volume fractions:",1x,1pe12.4)') sum
   endif
-  
+
   if (abs(sum - 1.d0) > 1.d-6) then
     option%io_buffer = 'Error: Sum of the volume fractions of the' // &
                        ' secondary cells is not equal to 1.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine SecondaryContinuumType
 
 ! ************************************************************************** !
 
 subroutine SecondaryContinuumSetProperties(sec_continuum, &
-                                           sec_continuum_name, & 
+                                           sec_continuum_name, &
                                            sec_continuum_length, &
                                            sec_continuum_matrix_block_size, &
                                            sec_continuum_fracture_spacing, &
                                            sec_continuum_radius, &
                                            sec_continuum_area,porosity, &
                                            option)
-  ! 
+  !
   ! The type, dimensions of the secondary
   ! continuum are set
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 07/17/12
-  ! 
-                                    
+  !
+
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   type(sec_continuum_type) :: sec_continuum
   type(option_type) :: option
   PetscReal :: sec_continuum_matrix_block_size
@@ -396,9 +396,9 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
     option%io_buffer = 'POROSITY must be set' // &
                        ' under SECONDARY_CONTINUUM'
     call PrintErrMsg(option)
-  endif 
+  endif
   call StringToUpper(sec_continuum_name)
-  
+
   select case(trim(sec_continuum_name))
     case("SLAB")
       sec_continuum%itype = SLAB
@@ -412,7 +412,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
                            'must be specified for NESTED_CUBES type ' // &
                            'under SECONDARY_CONTINUUM'
         call PrintErrMsg(option)
-      endif 
+      endif
       sec_continuum%nested_cube%matrix_block_size = sec_continuum_matrix_block_size
       sec_continuum%nested_cube%fracture_spacing = sec_continuum_fracture_spacing
     case("NESTED_SPHERES")
@@ -421,26 +421,26 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
         option%io_buffer = 'Keyword "RADIUS" not specified for NESTED_SPHERES type ' // &
                            'under SECONDARY_CONTINUUM'
         call PrintErrMsg(option)
-      endif 
+      endif
       sec_continuum%nested_sphere%radius = sec_continuum_radius
     case default
       option%io_buffer = 'Keyword "' // trim(sec_continuum_name) // '" not ' // &
                          'recognized in SecondaryContinuumSetProperties()'
       call PrintErrMsg(option)
   end select
-      
-end subroutine SecondaryContinuumSetProperties  
+
+end subroutine SecondaryContinuumSetProperties
 
 ! ************************************************************************** !
 
 subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
                                             sec_num_cells,grid_spacing,option)
-  ! 
+  !
   ! Given the matrix block size and the
   ! grid spacing of the outer most secondary continuum cell, a geometric
   ! series is assumed and the grid spacing of the rest of the cells is
   ! calculated
-  ! 
+  !
   ! Equation:
   ! \frac{1 - \rho}{1 - \rho_M}*\rho*(M-1) = \frac{2\Delta\xi_m}{l_M}
   !
@@ -452,12 +452,12 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   !
   ! Author: Satish Karra, LANL
   ! Date: 07/17/12
-  ! 
-                                              
+  !
+
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   PetscReal :: matrix_size, outer_grid_size
   PetscInt :: sec_num_cells
@@ -466,17 +466,17 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   PetscReal :: F, dF
   PetscReal, parameter :: tol = 1.d-12
   PetscInt, parameter :: maxit = 50
-  PetscInt :: i 
-  
-  
+  PetscInt :: i
+
+
   if (mod(sec_num_cells,2) /= 0) then
      option%io_buffer = 'NUM_CELLS under SECONDARY_CONTINUUM has to be' // &
                         ' even for logarithmic grid spacing'
       call PrintErrMsg(option)
   endif
-  
+
   delta = 0.99d0
-  
+
   do i = 1, maxit
     F = (1.d0 - delta)/(1.d0 - delta**sec_num_cells)*delta**(sec_num_cells - 1.d0) - &
         2.d0*outer_grid_size/matrix_size
@@ -492,7 +492,7 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
       call PrintErrMsg(option)
     endif
   enddo
-  
+
   if (i == maxit) then
      option%io_buffer = 'Log Grid spacing solution has not converged' // &
                         ' with given fracture values.'
@@ -500,46 +500,46 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   endif
 
   inner_grid_size = outer_grid_size/delta**(sec_num_cells - 1)
-  
+
   do i = 1, sec_num_cells
     grid_spacing(i) = inner_grid_size*delta**(i-1)
   enddo
 
 !  write(option%fid_out,'("  Logarithmic grid spacing: delta = ",1pe12.4)') delta
-    
+
 end subroutine SecondaryContinuumCalcLogSpacing
 
 ! ************************************************************************** !
 
 subroutine SecondaryRTTimeCut(realization)
-  ! 
+  !
   ! Resets secondary concentrations to previous time
   ! step when there is a time cut
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 05/29/13
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Grid_module
   use Reaction_Aux_module
-  
+
   implicit none
   class(realization_subsurface_type) :: realization
   class(reaction_rt_type), pointer :: reaction
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(grid_type), pointer :: grid
-  
+
   PetscInt :: local_id, ghosted_id
   PetscInt :: ngcells, ncomp
   PetscInt :: cell, comp
 
   reaction => realization%reaction
   rt_sec_transport_vars => realization%patch%aux%SC_RT%sec_transport_vars
-  grid => realization%patch%grid  
-  
+  grid => realization%patch%grid
+
   ncomp = reaction%naqcomp
-  
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
@@ -551,21 +551,21 @@ subroutine SecondaryRTTimeCut(realization)
       enddo
     enddo
   enddo
- 
+
 end subroutine SecondaryRTTimeCut
 
 ! ************************************************************************** !
 
 subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_vars, &
                                  reaction,initial_condition,constraint,option)
-  ! 
+  !
   ! Initializes all the secondary continuum reactive
   ! transport variables
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 02/05/13
-  ! 
-  
+  !
+
   use Coupler_module
   use Transport_Constraint_module
   use Condition_module
@@ -577,11 +577,11 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   use Reactive_Transport_Aux_module
   use Material_Aux_module
   use Transport_Constraint_RT_module
-  
+
   use EOS_Water_module
-  
-  implicit none 
-  
+
+  implicit none
+
   type(sec_transport_type) :: rt_sec_transport_vars
   type(multicontinuum_property_type) :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
@@ -592,7 +592,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   type(material_auxvar_type), allocatable :: material_auxvar
   class(tran_constraint_rt_type), pointer :: constraint
   type(flow_condition_type), pointer :: initial_flow_condition
-  
+
 
   PetscReal :: equil_conc(reaction%mineral%nmnrl)
   PetscInt :: i, cell
@@ -602,7 +602,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   PetscReal :: length
   PetscInt :: num_iterations
   PetscErrorCode :: ierr
-  
+
   num_iterations = 0
 
   allocate(material_auxvar)
@@ -619,20 +619,20 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
         multicontinuum%area, multicontinuum%porosity, &
         option)
 
-  
+
   rt_sec_transport_vars%ncells = multicontinuum%ncells
   rt_sec_transport_vars%aperture = multicontinuum%aperture
-  rt_sec_transport_vars%epsilon = epsilon 
+  rt_sec_transport_vars%epsilon = epsilon
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
-  rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing    
-        
+  rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing
+
   allocate(rt_sec_transport_vars%area(rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%vol(rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%dm_minus(rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%dm_plus(rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%sec_continuum% &
              distance(rt_sec_transport_vars%ncells))
-    
+
   call SecondaryContinuumType(rt_sec_transport_vars%sec_continuum, &
                               rt_sec_transport_vars%ncells, &
                               rt_sec_transport_vars%area, &
@@ -643,32 +643,32 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
                               rt_sec_transport_vars%epsilon, &
                               rt_sec_transport_vars%log_spacing, &
                               rt_sec_transport_vars%outer_spacing, &
-                              area_per_vol,option)                                
+                              area_per_vol,option)
   rt_sec_transport_vars%interfacial_area = area_per_vol* &
          (1.d0 - rt_sec_transport_vars%epsilon)*multicontinuum% &
          area_scaling
-  
+
   ! Initializing the secondary RT auxvars
   allocate(rt_sec_transport_vars%sec_rt_auxvar(rt_sec_transport_vars%ncells))
   do cell = 1, rt_sec_transport_vars%ncells
     call RTAuxVarInit(rt_sec_transport_vars%sec_rt_auxvar(cell),reaction,option)
   enddo
 
-  allocate(rt_sec_transport_vars%sec_jac(reaction%naqcomp,reaction%naqcomp))    
-           
+  allocate(rt_sec_transport_vars%sec_jac(reaction%naqcomp,reaction%naqcomp))
+
   ! Allocate diagonal terms
   allocate(rt_sec_transport_vars%cxm(reaction%naqcomp,reaction%naqcomp,&
-           rt_sec_transport_vars%ncells)) 
+           rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%cxp(reaction%naqcomp,reaction%naqcomp,&
-           rt_sec_transport_vars%ncells))  
+           rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%cdl(reaction%naqcomp,reaction%naqcomp,&
-           rt_sec_transport_vars%ncells)) 
+           rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars% &
            r(reaction%naqcomp*rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars% &
            updated_conc(reaction%naqcomp,rt_sec_transport_vars%ncells))
-           
-  
+
+
   initial_flow_condition => initial_condition%flow_condition
   do cell = 1, rt_sec_transport_vars%ncells
     global_auxvar => initial_condition%tran_condition% &
@@ -682,7 +682,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
         else
           global_auxvar%pres = option%flow%reference_pressure
         endif
-      else 
+      else
         global_auxvar%pres = option%flow%reference_pressure
       endif
       if (associated(initial_flow_condition%temperature)) then
@@ -695,7 +695,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
       else
         global_auxvar%temp = option%flow%reference_temperature
       endif
-        
+
       call EOSWaterDensity(global_auxvar%temp, &
                            global_auxvar%pres(1), &
                            global_auxvar%den_kg(1), &
@@ -723,24 +723,24 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
                           material_auxvar, &
                           reaction,constraint, &
                           num_iterations, &
-                          PETSC_FALSE,option)   
+                          PETSC_FALSE,option)
     reaction%mc_flag = 0
-    
-    rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal   
-       
-  enddo                                    
-  
+
+    rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal
+
+  enddo
+
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
-  
+
   rt_sec_transport_vars%sec_jac_update = PETSC_FALSE
   rt_sec_transport_vars%sec_jac = 0.d0
   rt_sec_transport_vars%cxm = 0.d0
   rt_sec_transport_vars%cxp = 0.d0
   rt_sec_transport_vars%cdl = 0.d0
   rt_sec_transport_vars%r = 0.d0
-      
-end subroutine SecondaryRTAuxVarInit  
+
+end subroutine SecondaryRTAuxVarInit
 
 ! ************************************************************************** !
 
@@ -748,17 +748,17 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                   global_auxvar,prim_vol, &
                                   reaction,diffusion_coefficient, &
                                   porosity,option,res_transport)
-  ! 
+  !
   ! RTSecondaryTransportMulti:  Calculates the source term contribution due to
   ! secondary continuum in the primary continuum residual for multicomponent
   ! system assuming only aqueous reaction
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 1/31/13
-  ! 
-                               
-                            
-  use Option_module 
+  !
+
+
+  use Option_module
   use Global_Aux_module
   use Block_Solve_module
   use Block_Tridiag_module
@@ -768,9 +768,9 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   use Reactive_Transport_Aux_module
   use Material_Aux_module
   use Reaction_Gas_module
-  
+
   implicit none
-  
+
   type(sec_transport_type) :: sec_transport_vars
   type(reactive_transport_auxvar_type) :: auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -796,7 +796,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: a_m(reaction%naqcomp,reaction%naqcomp,option%transport%nphase)
   PetscReal :: sec_jac(reaction%naqcomp,reaction%naqcomp)
   PetscReal :: inv_D_M(reaction%naqcomp,reaction%naqcomp)
-  PetscReal :: conc_upd(reaction%naqcomp,sec_transport_vars%ncells) 
+  PetscReal :: conc_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: total_upd(reaction%naqcomp,sec_transport_vars%ncells,option%transport%nphase)
   PetscReal :: total_prev(reaction%naqcomp,sec_transport_vars%ncells,option%transport%nphase)
   PetscReal :: conc_current_M(reaction%naqcomp)
@@ -823,12 +823,12 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: dPsisec_dCprim(reaction%naqcomp,reaction%naqcomp,option%transport%nphase)
   PetscInt :: jcomp, lcomp, kcomp, icplx, ncompeq
   PetscReal :: sec_sec_molal_M(reaction%neqcplx)   ! secondary species molality of secondary continuum
-  
+
   PetscInt :: pivot(reaction%naqcomp,sec_transport_vars%ncells)
   PetscInt :: indx(reaction%naqcomp)
   PetscInt :: d, ier
   PetscReal :: m
-  
+
   ! Quantities for numerical jacobian
   PetscReal :: conc_prim(reaction%naqcomp)
   PetscReal :: conc_prim_pert(reaction%naqcomp)
@@ -859,28 +859,28 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: coeff_right_copy(reaction%naqcomp,reaction%naqcomp, &
                            sec_transport_vars%ncells)
 
-  PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells) 
+  PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: dtotal_sorb_upd(reaction%naqcomp,reaction%naqcomp,sec_transport_vars%ncells)
 
   type(material_auxvar_type), allocatable :: material_auxvar
-  
+
   ngcells = sec_transport_vars%ncells
   area = sec_transport_vars%area
-  vol = sec_transport_vars%vol          
+  vol = sec_transport_vars%vol
   dm_plus = sec_transport_vars%dm_plus
   dm_minus = sec_transport_vars%dm_minus
   area_fm = sec_transport_vars%interfacial_area
   ncomp = reaction%naqcomp
   nphase = option%transport%nphase
-  
+
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
   material_auxvar%porosity = porosity
-  
+
   do j = 1, ncomp
     do i = 1, ngcells
-      do k = 1, nphase  
+      do k = 1, nphase
         total_prev(j,i,k) = sec_transport_vars%sec_rt_auxvar(i)%total(j,k)
         if (reaction%neqsorb > 0) then
           total_sorb_prev(j,i) = sec_transport_vars%sec_rt_auxvar(i)%total_sorb_eq(j)
@@ -889,11 +889,11 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     enddo
   enddo
   conc_upd = sec_transport_vars%updated_conc
-    
+
   ! Note that sec_transport_vars%sec_rt_auxvar(i)%pri_molal(j) units are in mol/kg
-  ! Need to convert to mol/L since the units of total. in the Thomas 
-  ! algorithm are in mol/L 
-  
+  ! Need to convert to mol/L since the units of total. in the Thomas
+  ! algorithm are in mol/L
+
   coeff_left = 0.d0
   coeff_diag = 0.d0
   coeff_right = 0.d0
@@ -909,8 +909,8 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   total_current_M = 0.d0
   dPsisec_dCprim = 0.d0
   dCsec_dCprim = 0.d0
-  
-  total_primary_node = auxvar%total(:,:)                         ! in mol/L 
+
+  total_primary_node = auxvar%total(:,:)                         ! in mol/L
   dtotal_prim = auxvar%aqueous%dtotal(:,:,:)
   pordt = porosity/option%tran_dt * 1.d3
   pordiff = porosity*diffusion_coefficient * 1.d3 * global_auxvar%sat
@@ -931,28 +931,28 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     endif
     total_upd(:,i,1) = rt_auxvar%total(:,1)
     dtotal(:,:,i,1) = rt_auxvar%aqueous%dtotal(:,:,1)
-       
-    if (reaction%neqsorb > 0) then 
+
+    if (reaction%neqsorb > 0) then
       total_sorb_upd(:,i) = rt_auxvar%total_sorb_eq(:)
       dtotal_sorb_upd(:,:,i) = rt_auxvar%dtotal_sorb_eq(:,:)
     endif
-  enddo 
-                          
-!================ Calculate the secondary residual =============================        
+  enddo
+
+!================ Calculate the secondary residual =============================
 
   do j = 1, ncomp
-      
+
     ! Accumulation
     do i = 1, ngcells
       n = j + (i-1)*ncomp
       do k = 1, nphase
         res(n) = pordt*global_auxvar%sat(k)*(total_upd(j,i,k) - total_prev(j,i,k))*vol(i)
       enddo
-      if (reaction%neqsorb > 0) then 
+      if (reaction%neqsorb > 0) then
         res(n) = res(n) + vol(i)/option%tran_dt*(total_sorb_upd(j,i) - total_sorb_prev(j,i))
-      endif      
+      endif
     enddo
-  
+
     ! Flux terms
     do i = 2, ngcells - 1
       n = j + (i-1)*ncomp
@@ -963,14 +963,14 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                           (total_upd(j,i,k) - total_upd(j,i-1,k))
       enddo
     enddo
-         
-              
+
+
     ! Apply boundary conditions
     ! Inner boundary
     do k = 1, nphase
       res(j) = res(j) - pordiff(k)*area(1)/(dm_minus(2) + dm_plus(1))* &
                         (total_upd(j,2,k) - total_upd(j,1,k))
-                                      
+
       ! Outer boundary
       res(j+(ngcells-1)*ncomp) = res(j+(ngcells-1)*ncomp) - &
                                  pordiff(k)*area(ngcells)/dm_plus(ngcells)* &
@@ -980,19 +980,19 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                  + dm_plus(ngcells-1))*(total_upd(j,ngcells,k) - &
                                  total_upd(j,ngcells-1,k))
     enddo
-                               
-  enddo                                                                                                                                                       
-!================ Calculate the secondary jacobian =============================        
+
+  enddo
+!================ Calculate the secondary jacobian =============================
 
 
   do n = 1, nphase
-    do j = 1, ncomp       
-      do k = 1, ncomp    
+    do j = 1, ncomp
+      do k = 1, ncomp
         ! Accumulation
-        do i = 1, ngcells 
+        do i = 1, ngcells
           alpha_diag(j,k,i,n) = alpha_diag(j,k,i,n) + pordt*vol(i)*global_auxvar%sat(n)
         enddo
-  
+
         ! Flux terms
         do i = 2, ngcells-1
           alpha_diag(j,k,i,n) = alpha_diag(j,k,i,n) + &
@@ -1003,16 +1003,16 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
           gamma_right(j,k,i,n) = gamma_right(j,k,i,n) - &
                                  pordiff(n)*area(i)/(dm_minus(i+1) + dm_plus(i))
         enddo
-  
-  
+
+
         ! Apply boundary conditions
         ! Inner boundary
         alpha_diag(j,k,1,n) = alpha_diag(j,k,1,n) + &
                               pordiff(n)*area(1)/(dm_minus(2) + dm_plus(1))
-                   
+
         gamma_right(j,k,1,n) = gamma_right(j,k,1,n) - &
                                pordiff(n)*area(1)/(dm_minus(2) + dm_plus(1))
-  
+
         ! Outer boundary -- closest to primary node
         alpha_diag(j,k,ngcells,n) = alpha_diag(j,k,ngcells,n) + &
                                     pordiff(n)*area(ngcells-1)/(dm_minus(ngcells) &
@@ -1020,20 +1020,20 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                     pordiff(n)*area(ngcells)/dm_plus(ngcells)
         beta_left(j,k,ngcells,n) = beta_left(j,k,ngcells,n) - &
                                    pordiff(n)*area(ngcells-1)/(dm_minus(ngcells) + &
-                                   dm_plus(ngcells-1)) 
+                                   dm_plus(ngcells-1))
       enddo
-    enddo    
+    enddo
   enddo
 
-!============================= Include dtotal ==================================        
-  
+!============================= Include dtotal ==================================
+
   ! Include dtotal (units of kg water/ L water)
   do l = 1, nphase
     i = 1
     do j = 1, ncomp
       do k = 1, ncomp
-        coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l) 
-        coeff_right(j,k,i) = coeff_right(j,k,i) + gamma_right(j,k,i,l)*dtotal(j,k,i+1,l) 
+        coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l)
+        coeff_right(j,k,i) = coeff_right(j,k,i) + gamma_right(j,k,i,l)*dtotal(j,k,i+1,l)
       enddo
     enddo
     do i = 2, ngcells-1
@@ -1055,19 +1055,19 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   enddo
   ! Sorption
   do j = 1, ncomp
-    do k = 1, ncomp  
+    do k = 1, ncomp
       ! Accumulation
-      do i = 1, ngcells 
+      do i = 1, ngcells
         if (reaction%neqsorb > 0) then
           coeff_diag(j,k,i) = coeff_diag(j,k,i) + vol(i)/option%tran_dt*(dtotal_sorb_upd(j,k,i))
         endif
       enddo
     enddo
   enddo
-  
-!====================== Add reaction contributions =============================        
-  
-  ! Reaction 
+
+!====================== Add reaction contributions =============================
+
+  ! Reaction
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
@@ -1080,18 +1080,18 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     endif
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     do j = 1, ncomp
-      res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
+      res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j)
     enddo
     coeff_diag(:,:,i) = coeff_diag(:,:,i) + jac_react  ! in kg water/s
-  enddo  
+  enddo
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
-         
-!============================== Forward solve ==================================        
-                        
-  rhs = -res   
+
+!============================== Forward solve ==================================
+
+  rhs = -res
   if (reaction%use_log_formulation) then
   ! scale the jacobian by concentrations
     i = 1
@@ -1111,20 +1111,20 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         coeff_diag(:,k,i) = coeff_diag(:,k,i)*conc_upd(k,i) ! m3/s*kg/L
         coeff_left(:,k,i) = coeff_left(:,k,i)*conc_upd(k,i-1)
       enddo
-  endif 
-  
+  endif
+
   ! First do an LU decomposition for calculating D_M matrix
   coeff_diag_dm = coeff_diag
   coeff_left_dm = coeff_left
   coeff_right_dm = coeff_right
-  
+
   select case (option%secondary_continuum_solver)
-    case(1) 
+    case(1)
       do i = 2, ngcells
         coeff_left_dm(:,:,i-1) = coeff_left_dm(:,:,i)
       enddo
       coeff_left_dm(:,:,ngcells) = 0.d0
-      call bl3dfac(ngcells,ncomp,coeff_right_dm,coeff_diag_dm,coeff_left_dm,pivot)  
+      call bl3dfac(ngcells,ncomp,coeff_right_dm,coeff_diag_dm,coeff_left_dm,pivot)
     case(2)
       call decbt(ncomp,ngcells,ncomp,coeff_diag_dm,coeff_right_dm,coeff_left_dm,pivot,ier)
       if (ier /= 0) then
@@ -1143,15 +1143,15 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         m = coeff_left_dm(ncomp,ncomp,i)/coeff_diag_dm(ncomp,ncomp,i-1)
         coeff_diag_dm(ncomp,ncomp,i) = coeff_diag_dm(ncomp,ncomp,i) - &
                                     m*coeff_right_dm(ncomp,ncomp,i-1)
-      enddo        
+      enddo
     case default
       option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
                          'HINDMARSH or KEARST. For single component'// &
                          'chemistry THOMAS can be used.'
       call PrintErrMsg(option)
   end select
-  
-  ! Set the values of D_M matrix and create identity matrix of size ncomp x ncomp  
+
+  ! Set the values of D_M matrix and create identity matrix of size ncomp x ncomp
   do i = 1, ncomp
     do j = 1, ncomp
       D_M(i,j) = coeff_diag_dm(i,j,ngcells)
@@ -1162,15 +1162,15 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       endif
     enddo
   enddo
-  
+
   ! Find the inverse of D_M
-  call LUDecomposition(D_M,ncomp,indx,d) 
+  call LUDecomposition(D_M,ncomp,indx,d)
   do j = 1, ncomp
     call LUBackSubstitution(D_M,ncomp,indx,identity(1,j))
-  enddo  
-  inv_D_M = identity      
-  
-  if (option%numerical_derivatives_multi_coupling) then  
+  enddo
+  inv_D_M = identity
+
+  if (option%numerical_derivatives_multi_coupling) then
     ! Store the coeffs for numerical jacobian
     coeff_diag_copy = coeff_diag
     coeff_left_copy = coeff_left
@@ -1178,12 +1178,12 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   endif
 
   select case (option%secondary_continuum_solver)
-    case(1) 
+    case(1)
       do i = 2, ngcells
         coeff_left(:,:,i-1) = coeff_left(:,:,i)
       enddo
       coeff_left(:,:,ngcells) = 0.d0
-      call bl3dfac(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot)  
+      call bl3dfac(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot)
       call bl3dsolf(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot, &
                     ONE_INTEGER,rhs)
     case(2)
@@ -1208,7 +1208,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         coeff_diag(ncomp,ncomp,i) = coeff_diag(ncomp,ncomp,i) - &
                                     m*coeff_right(ncomp,ncomp,i-1)
         rhs(i) = rhs(i) - m*rhs(i-1)
-      enddo        
+      enddo
       rhs(ngcells) = rhs(ngcells)/coeff_diag(ncomp,ncomp,ngcells)
     case default
       option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
@@ -1239,23 +1239,23 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   endif
   total_current_M(:,1) = rt_auxvar%total(:,1)
   if (reaction%neqcplx > 0) sec_sec_molal_M = rt_auxvar%sec_molal
-  
+
 
   do k = 1, nphase
     a_m(:,:,k) = pordiff(k)/dm_plus(ngcells)*area(ngcells)*inv_D_M ! in L/kg  For log formulation, L/mol
     dCsec_dCprim = dCsec_dCprim + a_m(:,:,k)*dtotal_prim(:,:,k)
   enddo
- 
-  ! Calculate the dervative of outer matrix node total with respect to the 
+
+  ! Calculate the dervative of outer matrix node total with respect to the
   ! primary node concentration
-  
+
   if (reaction%use_log_formulation) then ! log formulation
     do j = 1, ncomp
       do l = 1, ncomp
         dPsisec_dCprim(j,l,1) = dCsec_dCprim(j,l)*conc_current_M(j)
       enddo
     enddo
-   
+
     if (reaction%neqcplx > 0) then
       do icplx = 1, reaction%neqcplx
         ncompeq = reaction%eqcplxspecid(0,icplx)
@@ -1271,14 +1271,14 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                             dCsec_dCprim(kcomp,lcomp)* &
                                             sec_sec_molal_M(icplx)
             enddo
-          enddo      
+          enddo
         enddo
       enddo
       if (reaction%gas%nactive_gas > 0) then
         RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + 273.15d0) * 1.d3
         do igas = 1, reaction%gas%nactive_gas
           do j = 1, ncomp
-            jcomp = reaction%gas%acteqspecid(j,igas)  
+            jcomp = reaction%gas%acteqspecid(j,igas)
             do l = 1, ncomp
               icomp = reaction%gas%acteqspecid(i,igas)
               dPsisec_dCprim(jcomp,lcomp,2) = dPsisec_dCprim(jcomp,lcomp,2) + &
@@ -1289,11 +1289,11 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         enddo
       endif
     endif
-   
-  else   ! linear case  
-  
+
+  else   ! linear case
+
     dPsisec_dCprim(:,:,1) = dCsec_dCprim       ! dimensionless
-  
+
     if (reaction%neqcplx > 0) then
       do icplx = 1, reaction%neqcplx
         ncompeq = reaction%eqcplxspecid(0,icplx)
@@ -1308,9 +1308,9 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                             reaction%eqcplxstoich(k,icplx)* &
                                             dCsec_dCprim(kcomp,lcomp)* &
                                             sec_sec_molal_M(icplx)/ &
-                                            conc_current_M(kcomp) 
+                                            conc_current_M(kcomp)
             enddo
-          enddo      
+          enddo
         enddo
       enddo
 
@@ -1319,7 +1319,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + 273.15d0) * 1.d3
       do igas = 1, reaction%gas%nactive_gas
         do j = 1, ncomp
-          jcomp = reaction%gas%acteqspecid(j,igas)  
+          jcomp = reaction%gas%acteqspecid(j,igas)
           do l = 1, ncomp
             lcomp = reaction%gas%acteqspecid(l,igas)
             dPsisec_dCprim(jcomp,lcomp,2) = dPsisec_dCprim(jcomp,lcomp,2) + &
@@ -1329,10 +1329,10 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
           enddo
         enddo
       enddo
-    endif 
+    endif
   endif
   call RTAuxVarStrip(rt_auxvar)
-  
+
   dPsisec_dCprim = dPsisec_dCprim*global_auxvar%den_kg(1)*1.d-3 ! in kg/L
 
   sec_jac = 0.d0
@@ -1343,21 +1343,21 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     sec_jac = sec_jac + area_fm*pordiff(i)/dm_plus(ngcells)* &
                  (dPsisec_dCprim(:,:,i) - dtotal_prim(:,:,i))* prim_vol ! in kg water/s
   enddo
-      
+
   ! Store the contribution to the primary jacobian term
-  sec_transport_vars%sec_jac = sec_jac 
+  sec_transport_vars%sec_jac = sec_jac
   sec_transport_vars%sec_jac_update = PETSC_TRUE
-  
+
   ! Store the coefficients from LU decomposition of the block tridiagonal
   ! sytem. These will be called later to perform backsolve to the get the
   ! updated secondary continuum concentrations at the end of the timestep
   sec_transport_vars%cxm = coeff_left
   sec_transport_vars%cxp = coeff_right
   sec_transport_vars%cdl = coeff_diag
-  
+
   ! Store the solution of the forward solve
   sec_transport_vars%r = rhs
-  
+
 !============== Numerical jacobian for coupling term ===========================
 
 
@@ -1366,16 +1366,16 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     call RTAuxVarInit(rt_auxvar,reaction,option)
     conc_prim = auxvar%pri_molal
     conc_prim_pert = conc_prim
-  
+
     do l = 1, ncomp
-      
+
       conc_prim_pert = conc_prim
       pert = conc_prim(l)*perturbation_tolerance
       conc_prim_pert(l) = conc_prim_pert(l) + pert
-  
+
       res = 0.d0
       rhs = 0.d0
-    
+
       coeff_diag_pert = coeff_diag_copy
       coeff_left_pert = coeff_left_copy
       coeff_right_pert = coeff_right_copy
@@ -1384,32 +1384,32 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       rt_auxvar%pri_molal = conc_prim_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_primary_node_pert = rt_auxvar%total(:,1)
-                          
-!================ Calculate the secondary residual =============================        
+
+!================ Calculate the secondary residual =============================
 
       do j = 1, ncomp
-      
+
         ! Accumulation
         do i = 1, ngcells
           n = j + (i-1)*ncomp
           res(n) = pordt*(total_upd(j,i,1) - total_prev(j,i,1))*vol(i)
         enddo
-  
+
         ! Flux terms
         do i = 2, ngcells - 1
           n = j + (i-1)*ncomp
           res(n) = res(n) - pordiff(1)*area(i)/(dm_minus(i+1) + dm_plus(i))* &
                             (total_upd(j,i+1,1) - total_upd(j,i,1))
           res(n) = res(n) + pordiff(1)*area(i-1)/(dm_minus(i) + dm_plus(i-1))* &
-                            (total_upd(j,i,1) - total_upd(j,i-1,1))                      
+                            (total_upd(j,i,1) - total_upd(j,i-1,1))
         enddo
-         
-              
+
+
         ! Apply boundary conditions
         ! Inner boundary
         res(j) = res(j) - pordiff(1)*area(1)/(dm_minus(2) + dm_plus(1))* &
                           (total_upd(j,2,1) - total_upd(j,1,1))
-                                      
+
         ! Outer boundary
         res(j+(ngcells-1)*ncomp) = res(j+(ngcells-1)*ncomp) - &
                                    pordiff(1)*area(ngcells)/dm_plus(ngcells)* &
@@ -1418,18 +1418,18 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         res(j+(ngcells-1)*ncomp) = res(j+(ngcells-1)*ncomp) + &
                                    pordiff(1)*area(ngcells-1)/(dm_minus(ngcells) &
                                    + dm_plus(ngcells-1))*(total_upd(j,ngcells,1) - &
-                                   total_upd(j,ngcells-1,1))  
-                               
+                                   total_upd(j,ngcells-1,1))
+
       enddo
-                                                                                         
-!============================== Forward solve ==================================        
-                        
-      rhs = -res   
-           
+
+!============================== Forward solve ==================================
+
+      rhs = -res
+
     select case (option%secondary_continuum_solver)
-      case(1) 
+      case(1)
         call bl3dfac(ngcells,ncomp,coeff_right_pert,coeff_diag_pert, &
-                      coeff_left_pert,pivot)  
+                      coeff_left_pert,pivot)
         call bl3dsolf(ngcells,ncomp,coeff_right_pert,coeff_diag_pert, &
                        coeff_left_pert,pivot,ONE_INTEGER,rhs)
       case(2)
@@ -1454,15 +1454,15 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
           coeff_diag_pert(ncomp,ncomp,i) = coeff_diag_pert(ncomp,ncomp,i) - &
                                       m*coeff_right_pert(ncomp,ncomp,i-1)
           rhs(i) = rhs(i) - m*rhs(i-1)
-        enddo        
+        enddo
         rhs(ngcells) = rhs(ngcells)/coeff_diag(ncomp,ncomp,ngcells)
       case default
         option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
                            'HINDMARSH or KEARST. For single component'// &
                            'chemistry THOMAS can be used.'
         call PrintErrMsg(option)
-      end select      
-    
+      end select
+
       ! Update the secondary concentrations
       do i = 1, ncomp
         if (reaction%use_log_formulation) then
@@ -1483,27 +1483,27 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       rt_auxvar%pri_molal = conc_current_M_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_current_M_pert = rt_auxvar%total(:,1)
-             
+
       ! Calculate the coupling term
       res_transport_pert = pordiff(1)/dm_plus(ngcells)*area_fm* &
                            (total_current_M_pert - total_primary_node_pert)* &
                            prim_vol ! in mol/s
-  
+
       dtotal_prim_num(:,l) = (total_primary_node_pert(:) - &
                                total_primary_node(:,1))/pert
-  
+
       dPsisec_dCprim_num(:,l) = (total_current_M_pert(:) - &
                                   total_current_M(:,1))/pert
-  
+
       sec_jac_num(:,l) = (res_transport_pert(:) - res_transport(:))/pert
-    
-    enddo    
+
+    enddo
 
     call RTAuxVarStrip(rt_auxvar)
-    sec_transport_vars%sec_jac = sec_jac_num 
+    sec_transport_vars%sec_jac = sec_jac_num
 
   endif
-  
+
 
 end subroutine SecondaryRTResJacMulti
 
@@ -1511,12 +1511,12 @@ end subroutine SecondaryRTResJacMulti
 
 subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
                                     X1_changed,realization,ierr)
-  ! 
+  !
   ! Checks update after the update is done
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 02/22/13
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Option_module
@@ -1524,9 +1524,9 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
- 
+
   implicit none
-  
+
   SNES :: snes
   Vec :: P0
   Vec :: dP
@@ -1535,7 +1535,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   ! ignore changed flag for now.
   PetscBool :: dX_changed
   PetscBool :: X1_changed
-  
+
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -1543,29 +1543,29 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: local_id, ghosted_id
-  
+
   PetscReal :: sec_porosity
   PetscErrorCode :: ierr
   PetscReal :: inf_norm_sec
   PetscReal :: max_inf_norm_sec
   PetscReal :: sec_diffusion_coefficient(2)
-  
+
   option => realization%option
   grid => realization%patch%grid
   rt_auxvars => realization%patch%aux%RT%auxvars
   global_auxvars => realization%patch%aux%Global%auxvars
   reaction => realization%reaction
-  if (option%use_mc) then
+  if (option%use_sc) then
     rt_sec_transport_vars => realization%patch%aux%SC_RT%sec_transport_vars
-  endif  
-  
-  
+  endif
+
+
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
-  
+
   max_inf_norm_sec = 0.d0
-  
-  if (option%use_mc) then
+
+  if (option%use_sc) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
@@ -1578,37 +1578,37 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
       call SecondaryRTAuxVarComputeMulti(&
                                     rt_sec_transport_vars(ghosted_id), &
                                     reaction, &
-                                    option)              
- 
+                                    option)
+
       call SecondaryRTCheckResidual(rt_sec_transport_vars(ghosted_id), &
                                     rt_auxvars(ghosted_id), &
                                     global_auxvars(ghosted_id), &
                                     reaction,sec_diffusion_coefficient, &
                                     sec_porosity,option,inf_norm_sec)
-                                      
-      max_inf_norm_sec = max(max_inf_norm_sec,inf_norm_sec)                                                                   
-    enddo 
-    call MPI_Allreduce(max_inf_norm_sec,option%infnorm_res_sec,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION, &
-                       MPI_MAX,option%mycomm,ierr)
+
+      max_inf_norm_sec = max(max_inf_norm_sec,inf_norm_sec)
+    enddo
+    call MPI_Allreduce(max_inf_norm_sec,option%infnorm_res_sec, &
+                       ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MAX, &
+                       option%mycomm,ierr);CHKERRQ(ierr)
   endif
-  
-      
+
+
 end subroutine SecondaryRTUpdateIterate
 
 ! ************************************************************************** !
 
 subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
-                                       reaction,sec_porosity,option) 
-  ! 
+                                       reaction,sec_porosity,option)
+  !
   ! Updates the equilibrium secondary continuum
   ! variables
   ! at the end of time step
-  ! 
+  !
   ! Author: Satish Karra, LANL; Glenn Hammond (modification)
   ! Date: 02/22/13; 06/27/13
-  ! 
-                                     
+  !
+
 
   use Option_module
   use Reaction_Aux_module
@@ -1617,9 +1617,9 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   use Global_Aux_module
   use Material_Aux_module
   use Reaction_Gas_module
-  
+
   implicit none
-  
+
   type(material_auxvar_type), allocatable :: material_auxvar
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
@@ -1628,7 +1628,7 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   PetscReal :: sec_porosity
   PetscInt :: ngcells,ncomp
   PetscInt :: i,j
-  
+
   ngcells = sec_transport_vars%ncells
   ncomp = reaction%naqcomp
 
@@ -1636,14 +1636,14 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   call MaterialAuxVarInit(material_auxvar,option)
   material_auxvar%porosity = sec_porosity
 
-  
+
   do j = 1, ncomp
     do i = 1, ngcells
       sec_transport_vars%sec_rt_auxvar(i)%pri_molal(j) = sec_transport_vars%&
         updated_conc(j,i)
     enddo
   enddo
-    
+
   do i = 1, ngcells
     call RTotalAqueous(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
                        reaction,option)
@@ -1656,21 +1656,26 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
       call RTotalGas(sec_transport_vars%sec_rt_auxvar(i),global_auxvars,reaction,option)
     endif
   enddo
- 
+
+  ! although the allocatable material_aux object is automatically deallocated
+  ! upon leaving this routine, its dynamic pointer members are not
+  call MaterialAuxVarStrip(material_auxvar)
+  deallocate(material_auxvar)
+
 end subroutine SecondaryRTUpdateEquilState
 
 ! ************************************************************************** !
 
 subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
-                                         reaction,porosity,option) 
-  ! 
+                                         reaction,porosity,option)
+  !
   ! Updates the kinetic secondary continuum
   ! variables at the end of time step
-  ! 
+  !
   ! Author: Satish Karra, LANL; Glenn Hammond (modification)
   ! Date: 02/22/13; 06/27/13
-  ! 
-                                     
+  !
+
 
   use Option_module
   use Reaction_Aux_module
@@ -1678,9 +1683,9 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   use Reaction_module
   use Global_Aux_module
   use Material_Aux_module
- 
+
   implicit none
-  
+
 
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
@@ -1693,10 +1698,10 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   PetscReal :: jac_react(reaction%naqcomp,reaction%naqcomp)
   PetscInt :: i,j
   type(material_auxvar_type), allocatable :: material_auxvar
-  
+
   ngcells = sec_transport_vars%ncells
-  vol = sec_transport_vars%vol     
-                   
+  vol = sec_transport_vars%vol
+
   res_react = 0.d0
   jac_react = 0.d0 ! These are not used anyway
   allocate(material_auxvar)
@@ -1710,7 +1715,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   enddo
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
-  
+
   if (reaction%mineral%nkinmnrl > 0) then
     do i = 1, ngcells
       do j = 1, reaction%mineral%nkinmnrl
@@ -1725,7 +1730,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
     enddo
   endif
 
-  
+
 end subroutine SecondaryRTUpdateKineticState
 
 ! ************************************************************************** !
@@ -1734,15 +1739,15 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
                                     global_auxvar, &
                                     reaction,diffusion_coefficient, &
                                     porosity,option,inf_norm_sec)
-  ! 
+  !
   ! The residual of the secondary domain are checked
   ! to ensure convergence
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 1/31/13
-  ! 
-                                    
-  use Option_module 
+  !
+
+  use Option_module
   use Global_Aux_module
   use Block_Solve_module
   use Block_Tridiag_module
@@ -1754,16 +1759,16 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   use Reaction_Gas_module
 
   implicit none
-  
+
   type(sec_transport_type) :: sec_transport_vars
   type(reactive_transport_auxvar_type) :: auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
-  
+
   PetscReal :: res(sec_transport_vars%ncells*reaction%naqcomp)
-  PetscReal :: conc_upd(reaction%naqcomp,sec_transport_vars%ncells) 
+  PetscReal :: conc_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: total_upd(reaction%naqcomp,sec_transport_vars%ncells,option%transport%nphase)
   PetscReal :: total_prev(reaction%naqcomp,sec_transport_vars%ncells,option%transport%nphase)
   PetscReal :: total_primary_node(reaction%naqcomp,option%transport%nphase)
@@ -1783,12 +1788,12 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   PetscReal :: inf_norm_sec
   type(material_auxvar_type), allocatable :: material_auxvar
 
-  PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells) 
+  PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)
-  
+
   ngcells = sec_transport_vars%ncells
   area = sec_transport_vars%area
-  vol = sec_transport_vars%vol          
+  vol = sec_transport_vars%vol
   dm_plus = sec_transport_vars%dm_plus
   dm_minus = sec_transport_vars%dm_minus
   area_fm = sec_transport_vars%interfacial_area
@@ -1802,18 +1807,18 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
         if (reaction%neqsorb > 0) then
           total_sorb_prev(j,i) = sec_transport_vars%sec_rt_auxvar(i)%total_sorb_eq(j)
         endif
-      enddo 
+      enddo
     enddo
   enddo
   conc_upd = sec_transport_vars%updated_conc
-    
+
   ! Note that sec_transport_vars%sec_rt_auxvar(i)%pri_molal(j) units are in mol/kg
-  ! Need to convert to mol/L since the units of total. in the Thomas 
-  ! algorithm are in mol/L 
-  
+  ! Need to convert to mol/L since the units of total. in the Thomas
+  ! algorithm are in mol/L
+
   res = 0.d0
-  
-  total_primary_node = auxvar%total(:,:)                         ! in mol/L 
+
+  total_primary_node = auxvar%total(:,:)                         ! in mol/L
   pordt = porosity/option%tran_dt * 1.d3
   pordiff = porosity*diffusion_coefficient * 1.d3 * global_auxvar%sat
 
@@ -1835,26 +1840,26 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
       total_upd(:,i,2) = rt_auxvar%total(:,2)
     endif
     total_upd(:,i,1) = rt_auxvar%total(:,1)
-    if (reaction%neqsorb > 0) then 
+    if (reaction%neqsorb > 0) then
       total_sorb_upd(:,i) = rt_auxvar%total_sorb_eq(:)
     endif
   enddo
-                                    
-!================ Calculate the secondary residual =============================        
+
+!================ Calculate the secondary residual =============================
 
   do j = 1, ncomp
-      
+
     ! Accumulation
     do i = 1, ngcells
        n = j + (i-1)*ncomp
       do k = 1, nphase
-        res(n) = pordt*global_auxvar%sat(k)*(total_upd(j,i,k) - total_prev(j,i,k))*vol(i) 
+        res(n) = pordt*global_auxvar%sat(k)*(total_upd(j,i,k) - total_prev(j,i,k))*vol(i)
       enddo
-      if (reaction%neqsorb > 0) then 
+      if (reaction%neqsorb > 0) then
         res(n) = res(n) + vol(i)/option%tran_dt*(total_sorb_upd(j,i) - total_sorb_prev(j,i))
-      endif 
+      endif
     enddo
-  
+
     ! Flux terms
     do i = 2, ngcells - 1
       n = j + (i-1)*ncomp
@@ -1862,17 +1867,17 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
         res(n) = res(n) - pordiff(k)*area(i)/(dm_minus(i+1) + dm_plus(i))* &
                           (total_upd(j,i+1,k) - total_upd(j,i,k))
         res(n) = res(n) + pordiff(k)*area(i-1)/(dm_minus(i) + dm_plus(i-1))* &
-                          (total_upd(j,i,k) - total_upd(j,i-1,k))                      
-      enddo   
+                          (total_upd(j,i,k) - total_upd(j,i-1,k))
+      enddo
     enddo
-         
-              
+
+
     ! Apply boundary conditions
     ! Inner boundary
     do k = 1, nphase
       res(j) = res(j) - pordiff(k)*area(1)/(dm_minus(2) + dm_plus(1))* &
                         (total_upd(j,2,k) - total_upd(j,1,k))
-                                      
+
       ! Outer boundary
       res(j+(ngcells-1)*ncomp) = res(j+(ngcells-1)*ncomp) - &
                                  pordiff(k)*area(ngcells)/dm_plus(ngcells)* &
@@ -1880,13 +1885,13 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
       res(j+(ngcells-1)*ncomp) = res(j+(ngcells-1)*ncomp) + &
                                  pordiff(k)*area(ngcells-1)/(dm_minus(ngcells) &
                                  + dm_plus(ngcells-1))*(total_upd(j,ngcells,k) - &
-                                 total_upd(j,ngcells-1,k))  
-    enddo                            
-  enddo                                      
-                                                                        
-!====================== Add reaction contributions =============================        
-  
-  ! Reaction 
+                                 total_upd(j,ngcells-1,k))
+    enddo
+  enddo
+
+!====================== Add reaction contributions =============================
+
+  ! Reaction
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
@@ -1899,50 +1904,50 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     endif
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     do j = 1, ncomp
-      res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
+      res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j)
     enddo
-  enddo  
-  call MaterialAuxVarStrip(material_auxvar)         
+  enddo
+  call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
-  
+
  ! Need to decide how to scale the residual with volumes
   do i = 1, ngcells
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp)/vol(i)
     enddo
   enddo
-    
-  inf_norm_sec = maxval(abs(res))  
-  call RTAuxVarStrip(rt_auxvar)  
-                                                                      
-end subroutine SecondaryRTCheckResidual                                    
+
+  inf_norm_sec = maxval(abs(res))
+  call RTAuxVarStrip(rt_auxvar)
+
+end subroutine SecondaryRTCheckResidual
 
 ! ************************************************************************** !
 
 subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
                                          option)
-  ! 
+  !
   ! Updates the secondary continuum
   ! concentrations at end of each time step for multicomponent system
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 2/1/13
-  ! 
-                               
-                            
-  use Option_module 
+  !
+
+
+  use Option_module
   use Reaction_Aux_module
   use Reaction_module
   use Reactive_Transport_Aux_module
   use Block_Solve_module
   use Block_Tridiag_module
   use Utility_module
-  
+
 
   implicit none
-  
+
   type(sec_transport_type) :: sec_transport_vars
   class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
@@ -1953,35 +1958,35 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
   PetscReal :: coeff_right(reaction%naqcomp,reaction%naqcomp, &
                  sec_transport_vars%ncells)
   PetscReal :: rhs(sec_transport_vars%ncells*reaction%naqcomp)
-  PetscReal :: conc_upd(reaction%naqcomp,sec_transport_vars%ncells) 
+  PetscReal :: conc_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscInt :: i, j, n
   PetscInt :: ngcells, ncomp
   PetscInt :: pivot(reaction%naqcomp,sec_transport_vars%ncells)
   PetscInt :: indx(reaction%naqcomp)
   PetscInt :: d
-    
+
   ngcells = sec_transport_vars%ncells
   ncomp = reaction%naqcomp
   ! Note that sec_transport_vars%sec_conc units are in mol/kg
-  ! Need to convert to mol/L since the units of conc. in the Thomas 
-  ! algorithm are in mol/L 
-  
+  ! Need to convert to mol/L since the units of conc. in the Thomas
+  ! algorithm are in mol/L
+
   coeff_left = 0.d0
   coeff_diag = 0.d0
   coeff_right = 0.d0
   rhs = 0.d0
 
   conc_upd = sec_transport_vars%updated_conc
-           
+
   ! Use the stored coefficient matrices from LU decomposition of the
   ! block triagonal sytem
   coeff_left = sec_transport_vars%cxm
   coeff_right = sec_transport_vars%cxp
   coeff_diag = sec_transport_vars%cdl
   rhs = sec_transport_vars%r
-    
+
   select case (option%secondary_continuum_solver)
-    case(1) 
+    case(1)
       call bl3dsolb(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot, &
                     ONE_INTEGER,rhs)
     case(2)
@@ -1997,14 +2002,14 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
                          'HINDMARSH or KEARST. For single component'// &
                          'chemistry THOMAS can be used.'
       call PrintErrMsg(option)
-  end select  
-  
+  end select
+
   do j = 1, ncomp
     do i = 1, ngcells
       n = j + (i - 1)*ncomp
-      if (reaction%use_log_formulation) then 
+      if (reaction%use_log_formulation) then
         ! convert log concentration to concentration
-        rhs(n) = dsign(1.d0,rhs(n))*min(dabs(rhs(n)),reaction%max_dlnC) 
+        rhs(n) = dsign(1.d0,rhs(n))*min(dabs(rhs(n)),reaction%max_dlnC)
         conc_upd(j,i) = exp(rhs(n))*conc_upd(j,i)
       else
         conc_upd(j,i) = rhs(n) + conc_upd(j,i)
@@ -2012,9 +2017,9 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
       if (conc_upd(j,i) < 0.d0) conc_upd(j,i) = 1.d-8
     enddo
   enddo
-  
+
   sec_transport_vars%updated_conc = conc_upd
-    
+
 end subroutine SecondaryRTAuxVarComputeMulti
 
 ! ************************************************************************** !
@@ -2022,19 +2027,19 @@ end subroutine SecondaryRTAuxVarComputeMulti
 subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
                                    therm_conductivity,dencpr, &
                                    option)
-  ! 
+  !
   ! Computes secondary auxillary variables for each
   ! grid cell for heat transfer only
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/5/12
-  ! 
+  !
 
-  use Option_module 
+  use Option_module
   use Global_Aux_module
-  
+
   implicit none
-  
+
   type(sec_heat_type) :: sec_heat_vars
   type(global_auxvar_type) :: global_auxvar
   type(option_type) :: option
@@ -2052,7 +2057,7 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   PetscReal :: alpha, therm_conductivity, dencpr
   PetscReal :: temp_primary_node
   PetscReal :: m
-  
+
   ngcells = sec_heat_vars%ncells
   area = sec_heat_vars%area
   vol = sec_heat_vars%vol
@@ -2060,16 +2065,16 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   dm_minus = sec_heat_vars%dm_minus
   area_fm = sec_heat_vars%interfacial_area
   temp_primary_node = global_auxvar%temp
-  
+
   coeff_left = 0.d0
   coeff_diag = 0.d0
   coeff_right = 0.d0
   rhs = 0.d0
   sec_temp = 0.d0
-  
+
   alpha = option%flow_dt*therm_conductivity/dencpr
 
-  
+
   ! Setting the coefficients
   do i = 2, ngcells-1
     coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
@@ -2077,10 +2082,10 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
                     alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
     coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
   enddo
-  
+
   coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
   coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-  
+
   coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
                        ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
   coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
@@ -2088,12 +2093,12 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
                        + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
                        + 1.d0
 
-                        
+
   rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + & 
+  rhs(ngcells) = rhs(ngcells) + &
                  alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
                  temp_primary_node
-                
+
   ! Thomas algorithm for tridiagonal system
   ! Forward elimination
   do i = 2, ngcells
@@ -2108,9 +2113,9 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   do i = ngcells-1, 1, -1
     sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
   enddo
-  
+
   sec_heat_vars%sec_temp = sec_temp
-            
+
 end subroutine THCSecHeatAuxVarCompute
 
 ! ************************************************************************** !
@@ -2118,19 +2123,19 @@ end subroutine THCSecHeatAuxVarCompute
 subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
                                    therm_conductivity,dencpr, &
                                    option)
-  ! 
+  !
   ! Computes secondary auxillary variables for each
   ! grid cell for heat transfer only
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/5/12
-  ! 
+  !
 
-  use Option_module 
+  use Option_module
   use Global_Aux_module
-  
+
   implicit none
-  
+
   type(sec_heat_type) :: sec_heat_vars
   type(global_auxvar_type) :: global_auxvar
   type(option_type) :: option
@@ -2148,7 +2153,7 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   PetscReal :: alpha, therm_conductivity, dencpr
   PetscReal :: temp_primary_node
   PetscReal :: m
-  
+
   ngcells = sec_heat_vars%ncells
   area = sec_heat_vars%area
   vol = sec_heat_vars%vol
@@ -2156,16 +2161,16 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   dm_minus = sec_heat_vars%dm_minus
   area_fm = sec_heat_vars%interfacial_area
   temp_primary_node = global_auxvar%temp
-  
+
   coeff_left = 0.d0
   coeff_diag = 0.d0
   coeff_right = 0.d0
   rhs = 0.d0
   sec_temp = 0.d0
-  
+
   alpha = option%flow_dt*therm_conductivity/dencpr
 
-  
+
   ! Setting the coefficients
   do i = 2, ngcells-1
     coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
@@ -2173,10 +2178,10 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
                     alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
     coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
   enddo
-  
+
   coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
   coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-  
+
   coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
                        ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
   coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
@@ -2184,12 +2189,12 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
                        + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
                        + 1.d0
 
-                        
+
   rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + & 
+  rhs(ngcells) = rhs(ngcells) + &
                  alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
                  temp_primary_node
-                
+
   ! Thomas algorithm for tridiagonal system
   ! Forward elimination
   do i = 2, ngcells
@@ -2204,9 +2209,9 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   do i = ngcells-1, 1, -1
     sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
   enddo
-  
+
   sec_heat_vars%sec_temp = sec_temp
-            
+
 end subroutine THSecHeatAuxVarCompute
 
 ! ************************************************************************** !
@@ -2214,20 +2219,20 @@ end subroutine THSecHeatAuxVarCompute
 subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
                                    therm_conductivity,dencpr, &
                                    option)
-  ! 
+  !
   ! Computes secondary auxillary variables in each
   ! grid cell for heat transfer only
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 06/28/12
-  ! 
+  !
 
-  use Option_module 
+  use Option_module
   use Global_Aux_module
   use Mphase_Aux_module
-  
+
   implicit none
-  
+
   type(sec_heat_type) :: sec_heat_vars
   type(mphase_auxvar_elem_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -2246,8 +2251,8 @@ subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
   PetscReal :: alpha, therm_conductivity, dencpr
   PetscReal :: temp_primary_node
   PetscReal :: m
-  
-  
+
+
   ngcells = sec_heat_vars%ncells
   area = sec_heat_vars%area
   vol = sec_heat_vars%vol
@@ -2256,16 +2261,16 @@ subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
   area_fm = sec_heat_vars%interfacial_area
   temp_primary_node = auxvar%temp
 
-  
+
   coeff_left = 0.d0
   coeff_diag = 0.d0
   coeff_right = 0.d0
   rhs = 0.d0
   sec_temp = 0.d0
-  
+
   alpha = option%flow_dt*therm_conductivity/dencpr
 
-  
+
   ! Setting the coefficients
   do i = 2, ngcells-1
     coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
@@ -2273,22 +2278,22 @@ subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
                     alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
     coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
   enddo
-  
+
   coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
   coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-  
+
   coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
                        ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
   coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
                        ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
                        + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
                        + 1.d0
-                        
+
   rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + & 
+  rhs(ngcells) = rhs(ngcells) + &
                  alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
                  temp_primary_node
-                
+
   ! Thomas algorithm for tridiagonal system
   ! Forward elimination
   do i = 2, ngcells
@@ -2305,7 +2310,7 @@ subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
   enddo
 
 ! print *,'temp_dcdm= ',(sec_temp(i),i=1,ngcells)
-  
+
   sec_heat_vars%sec_temp = sec_temp
 
 
@@ -2314,7 +2319,7 @@ end subroutine MphaseSecHeatAuxVarCompute
 ! ************************************************************************** !
 
 subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
- 
+
   ! Extracts a secondary continuum variable for a layer of secondary
   ! continuum cells. Similar to RealizationGetVariable, but now the "layer"
   ! of the cells needs to be specified.
@@ -2327,7 +2332,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   use petscvec
 
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
   Vec :: vec
   PetscInt :: ivar
@@ -2344,7 +2349,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   grid => patch%grid
 
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
-  
+
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1,grid%nlmax
@@ -2377,7 +2382,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
           sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
       enddo
   end select
-  
+
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SecondaryRTGetVariable
@@ -2385,7 +2390,7 @@ end subroutine SecondaryRTGetVariable
 ! ************************************************************************** !
 
 subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, mc_layer)
-  
+
   ! Sets a secondary continuum variable to a layer of secondary
   ! continuum cells. Similar to RealizationSetVariable, but now the "layer"
   ! of the cells needs to be specified.
@@ -2399,7 +2404,7 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   use petscvec
 
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
   Vec :: vec
   PetscInt :: vec_format
@@ -2423,7 +2428,7 @@ SecondaryRTSetVariable')
   endif
 
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
-  
+
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1, grid%nlmax
@@ -2451,10 +2456,10 @@ SecondaryRTSetVariable')
           sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
       enddo
   end select
-  
+
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SecondaryRTSetVariable
 
 end module Secondary_Continuum_module
-            
+

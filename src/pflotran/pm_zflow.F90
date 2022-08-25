@@ -26,7 +26,7 @@ module PM_ZFlow_class
     PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
     PetscReal :: sat_update_trunc_ni
     PetscReal :: unsat_to_sat_pres_damping_ni
-    PetscBool :: verbose_convergence
+    PetscInt :: convergence_verbosity
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -115,7 +115,7 @@ subroutine PMZFlowInitObject(this)
   this%xmol_change_governor = UNINITIALIZED_DOUBLE
 
   this%check_post_convergence = PETSC_TRUE
-  this%verbose_convergence = PETSC_FALSE
+  this%convergence_verbosity = 0
 
   this%max_allow_liq_pres_change_ni = UNINITIALIZED_DOUBLE
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
@@ -156,6 +156,7 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: local_error_string
   PetscBool :: found
   PetscReal :: array(1)
+  PetscInt :: temp_int
 
   option => this%option
 
@@ -201,7 +202,13 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         enddo
         call InputPopBlock(input,option)
       case('VERBOSE_CONVERGENCE')
-        this%verbose_convergence = PETSC_TRUE
+        this%convergence_verbosity = 1
+        call InputReadInt(input,option,temp_int)
+        if (input%ierr == 0) then
+          this%convergence_verbosity = temp_int
+        else
+          call InputDefaultMsg(input,option,keyword)
+        endif
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
@@ -306,6 +313,13 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
   character(len=MAXWORDLENGTH) :: word
 
   error_string = 'ZFLOW Newton Solver'
+
+  select case(trim(keyword))
+    case('ITOL_UPDATE')
+      option%io_buffer = 'ITOL_UPDATE not supported with ZFLOW. Please &
+        &use MAX_ALLOW_LIQ_PRES_CHANGE_NI.'
+      call PrintErrMsg(option)
+  end select
 
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
@@ -485,7 +499,8 @@ end subroutine PMZFlowPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMZFlowUpdateTimestep(this,update_dt, &
+                                 dt,dt_min,dt_max,iacceleration, &
                                  num_newton_iterations,tfac, &
                                  time_step_max_growth_factor)
   !
@@ -499,6 +514,7 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_zflow_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -511,29 +527,30 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: sat_ratio, pres_ratio
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  sat_ratio = (2.d0*this%liq_sat_change_ts_governor)/ &
-              (this%liq_sat_change_ts_governor+this%max_saturation_change)
-  pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
-               (this%liq_pres_change_ts_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(sat_ratio,pres_ratio)*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (min(sat_ratio,pres_ratio) > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else if (sat_ratio < pres_ratio) then
-      string = 'liquid saturation governor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    sat_ratio = (2.d0*this%liq_sat_change_ts_governor)/ &
+                (this%liq_sat_change_ts_governor+this%max_saturation_change)
+    pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
+                (this%liq_pres_change_ts_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(min(sat_ratio,pres_ratio)*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (min(sat_ratio,pres_ratio) > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else if (sat_ratio < pres_ratio) then
+        string = 'liquid saturation governor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call OptionPrint(string,this%option)
   endif
 
   if (Initialized(this%cfl_governor)) then
@@ -568,9 +585,8 @@ subroutine PMZFlowResidual(this,snes,xx,r,ierr)
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
   ! calculate residual
   if (zflow_simult_function_evals) then
-    call SNESGetJacobian(snes,M,PETSC_NULL_MAT, &
-                         PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
-                         ierr);CHKERRQ(ierr)
+    call SNESGetJacobian(snes,M,PETSC_NULL_MAT,PETSC_NULL_FUNCTION, &
+                         PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
     call ZFlowResidual(snes,xx,r,M,this%realization,ierr)
   else
     call ZFlowResidual(snes,xx,r,PETSC_NULL_MAT,this%realization,ierr)
@@ -816,7 +832,7 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       ! maximum absolute change in liquid pressure over Newton iteration
       tempreal = dabs(dX_p(offset+zflow_liq_flow_eq))
       if (tempreal > dabs(max_abs_pressure_change_NI)) then
-        max_abs_pressure_change_NI_cell = local_id
+        max_abs_pressure_change_NI_cell = grid%nG2A(ghosted_id)
         max_abs_pressure_change_NI = tempreal
       endif
     endif
@@ -824,7 +840,7 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       ! maximum absolute change in liquid pressure over Newton iteration
       tempreal = dabs(dX_p(offset+zflow_sol_tran_eq))
       if (tempreal > dabs(max_abs_conc_change_NI)) then
-        max_abs_conc_change_NI_cell = local_id
+        max_abs_conc_change_NI_cell = grid%nG2A(ghosted_id)
         max_abs_conc_change_NI = tempreal
       endif
     endif
@@ -932,7 +948,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
       tempreal = dabs(residual)
       if (tempreal > max_abs_res_liq_) then
         max_abs_res_liq_ = tempreal
-        max_abs_res_liq_cell = local_id
+        max_abs_res_liq_cell = grid%nG2A(ghosted_id)
       endif
     endif
     if (zflow_sol_tran_eq > 0) then
@@ -942,7 +958,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
       tempreal = dabs(residual)
       if (tempreal > max_abs_res_sol_) then
         max_abs_res_sol_ = tempreal
-        max_abs_res_sol_cell = local_id
+        max_abs_res_sol_cell = grid%nG2A(ghosted_id)
       endif
     endif
   enddo
@@ -956,12 +972,20 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   this%convergence_flags(MAX_RES_SOL_EQ) = max_abs_res_sol_cell
   this%convergence_reals(MAX_RES_SOL_EQ) = max_abs_res_sol_
 
+  if (this%convergence_verbosity >= 10) then
+    print *, option%myrank, this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
+                            this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI), &
+                            this%convergence_flags(MAX_RES_LIQ_EQ), &
+                            this%convergence_reals(MAX_RES_LIQ_EQ)
+  endif
+
   int_mpi = size(this%convergence_flags)
-  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi, &
-                     MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   int_mpi = size(this%convergence_reals)
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_reals,int_mpi, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   ! these conditionals cannot change order
   reason_string = '---| '
@@ -975,7 +999,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
     converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
 
-  if (this%verbose_convergence .and. &
+  if (this%convergence_verbosity > 0 .and. &
       OptionPrintToScreen(option)) then
     if (option%comm%mycommsize > 1) then
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &
@@ -1102,7 +1126,6 @@ subroutine PMZFlowMaxChange(this)
   PetscReal :: max_change, change
   PetscInt :: i, j
   PetscInt :: ivar
-  PetscInt :: fids(2)
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscErrorCode :: ierr
@@ -1121,7 +1144,8 @@ subroutine PMZFlowMaxChange(this)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
     call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+                        ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
       change = dabs(vec_new_ptr(j)-vec_old_ptr(j))
@@ -1134,25 +1158,25 @@ subroutine PMZFlowMaxChange(this)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
   i = size(max_change_global)
-  call MPI_Allreduce(MPI_IN_PLACE,max_change_global,i, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,max_change_global,i,MPI_DOUBLE_PRECISION, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
 
-  fids = OptionGetFIDs(option)
   ivar = 1
   if (zflow_liq_flow_eq > 0) then
-    write(string,'("  --> max chng: dpl= ",1pe12.4, " dsl= ",1pe12.4)') &
+    write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4, " dsl= ",&
+                           &1pe12.4)') &
       max_change_global(ivar:ivar+1)
     this%max_pressure_change = max_change_global(ivar)
     this%max_saturation_change = max_change_global(ivar+1)
     ivar = ivar+2
-    call StringWriteToUnits(fids,string)
+    call PrintMsg(option)
   endif
   if (zflow_sol_tran_eq > 0) then
-    write(string,'("                 dc= ",1pe12.4)') max_change_global(ivar)
+    write(option%io_buffer,'(19x,"dc= ",1pe12.4)') max_change_global(ivar)
     ! hijacking xmol_change
     this%max_xmol_change = max_change_global(ivar)
     ivar = ivar+1
-    call StringWriteToUnits(fids,string)
+    call PrintMsg(option)
   endif
   deallocate(max_change_global)
 

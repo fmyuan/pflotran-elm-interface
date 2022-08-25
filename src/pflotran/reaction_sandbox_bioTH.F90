@@ -8,26 +8,26 @@ module Reaction_Sandbox_BioTH_class
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_bioth_type
-    
+
     !ID number of bioparticle species
     PetscInt :: species_Vaq_id ! Aqueous species
-    PetscInt :: species_Vim_id ! Immobile species  
-    
+    PetscInt :: species_Vim_id ! Immobile species
+
     !Name of bioparticle species
     character(len=MAXWORDLENGTH) :: name_aqueous
     character(len=MAXWORDLENGTH) :: name_immobile
-    
+
     !Decay rates (Temperature model)
     PetscReal :: logDref_aqueous
     PetscReal :: Tref_aqueous
     PetscReal :: zT_aqueous
     PetscReal :: nAq_aqueous
-    
+
     PetscReal :: logDref_adsorbed
     PetscReal :: Tref_adsorbed
     PetscReal :: zT_adsorbed
@@ -36,12 +36,12 @@ module Reaction_Sandbox_BioTH_class
     !Decay rates (Constant)
     PetscReal :: decay_aqueous
     PetscReal :: decay_adsorbed
-    
+
     !Attachment rate (Filtration Model)
     PetscReal :: diam_collector
     PetscReal :: diam_particle
     PetscReal :: hamaker_constant
-    PetscReal :: BOLTZMANN_CONSTANT = 1.380649d-23 !J/K 
+    PetscReal :: BOLTZMANN_CONSTANT = 1.380649d-23 !J/K
                  !(Not found on pflotran_constants.f90)
     PetscReal :: density_particle
     PetscReal :: alpha_efficiency
@@ -52,13 +52,13 @@ module Reaction_Sandbox_BioTH_class
 
     !Debug?
     PetscBool :: debug_option
-    
+
   contains
     procedure, public :: ReadInput => BioTH_Read
     procedure, public :: Setup => BioTH_Setup
     procedure, public :: Evaluate => BioTH_React
     procedure, public :: Destroy => BioTH_Destroy
-  
+
   end type reaction_sandbox_bioth_type
 
   public :: BioTH_Create
@@ -68,17 +68,17 @@ contains
 ! ************************************************************************** !
 
 function BioTH_Create()
-  ! 
+  !
   ! Allocates particle transport variables.
-  ! 
+  !
   ! Author: Edwin Saavedra C.
   ! Date: 10/01/2020
-  ! 
+  !
 
   implicit none
-  
+
   class(reaction_sandbox_bioth_type), pointer :: BioTH_Create
-  
+
   allocate(BioTH_Create)
 
   !ID number of bioparticle species
@@ -124,9 +124,9 @@ end function BioTH_Create
 
 ! ************************************************************************** !
 subroutine BioTH_Read(this,input,option)
-  ! 
+  !
   ! Reads input deck for reaction sandbox parameters
-  ! 
+  !
   ! Author: Edwin Saavedra C.
   ! Date: 10/01/2020 - created
   !       05/18/2020 - fixed formatting
@@ -137,7 +137,7 @@ subroutine BioTH_Read(this,input,option)
   use Input_Aux_module
   use Utility_module
   use Units_module, only : UnitsConvertToInternal
-  
+
   implicit none
 
   class(reaction_sandbox_bioth_type) :: this
@@ -147,7 +147,7 @@ subroutine BioTH_Read(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
 
   call InputPushBlock(input,option)
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
@@ -155,7 +155,7 @@ subroutine BioTH_Read(this,input,option)
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
-    call StringToUpper(word)   
+    call StringToUpper(word)
 
     select case(trim(word))
       case('PARTICLE_NAME_AQ')
@@ -163,13 +163,13 @@ subroutine BioTH_Read(this,input,option)
         call InputReadWord(input,option,this%name_aqueous,PETSC_TRUE)
         call InputErrorMsg(input,option,'PARTICLE_NAME_AQ', &
                'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
-      
+
       case('PARTICLE_NAME_IM')
         ! Bioparticle name while immobilized
-        call InputReadWord(input,option,this%name_immobile,PETSC_TRUE)  
+        call InputReadWord(input,option,this%name_immobile,PETSC_TRUE)
         call InputErrorMsg(input,option,'PARTICLE_NAME_IM', &
                'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
-    
+
       case('DECAY_AQUEOUS')
         ! Decay rate while in the aqueous phase
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -182,11 +182,11 @@ subroutine BioTH_Read(this,input,option)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              
+
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'CONSTANT', &
                      'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('VALUE')
@@ -223,11 +223,11 @@ subroutine BioTH_Read(this,input,option)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              
+
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'TEMPERATURE_MODEL', &
                      'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('TREF')
@@ -235,21 +235,21 @@ subroutine BioTH_Read(this,input,option)
                   call InputReadDouble(input,option,this%Tref_aqueous)
                   call InputErrorMsg(input,option,'TREF',&
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
-                         &DECAY_AQUEOUS,TEMPERATURE_MODEL')        
+                         &DECAY_AQUEOUS,TEMPERATURE_MODEL')
                 case('ZT')
-                ! Model parameter zT  
+                ! Model parameter zT
                   call InputReadDouble(input,option,this%zT_aqueous)
                   call InputErrorMsg(input,option,'ZT', &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
                          &DECAY_AQUEOUS,TEMPERATURE_MODEL')
                 case('N')
-                  ! Model parameter n (Probably 1.0 or 2.0 )  
+                  ! Model parameter n (Probably 1.0 or 2.0 )
                   call InputReadDouble(input,option,this%nAq_aqueous)
                   call InputErrorMsg(input,option,'N', &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
                          &DECAY_AQUEOUS,TEMPERATURE_MODEL')
                 case('LOGDREF')
-                ! D reference value (Probably 2.3) 
+                ! D reference value (Probably 2.3)
                   call InputReadDouble(input,option,this%logDref_aqueous)
                   call InputErrorMsg(input,option,'LOGDREF', &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
@@ -267,7 +267,7 @@ subroutine BioTH_Read(this,input,option)
                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS', &
                     option)
         end select
-      
+
       case('DECAY_ADSORBED')
         ! Decay rate while in the immobile phase
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -279,11 +279,11 @@ subroutine BioTH_Read(this,input,option)
             do
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
-              if (InputCheckExit(input,option)) exit             
+              if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'CONSTANT', &
                      'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('VALUE')
@@ -321,34 +321,34 @@ subroutine BioTH_Read(this,input,option)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              
+
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'TEMPERATURE_MODEL', &
                      'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('TREF')
                   call InputReadDouble(input,option,this%Tref_adsorbed)
                   call InputErrorMsg(input,option,'TREF',&
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
-                         &DECAY_ADSORBED,TEMPERATURE_MODEL')                
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')
                 case('ZT')
                   call InputReadDouble(input,option,this%zT_adsorbed)
                   call InputErrorMsg(input,option,'ZT', &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
-                         &DECAY_ADSORBED,TEMPERATURE_MODEL')      
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')
                 case('N')
                   call InputReadDouble(input,option,this%nAq_adsorbed)
                   call InputErrorMsg(input,option,'N', &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
-                         &DECAY_ADSORBED,TEMPERATURE_MODEL')      
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')
 
                 case('LOGDREF')
                   call InputReadDouble(input,option,this%logDref_adsorbed)
                   call InputErrorMsg(input,option,'LOGDREF', &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
-                         &DECAY_ADSORBED,TEMPERATURE_MODEL')      
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')
                 case default
                   call InputKeywordUnrecognized(input,word, &
                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
@@ -374,12 +374,12 @@ subroutine BioTH_Read(this,input,option)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              
+
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'CONSTANT', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
                            &,RATE_ATTACHMENT')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('VALUE')
@@ -387,7 +387,7 @@ subroutine BioTH_Read(this,input,option)
                   call InputReadDouble(input,option,this%rate_attachment)
                   call InputErrorMsg(input,option,'VALUE', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
-                           &,RATE_ATTACHMENT,CONSTANT')                  
+                           &,RATE_ATTACHMENT,CONSTANT')
                   ! Read the units
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   if (InputError(input)) then
@@ -418,11 +418,11 @@ subroutine BioTH_Read(this,input,option)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              
+
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'FILTRATION_MODEL', &
                      'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('DIAMETER_COLLECTOR')
@@ -431,14 +431,14 @@ subroutine BioTH_Read(this,input,option)
                   call InputErrorMsg(input,option,'DIAMETER_COLLECTOR', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
                          &FILTRATION_MODEL')
-          
+
                 case('DIAMETER_PARTICLE')
                 ! Diameter of the bioparticle [m]
                   call InputReadDouble(input,option,this%diam_particle)
                   call InputErrorMsg(input,option,'DIAMETER_PARTICLE', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
                          &FILTRATION_MODEL')
-                
+
                 case('HAMAKER_CONSTANT')
                 ! Hamaker constant particle-soil pair [Joules]
                   call InputReadDouble(input,option,this%hamaker_constant)
@@ -462,8 +462,8 @@ subroutine BioTH_Read(this,input,option)
 
                 case('DEBUG')
                 ! Print stuff on screen
-                  print *, "Will debug -> print CFT stuff: " 
-                  this%debug_option = .True. ! Edwin debugging 
+                  print *, "Will debug -> print CFT stuff: "
+                  this%debug_option = .True. ! Edwin debugging
 
                 ! Something else
                 case default
@@ -473,7 +473,7 @@ subroutine BioTH_Read(this,input,option)
               end select
             end do
             call InputPopBlock(input,option)
-            
+
           case default
             call InputKeywordUnrecognized(input,word, &
                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED', &
@@ -493,12 +493,12 @@ subroutine BioTH_Read(this,input,option)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              
+
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'CONSTANT', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
                            &,RATE_DETACHMENT')
-              call StringToUpper(word) 
+              call StringToUpper(word)
 
               select case(trim(word))
                 case('VALUE')
@@ -506,7 +506,7 @@ subroutine BioTH_Read(this,input,option)
                   call InputReadDouble(input,option,this%rate_detachment)
                   call InputErrorMsg(input,option,'VALUE', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
-                            &RATE_DETACHMENT,CONSTANT')                  
+                            &RATE_DETACHMENT,CONSTANT')
                   ! Read the units
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   if (InputError(input)) then
@@ -531,36 +531,36 @@ subroutine BioTH_Read(this,input,option)
           case default
             call InputKeywordUnrecognized(input,word, &
                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
-        end select     
+        end select
       case default
         call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,',option)
     end select
   end do
-  
+
   call InputPopBlock(input,option)
 
 end subroutine BioTH_Read
 
 ! ************************************************************************** !
 subroutine BioTH_Setup(this,reaction,option)
-  ! 
+  !
   ! Sets up the kinetic attachment/dettachment reactions
-  ! 
+  !
   ! Author: Edwin Saavedra C.
   ! Date: 10/01/2020
-  ! 
+  !
 
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
 
   implicit none
-  
+
   class(reaction_sandbox_bioth_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  
+
   this%species_Vaq_id = &
     GetPrimarySpeciesIDFromName(this%name_aqueous,reaction,option)
 
@@ -573,9 +573,9 @@ end subroutine BioTH_Setup
 subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
                         rt_auxvar,global_auxvar,material_auxvar, &
                         reaction, option)
-  ! 
+  !
   ! Evaluates reaction
-  ! 
+  !
   ! Author: Edwin
   ! Date: 04/09/2020 - created
   !       05/18/2021 - remove truncate concentrations
@@ -589,11 +589,11 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-  class(reaction_sandbox_bioth_type) :: this  
+  class(reaction_sandbox_bioth_type) :: this
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
-  
+
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
@@ -629,7 +629,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   ! Filtration model parameters for attachment
   PetscReal :: katt
   PetscReal :: dc,dp,Hamaker,rho_p, alpha, qMag, diffusionCoeff, kB
-  PetscReal :: Gm, Gm5, Happel 
+  PetscReal :: Gm, Gm5, Happel
   PetscReal :: NR, NPe, NvdW, Ngr
   PetscReal :: Eta_D, Eta_I, Eta_G, Eta_0
 
@@ -640,10 +640,10 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   volume = material_auxvar%volume
   porosity = material_auxvar%porosity
   liquid_saturation = global_auxvar%sat(iphase)
-  L_water = porosity*liquid_saturation*volume*1.d3  
+  L_water = porosity*liquid_saturation*volume*1.d3
   ! 1.d3 converts m^3 water -> L water
-  
-  viscosity = 0.0008891 
+
+  viscosity = 0.0008891
   ! Ns/m2 (This should be a field but not found in global_auxvar)
 
   temperature = global_auxvar%temp
@@ -661,7 +661,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   RateDet = 0.d0
   RateDecayAq = 0.d0
   RateDecayIm = 0.d0
-  
+
   ! stoichiometries
   ! reactants have negative stoichiometry
   ! products have positive stoichiometry
@@ -672,9 +672,9 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   katt = 0.d0
   kdet = 0.d0
   kdet = this%rate_detachment
-  
+
   !!!!!!!!!!!!!!!!!!!
-  ! Decay rate - Aqueous phase 
+  ! Decay rate - Aqueous phase
   !
   !  Check Guillier et al. for model equation (2020)
   !  decay = ln(10)/D
@@ -691,15 +691,15 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
     TrefAq = this%Tref_aqueous
     zTAq = this%zT_aqueous
     nAq = this%nAq_aqueous
-    
+
     decayAq = (2.302585/(10.0 ** (logDrefAq - (((temperature - TrefAq)/zTAq)**nAq))))/3600  ! 1/s
   ELSE
     decayAq = this%decay_aqueous
   END IF
-  
+
 
 !!!!!!!!!!!!!!!!!!!
-! Decay rate - Immobile phase 
+! Decay rate - Immobile phase
 !!!!!!!!!!!!!!!!!!!
 
   logDrefAd = 0.0
@@ -713,13 +713,13 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
     zTAd = this%zT_adsorbed
     nAd = this%nAq_adsorbed
     decayIm = (2.302585/(10.0 ** (logDrefAd - (((temperature - TrefAd)/zTAd)**nAd))))/3600  ! 1/s
-    
+
   ELSE
     decayIm = this%decay_adsorbed
   END IF
-  
+
 !!!!!!!!!!!!!!!!!!!
-! Attachment rate 
+! Attachment rate
 !!!!!!!!!!!!!!!!!!!
   dc = 0.0
   dp = 0.0
@@ -730,11 +730,11 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   IF (this%rate_attachment < 0.d0) THEN
     kB = this%BOLTZMANN_CONSTANT
     dc = this%diam_collector
-    dp = this%diam_particle  
+    dp = this%diam_particle
     rho_p = this%density_particle
     alpha = this%alpha_efficiency
     Hamaker = this%hamaker_constant
-    
+
     qMag = MAX(global_auxvar%darcy_vel(iphase),1.0d-20)
 
     diffusionCoeff = this%BOLTZMANN_CONSTANT*(temperature+273.15) / &
@@ -759,7 +759,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
     NGr = PI/12.0 * (dp*dp*dp*dp) * (rho_p - rho_f) * g /&
           (kB*(temperature + 273.15))
 
-    ! Collector efficiencies 
+    ! Collector efficiencies
     ! ( see Tufenkji & Elimelech 2014
     !   DOI : 10.1021/es034049r )
     !! Transport by diffusion
@@ -768,7 +768,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
             * NR**(-0.081) &
             * NPe**(-0.715) &
             * NvdW**(0.052)
-    
+
     !! Transport by interception
     Eta_I = 0.55 &
             * Happel &
@@ -784,13 +784,13 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
             * NGr**(1.11)
 
     !! Single collector efficiency
-    Eta_0 = Eta_D + Eta_I + Eta_G  
+    Eta_0 = Eta_D + Eta_I + Eta_G
 
     ! Rate of attachment according to CFT
     katt = 1.5 * (1 - porosity) * qMag * alpha * Eta_0 &
            / (dc * porosity)
- 
-    ! Edwin debugging 
+
+    ! Edwin debugging
     if(this%debug_option) then
       print '(3x,"porosity = ", ES12.4)', porosity
       print '(3x,"temp C   = ", ES12.4)', Temperature
@@ -821,7 +821,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   end if
 
 !!!!!!!!!!!!!!!!!!!
-! Detachment rate 
+! Detachment rate
 !!!!!!!!!!!!!!!!!!!
   if (this%rate_detachment < 0.d0) then
     kdet = 0.0
@@ -835,7 +835,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   RateDecayAq = 0.0
   RateDecayIm = 0.0
 
-  
+
   ! Build here for attachment/detachment
   ! first-order forward - reverse (A <-> C)
   Rate = katt * Vaq * L_water - kdet * Vim * volume
@@ -845,21 +845,21 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   ! Build here for inactivation reactions
   ! first-order (A -> X)
   Rate = decayAq * Vaq * L_water
-  RateDecayAq = - Rate 
+  RateDecayAq = - Rate
 
   Rate = decayIm * Vim * volume
-  RateDecayIm = - Rate 
+  RateDecayIm = - Rate
 
 ! This awful block just tries to
 ! avoid concentrations below 1E-50
-! (Is this avoided with TRUNCATE_CONCENTRATION ?) > sure it does 
+! (Is this avoided with TRUNCATE_CONCENTRATION ?) > sure it does
   ! if ( Vaq > 0.0 ) then
   !   if ( Vim > 0.0 ) then
   !     !Do nothing
   !   else if ( Vim <= 0.0 ) then
   !     Vim = 1.0d-50
   !     RateDet = 0.0
-  !     RateDecayIm = 0.0     
+  !     RateDecayIm = 0.0
   !   end if
   ! else if ( Vaq <= 0.0 ) then
   !   if ( Vim > 0.0 ) then
@@ -875,7 +875,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
   !     RateDecayIm = 0.0
   !   end if
   ! end if
-  
+
   ! The actual calculation:
 
   Residual(this%species_Vaq_id) = &
@@ -887,10 +887,10 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
 
   ! NOTES
   ! 1. Always subtract contribution from residual
-  ! 2. Units of residual are moles/second  
+  ! 2. Units of residual are moles/second
   ! Residual(this%species_Vaq_id) = &
   !   Residual(this%species_Vaq_id) - RateAtt - RateDecayAq
-  
+
   ! Residual(this%species_Vim_id + reaction%offset_immobile) = &
   !   Residual(this%species_Vim_id + reaction%offset_immobile) &
   !   - RateDet - RateDecayIm
@@ -899,17 +899,17 @@ end subroutine BioTH_React
 
 ! ************************************************************************** !
 subroutine BioTH_Destroy(this)
-  ! 
+  !
   ! Destroys allocatable or pointer objects created in this
   ! module
-  ! 
+  !
   ! Author: Edwin S
   ! Date: 10/01/2020
-  ! 
+  !
 
   implicit none
-  
-  class(reaction_sandbox_bioth_type) :: this  
+
+  class(reaction_sandbox_bioth_type) :: this
 
 end subroutine BioTH_Destroy
 

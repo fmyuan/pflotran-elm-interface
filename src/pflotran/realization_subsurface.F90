@@ -15,6 +15,7 @@ module Realization_Subsurface_class
   use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
+  use Material_Transform_module
   use Dataset_Base_class
   use Fluid_module
   use Patch_module
@@ -42,6 +43,7 @@ private
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
     class(cc_thermal_type), pointer :: characteristic_curves_thermal
+    type(material_transform_type), pointer :: material_transform
     class(dataset_base_type), pointer :: datasets
 
     class(dataset_base_type), pointer :: uniform_velocity_dataset
@@ -161,6 +163,7 @@ function RealizationCreate2(option)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
   nullify(realization%characteristic_curves_thermal)
+  nullify(realization%material_transform)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
@@ -278,6 +281,13 @@ subroutine RealizationCreateDiscretization(realization)
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
                                     GLOBAL,option)
+    ! for scaling pressure in the range of saturation
+    if (option%flow%scale_all_pressure) then
+    call DiscretizationDuplicateVector(discretization,field%flow_xx, &
+                                       field%flow_scaled_xx)
+    call DiscretizationDuplicateVector(discretization,field%flow_xx, &
+                                       field%flow_work_loc)
+    endif
     call DiscretizationDuplicateVector(discretization,field%flow_xx, &
                                        field%flow_yy)
     call DiscretizationDuplicateVector(discretization,field%flow_xx, &
@@ -434,8 +444,9 @@ subroutine RealizationCreateDiscretization(realization)
      realization%output_option%print_hdf5_aveg_mass_flowrate.or. &
      realization%output_option%print_hdf5_aveg_energy_flowrate) then
     call VecCreateMPI(option%mycomm, &
-        (option%nflowdof*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
-        PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
+                      (option%nflowdof*MAX_FACE_PER_CELL+1)*realization% &
+                        patch%grid%nlmax, &
+                      PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%flowrate_inst,0.d0,ierr);CHKERRQ(ierr)
   endif
 
@@ -444,8 +455,9 @@ subroutine RealizationCreateDiscretization(realization)
 
     ! vx
     call VecCreateMPI(option%mycomm, &
-        (option%nflowspec*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
-        PETSC_DETERMINE,field%vx_face_inst,ierr);CHKERRQ(ierr)
+                      (option%nflowspec*MAX_FACE_PER_CELL+1)*realization% &
+                        patch%grid%nlmax, &
+                      PETSC_DETERMINE,field%vx_face_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%vx_face_inst,0.d0,ierr);CHKERRQ(ierr)
 
     ! vy and vz
@@ -457,8 +469,9 @@ subroutine RealizationCreateDiscretization(realization)
 
   if (realization%output_option%print_explicit_flowrate) then
     call VecCreateMPI(option%mycomm, &
-         size(grid%unstructured_grid%explicit_grid%connections,2), &
-         PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
+                      size(grid%unstructured_grid%explicit_grid% &
+                        connections,2), &
+                      PETSC_DETERMINE,field%flowrate_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%flowrate_inst,0.d0,ierr);CHKERRQ(ierr)
   endif
 
@@ -466,8 +479,9 @@ subroutine RealizationCreateDiscretization(realization)
   if (realization%output_option%print_hdf5_aveg_mass_flowrate.or. &
       realization%output_option%print_hdf5_aveg_energy_flowrate) then
     call VecCreateMPI(option%mycomm, &
-        (option%nflowdof*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
-        PETSC_DETERMINE,field%flowrate_aveg,ierr);CHKERRQ(ierr)
+                      (option%nflowdof*MAX_FACE_PER_CELL+1)*realization% &
+                        patch%grid%nlmax, &
+                      PETSC_DETERMINE,field%flowrate_aveg,ierr);CHKERRQ(ierr)
     call VecSet(field%flowrate_aveg,0.d0,ierr);CHKERRQ(ierr)
   endif
 
@@ -844,7 +858,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       endif
       thermal_cc => CharCurvesThermalCreate()
       thermal_cc%name = patch%material_property_array(i)%ptr% &
-                                thermal_conductivity_function_name
+                                thermal_conductivity_func_name
       if (option%iflowmode == TH_MODE .or. option%iflowmode == TH_TS_MODE) then
         thermal_cc%thermal_conductivity_function => TCFFrozenCreate()
         call TCFAssignFrozen(thermal_cc%thermal_conductivity_function,&
@@ -942,13 +956,13 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         cur_material_property%thermal_conductivity_function_id = &
            CharCurvesThermalGetID( &
            patch%char_curves_thermal_array, &
-           cur_material_property%thermal_conductivity_function_name, &
+           cur_material_property%thermal_conductivity_func_name, &
            cur_material_property%name,option)
       endif
     endif
     if (cur_material_property%thermal_conductivity_function_id == 0) then
       option%io_buffer = 'Thermal characteristic curve "' // &
-        trim(cur_material_property%thermal_conductivity_function_name) // &
+        trim(cur_material_property%thermal_conductivity_func_name) // &
         '" not found.'
         call PrintErrMsg(option)
     endif
@@ -1348,7 +1362,7 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     select type(constraint=>realization%sec_transport_constraint)
       class is (tran_constraint_rt_type)
         call ReactionProcessConstraint(realization%reaction, &
@@ -2109,7 +2123,8 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
 
   if (reaction%update_tortuosity) then
-    call VecGetArrayReadF90(field%tortuosity0,tortuosity0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tortuosity0,tortuosity0_p, &
+                            ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -2120,8 +2135,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
         tortuosity0_p(local_id)*scale
     enddo
     call VecRestoreArrayReadF90(field%tortuosity0,tortuosity0_p, &
-                            ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
+                                ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)
     call DiscretizationLocalToLocal(discretization,field%work_loc, &
@@ -2174,11 +2190,15 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
     if (option%flow%full_perm_tensor) then
-      call VecRestoreArrayReadF90(field%perm0_xy,perm0_xy_p,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(field%perm0_xz,perm0_xz_p,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(field%perm0_yz,perm0_yz_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_xy,perm0_xy_p, &
+                                  ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_xz,perm0_xz_p, &
+                                  ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_yz,perm0_yz_p, &
+                                  ierr);CHKERRQ(ierr)
     endif
-    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
@@ -2411,6 +2431,9 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(CCT_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
                                      field%work_loc, grid%ngmax)
+    case(MTF_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%mtf_id, &
+                                     field%work_loc, grid%ngmax)
   end select
 
   call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
@@ -2426,6 +2449,9 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(CCT_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%cct_id, &
                                       field%work_loc, grid%ngmax)
+    case(MTF_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%mtf_id, &
+                                     field%work_loc, grid%ngmax)
   end select
 
 end subroutine RealLocalToLocalWithArray
@@ -2469,7 +2495,7 @@ subroutine RealizationCountCells(realization,global_total_count, &
   temp_int_in(1) = total_count
   temp_int_in(2) = active_count
   call MPI_Allreduce(temp_int_in,temp_int_out,TWO_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,realization%option%mycomm,ierr)
+                     MPI_SUM,realization%option%mycomm,ierr);CHKERRQ(ierr)
   global_total_count = temp_int_out(1)
   global_active_count = temp_int_out(2)
 
@@ -2549,7 +2575,7 @@ subroutine RealizationPrintGridStatistics(realization)
   endif
 
   call MPI_Allreduce(inactive_histogram,temp_int_out,TWELVE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   ! why I cannot use *100, I do not know....geh
   inactive_percentages = dble(temp_int_out)/dble(option%comm%mycommsize)*10.d0
@@ -2966,6 +2992,8 @@ subroutine RealizationStrip(this)
   if (associated(this%characteristic_curves_thermal)) then
     call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
   endif
+
+  nullify(this%material_transform)
 
   call DatasetDestroy(this%datasets)
 

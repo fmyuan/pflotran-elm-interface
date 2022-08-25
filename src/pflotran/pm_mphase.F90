@@ -3,7 +3,7 @@ module PM_Mphase_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -33,23 +33,23 @@ module PM_Mphase_class
     procedure, public :: InputRecord => PMMphaseInputRecord
     procedure, public :: Destroy => PMMphaseDestroy
   end type pm_mphase_type
-  
+
   public :: PMMphaseCreate
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMMphaseCreate()
-  ! 
+  !
   ! Creates Mphase process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_mphase_type), pointer :: PMMphaseCreate
 
   class(pm_mphase_type), pointer :: mphase_pm
@@ -61,46 +61,46 @@ function PMMphaseCreate()
   mphase_pm%header = 'MPHASE CO2 FLOW'
 
   PMMphaseCreate => mphase_pm
-  
+
 end function PMMphaseCreate
 
 ! ************************************************************************** !
 
 subroutine PMMphaseReadSimOptionsBlock(this,input)
-  ! 
+  !
   ! Reads input file parameters associated with the Mphase process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/29/15
   use Input_Aux_module
   use String_module
   use Utility_module
-  use EOS_Water_module  
+  use EOS_Water_module
   use Option_module
   use Mphase_Aux_module
- 
+
   implicit none
-  
+
   class(pm_mphase_type) :: this
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
 
   option => this%option
-  
+
   error_string = 'Mphase Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
@@ -109,14 +109,14 @@ subroutine PMMphaseReadSimOptionsBlock(this,input)
     call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
                                        error_string,option)
     if (found) cycle
-    
+
     select case(trim(word))
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine PMMphaseReadSimOptionsBlock
 
 ! ************************************************************************** !
@@ -142,30 +142,30 @@ end subroutine PMMphaseInitializeSolver
 ! ************************************************************************** !
 
 subroutine PMMphaseInitializeTimestep(this)
-  ! 
+  !
   ! Should not need this as it is called in PreSolve.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseInitializeTimestep
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_mphase_type) :: this
 
-  call PMSubsurfaceFlowInitializeTimestepA(this)         
+  call PMSubsurfaceFlowInitializeTimestepA(this)
   call MphaseInitializeTimestep(this%realization)
-  call PMSubsurfaceFlowInitializeTimestepB(this)         
-  
+  call PMSubsurfaceFlowInitializeTimestepB(this)
+
 end subroutine PMMphaseInitializeTimestep
 
 ! ************************************************************************** !
 
 subroutine PMMphasePreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   use Option_module
@@ -175,10 +175,10 @@ subroutine PMMphasePreSolve(this)
   use Patch_module
   use Global_Aux_module
   use Coupler_module
-  use Connection_module  
+  use Connection_module
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
 
   class(reaction_rt_type), pointer :: reaction
@@ -194,7 +194,7 @@ subroutine PMMphasePreSolve(this)
   PetscInt :: sum_connection
   PetscInt :: iconn
   PetscInt :: na_id, cl_id
-  
+
   reaction => this%realization%reaction
   option => this%realization%option
 
@@ -208,7 +208,7 @@ subroutine PMMphasePreSolve(this)
       if (associated(global_auxvars(1)%m_nacl)) then
         na_id = reaction%species_idx%na_ion_id
         cl_id = reaction%species_idx%cl_ion_id
- 
+
         grid => patch%grid
         rt_auxvars => patch%aux%RT%auxvars
         global_auxvars => patch%aux%Global%auxvars
@@ -223,7 +223,7 @@ subroutine PMMphasePreSolve(this)
             global_auxvars(ghosted_id)%m_nacl(2) = &
               rt_auxvars(ghosted_id)%pri_molal(cl_id)
           enddo
-        else    
+        else
           do ghosted_id = 1, grid%ngmax
             if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
             !geh - Ignore inactive cells with inactive materials
@@ -231,13 +231,13 @@ subroutine PMMphasePreSolve(this)
             global_auxvars(ghosted_id)%m_nacl = option%m_nacl
           enddo
         endif
-      
+
         rt_auxvars => this%realization%patch%aux%RT%auxvars_bc
         global_auxvars => this%realization%patch%aux%Global%auxvars_bc
-    
+
         boundary_condition => patch%boundary_condition_list%first
-        sum_connection = 0 
-        do 
+        sum_connection = 0
+        do
           if (.not.associated(boundary_condition)) exit
           cur_connection_set => boundary_condition%connection_set
           if (na_id > 0 .and. cl_id > 0) then
@@ -251,7 +251,7 @@ subroutine PMMphasePreSolve(this)
               global_auxvars(sum_connection)%m_nacl(2) = &
                 rt_auxvars(sum_connection)%pri_molal(cl_id)
             enddo
-          else    
+          else
             do iconn = 1, cur_connection_set%num_connections
               sum_connection = sum_connection + 1
               local_id = cur_connection_set%id_dn(iconn)
@@ -259,12 +259,12 @@ subroutine PMMphasePreSolve(this)
               if (patch%imat(ghosted_id) <= 0) cycle
               global_auxvars(sum_connection)%m_nacl = option%m_nacl
             enddo
-          endif        
+          endif
           boundary_condition => boundary_condition%next
         enddo
       endif
     endif
-  endif   
+  endif
 #endif
 
 end subroutine PMMphasePreSolve
@@ -272,39 +272,41 @@ end subroutine PMMphasePreSolve
 ! ************************************************************************** !
 
 subroutine PMMphasePostSolve(this)
-  ! 
+  !
   ! PMMphaseUpdatePostSolve:
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
-  
+
 end subroutine PMMphasePostSolve
 
 ! ************************************************************************** !
 
-subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMMphaseUpdateTimestep(this,update_dt, &
+                                  dt,dt_min,dt_max,iacceleration, &
                                   num_newton_iterations,tfac, &
                                   time_step_max_growth_factor)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
-  
+
   PetscReal :: fac
   PetscReal :: ut
   PetscReal :: up
@@ -315,60 +317,62 @@ subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dt_p
   PetscReal :: dt_tfac
   PetscInt :: ifac
-  
-  if (iacceleration > 0) then
-    fac = 0.5d0
-    if (num_newton_iterations >= iacceleration) then
-      fac = 0.33d0
-      ut = 0.d0
+
+  if (update_dt .and. iacceleration /= 0) then
+    if (iacceleration > 0) then
+      fac = 0.5d0
+      if (num_newton_iterations >= iacceleration) then
+        fac = 0.33d0
+        ut = 0.d0
+      else
+        up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+        utmp = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+        uc = this%xmol_change_governor/(this%max_xmol_change+1.d-6)
+        uus= this%saturation_change_governor/(this%max_saturation_change+1.d-6)
+        ut = min(up,utmp,uc,uus)
+      endif
+      dtt = fac * dt * (1.d0 + ut)
     else
+      ifac = max(min(num_newton_iterations,size(tfac)),1)
+      dt_tfac = tfac(ifac) * dt
+
+      fac = 0.5d0
       up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-      utmp = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
-      uc = this%xmol_change_governor/(this%max_xmol_change+1.d-6)
-      uus= this%saturation_change_governor/(this%max_saturation_change+1.d-6)
-      ut = min(up,utmp,uc,uus)
+      dt_p = fac * dt * (1.d0 + up)
+
+      dtt = min(dt_tfac,dt_p)
     endif
-    dtt = fac * dt * (1.d0 + ut)
-  else
-    ifac = max(min(num_newton_iterations,size(tfac)),1)
-    dt_tfac = tfac(ifac) * dt
 
-    fac = 0.5d0
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    dt_p = fac * dt * (1.d0 + up)
-
-    dtt = min(dt_tfac,dt_p)
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: There used to be code here that cut the time step if it is too
+    !      large relative to the simulation time.  This has been removed.
+    dtt = max(dtt,dt_min)
+    dt = dtt
   endif
-  
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: There used to be code here that cut the time step if it is too
-  !      large relative to the simulation time.  This has been removed.
-  dtt = max(dtt,dt_min)
-  dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
-  
+
 end subroutine PMMphaseUpdateTimestep
 
 ! ************************************************************************** !
 
 subroutine PMMphaseResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseResidual
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
+
   call MphaseResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMMphaseResidual
@@ -376,46 +380,46 @@ end subroutine PMMphaseResidual
 ! ************************************************************************** !
 
 subroutine PMMphaseJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseJacobian
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   call MphaseJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMMphaseJacobian
-    
+
 #if 0
 
 ! ************************************************************************** !
 
 subroutine PMMphaseCheckUpdatePre(this,snes,X,dX,changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseCheckUpdatePre
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
   SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  
+
   call MphaseCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMMphaseCheckUpdatePre
@@ -424,15 +428,15 @@ end subroutine PMMphaseCheckUpdatePre
 
 subroutine PMMphaseCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                    X1_changed,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseCheckUpdatePost
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
   SNES :: snes
   Vec :: X0
@@ -441,7 +445,7 @@ subroutine PMMphaseCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: dX_changed
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
-  
+
   call MphaseCheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
@@ -451,17 +455,17 @@ end subroutine PMMphaseCheckUpdatePost
 ! ************************************************************************** !
 
 subroutine PMMphaseTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseTimeCut
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
-  
+
   call PMSubsurfaceFlowTimeCut(this)
   call MphaseTimeCut(this%realization)
 
@@ -470,89 +474,84 @@ end subroutine PMMphaseTimeCut
 ! ************************************************************************** !
 
 subroutine PMMphaseUpdateSolution(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseUpdateSolution
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
-  
+
   call PMSubsurfaceFlowUpdateSolution(this)
   call MphaseUpdateSolution(this%realization)
 
-end subroutine PMMphaseUpdateSolution     
+end subroutine PMMphaseUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine PMMphaseUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Mphase_module, only : MphaseUpdateAuxVars
-  
+
   implicit none
-  
+
   class(pm_mphase_type) :: this
 
   call MphaseUpdateAuxVars(this%realization)
 
-end subroutine PMMphaseUpdateAuxVars   
+end subroutine PMMphaseUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMMphaseMaxChange(this)
-  ! 
+  !
   ! Not needed given MphaseMaxChange is called in PostSolve
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
-
+  !
+  use Option_module
   use Mphase_module, only : MphaseMaxChange
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
-  
+
   call MphaseMaxChange(this%realization,this%max_pressure_change, &
                        this%max_temperature_change, &
                        this%max_saturation_change, &
                        this%max_xmol_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dpmx= ",1pe12.4, &
-      & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
-          this%max_pressure_change,this%max_temperature_change, &
-          this%max_xmol_change,this%max_saturation_change
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
-      & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
-          this%max_pressure_change,this%max_temperature_change, &
-          this%max_xmol_change,this%max_saturation_change
-  endif   
+  write(this%option%io_buffer,'("  --> max change: dpmx= ",1pe12.4,&
+                              &" dtmpmx= ",1pe12.4)') &
+        this%max_pressure_change,this%max_temperature_change
+  call PrintMsg(this%option)
+  write(this%option%io_buffer,'(17x," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
+        this%max_xmol_change,this%max_saturation_change
+  call PrintMsg(this%option)
 
 end subroutine PMMphaseMaxChange
 
 ! ************************************************************************** !
 
 subroutine PMMphaseComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseComputeMassBalance
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
   PetscReal :: mass_balance_array(:)
-  
+
   !geh: currently does not include "trapped" mass
   !call MphaseComputeMassBalance(this%realization,mass_balance_array)
 
@@ -561,15 +560,15 @@ end subroutine PMMphaseComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMMphaseInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_mphase_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -587,19 +586,19 @@ end subroutine PMMphaseInputRecord
 ! ************************************************************************** !
 
 subroutine PMMphaseDestroy(this)
-  ! 
+  !
   ! Destroys Mphase process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Mphase_module, only : MphaseDestroy
 
   implicit none
-  
+
   class(pm_mphase_type) :: this
-  
+
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -607,7 +606,7 @@ subroutine PMMphaseDestroy(this)
   ! preserve this ordering
   call MphaseDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
-  
+
 end subroutine PMMphaseDestroy
-  
+
 end module PM_Mphase_class

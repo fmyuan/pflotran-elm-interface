@@ -256,6 +256,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
   PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
   PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
+  PetscInt, parameter, public :: MTF_ID_ARRAY = 4 ! material transform
 
   ! interpolation methods
   PetscInt, parameter, public :: INTERPOLATION_NULL = 0
@@ -312,7 +313,7 @@ module PFLOTRAN_Constants_module
   ! uninitialized values
   PetscInt, parameter, public :: UNINITIALIZED_INTEGER = -999
   PetscReal, parameter, public :: UNINITIALIZED_DOUBLE = -999.d0
-  
+
   ! maximum values
   PetscReal, parameter, public :: MAX_DOUBLE = 1.d20
 
@@ -322,7 +323,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: CONVERGENCE_KEEP_ITERATING = 0
   PetscInt, parameter, public :: CONVERGENCE_FORCE_ITERATION = 1
   PetscInt, parameter, public :: CONVERGENCE_CONVERGED = 2
-
+  PetscInt, parameter, public :: CONVERGENCE_BREAKOUT_INNER_ITER = 3
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE
 

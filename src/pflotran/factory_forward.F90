@@ -54,6 +54,7 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.out'
   if (OptionIsIORank(option) .and. OptionPrintToFile(option)) then
     open(option%fid_out, file=filename, action="write", status="unknown")
+    option%print_file_flag = driver%PrintToFile()
   endif
 
   call OptionPrintPFLOTRANHeader(option)
@@ -289,6 +290,8 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         call FactorySubsurfaceReadUFDDecayPM(input,option,new_pm)
       case('UFD_BIOSPHERE')
         call FactorySubsurfReadUFDBiospherePM(input,option,new_pm)
+      case('MATERIAL_TRANSFORM')
+        call FactorySubsurfaceReadMTPM(input,option,new_pm)
       case('WIPP_SOURCE_SINK')
         option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
           &unless you are running in WIPP_FLOW mode and intend to &
@@ -307,6 +310,8 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         new_pm => PMAuxiliaryCreate()
         input%buf = pm_name
         call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
+      case('WELL_MODEL')
+        call FactorySubsurfReadWellPM(input,option,new_pm)
       case default
         call InputKeywordUnrecognized(input,word, &
                'SIMULATION,PROCESS_MODELS',option)
@@ -555,8 +560,8 @@ subroutine FactoryForwardReadCommandLine(option)
   if (option%verbosity > 0) then
     call PetscLogDefaultBegin(ierr);CHKERRQ(ierr)
     string = '-log_view'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                  ierr);CHKERRQ(ierr)
   endif
 
   string = '-successful_exit_code'

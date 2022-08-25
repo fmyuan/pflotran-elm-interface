@@ -4,13 +4,13 @@ module PM_RT_class
   use petscsnes
 
   use PM_Base_class
-!geh: using Reactive_Transport_module here fails with gfortran (internal 
+!geh: using Reactive_Transport_module here fails with gfortran (internal
 !     compiler error)
 !  use Reactive_Transport_module
   use Realization_Subsurface_class
-  use Communicator_Base_class  
+  use Communicator_Base_class
   use Option_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -68,11 +68,11 @@ module PM_RT_class
     procedure, public :: InputRecord => PMRTInputRecord
     procedure, public :: Destroy => PMRTDestroy
   end type pm_rt_type
-  
+
   type, public, extends(pm_base_header_type) :: pm_rt_header_type
     PetscInt :: checkpoint_activity_coefs
-  end type pm_rt_header_type  
-  
+  end type pm_rt_header_type
+
   public :: PMRTCreate, &
             PMRTInit, &
             PMRTInitializeRun, &
@@ -84,47 +84,47 @@ contains
 ! ************************************************************************** !
 
 function PMRTCreate()
-  ! 
+  !
   ! Creates reactive transport process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   implicit none
-  
+
   class(pm_rt_type), pointer :: PMRTCreate
 
   class(pm_rt_type), pointer :: pm_rt
-  
+
   allocate(pm_rt)
   call PMRTInit(pm_rt)
   pm_rt%name = 'Reactive Transport'
   pm_rt%header = 'REACTIVE TRANSPORT'
-  
+
   PMRTCreate => pm_rt
-  
+
 end function PMRTCreate
 
 ! ************************************************************************** !
 
 subroutine PMRTInit(pm_rt)
-  ! 
+  !
   ! Initializes reactive transport process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   implicit none
-  
+
   class(pm_rt_type) :: pm_rt
-  
+
   call PMBaseInit(pm_rt)
   nullify(pm_rt%option)
   nullify(pm_rt%output_option)
   nullify(pm_rt%realization)
   nullify(pm_rt%comm1)
   nullify(pm_rt%commN)
-  
+
   ! local variables
   pm_rt%steady_flow = PETSC_FALSE
   pm_rt%tran_weight_t0 = 0.d0
@@ -145,10 +145,10 @@ end subroutine PMRTInit
 ! ************************************************************************** !
 
 subroutine PMRTReadSimOptionsBlock(this,input)
-  ! 
-  ! Reads input file parameters associated with the reactive transport 
+  !
+  ! Reads input file parameters associated with the reactive transport
   ! process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/25/16
   !
@@ -156,33 +156,33 @@ subroutine PMRTReadSimOptionsBlock(this,input)
   use String_module
   use Option_module
   use Reactive_Transport_Aux_module
- 
+
   implicit none
-  
+
   class(pm_rt_type) :: this
   type(input_type), pointer :: input
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
 
   option => this%option
-  
+
   error_string = 'Reactive Transport Options'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     found = PETSC_FALSE
     call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
                                         error_string,option)
@@ -197,7 +197,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,rt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
-        option%use_mc = PETSC_TRUE
+        option%use_sc = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
@@ -207,24 +207,24 @@ subroutine PMRTReadSimOptionsBlock(this,input)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine PMRTReadSimOptionsBlock
 
 ! ************************************************************************** !
 
 subroutine PMRTReadTSSelectCase(this,input,keyword,found, &
                                 error_string,option)
-  ! 
+  !
   ! Read timestepper settings specific to this process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/23/20
 
   use Input_Aux_module
   use Option_module
- 
+
   implicit none
-  
+
   class(pm_rt_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -246,27 +246,27 @@ subroutine PMRTReadTSSelectCase(this,input,keyword,found, &
       call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
-  end select  
-  
+  end select
+
 end subroutine PMRTReadTSSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
                                     error_string,option)
-  ! 
+  !
   ! Reads input file parameters associated with the RT process model
   ! Newton solver convergence
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/25/20
 
   use Input_Aux_module
   use Option_module
   use Reactive_Transport_Aux_module
- 
+
   implicit none
-  
+
   class(pm_rt_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -278,7 +278,7 @@ subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
 !  found = PETSC_TRUE
 !  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
 !  if (found) return
-    
+
   found = PETSC_TRUE
   select case(trim(keyword))
     case('NUMERICAL_JACOBIAN')
@@ -291,31 +291,31 @@ subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
 
   end select
-  
+
 end subroutine PMRTReadNewtonSelectCase
 
 ! ************************************************************************** !
 
 subroutine PMRTSetup(this)
-  ! 
+  !
   ! Initializes variables associated with reactive transport
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
 #ifndef SIMPLIFY
   use Discretization_module
   use Communicator_Structured_class
   use Communicator_Unstructured_class
-#endif  
-  use Grid_module 
+#endif
+  use Grid_module
   use Reactive_Transport_Aux_module, only : reactive_transport_param_type
   use Material_module
   use Variables_module, only : TORTUOSITY
-  
+
   implicit none
-  
+
   class(pm_rt_type) :: this
 
   type(reactive_transport_param_type), pointer :: rt_parameter
@@ -324,7 +324,7 @@ subroutine PMRTSetup(this)
   PetscErrorCode :: ierr
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
-  
+
   ! pass down flags from PMRT class
   ! these flags are set after RTSetup as been called
   rt_parameter%temperature_dependent_diffusion = &
@@ -332,7 +332,7 @@ subroutine PMRTSetup(this)
   rt_parameter%millington_quirk_tortuosity = &
     this%millington_quirk_tortuosity
 
-#ifndef SIMPLIFY  
+#ifndef SIMPLIFY
   ! set up communicator
   select case(this%realization%discretization%itype)
     case(STRUCTURED_GRID)
@@ -374,7 +374,7 @@ subroutine PMRTSetup(this)
       endif
     endif
   endif
-  
+
   allocate(this%max_concentration_change( &
            this%realization%reaction%ncomp))
   allocate(this%max_volfrac_change( &
@@ -385,39 +385,39 @@ end subroutine PMRTSetup
 ! ************************************************************************** !
 
 subroutine PMRTSetRealization(this,realization)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
-  use Realization_Subsurface_class  
+  use Realization_Subsurface_class
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   class(realization_subsurface_type), pointer :: realization
 
   this%realization => realization
   this%realization_base => realization
-  
+
   if (realization%reaction%use_log_formulation) then
     this%solution_vec = realization%field%tran_log_xx
   else
     this%solution_vec = realization%field%tran_xx
   endif
   this%residual_vec = realization%field%tran_r
-  
+
 end subroutine PMRTSetRealization
 
 ! ************************************************************************** !
 
 recursive subroutine PMRTInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
                                         RTJumpStartKineticSorption
@@ -426,16 +426,16 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_BASE 
+  use Material_Aux_module, only : POROSITY_BASE
   use Material_module, only : MaterialGetAuxVarVecLoc
   use String_module, only : StringWrite
   use Utility_module, only : Equal
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   PetscErrorCode :: ierr
-  
+
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
@@ -451,24 +451,24 @@ recursive subroutine PMRTInitializeRun(this)
     call VecCopy(this%realization%field%porosity0, &
                  this%realization%field%porosity_tpdt,ierr);CHKERRQ(ierr)
   endif
-  
+
   ! restart
-  !geh: the below equilibrates the original (non-restarted) chemistry 
+  !geh: the below equilibrates the original (non-restarted) chemistry
   !     with restarted flow state variables. but we should not need it
   !     with the skip restart refactor - 12/13/18
 !  if (this%option%restart_flag .and. this%skip_restart) then
 !    call RTClearActivityCoefficients(this%realization)
-!    call CondControlAssignTranInitCond(this%realization)  
+!    call CondControlAssignTranInitCond(this%realization)
 !  endif
-  
-  ! update boundary concentrations so that activity coefficients can be 
+
+  ! update boundary concentrations so that activity coefficients can be
   ! calculated at first time step
   !geh: need to update cells also, as the flow solution may have changed
   !     during restart and transport may have been skipped
   call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE,PETSC_FALSE)
   ! pass PETSC_FALSE to turn off update of kinetic state variables
   call PMRTUpdateSolution2(this,PETSC_FALSE)
-  
+
 #if 0
   if (this%option%jumpstart_kinetic_sorption .and. &
       this%option%time < 1.d-40) then
@@ -483,7 +483,7 @@ recursive subroutine PMRTInitializeRun(this)
     call RTJumpStartKineticSorption(this%realization)
   endif
   ! check on MAX_STEPS < 0 to quit after initialization.
-#endif  
+#endif
 
   ! ensure that time step size was set to zero
   if (.not.Equal(this%option%tran_dt,0.d0)) then
@@ -491,16 +491,16 @@ recursive subroutine PMRTInitializeRun(this)
       trim(StringWrite(this%option%tran_dt)) // ') during initialization.'
     call PrintErrMsg(this%option)
   endif
-    
+
 end subroutine PMRTInitializeRun
 
 ! ************************************************************************** !
 
 subroutine PMRTInitializeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTInitializeTimestep, &
                                         RTUpdateActivityCoefficients
@@ -510,9 +510,9 @@ subroutine PMRTInitializeTimestep(this)
   use Option_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
- 
+
   this%option%tran_dt = this%option%dt
 
   ! interpolate flow parameters/data
@@ -532,19 +532,19 @@ end subroutine PMRTInitializeTimestep
 ! ************************************************************************** !
 
 subroutine PMRTWeightFlowParameters(this,time_level)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
-  use Global_module  
+  use Global_module
   use Material_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   PetscInt :: time_level
-  
+
   PetscReal :: tran_weight
   PetscErrorCode :: ierr
 
@@ -571,41 +571,41 @@ subroutine PMRTWeightFlowParameters(this,time_level)
                                tran_weight, &
                                this%realization%field,this%comm1)
   endif
-  
+
 end subroutine PMRTWeightFlowParameters
 
 ! ************************************************************************** !
 
 subroutine PMRTPreSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTUpdateTransportCoefs
-  use Global_module  
+  use Global_module
   use Material_module
   use Data_Mediator_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  
+
   PetscErrorCode :: ierr
-  
+
   call PMRTWeightFlowParameters(this,TIME_TpDT)
 
   call RTUpdateTransportCoefs(this%realization)
-  
+
 #if 0
   ! the problem here is that activity coefficients will be updated every time
   ! presolve is called, regardless of TS vs NI.  We need to split this out.
   if (this%realization%reaction%act_coef_update_frequency /= &
       ACT_COEF_FREQUENCY_OFF) then
     call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
-!       The below is set within RTUpdateAuxVarsPatch() when 
+!       The below is set within RTUpdateAuxVarsPatch() when
 !         PETSC_TRUE,PETSC_TRUE,* are passed
-!       patch%aux%RT%auxvars_up_to_date = PETSC_TRUE 
+!       patch%aux%RT%auxvars_up_to_date = PETSC_TRUE
   endif
 #endif
 
@@ -614,45 +614,45 @@ subroutine PMRTPreSolve(this)
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
   endif
-  
+
   call DataMediatorUpdate(this%realization%tran_data_mediator_list, &
                           this%realization%field%tran_mass_transfer, &
                           this%realization%option)
-  
+
 end subroutine PMRTPreSolve
 
 ! ************************************************************************** !
 
 subroutine PMRTPostSolve(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  
+
 end subroutine PMRTPostSolve
 
 ! ************************************************************************** !
 
 subroutine PMRTFinalizeTimestep(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/03/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTMaxChange
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_module, only : POROSITY_BASE 
+  use Material_Aux_module, only : POROSITY_BASE
   use Global_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  PetscReal :: time  
+  PetscReal :: time
   PetscErrorCode :: ierr
 
   if (this%transient_porosity) then
@@ -664,168 +664,162 @@ subroutine PMRTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
+  else if (this%realization%reaction%update_mineral_surface_area) then
+    call RealizationUpdatePropertiesTS(this%realization)
   endif
-  
+
   call RTMaxChange(this%realization,this%max_concentration_change, &
                    this%max_volfrac_change)
-  if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
+  write(this%option%io_buffer,'("  --> max change:  dcmx= ",1pe12.4,&
+                              &"  dc/dt= ",1pe12.4," [mol/s]")') &
       maxval(this%max_concentration_change), &
       maxval(this%max_concentration_change)/this%option%tran_dt
-    if (this%realization%reaction%mineral%nkinmnrl > 0) then
-      write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
-            &" [1/s]")') &
-        maxval(this%max_volfrac_change), &
-        maxval(this%max_volfrac_change)/this%option%tran_dt
-    endif
+  call PrintMsg(this%option)
+  if (this%realization%reaction%mineral%nkinmnrl > 0) then
+    write(this%option%io_buffer,'(18x,"dvfmx= ",1pe12.4,&
+                                &" dvf/dt= ",1pe12.4," [1/s]")') &
+      maxval(this%max_volfrac_change), &
+      maxval(this%max_volfrac_change)/this%option%tran_dt
+    call PrintMsg(this%option)
   endif
-  if (this%option%print_file_flag) then  
-    write(this%option%fid_out,&
-            '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
-            &" [mol/s]")') &
-      maxval(this%max_concentration_change), &
-      maxval(this%max_concentration_change)/this%option%tran_dt
-    if (this%realization%reaction%mineral%nkinmnrl > 0) then
-      write(this%option%fid_out, &
-        '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
-        maxval(this%max_volfrac_change), &
-        maxval(this%max_volfrac_change)/this%option%tran_dt
-    endif
-  endif
-  
+
 end subroutine PMRTFinalizeTimestep
 
 ! ************************************************************************** !
 
 function PMRTAcceptSolution(this)
-  ! 
+  !
   ! PMRichardsAcceptSolution:
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  
+
   PetscBool :: PMRTAcceptSolution
-  
+
   ! do nothing
   PMRTAcceptSolution = PETSC_TRUE
-  
+
 end function PMRTAcceptSolution
 
 ! ************************************************************************** !
 
-subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMRTUpdateTimestep(this,update_dt, &
+                              dt,dt_min,dt_max,iacceleration, &
                               num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_rt_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
-  
+
   PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
   PetscInt :: ifac
   PetscReal, parameter :: pert = 1.d-20
-  
-  if (this%volfrac_change_governor < 1.d0) then
-    ! with volume fraction potentially scaling the time step.
-    if (iacceleration > 0) then
-      fac = 0.5d0
-      if (num_newton_iterations >= iacceleration) then
-        fac = 0.33d0
-        uvf = 0.d0
+
+  if (update_dt .and. iacceleration /= 0) then
+    if (this%volfrac_change_governor < 1.d0) then
+      ! with volume fraction potentially scaling the time step.
+      if (iacceleration > 0) then
+        fac = 0.5d0
+        if (num_newton_iterations >= iacceleration) then
+          fac = 0.33d0
+          uvf = 0.d0
+        else
+          uvf = this%volfrac_change_governor/ &
+                (maxval(this%max_volfrac_change)+pert)
+        endif
+        dtt = fac * dt * (1.d0 + uvf)
       else
-        uvf = this%volfrac_change_governor/ &
-              (maxval(this%max_volfrac_change)+pert)
+        ifac = max(min(num_newton_iterations,size(tfac)),1)
+        dt_tfac = tfac(ifac) * dt
+
+        fac = 0.5d0
+        uvf= this%volfrac_change_governor/ &
+             (maxval(this%max_volfrac_change)+pert)
+        dt_vf = fac * dt * (1.d0 + uvf)
+
+        dtt = min(dt_tfac,dt_vf)
       endif
-      dtt = fac * dt * (1.d0 + uvf)
     else
-      ifac = max(min(num_newton_iterations,size(tfac)),1)
-      dt_tfac = tfac(ifac) * dt
-
-      fac = 0.5d0
-      uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
-      dt_vf = fac * dt * (1.d0 + uvf)
-
-      dtt = min(dt_tfac,dt_vf)
-    endif
-  else
-    ! original implementation
-    dtt = dt
-    if (num_newton_iterations <= iacceleration) then
-      if (num_newton_iterations <= size(tfac)) then
-        dtt = tfac(num_newton_iterations) * dt
+      ! original implementation
+      dtt = dt
+      if (num_newton_iterations <= iacceleration) then
+        if (num_newton_iterations <= size(tfac)) then
+          dtt = tfac(num_newton_iterations) * dt
+        else
+          dtt = 0.5d0 * dt
+        endif
       else
         dtt = 0.5d0 * dt
       endif
-    else
-      dtt = 0.5d0 * dt
     endif
+
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: see comment above under flow stepper
+    dtt = max(dtt,dt_min)
+    dt = dtt
   endif
 
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: see comment above under flow stepper
-  dtt = max(dtt,dt_min)
-  dt = dtt
-
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
-  
+
 end subroutine PMRTUpdateTimestep
 
 ! ************************************************************************** !
 
 recursive subroutine PMRTFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  
+
   ! do something here
-  
+
   if (associated(this%next)) then
     call this%next%FinalizeRun()
-  endif  
-  
+  endif
+
 end subroutine PMRTFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine PMRTResidual(this,snes,xx,r,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   use Reactive_Transport_module, only : RTResidual
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
+
   call RTResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMRTResidual
@@ -833,20 +827,20 @@ end subroutine PMRTResidual
 ! ************************************************************************** !
 
 subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   use Reactive_Transport_module, only : RTJacobian
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  
+
   call RTJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMRTJacobian
@@ -854,27 +848,27 @@ end subroutine PMRTJacobian
 ! ************************************************************************** !
 
 subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
-  ! 
+  !
   ! In the case of the log formulation, ensures that the update
   ! vector does not exceed a prescribed tolerance
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/09
-  ! 
+  !
   use Realization_Subsurface_class
   use Grid_module
   use Option_module
   use Reaction_Aux_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: C_p(:)
   PetscReal, pointer :: dC_p(:)
   type(grid_type), pointer :: grid
@@ -883,18 +877,18 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, n
-  
+
   grid => this%realization%patch%grid
   reaction => this%realization%reaction
-  
+
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
   if (reaction%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),reaction%max_dlnC)
-    ! at this point, it does not matter whether "changed" is set to true, 
-    ! since it is not checkied in PETSc.  Thus, I don't want to spend 
-    ! time checking for changes and performing an allreduce for log 
+    ! at this point, it does not matter whether "changed" is set to true,
+    ! since it is not checkied in PETSc.  Thus, I don't want to spend
+    ! time checking for changes and performing an allreduce for log
     ! formulation.
     if (Initialized(reaction%truncated_concentration)) then
       call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
@@ -904,14 +898,14 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   else
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-    
+
     if (Initialized(reaction%truncated_concentration)) then
       dC_p = min(dC_p,C_p-reaction%truncated_concentration)
     else
       ! C^p+1 = C^p - dC^p
       ! if dC is positive and abs(dC) larger than C
       ! we need to scale the update
-      
+
       ! compute smallest ratio of C to dC
 #if 0
       min_ratio = 1.d0/maxval(dC_p/C_p)
@@ -925,11 +919,12 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       enddo
 #endif
       ratio = min_ratio
-    
+
       ! get global minimum
       call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                         MPI_MIN,this%realization%option%mycomm,ierr)
-                       
+                         MPI_MIN,this%realization%option%mycomm, &
+                         ierr);CHKERRQ(ierr)
+
       ! scale if necessary
       if (min_ratio < 1.d0) then
         if (min_ratio < this%realization%option%min_allowable_scale) then
@@ -963,12 +958,12 @@ end subroutine PMRTCheckUpdatePre
 
 subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                X1_changed,ierr)
-  ! 
+  !
   ! Checks convergence after to update
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/04/14
-  ! 
+  !
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
@@ -979,7 +974,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Reactive_Transport_Aux_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   SNES :: snes
   Vec :: X0
@@ -988,15 +983,15 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: dX_changed
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
-  
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(patch_type), pointer :: patch  
+  type(patch_type), pointer :: patch
   PetscReal, pointer :: C0_p(:)
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: accum_p(:)  
+  PetscReal, pointer :: accum_p(:)
   PetscBool :: converged_due_to_rel_update
   PetscBool :: converged_due_to_residual
   PetscReal :: max_relative_change
@@ -1008,15 +1003,15 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscMPIInt :: mpi_int
   PetscInt :: local_id, offset, idof, index
   PetscReal :: tempreal
-  
+
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
   patch => this%realization%patch
-  
+
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
-  
+
   converged_flag = 0
   if (this%check_post_convergence) then
     converged_due_to_rel_update = PETSC_FALSE
@@ -1039,21 +1034,22 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       converged_flag = 1
     endif
   endif
-  
+
   ! get global minimum
   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,this%realization%option%mycomm,ierr)
+                     MPI_MIN,this%realization%option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   option%converged = PETSC_FALSE
   if (temp_int == 1) then
     option%converged = PETSC_TRUE
   endif
-  
-  if (option%use_mc) then  
+
+  if (option%use_sc) then
     call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
   endif
-  
+
   if (this%print_ekg) then
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
@@ -1071,11 +1067,12 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     mpi_int = option%ntrandof
     call MPI_Allreduce(MPI_IN_PLACE,max_relative_change_by_dof,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm, &
+                       ierr);CHKERRQ(ierr)
     if (OptionPrintToFile(option)) then
 100 format("REACTIVE TRANSPORT  NEWTON_ITERATION ",30es16.8)
       write(IUNIT_EKG,100) max_relative_change_by_dof(:)
-    endif    
+    endif
   endif
 
 end subroutine PMRTCheckUpdatePost
@@ -1086,7 +1083,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   !
   ! Author: Glenn Hammond
   ! Date: 11/15/17
-  ! 
+  !
   use Convergence_module
 
   implicit none
@@ -1104,7 +1101,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   character(len=MAXSTRINGLENGHT) :: out_string
   character(len=2) :: pass_or_fail
 
-  if (this%option%use_mc .and. it > 0) then
+  if (this%option%use_sc .and. it > 0) then
     pass_or_fail = ' P'
     !TODO(geh): move newton_inf_res_tol_sec into RT option block
     if (.not. this%option%infnorm_res_sec < &
@@ -1113,7 +1110,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       pass_or_fail = ' F'
     endif
     write(out_string,'(4x,"irsec:",es9.2,i3)') this%option%infnorm_res_sec
-    call OptionPrint(out_string,this%option)
+    call PrintMsg(out_string,this%option)
   endif
 #endif
 
@@ -1126,17 +1123,17 @@ end subroutine PMRTCheckConvergence
 ! ************************************************************************** !
 
 subroutine PMRTTimeCut(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTTimeCut
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  
+
   this%option%tran_dt = this%option%dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
     call this%SetTranWeights()
@@ -1148,57 +1145,57 @@ end subroutine PMRTTimeCut
 ! ************************************************************************** !
 
 subroutine PMRTUpdateSolution1(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module
   use Condition_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
                                 ! update kinetics
   call PMRTUpdateSolution2(this,PETSC_TRUE)
-  
+
 end subroutine PMRTUpdateSolution1
 
 ! ************************************************************************** !
 
 subroutine PMRTUpdateSolution2(this, update_kinetics)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module
   use Condition_module
   use Integral_Flux_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   PetscBool :: update_kinetics
-  
+
   ! begin from RealizationUpdate()
   call TranConditionUpdate(this%realization%transport_conditions, &
                            this%realization%option)
   if (associated(this%realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(this%realization)
-  endif  
+  endif
   ! end from RealizationUpdate()
   ! The update of status must be in this order!
   call RTUpdateEquilibriumState(this%realization)
   if (update_kinetics) &
     call RTUpdateKineticState(this%realization)
-  
+
 !TODO(geh): MassTransfer
 !geh - moved to RTPreSolve()
 !  call MassTransferUpdate(this%realization%rt_data_mediator_list, &
 !                          this%realization%patch%grid, &
 !                          this%realization%option)
-  
+
   if (this%realization%option%compute_mass_balance_new) then
     call RTUpdateMassBalance(this%realization)
   endif
@@ -1209,39 +1206,39 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
                             INTEGRATE_TRANSPORT,this%option)
   endif
 
-end subroutine PMRTUpdateSolution2     
+end subroutine PMRTUpdateSolution2
 
 ! ************************************************************************** !
 
 subroutine PMRTUpdateAuxVars(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Reactive_Transport_module, only : RTUpdateAuxVars
-  
+
   implicit none
-  
+
   class(pm_rt_type) :: this
                                       ! cells      bcs         act coefs
   call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
 
-end subroutine PMRTUpdateAuxVars  
+end subroutine PMRTUpdateAuxVars
 
 ! ************************************************************************** !
 
 subroutine PMRTMaxChange(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTMaxChange
 
   implicit none
-  
+
   class(pm_rt_type) :: this
-  
+
   print *, 'PMRTMaxChange not implemented'
   stop
 !  call RTMaxChange(this%realization)
@@ -1251,19 +1248,19 @@ end subroutine PMRTMaxChange
 ! ************************************************************************** !
 
 subroutine PMRTComputeMassBalance(this,mass_balance_array)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Reactive_Transport_module, only : RTComputeMassBalance
 
   implicit none
-  
+
   class(pm_rt_type) :: this
   PetscReal :: mass_balance_array(:)
 
-#ifndef SIMPLIFY 
+#ifndef SIMPLIFY
   call RTComputeMassBalance(this%realization, &
        this%realization_base%patch%grid%nlmax,-999,mass_balance_array)
 #endif
@@ -1273,17 +1270,17 @@ end subroutine PMRTComputeMassBalance
 ! ************************************************************************** !
 
 subroutine SetTranWeights(this)
-  ! 
+  !
   ! Sets the weights at t0 or t1 for transport
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/17/11; 04/03/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(pm_rt_type) :: this
 
   PetscReal :: flow_dt
@@ -1304,12 +1301,12 @@ end subroutine SetTranWeights
 ! ************************************************************************** !
 
 subroutine PMRTCheckpointBinary(this,viewer)
-  ! 
+  !
   ! Checkpoints flow reactive transport process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/29/13
-  ! 
+  !
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1318,14 +1315,14 @@ subroutine PMRTCheckpointBinary(this,viewer)
   use Grid_module
   use Patch_module
   use Secondary_Continuum_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary  
+  use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
                                REACTION_AUXILIARY, &
                                SECONDARY_CONTINUUM_UPDATED_CONC
-  
+
   implicit none
 
   interface PetscBagGetData
@@ -1336,7 +1333,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
       class(pm_rt_header_type), pointer :: header
       PetscErrorCode :: ierr
     end subroutine
-  end interface PetscBagGetData 
+  end interface PetscBagGetData
 
   PetscViewer :: viewer
   class(pm_rt_type) :: this
@@ -1356,24 +1353,23 @@ subroutine PMRTCheckpointBinary(this,viewer)
   character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
   PetscSizeT :: bagsize
-  
+
   realization => this%realization
   option => realization%option
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
   patch => realization%patch
-  
+
   global_vec = PETSC_NULL_VEC
 
   bagsize = size(transfer(dummy_header,dummy_char))
-  
+
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
                            "checkpoint_activity_coefs","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0,"ndof","",ierr);CHKERRQ(ierr)
   if (associated(realization%reaction)) then
     if (realization%reaction%checkpoint_activity_coefs .and. &
         realization%reaction%act_coef_update_frequency /= &
@@ -1390,10 +1386,10 @@ subroutine PMRTCheckpointBinary(this,viewer)
   header%ndof = option%ntrandof
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
-  
+
   if (option%ntrandof > 0) then
-    call VecView(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
-    ! create a global vec for writing below 
+    call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
+    ! create a global vec for writing below
     if (global_vec == PETSC_NULL_VEC) then
       call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                       global_vec,GLOBAL,option)
@@ -1436,7 +1432,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -1483,18 +1479,18 @@ subroutine PMRTCheckpointBinary(this,viewer)
   if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
-  
+
 end subroutine PMRTCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine PMRTRestartBinary(this,viewer)
-  ! 
+  !
   ! Restarts flow reactive transport process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/29/13
-  ! 
+  !
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1511,7 +1507,7 @@ subroutine PMRTRestartBinary(this,viewer)
                                REACTION_AUXILIARY, &
                                SECONDARY_CONTINUUM_UPDATED_CONC
   use Secondary_Continuum_module
-  
+
   implicit none
 
   interface PetscBagGetData
@@ -1522,7 +1518,7 @@ subroutine PMRTRestartBinary(this,viewer)
       class(pm_rt_header_type), pointer :: header
       PetscErrorCode :: ierr
     end subroutine
-  end interface PetscBagGetData 
+  end interface PetscBagGetData
 
   PetscViewer :: viewer
   class(pm_rt_type) :: this
@@ -1542,28 +1538,27 @@ subroutine PMRTRestartBinary(this,viewer)
   character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
   PetscSizeT :: bagsize
-  
+
   realization => this%realization
   option => realization%option
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
   patch => realization%patch
-  
+
   global_vec = PETSC_NULL_VEC
   local_vec = PETSC_NULL_VEC
-  
+
   bagsize = size(transfer(dummy_header,dummy_char))
 
-  call PetscBagCreate(this%option%mycomm, bagsize, bag, ierr);CHKERRQ(ierr)
-  call PetscBagGetData(bag, header, ierr);CHKERRQ(ierr)
+  call PetscBagCreate(this%option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
+  call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
                            "checkpoint_activity_coefs","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr);CHKERRQ(ierr)
-  call PetscBagLoad(viewer, bag, ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0,"ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
   option%ntrandof = header%ndof
-  
+
   call VecLoad(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                     field%tran_xx_loc,NTRANDOF)
@@ -1572,7 +1567,7 @@ subroutine PMRTRestartBinary(this,viewer)
   if (global_vec == PETSC_NULL_VEC) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                     global_vec,GLOBAL,option)
-  endif    
+  endif
   if (header%checkpoint_activity_coefs == ONE_INTEGER) then
     call DiscretizationCreateVector(discretization,ONEDOF,local_vec, &
                                     LOCAL,option)
@@ -1621,7 +1616,7 @@ subroutine PMRTRestartBinary(this,viewer)
     enddo
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     do mc_i = 1, patch%material_property_array(1)%ptr% &
                  multicontinuum%ncells
       do i = 1, realization%reaction%naqcomp
@@ -1662,7 +1657,7 @@ subroutine PMRTRestartBinary(this,viewer)
       endif
     enddo
   endif
- 
+
   ! We are finished, so clean up.
   if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
@@ -1670,27 +1665,27 @@ subroutine PMRTRestartBinary(this,viewer)
   if (local_vec /= PETSC_NULL_VEC) then
     call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
   endif
-  
+
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
-  
+
   if (realization%reaction%use_full_geochemistry) then
                                      ! cells     bcs        act coefs.
     call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   endif
   ! do not update kinetics.
   call PMRTUpdateSolution2(this,PETSC_FALSE)
-  
+
 end subroutine PMRTRestartBinary
 
 ! ************************************************************************** !
 
 subroutine PMRTCheckpointHDF5(this, pm_grp_id)
-  ! 
+  !
   ! Checkpoints flow reactive transport process model
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 07/30/15
-  ! 
+  !
 
   use Option_module
   use Realization_Subsurface_class
@@ -1723,7 +1718,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
 
@@ -1793,7 +1788,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     dataset_name = "Primary_Variable" // CHAR(0)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
            pm_grp_id, H5T_NATIVE_DOUBLE)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     ! create a global vec for writing below
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -1862,7 +1857,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -1933,19 +1928,26 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
-   endif
+  endif
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
+  nullify(start,dims,length,stride,int_array)
 
 end subroutine PMRTCheckpointHDF5
 
 ! ************************************************************************** !
 
 subroutine PMRTRestartHDF5(this, pm_grp_id)
-  ! 
+  !
   ! Checkpoints flow reactive transport process model
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 07/30/15
-  ! 
+  !
 
   use Option_module
   use Realization_Subsurface_class
@@ -1979,7 +1981,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
 
@@ -2020,14 +2022,14 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
                                     dims, start, length, stride, &
                                     int_array, option)
   checkpoint_activity_coefs = int_array(1)
-  
+
   dataset_name = "NDOF" // CHAR(0)
   int_array(1) = option%ntrandof
   call CheckPointReadIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
                                     dims, start, length, stride, &
                                     int_array, option)
   option%ntrandof = int_array(1)
-  
+
   !geh: %ndof should be pushed down to the base class, but this is not possible
   !     as long as option%ntrandof is used.
 
@@ -2044,7 +2046,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                     field%tran_xx_loc,NTRANDOF)
     call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
-    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
     ! create a global vec for reading
     call DiscretizationCreateVector(discretization,ONEDOF, &
@@ -2125,7 +2127,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -2208,21 +2210,22 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   deallocate(length)
   deallocate(stride)
   deallocate(int_array)
+  nullify(start,dims,length,stride,int_array)
 
 end subroutine PMRTRestartHDF5
 
 ! ************************************************************************** !
 
 subroutine PMRTInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_rt_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -2238,17 +2241,17 @@ end subroutine PMRTInputRecord
 ! ************************************************************************** !
 
 subroutine PMRTStrip(this)
-  ! 
+  !
   ! Strips members of RT process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/09/19
-  ! 
+  !
   use Reactive_Transport_module, only : RTDestroy
   use Utility_module, only : DeallocateArray
 
   implicit none
-  
+
   class(pm_rt_type) :: this
 
   call DeallocateArray(this%max_concentration_change)
@@ -2261,25 +2264,25 @@ subroutine PMRTStrip(this)
   nullify(this%comm1)
   call this%commN%Destroy()
   if (associated(this%commN)) deallocate(this%commN)
-  nullify(this%commN)  
+  nullify(this%commN)
 
 end subroutine PMRTStrip
-  
+
 ! ************************************************************************** !
 
 subroutine PMRTDestroy(this)
-  ! 
+  !
   ! Destroys RT process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
   implicit none
-  
+
   class(pm_rt_type) :: this
 
   call PMRTStrip(this)
 
 end subroutine PMRTDestroy
-  
+
 end module PM_RT_class

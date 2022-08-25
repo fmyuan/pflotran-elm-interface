@@ -26,6 +26,7 @@ module Characteristic_Curves_Base_module
     PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
     PetscBool :: calc_int_tension
+    PetscBool :: calc_vapor_pressure
   contains
     procedure, public :: Init => SFBaseInit
     procedure, public :: Verify => SFBaseVerify
@@ -35,7 +36,13 @@ module Characteristic_Curves_Base_module
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: EffectiveSaturation => SFBaseEffectiveSaturation
     procedure, public :: D2SatDP2 => SFBaseD2SatDP2
-    procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
+!    procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
+    procedure, public :: GetResidualSaturation => SFBaseGetResidualSaturation
+    procedure, public :: GetAlpha_ => SFBaseGetNeedsToBeExtended
+    procedure, public :: GetM_ => SFBaseGetNeedsToBeExtended
+    procedure, public :: SetResidualSaturation => SFBaseSetResidualSaturation
+    procedure, public :: SetAlpha_ => SFBaseSetNeedsToBeExtended
+    procedure, public :: SetM_ => SFBaseSetNeedsToBeExtended
   end type sat_func_base_type
 
 !-----------------------------------------------------------------------------
@@ -56,6 +63,10 @@ module Characteristic_Curves_Base_module
                            RPFBaseLiqEffectiveSaturation
     procedure, public :: EffectiveGasSaturation => &
                            RPFBaseGasEffectiveSaturation
+    procedure, public :: GetResidualSaturation => RPFBaseGetResidualSaturation
+    procedure, public :: GetM_ => RPFBaseGetNeedsToBeExtended
+    procedure, public :: SetResidualSaturation => RPFBaseSetResidualSaturation
+    procedure, public :: SetM_ => RPFBaseSetNeedsToBeExtended
   end type rel_perm_func_base_type
 
   public :: PolynomialCreate, &
@@ -105,6 +116,7 @@ subroutine SFBaseInit(this)
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
   this%calc_int_tension = PETSC_FALSE
+  this%calc_vapor_pressure = PETSC_FALSE
 
 end subroutine SFBaseInit
 
@@ -254,6 +266,62 @@ subroutine SFBaseSaturation(this,capillary_pressure, &
   call PrintErrMsg(option)
 
 end subroutine SFBaseSaturation
+
+! ************************************************************************** !
+
+function SFBaseGetResidualSaturation(this)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+
+  PetscReal :: SFBaseGetResidualSaturation
+
+  SFBaseGetResidualSaturation = this%Sr
+
+end function SFBaseGetResidualSaturation
+
+! ************************************************************************** !
+
+function SFBaseGetNeedsToBeExtended(this)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+
+  PetscReal :: SFBaseGetNeedsToBeExtended
+
+  print *, 'A SFBaseGetXXX routine needs to be extended'
+  stop
+
+end function SFBaseGetNeedsToBeExtended
+
+! ************************************************************************** !
+
+subroutine SFBaseSetResidualSaturation(this,tempreal)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal :: tempreal
+
+  this%Sr = tempreal
+
+end subroutine SFBaseSetResidualSaturation
+
+! ************************************************************************** !
+
+subroutine SFBaseSetNeedsToBeExtended(this,tempreal)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal :: tempreal
+
+  print *, 'A SFBaseSetXXX routine needs to be extended'
+  stop
+
+end subroutine SFBaseSetNeedsToBeExtended
 
 ! ************************************************************************** !
 
@@ -410,6 +478,62 @@ subroutine RPFBaseRelPerm(this,liquid_saturation,relative_permeability, &
   call PrintErrMsg(option)
 
 end subroutine RPFBaseRelPerm
+
+! ************************************************************************** !
+
+function RPFBaseGetResidualSaturation(this)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+
+  PetscReal :: RPFBaseGetResidualSaturation
+
+  RPFBaseGetResidualSaturation = this%Sr
+
+end function RPFBaseGetResidualSaturation
+
+! ************************************************************************** !
+
+function RPFBaseGetNeedsToBeExtended(this)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+
+  PetscReal :: RPFBaseGetNeedsToBeExtended
+
+  print *, 'A RPFBaseGetXXX routine needs to be extended'
+  stop
+
+end function RPFBaseGetNeedsToBeExtended
+
+! ************************************************************************** !
+
+subroutine RPFBaseSetResidualSaturation(this,tempreal)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal :: tempreal
+
+  this%Sr = tempreal
+
+end subroutine RPFBaseSetResidualSaturation
+
+! ************************************************************************** !
+
+subroutine RPFBaseSetNeedsToBeExtended(this,tempreal)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal :: tempreal
+
+  print *, 'A RPFBaseSetXXX routine needs to be extended'
+  stop
+
+end subroutine RPFBaseSetNeedsToBeExtended
 
 ! ************************************************************************** !
 
@@ -578,41 +702,5 @@ subroutine PermeabilityFunctionDestroy(rpf)
   nullify(rpf)
 
 end subroutine PermeabilityFunctionDestroy
-
-subroutine SFBaseSurfaceTension(this,T,sigma)
-
-  !Surface tension of water equation from Revised Release on Surface
-  !Tension of Ordinary Water Substance, June 2014. Valid from -25C to
-  !373 C
-
-  implicit none
-
-  class(sat_func_base_type) :: this
-  PetscReal, intent(in) :: T
-  PetscReal, intent(out) :: sigma
-
-  PetscReal, parameter :: Tc = 647.096d0
-  PetscReal, parameter :: B = 235.8d0
-  PetscReal, parameter :: b_2 = -0.625d0
-  PetscReal, parameter :: mu = 1.256d0
-  PetscReal, parameter :: sigma_base = 0.073d0
-  PetscReal :: Temp
-  PetscReal :: tao
-
-  Temp=T+273.15d0
-
-  if (T <= 373.d0) then
-    tao = 1.d0-Temp/Tc
-    sigma = B*(tao**mu)*(1+b_2*tao)
-    sigma = sigma * 1.d-3
-  else
-    sigma = 0.d0
-  endif
-  sigma= sigma/sigma_base
-
-  !TOUGH3 way (not pressure-dependent)
-  !if (Temp >= 101) sigma = 0
-
-end subroutine SFBaseSurfaceTension
 
 end module Characteristic_Curves_Base_module

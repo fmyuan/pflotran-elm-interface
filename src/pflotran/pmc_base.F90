@@ -102,8 +102,7 @@ module PMC_Base_class
             PMCBaseSetChildPeerPtr, &
             PMCBaseFinalizeRun, &
             PMCBaseStrip, &
-            SetOutputFlags, &
-            PMCCastToBase
+            SetOutputFlags
 
 contains
 
@@ -164,7 +163,7 @@ subroutine PMCBaseInit(this)
   nullify(this%child)
   nullify(this%peer)
   nullify(this%sim_aux)
-  this%Output => Null()
+  this%Output => null()
 
   allocate(this%pm_ptr)
   nullify(this%pm_ptr%pm)
@@ -567,6 +566,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   character(len=MAXSTRINGLENGTH) :: filename_append
   PetscInt :: local_stop_flag
   PetscBool :: failure
+  PetscBool :: sync_flag
   PetscBool :: checkpoint_at_this_time_flag
   PetscBool :: snapshot_plot_at_this_time_flag
   PetscBool :: observation_plot_at_this_time_flag
@@ -596,6 +596,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     if (this%timestepper%target_time >= sync_time) exit
 
     call SetOutputFlags(this)
+    sync_flag = PETSC_FALSE
     checkpoint_at_this_time_flag = PETSC_FALSE
     snapshot_plot_at_this_time_flag = PETSC_FALSE
     observation_plot_at_this_time_flag = PETSC_FALSE
@@ -607,6 +608,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
 
     call this%timestepper%SetTargetTime(sync_time,this%option, &
                                         local_stop_flag, &
+                                        sync_flag, &
                                         snapshot_plot_at_this_time_flag, &
                                         observation_plot_at_this_time_flag, &
                                         massbal_plot_at_this_time_flag, &
@@ -648,46 +650,63 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       call this%GetAuxData()
     endif
 
-    peer_already_run_to_time = PETSC_FALSE
-    ! only print output for process models of depth 0
+    ! output at time step flags
     if (associated(this%Output)) then
-      ! however, if we are using the modulus of the output_option%imod, we may
+      ! if we are using the modulus of the output_option%imod, we may
       ! still print
       snapshot_plot_at_this_timestep_flag = &
         (mod(this%timestepper%steps,this%pm_list% &
-             output_option%periodic_snap_output_ts_imod) == 0)
+              output_option%periodic_snap_output_ts_imod) == 0)
       observation_plot_at_this_timestep_flag = &
         (mod(this%timestepper%steps,this%pm_list% &
-             output_option%periodic_obs_output_ts_imod) == 0)
+              output_option%periodic_obs_output_ts_imod) == 0)
       massbal_plot_at_this_timestep_flag = &
         (mod(this%timestepper%steps,this%pm_list% &
-             output_option%periodic_msbl_output_ts_imod) == 0)
-
+              output_option%periodic_msbl_output_ts_imod) == 0)
       if (this%pm_list%steady_state) &
         snapshot_plot_at_this_timestep_flag = PETSC_TRUE
+    endif
 
-      if (this%pm_list%output_option%force_synchronized_output .and. &
-          associated(this%peer) .and. .not.peer_already_run_to_time) then
-        ! this%Output current performs actions beyond solely outputing data
-        ! (e.g. time averaging of data). but we should only force the peers
-        ! on actual output
-        if (snapshot_plot_at_this_time_flag .or. &
-            snapshot_plot_at_this_timestep_flag .or. &
-            observation_plot_at_this_time_flag .or. &
-            observation_plot_at_this_timestep_flag .or. &
-            massbal_plot_at_this_time_flag .or. &
-            massbal_plot_at_this_timestep_flag) then
-          ! if printing synchronized output, need to sync all other PMCs.
-          ! children are already in sync, but peers are not.
-          call this%SetAuxData()
-          ! Run neighboring process model couplers
-          call this%peer%RunToTime(this%timestepper%target_time, &
-                                   local_stop_flag)
-          peer_already_run_to_time = PETSC_TRUE
-          call this%GetAuxData()
-        endif
+    ! checkpoint at time step flags
+    if (this%is_master .and. associated(this%checkpoint_option)) then
+      if (this%checkpoint_option%periodic_ts_incr > 0 .and. &
+          mod(this%timestepper%steps, &
+              this%checkpoint_option%periodic_ts_incr) == 0) then
+        checkpoint_at_this_timestep_flag = PETSC_TRUE
       endif
+    endif
 
+    peer_already_run_to_time = PETSC_FALSE
+    if (associated(this%peer)) then
+      if ( &
+          this%pm_list%output_option%force_synchronized_output .and. &  
+          ! specified synchronization of process model couplers
+          (sync_flag .or. &
+          ! printing output
+          ! this%Output current performs actions beyond solely
+          ! outputing data (e.g. time averaging of data). but
+          ! we should only force the peers on actual output
+            (snapshot_plot_at_this_time_flag .or. &
+             snapshot_plot_at_this_timestep_flag .or. &
+             observation_plot_at_this_time_flag .or. &
+             observation_plot_at_this_timestep_flag .or. &
+             massbal_plot_at_this_time_flag .or. &
+             massbal_plot_at_this_timestep_flag) .or. &
+          ! checkpointing
+          (this%is_master .and. &
+            (checkpoint_at_this_time_flag .or. &
+             checkpoint_at_this_timestep_flag)))) then
+        call this%SetAuxData()
+        ! Run neighboring process model couplers
+        call this%peer%RunToTime(this%timestepper%target_time, &
+                                local_stop_flag)
+        call this%GetAuxData()
+        peer_already_run_to_time = PETSC_TRUE
+      endif
+    endif
+
+    ! only print output for process models of depth 0
+    if (associated(this%Output)) then
       call this%Output(this%pm_list%realization_base, &
                        (snapshot_plot_at_this_time_flag .or. &
                         snapshot_plot_at_this_timestep_flag), &
@@ -697,46 +716,21 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
                         massbal_plot_at_this_timestep_flag))
     endif
 
-    if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0) then
-        if (mod(this%timestepper%steps, &
-                this%checkpoint_option%periodic_ts_incr) == 0) then
-          checkpoint_at_this_timestep_flag = PETSC_TRUE
-        endif
-      endif
-    endif
-
     if (this%is_master) then
-      if (checkpoint_at_this_time_flag .or. &
-          checkpoint_at_this_timestep_flag) then
-        if (associated(this%peer) .and. .not.peer_already_run_to_time) then
-          ! if checkpointing, need to sync all other PMCs.  Children are
-          ! already in sync, but peers are not.
-          call this%SetAuxData()
-          ! Run neighboring process model couplers
-          call this%peer%RunToTime(this%timestepper%target_time, &
-                                   local_stop_flag)
-          ! Checkpointing forces peers to be executed prior to the
-          ! checkpointing. If so, we need to skip the peer RunToTime
-          ! outside the loop
-          peer_already_run_to_time = PETSC_TRUE
-          call this%GetAuxData()
-        endif
-        ! it is possible that two identical checkpoint files will be created,
-        ! one at the time and another at the time step, but this is fine.
-        if (checkpoint_at_this_time_flag) then
-          filename_append = &
-            CheckpointAppendNameAtTime(this%checkpoint_option, &
-                                       this%option%time,this%option)
-          call this%Checkpoint(filename_append)
-        endif
-        if (checkpoint_at_this_timestep_flag) then
-          filename_append = &
-            CheckpointAppendNameAtTimestep(this%checkpoint_option, &
-                                           this%timestepper%steps, &
-                                           this%option)
-          call this%Checkpoint(filename_append)
-        endif
+      ! it is possible that two identical checkpoint files will be created,
+      ! one at the time and another at the time step, but this is fine.
+      if (checkpoint_at_this_time_flag) then
+        filename_append = &
+          CheckpointAppendNameAtTime(this%checkpoint_option, &
+                                      this%option%time,this%option)
+        call this%Checkpoint(filename_append)
+      endif
+      if (checkpoint_at_this_timestep_flag) then
+        filename_append = &
+          CheckpointAppendNameAtTimestep(this%checkpoint_option, &
+                                          this%timestepper%steps, &
+                                          this%option)
+        call this%Checkpoint(filename_append)
       endif
 
       if (this%timestepper%WallClockStop(this%option)) then
@@ -845,6 +839,7 @@ recursive subroutine PMCBaseFinalizeRun(this)
   ! Date: 03/18/13
   !
   use Option_module
+  use String_module
 
   implicit none
 
@@ -856,10 +851,12 @@ recursive subroutine PMCBaseFinalizeRun(this)
   call PrintMsg(this%option,'PMCBase%FinalizeRun()')
 #endif
 
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'(/,a,/," Total Time: ", es12.4, " [sec]")') &
-            trim(this%name), this%cumulative_time
-  endif
+  call PrintMsg(this%option,'')
+  this%option%io_buffer = this%name
+  call PrintMsg(this%option)
+  this%option%io_buffer = ' Total Time: ' // &
+    trim(StringWrite('(es12.4)',this%cumulative_time)) // ' seconds'
+  call PrintMsg(this%option)
 
   if (associated(this%timestepper)) then
     call this%timestepper%FinalizeRun(this%option)
@@ -1053,7 +1050,7 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
     viewer = PETSC_NULL_VIEWER
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
-          '("      Seconds to write to checkpoint file: ", f10.2)') &
+          '(6x,"Seconds to write to checkpoint file: ", f10.2)') &
       tend-tstart
     call PrintMsg(this%option)
     call PetscLogEventEnd(logging%event_checkpoint,ierr);CHKERRQ(ierr)
@@ -1083,10 +1080,10 @@ subroutine PMCBaseRegisterHeader(this,bag,header)
   PetscErrorCode :: ierr
 
   ! bagsize = 2 * 8 bytes = 16 bytes
-  call PetscBagRegisterInt(bag,header%plot_number,0, &
-                           "plot number","",ierr);CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%times_per_h5_file,0, &
-                           "times_per_h5_file","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%plot_number,0,"plotnumber","", &
+                           ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%times_per_h5_file,0,"times_per_h5_file", &
+                           "",ierr);CHKERRQ(ierr)
 
 end subroutine PMCBaseRegisterHeader
 
@@ -1150,7 +1147,8 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
 
   ! if the top PMC,
   if (this%is_master) then
-    call PetscTestFile(this%option%restart_filename,'r',flag,ierr);CHKERRQ(ierr)
+    call PetscTestFile(this%option%restart_filename,'r',flag, &
+                       ierr);CHKERRQ(ierr)
     if (.not.flag) then
       this%option%io_buffer = 'Restart file "' // &
         trim(this%option%restart_filename) // '" not found.'
@@ -1162,10 +1160,11 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
     call PetscLogEventBegin(logging%event_restart,ierr);CHKERRQ(ierr)
     call PetscTime(tstart,ierr);CHKERRQ(ierr)
     call PetscViewerBinaryOpen(this%option%mycomm, &
-                               this%option%restart_filename, &
-                               FILE_MODE_READ,viewer,ierr);CHKERRQ(ierr)
+                               this%option%restart_filename,FILE_MODE_READ, &
+                               viewer,ierr);CHKERRQ(ierr)
     ! skip reading info file when loading, but not working
-    call PetscViewerBinarySetSkipOptions(viewer,PETSC_TRUE,ierr);CHKERRQ(ierr)
+    call PetscViewerBinarySetSkipOptions(viewer,PETSC_TRUE, &
+                                         ierr);CHKERRQ(ierr)
     call CheckPointReadCompatibilityBinary(viewer,this%option)
     ! read pmc header
     call PetscBagCreate(this%option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
@@ -1425,7 +1424,7 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call PrintMsg(this%option)
-    call PetscLogEventBegin(logging%event_restart, ierr);CHKERRQ(ierr)
+    call PetscLogEventBegin(logging%event_restart,ierr);CHKERRQ(ierr)
     call PetscTime(tstart,ierr);CHKERRQ(ierr)
 
     call CheckpointOpenFileForReadHDF5(this%option%restart_filename, &

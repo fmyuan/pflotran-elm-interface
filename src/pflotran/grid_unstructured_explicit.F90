@@ -111,8 +111,8 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   num_cells = temp_int
   explicit_grid%num_cells_global = num_cells
 
@@ -186,7 +186,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 #endif
         int_mpi = num_to_read*5
         call MPI_Send(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION,irank, &
-                      num_to_read,option%mycomm,ierr)
+                      num_to_read,option%mycomm,ierr);CHKERRQ(ierr)
       endif
     enddo
   else
@@ -200,9 +200,9 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 #endif
     allocate(temp_real_array(5,num_cells_local))
     int_mpi = num_cells_local*5
-    call MPI_Recv(temp_real_array,int_mpi, &
-                  MPI_DOUBLE_PRECISION,option%driver%io_rank, &
-                  MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+    call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
+                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  ierr);CHKERRQ(ierr)
     do icell = 1, num_cells_local
       explicit_grid%cell_ids(icell) = int(temp_real_array(1,icell))
       explicit_grid%cell_centroids(icell)%x = temp_real_array(2,icell)
@@ -237,8 +237,8 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+                 option%mycomm,ierr);CHKERRQ(ierr)
   num_connections = temp_int
 
    ! divide cells across ranks
@@ -315,7 +315,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 #endif
         int_mpi = num_to_read*6
         call MPI_Send(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION,irank, &
-                      num_to_read,option%mycomm,ierr)
+                      num_to_read,option%mycomm,ierr);CHKERRQ(ierr)
       endif
     enddo
   else
@@ -329,9 +329,9 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 #endif
     allocate(temp_real_array(6,num_connections_local))
     int_mpi = num_connections_local*6
-    call MPI_Recv(temp_real_array,int_mpi, &
-                  MPI_DOUBLE_PRECISION,option%driver%io_rank, &
-                  MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+    call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
+                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  ierr);CHKERRQ(ierr)
     do iconn = 1, num_connections_local
       explicit_grid%connections(1,iconn) = int(temp_real_array(1,iconn))
       explicit_grid%connections(2,iconn) = int(temp_real_array(2,iconn))
@@ -551,10 +551,10 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   ! Find istart and iend
   istart = 0
   iend   = 0
-  call MPI_Exscan(num_cells_local, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
-  call MPI_Scan(num_cells_local, iend, ONE_INTEGER_MPI, &
-                MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(num_cells_local,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Scan(num_cells_local,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                option%mycomm,ierr);CHKERRQ(ierr)
   ! Determine the length and offset of data to be read by each processor
   length(1) = iend-istart
   length(2) = 0
@@ -710,10 +710,10 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   ! Find istart and iend
   istart = 0
   iend   = 0
-  call MPI_Exscan(num_connections_local, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
-  call MPI_Scan(num_connections_local, iend, ONE_INTEGER_MPI, &
-                MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Exscan(num_connections_local,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                  MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Scan(num_connections_local,iend,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   ! Determine the length and offset of data to be read by each processor
   length(1) = dims_h5(1)
   length(2) = iend-istart
@@ -964,9 +964,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
 
 
   temp_int = minval(explicit_grid%cell_ids)
-  call MPI_Allreduce(MPI_IN_PLACE,temp_int, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_MIN,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
   if (temp_int < 1) then
     option%io_buffer = 'The minimum cell ID (' // &
       trim(StringWrite(temp_int)) // ') in the explicit unstructured &
@@ -977,26 +976,27 @@ subroutine UGridExplicitDecompose(ugrid,option)
 
   num_cells_local_old = size(explicit_grid%cell_ids)
 
-  call MPI_Allreduce(num_cells_local_old,ugrid%nmax, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(num_cells_local_old,ugrid%nmax,ONE_INTEGER_MPI, &
+                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   ! determine the global offset from 0 for cells on this rank
   global_offset_old = 0
-  call MPI_Exscan(num_cells_local_old,global_offset_old, &
-                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Exscan(num_cells_local_old,global_offset_old,ONE_INTEGER_MPI, &
+                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   num_connections_local_old = size(explicit_grid%connections,2)
 
   call MPI_Allreduce(num_connections_local_old,num_connections_global, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
 
   global_connection_offset = 0
   call MPI_Exscan(num_connections_local_old,global_connection_offset, &
-                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+                  ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                  ierr);CHKERRQ(ierr)
 
-  call VecCreateMPI(option%mycomm,num_cells_local_old,ugrid%nmax, &
-                    M_vec,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,num_cells_local_old,ugrid%nmax,M_vec, &
+                    ierr);CHKERRQ(ierr)
   call VecZeroEntries(M_vec,ierr);CHKERRQ(ierr)
   do iconn = 1, num_connections_local_old
     do i = 1, 2
@@ -1017,11 +1017,10 @@ subroutine UGridExplicitDecompose(ugrid,option)
   call VecMax(M_vec,PETSC_NULL_INTEGER,temp_real,ierr);CHKERRQ(ierr)
   call VecDestroy(M_vec,ierr);CHKERRQ(ierr)
   ugrid%max_ndual_per_cell = int(temp_real+0.1d0)
-  call MatCreateAIJ(option%mycomm,num_cells_local_old,PETSC_DECIDE, &
-                    ugrid%nmax,num_connections_global, &
-                    ugrid%max_ndual_per_cell,PETSC_NULL_INTEGER, &
-                    ugrid%max_ndual_per_cell,PETSC_NULL_INTEGER, &
-                    M_mat,ierr);CHKERRQ(ierr)
+  call MatCreateAIJ(option%mycomm,num_cells_local_old,PETSC_DECIDE,ugrid%nmax, &
+                    num_connections_global,ugrid%max_ndual_per_cell, &
+                    PETSC_NULL_INTEGER,ugrid%max_ndual_per_cell, &
+                    PETSC_NULL_INTEGER,M_mat,ierr);CHKERRQ(ierr)
   call MatZeroEntries(M_mat,ierr);CHKERRQ(ierr)
   do iconn = 1, num_connections_local_old
     temp_int = iconn+global_connection_offset-1
@@ -1049,8 +1048,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
   if (option%comm%mycommsize>1) then
     call MatMPIAIJGetLocalMat(M_mat,MAT_INITIAL_MATRIX,M_mat_loc, &
                               ierr);CHKERRQ(ierr)
-    call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
-                        ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
+    call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                        num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   else
     call MatGetRowIJF90(M_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
                         ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
@@ -1069,33 +1068,34 @@ subroutine UGridExplicitDecompose(ugrid,option)
   local_connections(1:count)             = ja_ptr(1:count)
 
   call MatCreateMPIAdj(option%mycomm,num_cells_local_old, &
-                       num_connections_global, &
-                       local_connection_offsets, &
+                       num_connections_global,local_connection_offsets, &
                        local_connections,PETSC_NULL_INTEGER,Adj_mat, &
                        ierr);CHKERRQ(ierr)
 
   if (option%comm%mycommsize>1) then
-    call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
-                        ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
+    call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                            num_rows,ia_ptr,ja_ptr,success, &
+                            ierr);CHKERRQ(ierr)
   else
-    call MatRestoreRowIJF90(M_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
-                        ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
+    call MatRestoreRowIJF90(M_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                            num_rows,ia_ptr,ja_ptr,success, &
+                            ierr);CHKERRQ(ierr)
   endif
   call MatDestroy(M_mat,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'Adj.out',viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'Adj.out',viewer, &
+                            ierr);CHKERRQ(ierr)
   call MatView(Adj_mat,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 !  call PrintErrMsg(option,'debugg')
 
   ! Create the Dual matrix.
-  call MatCreateAIJ(option%mycomm,num_cells_local_old,PETSC_DECIDE, &
-                    ugrid%nmax,ugrid%nmax, &
-                    ugrid%max_ndual_per_cell,PETSC_NULL_INTEGER, &
-                    ugrid%max_ndual_per_cell,PETSC_NULL_INTEGER, &
-                    M_mat,ierr);CHKERRQ(ierr)
+  call MatCreateAIJ(option%mycomm,num_cells_local_old,PETSC_DECIDE,ugrid%nmax, &
+                    ugrid%nmax,ugrid%max_ndual_per_cell,PETSC_NULL_INTEGER, &
+                    ugrid%max_ndual_per_cell,PETSC_NULL_INTEGER,M_mat, &
+                    ierr);CHKERRQ(ierr)
   do iconn = 1, num_connections_local_old
     icell_up = explicit_grid%connections(1,iconn)-1
     icell_dn = explicit_grid%connections(2,iconn)-1
@@ -1115,8 +1115,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
   if (option%comm%mycommsize>1) then
     call MatMPIAIJGetLocalMat(M_mat,MAT_INITIAL_MATRIX,M_mat_loc, &
                               ierr);CHKERRQ(ierr)
-    call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
-                        ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
+    call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                        num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   else
     call MatGetRowIJF90(M_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
                         ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
@@ -1134,18 +1134,18 @@ subroutine UGridExplicitDecompose(ugrid,option)
   local_connection_offsets2(1:num_rows+1) = ia_ptr(1:num_rows+1)
   local_connections2(1:count)             = ja_ptr(1:count)
 
-  call MatCreateMPIAdj(option%mycomm,num_cells_local_old, &
-                       ugrid%nmax, &
-                       local_connection_offsets2, &
-                       local_connections2,PETSC_NULL_INTEGER,Dual_mat, &
-                       ierr);CHKERRQ(ierr)
+  call MatCreateMPIAdj(option%mycomm,num_cells_local_old,ugrid%nmax, &
+                       local_connection_offsets2,local_connections2, &
+                       PETSC_NULL_INTEGER,Dual_mat,ierr);CHKERRQ(ierr)
 
   if (option%comm%mycommsize>1) then
-    call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
-                        ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
+    call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                            num_rows,ia_ptr,ja_ptr,success, &
+                            ierr);CHKERRQ(ierr)
   else
-    call MatRestoreRowIJF90(M_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
-                        ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
+    call MatRestoreRowIJF90(M_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                            num_rows,ia_ptr,ja_ptr,success, &
+                            ierr);CHKERRQ(ierr)
   endif
   call MatDestroy(M_mat,ierr);CHKERRQ(ierr)
 
@@ -1298,7 +1298,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
                           num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   ! pointers to Adj mat
   call MatRestoreRowIJF90(Adj_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
-                          temp_int,ia_ptr2,ja_ptr2,success,ierr);CHKERRQ(ierr)
+                          temp_int,ia_ptr2,ja_ptr2,success, &
+                          ierr);CHKERRQ(ierr)
   call MatDestroy(Dual_mat,ierr);CHKERRQ(ierr)
   call MatDestroy(Adj_mat,ierr);CHKERRQ(ierr)
   deallocate(local_connections)
@@ -1320,8 +1321,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
   ! create strided vector with the old connection distribution
   call VecCreate(option%mycomm,connections_old,ierr);CHKERRQ(ierr)
   call VecSetSizes(connections_old, &
-                   connection_stride*num_connections_local_old, &
-                   PETSC_DECIDE,ierr);CHKERRQ(ierr)
+                   connection_stride*num_connections_local_old,PETSC_DECIDE, &
+                   ierr);CHKERRQ(ierr)
   call VecSetFromOptions(connections_old,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(connections_old,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1379,8 +1380,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
   ! sort connections - int_array2 will return the reordering while int_array
   !                    remains the same.
   int_array2 = int_array2 - 1
-  call PetscSortIntWithPermutation(num_connections_total,int_array, &
-                                   int_array2,ierr);CHKERRQ(ierr)
+  call PetscSortIntWithPermutation(num_connections_total,int_array,int_array2, &
+                                   ierr);CHKERRQ(ierr)
   int_array2 = int_array2 + 1
 
   ! permute, remove duplicate connections, and renumber to local ordering
@@ -1433,7 +1434,8 @@ subroutine UGridExplicitDecompose(ugrid,option)
   call VecCreate(PETSC_COMM_SELF,connections_local,ierr);CHKERRQ(ierr)
   call VecSetSizes(connections_local,num_connections_local*connection_stride, &
                    PETSC_DECIDE,ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(connections_local,connection_stride,ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(connections_local,connection_stride, &
+                       ierr);CHKERRQ(ierr)
   call VecSetFromOptions(connections_local,ierr);CHKERRQ(ierr)
 
   int_array = int_array-1
@@ -1444,16 +1446,17 @@ subroutine UGridExplicitDecompose(ugrid,option)
     int_array(iconn) = iconn-1
   enddo
   call ISCreateBlock(option%mycomm,connection_stride,num_connections_local, &
-                     int_array,PETSC_COPY_VALUES,is_gather,ierr);CHKERRQ(ierr)
+                     int_array,PETSC_COPY_VALUES,is_gather, &
+                     ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
 #if UGRID_DEBUG
-  call PetscViewerASCIIOpen(option%mycomm,'is_scatter_conn_old_to_local.out',viewer, &
-                            ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'is_scatter_conn_old_to_local.out', &
+                            viewer,ierr);CHKERRQ(ierr)
   call ISView(is_scatter,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerASCIIOpen(option%mycomm,'is_gather_conn_old_to_local.out',viewer, &
-                            ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm,'is_gather_conn_old_to_local.out', &
+                            viewer,ierr);CHKERRQ(ierr)
   call ISView(is_gather,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   call PrintMsg(option,'Scatter/gathering local connection info')
@@ -1946,29 +1949,29 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
                                                 nG2L,option,icell, &
                                                 cell_distance)
 
-  ! 
+  !
   ! Returns the cell which its center is the closest for point x,y,z
-  ! 
+  !
   ! Author: Moise Rousseau
   ! Date: 04/12/21
-  ! 
+  !
   use Option_module
-  use Geometry_module  
+  use Geometry_module
 
   implicit none
-  
+
   PetscReal :: x, y, z
   PetscInt :: icell
   PetscReal :: cell_distance
   type(unstructured_explicit_type) :: grid_explicit
   PetscInt, pointer :: nG2L(:)
   type(option_type) :: option
-  
+
   type(point3d_type) :: pt_test
   type(point3d_type) :: pt_champion
   PetscReal :: min_distance, distance
   PetscInt :: ghosted_id, local_id, champion
-  
+
   !initiate
   min_distance = MAX_DOUBLE
   !looking for champion
@@ -1983,7 +1986,7 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
       pt_champion = pt_test
       cycle
     endif
-    if (distance == min_distance) then 
+    if (distance == min_distance) then
       if ((pt_test%x < pt_champion%x) .or. &
          (pt_test%x == pt_champion%x .and. pt_test%y < pt_champion%y) .or. &
          (pt_test%x == pt_champion%x .and. pt_test%y == pt_champion%y .and. &
@@ -1993,10 +1996,10 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
       endif
     endif
   enddo
-  
+
   icell = champion
   cell_distance = min_distance
-  
+
 end subroutine UGridExplicitGetClosestCellFromPoint
 
 end module Grid_Unstructured_Explicit_module

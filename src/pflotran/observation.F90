@@ -8,9 +8,9 @@ module Observation_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
 
   PetscInt, parameter, public :: OBSERVATION_SCALAR = 1
   PetscInt, parameter, public :: OBSERVATION_FLUX = 2
@@ -36,7 +36,7 @@ module Observation_module
     type(observation_aggregate_type), pointer :: aggregate
     type(observation_type), pointer :: next
   end type observation_type
-  
+
   type, public :: observation_list_type
     PetscInt :: num_observations
     type(observation_type), pointer :: first
@@ -63,27 +63,27 @@ module Observation_module
     module procedure ObservationCreate1
     module procedure ObservationCreateFromObservation
   end interface
-    
+
 contains
 
 ! ************************************************************************** !
 
 function ObservationCreate1()
-  ! 
+  !
   ! Create object that stores observation regions
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   implicit none
-  
+
   type(observation_type), pointer :: ObservationCreate1
-  
+
   type(observation_type), pointer :: observation
-  
+
   allocate(observation)
-  
+
   observation%name = ""
   observation%linkage_name = ""
   observation%id = 0
@@ -94,7 +94,7 @@ function ObservationCreate1()
   nullify(observation%region)
   nullify(observation%aggregate)
   nullify(observation%next)
-  
+
   ObservationCreate1 => observation
 
 end function ObservationCreate1
@@ -121,7 +121,7 @@ function ObservationAggregateCreate()
   aggregate%local_id = -999
   aggregate%metric_value = -999.d0
   aggregate%threshold_value = -999.d0
- 
+
   nullify(aggregate%output_variable)
   nullify(aggregate%next)
 
@@ -132,22 +132,22 @@ end function ObservationAggregateCreate
 ! ************************************************************************** !
 
 function ObservationCreateFromObservation(observation)
-  ! 
+  !
   ! Create object that stores observation regions
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   implicit none
-  
+
   type(observation_type), pointer :: ObservationCreateFromObservation
   type(observation_type), pointer :: observation
 
   type(observation_type), pointer :: new_observation
-  
+
   new_observation => ObservationCreate1()
-  
+
   new_observation%name = observation%name
   new_observation%linkage_name = observation%linkage_name
   new_observation%id = observation%id
@@ -160,7 +160,7 @@ function ObservationCreateFromObservation(observation)
   nullify(new_observation%region)
   nullify(new_observation%aggregate)
   nullify(new_observation%next)
-  
+
   ObservationCreateFromObservation => new_observation
 
 end function ObservationCreateFromObservation
@@ -168,23 +168,23 @@ end function ObservationCreateFromObservation
 ! ************************************************************************** !
 
 subroutine ObservationRead(observation,input,option)
-  ! 
+  !
   ! Reads observation data from the input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   use Input_Aux_module
   use String_module
   use Option_module
-  
+
   implicit none
-  
+
   type(observation_type) :: observation
   type(input_type), pointer :: input
   type(option_type), pointer :: option
-  
+
   type(observation_aggregate_type), pointer :: aggregate, new_aggregate
   character(len=MAXWORDLENGTH) :: keyword, word, word2, var_name, units
   PetscInt :: id, category, subvar, subsubvar
@@ -192,17 +192,17 @@ subroutine ObservationRead(observation,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
-    
-    if (InputCheckExit(input,option)) exit  
+
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','OBSERVATION')   
-    call StringToUpper(keyword)    
- 
+    call InputErrorMsg(input,option,'keyword','OBSERVATION')
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
-    
+
       case('BOUNDARY_CONDITION')
         call InputReadWord(input,option,observation%linkage_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'boundary condition name','OBSERVATION')
@@ -223,7 +223,7 @@ subroutine ObservationRead(observation,input,option)
       case('VELOCITY')
         observation%print_velocities = PETSC_TRUE
       case('SECONDARY_TEMPERATURE')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(1) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_TEMPERATURE can only be used' // &
@@ -231,7 +231,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_CONCENTRATION')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(2) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_CONCENTRATION can only be used' // &
@@ -239,7 +239,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_VOLFRAC')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(3) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_VOLFRAC can ' // &
@@ -247,7 +247,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_RATE')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(4) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_RATE can ' // &
@@ -255,7 +255,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_SI')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(5) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_SI can ' // &
@@ -267,15 +267,15 @@ subroutine ObservationRead(observation,input,option)
       case('AT_COORDINATE')
         observation%at_cell_center = PETSC_FALSE
       case('AGGREGATE_METRIC','AGGREGATE_METRICS')
-        
-        observation%itype = OBSERVATION_AGGREGATE 
+
+        observation%itype = OBSERVATION_AGGREGATE
 
         call InputPushBlock(input,option)
 
         id = 1
         allocate(new_aggregate)
         do
- 
+
           new_aggregate => ObservationAggregateCreate()
           new_aggregate%id = id
 
@@ -340,8 +340,8 @@ subroutine ObservationRead(observation,input,option)
             case default
               call InputKeywordUnrecognized(input,keyword,'AGGREGATE_METRIC', &
                                             option)
-          end select          
-          
+          end select
+
           if (.not. associated(observation%aggregate)) then
             observation%aggregate => new_aggregate
           else
@@ -355,16 +355,16 @@ subroutine ObservationRead(observation,input,option)
               aggregate => aggregate%next
             enddo
           endif
-          id = id + 1         
+          id = id + 1
         enddo
- 
+
         call InputPopBlock(input,option)
 
       case default
         call InputKeywordUnrecognized(input,keyword,'OBSERVATION',option)
-    end select 
-  
-  enddo  
+    end select
+
+  enddo
   call InputPopBlock(input,option)
 
 end subroutine ObservationRead
@@ -372,17 +372,17 @@ end subroutine ObservationRead
 ! ************************************************************************** !
 
 subroutine ObservationInitList(list)
-  ! 
+  !
   ! Initializes a observation list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   implicit none
 
   type(observation_list_type) :: list
-  
+
   nullify(list%first)
   nullify(list%last)
   nullify(list%array)
@@ -393,46 +393,46 @@ end subroutine ObservationInitList
 ! ************************************************************************** !
 
 subroutine ObservationAddToList(new_observation,list)
-  ! 
+  !
   ! Adds a new observation to a observation list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   implicit none
-  
+
   type(observation_type), pointer :: new_observation
   type(observation_list_type) :: list
-  
+
   list%num_observations = list%num_observations + 1
   new_observation%id = list%num_observations
   if (.not.associated(list%first)) list%first => new_observation
   if (associated(list%last)) list%last%next => new_observation
   list%last => new_observation
-  
+
 end subroutine ObservationAddToList
 
 ! ************************************************************************** !
 
 subroutine ObservationRemoveFromList(observation,list)
-  ! 
+  !
   ! Removes a observation from a observation list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   implicit none
-  
+
   type(observation_type), pointer :: observation
   type(observation_list_type) :: list
-  
+
   type(observation_type), pointer :: cur_observation, prev_observation
-  
+
   cur_observation => list%first
   nullify(prev_observation)
-  
+
   do
     if (.not.associated(cur_observation)) exit
     if (associated(cur_observation,observation)) then
@@ -451,35 +451,35 @@ subroutine ObservationRemoveFromList(observation,list)
     prev_observation => cur_observation
     cur_observation => cur_observation%next
   enddo
-  
+
 end subroutine ObservationRemoveFromList
 
 ! ************************************************************************** !
 
 function ObservationGetPtrFromList(observation_name,observation_list)
-  ! 
+  !
   ! Returns a pointer to the observation matching &
   ! observation_name
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   use String_module
 
   implicit none
-  
+
   type(observation_type), pointer :: ObservationGetPtrFromList
   character(len=MAXWORDLENGTH) :: observation_name
   type(observation_list_type) :: observation_list
- 
+
   PetscInt :: length
   type(observation_type), pointer :: observation
-    
+
   nullify(ObservationGetPtrFromList)
   observation => observation_list%first
-  
-  do 
+
+  do
     if (.not.associated(observation)) exit
     length = len_trim(observation_name)
     if (length == len_trim(observation%name) .and. &
@@ -490,41 +490,41 @@ function ObservationGetPtrFromList(observation_name,observation_list)
     endif
     observation => observation%next
   enddo
-  
+
 end function ObservationGetPtrFromList
 
 ! ************************************************************************** !
 
 subroutine ObservationDestroyList(observation_list)
-  ! 
+  !
   ! Deallocates a list of observations
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/11/08
-  ! 
+  !
 
   implicit none
-  
+
   type(observation_list_type), pointer :: observation_list
-  
+
   type(observation_type), pointer :: observation, prev_observation
-  
+
   if (.not.associated(observation_list)) return
-  
+
   observation => observation_list%first
-  do 
+  do
     if (.not.associated(observation)) exit
     prev_observation => observation
     observation => observation%next
     call ObservationDestroy(prev_observation)
   enddo
-  
+
   observation_list%num_observations = 0
   nullify(observation_list%first)
   nullify(observation_list%last)
   if (associated(observation_list%array)) deallocate(observation_list%array)
   nullify(observation_list%array)
-  
+
   deallocate(observation_list)
   nullify(observation_list)
 
@@ -533,21 +533,21 @@ end subroutine ObservationDestroyList
 ! ************************************************************************** !
 
 subroutine ObservationDestroy(observation)
-  ! 
+  !
   ! Deallocates a observation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
-  
+
   type(observation_type), pointer :: observation
-  
+
   PetscInt :: i
-  
+
   if (.not.associated(observation)) return
-  
+
   nullify(observation%region)
   nullify(observation%aggregate)
   nullify(observation%connection_set)

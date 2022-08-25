@@ -1,5 +1,5 @@
 module Reaction_Isotherm_Aux_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -47,13 +47,13 @@ module Reaction_Isotherm_Aux_module
             IsothermDestroy
 
 contains
-  
+
 ! ************************************************************************** !
- 
+
 function IsothermCreate()
-  ! 
+  !
   ! Allocate and initialize isotherm reaction object
-  ! 
+  !
 
   implicit none
 
@@ -83,12 +83,12 @@ end function IsothermCreate
 function IsothermLinkCreate()
 
   ! Allocate and initialize an isotherm sorption reaction
-  ! 
-  ! 
+  !
+  !
   implicit none
-  
+
   type(isotherm_link_type), pointer :: IsothermLinkCreate
-  
+
   type(isotherm_link_type), pointer :: rxn
 
   allocate(rxn)
@@ -112,7 +112,7 @@ subroutine IsothermRxnCreate(isotherm_rxn, isotherm)
   implicit none
 
   type(isotherm_type), pointer :: isotherm
-  
+
   type(isotherm_rxn_type), pointer :: isotherm_rxn
 
   allocate(isotherm_rxn)
@@ -122,23 +122,23 @@ subroutine IsothermRxnCreate(isotherm_rxn, isotherm)
   allocate(isotherm_rxn%eqisothermlangmuirb(isotherm%neqkdrxn))
   isotherm_rxn%eqisothermlangmuirb = 0.d0
   allocate(isotherm_rxn%eqisothermfreundlichn(isotherm%neqkdrxn))
-  isotherm_rxn%eqisothermfreundlichn = 0.d0 
+  isotherm_rxn%eqisothermfreundlichn = 0.d0
 
 end subroutine IsothermRxnCreate
 
 ! ************************************************************************** !
 
 subroutine IsothermRxnLinkDestroy(link)
-  ! 
+  !
   ! Deallocates an isotherm reaction
-  ! 
+  !
   implicit none
 
   type(isotherm_link_type), pointer :: link
 
   if (.not.associated(link)) return
 
-  deallocate(link)  
+  deallocate(link)
   nullify(link)
 
 end subroutine IsothermRxnLinkDestroy
@@ -146,9 +146,9 @@ end subroutine IsothermRxnLinkDestroy
 ! ************************************************************************** !
 
 subroutine IsothermRxnDestroy(isotherm_rxn)
-  ! 
+  !
   ! Deallocates an isotherm reaction
-  ! 
+  !
   use Utility_module, only: DeallocateArray
 
   implicit none
@@ -161,7 +161,7 @@ subroutine IsothermRxnDestroy(isotherm_rxn)
   call DeallocateArray(isotherm_rxn%eqisothermlangmuirb)
   call DeallocateArray(isotherm_rxn%eqisothermfreundlichn)
 
-  deallocate(isotherm_rxn)  
+  deallocate(isotherm_rxn)
   nullify(isotherm_rxn)
 
 end subroutine IsothermRxnDestroy
@@ -169,13 +169,13 @@ end subroutine IsothermRxnDestroy
 ! ************************************************************************** !
 
 subroutine IsothermDestroy(isotherm,option)
-  ! 
+  !
   ! Deallocates an isotherm object
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
   use Option_module
-  
+
   implicit none
 
   type(isotherm_type), pointer :: isotherm
@@ -193,7 +193,7 @@ subroutine IsothermDestroy(isotherm,option)
   nullify(isotherm%isotherm_list)
 
   ! secondary continuum
-  if (option%use_mc) then
+  if (option%use_sc) then
     isotherm_rxn_link => isotherm%multicontinuum_isotherm_list
     do
       if (.not.associated(isotherm_rxn_link)) exit
@@ -203,7 +203,7 @@ subroutine IsothermDestroy(isotherm,option)
     enddo
     nullify(isotherm%multicontinuum_isotherm_list)
   endif
- 
+
   call IsothermRxnDestroy(isotherm%isotherm_rxn)
   call IsothermRxnDestroy(isotherm%multicontinuum_isotherm_rxn)
 
@@ -213,7 +213,7 @@ subroutine IsothermDestroy(isotherm,option)
 
   deallocate(isotherm)
   nullify(isotherm)
-  
+
 end subroutine IsothermDestroy
 
 end module Reaction_Isotherm_Aux_module

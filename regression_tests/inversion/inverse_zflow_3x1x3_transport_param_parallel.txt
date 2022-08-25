@@ -1,0 +1,7 @@
+    MAXIMUM_NUMBER_OF_ITERATIONS 2
+    FORWARD_SIMULATION_FILENAME ./3x1x3_transport_parallel.in
+    EXTERNAL_FILE parameter_by_material.txt
+    EXTERNAL_FILE measurements_conc_3x1x3.txt
+    TARGET_CHI2 1d-15
+    BETA 0.01
+

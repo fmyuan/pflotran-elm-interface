@@ -6,7 +6,7 @@ module Data_Mediator_Dataset_class
   use PFLOTRAN_Constants_module
   use Data_Mediator_Base_class
   use Dataset_Global_HDF5_class
-  
+
   implicit none
 
   private
@@ -16,9 +16,9 @@ module Data_Mediator_Dataset_class
     class(dataset_global_hdf5_type), pointer :: dataset
   contains
     procedure, public :: Update => DataMediatorDatasetUpdate
-    procedure, public :: Strip => DataMediatorDatasetStrip    
+    procedure, public :: Strip => DataMediatorDatasetStrip
   end type data_mediator_dataset_type
-  
+
   public :: DataMediatorDatasetCreate, &
             DataMediatorDatasetRead, &
             DataMediatorDatasetInit
@@ -28,19 +28,19 @@ contains
 ! ************************************************************************** !
 
 function DataMediatorDatasetCreate()
-  ! 
+  !
   ! Creates a data mediator object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/01/13
-  ! 
-  
+  !
+
   implicit none
 
   class(data_mediator_dataset_type), pointer :: DataMediatorDatasetCreate
-  
+
   class(data_mediator_dataset_type), pointer :: data_mediator
-  
+
   allocate(data_mediator)
   call DataMediatorBaseCreate(data_mediator)
   data_mediator%idof = 0
@@ -52,39 +52,39 @@ end function DataMediatorDatasetCreate
 ! ************************************************************************** !
 
 subroutine DataMediatorDatasetRead(data_mediator,input,option)
-  ! 
+  !
   ! Reads in contents of a data mediator card
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/01/13
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
   use String_module
 
   implicit none
-  
+
   class(data_mediator_dataset_type) :: data_mediator
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword, word
 
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','MASS_TRANSFER')
-    call StringToUpper(keyword)   
-      
+    call StringToUpper(keyword)
+
     select case(trim(keyword))
-      case('IDOF') 
+      case('IDOF')
         call InputReadInt(input,option,data_mediator%idof)
         call InputErrorMsg(input,option,'idof','MASS_TRANSFER')
       case('DATASET')
@@ -96,8 +96,8 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
       case default
         call InputKeywordUnrecognized(input,keyword,'MASS_TRANSFER',option)
     end select
-    
-  enddo  
+
+  enddo
   call InputPopBlock(input,option)
 
 end subroutine DataMediatorDatasetRead
@@ -106,29 +106,29 @@ end subroutine DataMediatorDatasetRead
 
 subroutine DataMediatorDatasetInit(data_mediator, discretization, &
                                    available_datasets, option)
-  ! 
+  !
   ! Initializes data mediator object opening dataset to
   ! set up times, vectors, etc.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/09/13
-  ! 
+  !
   use Discretization_module
   use Dataset_Base_class
   use Dataset_Common_HDF5_class
   use Option_module
 
   implicit none
-  
+
   class(data_mediator_dataset_type) :: data_mediator
   type(discretization_type) :: discretization
   class(dataset_base_type), pointer :: available_datasets
   type(option_type) :: option
-  
+
   class(dataset_base_type), pointer :: dataset_base_ptr
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
-  
+
   if (.not.associated(data_mediator%dataset)) then
     option%io_buffer = 'A "global" DATASET does not exist for ' // &
       'MASS_TRANSFER object "' // trim(data_mediator%name) // '".'
@@ -152,7 +152,7 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   data_mediator%dataset%dm_wrapper => discretization%dm_1dof
   data_mediator%dataset%local_size = discretization%grid%nlmax
   data_mediator%dataset%global_size = discretization%grid%nmax
-  
+
   if (.not.associated(data_mediator%dataset%time_storage)) then
     call DatasetCommonHDF5ReadTimes(data_mediator%dataset%filename, &
                                     data_mediator%dataset%hdf5_dataset_name, &
@@ -163,35 +163,35 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
       data_mediator%dataset%time_storage%time_interpolation_method = &
         INTERPOLATION_STEP
     endif
-  endif 
-  
+  endif
+
 end subroutine DataMediatorDatasetInit
 
 ! ************************************************************************** !
 
 recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
-  ! 
+  !
   ! Updates a data mediator object transfering data from
   ! the buffer into the PETSc Vec
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/01/13
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   class(data_mediator_dataset_type) :: this
   Vec :: data_mediator_vec
-  type(option_type) :: option  
-  
+  type(option_type) :: option
+
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: ndof_per_cell
   PetscInt :: mdof_local_size
   PetscInt :: offset
   PetscInt :: i
   PetscErrorCode :: ierr
-  
+
   call DatasetGlobalHDF5Load(this%dataset,option)
 
   call VecGetLocalSize(data_mediator_vec,mdof_local_size,ierr);CHKERRQ(ierr)
@@ -207,32 +207,32 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
     offset = offset + ndof_per_cell
   enddo
   call VecRestoreArrayF90(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 end subroutine DataMediatorDatasetUpdate
 
 ! ************************************************************************** !
 
 recursive subroutine DataMediatorDatasetStrip(this)
-  ! 
+  !
   ! Destroys a data mediator object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/01/13
-  ! 
+  !
 
   implicit none
-  
+
   class(data_mediator_dataset_type) :: this
-  
+
   PetscErrorCode :: ierr
-  
+
   ! update the next one
   if (associated(this%next)) then
     call this%next%Strip()
     deallocate(this%next)
     nullify(this%next)
-  endif 
-  
+  endif
+
   ! Simply nullify the pointer as the dataset resides in a list to be
   ! destroyed separately.
   nullify(this%dataset)

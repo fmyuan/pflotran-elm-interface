@@ -9,7 +9,7 @@ module Shape_Function_module
 #include "petsc/finclude/petscsys.h"
 
   private
-  
+
   type, public :: shapefunction_type
     PetscInt :: EleType               ! element type
     PetscReal, pointer :: zeta(:)     ! coordinates of point in reference element
@@ -17,30 +17,30 @@ module Shape_Function_module
     PetscReal, pointer :: DN(:,:)     ! derivatives of shape function with respect to zeta
     PetscReal, pointer :: coord(:,:)  ! local coordinates of the vertices in the reference element
   end type shapefunction_type
-    
+
   public :: ShapeFunctionInitialize, ShapeFunctionCalculate, &
             ShapeFunctionDestroy
-  
+
   contains
 
 ! ************************************************************************** !
 
 subroutine ShapeFunctionInitialize(shapefunction)
-  ! 
+  !
   ! Allocate memory for shapefunction type
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 5/17/2013
-  ! 
- 
+  !
+
   type(shapefunction_type) :: shapefunction
   PetscReal, pointer :: coord(:,:)
-  
+
   select case(shapefunction%EleType)
     case(LINE_TYPE)
       allocate(shapefunction%N(TWO_INTEGER))
-      allocate(shapefunction%DN(TWO_INTEGER,ONE_INTEGER)) 
-      allocate(shapefunction%zeta(ONE_INTEGER))   
+      allocate(shapefunction%DN(TWO_INTEGER,ONE_INTEGER))
+      allocate(shapefunction%zeta(ONE_INTEGER))
       allocate(shapefunction%coord(TWO_INTEGER,ONE_INTEGER))
     case(QUAD_TYPE)
       allocate(shapefunction%N(FOUR_INTEGER))
@@ -50,17 +50,17 @@ subroutine ShapeFunctionInitialize(shapefunction)
     case(WEDGE_TYPE)
       allocate(shapefunction%N(SIX_INTEGER))
       allocate(shapefunction%DN(SIX_INTEGER,THREE_INTEGER))
-      allocate(shapefunction%zeta(THREE_INTEGER))  
+      allocate(shapefunction%zeta(THREE_INTEGER))
       allocate(shapefunction%coord(SIX_INTEGER,THREE_INTEGER))
     case(TET_TYPE)
       allocate(shapefunction%N(FOUR_INTEGER))
       allocate(shapefunction%DN(FOUR_INTEGER,THREE_INTEGER))
-      allocate(shapefunction%zeta(THREE_INTEGER)) 
+      allocate(shapefunction%zeta(THREE_INTEGER))
       allocate(shapefunction%coord(FOUR_INTEGER,THREE_INTEGER))
     case(PYR_TYPE)
       allocate(shapefunction%N(FIVE_INTEGER))
       allocate(shapefunction%DN(FIVE_INTEGER,THREE_INTEGER))
-      allocate(shapefunction%zeta(THREE_INTEGER)) 
+      allocate(shapefunction%zeta(THREE_INTEGER))
       allocate(shapefunction%coord(FIVE_INTEGER,THREE_INTEGER))
     case(HEX_TYPE)
       allocate(shapefunction%N(EIGHT_INTEGER))
@@ -69,16 +69,16 @@ subroutine ShapeFunctionInitialize(shapefunction)
       allocate(shapefunction%coord(EIGHT_INTEGER,THREE_INTEGER))
     case default
       print *, 'Error: Invalid EleType. Enter an EleType from L2,' // &
-               ' T3, Q4, B8 only.'       
-  end select   
-  
+               ' T3, Q4, B8 only.'
+  end select
+
   shapefunction%zeta = 0.d0
   shapefunction%N  = 0.d0
   shapefunction%DN = 0.d0
   shapefunction%coord = 0.d0
-  
-  coord => shapefunction%coord  
-  
+
+  coord => shapefunction%coord
+
   select case(shapefunction%EleType)
     case(LINE_TYPE)
       coord(1,1) = -1.d0
@@ -121,15 +121,15 @@ subroutine ShapeFunctionInitialize(shapefunction)
       coord(8,:) = -(/1.d0,-1.d0,-1.d0/)
     case default
       print *, 'Error: Invalid EleType. Enter an EleType from L2,' // &
-               ' T3, Q4, B8 only.'       
-  end select     
-   
+               ' T3, Q4, B8 only.'
+  end select
+
 end subroutine ShapeFunctionInitialize
 
 ! ************************************************************************** !
 
 subroutine ShapeFunctionCalculate(shapefunction)
-  ! 
+  !
   ! Subroutine provides shape functions and its derivatives
   ! at a given spatial point (in the reference element) 'zeta' for various finite
   ! elements.
@@ -146,28 +146,28 @@ subroutine ShapeFunctionCalculate(shapefunction)
   ! N: shape functions for all nodes evaluated at zeta (N is a row
   ! vector!)
   ! DN: derivatives of shape functions with respect to zeta
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 5/17/2013
-  ! 
+  !
 
   type(shapefunction_type) :: shapefunction
   PetscReal, pointer :: zeta(:)
   PetscReal, pointer :: N(:)
   PetscReal, pointer :: DN(:,:)
   PetscInt :: i
-    
+
   N => shapefunction%N
   DN => shapefunction%DN
   zeta => shapefunction%zeta
-  
+
   do i = 1, size(zeta)
     if (zeta(i) < -1.d0 .or. zeta(i) > 1.d0) then
       print *, 'Error: Enter values between -1 and 1 for zeta'
       stop
     endif
   enddo
-  
+
   select case(shapefunction%EleType)
     case(LINE_TYPE)
       N(1) = 0.5d0*(1.d0 - zeta(1))
@@ -181,11 +181,11 @@ subroutine ShapeFunctionCalculate(shapefunction)
       N(4) = 1.d0/4.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))
       DN(1,1) = -1.d0/4.d0*(1.d0 - zeta(2))
       DN(1,2) = -1.d0/4.d0*(1.d0 - zeta(1))
-      DN(2,1) = 1.d0/4.d0*(1.d0 - zeta(2)) 
+      DN(2,1) = 1.d0/4.d0*(1.d0 - zeta(2))
       DN(2,2) = -1.d0/4.d0*(1.d0 + zeta(1))
-      DN(3,1) = 1.d0/4.d0*(1.d0 + zeta(2))  
+      DN(3,1) = 1.d0/4.d0*(1.d0 + zeta(2))
       DN(3,2) = 1.d0/4.d0*(1.d0 + zeta(1))
-      DN(4,1) = -1.d0/4.d0*(1.d0 + zeta(2))  
+      DN(4,1) = -1.d0/4.d0*(1.d0 + zeta(2))
       DN(4,2) = 1.d0/4.d0*(1.d0 - zeta(1))
     case(WEDGE_TYPE)
       N(1) = 1.d0/4.d0*(1.d0 - zeta(2))*(1.d0 - zeta(3))
@@ -194,10 +194,10 @@ subroutine ShapeFunctionCalculate(shapefunction)
       N(4) = 1.d0/4.d0*(1.d0 - zeta(2))*(1.d0 + zeta(3))
       N(5) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(1.d0 + zeta(3))
       N(6) = 1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(1.d0 + zeta(3))
-         
+
       DN(1,:) = (/0.d0, &
                   1.d0/4.d0*(-1.d0)*(1.d0 - zeta(3)), &
-                  1.d0/4.d0*(1.d0 - zeta(2))*(-1.d0)/) 
+                  1.d0/4.d0*(1.d0 - zeta(2))*(-1.d0)/)
       DN(2,:) = (/1.d0/8.d0*(+1.d0)*(1.d0 + zeta(2))*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(+1.d0)*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(-1.d0)/)
@@ -212,17 +212,17 @@ subroutine ShapeFunctionCalculate(shapefunction)
                   1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(+1.d0)/)
       DN(6,:) = (/1.d0/8.d0*(-1.d0)*(1.d0 + zeta(2))*(1.d0 + zeta(3)), &
                   1.d0/8.d0*(1.d0 - zeta(1))*(+1.d0)*(1.d0 + zeta(3)), &
-                  1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(+1.d0)/) 
-      
+                  1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(+1.d0)/)
+
     case(TET_TYPE)
       N(1) = 1.d0/4.d0*(1.d0 - zeta(2))*(1.d0 - zeta(3))
       N(2) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(1.d0 - zeta(3))
       N(3) = 1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(1.d0 - zeta(3))
       N(4) = 1.d0/2.d0*(1.d0 + zeta(3))
-         
+
       DN(1,:) = (/0.d0, &
                   1.d0/4.d0*(-1.d0)*(1.d0 - zeta(3)), &
-                  1.d0/4.d0*(1.d0 - zeta(2))*(-1.d0)/) 
+                  1.d0/4.d0*(1.d0 - zeta(2))*(-1.d0)/)
       DN(2,:) = (/1.d0/8.d0*(+1.d0)*(1.d0 + zeta(2))*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(+1.d0)*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(-1.d0)/)
@@ -230,17 +230,17 @@ subroutine ShapeFunctionCalculate(shapefunction)
                   1.d0/8.d0*(1.d0 - zeta(1))*(+1.d0)*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(-1.d0)/)
       DN(4,:) = (/0.d0,0.d0,1.d0/2.d0/)
-      
+
     case(PYR_TYPE)
       N(1) = 1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 - zeta(2))*(1.d0 - zeta(3))
       N(2) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 - zeta(2))*(1.d0 - zeta(3))
       N(3) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(1.d0 - zeta(3))
       N(4) = 1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(1.d0 - zeta(3))
       N(5) = 1.d0/2.d0*(1.d0 + zeta(3))
-         
+
       DN(1,:) = (/1.d0/8.d0*(-1.d0)*(1.d0 - zeta(2))*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 - zeta(1))*(-1.d0)*(1.d0 - zeta(3)), &
-                  1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 - zeta(2))*(-1.d0)/) 
+                  1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 - zeta(2))*(-1.d0)/)
       DN(2,:) = (/1.d0/8.d0*(+1.d0)*(1.d0 - zeta(2))*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(-1.d0)*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 - zeta(2))*(-1.d0)/)
@@ -251,7 +251,7 @@ subroutine ShapeFunctionCalculate(shapefunction)
                   1.d0/8.d0*(1.d0 - zeta(1))*(+1.d0)*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(-1.d0)/)
       DN(5,:) = (/0.d0,0.d0,1.d0/2.d0/)
-      
+
     case(HEX_TYPE)
       N(1) = 1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 - zeta(2))*(1.d0 - zeta(3))
       N(2) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 - zeta(2))*(1.d0 - zeta(3))
@@ -261,10 +261,10 @@ subroutine ShapeFunctionCalculate(shapefunction)
       N(6) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 - zeta(2))*(1.d0 + zeta(3))
       N(7) = 1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 + zeta(2))*(1.d0 + zeta(3))
       N(8) = 1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(1.d0 + zeta(3))
-         
+
       DN(1,:) = (/1.d0/8.d0*(-1.d0)*(1.d0 - zeta(2))*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 - zeta(1))*(-1.d0)*(1.d0 - zeta(3)), &
-                  1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 - zeta(2))*(-1.d0)/) 
+                  1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 - zeta(2))*(-1.d0)/)
       DN(2,:) = (/1.d0/8.d0*(+1.d0)*(1.d0 - zeta(2))*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(-1.d0)*(1.d0 - zeta(3)), &
                   1.d0/8.d0*(1.d0 + zeta(1))*(1.d0 - zeta(2))*(-1.d0)/)
@@ -290,21 +290,21 @@ subroutine ShapeFunctionCalculate(shapefunction)
       print *, 'Error: Invalid EleType. Enter an EleType from L2,' // &
                ' T3, Q4, B8 only.'
   end select
-      
+
 end subroutine ShapeFunctionCalculate
 
 ! ************************************************************************** !
 
 subroutine ShapeFunctionDestroy(shapefunction)
-  ! 
+  !
   ! Dellocate memory for shapefunction type
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 5/17/2013
-  ! 
+  !
 
   type(shapefunction_type) :: shapefunction
-  
+
   deallocate(shapefunction%N)
   nullify(shapefunction%N)
   deallocate(shapefunction%DN)
@@ -313,8 +313,8 @@ subroutine ShapeFunctionDestroy(shapefunction)
   nullify(shapefunction%zeta)
   deallocate(shapefunction%coord)
   nullify(shapefunction%coord)
-  
+
 end subroutine ShapeFunctionDestroy
-     
+
 end module Shape_Function_module
 

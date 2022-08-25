@@ -7,34 +7,34 @@ module NW_Transport_Aux_module
   use Matrix_Zeroing_module
 
   implicit none
-  
-  private 
+
+  private
 
   PetscReal, public :: MIN_LIQ_SAT = 1.0d-5
-    
+
   type, public :: nw_transport_auxvar_type
     ! total mass as bulk concentration
     PetscReal, pointer :: total_bulk_conc(:)   ! mol-species/m^3-bulk
-    ! dissolved 
+    ! dissolved
     PetscReal, pointer :: aqueous_eq_conc(:)   ! mol-species/m^3-liq
-    ! sorbed 
+    ! sorbed
     PetscReal, pointer :: sorb_eq_conc(:)      ! mol-species/m^3-bulk
-    ! precipitated 
-    PetscReal, pointer :: mnrl_eq_conc(:)      ! mol-species/m^3-bulk 
-    PetscReal, pointer :: mnrl_vol_frac(:)     ! m^3-mnrl/m^3-void 
-    ! auxiliary array to store miscellaneous data 
+    ! precipitated
+    PetscReal, pointer :: mnrl_eq_conc(:)      ! mol-species/m^3-bulk
+    PetscReal, pointer :: mnrl_vol_frac(:)     ! m^3-mnrl/m^3-void
+    ! auxiliary array to store miscellaneous data
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
   end type nw_transport_auxvar_type
-    
+
   type, public :: nw_transport_type
     ! number of nwt_auxvars objects for local and ghosted cells
-    PetscInt :: num_aux  
+    PetscInt :: num_aux
     ! number of nwt_auxvars objects for boundary connections
-    PetscInt :: num_aux_bc  
+    PetscInt :: num_aux_bc
     ! number of nwt_auxvars objects for source/sinks
-    PetscInt :: num_aux_ss  
+    PetscInt :: num_aux_ss
     PetscBool :: inactive_cells_exist
     PetscBool :: truncate_output
     ! nwt_auxvars for local and ghosted grid cells
@@ -46,7 +46,7 @@ module NW_Transport_Aux_module
     ! matrix zeroing handling inactive cells
     type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type nw_transport_type
-  
+
   type, public :: nwt_params_type
     ! number of fluid phases (1=liquid, 2=gas)
     PetscInt :: nphase
@@ -66,7 +66,7 @@ module NW_Transport_Aux_module
     character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
     character(len=MAXWORDLENGTH), pointer :: dirichlet_material_names(:)
   end type nwt_params_type
-  
+
   type, public :: nwt_print_type
     PetscBool :: aqueous_eq_conc
     PetscBool :: mnrl_eq_conc
@@ -76,7 +76,7 @@ module NW_Transport_Aux_module
     PetscBool :: all_species
     PetscBool :: all_concs
   end type nwt_print_type
-  
+
   type, public :: species_type
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: id
@@ -88,7 +88,7 @@ module NW_Transport_Aux_module
     PetscBool :: print_me
     type(species_type), pointer :: next
   end type species_type
-  
+
   type, public :: radioactive_decay_rxn_type
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: daughter_name
@@ -110,7 +110,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: constraint_conc(:)
     PetscInt, pointer :: constraint_type(:)
   end type nwt_species_constraint_type
-  
+
   ! this is the equivalent to reaction_rt_type as in realization%reaction
   !TODO(jenn): need to place transport-related variables in nwt_params_type
   !            only reaction-related variables should be in reaction_nw_type
@@ -123,7 +123,7 @@ module NW_Transport_Aux_module
     PetscBool, pointer :: species_print(:)
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
     type(nwt_params_type), pointer :: params !TODO(jenn): move to nw_transport_type
-    type(nwt_print_type), pointer :: print_what 
+    type(nwt_print_type), pointer :: print_what
     PetscBool :: reaction_nw_on
     PetscBool :: truncate_output
     PetscBool :: screening_run
@@ -133,7 +133,7 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarSingleDestroy
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
-  
+
   public :: NWTAuxCreate, &
             NWTSpeciesCreate, &
             NWTSpeciesConstraintCreate, &
@@ -150,64 +150,64 @@ module NW_Transport_Aux_module
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
             NWTReactionDestroy
-            
-            
+
+
 contains
 
 ! ************************************************************************** !
 
 function NWTAuxCreate()
-  ! 
+  !
   ! Allocate and initialize nuclear waste transport auxiliary objects.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
+  !
   implicit none
-  
+
   type(nw_transport_type), pointer :: NWTAuxCreate
-  
+
   type(nw_transport_type), pointer :: aux
 
-  allocate(aux)  
-  aux%num_aux = 0      
-  aux%num_aux_bc = 0   
-  aux%num_aux_ss = 0     
-  nullify(aux%auxvars)      
-  nullify(aux%auxvars_bc)   
-  nullify(aux%auxvars_ss)   
+  allocate(aux)
+  aux%num_aux = 0
+  aux%num_aux_bc = 0
+  aux%num_aux_ss = 0
+  nullify(aux%auxvars)
+  nullify(aux%auxvars_bc)
+  nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
   aux%inactive_cells_exist = PETSC_FALSE
   aux%truncate_output = PETSC_FALSE
 
   NWTAuxCreate => aux
-  
+
 end function NWTAuxCreate
 
 ! ************************************************************************** !
 
 subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
-  ! 
+  !
   ! Initializes the nuclear waste auxiliary object.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
   !
-  
+
   use Option_module
 
   implicit none
-  
+
   type(nw_transport_auxvar_type) :: auxvar
   class(reaction_nw_type) :: reaction_nw
   type(option_type) :: option
-  
+
   PetscInt :: nspecies, nauxiliary, nphase
-  
+
   nspecies = reaction_nw%params%nspecies
   nauxiliary = reaction_nw%params%nauxiliary
   nphase = reaction_nw%params%nphase
-    
+
   allocate(auxvar%total_bulk_conc(nspecies))
   auxvar%total_bulk_conc = 0.d0
   allocate(auxvar%aqueous_eq_conc(nspecies))
@@ -225,7 +225,7 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   else
     nullify(auxvar%auxiliary_data)
   endif
-  
+
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
     allocate(auxvar%mass_balance(nspecies,nphase))
     auxvar%mass_balance = 0.d0
@@ -235,23 +235,23 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
     nullify(auxvar%mass_balance)
     nullify(auxvar%mass_balance_delta)
   endif
-  
+
 end subroutine NWTAuxVarInit
 
 ! ************************************************************************** !
 
 function NWTReactionCreate()
-  ! 
+  !
   ! Allocates and initializes a NWT realization object
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/19/2019
-  ! 
+  !
   implicit none
-  
+
   class(reaction_nw_type), pointer :: NWTReactionCreate
-  
-  class(reaction_nw_type), pointer :: reaction_nw 
+
+  class(reaction_nw_type), pointer :: reaction_nw
 
   allocate(reaction_nw)
   call ReactionBaseInit(reaction_nw)
@@ -266,7 +266,7 @@ function NWTReactionCreate()
   reaction_nw%reaction_nw_on = PETSC_TRUE
   reaction_nw%truncate_output = PETSC_FALSE
   reaction_nw%screening_run = PETSC_FALSE
-  
+
   nullify(reaction_nw%params)
   allocate(reaction_nw%params)
   reaction_nw%params%ncomp = 0
@@ -283,7 +283,7 @@ function NWTReactionCreate()
   reaction_nw%params%wm_value = 1.0d-40  ! [mol/m3-bulk]
   nullify(reaction_nw%params%bh_material_names)
   nullify(reaction_nw%params%dirichlet_material_names)
-  
+
   nullify(reaction_nw%print_what)
   allocate(reaction_nw%print_what)
   reaction_nw%print_what%aqueous_eq_conc = PETSC_FALSE
@@ -293,7 +293,7 @@ function NWTReactionCreate()
   reaction_nw%print_what%total_bulk_conc = PETSC_FALSE
   reaction_nw%print_what%all_species = PETSC_FALSE
   reaction_nw%print_what%all_concs = PETSC_FALSE
-  
+
   NWTReactionCreate => reaction_nw
 
 end function NWTReactionCreate
@@ -301,14 +301,14 @@ end function NWTReactionCreate
 ! ************************************************************************** !
 
 function NWTReactionCast(reaction_base)
-  ! 
+  !
   ! Casts a reaction_base type to reaction_nw type if applicable.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/21/19
-  ! 
+  !
   implicit none
-  
+
   class(reaction_base_type), pointer :: reaction_base
 
   class(reaction_nw_type), pointer :: NWTReactionCast
@@ -322,27 +322,27 @@ function NWTReactionCast(reaction_base)
   endif
 
 end function NWTReactionCast
-  
+
 ! ************************************************************************** !
 
 subroutine NWTRead(reaction_nw,input,option)
-  ! 
-  ! Reads input file parameters associated with the nuclear waste transport 
+  !
+  ! Reads input file parameters associated with the nuclear waste transport
   ! process model within the SUBSURFACE block.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
   !
   use Input_Aux_module
   use String_module
   use Option_module
- 
+
   implicit none
-  
+
   class(reaction_nw_type), pointer :: reaction_nw
   type(input_type), pointer :: input
   type(option_type), pointer :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword, word, parent_name_hold
   character(len=MAXSTRINGLENGTH) :: error_string_base, error_string
   PetscInt :: num_materials
@@ -353,7 +353,7 @@ subroutine NWTRead(reaction_nw,input,option)
   character(len=MAXWORDLENGTH) :: bh_materials(50)
   character(len=MAXWORDLENGTH) :: dirichlet_materials(50)
   type(radioactive_decay_rxn_type), pointer :: new_rad_rxn, prev_rad_rxn
-  
+
   error_string_base = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
   nullify(prev_species)
   allocate(temp_species_names(50))
@@ -367,23 +367,23 @@ subroutine NWTRead(reaction_nw,input,option)
 
   option%io_buffer = 'pflotran card:: NUCLEAR_WASTE_CHEMISTRY'
   call PrintMsg(option)
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     select case(trim(keyword))
       case('SPECIES')
         error_string = trim(error_string_base) // ',SPECIES'
-        
+
         reaction_nw%params%nspecies = reaction_nw%params%nspecies + 1
         option%ntrandof = reaction_nw%params%nspecies
         k = k + 1
@@ -399,11 +399,11 @@ subroutine NWTRead(reaction_nw,input,option)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          
+
           call InputReadCard(input,option,keyword)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(keyword)
-          
+
           select case(trim(keyword))
             case('NAME')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -427,7 +427,7 @@ subroutine NWTRead(reaction_nw,input,option)
           end select
         enddo
         call InputPopBlock(input,option)
-        
+
         if (new_species%name == '') then
           option%io_buffer = 'NAME not provided in ' // trim(error_string) // &
                              ' block.'
@@ -462,7 +462,7 @@ subroutine NWTRead(reaction_nw,input,option)
         endif
         prev_species => new_species
         nullify(new_species)
-        
+
       case('RADIOACTIVE_DECAY')
         nullify(prev_rad_rxn)
         error_string = trim(error_string_base) // ',RADIOACTIVE_DECAY'
@@ -535,7 +535,7 @@ subroutine NWTRead(reaction_nw,input,option)
           else
             num_materials = num_materials + 1
             dirichlet_materials(num_materials) = trim(word)
-          endif  
+          endif
         enddo
         if (Uninitialized(reaction_nw%params%init_total_mass_conc)) then
           option%io_buffer = 'ERROR: The VALUE must be given in the ' &
@@ -557,7 +557,7 @@ subroutine NWTRead(reaction_nw,input,option)
       case('BOREHOLE_MATERIALS')
         error_string = trim(error_string_base) // ',BOREHOLE_MATERIALS'
         num_materials = 0
-        do 
+        do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
@@ -572,7 +572,7 @@ subroutine NWTRead(reaction_nw,input,option)
           else
             num_materials = num_materials + 1
             bh_materials(num_materials) = trim(word)
-          endif  
+          endif
         enddo
         if (num_materials == 0) then
           option%io_buffer = 'ERROR: At least one borehole MATERIAL_PROPERTY &
@@ -588,7 +588,7 @@ subroutine NWTRead(reaction_nw,input,option)
   !===========================================================================!
       case('WASHING_MACHINE')
         error_string = trim(error_string_base) // ',WASHING_MACHINE'
-        do 
+        do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
@@ -598,11 +598,11 @@ subroutine NWTRead(reaction_nw,input,option)
           if (trim(word) == 'TIME_START') then
             call InputReadDouble(input,option,reaction_nw%params%wm_start_time)
             call InputErrorMsg(input,option,'TIME_START',error_string)
-          endif 
+          endif
           if (trim(word) == 'TIME_END') then
             call InputReadDouble(input,option,reaction_nw%params%wm_end_time)
             call InputErrorMsg(input,option,'TIME_END',error_string)
-          endif 
+          endif
           if (trim(word) == 'VALUE') then
             call InputReadDouble(input,option,reaction_nw%params%wm_value)
             call InputErrorMsg(input,option,'VALUE',error_string)
@@ -612,10 +612,10 @@ subroutine NWTRead(reaction_nw,input,option)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string_base,option)
     end select
-            
+
   enddo
   call InputPopBlock(input,option)
-  
+
   if (k == 0) then
      option%io_buffer = 'ERROR: At least one species must be provided &
                         &in a ' // trim(error_string_base) // ',SPECIES block.'
@@ -623,53 +623,53 @@ subroutine NWTRead(reaction_nw,input,option)
   endif
   allocate(reaction_nw%species_names(k))
   reaction_nw%species_names(1:k) = temp_species_names(1:k)
-  
+
   ! assign species_id, parent_id to the rad_rxn objects
   ! check that all radioactive species were listed in the SPECIES block
   call NWTVerifySpecies(reaction_nw%species_list, &
                         reaction_nw%rad_decay_rxn_list,temp_species_names, &
                         temp_species_parents,option)
-                        
+
    deallocate(temp_species_names)
    deallocate(temp_species_parents)
-  
+
 end subroutine NWTRead
 
 ! ************************************************************************** !
 
 subroutine NWTReadOutput(reaction_nw,input,option)
-  ! 
+  !
   ! Reads species and concentration types to be printed in output
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 06/26/2019
-  ! 
+  !
 
   use Input_Aux_module
-  use String_module  
+  use String_module
   use Option_module
-  
+
   implicit none
-  
+
   class(reaction_nw_type) :: reaction_nw
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: word
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
     error_string = 'NUCLEAR_WASTE_CHEMISTRY,OUTPUT'
-    call InputReadCard(input,option,word)  
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
-                     
+
     call StringToUpper(word)
     select case(word)
       case('ALL_SPECIES')
@@ -691,10 +691,10 @@ subroutine NWTReadOutput(reaction_nw,input,option)
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
-    
+
   enddo
   call InputPopBlock(input,option)
-  
+
   if (reaction_nw%print_what%all_concs) then
     reaction_nw%print_what%total_bulk_conc= PETSC_TRUE
     reaction_nw%print_what%aqueous_eq_conc= PETSC_TRUE
@@ -707,40 +707,40 @@ end subroutine NWTReadOutput
 ! ************************************************************************** !
 
 subroutine NWTReadPass2(reaction_nw,input,option)
-  ! 
-  ! Reads input file parameters associated with the nuclear waste transport 
+  !
+  ! Reads input file parameters associated with the nuclear waste transport
   ! process model within the SUBSURFACE block for a second pass.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/20/2019
   !
   use Input_Aux_module
   use String_module
   use Option_module
- 
+
   implicit none
-  
+
   class(reaction_nw_type), pointer :: reaction_nw
   type(input_type), pointer :: input
   type(option_type), pointer :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
-  
+
   error_string = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     select case(trim(keyword))
       case('SPECIES')
         do
@@ -783,41 +783,41 @@ subroutine NWTReadPass2(reaction_nw,input,option)
       !case default
       !  call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
-    
+
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine NWTReadPass2
 
 ! ************************************************************************** !
 
 subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
-  ! 
+  !
   ! Adds variables to be printed for plotting.
   !
   ! Author: Jenn Frederick
   ! Date: 03/28/2019
   !
-  
+
   use Output_Aux_module
   use Variables_module
   use Option_module
-    
+
   implicit none
-  
+
   type(output_variable_list_type), pointer :: list
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: time_unit
-  
+
   character(len=MAXWORDLENGTH) :: name,  units
   PetscInt :: i
-  
+
   !TODO(jenn) Right now, this assumes ALL_SPECIES are printed by default.
   do i=1,reaction_nw%params%nspecies
     reaction_nw%species_print(i) = PETSC_TRUE
   enddo
-  
+
   if (reaction_nw%print_what%total_bulk_conc) then
     do i=1,reaction_nw%params%nspecies
       if (reaction_nw%species_print(i)) then
@@ -827,8 +827,8 @@ subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
                                      TOTAL_BULK_CONC,i)
       endif
     enddo
-  endif 
-    
+  endif
+
   if (reaction_nw%print_what%aqueous_eq_conc) then
     do i=1,reaction_nw%params%nspecies
       if (reaction_nw%species_print(i)) then
@@ -838,8 +838,8 @@ subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
                                      AQUEOUS_EQ_CONC,i)
       endif
     enddo
-  endif 
-  
+  endif
+
   if (reaction_nw%print_what%mnrl_eq_conc) then
     do i=1,reaction_nw%params%nspecies
       if (reaction_nw%species_print(i)) then
@@ -849,8 +849,8 @@ subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
                                      MNRL_EQ_CONC,i)
       endif
     enddo
-  endif 
-  
+  endif
+
   if (reaction_nw%print_what%sorb_eq_conc) then
     do i=1,reaction_nw%params%nspecies
       if (reaction_nw%species_print(i)) then
@@ -861,7 +861,7 @@ subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
       endif
     enddo
   endif
-  
+
   if (reaction_nw%print_what%mnrl_vol_frac) then
     do i=1,reaction_nw%params%nspecies
       if (reaction_nw%species_print(i)) then
@@ -872,56 +872,56 @@ subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
       endif
     enddo
   endif
-  
+
 end subroutine NWTSetPlotVariables
 
 ! ************************************************************************** !
 
 function NWTSpeciesCreate()
-  ! 
+  !
   ! Allocate and initialize a species object.
-  ! 
-  ! Author: Jenn Frederick      
+  !
+  ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
-    
+  !
+
   implicit none
-  
+
   type(species_type), pointer :: NWTSpeciesCreate
-  
+
   type(species_type), pointer :: species
 
-  allocate(species) 
-  species%id = 0 
+  allocate(species)
+  species%id = 0
   species%name = ''
   species%molar_weight = UNINITIALIZED_DOUBLE
   species%mnrl_molar_density = UNINITIALIZED_DOUBLE
-  species%solubility_limit = UNINITIALIZED_DOUBLE 
-  species%ele_kd = UNINITIALIZED_DOUBLE 
+  species%solubility_limit = UNINITIALIZED_DOUBLE
+  species%ele_kd = UNINITIALIZED_DOUBLE
   species%radioactive = PETSC_FALSE
   species%print_me = PETSC_FALSE
   nullify(species%next)
 
   NWTSpeciesCreate => species
-  
+
 end function NWTSpeciesCreate
 
 ! ************************************************************************** !
 
 function NWTRadDecayRxnCreate()
-  ! 
+  !
   ! Allocate and initialize a radioactive decay reaction object.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
-  
+  !
+
   implicit none
-    
+
   type(radioactive_decay_rxn_type), pointer :: NWTRadDecayRxnCreate
 
   type(radioactive_decay_rxn_type), pointer :: rxn
-  
+
   allocate(rxn)
   rxn%daughter_id = 0
   rxn%species_id = 0
@@ -934,20 +934,20 @@ function NWTRadDecayRxnCreate()
   rxn%half_life = 0.d0
   rxn%print_me = PETSC_FALSE
   nullify(rxn%next)
-  
+
   NWTRadDecayRxnCreate => rxn
-  
+
 end function NWTRadDecayRxnCreate
 
 ! ************************************************************************** !
 
 function NWTSpeciesConstraintCreate(reaction_nw,option)
-  ! 
+  !
   ! Creates a nuclear waste transport species constraint object
-  ! 
-  ! Author: Jenn Frederick      
+  !
+  ! Author: Jenn Frederick
   ! Date: 03/21/2019
-  ! 
+  !
   use Option_module
 
   implicit none
@@ -974,52 +974,52 @@ end function NWTSpeciesConstraintCreate
 
 subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
                             parent_names,option)
-  ! 
+  !
   ! Assigns species_id, parent_id to the rad_rxn objects after checking that
   ! all radioactive species were listed in the SPECIES block.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 05/09/2019
   !
-  
+
   use Option_module
 
   implicit none
-  
+
   type(species_type), pointer :: species_list
   type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
   character(len=MAXWORDLENGTH), pointer :: species_names(:)
-  character(len=MAXWORDLENGTH), pointer :: parent_names(:) 
+  character(len=MAXWORDLENGTH), pointer :: parent_names(:)
   type(option_type) :: option
-  
+
   type(species_type), pointer :: species
   type(radioactive_decay_rxn_type), pointer :: rad_rxn, cur_rad_rxn
-  PetscInt :: k 
-  
+  PetscInt :: k
+
   PetscBool :: parent_found, daughter_found
-  
+
   rad_rxn => rad_decay_rxn_list
   do
     if (.not.associated(rad_rxn)) exit
-    ! Check if the parent and daughter radioactive species are listed within 
-    ! the SPECIES block. 
+    ! Check if the parent and daughter radioactive species are listed within
+    ! the SPECIES block.
     species => species_list
     do
       if (.not.associated(species)) exit
-      if (trim(rad_rxn%name) == trim(species%name)) then 
+      if (trim(rad_rxn%name) == trim(species%name)) then
         parent_found = PETSC_TRUE
         rad_rxn%species_id = species%id
         species%radioactive = PETSC_TRUE
       endif
       if (len(trim(rad_rxn%daughter_name)) > 0) then
-        if (trim(rad_rxn%daughter_name) == trim(species%name)) then 
+        if (trim(rad_rxn%daughter_name) == trim(species%name)) then
           daughter_found = PETSC_TRUE
           rad_rxn%daughter_id = species%id
         endif
       else
         daughter_found = PETSC_TRUE
       endif
-                  
+
       species => species%next
     enddo
     if (.not.parent_found) then
@@ -1032,7 +1032,7 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
                          // ' must also be included using a SPECIES block.'
       call PrintErrMsg(option)
     endif
-    
+
     ! assign the parent information
     k = 0
     do
@@ -1049,16 +1049,16 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
         rad_rxn%parent_id = species%id
         exit
       endif
-      
+
       species => species%next
     enddo
-    
+
     daughter_found = PETSC_FALSE
     parent_found = PETSC_FALSE
-    
+
     rad_rxn => rad_rxn%next
   enddo
-  
+
   cur_rad_rxn => rad_decay_rxn_list
   do
     if (.not.associated(cur_rad_rxn)) exit
@@ -1077,92 +1077,92 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
     endif
     cur_rad_rxn => cur_rad_rxn%next
   enddo
-    
+
 end subroutine NWTVerifySpecies
 
 ! ************************************************************************** !
 
 subroutine NWTAuxVarCopy(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies the nuclear waste transport auxiliary object.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
-  
+  !
+
   use Option_module
-  
+
   implicit none
-  
+
   type(nw_transport_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
-  
+
 end subroutine NWTAuxVarCopy
 
 ! ************************************************************************** !
 
 subroutine NWTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies the molality in nwt_auxvar to serve as an initial guess when
   ! equilibrating constraints.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(nw_transport_auxvar_type) :: auxvar, auxvar2
-  type(option_type) :: option  
-  
+  type(option_type) :: option
+
   auxvar%total_bulk_conc = auxvar2%total_bulk_conc
-  
+
 end subroutine NWTAuxVarCopyInitialGuess
 
 ! ************************************************************************** !
 
 subroutine NWTAuxVarSingleDestroy(auxvar)
-  ! 
+  !
   ! Deallocates the nuclear waste transport auxiliary object (single)
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
+  !
 
   implicit none
 
   type(nw_transport_auxvar_type), pointer :: auxvar
-  
+
   if (associated(auxvar)) then
     call NWTAuxVarStrip(auxvar)
     deallocate(auxvar)
   endif
-  nullify(auxvar)  
+  nullify(auxvar)
 
 end subroutine NWTAuxVarSingleDestroy
 
 ! ************************************************************************** !
 
 subroutine NWTAuxVarArrayDestroy(auxvars)
-  ! 
+  !
   ! Deallocates the nuclear waste transport auxiliary object (array)
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  !  
+  !
 
   implicit none
 
   type(nw_transport_auxvar_type), pointer :: auxvars(:)
-  
+
   PetscInt :: iaux
-  
+
   if (associated(auxvars)) then
     do iaux = 1, size(auxvars)
       call NWTAuxVarStrip(auxvars(iaux))
-    enddo  
+    enddo
     deallocate(auxvars)
   endif
   nullify(auxvars)
@@ -1172,46 +1172,52 @@ end subroutine NWTAuxVarArrayDestroy
 ! ************************************************************************** !
 
 subroutine NWTAuxVarStrip(auxvar)
-  ! 
+  !
   ! Deallocates all members of a single nuclear waste transport aux object.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
 
   implicit none
 
   type(nw_transport_auxvar_type) :: auxvar
-  
+
   call DeallocateArray(auxvar%total_bulk_conc)
   call DeallocateArray(auxvar%aqueous_eq_conc)
   call DeallocateArray(auxvar%sorb_eq_conc)
   call DeallocateArray(auxvar%mnrl_eq_conc)
   call DeallocateArray(auxvar%mnrl_vol_frac)
-  call DeallocateArray(auxvar%auxiliary_data)
-  
+
+  if (associated(auxvar%auxiliary_data)) &
+    call DeallocateArray(auxvar%auxiliary_data)
+  if (associated(auxvar%mass_balance)) &
+    call DeallocateArray(auxvar%mass_balance)
+  if (associated(auxvar%mass_balance_delta)) &
+    call DeallocateArray(auxvar%mass_balance_delta)
+
 end subroutine NWTAuxVarStrip
 
 ! ************************************************************************** !
 
 subroutine NWTAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a nuclear waste transport auxiliary object.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
-  
+
   implicit none
 
   type(nw_transport_type), pointer :: aux
-  
+
   if (.not.associated(aux)) return
-  
+
   call NWTAuxVarDestroy(aux%auxvars)
   call NWTAuxVarDestroy(aux%auxvars_bc)
   call NWTAuxVarDestroy(aux%auxvars_ss)
@@ -1225,36 +1231,36 @@ end subroutine NWTAuxDestroy
 ! ************************************************************************** !
 
 subroutine NWTReactionDestroy(reaction_nw,option)
-  ! 
+  !
   ! Deallocates a nuclear waste transport realization object.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 05/27/2019
-  ! 
+  !
 
   use Utility_module, only: DeallocateArray
   use Option_module
-  
+
   implicit none
-  
+
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type) :: option
-  
+
   type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn,prev_rad_decay_rxn
   type(species_type), pointer :: species, prev_species
-  
+
   if (.not.associated(reaction_nw)) return
 
   call ReactionBaseStrip(reaction_nw)
-  
+
   call DeallocateArray(reaction_nw%diffusion_coefficient)
   call DeallocateArray(reaction_nw%diffusion_activation_energy)
   call DeallocateArray(reaction_nw%species_names)
   call DeallocateArray(reaction_nw%species_print)
-  
+
   nullify(reaction_nw%params)
   nullify(reaction_nw%print_what)
-  
+
   ! radioactive decay reactions
   rad_decay_rxn => reaction_nw%rad_decay_rxn_list
   do
@@ -1262,11 +1268,11 @@ subroutine NWTReactionDestroy(reaction_nw,option)
     prev_rad_decay_rxn => rad_decay_rxn
     rad_decay_rxn => rad_decay_rxn%next
     nullify(prev_rad_decay_rxn%next)
-    deallocate(prev_rad_decay_rxn)  
+    deallocate(prev_rad_decay_rxn)
     nullify(prev_rad_decay_rxn)
-  enddo    
+  enddo
   nullify(reaction_nw%rad_decay_rxn_list)
-  
+
   ! species
   species => reaction_nw%species_list
   do
@@ -1274,11 +1280,11 @@ subroutine NWTReactionDestroy(reaction_nw,option)
     prev_species => species
     species => species%next
     nullify(prev_species%next)
-    deallocate(prev_species)  
+    deallocate(prev_species)
     nullify(prev_species)
-  enddo    
+  enddo
   nullify(reaction_nw%species_list)
-  
+
   deallocate(reaction_nw)
   nullify(reaction_nw)
 

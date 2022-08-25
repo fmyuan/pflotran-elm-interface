@@ -1,7 +1,7 @@
 module String_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -61,9 +61,8 @@ module String_module
             StringsCenter, &
             StringCenter, &
             StringWrite, &
+            StringWriteBracket, &
             StringWriteF, &
-            StringWriteToUnit, &
-            StringWriteToUnits, &
             String1Or2, &
             StringGetMaximumLength, &
             StringGetFilename, &
@@ -71,7 +70,8 @@ module String_module
             StringStripFilenameSuffix
 
   interface StringWrite
-    module procedure StringWriteI
+    module procedure StringWriteI1
+    module procedure StringWriteI2
     module procedure StringWriteES1
     module procedure StringWriteES2
     module procedure StringWriteString
@@ -80,16 +80,16 @@ module String_module
     module procedure StringWriteESArray2
   end interface
 
+  interface StringWriteBracket
+    module procedure StringWriteBracketI
+    module procedure StringWriteBracketString
+  end interface StringWriteBracket
+
   interface StringWriteF
     module procedure StringWriteF1
     module procedure StringWriteF2
   end interface
 
-  interface StringWriteToUnits
-    module procedure StringWriteStringToUnits
-    module procedure StringWriteStringsToUnits
-  end interface
-  
   interface StringCompare
     module procedure StringCompare1
     module procedure StringCompare2
@@ -125,18 +125,18 @@ end function StringColor
 ! ************************************************************************** !
 
 PetscBool function StringCompare1(string1,string2,n)
-  ! 
+  !
   ! compares two strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
   PetscInt :: i, n
   character(len=n) :: string1, string2
-  
+
   do i=1,n
     if (string1(i:i) /= string2(i:i)) then
       StringCompare1 = PETSC_FALSE
@@ -152,18 +152,18 @@ end function StringCompare1
 ! ************************************************************************** !
 
 PetscBool function StringCompare2(string1,string2)
-  ! 
+  !
   ! compares two strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/11
-  ! 
+  !
 
   implicit none
 
   PetscInt :: i, length1, length2
   character(len=*) :: string1, string2
-  
+
   length1 = len_trim(string1)
   length2 = len_trim(string2)
   if (length1 /= length2) then
@@ -186,27 +186,27 @@ end function StringCompare2
 ! ************************************************************************** !
 
 function StringCompareIgnoreCase1(string1,string2,n)
-  ! 
+  !
   ! compares two strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
   PetscInt :: i, n
   character(len=n) :: string1, string2
-  
+
   character(len=n) :: upper1, upper2
   PetscBool :: StringCompareIgnoreCase1
-  
+
   upper1 = string1
   upper2 = string2
-  
+
   call StringToUpper(upper1)
   call StringToUpper(upper2)
-  
+
   do i=1,n
     if (upper1(i:i) /= upper2(i:i)) then
       StringCompareIgnoreCase1 = PETSC_FALSE
@@ -222,21 +222,21 @@ end function StringCompareIgnoreCase1
 ! ************************************************************************** !
 
 function StringCompareIgnoreCase2(string1,string2)
-  ! 
+  !
   ! StringCompare: compares two strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
   PetscInt :: i, length1, length2
   character(len=*) :: string1, string2
-  
+
   character(len=MAXSTRINGLENGTH) :: upper1, upper2
   PetscBool :: StringCompareIgnoreCase2
-  
+
   length1 = len_trim(string1)
   length2 = len_trim(string2)
   if (length1 /= length2) then
@@ -246,10 +246,10 @@ function StringCompareIgnoreCase2(string1,string2)
 
   upper1 = string1
   upper2 = string2
-  
+
   call StringToUpper(upper1)
   call StringToUpper(upper2)
-  
+
   do i=1,length1
     if (upper1(i:i) /= upper2(i:i)) then
       StringCompareIgnoreCase2 = PETSC_FALSE
@@ -265,13 +265,13 @@ end function StringCompareIgnoreCase2
 ! ************************************************************************** !
 
 subroutine StringToUpper(string)
-  ! 
+  !
   ! converts lowercase characters in a card to uppercase
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
-      
+  !
+
   implicit none
 
   PetscInt :: i
@@ -288,13 +288,13 @@ end subroutine StringToUpper
 ! ************************************************************************** !
 
 subroutine StringToLower(string)
-  ! 
+  !
   ! converts uppercase characters in a card to lowercase
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
-      
+  !
+
   implicit none
 
   PetscInt :: i
@@ -311,13 +311,13 @@ end subroutine StringToLower
 ! ************************************************************************** !
 
 subroutine StringReadQuotedWord(string, name, return_blank_error, ierr)
-  ! 
+  !
   ! reads and removes a name from a string read from the
   ! database.  "'" are used as delimiters.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -342,7 +342,7 @@ subroutine StringReadQuotedWord(string, name, return_blank_error, ierr)
 
   ! Remove leading blanks and tabs
   i=1
-  do while(string(i:i) == ' ' .or. string(i:i) == tab) 
+  do while(string(i:i) == ' ' .or. string(i:i) == tab)
     i=i+1
   enddo
 
@@ -361,7 +361,7 @@ subroutine StringReadQuotedWord(string, name, return_blank_error, ierr)
   else
   ! Count # of continuous characters (no blanks, commas, etc. in between)
     do while (string(i:i) /= ' ' .and. string(i:i) /= ',' .and. &
-              string(i:i) /= tab) 
+              string(i:i) /= tab)
       i=i+1
     enddo
   endif
@@ -382,13 +382,13 @@ end subroutine StringReadQuotedWord
 ! ************************************************************************** !
 
 function StringStartsWithAlpha(string)
-  ! 
+  !
   ! Determines whether a string starts with an alpha char
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/10
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
@@ -409,26 +409,26 @@ end function StringStartsWithAlpha
 ! ************************************************************************** !
 
 function StringStartsWith(string,string2)
-  ! 
+  !
   ! Determines whether a string starts with characters
   ! identical to another string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/12
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
   character(len=*) :: string2
 
   PetscBool :: StringStartsWith
-  
-  
+
+
   PetscInt :: length, i
 
   length = min(len_trim(string),len_trim(string2))
-  
+
   ! if either is a blank line, false
   if (length == 0) then
     StringStartsWith = PETSC_FALSE
@@ -441,7 +441,7 @@ function StringStartsWith(string,string2)
       return
     endif
   enddo
-  
+
   StringStartsWith = PETSC_TRUE
 
 end function StringStartsWith
@@ -449,27 +449,27 @@ end function StringStartsWith
 ! ************************************************************************** !
 
 function StringEndsWith(string,string2)
-  ! 
-  ! Determines whether a string ends with characters identical to another 
+  !
+  ! Determines whether a string ends with characters identical to another
   ! string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/12
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
   character(len=*) :: string2
 
   PetscBool :: StringEndsWith
-  
+
   PetscInt :: search_length, i, i1, i2, len1, len2
 
   len1 = len_trim(string)
   len2 = len_trim(string2)
   search_length = min(len1,len2)
-  
+
   do i = 1, search_length
     ! search backward
     i1 = len1+1-i
@@ -479,7 +479,7 @@ function StringEndsWith(string,string2)
       return
     endif
   enddo
-  
+
   StringEndsWith = PETSC_TRUE
 
 end function StringEndsWith
@@ -487,24 +487,24 @@ end function StringEndsWith
 ! ************************************************************************** !
 
 subroutine StringAdjustl(string)
-  ! 
+  !
   ! Left adjusts a string by removing leading spaces and tabs.
   ! This subroutine is needed because the adjustl() Fortran 90
   ! intrinsic will not remove leading tabs.
-  ! 
+  !
   ! Author: Richard Tran Mills
   ! Date: 9/21/2010
-  ! 
+  !
 
   implicit none
 
   character(len=*) :: string
-  
+
   PetscInt :: i
   PetscInt :: string_length
   character(len=1), parameter :: tab = achar(9)
 
-  ! We have to manually convert any leading tabs into spaces, as the 
+  ! We have to manually convert any leading tabs into spaces, as the
   ! adjustl() intrinsic does not eliminate leading tabs.
   i=1
   string_length = len_trim(string)
@@ -515,20 +515,20 @@ subroutine StringAdjustl(string)
   enddo
 
   ! adjustl() will do what we want, now that tabs are removed.
-  string = adjustl(string) 
+  string = adjustl(string)
 
 end subroutine StringAdjustl
 
 ! ************************************************************************** !
 
 function StringNull(string)
-  ! 
+  !
   ! Returns PETSC_TRUE if a string is blank
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/10
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
@@ -548,14 +548,14 @@ end function StringNull
 ! ************************************************************************** !
 
 function StringFindEntryInList(string,string_array)
-  ! 
+  !
   ! Returns the index of a string if found in a list
   ! of strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/30/12
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
@@ -565,66 +565,66 @@ function StringFindEntryInList(string,string_array)
   PetscInt :: i
 
   StringFindEntryInList = 0
-  
+
   do i = 1, size(string_array)
     if (StringCompare(string,string_array(i))) then
       StringFindEntryInList = i
       exit
     endif
   enddo
-  
+
 end function StringFindEntryInList
 
 ! ************************************************************************** !
 
 subroutine StringSwapChar(string,char_in,char_out)
-  ! 
+  !
   ! Swaps a character from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/04/13
-  ! 
+  !
 
   implicit none
- 
+
   character(len=*) :: string
   character(len=1) :: char_in
   character(len=1) :: char_out
- 
+
   PetscInt :: i
- 
+
   do i=1, len_trim(string)
    if (string(i:i) == char_in(1:1)) string(i:i) = char_out(1:1)
   enddo
- 
+
 end subroutine StringSwapChar
 
 ! ************************************************************************** !
 
 function StringSplit(string,chars)
-  ! 
+  !
   ! Splits a string based on a set of chars
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/28/13
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
   character(len=*) :: chars
 
   character(len=MAXSTRINGLENGTH), pointer :: strings(:), StringSplit(:)
-  
+
   character(len=MAXSTRINGLENGTH) :: string1
   PetscInt :: i, icount, istart, iend, length, length_chars
   PetscInt :: last_index
-  
+
   nullify(StringSplit)
-  
+
   ! determine how many delimiting block in string
   length = len_trim(string)
-  ! do not use len_trim for chars.  All characters including the blank and 
+  ! do not use len_trim for chars.  All characters including the blank and
   ! trailing blanks (spaces) should be accounted for.
   length_chars = len(chars)
   icount = 0
@@ -637,16 +637,16 @@ function StringSplit(string,chars)
       icount = icount + 1
     endif
   enddo
-  
+
   ! check for characters after last delimiter; add a string if they exist
   if (last_index <= length) then
     if (.not.StringNull(string(last_index:))) then
       icount = icount + 1
     endif
   endif
-  
+
   if (icount == 0) return
-  
+
   ! allocate strings
   allocate(strings(icount))
   strings = ''
@@ -656,7 +656,7 @@ function StringSplit(string,chars)
   icount = 0
   iend = length-length_chars+1
   i = 1
-  do 
+  do
     if (i > iend) exit
     string1 = string(i:i+length_chars-1)
     if (StringCompare(string1,chars,length_chars)) then
@@ -667,28 +667,28 @@ function StringSplit(string,chars)
     else
       i = i + 1
     endif
-  enddo 
-  
+  enddo
+
   ! add remaining string
   if (icount < size(strings)) then
     icount = icount + 1
     strings(icount) = adjustl(string(istart:))
-  endif  
-  
+  endif
+
   StringSplit => strings
-  
+
 end function StringSplit
 
 ! ************************************************************************** !
 
 function StringsMerge(strings,chars)
-  ! 
+  !
   ! Merges a list of strings into a single string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/16/19
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: strings(:)
@@ -705,65 +705,65 @@ function StringsMerge(strings,chars)
       StringsMerge = trim(StringsMerge) // trim(chars)
     endif
   enddo
-  
+
 end function StringsMerge
 
 ! ************************************************************************** !
 
 function StringFormatInt(int_value)
-  ! 
+  !
   ! Writes a integer to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: int_value
-  
+
   character(len=MAXWORDLENGTH) :: StringFormatInt
 
   write(StringFormatInt,'(1i12)') int_value
-  
+
   StringFormatInt = adjustl(StringFormatInt)
-  
+
 end function StringFormatInt
 
 ! ************************************************************************** !
 
 function StringFormatDouble(real_value)
-  ! 
+  !
   ! Writes a double or real to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: real_value
-  
+
   character(len=MAXWORDLENGTH) :: StringFormatDouble
 
   write(StringFormatDouble,'(1es13.5)') real_value
-  
+
   StringFormatDouble = adjustl(StringFormatDouble)
-  
+
 end function StringFormatDouble
 
 ! ************************************************************************** !
 
 function StringIntegerDoubleOrWord(string_in)
-  ! 
+  !
   ! Returns whether a value read from a string is a double, integer, or word
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/13/12
-  ! 
+  !
 
   implicit none
-  
+
   character(len=*) :: string_in
 
   PetscInt :: StringIntegerDoubleOrWord
@@ -780,10 +780,10 @@ function StringIntegerDoubleOrWord(string_in)
   ierr = 0
   double_syntax_found = (index(string,'.') > 0 .or. &
       index(string,'d') > 0 .or. index(string,'D') > 0 .or. &
-      index(string,'e') > 0 .or. index(string,'E') > 0) 
+      index(string,'e') > 0 .or. index(string,'E') > 0)
   read(string,*,iostat=ierr) i
   if (ierr == 0) then
-    ! the Intel compiler does not alway catch the misread of a double to an 
+    ! the Intel compiler does not alway catch the misread of a double to an
     ! integer
     if (double_syntax_found) then
       StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
@@ -799,19 +799,19 @@ function StringIntegerDoubleOrWord(string_in)
     return
   endif
   if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_A_WORD
-  
+
 end function StringIntegerDoubleOrWord
 
 ! ************************************************************************** !
 
 function StringYesNoOther(string)
-  ! 
+  !
   ! Returns PETSC_TRUE if a string is blank
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/10
-  ! 
-      
+  !
+
   implicit none
 
   character(len=*) :: string
@@ -839,39 +839,39 @@ end function StringYesNoOther
 ! ************************************************************************** !
 
 subroutine StringsCenter(strings,center_column,center_characters)
-  ! 
+  !
   ! Writes strings centered on center_characters within width
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/03/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: strings(:)
   PetscInt :: center_column
   character(len=*) :: center_characters
- 
+
   PetscInt :: i
- 
+
   do i=1, size(strings)
     strings(i) = StringCenter(strings(i),center_column,center_characters)
   enddo
- 
+
 end subroutine StringsCenter
 
 ! ************************************************************************** !
 
 function StringCenter(string,center_column,center_characters)
-  ! 
+  !
   ! Writes a string centered on center_characters within width
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/03/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=*) :: string
   PetscInt :: center_column
   character(len=*) :: center_characters
@@ -880,33 +880,34 @@ function StringCenter(string,center_column,center_characters)
 
   PetscInt :: icol
   character(len=center_column) :: buffer
- 
+
   if (len_trim(center_characters) > 0) then
     icol = center_column - index(string,center_characters)
     if (icol > 0) then
       buffer(1:icol) = ''
-      string = trim(buffer(1:icol)) // string
+      ! DO NOT trim()
+      string = buffer(1:icol) // string
     endif
   else if (len(center_characters) > 0) then
     string = trim(center_characters) // string
   endif
 
   StringCenter = string
- 
+
 end function StringCenter
 
 ! ************************************************************************** !
 
 function StringWriteIArray(i_array)
-  ! 
+  !
   ! Writes an array of integers to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/12/19
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteIArray
 
   PetscInt :: i_array(:)
@@ -924,15 +925,15 @@ end function StringWriteIArray
 ! ************************************************************************** !
 
 function StringWriteESArray1(es_array)
-  ! 
+  !
   ! Writes a double precision array in scientific notation to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/12/19
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteESArray1
 
   PetscReal :: es_array(:)
@@ -950,15 +951,15 @@ end function StringWriteESArray1
 ! ************************************************************************** !
 
 function StringWriteESArray2(format_string,es_array)
-  ! 
+  !
   ! Writes a double precision array in scientific notation to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/12/19
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteESArray2
 
   character(len=*) format_string
@@ -976,57 +977,99 @@ end function StringWriteESArray2
 
 ! ************************************************************************** !
 
-function StringWriteI(i)
-  ! 
+function StringWriteI1(i)
+  !
   ! Writes an integer to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
-  character(len=MAXSTRINGLENGTH) :: StringWriteI
+
+  character(len=MAXSTRINGLENGTH) :: StringWriteI1
 
   PetscInt :: i
 
-  write(StringWriteI,*) i
-  StringWriteI = adjustl(StringWriteI)
- 
-end function StringWriteI
+  write(StringWriteI1,*) i
+  StringWriteI1 = adjustl(StringWriteI1)
+
+end function StringWriteI1
+
+! ************************************************************************** !
+
+function StringWriteI2(format_string,i)
+  !
+  ! Writes an integer to a string using a specific format
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/22
+  !
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH) :: StringWriteI2
+
+  character(len=*) format_string
+  PetscInt :: i
+
+  write(StringWriteI2,format_string) i
+  StringWriteI2 = adjustl(StringWriteI2)
+
+end function StringWriteI2
+
+! ************************************************************************** !
+
+function StringWriteBracketI(i)
+  !
+  ! Writes a bracketed integer to a string
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  !
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH) :: StringWriteBracketI
+
+  PetscInt :: i
+
+  StringWriteBracketI = '[' // trim(adjustl(StringWrite(i))) // ']'
+
+end function StringWriteBracketI
 
 ! ************************************************************************** !
 
 function StringWriteES1(es)
-  ! 
+  !
   ! Writes a double precision number in scientific notation to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteES1
 
   PetscReal :: es
-  
+
   StringWriteES1 = StringWrite('(es13.6)',es)
- 
+
 end function StringWriteES1
 
 ! ************************************************************************** !
 
 function StringWriteES2(format_string,es)
-  ! 
+  !
   ! Writes a double precision number in scientific notation to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteES2
 
   character(len=*) format_string
@@ -1034,41 +1077,41 @@ function StringWriteES2(format_string,es)
 
   write(StringWriteES2,format_string) es
   StringWriteES2 = adjustl(StringWriteES2)
- 
+
 end function StringWriteES2
 
 ! ************************************************************************** !
 
 function StringWriteF1(f)
-  ! 
+  !
   ! Writes a double precision number in floating point notaton to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteF1
 
   PetscReal :: f
 
   StringWriteF1 = StringWriteF('(f20.4)',f)
- 
+
 end function StringWriteF1
 
 ! ************************************************************************** !
 
 function StringWriteF2(format_string,f)
-  ! 
+  !
   ! Writes a double precision number in floating point notaton to a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteF2
 
   character(len=*) format_string
@@ -1076,115 +1119,61 @@ function StringWriteF2(format_string,f)
 
   write(StringWriteF2,format_string) f
   StringWriteF2 = adjustl(StringWriteF2)
- 
+
 end function StringWriteF2
 
 ! ************************************************************************** !
 
 function StringWriteString(s)
-  ! 
-  ! Writes a double precision number in floating point notaton to a string
-  ! 
+  !
+  ! Writes a string to a string
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=MAXSTRINGLENGTH) :: StringWriteString
 
   character(len=*) :: s
 
   StringWriteString = adjustl(s)
- 
+
 end function StringWriteString
 
 ! ************************************************************************** !
 
-subroutine StringWriteToUnit(fid,string)
-  ! 
-  ! Writes a string to a file unit (which could be the screen). ! This 
-  ! routine WILL NOT SKIP empty lines.
-  ! 
+function StringWriteBracketString(s)
+  !
+  ! Writes a bracketed string to a string
+  !
   ! Author: Glenn Hammond
-  ! Date: 08/06/18
-  ! 
+  ! Date: 06/03/22
+  !
 
   implicit none
- 
-  PetscInt :: fid
-  character(len=*) :: string
 
-  write(fid,'(a)') trim(string)
- 
-end subroutine StringWriteToUnit
+  character(len=MAXSTRINGLENGTH) :: StringWriteBracketString
 
-! ************************************************************************** !
+  character(len=*) :: s
 
-subroutine StringWriteStringToUnits(fids,string)
-  ! 
-  ! Writes a SINGLE string to multiple file units (one of which could
-  ! be the screen)
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/06/18
-  ! 
+  StringWriteBracketString = '[' // StringWrite(s) // ']'
 
-  implicit none
- 
-  PetscInt :: fids(:)
-  character(len=*) :: string
-
-  PetscInt :: i
-
-  do i = 1, size(fids)
-    if (fids(i) > 0) call StringWriteToUnit(fids(i),string)
-  enddo
- 
-end subroutine StringWriteStringToUnits
-
-! ************************************************************************** !
-
-subroutine StringWriteStringsToUnits(fids,strings)
-  ! 
-  ! Writes MULTIPLE strings to multiple file units (one of which could
-  ! be the screen).  This routine WILL SKIP empty lines.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/06/18
-  ! 
-
-  implicit none
- 
-  PetscInt :: fids(:)
-  character(len=*) :: strings(:)
-
-  PetscInt :: ifile, istring
-
-  do istring = 1, size(strings)
-    if (len_trim(strings(istring)) > 0) then
-      do ifile = 1, size(fids)
-        if (fids(ifile) > 0) then
-          call StringWriteToUnit(fids(ifile),strings(istring))
-        endif
-      enddo
-    endif
-  enddo
- 
-end subroutine StringWriteStringsToUnits
+end function StringWriteBracketString
 
 ! ************************************************************************** !
 
 function String1Or2(bool,string1,string2)
-  ! 
+  !
   ! Writes a string to multipel file units (one of which could be the screen)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   PetscBool :: bool
   character(len=*) :: string1
   character(len=*) :: string2
@@ -1202,22 +1191,22 @@ end function String1Or2
 ! ************************************************************************** !
 
 function StringGetMaximumLength(strings)
-  ! 
+  !
   ! Writes a string to multipel file units (one of which could be the screen)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=*) :: strings(:)
 
   PetscInt :: StringGetMaximumLength
 
   PetscInt :: i
 
-  StringGetMaximumLength = 0 
+  StringGetMaximumLength = 0
 
   do i = 1, size(strings)
     StringGetMaximumLength = max(len_trim(strings(i)),StringGetMaximumLength)
@@ -1228,14 +1217,14 @@ end function StringGetMaximumLength
 ! ************************************************************************** !
 
 function StringGetFilename(filename_and_path)
-  ! 
+  !
   ! Strips the path from a full path and filename
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/02/21
 
   implicit none
- 
+
   character(len=*) :: filename_and_path
 
   character(len=MAXSTRINGLENGTH) :: StringGetFilename
@@ -1254,14 +1243,14 @@ end function StringGetFilename
 ! ************************************************************************** !
 
 function StringGetPath(filename_and_path)
-  ! 
+  !
   ! Strips the filename from a full path and filename
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/02/21
 
   implicit none
- 
+
   character(len=*) :: filename_and_path
 
   character(len=MAXSTRINGLENGTH) :: StringGetPath
@@ -1280,15 +1269,15 @@ end function StringGetPath
 ! ************************************************************************** !
 
 function StringStripFilenameSuffix(filename)
-  ! 
+  !
   ! Writes a string to multipel file units (one of which could be the screen)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/06/18
-  ! 
+  !
 
   implicit none
- 
+
   character(len=*) :: filename
 
   character(len=MAXSTRINGLENGTH) :: StringStripFilenameSuffix

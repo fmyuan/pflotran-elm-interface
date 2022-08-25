@@ -18,27 +18,27 @@ contains
 subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                                     global_auxvar,material_auxvar, &
                                     option)
-  ! 
+  !
   ! Calculates the transport constraints based on equilibrium conditions.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 05/30/2019
-  ! 
-  
+  !
+
   use Option_module
   use Global_Aux_module
   use Material_Aux_module
   use Transport_Constraint_NWT_module
-  
+
   implicit none
-  
+
   class(reaction_nw_type), pointer :: reaction_nw
   class(tran_constraint_nwt_type) :: constraint
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  
+
   type(species_type), pointer :: cur_species
   type(nwt_species_constraint_type), pointer :: nwt_species
   PetscInt :: ispecies
@@ -54,27 +54,27 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
   PetscReal :: extra_mass  ! [mol/m^3-liq]
 
   nwt_species => constraint%nwt_species
-  
+
   sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   por = material_auxvar%porosity
 
   cur_species => reaction_nw%species_list
-  do 
+  do
     if (.not.associated(cur_species)) exit
     solubility(cur_species%id) = cur_species%solubility_limit
     mnrl_molar_density(cur_species%id) = cur_species%mnrl_molar_density
     ele_kd(cur_species%id) = cur_species%ele_kd
     cur_species => cur_species%next
   enddo
-  
+
   if (sat > 0.d0) then
     dry_out = PETSC_FALSE
   else
     dry_out = PETSC_TRUE
   endif
-  
+
   do ispecies = 1,reaction_nw%params%nspecies
-  
+
     c_type = nwt_species%constraint_type(ispecies)
     select case(c_type)
     !---------------------------------------
@@ -85,8 +85,8 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
         call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
                                  global_auxvar,dry_out,ele_kd(ispecies), &
                                  nwt_auxvar%total_bulk_conc(ispecies), &
-                                 aq_mass,ppt_mass,sorb_mass)   
-        nwt_auxvar%aqueous_eq_conc(ispecies) = aq_mass      
+                                 aq_mass,ppt_mass,sorb_mass)
+        nwt_auxvar%aqueous_eq_conc(ispecies) = aq_mass
         nwt_auxvar%sorb_eq_conc(ispecies) = sorb_mass
         nwt_auxvar%mnrl_eq_conc(ispecies) = ppt_mass
         nwt_auxvar%mnrl_vol_frac(:) = nwt_auxvar%mnrl_eq_conc(:)/ &
@@ -145,7 +145,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
         !  nwt_auxvar%aqueous_eq_conc(ispecies) = 0.0d0
         !  nwt_auxvar%sorb_eq_conc(ispecies) = 0.0d0
         !else
-          nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)  
+          nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
                                               ele_kd(ispecies)
         !endif
@@ -179,11 +179,11 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                             nwt_auxvar%sorb_eq_conc(ispecies)
         ! next, re-partition from the total_bulk_conc to correct the sorbed
         ! mass, in case the sorbed constraint caused super-saturated conditions,
-        ! and/or to correct for dry-out 
+        ! and/or to correct for dry-out
         call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
                                  global_auxvar,dry_out,ele_kd(ispecies), &
                                  nwt_auxvar%total_bulk_conc(ispecies), &
-                                 aq_mass,ppt_mass,sorb_mass) 
+                                 aq_mass,ppt_mass,sorb_mass)
         nwt_auxvar%aqueous_eq_conc(ispecies) = aq_mass
         nwt_auxvar%sorb_eq_conc(ispecies) = sorb_mass
         nwt_auxvar%mnrl_eq_conc(ispecies) = ppt_mass
@@ -192,7 +192,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                                  (por*mnrl_molar_density(ispecies))
     !---------------------------------------
     end select
-  
+
   enddo
 
 end subroutine NWTEquilibrateConstraint
@@ -202,16 +202,16 @@ end subroutine NWTEquilibrateConstraint
 subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
                                dry_out,ele_kd,total_bulk_conc,aqueous_eq_conc, &
                                ppt_mass_conc,sorb_mass_conc)
-  ! 
+  !
   ! Computes the equilibrium state and partitions the total_bulk_conc.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 07/15/2019
-  ! 
- 
+  !
+
   use Material_Aux_module
   use Global_Aux_module
-  
+
   implicit none
 
   PetscReal :: solubility       ! [mol/m^3-liq]
@@ -223,7 +223,7 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   PetscReal :: aqueous_eq_conc   ! [mol/m^3-liq]
   PetscReal :: ppt_mass_conc     ! [mol/m^3-bulk]
   PetscReal :: sorb_mass_conc    ! [mol/m^3-bulk]
-  
+
   PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
   PetscReal :: aqueous_mass_conc ! [mol/m^3-bulk]
   PetscReal :: por, sat

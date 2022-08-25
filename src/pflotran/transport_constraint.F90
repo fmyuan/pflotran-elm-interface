@@ -1,5 +1,5 @@
 module Transport_Constraint_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -10,42 +10,42 @@ module Transport_Constraint_module
   implicit none
 
   private
-  
-  
+
+
   type, public :: tran_constraint_ptr_type
     class(tran_constraint_base_type), pointer :: ptr
   end type tran_constraint_ptr_type
-  
+
   type, public :: tran_constraint_list_type
     PetscInt :: num_constraints
     class(tran_constraint_base_type), pointer :: first
     class(tran_constraint_base_type), pointer :: last
-    class(tran_constraint_ptr_type), pointer :: array(:)    
+    class(tran_constraint_ptr_type), pointer :: array(:)
   end type tran_constraint_list_type
-  
+
   public :: TranConstraintAddToList, &
             TranConstraintInitList, &
             TranConstraintListDestroy, &
             TranConstraintGetPtrFromList, &
             TranConstraintDestroy, &
             TranConstraintCouplerDestroy
-    
+
 contains
 
 ! ************************************************************************** !
 
 subroutine TranConstraintInitList(list)
-  ! 
+  !
   ! Initializes a transport constraint list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
 
   implicit none
 
   type(tran_constraint_list_type) :: list
-  
+
   nullify(list%first)
   nullify(list%last)
   nullify(list%array)
@@ -56,13 +56,13 @@ end subroutine TranConstraintInitList
 ! ************************************************************************** !
 
 subroutine TranConstraintAddToList(new_constraint,list)
-  ! 
+  !
   ! Adds a new constraint to a transport constraint
   ! list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
 
   implicit none
 
@@ -80,13 +80,13 @@ end subroutine TranConstraintAddToList
 ! ************************************************************************** !
 
 function TranConstraintGetPtrFromList(constraint_name,constraint_list)
-  ! 
+  !
   ! Returns a pointer to the constraint matching
   ! constraint_name
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/13/08
-  ! 
+  !
 
   use String_module
 
@@ -119,12 +119,12 @@ end function TranConstraintGetPtrFromList
 ! ************************************************************************** !
 
 subroutine TranConstraintListDestroy(constraint_list)
-  ! 
+  !
   ! Deallocates a list of constraints
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/04/19
-  ! 
+  !
 
   implicit none
 
@@ -150,12 +150,12 @@ end subroutine TranConstraintListDestroy
 ! ************************************************************************** !
 
 recursive subroutine TranConstraintDestroy(constraint)
-  ! 
+  !
   ! Strips any dynamically allocated members of base class
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/04/19
-  ! 
+  !
   implicit none
 
   class(tran_constraint_base_type), pointer :: constraint
@@ -175,12 +175,12 @@ end subroutine TranConstraintDestroy
 ! ************************************************************************** !
 
 recursive subroutine TranConstraintCouplerDestroy(coupler)
-  ! 
+  !
   ! Destroys a constraint coupler linked list
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/07/09
-  ! 
+  !
 
   use Option_module
 

@@ -43,7 +43,9 @@ module Material_module
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
     PetscInt :: thermal_conductivity_function_id
-    character(len=MAXWORDLENGTH) :: thermal_conductivity_function_name
+    character(len=MAXWORDLENGTH) :: thermal_conductivity_func_name
+    PetscInt :: material_transform_id
+    character(len=MAXWORDLENGTH) :: material_transform_name
     PetscReal :: rock_density ! kg/m^3
     PetscReal :: specific_heat ! J/kg-K
     PetscReal :: thermal_conductivity_dry
@@ -198,7 +200,10 @@ function MaterialPropertyCreate(option)
   material_property%tortuosity_func_porosity_pwr = UNINITIALIZED_DOUBLE
   material_property%saturation_function_id = 0
   material_property%thermal_conductivity_function_id = UNINITIALIZED_INTEGER
+  material_property%material_transform_id = UNINITIALIZED_INTEGER
   material_property%saturation_function_name = ''
+  material_property%material_transform_name = ''
+  material_property%thermal_conductivity_func_name = ''
   material_property%rock_density = UNINITIALIZED_DOUBLE
   material_property%specific_heat = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_dry = UNINITIALIZED_DOUBLE
@@ -232,7 +237,7 @@ function MaterialPropertyCreate(option)
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
     material_property%multicontinuum%length = UNINITIALIZED_DOUBLE
@@ -338,7 +343,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'MATERIAL_PROPERTY')
       case('THERMAL_CHARACTERISTIC_CURVES')
         call InputReadWord(input,option, &
-             material_property%thermal_conductivity_function_name,PETSC_TRUE)
+             material_property%thermal_conductivity_func_name,PETSC_TRUE)
+      case('MATERIAL_TRANSFORM')
+        call InputReadWord(input,option, &
+             material_property%material_transform_name,PETSC_TRUE)
       case('ROCK_DENSITY')
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
@@ -370,7 +378,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                    material_property%thermal_conductivity_dry, &
                    'W/m-C','MATERIAL_PROPERTY,dry thermal conductivity',option)
         write(tcc_name,*)material_property%external_id
-        material_property%thermal_conductivity_function_name = "_TCC_"//&
+        material_property%thermal_conductivity_func_name = "_TCC_"//&
           trim(adjustl(tcc_name))
       case('THERMAL_CONDUCTIVITY_WET')
         call InputReadDouble(input,option, &
@@ -381,7 +389,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                    material_property%thermal_conductivity_wet, &
                    'W/m-C','MATERIAL_PROPERTY,wet thermal conductivity',option)
         write(tcc_name,*)material_property%external_id
-        material_property%thermal_conductivity_function_name = "_TCC_"//&
+        material_property%thermal_conductivity_func_name = "_TCC_"//&
            trim(adjustl(tcc_name))
       case('THERMAL_COND_EXPONENT')
         call InputReadDouble(input,option, &
@@ -2070,9 +2078,9 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
 
   PetscErrorCode :: ierr
 
-  call VecCopy(field%porosity_t,field%work,ierr)
-  call VecAXPBY(field%work,weight,1.d0-weight, &
-                field%porosity_tpdt,ierr);CHKERRQ(ierr)
+  call VecCopy(field%porosity_t,field%work,ierr);CHKERRQ(ierr)
+  call VecAXPBY(field%work,weight,1.d0-weight,field%porosity_tpdt, &
+                ierr);CHKERRQ(ierr)
   call comm1%GlobalToLocal(field%work,field%work_loc)
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_CURRENT)
@@ -2402,8 +2410,13 @@ subroutine MaterialPropInputRecord(material_property_list)
 
     if (Initialized(cur_matprop%thermal_conductivity_function_id)) then
       write(id,'(a29)',advance='no') 'thermal char. curve: '
-      write(id,'(a)') adjustl(trim(cur_matprop%thermal_conductivity_function_name))
+      write(id,'(a)') adjustl(trim(cur_matprop%thermal_conductivity_func_name))
     end if
+
+    if (len(trim(cur_matprop%material_transform_name)) > 0) then
+      write(id,'(a29)',advance='no') 'material transform function: '
+      write(id,'(a)') adjustl(trim(cur_matprop%material_transform_name))
+    endif
 
     write(id,'(a29)') '---------------------------: '
     cur_matprop => cur_matprop%next

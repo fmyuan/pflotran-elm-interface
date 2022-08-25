@@ -22,7 +22,7 @@ module Test_Material_module
       class(material_auxvar_type), pointer :: material
       procedure(runMethod), pointer :: userMethod => null()
     contains
-      procedure :: setUp     
+      procedure :: setUp
       procedure :: tearDown
       procedure :: runMethod
   end type Test_Material
@@ -96,7 +96,7 @@ contains
     implicit none
 
     class(Test_Material), intent(inout) :: this
-    
+
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-14
     PetscReal :: pressure

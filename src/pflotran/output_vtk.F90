@@ -2,10 +2,10 @@ module Output_VTK_module
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-  use Logging_module 
+  use Logging_module
   use Output_Aux_module
   use Output_Common_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -14,7 +14,7 @@ module Output_VTK_module
 
   PetscInt, parameter :: VTK_INTEGER = 0
   PetscInt, parameter :: VTK_REAL = 1
-  
+
   public :: OutputVTK
 
 contains
@@ -31,14 +31,14 @@ subroutine OutputVTK(realization_base)
   use Field_module
   use Patch_module
   use String_module
-  
+
   use Reaction_Aux_module
   use Variables_module
- 
+
   implicit none
 
   class(realization_base_type) :: realization_base
-  
+
   PetscInt :: i, comma_count, quote_count
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word
@@ -48,15 +48,15 @@ subroutine OutputVTK(realization_base)
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
-  type(patch_type), pointer :: patch 
-  class(reaction_rt_type), pointer :: reaction 
+  type(patch_type), pointer :: patch
+  class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
   PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec
   Vec :: natural_vec
   PetscErrorCode :: ierr
-  
+
   discretization => realization_base%discretization
   patch => realization_base%patch
   grid => patch%grid
@@ -64,15 +64,15 @@ subroutine OutputVTK(realization_base)
   field => realization_base%field
   reaction => ReactionCast(realization_base%reaction_base)
   output_option => realization_base%output_option
-  
+
   ! open file
   filename = OutputFilename(output_option,option,'vtk','')
-  
+
   if (OptionIsIORank(option)) then
-    option%io_buffer = '--> write vtk output file: ' // trim(filename)
+    option%io_buffer = ' --> write vtk output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
-  
+
     ! write header
     write(OUTPUT_UNIT,'(''# vtk DataFile Version 2.0'')')
     ! write title
@@ -82,9 +82,9 @@ subroutine OutputVTK(realization_base)
   endif
 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                  option)  
+                                  option)
   call DiscretizationCreateVector(discretization,ONEDOF,natural_vec,NATURAL, &
-                                  option)  
+                                  option)
 
   ! write out coordinates
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
@@ -92,7 +92,7 @@ subroutine OutputVTK(realization_base)
   if (OptionIsIORank(option)) then
     write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
   endif
-  
+
   cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
@@ -113,7 +113,7 @@ subroutine OutputVTK(realization_base)
 
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-  
+
   if (OptionIsIORank(option)) close(OUTPUT_UNIT)
 
 #if 1
@@ -121,8 +121,8 @@ subroutine OutputVTK(realization_base)
     call OutputVelocitiesVTK(realization_base)
   endif
 #endif
-  
-#if 0  
+
+#if 0
   if (output_option%print_vtk_vel_cent) then
     if (grid%structured_grid%nx > 1) then
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
@@ -153,7 +153,7 @@ subroutine OutputVTK(realization_base)
     endif
   endif
 #endif
-      
+
 end subroutine OutputVTK
 
 #if 1
@@ -161,9 +161,9 @@ end subroutine OutputVTK
 ! ************************************************************************** !
 
 subroutine OutputVelocitiesVTK(realization_base)
-  ! 
+  !
   ! Print velocities to Tecplot file in BLOCK format
-  ! 
+  !
   use Realization_Base_class, only : realization_base_type, &
                                      RealizationGetVariable
   use Discretization_module
@@ -172,16 +172,16 @@ subroutine OutputVelocitiesVTK(realization_base)
   use Field_module
   use Patch_module
   use Variables_module
-  
+
   implicit none
 
   class(realization_base_type) :: realization_base
-  
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-  type(patch_type), pointer :: patch  
+  type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
@@ -192,38 +192,38 @@ subroutine OutputVelocitiesVTK(realization_base)
   PetscErrorCode :: ierr
 
   PetscReal, pointer :: vec_ptr(:)
-  
+
   patch => realization_base%patch
   grid => patch%grid
   field => realization_base%field
   option => realization_base%option
   output_option => realization_base%output_option
   discretization => realization_base%discretization
-  
+
   ! open file
   filename = OutputFilename(output_option,option,'vtk','vel')
-  
+
   if (OptionIsIORank(option)) then
-   option%io_buffer = '--> write vtk velocity output file: ' // &
+   option%io_buffer = ' --> write vtk velocity output file: ' // &
                       trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
-  
+
     ! write header
     write(OUTPUT_UNIT,'(''# vtk DataFile Version 2.0'')')
     ! write title
     write(OUTPUT_UNIT,'(''PFLOTRAN output'')')
     write(OUTPUT_UNIT,'(''ASCII'')')
     write(OUTPUT_UNIT,'(''DATASET UNSTRUCTURED_GRID'')')
-    
+
   endif
-  
+
   ! write blocks
-  ! write out data sets  
+  ! write out data sets
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                  option)  
+                                  option)
   call DiscretizationCreateVector(discretization,ONEDOF,natural_vec,NATURAL, &
-                                  option)    
+                                  option)
   call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vx)
   call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vy)
   call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vz)
@@ -281,7 +281,7 @@ subroutine OutputVelocitiesVTK(realization_base)
                                      natural_vec,ONEDOF)
   call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
                               natural_vec,VTK_INTEGER)
-  
+
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vx,ierr);CHKERRQ(ierr)
@@ -289,16 +289,16 @@ subroutine OutputVelocitiesVTK(realization_base)
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
   if (OptionIsIORank(option)) close(OUTPUT_UNIT)
-  
+
 end subroutine OutputVelocitiesVTK
 #endif
 
 ! ************************************************************************** !
 
 subroutine WriteVTKGrid(fid,realization_base)
-  ! 
+  !
   ! Writes a grid in VTK format
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
@@ -310,11 +310,11 @@ subroutine WriteVTKGrid(fid,realization_base)
 
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  
+
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch  
+  type(patch_type), pointer :: patch
   PetscInt :: i, j, k, nx, ny, nz
   PetscReal :: x, y, z
   PetscInt :: nxp1Xnyp1, nxp1, nyp1, nzp1
@@ -323,24 +323,24 @@ subroutine WriteVTKGrid(fid,realization_base)
 
 1000 format(es13.6,1x,es13.6,1x,es13.6)
 1001 format(i1,8(1x,i8))
-  
+
   call PetscLogEventBegin(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
-                              
+
   discretization => realization_base%discretization
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
-  
+
   if (realization_base%discretization%itype == STRUCTURED_GRID)  then
 
     nx = grid%structured_grid%nx
     ny = grid%structured_grid%ny
     nz = grid%structured_grid%nz
-  
+
     nxp1 = nx+1
     nyp1 = ny+1
     nzp1 = nz+1
-  
+
     if (OptionIsIORank(option)) then
 
  1010 format("POINTS",1x,i12,1x,"float")
@@ -393,19 +393,22 @@ subroutine WriteVTKGrid(fid,realization_base)
       write(fid,'(a)') ""
 
     endif
+  else
+    option%io_buffer = 'VTK output only supported for structured grids.'
+    call PrintErrMsg(option)
   endif
 
   call PetscLogEventEnd(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
-                            
+
 end subroutine WriteVTKGrid
 
 ! ************************************************************************** !
 
 subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype)
-  ! 
+  !
   ! Writes data from a Petsc Vec within a block
   ! of a VTK file
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
 
@@ -417,24 +420,24 @@ subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype
   character(len=MAXWORDLENGTH) :: dataset_name
   PetscInt :: datatype
   PetscErrorCode :: ierr
-  
+
   PetscReal, pointer :: vec_ptr(:)
 
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteVTKDataSet(fid,realization_base,dataset_name,vec_ptr,datatype, &
                        ZERO_INTEGER) ! 0 implies grid%nlmax
   call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 end subroutine WriteVTKDataSetFromVec
 
 ! ************************************************************************** !
 
 subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
                            size_flag)
-  ! 
+  !
   ! Writes data from an array within a block
   ! of a VTK file
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -442,17 +445,17 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
   use Patch_module
 
   implicit none
-  
+
   PetscInt :: fid
   class(realization_base_type) :: realization_base
   PetscReal :: array(:)
   character(len=MAXWORDLENGTH) :: dataset_name
   PetscInt :: datatype
   PetscInt :: size_flag ! if size_flag /= 0, use size_flag as the local size
-  
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch  
+  type(patch_type), pointer :: patch
   PetscInt :: i
   PetscInt :: max_proc, max_proc_prefetch
   PetscMPIInt :: iproc_mpi, recv_size_mpi
@@ -466,28 +469,29 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
 
 1001 format(10(es13.6,1x))
 1002 format(i3)
-  
+
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
 
   call PetscLogEventBegin(logging%event_output_write_vtk,ierr);CHKERRQ(ierr)
 
-  ! maximum number of initial messages  
-#define HANDSHAKE  
+  ! maximum number of initial messages
+#define HANDSHAKE
   max_proc = option%io_handshake_buffer_size
   max_proc_prefetch = option%io_handshake_buffer_size / 10
 
   if (size_flag /= 0) then
     call MPI_Allreduce(size_flag,max_local_size,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,option%mycomm,ierr)
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
     local_size_mpi = size_flag
-  else 
-  ! if first time, determine the maximum size of any local array across 
+  else
+  ! if first time, determine the maximum size of any local array across
   ! all procs
     if (max_local_size_saved < 0) then
       call MPI_Allreduce(grid%nlmax,max_local_size,ONE_INTEGER_MPI, &
-                         MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
+                         MPIU_INTEGER,MPI_MAX,option%mycomm, &
+                         ierr);CHKERRQ(ierr)
       max_local_size_saved = max_local_size
       if (OptionPrintToScreen(option)) print *, 'max_local_size_saved: ', &
                                                  max_local_size
@@ -495,7 +499,7 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
     max_local_size = max_local_size_saved
     local_size_mpi = grid%nlmax
   endif
-  
+
   ! transfer the data to an integer or real array
   if (datatype == VTK_INTEGER) then
     allocate(integer_data(max_local_size+10))
@@ -510,7 +514,7 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
       real_data(i) = array(i)
     enddo
   endif
-  
+
   ! communicate data to processor 0, round robin style
   if (OptionIsIORank(option)) then
 
@@ -519,8 +523,8 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
     else
       write(fid,'(''SCALARS '',a20,'' float 1'')') dataset_name
     endif
-    
-    write(fid,'(''LOOKUP_TABLE default'')') 
+
+    write(fid,'(''LOOKUP_TABLE default'')')
 
     if (datatype == VTK_INTEGER) then
       ! This approach makes output files identical, regardless of processor
@@ -548,19 +552,22 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
       num_in_array = local_size_mpi-iend
     endif
     do iproc_mpi=1,option%comm%mycommsize-1
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
       if (option%io_handshake_buffer_size > 0 .and. &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
       endif
-#endif      
-      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+#endif
+      call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                     ierr);CHKERRQ(ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == 0) then
         call MPI_Recv(integer_data_recv,recv_size_mpi,MPIU_INTEGER,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+                      MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           integer_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              integer_data_recv(1:recv_size_mpi)
@@ -578,8 +585,9 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
           num_in_array = num_in_array-iend
         endif
       else
-        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION,iproc_mpi, &
-                      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION, &
+                      iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                      ierr);CHKERRQ(ierr)
         if (recv_size_mpi > 0) then
           real_data(num_in_array+1:num_in_array+recv_size_mpi) = &
                                              real_data_recv(1:recv_size_mpi)
@@ -598,13 +606,13 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
         endif
       endif
     enddo
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
       call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     option%driver%io_rank,option%mycomm,ierr)
+                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
-#endif      
+#endif
     ! Print the remaining values, if they exist
     if (datatype == 0) then
       if (num_in_array > 0) &
@@ -615,36 +623,38 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
     endif
     write(fid,'(/)')
   else
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
       enddo
     endif
-#endif    
+#endif
     if (datatype == VTK_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     else
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank, &
-                    local_size_mpi,option%mycomm,ierr)
+                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    ierr);CHKERRQ(ierr)
     endif
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm,ierr)
+                       option%driver%io_rank,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
         if (max_proc < 0) exit
       enddo
     endif
 #endif
 #undef HANDSHAKE
   endif
-      
+
   if (datatype == VTK_INTEGER) then
     deallocate(integer_data)
   else

@@ -144,8 +144,10 @@ module Condition_module
   end type geop_condition_list_type
 
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
+            FlowGeneralConditionCreate, &
             FlowConditionGeneralRead, &
             FlowConditionHydrateRead, &
+            FlowGeneralSubConditionPtr, &
             FlowConditionAddToList, FlowConditionInitList, &
             FlowConditionDestroyList, &
             FlowConditionGetPtrFromList, FlowConditionUpdate, &
@@ -156,8 +158,9 @@ module Condition_module
             TranConditionRead, &
             TranConditionUpdate, &
             FlowConditionIsTransient, &
+            FlowConditionIsHydrostatic, &
             ConditionReadValues, &
-            GetSubConditionName, &
+            GetSubConditionType, &
             FlowConditionUnknownItype, &
             FlowCondInputRecord, &
             TranCondInputRecord, &
@@ -1256,7 +1259,7 @@ subroutine FlowConditionRead(condition,input,option)
   endif
 
   ! verify the datasets
-  word = 'pressure/flux'
+  word = 'pressure or flux'
   call FlowSubConditionVerify(option,condition,word,pressure, &
                               default_time_storage, &
                               PETSC_TRUE)
@@ -1528,7 +1531,7 @@ subroutine FlowConditionRead(condition,input,option)
       call DeallocateArray(condition%itype)
 
       ! IMPORTANT - at this point zflow_liq_flow_eq, zflow_heat_tran_eq and
-      ! zflow_sol_tran_eq are solely flags set to 0 or 1. They cannot 
+      ! zflow_sol_tran_eq are solely flags set to 0 or 1. They cannot
       ! index any arrays
 
       if (zflow_liq_flow_eq > 0) then
@@ -2566,30 +2569,34 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                 associated(hydrate%temperature)) then
         ! gas phase condition
         condition%iphase = G_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%gas_saturation) .and. &
-              associated(hydrate%temperature)) then
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%gas_saturation) .and. &
+               associated(hydrate%temperature)) then
         ! two phase condition
         condition%iphase = GA_STATE
       elseif ((associated(hydrate%gas_pressure) .or. &
-          associated(hydrate%liquid_pressure)) .and. &
-          associated(hydrate%hydrate_saturation)) then
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%hydrate_saturation)) then
         condition%iphase = HA_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%ice_saturation) .and. &
-              associated(hydrate%temperature)) then
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%ice_saturation) .and. &
+               associated(hydrate%temperature)) then
         condition%iphase = GI_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%mole_fraction) .and. &
-              associated(hydrate%liquid_saturation)) then
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)).and. &
+               associated(hydrate%mole_fraction) .and. &
+               associated(hydrate%liquid_saturation)) then
         condition%iphase = AI_STATE
       elseif (associated(hydrate%gas_saturation) .and. &
               associated(hydrate%hydrate_saturation) .and. &
               associated(hydrate%temperature)) then
         condition%iphase = HGA_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%liquid_saturation) .and. &
-              associated(hydrate%ice_saturation)) then
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%liquid_saturation) .and. &
+               associated(hydrate%ice_saturation)) then
         condition%iphase = HAI_STATE
       elseif (associated(hydrate%ice_saturation) .and. &
               associated(hydrate%hydrate_saturation) .and. &
@@ -2598,7 +2605,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
       elseif (associated(hydrate%liquid_saturation) .and. &
               associated(hydrate%gas_saturation) .and. &
               associated(hydrate%ice_saturation)) then
-        condition%iphase = QUAD_STATE
+        condition%iphase = HGAI_STATE
       endif
 
     endif
@@ -3402,7 +3409,7 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   write(option%fid_out,'(/,4x,''Sub Condition: '',a)') trim(subcondition%name)
-  string = GetSubConditionName(subcondition%itype)
+  string = GetSubConditionType(subcondition%itype)
 
   105 format(6x,'Type: ',a)
   write(option%fid_out,105) trim(string)
@@ -3423,7 +3430,7 @@ end subroutine FlowConditionPrintSubCondition
 
 ! ************************************************************************** !
 
-function GetSubConditionName(subcon_itype)
+function GetSubConditionType(subcon_itype)
   !
   ! SubConditionName: Return name of subcondition
   !
@@ -3436,7 +3443,7 @@ function GetSubConditionName(subcon_itype)
   PetscInt :: subcon_itype
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: GetSubConditionName
+  character(len=MAXSTRINGLENGTH) :: GetSubConditionType
 
   select case(subcon_itype)
     case(DIRICHLET_BC)
@@ -3497,11 +3504,13 @@ function GetSubConditionName(subcon_itype)
       string = 'surface_zero_gradheight'
     case(SURFACE_SPILLOVER)
       string = 'surface_spillover'
-    end select
+    case default
+      string = 'unknown'
+  end select
 
-  GetSubConditionName = trim(string)
+  GetSubConditionType = trim(string)
 
-end function GetSubConditionName
+end function GetSubConditionType
 
 ! ************************************************************************** !
 
@@ -3834,6 +3843,75 @@ function GeopConditionGetPtrFromList(condition_name,condition_list)
   enddo
 
 end function GeopConditionGetPtrFromList
+
+! ************************************************************************** !
+
+function FlowConditionIsHydrostatic(condition)
+  !
+  ! Returns PETSC_TRUE if a flow condition is hydrostatic for pressure
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/29/22
+  !
+  implicit none
+
+  type(flow_condition_type) :: condition
+
+  PetscBool :: FlowConditionIsHydrostatic
+
+  FlowConditionIsHydrostatic = PETSC_FALSE
+
+  if (associated(condition%pressure)) then
+    if (condition%pressure%itype == HYDROSTATIC_BC .or. &
+        condition%pressure%itype == HYDROSTATIC_CONDUCTANCE_BC .or. &
+        condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
+      FlowConditionIsHydrostatic = PETSC_TRUE
+    endif
+  endif
+
+  if (associated(condition%general)) then
+    if (associated(condition%general%liquid_pressure)) then
+      if (condition%general%liquid_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%general%liquid_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%general%liquid_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+    if (associated(condition%general%gas_pressure)) then
+      if (condition%general%gas_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%general%gas_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%general%gas_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+  endif
+
+  if (associated(condition%hydrate)) then
+    if (associated(condition%hydrate%liquid_pressure)) then
+      if (condition%hydrate%liquid_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%hydrate%liquid_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%hydrate%liquid_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+    if (associated(condition%hydrate%gas_pressure)) then
+      if (condition%hydrate%gas_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%hydrate%gas_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%hydrate%gas_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+  endif
+
+end function FlowConditionIsHydrostatic
 
 ! ************************************************************************** !
 
