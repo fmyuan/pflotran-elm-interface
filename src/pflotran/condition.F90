@@ -1259,7 +1259,7 @@ subroutine FlowConditionRead(condition,input,option)
   endif
 
   ! verify the datasets
-  word = 'pressure/flux'
+  word = 'pressure or flux'
   call FlowSubConditionVerify(option,condition,word,pressure, &
                               default_time_storage, &
                               PETSC_TRUE)
