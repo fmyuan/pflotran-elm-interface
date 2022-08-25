@@ -1760,7 +1760,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   if (hydrate_xmol_nacl > 0.d0) then
     call IceSalinityOffset(hydrate_xmol_nacl,dTfs_ice)
   else
-    dTfs = 0.d0
+    dTfs_ice = 0.d0
   endif
 
   !dTf = dTf - dTfs
