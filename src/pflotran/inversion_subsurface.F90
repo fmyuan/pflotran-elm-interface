@@ -391,7 +391,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         option%io_buffer = 'No measurement found in inversion measurement block.'
         call PrintErrMsg(option)
       else if (associated(this%measurements)) then
-        option%io_buffer = 'Parameters may only be defined in a single block.'
+        option%io_buffer = 'Measurements may only be defined in a single block.'
         call PrintErrMsg(option)
       else
         allocate(this%measurements(last_measurement%id))
@@ -439,7 +439,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         option%io_buffer = 'No parameter found in inversion parameter block.'
         call PrintErrMsg(option)
       else if (associated(this%parameters)) then
-        option%io_buffer = 'Measurements may only be defined in a single block.'
+        option%io_buffer = 'Parameters may only be defined in a single block.'
         call PrintErrMsg(option)
       else
         allocate(this%parameters(last_parameter%id))
@@ -696,9 +696,8 @@ subroutine InversionSubsurfInitialize(this)
       endif
     endif
     if (max_int(1) > patch%grid%nmax) then
-      this%realization%option%io_buffer = 'A measurement cell ID is &
-        &beyond the maximum cell ID of ' // trim(StringWrite(i))
-      call PrintErrMsg(this%realization%option)
+      call this%driver%PrintErrMsg('A measurement cell ID is &
+        &beyond the maximum cell ID of ' // trim(StringWrite(i)))
     endif
     ! ensure that all cell ids have been found
     mpi_int = num_measurements
@@ -716,7 +715,7 @@ subroutine InversionSubsurfInitialize(this)
           trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
           trim(StringWrite(this%measurements(i)%coordinate%z)) // &
           ') not mapped properly.'
-        call PrintErrMsg(this%realization%option)
+        call this%driver%PrintErrMsg(string)
       endif
     enddo
 
@@ -729,6 +728,11 @@ subroutine InversionSubsurfInitialize(this)
         iflag = PETSC_TRUE
       endif
     enddo
+    ! throw error if ert is included as a measurement when using adjoints
+    if (iflag .and. .not.associated(this%perturbation)) then
+      call this%driver%PrintErrMsg('ERT measurements are currently not &
+        &supported adjoint-based inversion.')
+    endif
     int_array = int_array - 1
     call DiscretAOApplicationToPetsc(this%realization%discretization, &
                                      int_array)
@@ -1723,6 +1727,10 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
                                 ierr);CHKERRQ(ierr)
         case(OBS_SOLUTE_CONCENTRATION)
           tempint = zflow_sol_tran_eq
+        case(OBS_ERT_MEASUREMENT)
+          option%io_buffer = 'ERT measurement are currently not supported &
+            &adjoint-based inversion.'
+          call PrintErrMsg(option)
         case default
           option%io_buffer = 'Unknown observation type in InvSubsurfCalcLambda'
           call PrintErrMsg(option)
@@ -2132,6 +2140,11 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
   if (.not.this%print_sensitivity_jacobian) return
 
   filename_prefix = trim(this%driver%global_prefix) // '_Jsense'
+  if (associated(this%perturbation)) then
+    filename_prefix = trim(filename_prefix) // '_num'
+  else
+    filename_prefix = trim(filename_prefix) // '_anal'
+  endif
   if (this%annotate_output) then
     filename_prefix = trim(filename_prefix) // '_i' // &
       StringWrite(this%iteration)
