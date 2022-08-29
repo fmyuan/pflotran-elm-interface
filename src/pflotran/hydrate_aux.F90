@@ -135,7 +135,7 @@ module Hydrate_Aux_module
   PetscReal, parameter, public :: MOL_RATIO_METH = 0.14285714285d0
   PetscReal, parameter :: MOL_RATIO_H2O = 1.d0 - MOL_RATIO_METH
 
-  PetscReal, parameter :: TQD = 1.d-2 !0.d0 !1.0d-2 !Quad point temperature (C)
+  PetscReal, parameter :: TQD = 0.d0 !1.d-2 !Quad point temperature (C)
 
   !Ice:
   PetscReal, parameter :: ICE_DENSITY_KG = 920.d0 !kg/m^3
@@ -929,15 +929,33 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%pres(apid) = PE_hyd
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
-      hyd_auxvar%pres(vpid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(apid)
+      hyd_auxvar%xmol(acid,gid) = hyd_auxvar%pres(apid) / &
+                                   hyd_auxvar%pres(gid)
+      hyd_auxvar%xmol(wid,gid) = 1.d0 - hyd_auxvar%xmol(acid,gid)
 
-      hyd_auxvar%pres(cpid) = 0.d0
-      hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(cpid)
+      call EOSWaterSaturationPressure(hyd_auxvar%temp, &
+                                    hyd_auxvar%pres(spid),ierr)
+
+      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       hyd_auxvar%xmol(acid,lid) = hyd_auxvar%pres(apid) / K_H_tilde
-      hyd_auxvar%xmol(wid,lid) = 1.d0 - hyd_auxvar%xmol(acid,lid)
-      hyd_auxvar%xmol(wid,gid) = hyd_auxvar%pres(vpid) / hyd_auxvar%pres(gid)
-      hyd_auxvar%xmol(acid,gid) = 1.d0 - hyd_auxvar%xmol(wid,gid)
+      hyd_auxvar%xmol(wid,lid) = 0.d0
+
+      hyd_auxvar%pres(vpid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(apid)
+
+
+      hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid) - &
+                             hyd_auxvar%pres(cpid)
+
+      if (hydrate_no_pc) then
+        hyd_auxvar%pres(cpid) = 0.d0
+      else
+        call characteristic_curves%saturation_function% &
+             CapillaryPressure(0.d0, hyd_auxvar%pres(cpid), &
+                               dpc_dsatl,option)
+      endif
+      hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(cpid)
+
 
     case(HA_STATE)
 !     ********* Hydrate & Aqueous State (HA) ********************************
@@ -1045,7 +1063,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 !     Primary variables: Pl, Xma, Sl
 !
       hyd_auxvar%pres(lid) = x(HYDRATE_LIQUID_PRESSURE_DOF)
-      hyd_auxvar%xmol(acid,lid) = x(HYDRATE_GAS_SATURATION_DOF)
+      hyd_auxvar%xmol(acid,lid) = x(HYDRATE_L_STATE_X_MOLE_DOF)
       hyd_auxvar%sat(lid) = x(HYDRATE_ENERGY_DOF)
 
       hyd_auxvar%xmol(acid,lid) = max(0.d0,hyd_auxvar%xmol(acid,lid))
@@ -1335,6 +1353,11 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(lid) = x(HYDRATE_GAS_PRESSURE_DOF)
       hyd_auxvar%sat(gid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
+
+      hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(gid) &
+                            - hyd_auxvar%sat(iid)
+      hyd_auxvar%sat(hid) = max(hyd_auxvar%sat(hid),0.d0)
+      hyd_auxvar%sat(hid) = min(hyd_auxvar%sat(hid),1.d0)
 
       if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
         h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
@@ -1963,7 +1986,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
        global_auxvar%istate = HGAI_STATE
       endif
     case(HI_STATE)
-      if (hyd_auxvar%pres(apid) > PE_hyd) then
+      if (hyd_auxvar%pres(apid) >= PE_hyd) then
       !if (hyd_auxvar%pres(gid) > PE_hyd) then
         if (hyd_auxvar%temp < Tf_ice) then
           istatechng = PETSC_FALSE
@@ -2006,15 +2029,16 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       !if (hyd_auxvar%pres(apid) >= hyd_auxvar% &
       !       pres(lid)*(1.d0-window_epsilon)) then
       !  if (hyd_auxvar%pres(apid) < PE_hyd) then
-      if (hyd_auxvar%pres(apid) > PE_hyd*(1.d0-window_epsilon)) then
-        if (hyd_auxvar%pres(lid) < PE_hyd*(1.d0+window_epsilon)) then
-      !  if (hyd_auxvar%pres(lid) >  PE_hyd*(1.d0-window_epsilon)) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = GAI_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = HAI_STATE
-        endif
+      if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
+          K_H_tilde_hyd*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+          pres(lid)*(1.d0-window_epsilon)) then
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = HAI_STATE
+      elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
+              K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+              pres(lid)*(1.d0-window_epsilon)) then
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = GAI_STATE
       else
         if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
