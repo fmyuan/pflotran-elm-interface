@@ -1022,7 +1022,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           z2 = z1 + dz
 
           nx = this%dims(1)
-          ny = this%dims(1)
+          ny = this%dims(2)
 
           index = i + (j-1)*nx + (k-1)*nx*ny
 
