@@ -405,6 +405,8 @@ subroutine InversionMeasurementPrint(measurement,option)
                                               option,ierr))) // ' ' // &
       measurement%time_units
     print *, '          Cell ID: ' // trim(StringWrite(measurement%cell_id))
+    print *, '         Variable: ' // &
+      trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option))
     print *, '            Value: ' // trim(StringWrite(measurement%value))
     print *, '  Simulated Value: ' // &
       trim(StringWrite(measurement%simulated_value))

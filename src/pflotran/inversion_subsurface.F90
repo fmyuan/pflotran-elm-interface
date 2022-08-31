@@ -1640,7 +1640,7 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   Vec :: work  ! a 1 dof vec
   Vec :: onedof_vec
   Vec :: ndof_vec ! ndof_vec
-  Vec :: p        ! ndof_vec
+  Vec :: p_       ! ndof_vec
   Vec :: rhs      ! ndof_vec
   ! derivative of residual at k+1 time level wrt unknown at k time level
   ! times lambda at k time level
@@ -1669,7 +1669,7 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   work = this%realization%field%work ! DO NOT DESTROY!
   call VecDuplicate(work,onedof_vec,ierr);CHKERRQ(ierr)
   ndof_vec = this%realization%field%flow_xx ! DO NOT DESTROY!
-  call VecDuplicate(ndof_vec,p,ierr);CHKERRQ(ierr)
+  call VecDuplicate(ndof_vec,p_,ierr);CHKERRQ(ierr)
   call VecDuplicate(ndof_vec,rhs,ierr);CHKERRQ(ierr)
   call VecDuplicate(ndof_vec,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   ! must use natural vec, not parameter vec since offset is based on measurement
@@ -1739,15 +1739,28 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
         option%io_buffer = 'The observed state variable is not being modeled.'
         call PrintErrMsg(option)
       endif
-      call VecStrideScatter(onedof_vec,tempint-1,p,INSERT_VALUES, &
+      call VecZeroEntries(p_,ierr);CHKERRQ(ierr)
+      call VecStrideScatter(onedof_vec,tempint-1,p_,INSERT_VALUES, &
                             ierr);CHKERRQ(ierr)
       if (this%debug_verbosity > 2) then
         if (OptionPrintToScreen(option)) print *, 'p'
-        call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+        call VecView(p_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       endif
+#if 0
+  ! for debugging lambda with multiple measurements/parameters
+      if (this%measurements(imeasurement)%iobs_var == &
+            OBS_SOLUTE_CONCENTRATION .and. &
+          this%measurements(imeasurement)%time < 0.21*3600*24) then
+        call VecView(p_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+        call InversionMeasurementPrint(this%measurements(imeasurement),option)
+        print *, 'vec loc: ', (icell_measurement-1)*grid%nmax+tempint + 1
+        print *, tempreal
+!        stop
+      endif
+#endif
       call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
     else
-      call VecZeroEntries(p,ierr);CHKERRQ(ierr)
+      call VecZeroEntries(p_,ierr);CHKERRQ(ierr)
       call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(inversion_forward_ts_aux%next%lambda(imeasurement), &
@@ -1770,7 +1783,7 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
                                 lambda(imeasurement), &
                               vec_ptr2,ierr);CHKERRQ(ierr)
     endif
-    call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p,ierr);CHKERRQ(ierr)
+    call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p_,ierr);CHKERRQ(ierr)
     call KSPSolveTranspose(solver%ksp,rhs, &
                            inversion_forward_ts_aux%lambda(imeasurement), &
                            ierr);CHKERRQ(ierr)
@@ -1789,7 +1802,7 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
     endif
   enddo
   call VecDestroy(onedof_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(p,ierr);CHKERRQ(ierr)
+  call VecDestroy(p_,ierr);CHKERRQ(ierr)
   call VecDestroy(rhs,ierr);CHKERRQ(ierr)
   call VecDestroy(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
