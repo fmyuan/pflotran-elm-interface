@@ -1139,9 +1139,10 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
           gas_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(gid)
           h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
         endif
+      else
+        h_sat_eff = hyd_auxvar%sat(hid)
+        gas_sat_eff = hyd_auxvar%sat(gid)
       endif
-
-      h_sat_eff = hyd_auxvar%sat(hid)
 
       if (hydrate_eff_sat_scaling) then
         liq_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
@@ -1196,12 +1197,17 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(iid)
 
-      if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
-        h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
-        i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+      if (hydrate_gt_3phase) then
+        if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
+          h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
+          i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+        else
+          h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
+          i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+        endif
       else
-        h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
-        i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+        h_sat_eff = hyd_auxvar%sat(hid)
+        i_sat_eff = hyd_auxvar%sat(iid)
       endif
 
       if (hydrate_with_gibbs_thomson) then
@@ -1286,16 +1292,23 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(iid)
       hyd_auxvar%sat(hid) = 0.d0
 
-      if (hyd_auxvar%sat(gid) > hyd_auxvar%sat(iid)) then
-        gas_sat_eff = hyd_auxvar%sat(gid)+hyd_auxvar%sat(iid)
-        i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+      if (hydrate_gt_3phase) then
+        if (hyd_auxvar%sat(gid) > hyd_auxvar%sat(iid)) then
+          gas_sat_eff = hyd_auxvar%sat(gid)+hyd_auxvar%sat(iid)
+          i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+        else
+          gas_sat_eff = 2.d0 * hyd_auxvar%sat(gid)
+          i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+        endif
       else
-        gas_sat_eff = 2.d0 * hyd_auxvar%sat(gid)
-        i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+        gas_sat_eff = hyd_auxvar%sat(gid)
+        i_sat_eff = hyd_auxvar%sat(iid)
       endif
 
-      call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0, &
+      if (hydrate_with_gibbs_thomson) then
+        call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0, &
               ICE_DENSITY,TQD,dTf,characteristic_curves, material_auxvar,option)
+      endif
 
       hyd_auxvar%temp = TQD-dTf
 
@@ -1338,19 +1351,27 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
 
+      hyd_auxvar%sat(lid) = max(0.d0,hyd_auxvar%sat(lid))
+      hyd_auxvar%sat(gid) = max(0.d0,hyd_auxvar%sat(gid))
+      hyd_auxvar%sat(iid) = max(0.d0,hyd_auxvar%sat(iid))
+
       hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(gid) &
                             - hyd_auxvar%sat(iid)
       hyd_auxvar%sat(hid) = max(hyd_auxvar%sat(hid),0.d0)
       hyd_auxvar%sat(hid) = min(hyd_auxvar%sat(hid),1.d0)
 
-      if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
-        h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
-        i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+      if (hydrate_gt_3phase) then
+        if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
+          h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
+          i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+        else
+          h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
+          i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+        endif
       else
-        h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
-        i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+        h_sat_eff = hyd_auxvar%sat(hid)
+        i_sat_eff = hyd_auxvar%sat(iid)
       endif
-
       if (hydrate_with_gibbs_thomson) then
         call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
                             characteristic_curves,material_auxvar,option)
@@ -1698,12 +1719,17 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                               istate = global_auxvar%istate
   hyd_auxvar%istate_store(PREV_IT) = global_auxvar%istate
 
-  if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
-    h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
-    i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+  if (hydrate_gt_3phase) then
+    if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
+      h_sat_eff = hyd_auxvar%sat(hid)+hyd_auxvar%sat(iid)
+      i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+    else
+      h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
+      i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+    endif
   else
-    h_sat_eff = 2.d0 * hyd_auxvar%sat(hid)
-    i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+    h_sat_eff = hyd_auxvar%sat(hid)
+    i_sat_eff = hyd_auxvar%sat(iid)
   endif
 
   call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
