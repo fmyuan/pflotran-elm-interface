@@ -53,6 +53,7 @@ module Inversion_Subsurface_class
     VecScatter :: scatter_param_to_dist_param
     VecScatter :: scatter_global_to_dist_param
     PetscReal, pointer :: local_measurement_values(:)
+    PetscReal, pointer :: local_derivative_values(:)
     PetscInt, pointer :: local_measurement_map(:)
     PetscBool :: qoi_is_full_vector
     PetscBool :: first_inversion_interation
@@ -163,6 +164,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%annotate_output = PETSC_FALSE
 
   nullify(this%local_measurement_values)
+  nullify(this%local_derivative_values)
   nullify(this%local_measurement_map)
 
   nullify(this%measurements)
@@ -834,6 +836,13 @@ subroutine InversionSubsurfInitialize(this)
   endif
 
   this%local_measurement_values = UNINITIALIZED_DOUBLE
+  if (.not.associated(this%perturbation)) then
+    ! if adjoint, need to allocate array for potential partial derivatives
+    allocate(this%local_derivative_values(size(this%local_measurement_values)))
+    this%local_derivative_values = UNINITIALIZED_DOUBLE
+    inversion_forward_aux%local_derivative_values_ptr => &
+      this%local_derivative_values
+  endif
 
   inversion_forward_aux => this%inversion_aux%inversion_forward_aux
   if (.not.associated(this%perturbation)) then
@@ -1432,7 +1441,10 @@ subroutine InvSubsurfRecordMeasurements(this)
   type(option_type), pointer :: option
   PetscInt :: imeasurement
   character(len=MAXWORDLENGTH) :: word
+  Vec :: derivative_vec
+  Vec :: dist_derivative_vec
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
   PetscInt :: icount
   PetscErrorCode :: ierr
 
@@ -1441,6 +1453,12 @@ subroutine InvSubsurfRecordMeasurements(this)
   if (associated(this%local_measurement_values)) then
     call VecSet(this%measurement_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
     call VecSet(this%dist_measurement_vec,-888.d0,ierr);CHKERRQ(ierr)
+    ! temporary vecs for derivatives (if they exist)
+    call VecDuplicate(this%measurement_vec,derivative_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%dist_measurement_vec,dist_derivative_vec,&
+                      ierr);CHKERRQ(ierr)
+    call VecSet(derivative_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
+    call VecSet(dist_derivative_vec,-888.d0,ierr);CHKERRQ(ierr)
     icount = 0
     do imeasurement = 1, size(this%measurements)
       if (Initialized(this%measurements(imeasurement)%local_id)) then
@@ -1449,6 +1467,14 @@ subroutine InvSubsurfRecordMeasurements(this)
                         this%local_measurement_map(icount)-1, &
                         this%local_measurement_values(icount),&
                         INSERT_VALUES,ierr);CHKERRQ(ierr)
+        ! set the partial derivative
+        select case(this%measurements(imeasurement)%iobs_var)
+          case(OBS_LIQUID_SATURATION)
+            call VecSetValue(dist_derivative_vec, &
+                             this%local_measurement_map(icount)-1, &
+                             this%local_derivative_values(icount),&
+                             INSERT_VALUES,ierr);CHKERRQ(ierr)
+        end select
       endif
     enddo
     call VecAssemblyBegin(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
@@ -1456,13 +1482,24 @@ subroutine InvSubsurfRecordMeasurements(this)
     call InvSubsurfScatMeasToDistMeas(this,this%measurement_vec, &
                                       this%dist_measurement_vec, &
                                       INVSUBSCATREVERSE)
+    call VecAssemblyBegin(dist_derivative_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(dist_derivative_vec,ierr);CHKERRQ(ierr)
+    call InvSubsurfScatMeasToDistMeas(this,derivative_vec, &
+                                      dist_derivative_vec, &
+                                      INVSUBSCATREVERSE)
     call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(derivative_vec,vec_ptr2,ierr);CHKERRQ(ierr)
     do imeasurement = 1, size(this%measurements)
       this%measurements(imeasurement)%simulated_value = vec_ptr(imeasurement)
+      this%measurements(imeasurement)%simulated_derivative = &
+        vec_ptr2(imeasurement)
       this%measurements(imeasurement)%measured = PETSC_TRUE
     enddo
     call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(derivative_vec,vec_ptr2,ierr);CHKERRQ(ierr)
   endif
+  call VecDestroy(dist_derivative_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(derivative_vec,ierr);CHKERRQ(ierr)
 
     ! ensure that all measurement have been recorded
   do imeasurement = 1, size(this%measurements)
@@ -1695,6 +1732,21 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
       cycle
     endif
     if (.not.this%measurements(imeasurement)%first_lambda) then
+      this%measurements(imeasurement)%first_lambda = PETSC_TRUE
+      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+      if (option%myrank == 0) then
+        icell_measurement = this%measurements(imeasurement)%cell_id
+        tempreal = -1.d0
+        ! scale by partial derivative if measurement is not the
+        ! primary dependent variable
+        select case(this%measurements(imeasurement)%iobs_var)
+          case(OBS_LIQUID_SATURATION)
+            tempreal = tempreal * &
+                       this%measurements(imeasurement)%simulated_derivative
+        end select
+        call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
+                         INSERT_VALUES,ierr);CHKERRQ(ierr)
+      endif
       if (OptionPrintToScreen(option)) then
         word = 'sec'
         print *, trim(StringWrite( &
@@ -1702,29 +1754,17 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
           UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
                                  word,option,ierr))) // ' ' // &
           trim(this%measurements(imeasurement)%time_units) // &
-          ' : ' // trim(StringWrite(imeasurement))
-      endif
-      this%measurements(imeasurement)%first_lambda = PETSC_TRUE
-      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
-      if (option%myrank == 0) then
-        icell_measurement = this%measurements(imeasurement)%cell_id
-        tempreal = -1.d0
-        call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
-                         INSERT_VALUES,ierr);CHKERRQ(ierr)
+          ' : ' // trim(StringWrite(imeasurement)) // ', ' // &
+          trim(StringWrite(icell_measurement)) // ', ' // &
+          trim(StringWrite(tempreal))
       endif
       call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
       call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
       call DiscretizationNaturalToGlobal(discretization,natural_vec, &
                                          onedof_vec,ONEDOF)
       select case(this%measurements(imeasurement)%iobs_var)
-        case(OBS_LIQUID_PRESSURE)
+        case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION)
           tempint = zflow_liq_flow_eq
-        case(OBS_LIQUID_SATURATION)
-          tempint = zflow_liq_flow_eq
-          call RealizationGetVariable(this%realization,work,DERIVATIVE, &
-                                      ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
-          call VecPointwiseMult(onedof_vec,onedof_vec,work, &
-                                ierr);CHKERRQ(ierr)
         case(OBS_SOLUTE_CONCENTRATION)
           tempint = zflow_sol_tran_eq
         case(OBS_ERT_MEASUREMENT)
@@ -2479,6 +2519,7 @@ subroutine InversionSubsurfaceStrip(this)
   nullify(this%forward_simulation)
 
   call DeallocateArray(this%local_measurement_values)
+  call DeallocateArray(this%local_derivative_values)
   call DeallocateArray(this%local_measurement_map)
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then

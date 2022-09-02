@@ -33,6 +33,7 @@ module Inversion_Measurement_Aux_module
     PetscInt :: local_id
     PetscInt :: iobs_var
     PetscReal :: value
+    PetscReal :: simulated_derivative
     PetscReal :: simulated_value
     PetscBool :: first_lambda
     PetscBool :: measured
@@ -96,6 +97,7 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%local_id = UNINITIALIZED_INTEGER
   measurement%iobs_var = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
+  measurement%simulated_derivative = UNINITIALIZED_DOUBLE
   measurement%simulated_value = UNINITIALIZED_DOUBLE
   measurement%first_lambda = PETSC_FALSE
   measurement%measured = PETSC_FALSE
@@ -143,6 +145,7 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%local_id = measurement%local_id
   measurement2%iobs_var = measurement%iobs_var
   measurement2%value = measurement%value
+  measurement2%simulated_derivative = measurement%simulated_derivative
   measurement2%simulated_value = measurement%simulated_value
   call GeometryCopyCoordinate(measurement%coordinate,measurement2%coordinate)
 
@@ -399,17 +402,19 @@ subroutine InversionMeasurementPrint(measurement,option)
   if (OptionPrintToScreen(option)) then
     print *, 'Measurment: ' // trim(StringWrite(measurement%id))
     word = 'sec'
-    print *, '             Time: ' // &
+    print *, '                Time: ' // &
       trim(StringWrite(measurement%time / &
                        UnitsConvertToInternal(measurement%time_units,word, &
                                               option,ierr))) // ' ' // &
       measurement%time_units
-    print *, '          Cell ID: ' // trim(StringWrite(measurement%cell_id))
-    print *, '         Variable: ' // &
+    print *, '             Cell ID: ' // trim(StringWrite(measurement%cell_id))
+    print *, '            Variable: ' // &
       trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option))
-    print *, '            Value: ' // trim(StringWrite(measurement%value))
-    print *, '  Simulated Value: ' // &
+    print *, '               Value: ' // trim(StringWrite(measurement%value))
+    print *, '     Simulated Value: ' // &
       trim(StringWrite(measurement%simulated_value))
+    print *, 'Simulated Derivative: ' // &
+      trim(StringWrite(measurement%simulated_derivative))
   endif
 
 end subroutine InversionMeasurementPrint
