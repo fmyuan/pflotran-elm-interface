@@ -46,6 +46,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxReset, &
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
+            InversionMeasurementPrintConcise, &
             InvMeasAnnounceToString, &
             InvMeasAuxObsVarIDToString, &
             InversionMeasurementMeasure, &
@@ -383,6 +384,49 @@ end subroutine InversionMeasurementMeasure
 
 ! ************************************************************************** !
 
+subroutine InversionMeasurementPrintConcise(measurement,optional_string, &
+                                            option)
+  !
+  ! Print contents of measurement object for debugging
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  type(inversion_measurement_aux_type) :: measurement
+  character(len=*) :: optional_string
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  if (OptionPrintToScreen(option)) then
+    word = 'sec'
+    option%io_buffer = 'Measurement #' // &
+      trim(StringWrite(measurement%id)) // ', Time: ' // &
+      trim(StringWrite(measurement%time / &
+                       UnitsConvertToInternal(measurement%time_units,word, &
+                                              option,ierr))) // ' ' // &
+      trim(measurement%time_units) // ', Var: ' // &
+      trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
+      ', Cell: ' // &
+      trim(StringWrite(measurement%cell_id)) // ', Value: ' // &
+      trim(StringWrite(measurement%simulated_value)) // ', Deriv: ' // &
+      trim(StringWrite(measurement%simulated_derivative))
+    if (len_trim(optional_string) > 0) then
+      option%io_buffer = trim(optional_string) // ' : ' // &
+        trim(option%io_buffer)
+    endif
+    call PrintMsg(option)
+  endif
+
+end subroutine InversionMeasurementPrintConcise
+
+! ************************************************************************** !
+
 subroutine InversionMeasurementPrint(measurement,option)
   !
   ! Print contents of measurement object for debugging
@@ -401,7 +445,7 @@ subroutine InversionMeasurementPrint(measurement,option)
   PetscErrorCode :: ierr
 
   if (OptionPrintToScreen(option)) then
-    print *, 'Measurment: ' // trim(StringWrite(measurement%id))
+    print *, 'Measurement: ' // trim(StringWrite(measurement%id))
     word = 'sec'
     print *, '                Time: ' // &
       trim(StringWrite(measurement%time / &

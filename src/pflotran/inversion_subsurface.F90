@@ -1382,7 +1382,7 @@ subroutine InvSubsurfExecuteForwardRun(this)
 
   if (this%realization%option%status == PROCEED) then
     call this%forward_simulation%ExecuteRun()
-    call InvSubsurfRecordMeasurements(this)
+    call InvSubsurfPostProcMeasurements(this)
   endif
 
 end subroutine InvSubsurfExecuteForwardRun
@@ -1403,8 +1403,6 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
   class(inversion_subsurface_type) :: this
 
-  call InvSubsurfRecordMeasurements(this)
-
   if (associated(this%perturbation)) then
     call InvSubsurfPertCalcSensitivity(this)
   else
@@ -1424,7 +1422,7 @@ end subroutine InvSubsurfCalculateSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfRecordMeasurements(this)
+subroutine InvSubsurfPostProcMeasurements(this)
   !
   ! Stores measurements in appropriate arrays and vectors
   !
@@ -1449,8 +1447,6 @@ subroutine InvSubsurfRecordMeasurements(this)
   PetscErrorCode :: ierr
 
   option => this%realization%option
-
-  if (.not.associated(this%measurements)) return
 
   if (associated(this%local_measurement_values)) then
     ! distribute measurements to measurement objects
@@ -1517,6 +1513,8 @@ subroutine InvSubsurfRecordMeasurements(this)
 
     ! ensure that all measurement have been recorded
   do imeasurement = 1, size(this%measurements)
+    call InversionMeasurementPrintConcise(this%measurements(imeasurement), &
+                                          'PostProcess',option)
     if (.not.this%measurements(imeasurement)%measured) then
       option%io_buffer = 'Measurement at cell ' // &
         StringWrite(this%measurements(imeasurement)%cell_id)
@@ -1536,7 +1534,7 @@ subroutine InvSubsurfRecordMeasurements(this)
     endif
   enddo
 
-end subroutine InvSubsurfRecordMeasurements
+end subroutine InvSubsurfPostProcMeasurements
 
 ! ************************************************************************** !
 
@@ -1761,20 +1759,8 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
         call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                          INSERT_VALUES,ierr);CHKERRQ(ierr)
       endif
-      if (OptionPrintToScreen(option)) then
-        word = 'sec'
-        print *, trim(StringWrite( &
-          inversion_forward_ts_aux%time / &
-          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
-                                 word,option,ierr))) // ' ' // &
-          trim(this%measurements(imeasurement)%time_units) // &
-          ' : ' // &
-          trim(InvMeasAuxObsVarIDToString( &
-                 this%measurements(imeasurement)%iobs_var,option)) // ', ' // &
-          trim(StringWrite(imeasurement)) // ', ' // &
-          trim(StringWrite(icell_measurement)) // ', ' // &
-          trim(StringWrite(tempreal))
-      endif
+      call InversionMeasurementPrintConcise(this%measurements(imeasurement), &
+                                            '',option)
       call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
       call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
       call DiscretizationNaturalToGlobal(discretization,natural_vec, &
