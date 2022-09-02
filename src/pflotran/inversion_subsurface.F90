@@ -1450,6 +1450,8 @@ subroutine InvSubsurfRecordMeasurements(this)
 
   option => this%realization%option
 
+  if (.not.associated(this%measurements)) return
+
   if (associated(this%local_measurement_values)) then
     ! distribute measurements to measurement objects
     call VecSet(this%measurement_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
