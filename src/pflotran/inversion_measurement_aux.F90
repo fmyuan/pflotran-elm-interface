@@ -47,6 +47,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
             InvMeasAnnounceToString, &
+            InvMeasAuxObsVarIDToString, &
             InversionMeasurementMeasure, &
             InversionMeasurementAuxRead, &
             InvMeasAuxReadObservedVariable, &
