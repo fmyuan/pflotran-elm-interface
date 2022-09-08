@@ -2924,7 +2924,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                     patch%grid,hydrate%hydrate_saturation%dataset,iconn,hyd_sat)
-              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = gas_sat
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = hyd_sat
               dof2 = PETSC_TRUE
               coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
             case default

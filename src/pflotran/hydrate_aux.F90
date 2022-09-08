@@ -126,10 +126,11 @@ module Hydrate_Aux_module
 
   !Structure 1 methane hydrate:
   PetscReal, parameter :: Nhyd = 6.d0
-  PetscReal, parameter :: HYDRATE_DENSITY_KG = 920.d0 !kg/m^3
+  PetscReal, parameter :: HYDRATE_DENSITY_KG = 900.d0 !kg/m^3
   PetscReal, parameter :: HYDRATE_DENSITY = 52.15551276d0 !mol/L
   PetscReal, parameter :: MW_CH4 = 16.04d0
   PetscReal, parameter :: MW_H2O = 18.01d0
+  PetscReal, parameter :: L_GH = 7161.d0 !latent heat, J/mol
   PetscReal, public :: hydrate_fmw_comp(2) = [MW_H2O,MW_CH4]
 
   PetscReal, parameter, public :: MOL_RATIO_METH = 0.14285714285d0
@@ -140,6 +141,7 @@ module Hydrate_Aux_module
   !Ice:
   PetscReal, parameter :: ICE_DENSITY_KG = 920.d0 !kg/m^3
   PetscReal, parameter :: ICE_DENSITY = 50.86d0 !mol/L
+  PetscReal, parameter :: L_ICE = 6033.54 !J/mol
 
 
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
@@ -1093,7 +1095,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(iid) = 1.d0 - hyd_auxvar%sat(lid)
 
       if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(hyd_auxvar%sat(lid),6017.1d0,ICE_DENSITY,&
+        call GibbsThomsonFreezing(hyd_auxvar%sat(lid),L_ICE,ICE_DENSITY,&
                                 TQD, dTf,characteristic_curves, &
                                 material_auxvar,option)
       else
@@ -1203,7 +1205,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                     h_sat_eff,i_sat_eff)
 
       if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
+        call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE,ICE_DENSITY,TQD,dTf, &
                             characteristic_curves,material_auxvar,option)
       else
         dTf = 0.d0
@@ -1282,7 +1284,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                     h_sat_eff,i_sat_eff)
 
       if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0, &
+        call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE, &
               ICE_DENSITY,TQD,dTf,characteristic_curves, material_auxvar,option)
       endif
 
@@ -1340,7 +1342,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                     h_sat_eff,i_sat_eff)
 
       if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
+        call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE,ICE_DENSITY,TQD,dTf, &
                             characteristic_curves,material_auxvar,option)
       else
         dTf = 0.d0
@@ -1700,7 +1702,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                                            pres(lid),dP,K_H_tilde_hyd)
   endif
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
+    call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE,ICE_DENSITY,TQD,dTf, &
                             characteristic_curves,material_auxvar,option)
   else
     dTf = 0.d0
@@ -1859,8 +1861,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
 
     case(HG_STATE)
-      if (hyd_auxvar%pres(apid) > PE_hyd) then
-      !if (hyd_auxvar%pres(gid) > PE_hyd) then
+      !if (hyd_auxvar%pres(apid) > PE_hyd) then
+      if (hyd_auxvar%pres(gid) > PE_hyd) then
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(hid) > 0.d0) then
@@ -3559,7 +3561,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   dP = 0.d0
 
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-sat,54734.d0, HYDRATE_DENSITY, T, dTf, &
+    call GibbsThomsonFreezing(1.d0-sat,L_GH, HYDRATE_DENSITY, T, dTf, &
                               characteristic_curves, material_auxvar, option)
   else
     dTf = 0.d0
@@ -3931,7 +3933,7 @@ subroutine EOSHydrateEnthalpy(T,H)
   PetscReal, parameter :: Hh0 = -54734.d0 ! J/mol
   PetscReal :: Cph, T_temp
 
-  T_temp = T + 273.15d0
+  T_temp = T !TQD in C
 
   ! Integral of Cph * dT ; Cph from Handa, 1998
 

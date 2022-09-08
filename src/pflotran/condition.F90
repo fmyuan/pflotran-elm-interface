@@ -2602,12 +2602,19 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               associated(hydrate%temperature)) then
         ! hydrate-gas-aqueous condition
         condition%iphase = HGA_STATE
-      elseif ((associated(hydrate%gas_pressure) .or. &
+      elseif (hydrate%state == 'HAI' .and. &
+              (associated(hydrate%gas_pressure) .or. &
                associated(hydrate%liquid_pressure)) .and. &
                associated(hydrate%liquid_saturation) .and. &
                associated(hydrate%ice_saturation)) then
         ! hydrate-aqueous-ice condition
         condition%iphase = HAI_STATE
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%liquid_saturation) .and. &
+               associated(hydrate%ice_saturation)) then
+        ! hydrate-aqueous-ice condition
+        condition%iphase = GAI_STATE
       elseif (associated(hydrate%ice_saturation) .and. &
               associated(hydrate%hydrate_saturation) .and. &
               associated(hydrate%temperature)) then
