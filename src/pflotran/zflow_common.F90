@@ -434,6 +434,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
             (dq_dKdn * conc_upwind + &
              area * dDeff_over_dist_dKdn * delta_conc) * &
             L_per_m3
+        else if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
+          print *, 'adjoint derivatives for solute concentration wrt &
+                   &porosity have not been implemented.'
+          stop
         endif
       endif
     endif
