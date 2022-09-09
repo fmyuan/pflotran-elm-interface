@@ -770,6 +770,11 @@ subroutine InversionSubsurfInitialize(this)
     enddo
     allocate(this%local_measurement_values(icount))
     allocate(this%local_measurement_map(icount))
+    if (.not.associated(this%perturbation)) then
+      ! if adjoint, need to allocate array for potential partial derivatives
+      allocate(this%local_derivative_values(icount))
+    endif
+
     this%local_measurement_map = UNINITIALIZED_INTEGER
     icount = 0
     do i = 1, num_measurements
@@ -804,6 +809,8 @@ subroutine InversionSubsurfInitialize(this)
     inversion_forward_aux%measurement_vec = this%measurement_vec
     inversion_forward_aux%local_measurement_values_ptr => &
       this%local_measurement_values
+    inversion_forward_aux%local_derivative_values_ptr => &
+      this%local_derivative_values
     ! set up pointer to M matrix
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
 
@@ -836,12 +843,8 @@ subroutine InversionSubsurfInitialize(this)
   endif
 
   this%local_measurement_values = UNINITIALIZED_DOUBLE
-  if (.not.associated(this%perturbation)) then
-    ! if adjoint, need to allocate array for potential partial derivatives
-    allocate(this%local_derivative_values(size(this%local_measurement_values)))
+  if (associated(this%local_derivative_values)) then
     this%local_derivative_values = UNINITIALIZED_DOUBLE
-    inversion_forward_aux%local_derivative_values_ptr => &
-      this%local_derivative_values
   endif
 
   inversion_forward_aux => this%inversion_aux%inversion_forward_aux
@@ -1448,67 +1451,65 @@ subroutine InvSubsurfPostProcMeasurements(this)
 
   option => this%realization%option
 
-  if (associated(this%local_measurement_values)) then
-    ! distribute measurements to measurement objects
-    call VecSet(this%measurement_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
-    call VecSet(this%dist_measurement_vec,-888.d0,ierr);CHKERRQ(ierr)
+  ! distribute measurements to measurement objects
+  call VecSet(this%measurement_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
+  call VecSet(this%dist_measurement_vec,-888.d0,ierr);CHKERRQ(ierr)
+  icount = 0
+  do imeasurement = 1, size(this%measurements)
+    if (Initialized(this%measurements(imeasurement)%local_id)) then
+      icount = icount + 1
+      call VecSetValue(this%dist_measurement_vec, &
+                       this%local_measurement_map(icount)-1, &
+                       this%local_measurement_values(icount),&
+                       INSERT_VALUES,ierr);CHKERRQ(ierr)
+    endif
+  enddo
+  call VecAssemblyBegin(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
+  call InvSubsurfScatMeasToDistMeas(this,this%measurement_vec, &
+                                    this%dist_measurement_vec, &
+                                    INVSUBSCATREVERSE)
+  call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  do imeasurement = 1, size(this%measurements)
+    this%measurements(imeasurement)%simulated_value = vec_ptr(imeasurement)
+    this%measurements(imeasurement)%measured = PETSC_TRUE
+  enddo
+  call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  if (associated(this%local_derivative_values)) then
+    ! distribute derivatives to measurement objects
+    ! temporary vecs for derivatives (if they exist)
+    call VecDuplicate(this%measurement_vec,derivative_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%dist_measurement_vec,dist_derivative_vec,&
+                      ierr);CHKERRQ(ierr)
+    call VecSet(derivative_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
+    call VecSet(dist_derivative_vec,-888.d0,ierr);CHKERRQ(ierr)
     icount = 0
     do imeasurement = 1, size(this%measurements)
       if (Initialized(this%measurements(imeasurement)%local_id)) then
         icount = icount + 1
-        call VecSetValue(this%dist_measurement_vec, &
-                        this%local_measurement_map(icount)-1, &
-                        this%local_measurement_values(icount),&
-                        INSERT_VALUES,ierr);CHKERRQ(ierr)
+        ! set the partial derivative
+        select case(this%measurements(imeasurement)%iobs_var)
+          case(OBS_LIQUID_SATURATION)
+            call VecSetValue(dist_derivative_vec, &
+                             this%local_measurement_map(icount)-1, &
+                             this%local_derivative_values(icount),&
+                             INSERT_VALUES,ierr);CHKERRQ(ierr)
+        end select
       endif
     enddo
-    call VecAssemblyBegin(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
-    call VecAssemblyEnd(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
-    call InvSubsurfScatMeasToDistMeas(this,this%measurement_vec, &
-                                      this%dist_measurement_vec, &
+    call VecAssemblyBegin(dist_derivative_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(dist_derivative_vec,ierr);CHKERRQ(ierr)
+    call InvSubsurfScatMeasToDistMeas(this,derivative_vec, &
+                                      dist_derivative_vec, &
                                       INVSUBSCATREVERSE)
-    call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(derivative_vec,vec_ptr,ierr);CHKERRQ(ierr)
     do imeasurement = 1, size(this%measurements)
-      this%measurements(imeasurement)%simulated_value = vec_ptr(imeasurement)
-      this%measurements(imeasurement)%measured = PETSC_TRUE
+      this%measurements(imeasurement)%simulated_derivative = &
+        vec_ptr(imeasurement)
     enddo
-    call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-    if (associated(this%local_derivative_values)) then
-      ! distribute derivatives to measurement objects
-      ! temporary vecs for derivatives (if they exist)
-      call VecDuplicate(this%measurement_vec,derivative_vec,ierr);CHKERRQ(ierr)
-      call VecDuplicate(this%dist_measurement_vec,dist_derivative_vec,&
-                        ierr);CHKERRQ(ierr)
-      call VecSet(derivative_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
-      call VecSet(dist_derivative_vec,-888.d0,ierr);CHKERRQ(ierr)
-      icount = 0
-      do imeasurement = 1, size(this%measurements)
-        if (Initialized(this%measurements(imeasurement)%local_id)) then
-          icount = icount + 1
-          ! set the partial derivative
-          select case(this%measurements(imeasurement)%iobs_var)
-            case(OBS_LIQUID_SATURATION)
-              call VecSetValue(dist_derivative_vec, &
-                               this%local_measurement_map(icount)-1, &
-                               this%local_derivative_values(icount),&
-                               INSERT_VALUES,ierr);CHKERRQ(ierr)
-          end select
-        endif
-      enddo
-      call VecAssemblyBegin(dist_derivative_vec,ierr);CHKERRQ(ierr)
-      call VecAssemblyEnd(dist_derivative_vec,ierr);CHKERRQ(ierr)
-      call InvSubsurfScatMeasToDistMeas(this,derivative_vec, &
-                                        dist_derivative_vec, &
-                                        INVSUBSCATREVERSE)
-      call VecGetArrayF90(derivative_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      do imeasurement = 1, size(this%measurements)
-        this%measurements(imeasurement)%simulated_derivative = &
-          vec_ptr(imeasurement)
-      enddo
-      call VecRestoreArrayF90(derivative_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecDestroy(dist_derivative_vec,ierr);CHKERRQ(ierr)
-      call VecDestroy(derivative_vec,ierr);CHKERRQ(ierr)
-    endif
+    call VecRestoreArrayF90(derivative_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecDestroy(dist_derivative_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(derivative_vec,ierr);CHKERRQ(ierr)
   endif
 
     ! ensure that all measurement have been recorded
