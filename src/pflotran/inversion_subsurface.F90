@@ -979,12 +979,21 @@ subroutine InvSubsurfConnectToForwardRun(this)
     allocate(real_array(size(this%measurements)))
     final_time = &
       WaypointListGetFinalTime(this%forward_simulation%waypoint_list_subsurface)
+    iflag = PETSC_FALSE
     do i = 1, size(this%measurements)
       if (Uninitialized(this%measurements(i)%time)) then
         this%measurements(i)%time = final_time
       endif
+      if (this%measurements(i)%time > final_time) then
+        iflag = PETSC_TRUE
+      endif
       real_array(i) = this%measurements(i)%time
     enddo
+    if (iflag) then
+      call this%driver%PrintErrMsg( &
+            'Inversion measurement times are specified beyond the end of &
+            &the final simulation time.')
+    endif
     call UtilitySortArray(real_array)
     sync_count = 0
     do i = 1, size(real_array)
