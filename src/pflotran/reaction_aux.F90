@@ -286,6 +286,7 @@ module Reaction_Aux_module
     PetscBool :: update_permeability
     PetscBool :: update_tortuosity
     PetscBool :: update_porosity
+    PetscBool :: calculate_initial_porosity
     PetscReal :: minimum_porosity
     PetscBool :: update_mineral_surface_area
     PetscBool :: update_mnrl_surf_with_porosity
@@ -516,6 +517,7 @@ function ReactionCreate()
   reaction%update_permeability = PETSC_FALSE
   reaction%update_tortuosity = PETSC_FALSE
   reaction%update_porosity = PETSC_FALSE
+  reaction%calculate_initial_porosity = PETSC_FALSE
   reaction%minimum_porosity = 0.d0
   reaction%update_mineral_surface_area = PETSC_FALSE
   reaction%update_mnrl_surf_with_porosity = PETSC_FALSE
