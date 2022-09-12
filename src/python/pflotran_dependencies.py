@@ -157,21 +157,34 @@ for root in source_file_roots:
       for root2 in modules_to_remove:
         sorted_file_list.remove(get_filename(root2,'o'))
 #      print(sorted_file_list)
-    string = '%s :' % get_filename(root,'o')
-    f.write('%s' % string)
-    string_len = len(string)
-    indentation = string_len
-    for file in sorted_file_list:
-      string = ' %s' % file
-      word_len = len(string)
-      string_len += word_len
-      if string_len > 78:
-        f.write(' \\\n')
-        for i in range(indentation):
-          f.write(' ')
-        string_len  = indentation + word_len
+    multiple_files_per_line = False
+    if multiple_files_per_line:
+      string = '%s :' % get_filename(root,'o')
       f.write('%s' % string)
-    f.write('\n')
+      string_len = len(string)
+      indentation = string_len
+      for file in sorted_file_list:
+        string = ' %s' % file
+        word_len = len(string)
+        string_len += word_len
+        if string_len > 78:
+          f.write(' \\\n')
+          for i in range(indentation):
+            f.write(' ')
+          string_len  = indentation + word_len
+        f.write('%s' % string)
+      f.write('\n')
+    else:
+      num_files = len(sorted_file_list)
+      if num_files > 0:
+        f.write('%s : \\\n' % get_filename(root,'o'))
+      else:
+        f.write('%s :\n' % get_filename(root,'o'))
+      for ifile in range(num_files):
+        f.write('  %s' % sorted_file_list[ifile])
+        if ifile < num_files-1:
+          f.write(' \\')
+        f.write('\n')
     if num_times_to_print == 2 and iprint == 0:
       f.write('else\n')
     elif num_times_to_print == 2: 

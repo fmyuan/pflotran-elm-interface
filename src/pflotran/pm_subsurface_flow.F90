@@ -172,7 +172,7 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
     case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
+      option%use_sc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')
       this%replace_init_params_on_restart = PETSC_TRUE
     case('REVERT_PARAMETERS_ON_RESTART')

@@ -1273,7 +1273,7 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
 
     case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
       !TODO(geh): move to PM
-      if (.not.option%use_mc) then
+      if (.not.option%use_sc) then
         option%io_buffer = 'NEWTON ITOL_SEC not supported without ' // &
           'MULTIPLE_CONTINUUM keyword.'
         call PrintErrMsg(option)

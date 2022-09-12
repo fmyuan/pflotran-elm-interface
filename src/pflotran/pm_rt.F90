@@ -197,7 +197,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,rt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
-        option%use_mc = PETSC_TRUE
+        option%use_sc = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
@@ -664,6 +664,8 @@ subroutine PMRTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
+  else if (this%realization%reaction%update_mineral_surface_area) then
+    call RealizationUpdatePropertiesTS(this%realization)
   endif
 
   call RTMaxChange(this%realization,this%max_concentration_change, &
@@ -1043,7 +1045,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     option%converged = PETSC_TRUE
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
   endif
@@ -1099,7 +1101,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   character(len=MAXSTRINGLENGHT) :: out_string
   character(len=2) :: pass_or_fail
 
-  if (this%option%use_mc .and. it > 0) then
+  if (this%option%use_sc .and. it > 0) then
     pass_or_fail = ' P'
     !TODO(geh): move newton_inf_res_tol_sec into RT option block
     if (.not. this%option%infnorm_res_sec < &
@@ -1430,7 +1432,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -1614,7 +1616,7 @@ subroutine PMRTRestartBinary(this,viewer)
     enddo
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     do mc_i = 1, patch%material_property_array(1)%ptr% &
                  multicontinuum%ncells
       do i = 1, realization%reaction%naqcomp
@@ -1855,7 +1857,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -2125,7 +2127,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells

@@ -237,7 +237,7 @@ function MaterialPropertyCreate(option)
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
     material_property%multicontinuum%length = UNINITIALIZED_DOUBLE

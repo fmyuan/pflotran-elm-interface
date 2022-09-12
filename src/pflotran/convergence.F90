@@ -261,7 +261,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
     !TODO(geh): move to PMRTCheckConvergence
-    if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
+    if (solver%itype == TRANSPORT_CLASS .and. option%use_sc .and. &
        reason > 0 .and. i_iteration > 0) then
       if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
         sec_reason = 1
@@ -297,7 +297,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         case default
           write(rsn_string,'(i3)') reason
       end select
-      if (option%use_mc .and. option%ntrandof > 0 .and. solver%itype == &
+      if (option%use_sc .and. option%ntrandof > 0 .and. solver%itype == &
           TRANSPORT_CLASS) then
         i = int(sec_reason)
         select case(i)
@@ -364,7 +364,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
-    if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
+    if (solver%itype == TRANSPORT_CLASS .and. option%use_sc .and. &
        reason > 0 .and. i_iteration > 0) then
       if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
         reason = 13
