@@ -1892,8 +1892,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
     case(HA_STATE)
       !if (hyd_auxvar%pres(gid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
-      if (hyd_auxvar%pres(apid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
-        if (hyd_auxvar%sat(hid) >0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
+      if (hyd_auxvar%pres(apid) >= PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
+        if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(hid) > 0.d0) then
           istatechng = PETSC_TRUE
@@ -2010,7 +2010,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         global_auxvar%istate = HGAI_STATE
       endif
     case(HAI_STATE)
-      if (hyd_auxvar%pres(apid) >= PE_hyd*(1.d0-window_epsilon)) then
+      if (hyd_auxvar%pres(apid) >= PE_hyd) then
       !if (hyd_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
         if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(hid) > 0.d0 &
             .and. hyd_auxvar%sat(iid) > 0.d0) then

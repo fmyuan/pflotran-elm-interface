@@ -684,16 +684,13 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
       case('PRES_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        this%abs_update_inf_tol(1,:) = tempreal
-        this%abs_update_inf_tol(2,2) = tempreal
         this%abs_update_inf_tol(1,1:10) = tempreal
+        this%abs_update_inf_tol(2,2) = tempreal
         this%abs_update_inf_tol(1,12) = tempreal
         this%abs_update_inf_tol(1,14) = tempreal
-        this%abs_update_inf_tol(2,2) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        this%abs_update_inf_tol(3,:) = tempreal
         this%abs_update_inf_tol(3,1:9) = tempreal
         this%abs_update_inf_tol(3,11) = tempreal
         this%abs_update_inf_tol(3,13) = tempreal
@@ -701,10 +698,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,6:9) = tempreal
-        this%abs_update_inf_tol(3,10) = tempreal
+        this%abs_update_inf_tol(2,5:9) = tempreal
         this%abs_update_inf_tol(2,11:15) = tempreal
+        this%abs_update_inf_tol(3,10) = tempreal
         this%abs_update_inf_tol(3,12) = tempreal
         this%abs_update_inf_tol(3,14:15) = tempreal
         this%abs_update_inf_tol(1,11) = tempreal
