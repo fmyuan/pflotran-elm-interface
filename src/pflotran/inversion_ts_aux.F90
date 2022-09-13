@@ -23,6 +23,7 @@ module Inversion_TS_Aux_module
     type(inversion_measurement_aux_type), pointer :: measurements(:)
     Vec :: measurement_vec
     PetscReal, pointer :: local_measurement_values_ptr(:)
+    PetscReal, pointer :: local_derivative_values_ptr(:)
   end type inversion_forward_aux_type
 
   type, public :: inversion_forward_ts_aux_type
@@ -84,6 +85,7 @@ function InversionForwardAuxCreate()
   nullify(aux%measurements)
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
+  nullify(aux%local_derivative_values_ptr)
 
   InversionForwardAuxCreate => aux
 
@@ -278,6 +280,7 @@ subroutine InversionForwardAuxDestroy(aux)
   nullify(aux%measurements)
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
+  nullify(aux%local_derivative_values_ptr)
 
   deallocate(aux)
   nullify(aux)

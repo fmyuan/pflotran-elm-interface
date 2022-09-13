@@ -6397,7 +6397,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
-         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
+         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,DERIVATIVE, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION,SOLUTE_CONCENTRATION)
 
@@ -6503,6 +6503,15 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
           case(SOLUTE_CONCENTRATION)
             value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%conc
+          case(DERIVATIVE)
+            select case(isubvar)
+              case(ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
+                value = &
+                  patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+              case default
+                call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
+                                              isubvar,option)
+            end select
           case default
             call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select

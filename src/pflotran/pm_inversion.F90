@@ -168,7 +168,8 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   use Realization_Subsurface_class
   use String_module
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION
+                               SOLUTE_CONCENTRATION, DERIVATIVE
+  use ZFlow_Aux_module
   use Utility_module
 
   implicit none
@@ -185,6 +186,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: ivar
+  PetscInt :: isubvar
   PetscReal :: tempreal
 
   inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
@@ -204,6 +206,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
           if (.not.measurements(imeasurement)%measured .and. &
               Equal(measurements(imeasurement)%time,time)) then
             tempreal = UNINITIALIZED_DOUBLE
+            ghosted_id = this%realization%patch%grid%nL2G(local_id)
             select case(measurements(imeasurement)%iobs_var)
               case(OBS_ERT_MEASUREMENT)
                 iert_measurement = measurements(imeasurement)%cell_id
@@ -222,7 +225,6 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                       StringWrite(measurements(imeasurement)%iobs_var)
                     call PrintErrMsgByRank(this%option)
                 end select
-                ghosted_id = this%realization%patch%grid%nL2G(local_id)
                 if (Initialized(inversion_forward_aux% &
                                   local_measurement_values_ptr(icount))) then
                   this%option%io_buffer = 'Duplicate measurement in &
@@ -232,7 +234,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                 endif
                 tempreal = &
                   RealizGetVariableValueAtCell(this%realization,ghosted_id, &
-                                                ivar,ZERO_INTEGER)
+                                               ivar,ZERO_INTEGER)
             end select
             inversion_forward_aux%local_measurement_values_ptr(icount) = &
               tempreal
@@ -240,6 +242,22 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                InvMeasAnnounceToString(measurements(imeasurement), &
                                        tempreal,this%option)
             call PrintMsgByRank(this%option)
+            ! store partial derivatives
+            if (associated(inversion_forward_aux% &
+                             local_derivative_values_ptr)) then
+              isubvar = UNINITIALIZED_INTEGER
+              select case(measurements(imeasurement)%iobs_var)
+                case(OBS_LIQUID_SATURATION)
+                  isubvar = ZFLOW_LIQ_SAT_WRT_LIQ_PRES
+              end select
+              if (Initialized(isubvar)) then
+                tempreal = &
+                  RealizGetVariableValueAtCell(this%realization, &
+                        ghosted_id,DERIVATIVE,isubvar)
+                inversion_forward_aux% &
+                  local_derivative_values_ptr(icount) = tempreal
+              endif
+            endif
           endif
         endif
       enddo
