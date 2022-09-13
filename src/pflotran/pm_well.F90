@@ -2801,18 +2801,13 @@ subroutine PMWellResidualFlow(this)
       do i = 1,this%well_grid%nsegments
         iup = i
         idn = i + 1
-  
-        ! Flux Term
-        if (i < this%well_grid%nsegments) then
-          call PMWellFlux(this,this%well,this%well,iup,idn,res_flux,PETSC_TRUE)
-        endif
 
         ! Accumulation Term
         call PMWellAccumulationFlow(this,this%well,i,res_accum)
+
         this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
                res_accum(ONE_INTEGER)
-        !call PMWellUpdateWellQ(this%well,this%reservoir)
 
         ! Source/Sink Term
         call PMWellSrcSink(this,this%well,i,res_src_sink)
@@ -2820,6 +2815,11 @@ subroutine PMWellResidualFlow(this)
         this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
              this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
              res_src_sink(ONE_INTEGER)
+  
+        ! Flux Term
+        if (i < this%well_grid%nsegments) then
+          call PMWellFlux(this,this%well,this%well,iup,idn,res_flux,PETSC_TRUE)
+        endif
 
         if (i == 1) then
           ! Water mass residual in cell i+1: Subtract flux to i+1 cell
@@ -3862,9 +3862,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ! grid permeability and discretization are static
   call PMWellComputeWellIndex(this)
 
-  ! update the well src/sink Q vector at start of well model
-  !call PMWellUpdateWellQ(this%well,this%reservoir)
-
   if (this%well%well_model_type == 'STEADY_STATE') then
 
     call PMWellComputeWellIndex(this)
@@ -4045,11 +4042,12 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
   endif
 
+
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt)
 
-    ! Tighter coupling
-    ! update the well src/sink Q vector between timesteps
-    !call PMWellUpdateWellQ(this%well,this%reservoir)
+    ! update the well src/sink Q vector at start of time step
+    call PMWellUpdateWellQ(this%well,this%reservoir)
+    WRITE(*,*) 'Start of TS . . . Q(1) =', this%well%liq%Q(1)
 
     call PMWellPreSolveFlow(this)
 
@@ -4104,10 +4102,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
       call PMWellNewtonFlow(this)
 
       call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
-
-      ! Tighter coupling:
-      ! update the well src/sink Q vector within NR iteration
-      !call PMWellUpdateWellQ(this%well,this%reservoir)
 
     enddo
 
@@ -4169,9 +4163,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
   enddo
 
   call PMWellPostSolveFlow(this)
-
-  ! update the well src/sink Q vector after well solve
-  call PMWellUpdateWellQ(this%well,this%reservoir)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
@@ -4420,6 +4411,9 @@ subroutine PMWellNewtonFlow(this)
   PetscInt :: indx(this%nphase*this%well_grid%nsegments)
   PetscInt :: i,j
   PetscInt :: d
+
+  call PMWellUpdateWellQ(this%well,this%reservoir)
+  WRITE(*,*) 'Start of NI . . . Q(1) =', this%well%liq%Q(1)
 
   call PMWellPerturb(this)
 
@@ -5125,9 +5119,9 @@ subroutine PMWellSrcSink(pm_well,well,id,Res)
     !---------------------------------------------
     case('WIPP_DARCY')
       ! kmol/s
-      Res(1) = Res(1) + well%liq%Q(id)
+      Res(1) = Res(1) - well%liq%Q(id)
       ! kmol/s
-      Res(2) = Res(2) + well%gas%Q(id)
+      Res(2) = Res(2) - well%gas%Q(id)
     !---------------------------------------------
     case default
     !---------------------------------------------
@@ -5226,11 +5220,9 @@ subroutine PMWellSrcSinkDerivative(pm_well,local_id,Jac)
   PetscInt :: idof, irow
   PetscReal :: res(pm_well%nphase),res_pert(pm_well%nphase)
 
-  !call PMWellUpdateWellQ(pm_well%well,pm_well%reservoir)
   call PMWellSrcSink(pm_well,pm_well%well,local_id,res)
 
   do idof = 1, pm_well%nphase
-    !call PMWellUpdateWellQ(pm_well%well_pert(idof),pm_well%reservoir)
     call PMWellSrcSink(pm_well,pm_well%well_pert(idof),local_id,res_pert)
     do irow = 1, pm_well%nphase
       Jac(irow,idof) = (res_pert(irow)-res(irow))/pm_well%pert(local_id,idof)
@@ -5875,8 +5867,8 @@ subroutine PMWellPerturb(pm_well)
                         pm_well%realization%option)
 
   ! Update perturbed source/sink term from the reservoir
-  !call PMWellUpdateWellQ(pm_well%well_pert(ONE_INTEGER),pm_well%reservoir)
-  !call PMWellUpdateWellQ(pm_well%well_pert(TWO_INTEGER),pm_well%reservoir)
+  call PMWellUpdateWellQ(pm_well%well_pert(ONE_INTEGER),pm_well%reservoir)
+  call PMWellUpdateWellQ(pm_well%well_pert(TWO_INTEGER),pm_well%reservoir)
 
   pm_well%pert = pert
 
