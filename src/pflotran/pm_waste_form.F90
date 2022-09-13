@@ -475,6 +475,8 @@ module PM_Waste_Form_class
     class(lookup_table_general_type), pointer :: lookup
     type(crit_inventory_lookup_type), pointer :: next
     character(len=MAXWORDLENGTH) :: name
+    PetscBool :: use_log10_time
+    PetscReal :: log10_time_zero_sub
   contains
     procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
@@ -6618,6 +6620,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
 
   PetscBool :: found, added
   PetscInt :: num_errors
+  PetscReal :: tempreal
 
   character(len=MAXWORDLENGTH) :: word
   class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
@@ -6626,6 +6629,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
   added = PETSC_FALSE
   found = PETSC_TRUE
   num_errors = 0
+  tempreal = UNINITIALIZED_DOUBLE
   select case(trim(keyword))
   !-------------------------------------
     case('CRITICALITY_MECH')
@@ -6841,6 +6845,37 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                              'EXPANDED_DATASET.'
                           call PrintErrMsg(option)
                         endif
+                    !-----------------------------
+                      case('LOG10_TIME_INTERPOLATION')
+                        ! Use log10 basis for time interpolation
+                        if (.not. associated(new_crit_mech% &
+                                             inventory_dataset)) then
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+
+                        ! User can specify substitute value for zero (optional)
+                        internal_units = 's'
+                        call InputReadDouble(input,option,tempreal)
+                        if (Initialized(tempreal)) then
+                          call InputReadAndConvertUnits(input,tempreal, &
+                                 internal_units,trim(error_string) &
+                                 //',EXPANDED_DATASET,OPTION' &
+                                 //',LOG10_TIME_INTERPOLATION,' &
+                                 //' zero substitute (' &
+                                 //trim(new_crit_mech%inventory_dataset% &
+                                 file_name)//')',option)
+                          call CritInventoryCheckZeroSub(tempreal, &
+                                                         new_crit_mech% &
+                                                         inventory_dataset, &
+                                                         option)
+                        endif
+
+                        ! Modify lookup tables
+                        call CritInventoryUseLog10(new_crit_mech% &
+                                                   inventory_dataset,option)
                     !-----------------------------
                       case default
                         call InputKeywordUnrecognized(input,word,error_string, &
@@ -8042,6 +8077,216 @@ end subroutine CritInventoryCheckDuplicates
 
 ! ************************************************************************** !
 
+subroutine CritInventoryUseLog10(inventory,option)
+  !
+  ! Transform radionuclide inventory lookup tables to use log10(time) basis
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/17/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  type(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  PetscInt :: i, j, psize
+  PetscBool :: modified
+  ! ----------------------------------
+
+  ! axis3 is modified (rectangular array)
+  modified = PETSC_FALSE
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+    inv%use_log10_time = PETSC_TRUE
+    zero_sub = inv%log10_time_zero_sub
+    if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
+      psize = size(inv%lookup%axis3%partition)
+      do i = 1, psize
+        call CritInventoryLog10Array(inv%lookup%axis3%partition(i)%data, &
+                                     zero_sub,option)
+      enddo
+    else
+      ! time axis is described by the dim(3) value (rectangular)
+      if (.not. modified) then
+        call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
+        modified = PETSC_TRUE
+      endif
+    endif
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryUseLog10
+
+! ************************************************************************** !
+
+subroutine CritInventoryLog10Array(array1,zero_sub,option)
+  !
+  ! Modify array to use log10 of original values
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/16/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  ! ----------------------------------
+  PetscReal, pointer :: array2(:)
+  PetscInt :: i, asize
+  PetscReal :: tval ! values from array to be modified
+  ! ----------------------------------
+
+  ! allocate dummy array for log10 transformation
+  asize = size(array1)
+  allocate(array2(asize))
+
+  ! populate dummy array with log10 values of original array
+  do i = 1, asize
+    tval = array1(i)
+    ! replace zeros in original array with a substitute value
+    if (tval <= 0) tval = zero_sub
+    array2(i) = log10(tval)
+  enddo
+
+  ! replace original array with the log10 array
+  array1(1:asize) = array2(1:asize)
+  deallocate(array2)
+  nullify(array2)
+
+end subroutine CritInventoryLog10Array
+
+! ************************************************************************** !
+
+subroutine CritInventoryCheckZeroSub(zero_sub,inventory,option)
+  !
+  ! For log10 interpolation, make sure zero substitute is below minimum nonzero
+  !   value in the time arrays
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  type(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  PetscInt :: i, j, psize
+  PetscReal :: min_nonzero ! smallest nonzero number in array
+  character(len=MAXSTRINGLENGTH) :: word1, word2
+  PetscBool :: checked
+  ! ----------------------------------
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  checked = PETSC_FALSE
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+    inv%log10_time_zero_sub = zero_sub
+    if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
+      psize = size(inv%lookup%axis3%partition)
+      do i = 1, psize
+        min_nonzero = &
+          CritInventoryMinNonzeroTime(inv%lookup%axis3%partition(i)%data,option)
+        if (zero_sub >= min_nonzero) then
+          write(word1,'(es11.5)') zero_sub
+          write(word2,'(es11.5)') min_nonzero
+          option%io_buffer = 'For log10 time interpolation, zero substitute (' &
+                           // trim(word1) &
+                           //') must remain below minimum nonzero value (' &
+                           // trim(word2) //') in REAL_TIME array in file "' &
+                           // trim(inventory%file_name) // '."'
+          call PrintErrMsg(option)
+        endif
+      enddo
+    elseif (.not. checked) then
+      ! time axis is described by the dim(3) value (rectangular)
+      min_nonzero = CritInventoryMinNonzeroTime(inv%lookup%axis3%values,option)
+      if (zero_sub >= min_nonzero) then
+        write(word1,'(es11.5)') zero_sub
+        write(word2,'(es11.5)') min_nonzero
+        option%io_buffer = 'For log10 time interpolation, zero substitute (' &
+                         // trim(word1) &
+                         //') must remain below minimum nonzero value (' &
+                         // trim(word2) //') in REAL_TIME array in file "' &
+                         // trim(inventory%file_name) // '."'
+        call PrintErrMsg(option)
+      endif
+      checked = PETSC_TRUE
+    endif
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryCheckZeroSub
+
+! ************************************************************************** !
+
+function CritInventoryMinNonzeroTime(array1,option)
+  !
+  ! Find minimum nonzero time
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal :: CritInventoryMinNonzeroTime
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  ! ----------------------------------
+  PetscReal, allocatable :: array2(:)
+  PetscInt :: i, j, asize1, asize2
+  PetscReal :: val1
+  ! ----------------------------------
+
+  asize1 = size(array1)
+  val1 = 0.0d0
+
+  ! check number of non-zero entries
+  asize2 = 0
+  do i = 1, asize1
+    val1 = array1(i)
+    if (val1 > 0.0d0) asize2 = asize2 + 1
+  enddo
+
+  ! group nonzero values
+  allocate(array2(asize2))
+  j = 1
+  do i = 1, asize1
+    val1 = array1(i)
+    if (val1 > 0.0d0) then
+      array2(j) = val1
+      j = j + 1
+    endif
+  enddo
+
+  ! get smallest nonzero number
+  CritInventoryMinNonzeroTime = minval(array2)
+  deallocate(array2)
+
+end function CritInventoryMinNonzeroTime
+
+! ************************************************************************** !
+
 function CritHeatEvaluate(this,start_time,temperature)
   !
   ! Author: Alex Salazar III
@@ -8064,20 +8309,36 @@ end function CritHeatEvaluate
 
 function CritInventoryEvaluate(this,start_time,power,time)
   !
+  ! Evaluate radionuclide mass fraction from lookup table
+  !
   ! Author: Alex Salazar III
   ! Date: 02/21/2022
   !
-
   implicit none
-
+  ! ----------------------------------
   class(crit_inventory_lookup_type) :: this
   PetscReal :: start_time
   PetscReal :: power
   PetscReal :: time
-
   PetscReal :: CritInventoryEvaluate
+  ! ----------------------------------
+  PetscReal :: t ! time value passed to lookup table
+  PetscReal :: zero_sub ! substitute time for t=0 (log10 interpolation)
+  ! ----------------------------------
 
-  CritInventoryEvaluate = this%lookup%Sample(start_time,power,time)
+  ! time value passed to lookup table
+  if (this%use_log10_time) then
+    if (time <= 0.d0) then
+      zero_sub = this%log10_time_zero_sub
+      t = log10(zero_sub) ! substitute for zero
+    else
+      t = log10(time)
+    endif
+  else
+    t = time
+  endif
+
+  CritInventoryEvaluate = this%lookup%Sample(start_time,power,t)
 
 end function CritInventoryEvaluate
 
@@ -8162,6 +8423,10 @@ function CritInventoryLookupCreate()
   allocate(cl)
   nullify(cl%next)
   nullify(cl%lookup)
+
+  cl%name = ''
+  cl%use_log10_time = PETSC_FALSE
+  cl%log10_time_zero_sub = 1.0d-20
 
   CritInventoryLookupCreate => cl
 
