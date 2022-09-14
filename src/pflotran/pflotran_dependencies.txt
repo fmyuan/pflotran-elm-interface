@@ -1209,7 +1209,6 @@ inversion_tao.o : \
   string.o
 inversion_ts_aux.o : \
   inversion_measurement_aux.o \
-  option.o \
   pflotran_constants.o \
   utility.o
 inversion_zflow.o : \
@@ -1802,12 +1801,17 @@ pm_inversion.o : \
   communicator_base.o \
   condition.o \
   coupler.o \
+  inversion_measurement_aux.o \
   inversion_ts_aux.o \
   option.o \
   pflotran_constants.o \
   pm_base.o \
+  realization_base.o \
   realization_subsurface.o \
-  utility.o
+  string.o \
+  utility.o \
+  variables.o \
+  zflow_aux.o
 pm_material_transform.o : \
   discretization.o \
   field.o \
@@ -2109,6 +2113,7 @@ pm_waste_form.o : \
   logging.o \
   lookup_table.o \
   material_aux.o \
+  nw_transport_aux.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -2900,7 +2905,6 @@ realization_subsurface.o : \
   grid_unstructured_aux.o \
   grid_unstructured_cell.o \
   input_aux.o \
-  inversion_ts_aux.o \
   material.o \
   material_aux.o \
   material_transform.o \
