@@ -6258,6 +6258,11 @@ subroutine PMWellMassBalance(this)
       mass_rate_up = well%ql_kmol(isegment)
       mass_rate_dn = well%ql_kmol(isegment-1)
 
+      !WRITE(*,*) 'isegment = ', isegment, ' ----------------------'
+      !WRITE(*,*) 'q_up =', mass_rate_up, ' kmol/sec'
+      !WRITE(*,*) 'q_dn =', mass_rate_dn, ' kmol/sec'
+      !WRITE(*,*) 'Q =', well%liq%Q(isegment), ' kmol/sec'
+
     ! ----------------------------------------BOUNDARY-FLUXES----------------
     else if (isegment == 1) then
     ! ----- bottom of well -----
@@ -6265,10 +6270,12 @@ subroutine PMWellMassBalance(this)
       ! [kmol/sec] 
       mass_rate_up = well%ql_kmol(isegment)
       mass_rate_dn = well%ql_kmol_bc(1)
-      WRITE(*,*) 'BOTTOM Q =', well%liq%Q(isegment), ' kmol/sec'
-      WRITE(*,*) 'BOTTOM q_up =', mass_rate_up, ' kmol/sec'
-      WRITE(*,*) 'BOTTOM q_dn =', mass_rate_dn, ' kmol/sec'
-      WRITE(*,*) 'BOTTOM ratio (Q/up) =', well%liq%Q(isegment)/mass_rate_up
+
+      !WRITE(*,*) 'isegment = ', isegment, ' ----------------------'
+      !WRITE(*,*) 'q_up =', mass_rate_up, ' kmol/sec'
+      !WRITE(*,*) 'q_dn =', mass_rate_dn, ' kmol/sec'
+      !WRITE(*,*) 'Q =', well%liq%Q(isegment), ' kmol/sec'
+      !WRITE(*,*) 'BOTTOM ratio (Q/up) =', well%liq%Q(isegment)/mass_rate_up
 
     else if (isegment == this%well_grid%nsegments) then
     ! ----- top of well -----
@@ -6276,14 +6283,19 @@ subroutine PMWellMassBalance(this)
       ! [kmol/sec] 
       mass_rate_up = well%ql_kmol_bc(2)
       mass_rate_dn = well%ql_kmol(isegment-1)
-      WRITE(*,*) 'TOP q_up =', mass_rate_up, ' kmol/sec'
-      WRITE(*,*) 'TOP q_dn =', mass_rate_dn, ' kmol/sec'
-      WRITE(*,*) 'TOP ratio (up/dn) =', mass_rate_up/mass_rate_dn
+
+      !WRITE(*,*) 'isegment = ', isegment, ' ----------------------'
+      !WRITE(*,*) 'q_up =', mass_rate_up, ' kmol/sec'
+      !WRITE(*,*) 'q_dn =', mass_rate_dn, ' kmol/sec'
+      !WRITE(*,*) 'Q =', well%liq%Q(isegment), ' kmol/sec'
+      !WRITE(*,*) 'TOP ratio (up/dn) =', mass_rate_up/mass_rate_dn
 
     endif
 
-    well%mass_balance_liq(isegment) = mass_rate_up + mass_rate_dn &
-                                      + well%liq%Q(isegment)
+    well%mass_balance_liq(isegment) = mass_rate_up - mass_rate_dn &
+                                      - well%liq%Q(isegment)
+
+    !WRITE(*,*) 'MASS BALANCE: ', well%mass_balance_liq(isegment), ' kmol/sec'
 
   enddo
 

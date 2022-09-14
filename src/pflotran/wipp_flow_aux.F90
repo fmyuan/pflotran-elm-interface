@@ -349,17 +349,20 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   ! calculate saturation pressure as reference.
 
   ! Prevent well oscillation by capping pressure change
-  if (Initialized(wippflo_auxvar%well%pl)) then
-    if (wippflo_auxvar%well%dpl > 0.d0) then
-      if (wippflo_auxvar%pres(lid) > wippflo_auxvar%well%pl) then
-        wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
-      endif
-    elseif (wippflo_auxvar%well%dpl < 0.d0) then
-      if (wippflo_auxvar%pres(lid) < wippflo_auxvar%well%pl) then
-        wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
-      endif
-    endif
-  endif
+  ! jmfrede 09/14/2022 I commented this out because it actually seems
+  !                    to make it harder for WIPP_FLOW to converge!
+  !
+  !if (Initialized(wippflo_auxvar%well%pl)) then
+  !  if (wippflo_auxvar%well%dpl > 0.d0) then
+  !    if (wippflo_auxvar%pres(lid) > wippflo_auxvar%well%pl) then
+  !      wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
+  !    endif
+  !  elseif (wippflo_auxvar%well%dpl < 0.d0) then
+  !    if (wippflo_auxvar%pres(lid) < wippflo_auxvar%well%pl) then
+  !      wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
+  !    endif
+  !  endif
+  !endif
 
   call EOSWaterSaturationPressure(wippflo_auxvar%temp, &
                                   wippflo_auxvar%pres(spid),ierr)

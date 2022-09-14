@@ -1226,11 +1226,18 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
             1.d-15) then
           scale = 0.d0
         else
+          ! jmfrede 09/14/2022 Getting rid of this scale factor because it
+          ! changes wildly within Newton iterations, which seems to make
+          ! WIPP_FLOW have a harder time converging. Then it does converge,
+          ! the scale seems to be ~ 1 anyways. Uncomment the WRITE statement
+          ! to quickly see the value of scale printed to screen.
           scale = dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
                   pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
                   well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
                   well%dpl)
+          scale = 1.d0
         endif
+        !WRITE(*,*) 'SCALE = ', scale
       endif
 
       call WIPPFloSrcSink(option,source_sink%flow_condition%general%rate% &
