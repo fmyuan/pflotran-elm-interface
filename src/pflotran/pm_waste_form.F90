@@ -8098,7 +8098,7 @@ subroutine CritInventoryUseLog10(inventory,option)
   !
   implicit none
   ! ----------------------------------
-  type(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  class(crit_inventory_type), pointer :: inventory ! criticality inventory data
   type(option_type) :: option
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
@@ -8192,7 +8192,7 @@ subroutine CritInventoryCheckZeroSub(zero_sub,inventory,option)
   implicit none
   ! ----------------------------------
   PetscReal :: zero_sub ! substitute value for instances of zero
-  type(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  class(crit_inventory_type), pointer :: inventory ! criticality inventory data
   type(option_type) :: option
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
