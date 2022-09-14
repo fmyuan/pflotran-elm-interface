@@ -273,6 +273,270 @@ end subroutine PMCGeophysicsFinalizeRun
 
 ! ************************************************************************** !
 
+recursive subroutine PMCGeophysicsCheckpointBinary(this,viewer,append_name)
+  !
+  ! Checkpoints geophysics PMC, timestepper and state variables.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: append_name
+
+  class(pm_base_type), pointer :: cur_pm
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot checkpoint as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  endif
+
+  if (associated(this%timestepper)) then
+    call this%timestepper%CheckpointBinary(viewer,this%option)
+  endif
+
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    call cur_pm%CheckpointBinary(viewer)
+    cur_pm => cur_pm%next
+  enddo
+
+  if (associated(this%child)) then
+    call this%child%CheckpointBinary(viewer,append_name)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%CheckpointBinary(viewer,append_name)
+  endif
+
+end subroutine PMCGeophysicsCheckpointBinary
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsRestartBinary(this,viewer)
+  !
+  ! Restarts PMC timestepper and state variables.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  PetscViewer :: viewer
+
+  class(pm_base_type), pointer :: cur_pm
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot restart as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  endif
+
+  if (associated(this%timestepper)) then
+    call this%timestepper%RestartBinary(viewer,this%option)
+    if (Initialized(this%option%restart_time)) then
+      ! simply a flag to set time back to zero, no matter what the restart
+      ! time is set to.
+      call this%timestepper%Reset()
+      ! note that this sets the target time back to zero.
+    endif
+    call WaypointSkipToTime(this%cur_waypoint, &
+                            this%timestepper%target_time)
+    this%option%time = this%timestepper%target_time
+  endif
+
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      this%option%io_buffer = 'Due to sequential nature of binary files, &
+        &skipping restart for binary formatted files is not allowed.'
+      call PrintErrMsg(this%option)
+    endif
+    call cur_pm%RestartBinary(viewer)
+    cur_pm => cur_pm%next
+  enddo
+
+  if (associated(this%child)) then
+    call this%child%RestartBinary(viewer)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%RestartBinary(viewer)
+  endif
+
+end subroutine PMCGeophysicsRestartBinary
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
+  !
+  ! Checkpoints PMC timestepper and state variables in HDF5 format.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use hdf5
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  integer(HID_T) :: h5_chk_grp_id
+  character(len=MAXSTRINGLENGTH) :: append_name
+
+  integer(HID_T) :: h5_pmc_grp_id
+  integer(HID_T) :: h5_pm_grp_id
+
+  class(pm_base_type), pointer :: cur_pm
+  PetscErrorCode :: ierr
+  PetscMPIInt :: hdf5_err
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot checkpoint as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  else
+    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
+                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  endif
+
+  if (associated(this%timestepper)) then
+    call this%timestepper%CheckpointHDF5(h5_pmc_grp_id, this%option)
+  endif
+
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+
+    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
+         hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call cur_pm%CheckpointHDF5(h5_pm_grp_id)
+    call h5gclose_f(h5_pm_grp_id, hdf5_err)
+
+    cur_pm => cur_pm%next
+  enddo
+
+  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+
+  if (associated(this%child)) then
+    call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%CheckpointHDF5(h5_chk_grp_id,append_name)
+  endif
+
+end subroutine PMCGeophysicsCheckpointHDF5
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
+  !
+  ! Restarts PMC timestepper and state variables from a HDF5
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use hdf5
+  use HDF5_Aux_module
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  integer(HID_T) :: h5_chk_grp_id
+
+  class(pm_base_type), pointer :: cur_pm
+  PetscErrorCode :: ierr
+  PetscMPIInt :: hdf5_err
+
+  integer(HID_T) :: h5_pmc_grp_id
+  integer(HID_T) :: h5_pm_grp_id
+
+  PetscBool :: skip_restart
+
+  ! search pm for skip restart flag which will apply to everything in pmc
+  skip_restart = PETSC_FALSE
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      skip_restart = PETSC_TRUE
+      exit
+    endif
+    cur_pm => cur_pm%next
+  enddo
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot restart as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  else
+    if (.not.skip_restart) then
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+    endif
+  endif
+
+  if (associated(this%timestepper)) then
+    if (.not.skip_restart) then
+      call this%timestepper%RestartHDF5(h5_pmc_grp_id, this%option)
+    endif
+
+    if (Initialized(this%option%restart_time)) then
+      ! simply a flag to set time back to zero, no matter what the restart
+      ! time is set to.
+      call this%timestepper%Reset()
+      ! note that this sets the target time back to zero.
+    else if (skip_restart) then
+        this%option%io_buffer = 'Restarted simulations that SKIP_RESTART on &
+          &checkpointed process models must restart at time 0.'
+        call PrintErrMsg(this%option)
+    endif
+
+    call WaypointSkipToTime(this%cur_waypoint, &
+                            this%timestepper%target_time)
+    this%option%time = this%timestepper%target_time
+  endif
+
+  if (.not.skip_restart) then
+    cur_pm => this%pm_list
+    do
+      if (.not.associated(cur_pm)) exit
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call cur_pm%RestartHDF5(h5_pm_grp_id)
+      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      cur_pm => cur_pm%next
+    enddo
+
+    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  endif
+
+  if (associated(this%child)) then
+    call this%child%RestartHDF5(h5_chk_grp_id)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%RestartHDF5(h5_chk_grp_id)
+  endif
+
+end subroutine PMCGeophysicsRestartHDF5
+
+! ************************************************************************** !
+
 subroutine PMCGeophysicsStrip(this)
   !
   ! Deallocates members of PMC Geophysics.
