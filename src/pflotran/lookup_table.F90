@@ -803,7 +803,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   kend = 0
   pselect = 0
   if (allocated(axis3%bounds)) then
-    ! ---> axis3 is has defined partitions (non-rectangular)
+    ! ---> axis3 has defined partitions (non-rectangular)
     ! allocate saved partition indices if needed
     if (.not. allocated(axis3%saved_index_partition)) then
       allocate(axis3%saved_index_partition(li,lj))
