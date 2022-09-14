@@ -3872,21 +3872,30 @@ subroutine PMWellSolveFlow(this,time,ierr)
     this%well%liq%Q = 0.d0
     this%well%gas%Q = 0.d0
     do i = 1,this%well_grid%nsegments
+      if (this%well%WI(i) == 0) cycle
       do j = i,this%well_grid%nsegments
 
         if (i==j) cycle
+        if (this%well%WI(j) == 0) cycle
 
         area = pi*0.5d0*(this%well%diameter(i)*this%well_grid%dh(i) + &
                          this%well%diameter(j)*this%well_grid%dh(j))
         well_perm = this%well%permeability(i)
-        dx = this%well_grid%dh(i)
+        dx = this%well_grid%dh(i)/2.d0
         if ((this%well%permeability(i) > this%reservoir%kz(i)) .and. &
             (this%well%permeability(j) > this%reservoir%kz(j)) ) then
           do k = i+1,j
-            well_perm = (dx+this%well_grid%dh(k))/ &
-                        (dx/well_perm + &
-                         this%well_grid%dh(k)/this%well%permeability(k))
-            dx = dx+this%well_grid%dh(k)
+            if (k==j) then
+              well_perm = (dx+this%well_grid%dh(k)/2.d0)/ &
+                          (dx/well_perm + &
+                          this%well_grid%dh(k)/(2.d0*this%well%permeability(k)))
+              dx = dx+this%well_grid%dh(k)
+            else
+              well_perm = (dx+this%well_grid%dh(k))/ &
+                          (dx/well_perm + &
+                           this%well_grid%dh(k)/this%well%permeability(k))
+              dx = dx+this%well_grid%dh(k)
+            endif
           enddo
 
           ! Take the harmonic mean of well indicies, factoring out dh
@@ -3910,8 +3919,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
           ! reservoir cell, so with this method I think you have to only allow
           ! 1 well cell per reservoir cell.
           ! Gravity will be negative for z upward
-          !MAN: Seems like the gravity term is a little bit off and may need
-          !     to be spot on
           den_kg_ave = (this%reservoir%rho_l(i)+this%reservoir%rho_l(j))/2.d0
           gravity_term = den_kg_ave * gravity * &
                          dabs(this%well_grid%h(j)%z-this%well_grid%h(i)%z)
@@ -3969,14 +3976,78 @@ subroutine PMWellSolveFlow(this,time,ierr)
           this%well%gas%Q(i) = this%well%gas%Q(i) + Q_gas(i,j)
           this%well%gas%Q(j) = this%well%gas%Q(j) + Q_gas(j,i) 
       enddo
+
+      if (this%flow_soln%th_p) then
+        well_perm = this%well%permeability(i)
+        dx = this%well_grid%dh(i)/2.d0
+        !Compute the effective permeability of the segment
+        !from cell i to the top of the well
+        if (i /= this%well_grid%nsegments) then
+          do k = i+1,this%well_grid%nsegments
+            well_perm = (dx+this%well_grid%dh(k))/ &
+                        (dx/well_perm + &
+                         this%well_grid%dh(k)/this%well%permeability(k))
+            dx = dx+this%well_grid%dh(k)
+          enddo
+        endif
+        !Just the well index of cell i over dh(i), since flux is out
+        !the top of the well
+        perm_factor = this%well%WI(i)/this%well_grid%dh(i)
+
+        !Average the surface area and cross-sectional area of the well
+        !(flux is into/out of the well in the radial direction at 
+        !cell i, and into/out of the well in the axial direction at top.
+        area = pi*0.5*(this%well%diameter(i)*this%well_grid%dh(i) + &
+                       (this%well%diameter(i)/2.d0)**2)
+
+        !Liquid Phase
+
+        !Take average density between cell i and top cell
+        den_kg_ave = (this%reservoir%rho_l(i)+ &
+                      this%reservoir%rho_l(this%well_grid%nsegments))/2.d0
+
+        gravity_term = den_kg_ave * gravity * &
+                       dabs(this%well_grid%h(i)%z- &
+                            (this%well_grid%h(this%well_grid%nsegments)%z + &
+                             this%well_grid%dh(this%well_grid%nsegments)/2.d0))
+        ! dP = Plow - rho * g * z - Phigh
+        delta_pressure = this%reservoir%p_l(i) + gravity_term  - &
+                         this%well%th_p
+        ! For flow out
+        mobility = this%reservoir%kr_l(i)/this%reservoir%visc_l(i)
+
+        this%well%liq%Q(i) = this%well%liq%Q(i) + &
+                             den_kg_ave*mobility*delta_pressure/dx* &
+                             well_perm * perm_factor*area
+
+        !Gas Phase
+
+        den_kg_ave = (this%reservoir%rho_g(i)+ &
+                      this%reservoir%rho_g(this%well_grid%nsegments))/2.d0
+
+        gravity_term = den_kg_ave * gravity * &
+                       dabs(this%well_grid%h(i)%z- &
+                            (this%well_grid%h(this%well_grid%nsegments)%z  + &
+                             this%well_grid%dh(this%well_grid%nsegments)/2.d0))
+        ! dP = Plow - rho * g * z - Phigh
+        delta_pressure = this%reservoir%p_g(i) + gravity_term  - &
+                         this%well%th_p
+
+        ! For flow out
+        mobility = this%reservoir%kr_g(i)/this%reservoir%visc_g(i)
+
+        this%well%gas%Q(i) = this%well%gas%Q(i) + &
+                             den_kg_ave*mobility*delta_pressure/dx* &
+                             well_perm * perm_factor*area
+
+      endif
     enddo
 
+    ! Should equal the total flux out the top of the domain
     mass_conserved_liq = sum(this%well%liq%Q)
     mass_conserved_gas = sum(this%well%gas%Q)
 
     this%cumulative_dt_flow = this%realization%option%flow_dt
-
-    ! Update the src/sink terms
 
     ! Update transport
 
