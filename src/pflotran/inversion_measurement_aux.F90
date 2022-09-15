@@ -33,6 +33,7 @@ module Inversion_Measurement_Aux_module
     PetscInt :: local_id
     PetscInt :: iobs_var
     PetscReal :: value
+    PetscReal :: weight
     PetscReal :: simulated_derivative
     PetscReal :: simulated_value
     PetscBool :: first_lambda
@@ -99,6 +100,7 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%local_id = UNINITIALIZED_INTEGER
   measurement%iobs_var = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
+  measurement%weight = UNINITIALIZED_DOUBLE
   measurement%simulated_derivative = UNINITIALIZED_DOUBLE
   measurement%simulated_value = UNINITIALIZED_DOUBLE
   measurement%first_lambda = PETSC_FALSE
@@ -147,6 +149,7 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%local_id = measurement%local_id
   measurement2%iobs_var = measurement%iobs_var
   measurement2%value = measurement%value
+  measurement2%weight = measurement%weight
   measurement2%simulated_derivative = measurement%simulated_derivative
   measurement2%simulated_value = measurement%simulated_value
   call GeometryCopyCoordinate(measurement%coordinate,measurement2%coordinate)
@@ -176,6 +179,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
   character(len=MAXWORDLENGTH) :: keyword
   type(inversion_measurement_aux_type), pointer :: new_measurement
   PetscReal :: units_conversion
+  PetscReal :: sd
   character(len=MAXWORDLENGTH) :: internal_units, word
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -213,6 +217,12 @@ function InversionMeasurementAuxRead(input,error_string,option)
       case('VALUE')
         call InputReadDouble(input,option,new_measurement%value)
         call InputErrorMsg(input,option,keyword,error_string)
+
+      case('STANDARD_DEVIATION')
+        call InputReadDouble(input,option,sd)
+        call InputErrorMsg(input,option,keyword,error_string)
+        if (sd <= 0) sd = 1.d16
+        new_measurement%weight = 1 / sd
       case('OBSERVED_VARIABLE')
         new_measurement%iobs_var = &
           InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
@@ -231,6 +241,10 @@ function InversionMeasurementAuxRead(input,error_string,option)
   if (UnInitialized(new_measurement%value)) then
     option%io_buffer = 'VALUE not specified for measurement.'
     call PrintErrMsg(option)
+  endif
+  if (UnInitialized(new_measurement%weight)) then
+    sd = 0.05 * new_measurement%value
+    new_measurement%weight = 1 / sd
   endif
 
   InversionMeasurementAuxRead => new_measurement
