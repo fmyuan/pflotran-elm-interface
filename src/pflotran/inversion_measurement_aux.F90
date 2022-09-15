@@ -217,7 +217,6 @@ function InversionMeasurementAuxRead(input,error_string,option)
       case('VALUE')
         call InputReadDouble(input,option,new_measurement%value)
         call InputErrorMsg(input,option,keyword,error_string)
-
       case('STANDARD_DEVIATION')
         call InputReadDouble(input,option,sd)
         call InputErrorMsg(input,option,keyword,error_string)

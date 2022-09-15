@@ -819,10 +819,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   ! Data part
   this%phi_data = 0.d0
   do idata=1,num_measurement
-
-    wd = 0.05 * this%measurements(idata)%value
-    wd = 1/wd
-
+    wd = this%measurements(idata)%weight
     tempreal = wd * (this%measurements(idata)%value - &
                      this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
@@ -1337,10 +1334,7 @@ subroutine InversionZFlowCGLSRhs(this)
 
   ! Data part
   do idata=1,num_measurement
-
-    wd = 0.05 * this%measurements(idata)%value
-    wd = 1/wd
-
+    wd = this%measurements(idata)%weight
     this%b(idata) = wd * (this%measurements(idata)%value - &
                           this%measurements(idata)%simulated_value)
   enddo
@@ -2368,8 +2362,7 @@ subroutine InversionZFlowScaleSensitivity(this)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
-    wd = 0.05 * this%measurements(idata)%value
-    wd = 1/wd
+    wd = this%measurements(idata)%weight
     wdvec_ptr(idata) = wd
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
