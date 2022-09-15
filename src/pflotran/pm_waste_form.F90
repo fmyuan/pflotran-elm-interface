@@ -2969,11 +2969,15 @@ subroutine PMWFSetup(this)
           NWTGetSpeciesIDFromName( &
           cur_waste_form%mechanism%rad_species_list(j)%name, &
           this%realization%reaction_nw,this%option)
-      else
+      elseif (associated(this%realization%reaction)) then
         cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
           GetPrimarySpeciesIDFromName( &
           cur_waste_form%mechanism%rad_species_list(j)%name, &
           this%realization%reaction,this%option)
+      else
+        option%io_buffer = 'Currently, reactive transport is required to use ' &
+                         //'the WASTE_FORM_GENERAL process model.'
+        call PrintErrMsg(option)
       endif
     enddo
     cur_waste_form => cur_waste_form%next
