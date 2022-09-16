@@ -170,11 +170,12 @@ class RegressionTest(object):
         message += "        input : {0}\n".format(self._input_arg)
         message += "        optional : {0}\n".format(self._pflotran_args)
         message += "    setup script : {0}\n".format(self._python_setup_script)
-        message += "    post-process script : {0}\n".format(self._python_post_process_script)
+        message += "    post-process script : {0}\n".format(
+                                              self._python_post_process_script)
         message += "    test criteria :\n"
         for k in self._tolerance:
-            message += "        {0} : {1} [{2}] : {3} <= abs(value) <= {4}\n".format(
-                k,
+            message += \
+                "        {0} : {1} [{2}] : {3} <= abs(value) <= {4}\n".format(k,
                 self._tolerance[k][self._TOL_VALUE],
                 self._tolerance[k][self._TOL_TYPE],
                 self._tolerance[k][self._TOL_MIN_THRESHOLD],
@@ -231,7 +232,7 @@ class RegressionTest(object):
                               self._restart_tuple[0]))
                     infile.close()
                     tempfile.close()
-                    self._run_test(mpiexec, executable, restart_name, 
+                    self._run_test(mpiexec, executable, restart_name,
                                    dry_run, status, testlog)
                 elif not status.skipped:
                     status.error = _PFLOTRAN_USER_ERROR
@@ -242,7 +243,8 @@ class RegressionTest(object):
                         "failed.".format(self.name()))
                     print("".join(['\n', message, '\n']), file=testlog)
 
-    def _run_test(self, mpiexec, executable, test_name, dry_run, status, testlog):
+    def _run_test(self, mpiexec, executable, test_name, dry_run,
+                  status, testlog):
         """
         Build up the run command, including mpiexec, np, pflotran,
         input file, output file. Then run the job as a subprocess.
@@ -261,9 +263,11 @@ class RegressionTest(object):
                 filename += '.' + self._input_suffix
             if not os.path.isfile(filename):
                 status.error = _MISSING_INFO_ERROR
-                print('    Input file "{0}" not found.'.format(filename), file=testlog)
+                print('    Input file "{0}" not found.'.format(filename),
+                      file=testlog)
             else:
-                print('    Input file "{0}" found.'.format(filename), file=testlog)
+                print('    Input file "{0}" found.'.format(filename),
+                      file=testlog)
             return None
 
         timeout_error = False
@@ -306,7 +310,7 @@ class RegressionTest(object):
                     "error code ({status}) indicating the script may have "
                     "failed. Please check '{name}' for error messages "
                     "(included below).".format(
-                        name=setup_script_stdout_filename, 
+                        name=setup_script_stdout_filename,
                         status=proc.returncode))
                     print("".join(['\n', message, '\n']), file=testlog)
                     print("~~~~~ {0} ~~~~~".format(
@@ -381,7 +385,8 @@ class RegressionTest(object):
                     "{1} seconds.".format(test_name, self._timeout))
                 print(''.join(['\n', message, '\n']), file=testlog)
         finish = time.time()
-        print("    # {0} : run time : {1:.2f} seconds".format(test_name, finish - start), file=testlog)
+        print("    # {0} : run time : {1:.2f} seconds".format(test_name,
+              finish - start), file=testlog)
         pflotran_status = abs(proc.returncode)
         run_stdout.close()
         # pflotran returns 0 on an error (e.g. can't find an input
@@ -397,7 +402,8 @@ class RegressionTest(object):
                 elif pflotran_status == self._PFLOTRAN_FAILURE:
                     # error was caught and the code properly shut down
                     status.error = _PFLOTRAN_FAILURE
-                    string = 'failed due to an internal error (e.g. convergence issues, etc.)'
+                    string = 'failed due to an internal error (e.g. ' + \
+                        'convergence issues, etc.)'
                 else: # implicitly PFLOTRAN_CRASH
                     status.error = _PFLOTRAN_CRASH
                     string = 'crashed'
@@ -424,7 +430,7 @@ class RegressionTest(object):
                           test_name, e))
                 print("~~~~~~~~~~", file=testlog)
             return None
-        
+
         if self._python_post_process_script is not None:
             print("\n  Post-processing script... ", file=testlog)
             command = []
@@ -434,7 +440,8 @@ class RegressionTest(object):
             print("    {0}".format(" ".join(command)), file=testlog)
             post_process_name = test_name + '-post-process'
             post_process_script_stdout_filename = post_process_name + ".stdout"
-            post_process_script_stdout = open(post_process_script_stdout_filename, 'w')
+            post_process_script_stdout = \
+                open(post_process_script_stdout_filename, 'w')
             start = time.time()
             proc = subprocess.Popen(command,
                                     shell=False,
@@ -453,7 +460,7 @@ class RegressionTest(object):
             post_process_script_stdout.close()
             finish = time.time()
             print("    # {0} : run time : {1:.2f} seconds\n".
-                           format(post_process_name, finish - start), file=testlog)
+                  format(post_process_name, finish - start), file=testlog)
             if proc.returncode != 0:
                 if timeout_error:
                     status.error = _TIMEOUT_ERROR
@@ -464,7 +471,7 @@ class RegressionTest(object):
                     "error code ({status}) indicating the script may have "
                     "failed. Please check '{name}' for error messages "
                     "(included below).".format(
-                        name=post_process_script_stdout_filename, 
+                        name=post_process_script_stdout_filename,
                         status=proc.returncode))
                     print("".join(['\n', message, '\n']), file=testlog)
                     print("~~~~~ {0} ~~~~~".format(
@@ -477,7 +484,7 @@ class RegressionTest(object):
                         print("   Error opening file: {0}\n    {1}".
                               format(post_process_script_stdout_filename, e))
                 return None
-        
+
 
     def _cleanup_generated_files(self):
         """Cleanup old generated files that may be hanging around from a
@@ -512,7 +519,7 @@ class RegressionTest(object):
                     if os.path.isfile(name):
                         os.rename(name, name + ".old")
 
-#geh: With the new format of specifying checkpoint file names, this is no 
+#geh: With the new format of specifying checkpoint file names, this is no
 #     longer possible.  Also, .h5 checkpoint files cannot be separated from
 #     .h5 input/output files.
         # temp files from a restart run
@@ -527,11 +534,11 @@ class RegressionTest(object):
 #            for entry in os.listdir(cwd):
 #                if os.path.isfile(entry):
 #                    if self.restart_tuple[1].lower().startswith('binary'):
-#                        search_checkpoint = 
+#                        search_checkpoint =
 #                            "^({0}-)?{1}-(ts[\d]+|restart).chk$".format(
 #                            self._RESTART_PREFIX, self.name())
 #                    else:
-#                        search_checkpoint = 
+#                        search_checkpoint =
 #                            "^({0}-)?{1}-(ts[\d]+|restart).h5$".format(
 #                            self._RESTART_PREFIX, self.name())
 #                    if re.search(search_checkpoint, entry):
@@ -604,7 +611,7 @@ class RegressionTest(object):
                                    status)
         if self._compare_ascii_output_filenames is not None:
             self._check_ascii_files(self._compare_ascii_output_filenames,
-                                    testlog,status,diff=False)                   
+                                    testlog,status,diff=False)
 
 
     def _check_ascii_files(self,ascii_filenames,testlog,status,diff=True):
@@ -630,7 +637,7 @@ class RegressionTest(object):
                     tec = True
                 else:
                     tec = False
-                    
+
                 gold_name = current_name + ".gold"
                 if not os.path.isfile(gold_name):
                     message = self._txtwrap.fill(
@@ -646,20 +653,20 @@ class RegressionTest(object):
                 if diff:
                     print("    diff {0} {1}".format(current_name, gold_name),
                           file=testlog)
-                    self._diff_ascii_output(current_output, gold_output, 
+                    self._diff_ascii_output(current_output, gold_output,
                                             status, testlog)
                 else:
                     print("    compare {0} {1}".format(current_name, gold_name),
                           file=testlog)
-                    self._compare_ascii_output(current_output, gold_output, 
-                                               status, testlog, tec)
+                    self._compare_ascii_output(current_output, gold_output,
+                                               status, tec, testlog)
             if diff:
                 if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
-                    print("    Passed ASCII output comparison check.", 
+                    print("    Passed ASCII output comparison check.",
                           file=testlog)
-                    
-    
-    def _compare_regression_files(self, current_name, gold_name, 
+
+
+    def _compare_regression_files(self, current_name, gold_name,
                                   status, testlog):
         """
         Test the output from the run against the known "gold standard"
@@ -680,7 +687,7 @@ class RegressionTest(object):
             else:
                 with open(gold_name, 'r') as gold_file:
                     gold_output = gold_file.readlines()
-    
+
             if not os.path.isfile(current_name):
                 message = self._txtwrap.fill(
                     "ERROR: could not find regression test file '{0}'."
@@ -692,7 +699,7 @@ class RegressionTest(object):
             else:
                 with open(current_name, 'r') as current_file:
                     current_output = current_file.readlines()
-    
+
             print("    diff {0} {1}".format(current_name, gold_name),
                   file=testlog)
 
@@ -708,13 +715,13 @@ class RegressionTest(object):
                 self._pprint.pprint(gold_sections)
                 print("--- Current sections:")
                 self._pprint.pprint(current_sections)
-    
+
             # look for sections that are in gold but not current
             for section in gold_sections:
                 if section not in current_sections:
                     errors.append(_MISSING_INFO_ERROR)
                     print("    ERROR: section '{0}' is in the gold output, but "
-                          "not the current output.".format(section), 
+                          "not the current output.".format(section),
                           file=testlog)
 
             # look for sections that are in current but not gold
@@ -722,9 +729,9 @@ class RegressionTest(object):
                 if section not in gold_sections:
                     errors.append(_MISSING_INFO_ERROR)
                     print("    ERROR: section '{0}' is in the current output, "
-                          "but not the gold output.".format(section), 
+                          "but not the gold output.".format(section),
                           file=testlog)
-    
+
             # compare common sections
             for section in gold_sections:
                 if section in current_sections:
@@ -739,7 +746,7 @@ class RegressionTest(object):
                     except Exception as error:
                         status.error = _CONFIG_ERROR
                         print(error, file=testlog)
-    
+
             if num_minor_fail > 0:
                 status.fail = _MINOR_FAILURE
             if num_major_fail > 0:
@@ -766,7 +773,8 @@ class RegressionTest(object):
         # compare .regression from the restarted file with .regression.gold
         # from original
         gold_name = self.name() + ".regression.gold"
-        restart_filename="{0}-{1}".format(self._RESTART_PREFIX, self.regression_root())
+        restart_filename="{0}-{1}".format(self._RESTART_PREFIX,
+                                          self.regression_root())
         restart_filename = restart_filename + ".regression"
         self._compare_regression_files(restart_filename,gold_name,
                                        status,testlog)
@@ -775,23 +783,23 @@ class RegressionTest(object):
         if self._restart_tuple[1] == 'Binary':
             orig_filename="{0}-restart.chk".format(self.name())
             restart_file="{0}-{1}".format(self._RESTART_PREFIX, orig_filename)
-    
+
             print("\n    Comparing restart files:\n"
                   "        {0}\n        {1}".format(
                   orig_filename, restart_file), file=testlog)
-    
+
             orig_hash = self._get_binary_restart_hash(orig_filename,
                                                       status, testlog)
             restart_hash = self._get_binary_restart_hash(restart_file,
                                                          status, testlog)
-    
+
             if orig_hash is not False and restart_hash is not False:
                 if orig_hash != restart_hash:
                     print("    FAIL: final restart files are not bit for bit "
                           "identical.", file=testlog)
                     status.fail = _MINOR_FAILURE
                 else:
-                    print("    bit for bit restart test passed.\n", 
+                    print("    bit for bit restart test passed.\n",
                           file=testlog)
         else:
             print("\n    Cannot compare HDF5 formatted restart files"
@@ -828,7 +836,8 @@ class RegressionTest(object):
             try:
                 h5_current = h5py.File(filename, 'r')
             except Exception as e:
-                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                print("    ERROR: Could not open file: '{0}'".format(filename),
+                      file=testlog)
                 status.error = _MISSING_INFO_ERROR
                 h5_current = None
         else:
@@ -836,16 +845,18 @@ class RegressionTest(object):
             try:
                 h5_current = h5py.File(filename, 'r')
             except Exception as e:
-                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                print("    ERROR: Could not open file: '{0}'".format(filename),
+                      file=testlog)
                 status.error = _MISSING_INFO_ERROR
                 h5_current = None
 
         if self._compare_hdf5_output_filenames is not None:
-            filename = self._compare_hdf5_output_filenames+".gold".format(filename)
+            filename = self._compare_hdf5_output_filenames+".gold"
             try:
                 h5_gold = h5py.File(filename, 'r')
             except Exception as e:
-                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                print("    ERROR: Could not open file: '{0}'".format(filename),
+                      file=testlog)
                 status.error = _MISSING_INFO_ERROR
                 h5_gold = None
         else:
@@ -853,7 +864,8 @@ class RegressionTest(object):
             try:
                 h5_gold = h5py.File(filename, 'r')
             except Exception as e:
-                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                print("    ERROR: Could not open file: '{0}'".format(filename),
+                      file=testlog)
                 status.error = _MISSING_INFO_ERROR
                 h5_gold = None
 
@@ -877,7 +889,8 @@ class RegressionTest(object):
             print("    ERROR: current and gold hdf5 files do not "
                   "have the same number of groups!", file=testlog)
             print("    h5_gold : {0}".format(h5_gold.keys()), file=testlog)
-            print("    h5_current : {0}".format(h5_current.keys()), file=testlog)
+            print("    h5_current : {0}".format(h5_current.keys()),
+                  file=testlog)
             return
 
         for group in h5_gold:
@@ -894,28 +907,33 @@ class RegressionTest(object):
             else:
                 for key,obj in h5_gold[group].items():
                     if isinstance(obj,h5py.Group):
-                        print("multi-layer hdf5 skipping check for shape and dtype", file=testlog)
-                        if len(h5_current[group][key].keys()) != len(h5_gold[group][key].keys()):
+                        print("multi-layer hdf5 skipping check for shape "
+                              "and dtype", file=testlog)
+                        if len(h5_current[group][key].keys()) != \
+                                len(h5_gold[group][key].keys()):
                             status.error = _POST_PROCESS_ERROR
-                            print("    ERROR: group '{0}' does not have the same "
-                                  "number of datasets in the second groups!".format(key), file=testlog)
+                            print("    ERROR: group '{0}' does not have the "
+                                  "same number of datasets in the second "
+                                  "groups!".format(key), file=testlog)
                             print("    h5_gold : {0} : {1}".format(
-                                key, h5_gold[group][key].keys()), file=testlog)
+                                  key, h5_gold[group][key].keys()),
+                                  file=testlog)
                             print("    h5_current : {0} : {1}".format(
-                                key, h5_current[group][key].keys()), file=testlog)
+                                  key, h5_current[group][key].keys()),
+                                  file=testlog)
                     else:
                         if not h5_current[group].get(key):
                             status.error = _POST_PROCESS_ERROR
                             print("    ERROR: current group '{0}' does not "
-                                  "have dataset '{1}'!".format(group, key), 
+                                  "have dataset '{1}'!".format(group, key),
                                   file=testlog)
                         else:
                             if h5_gold[group][key].shape != \
                                 h5_current[group][key].shape:
                                 status.error = _POST_PROCESS_ERROR
                                 print("    ERROR: current dataset '/{0}/{1}' "
-                                      "does not have the correct shape!".format(
-                                          group, key), file=testlog)
+                                      "does not have the correct shape!".
+                                       format(group, key), file=testlog)
                                 print("        gold : {0}".format(
                                     h5_gold[group][key].shape), file=testlog)
                                 print("        current : {0}".format(
@@ -952,12 +970,14 @@ class RegressionTest(object):
                 testlog.write('      '+line)
         
         
-    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog,tec):
+    def _compare_ascii_output(self, ascii_current, ascii_gold, status, 
+                              tec, testlog):
         """Compare ascii file output headers and values has not changed from 
            the baseline.
         """               
         if tec:
-            self._compare_ascii_tec_output(ascii_current, ascii_gold, status, testlog)
+            self._compare_ascii_tec_output(ascii_current, ascii_gold, 
+                                           status, testlog)
         else:
             
             iline = 0
@@ -1002,7 +1022,8 @@ class RegressionTest(object):
                                               status,testlog)
                 iline += 1
                             
-    def _compare_ascii_tec_output(self, ascii_current, ascii_gold, status, testlog):
+    def _compare_ascii_tec_output(self, ascii_current, ascii_gold, 
+                                  status, testlog):
         tol = self._tolerance[self._GENERIC]
         tolerance_type = tol[self._TOL_TYPE]
         tolerance = tol[self._TOL_VALUE]
@@ -1023,7 +1044,8 @@ class RegressionTest(object):
             number = False
             if ('VARIABLES' in ascii_gold[i]): 
                 if ascii_gold[i] != ascii_current[i]:                    
-                    print("    FAIL: Headers do not match in ascii output", file=testlog)
+                    print("    FAIL: Headers do not match in ascii output", 
+                          file=testlog)
                     status.fail = _MINOR_FAILURE
                     break
                 else:
@@ -1034,7 +1056,8 @@ class RegressionTest(object):
 
             elif ('ZONE' in ascii_gold[i]):
                 if ascii_gold[i] != ascii_current[i]:
-                    print("    FAIL: Headers do not match in ascii output", file=testlog)
+                    print("    FAIL: Headers do not match in ascii output", 
+                          file=testlog)
                     status.fail = _MINOR_FAILURE
                     break
                 else:
@@ -1099,7 +1122,9 @@ class RegressionTest(object):
                         if check_x_values:
                             
                             for k in range(len(gold_values)):
-                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+                                self._check_ascii_numbers(current_values[k],
+                                    gold_values[k],headers[j],tolerance,
+                                    tolerance_type,status,testlog)
             
                             values_left = values_left - len(gold_values)
             
@@ -1110,7 +1135,9 @@ class RegressionTest(object):
             
                         elif check_y_values:
                             for k in range(len(gold_values)):
-                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+                                self._check_ascii_numbers(current_values[k],
+                                    gold_values[k],headers[j],tolerance,
+                                    tolerance_type,status,testlog)
                             
                             values_left = values_left - len(gold_values)
                             if values_left  == 0:
@@ -1121,7 +1148,9 @@ class RegressionTest(object):
             
                         elif check_z_values:
                             for k in range(len(gold_values)):
-                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+                                self._check_ascii_numbers(current_values[k],
+                                    gold_values[k],headers[j],tolerance,
+                                    tolerance_type,status,testlog)
             
                             values_left = values_left - len(gold_values)
                             if values_left  == 0:
@@ -1135,7 +1164,9 @@ class RegressionTest(object):
                         else:
                             
                             for k in range(len(gold_values)):  
-                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+                                self._check_ascii_numbers(current_values[k],
+                                    gold_values[k],headers[j],tolerance,
+                                    tolerance_type,status,testlog)
             
                             values_left = values_left - len(gold_values)
                             if values_left  == 0:
@@ -1149,17 +1180,22 @@ class RegressionTest(object):
                     else:
                         for k in range(len(gold_values)):
                             name = headers[k]
-                            self._check_ascii_numbers(current_values[k],gold_values[k],name,tol,tolerance_type,status,testlog)
+                            self._check_ascii_numbers(current_values[k],
+                                                      gold_values[k],name,
+                                                      tol,tolerance_type,
+                                                      status,testlog)
                         j = j + 1
                         if j == num_vertices:
                             connectivity = True
                 else:
                     if ascii_gold[i] != ascii_current[i]:                        
-                        print("    FAIL: Headers do not match in ascii output", file=testlog)
+                        print("    FAIL: Headers do not match in ascii output",
+                              file=testlog)
                         status.fail = _MINOR_FAILURE
                         break
                     
-    def _check_ascii_numbers(self,current,previous,name,tolerance,tolerance_type,status,testlog):
+    def _check_ascii_numbers(self,current,previous,name,tolerance,
+                             tolerance_type,status,testlog):
         current = float(current)
         previous = float(previous)
         
@@ -1197,39 +1233,44 @@ class RegressionTest(object):
                   self.name()), file=testlog)
             return
 
-        filename = self.regression_root()+".regression"
+        current_name = self.regression_root()+".regression"
+        gold_name = self.name() + ".regression.gold"
         if self._skip_check_regression:
             print("  skipping update of '{0}' because regression gold files "
-                  "are not compared".format(filename+".gold"), file=testlog)
+                  "are not compared".format(gold_name), file=testlog)
         else:
             if self._stochastic_realizations is not None:
                 for i in range(1, self._stochastic_realizations + 1):
                     run_id = "R{0}".format(i)
-                    filename = self.regression_root() + run_id + ".regression"
-                    self.update_gold_file(filename, status, testlog)
+                    current_name = self.regression_root() + run_id + \
+                                   ".regression"
+                    gold_name = self.name() + run_id + ".regression.gold"
+                    self.update_gold_file(current_name, gold_name, status, 
+                                          testlog)
             else:
-                filename = self.regression_root() + ".regression"
-                self.update_gold_file(filename, status, testlog)
+                self.update_gold_file(current_name, gold_name, status, testlog)
 
         if self._diff_ascii_output_filenames is not None:
             if self._stochastic_realizations is None:
-                for filename in self._diff_ascii_output_filenames.split():
-                    self.update_gold_file(filename, status, testlog)
+                for current_name in self._diff_ascii_output_filenames.split():
+                    gold_name = current_name + '.gold'
+                    self.update_gold_file(current_name, gold_name, status, 
+                                          testlog)
 
         if self._compare_ascii_output_filenames is not None:
             if self._stochastic_realizations is None:
-                for filename in self._compare_ascii_output_filenames.split():
-                    self.update_gold_file(filename, status, testlog)
+                for current_name in \
+                        self._compare_ascii_output_filenames.split():
+                    gold_name = current_name + '.gold'
+                    self.update_gold_file(current_name, gold_name, status, 
+                                          testlog)
 
-    def update_gold_file(self, filename, status, testlog):
+    def update_gold_file(self, current_name, gold_name, status, testlog):
         """
         Update the gold standard test results to the current
         output. Both the current file and a gold file
         must exist.
         """
-        test_name = filename
-        gold_name = filename + ".gold"
-
         missing_test = False
         missing_gold = False
 
@@ -1242,7 +1283,7 @@ class RegressionTest(object):
             missing_gold = True
 
         # verify that the test file exists
-        if not os.path.isfile(test_name):
+        if not os.path.isfile(current_name):
             print("ERROR: gold file '{0}' in test '{1}' can not be updated "
                   "because a 'test' file does not "
                   "exist!".format(gold_name,self.name()), file=testlog)
@@ -1254,15 +1295,15 @@ class RegressionTest(object):
         try:
             print("  updating file '{0}' in test '{1}'... ".format(
                   gold_name, self.name()), end='', file=testlog)
-            os.rename(test_name, gold_name)
+            os.rename(current_name, gold_name)
             print("done", file=testlog)
         except Exception as error:
             status = 1
             message = str(error)
             message += "\nERROR : Could not rename '{0}' to '{1}'. ".format(
-                    test_name, gold_name)
+                    current_name, gold_name)
             message += "Please rename the file manually!"
-            message += "    mv {0} {1}".format(test_name, gold_name)
+            message += "    mv {0} {1}".format(current_name, gold_name)
             print(message, file=testlog)
             status.error = _MISSING_INFO_ERROR
 
@@ -1347,18 +1388,20 @@ class RegressionTest(object):
             raise RuntimeError("ERROR: an internal error occured. "
                                "compare_sections receive different sections. "
                                "gold = '{0}' current = '{1}'".format(
-                                   gold_section["name"], current_section["name"]))
+                               gold_section["name"], current_section["name"]))
         name = gold_section['name']
         data_type = gold_section['type']
         section_num_minor_fail = 0
         section_num_major_fail = 0
         section_num_error = 0
         section_status = 0
-        if self._check_performance is False and data_type.lower() == self._SOLUTION:
+        if self._check_performance is False and \
+            data_type.lower() == self._SOLUTION:
             # solution blocks contain platform dependent performance
             # metrics. We skip them unless they are explicitly
             # requested.
-            print("    Skipping {0} : {1}".format(data_type, name), file=testlog)
+            print("    Skipping {0} : {1}".format(data_type, name), 
+                  file=testlog)
         else:
             # if key in gold but not in current --> failed test
             for k in gold_section:
@@ -1366,15 +1409,15 @@ class RegressionTest(object):
                     section_num_error += 1
                     print("    ERROR: key '{0}' in section '{1}' found in gold "
                           "output but not current".format(
-                              k, gold_section['name']), file=testlog)
+                          k, gold_section['name']), file=testlog)
 
             # if key in current but not gold --> failed test
             for k in current_section:
                 if k not in gold_section:
                     section_num_error += 1
-                    print("    ERROR: key '{0}' in section '{1}' found in current "
-                          "output but not gold".format(k, current_section['name']),
-                          file=testlog)
+                    print("    ERROR: key '{0}' in section '{1}' found in "
+                          "current output but not gold".format(k, 
+                          current_section['name']), file=testlog)
 
             # now compare the keys that are in both...
             for k in gold_section:
@@ -1389,7 +1432,7 @@ class RegressionTest(object):
                         section_num_error += 1
                         print("    ERROR: {0} : {1} : vector lengths not "
                               "equal. gold {2}, current {3}".format(
-                                  name, k, len(gold), len(current)), file=testlog)
+                              name, k, len(gold), len(current)), file=testlog)
                     else:
                         for i in range(len(gold)):
                             try:
@@ -1568,15 +1611,13 @@ class RegressionTest(object):
             try:
                 previous = int(previous)
             except ValueError:
-                raise RuntimeError(
-                    "ERROR: discrete gold value must be an int: '{0}' = {1}.".format(
-                        name, previous))
+                raise RuntimeError("ERROR: discrete gold value must be an "
+                                   "int: '{0}' = {1}.".format(name, previous))
             try:
                 current = int(current)
             except ValueError:
-                raise RuntimeError(
-                    "ERROR: discrete current value must be an int: '{0}' = {1}.".format(
-                        name, current))
+                raise RuntimeError("ERROR: discrete current value must be "
+                                   "an int: '{0}' = {1}.".format(name, current))
 
             tolerance = self._tolerance[self._DISCRETE]
         else:
@@ -1594,7 +1635,8 @@ class RegressionTest(object):
         self._np = test_data.pop('np', None)
 
         self._python_setup_script = test_data.pop('python_setup_script', None)
-        self._python_post_process_script = test_data.pop('python_post_process_script', None)
+        self._python_post_process_script = \
+            test_data.pop('python_post_process_script', None)
         self._pflotran_args = test_data.pop('input_arguments', None)
         if self._pflotran_args is not None:
             # save the arg list so we can append it to the run command
@@ -1604,10 +1646,11 @@ class RegressionTest(object):
                 if "-num_realizations" in self._pflotran_args:
                     index = self._pflotran_args.index("-num_realizations")
                     if len(self._pflotran_args) > index + 1:
-                        self._stochastic_realizations = int(self._pflotran_args[index + 1])
+                        self._stochastic_realizations = \
+                            int(self._pflotran_args[index + 1])
                     else:
-                        raise RuntimeError(
-                            "ERROR: num_realizations requires an integer parameter N")
+                        raise RuntimeError("ERROR: num_realizations "
+                                           "requires an integer parameter N")
                 else:
                     raise RuntimeError(
                         "ERROR : stochastic simulations require a "
@@ -1762,8 +1805,8 @@ class RegressionTest(object):
         value = thresholds.pop("max_threshold", None)
         criteria[self._TOL_MAX_THRESHOLD] = value
         if len(thresholds) > 0:
-            raise RuntimeError("ERROR: test {0} : unknown criteria threshold: {1}",
-                               key, thresholds)
+            raise RuntimeError("ERROR: test {0} : unknown criteria "
+                               "threshold: {1}", key, thresholds)
 
         return criteria
 
@@ -1877,7 +1920,8 @@ class RegressionTestManager(object):
         """
         Run the test and check the results.
         """
-        print("Running tests from '{0}':".format(self._config_filename), file=testlog)
+        print("Running tests from '{0}':".format(self._config_filename), 
+              file=testlog)
         print(50 * '-', file=testlog)
 
         for test in self._tests:
@@ -1901,7 +1945,8 @@ class RegressionTestManager(object):
         """
         Run the test only
         """
-        print("Running simulations only from '{0}':".format(self._config_filename), file=testlog)
+        print("Running simulations only from '{0}':".format(
+            self._config_filename), file=testlog)
         print(50 * '-', file=testlog)
 
         for test in self._tests:
@@ -1944,7 +1989,8 @@ class RegressionTestManager(object):
         """
         Run the tests and create new gold files.
         """
-        print("New tests from '{0}':".format(self._config_filename), file=testlog)
+        print("New tests from '{0}':".format(self._config_filename), 
+              file=testlog)
         print(50 * '-', file=testlog)
 
         for test in self._tests:
@@ -1957,15 +2003,18 @@ class RegressionTestManager(object):
                 test.new_test(status, testlog)
             self._add_to_file_status(status)
             self._test_summary(test.name(), status,
-                               "created", "error creating new test files.", testlog)
+                               "created", "error creating new test files.", 
+                               testlog)
 
-        self._print_file_summary(dry_run, "created", "could not be created", testlog)
+        self._print_file_summary(dry_run, "created", "could not be created", 
+                                 testlog)
 
     def _run_update(self, mpiexec, executable, dry_run, testlog):
         """
         Run the tests and update the gold file with the current output
         """
-        print("Updating tests from '{0}':".format(self._config_filename), file=testlog)
+        print("Updating tests from '{0}':".format(self._config_filename), 
+              file=testlog)
         print(50 * '-', file=testlog)
 
         for test in self._tests:
@@ -1979,7 +2028,8 @@ class RegressionTestManager(object):
             self._test_summary(test.name(), status, 
                                "updated", "error updating test.", testlog)
 
-        self._print_file_summary(dry_run, "updated", "could not be updated", testlog)
+        self._print_file_summary(dry_run, "updated", "could not be updated", 
+                                 testlog)
 
     def _test_header(self, name, testlog):
         """
@@ -2039,7 +2089,8 @@ class RegressionTestManager(object):
 
         sys.stdout.flush()
 
-    def _print_file_summary(self, dry_run, success_message, fail_message, testlog):
+    def _print_file_summary(self, dry_run, success_message, fail_message, 
+                            testlog):
         """
         Print a summary of the results for this config file
         """
@@ -2047,7 +2098,8 @@ class RegressionTestManager(object):
         if dry_run:
             print("{0} : dry run.".format(self._config_filename), file=testlog)
         elif self._file_status.test_count == 0:
-            print("{0} : no tests run.".format(self._config_filename), file=testlog)
+            print("{0} : no tests run.".format(self._config_filename), 
+                  file=testlog)
         else:
             line = "{0} : {1} tests : ".format(self._config_filename,
                                                self._file_status.test_count)
@@ -2275,9 +2327,10 @@ def commandline_options():
                         help="diff the existing regression files without "
                         "running pflotran again.")
 
-    parser.add_argument('--check-performance', action='store_true', default=False,
-                        help="include the performance metrics ('SOLUTION' blocks) "
-                        "in regression checks.")
+    parser.add_argument('--check-performance', action='store_true', 
+                        default=False,
+                        help="include the performance metrics ('SOLUTION' "
+                        "blocks) in regression checks.")
 
     parser.add_argument('--debug', action='store_true',
                         help='extra debugging output')
@@ -2363,8 +2416,8 @@ def generate_config_file_list(options):
             if os.path.isfile(config_file):
                 config_file_list.append(config_file)
             else:
-                raise RuntimeError("ERROR: specified config file '{0}' is not a "
-                                   "file!".format(config_file))
+                raise RuntimeError("ERROR: specified config file '{0}' is "
+                                   "not a file!".format(config_file))
 
     if options.debug:
         print("\nKnown config files:")
@@ -2463,7 +2516,8 @@ def check_for_mpiexec(options, testlog):
         # try to log some info about mpiexec
         print("MPI information :", file=testlog)
         print("-----------------", file=testlog)
-        tempfile = "{0}/tmp-pflotran-regression-test-info.txt".format(os.getcwd())
+        tempfile = "{0}/tmp-pflotran-regression-test-info.txt".format(
+            os.getcwd())
         command = [mpiexec, "--version"]
         append_command_to_log(command, testlog, tempfile)
         print("\n\n", file=testlog)
@@ -2473,7 +2527,8 @@ def check_for_mpiexec(options, testlog):
 ###           raise RuntimeError("ERROR: mpiexec is not a valid file: "
 ###                           "'{0}'".format(mpiexec))
     else:
-        message = ("\n** WARNING ** : mpiexec was not provided on the command line.\n"
+        message = ("\n** WARNING ** : mpiexec was not provided on the "
+                   "command line.\n"
                    "                All parallel tests will be skipped!\n")
         print(message, file=sys.stdout)
         print(message, file=testlog)
@@ -2488,21 +2543,27 @@ def summary_report_by_file(report, outfile):
     print("\n" + 80 * '-', file=outfile)
     print("Regression test file summary:", file=outfile)
     for filename in report:
-        line = "    {0}... {1} tests : ".format(filename, report[filename].test_count)
+        line = "    {0}... {1} tests : ".format(filename, 
+                                                report[filename].test_count)
         if report[filename].warning > 0:
-            line = "{0} {1} test warnings, ".format(line, report[filename].warning)
+            line = "{0} {1} test warnings, ".format(line, 
+                                                    report[filename].warning)
         if report[filename].error > 0:
-            line = "{0} {1} test errors, ".format(line, report[filename].error)
+            line = "{0} {1} test errors, ".format(line, 
+                                                  report[filename].error)
 
         if report[filename].test_count == 0:
             line = "{0}... no tests were run.".format(line)
         else:
             if report[filename].error > 0:
-                line = "{0} {1} tests errored, ".format(line, report[filename].error)
+                line = "{0} {1} tests errored, ".format(line, 
+                                                        report[filename].error)
             if report[filename].fail > 0:
-                line = "{0} {1} tests failed, ".format(line, report[filename].fail)
+                line = "{0} {1} tests failed, ".format(line, 
+                                                       report[filename].fail)
             if report[filename].skipped > 0:
-                line = "{0} {1} tests skipped, ".format(line, report[filename].skipped)
+                line = "{0} {1} tests skipped, ".format(line, 
+                                                      report[filename].skipped)
             if report[filename].error == 0 and \
                report[filename].fail == 0 and \
                report[filename].skipped == 0:
@@ -2687,8 +2748,10 @@ def main(options):
       print("NOTE --> This was a DRY RUN!!!\n")
     print("  Legend\n")
     print("    . - success")
-    print("    F - failed regression test (results are outside error tolerances)")
-    print("    M - failed regression test (results are FAR outside error tolerances)")
+    print("    F - failed regression test (results are outside error "
+          "tolerances)")
+    print("    M - failed regression test (results are FAR outside error "
+          "tolerances)")
     print("    G - general error")
     print("    U - user error")
     print("    V - simulator failure (e.g. failure to converge)")
@@ -2696,7 +2759,8 @@ def main(options):
     print("    T - time out error")
     print("    C - configuration file [.cfg] error")
     print("    I - missing information (e.g. missing files)")
-    print("    B - pre-processing error (e.g. error in simulation setup scripts")
+    print("    B - pre-processing error (e.g. error in simulation setup "
+          "scripts")
     print("    A - post-processing error (e.g. error in solution comparison)")
     print("    S - test skipped")
     print("    W - warning")
@@ -2790,8 +2854,9 @@ def main(options):
 
     if options.update:
         message = txtwrap.fill(
-            "Test results were updated! Please document why you modified the "
-            "gold standard test results in your revision control commit message!\n")
+            "Test results were updated! Please document why you "
+            "modified the gold standard test results in your revision "
+            "control commit message!\n")
         print(''.join(['\n', message, '\n']))
 
     testlog.close()
