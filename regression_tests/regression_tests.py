@@ -644,13 +644,13 @@ class RegressionTest(object):
                         gold_output = gold_file.readlines()
 
                 if diff:
-                    print("    diff {0} {1}".format(gold_name, 
-                          current_name), file=testlog)
+                    print("    diff {0} {1}".format(current_name, gold_name),
+                          file=testlog)
                     self._diff_ascii_output(current_output, gold_output, 
                                             status, testlog)
                 else:
-                    print("    compare {0} {1}".format(gold_name, 
-                          current_name), file=testlog)
+                    print("    compare {0} {1}".format(current_name, gold_name),
+                          file=testlog)
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog, tec)
             if diff:
@@ -693,7 +693,7 @@ class RegressionTest(object):
                 with open(current_name, 'r') as current_file:
                     current_output = current_file.readlines()
     
-            print("    diff {0} {1}".format(gold_name, current_name),
+            print("    diff {0} {1}".format(current_name, gold_name),
                   file=testlog)
 
             gold_sections = self._get_sections(gold_output)
@@ -1245,7 +1245,7 @@ class RegressionTest(object):
         if not os.path.isfile(test_name):
             print("ERROR: gold file '{0}' in test '{1}' can not be updated "
                   "because a 'test' file does not "
-                  "exists!".format(gold_name,self.name()), file=testlog)
+                  "exist!".format(gold_name,self.name()), file=testlog)
             status.error = _MISSING_INFO_ERROR
             missing_test = True
         if missing_test or missing_gold:
