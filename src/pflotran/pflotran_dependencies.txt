@@ -2080,6 +2080,7 @@ pm_ufd_decay.o : \
   material.o \
   material_aux.o \
   material_transform.o \
+  nw_transport_aux.o \
   option.o \
   output_aux.o \
   patch.o \
