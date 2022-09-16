@@ -368,6 +368,7 @@ recursive subroutine PMZFlowInitializeRun(this)
   use Realization_Base_class
   use Patch_module
   use Field_module
+  use Material_Aux_module
   use Option_module
   use Variables_module
 
@@ -424,6 +425,12 @@ recursive subroutine PMZFlowInitializeRun(this)
   if (Initialized(this%temperature_change_governor)) then
     option%io_buffer = 'TEMPERATURE_CHANGE_GOVERNOR &
       &may not be used with ZFLOW.'
+    call PrintErrMsg(option)
+  endif
+
+  if (soil_compressibility_index == 0 .and. associated(option%inversion)) then
+    option%io_buffer = 'Soil compressibility must be employed for ZFlow &
+      &when used for inversion.'
     call PrintErrMsg(option)
   endif
 
