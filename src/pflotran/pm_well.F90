@@ -1050,6 +1050,8 @@ subroutine PMWellSetup(this)
                                      flow_condition%general,option)
     allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
     source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0
+    source_sink%flow_condition%well => FlowSubConditionCreate(ONE_INTEGER)
+    source_sink%flow_condition%well%ctype = 'liq_average_density_kg/m3'
 
     ! ----- transport -------------
     if (this%transport) then
@@ -1058,6 +1060,7 @@ subroutine PMWellSetup(this)
                                         '_tran_srcsink'
       source_sink%tran_condition => TranConditionCreate(option)
       source_sink%tran_condition%name = source_sink%tran_condition_name
+      source_sink%tran_condition%itype = WELL_SS
       tran_constraint_coupler_nwt => TranConstraintCouplerNWTCreate(option)
       allocate(tran_constraint_coupler_nwt%nwt_auxvar)
       call NWTAuxVarInit(tran_constraint_coupler_nwt%nwt_auxvar,&
@@ -2720,14 +2723,18 @@ subroutine PMWellUpdateReservoirSrcSink(this)
   type(coupler_type), pointer :: source_sink
   PetscInt :: k, ghosted_id
   PetscReal :: well_delta_liq, well_delta_gas
+  PetscReal :: density_avg
 
   do k = 1,this%well_grid%nsegments
-    write(string,'(I0.4)') k
+    write(string,'(I0.6)') k
     srcsink_name = 'well_segment_' // trim(string)
 
     ghosted_id = this%well_grid%h_ghosted_id(k)
     wippflo_auxvar => &
       this%realization%patch%aux%wippflo%auxvars(0,ghosted_id)
+
+    ! [kg-liq/m3]
+    density_avg = 0.5d0 * (this%well%liq%rho(k) + this%reservoir%rho_l(k))
 
     source_sink => this%realization%patch%source_sink_list%first
     do
@@ -2749,6 +2756,8 @@ subroutine PMWellUpdateReservoirSrcSink(this)
                                                            well_delta_liq
         source_sink%flow_condition%general%gas_pressure%aux_real(2) = &
                                                            well_delta_gas
+        source_sink%flow_condition%well%aux_real(1) = density_avg ! kg/m3
+
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
              well%pl = this%well%pl(k)
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
