@@ -1028,7 +1028,7 @@ subroutine PMWellSetup(this)
 
   ! add a reservoir src/sink coupler for each well segment
   do k = 1,well_grid%nsegments
-    write(string,'(I0.4)') k
+    write(string,'(I0.6)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
     source_sink%name = 'well_segment_' // trim(string)
 
@@ -1053,7 +1053,7 @@ subroutine PMWellSetup(this)
 
     ! ----- transport -------------
     if (this%transport) then
-      write(string,'(I0.4)') k
+      write(string,'(I0.6)') k
       source_sink%tran_condition_name = 'well_segment_' // trim(string) // &
                                         '_tran_srcsink'
       source_sink%tran_condition => TranConditionCreate(option)
@@ -2706,6 +2706,8 @@ subroutine PMWellUpdateReservoirSrcSink(this)
   ! Date: 12/21/2021
 
   use Coupler_module
+  use NW_Transport_Aux_module
+  use Transport_Constraint_NWT_module
 
   implicit none
 
@@ -2714,6 +2716,7 @@ subroutine PMWellUpdateReservoirSrcSink(this)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: srcsink_name
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   type(coupler_type), pointer :: source_sink
   PetscInt :: k, ghosted_id
   PetscReal :: well_delta_liq, well_delta_gas
@@ -2735,6 +2738,7 @@ subroutine PMWellUpdateReservoirSrcSink(this)
           -1.d0 * this%well%liq%Q(k) * FMWH2O ! [kg/s]
         source_sink%flow_condition%general%rate%dataset%rarray(2) = &
           -1.d0 * this%well%gas%Q(k) * fmw_comp(TWO_INTEGER) ! [kg/s]
+
         source_sink%flow_condition%general%liquid_pressure%aux_real(1) = &
                                                            this%well%pl(k)
         source_sink%flow_condition%general%gas_pressure%aux_real(1) = &
@@ -2753,10 +2757,15 @@ subroutine PMWellUpdateReservoirSrcSink(this)
              well%dpl = well_delta_liq
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
              well%dpg = well_delta_gas
-!        wippflo_auxvar%well%pl = this%well%pl(k)
-!        wippflo_auxvar%well%pg = this%well%pg(k)
-!        wippflo_auxvar%well%dpl = well_delta_liq
-!        wippflo_auxvar%well%dpg = well_delta_gas
+
+        if (this%transport) then
+          ! access nwt_auxvar from the tran_condition
+          nwt_auxvar => &
+            TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
+                                       cur_constraint_coupler)
+          ! modify nwt_auxvar from the tran_condition
+          nwt_auxvar%aqueous_eq_conc(:) = this%well%aqueous_mass(:,k)
+        endif
         exit
       endif
 
