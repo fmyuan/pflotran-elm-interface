@@ -5,8 +5,7 @@ SIMULATION
       PERTURBATION_TOLERANCE 1.d-5
     /
     FORWARD_SIMULATION_FILENAME ./3x1x3_transient.in
-    OBSERVATION_FUNCTION LIQUID_PRESSURE
-    EXTERNAL_FILE measurements_transient.txt
+    EXTERNAL_FILE measurements_transient_pres.txt
     EXTERNAL_FILE parameter_permeability.txt
     PRINT_SENSITIVITY_JACOBIAN
   /
