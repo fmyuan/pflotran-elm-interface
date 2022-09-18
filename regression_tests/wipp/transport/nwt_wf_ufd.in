@@ -12,7 +12,7 @@ SIMULATION
       /
     /
     SUBSURFACE_TRANSPORT  nw_trans
-    MODE NWT
+      MODE NWT
     /
     WASTE_FORM wf_general
       TYPE GENERAL
@@ -118,7 +118,8 @@ FLUID_PROPERTY
 END
 
 EOS WATER
-  DENSITY EXPONENTIAL 1.2200d+03 101325.d0 3.1000d-10 ! ref_dens ref_pres compres
+                    # ref_dens   ref_pres  compres
+  DENSITY EXPONENTIAL 1.2200d+03 101325.d0 3.1000d-10
   VISCOSITY CONSTANT 2.10000d-03
 END
 
@@ -186,8 +187,8 @@ END
 
 REGION wf
   COORDINATES
-    0.d0    80.d0   0.d0
-    100.d0 100.d0   4.38406d1
+    0.d0    80.d0 0.d0
+    100.d0 100.d0 4.38406d1
   /
 END
 
@@ -248,7 +249,7 @@ NUCLEAR_WASTE_CHEMISTRY
   SPECIES
     NAME                 Am241
     SOLUBILITY           3.08531847680638d-03    # [mol/m^3-liq]
-    PRECIP_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz example)
+    PRECIP_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz)
     ELEMENTAL_KD         0.0d0                   # [m^3-water/m^3-bulk]
   /
 
