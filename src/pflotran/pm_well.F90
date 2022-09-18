@@ -2994,7 +2994,7 @@ subroutine PMWellResidualTranSrcSink(this)
   PetscReal :: rho_avg
 
   ! Q src/sink is in [kmol-liq/sec]
-  ! FMWH2O is in [kmol-liq/kg-liq] where liq = water
+  ! FMWH2O is in [kg-liq/kmol-liq] where liq = water
   ! density is in [kg-liq/m^3-liq] where liq = water
   ! aqueous conc in [mol-species/m^3-liq]
   ! residual in [mol-species/sec]
@@ -3012,9 +3012,10 @@ subroutine PMWellResidualTranSrcSink(this)
     ! units of coef = [m^3-liq/sec]
     if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
       coef_Qin = 0.d0
-      coef_Qout = well%liq%Q(isegment)/FMWH2O/rho_avg
+      coef_Qout = well%liq%Q(isegment)*FMWH2O/rho_avg
     else ! Q into well
-      coef_Qin = well%liq%Q(isegment)/FMWH2O/rho_avg
+    !            [kmol-liq/sec]*[kg-liq/kmol-liq]/[kg-liq/m^3-liq]  
+      coef_Qin = well%liq%Q(isegment)*FMWH2O/rho_avg
       coef_Qout = 0.d0
     endif
 
@@ -3029,8 +3030,6 @@ subroutine PMWellResidualTranSrcSink(this)
       Res(k) = Qin + Qout
     enddo
 
-    ! NOTE: It should be - Res according to documentation, but it also seems ok
-    !       being + Res. I'm not sure!
     this%tran_soln%residual(istart:iend) = &
                           this%tran_soln%residual(istart:iend) + Res(:)
   enddo
@@ -3501,6 +3500,8 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   ! units of Jac = [m^3-bulk/sec]
   ! units of volume = [m^3-bulk]
   ! units of liq%Q = [kmol-liq/sec]
+  ! units of FMWH2O = [kg-liq/kmol-liq] 
+  ! units of density = [kg-liq/m^3-liq] 
   ! units of Qin = [m^3-liq/sec]
   ! units of SS = [m^3-bulk/sec]
 
@@ -3517,14 +3518,14 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   ! units of Qin/out = [m^3-liq/sec]
   if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
     Qin = 0.d0
-    Qout = well%liq%Q(isegment)/FMWH2O/rho_avg
+    Qout = well%liq%Q(isegment)*FMWH2O/rho_avg
     if (well%liq%s(isegment) < 1.d-40) then
       this%option%io_buffer = 'HINT: The liquid saturation is zero. &
         &Division by zero will occur in PMWellJacTranSrcSink().'
       call PrintMsg(this%option)
     endif
   else ! Q into well
-    Qin = well%liq%Q(isegment)/FMWH2O/rho_avg
+    Qin = well%liq%Q(isegment)*FMWH2O/rho_avg
     Qout = 0.d0
     if (resr%s_l(isegment) < 1.d-40) then
       this%option%io_buffer = 'HINT: The liquid saturation is zero. &
@@ -3542,7 +3543,6 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
 
   do ispecies = istart,iend
 
-    ! NOTE: It should be - SS according to documentation
     Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) + vol*(SS/vol)
 
   enddo
@@ -4060,7 +4060,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
     ! update the well src/sink Q vector at start of time step
     call PMWellUpdateWellQ(this%well,this%reservoir)
-    WRITE(*,*) 'Start of TS . . . Q(1) =', this%well%liq%Q(1)
 
     call PMWellPreSolveFlow(this)
 
@@ -4426,7 +4425,6 @@ subroutine PMWellNewtonFlow(this)
   PetscInt :: d
 
   call PMWellUpdateWellQ(this%well,this%reservoir)
-  WRITE(*,*) 'Start of NI . . . Q(1) =', this%well%liq%Q(1)
 
   call PMWellPerturb(this)
 
