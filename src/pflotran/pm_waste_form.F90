@@ -1259,6 +1259,17 @@ subroutine PMWFReadPMBlock(this,input)
         call PrintErrMsg(option)
       endif
     endif
+    
+    if (cur_waste_form%spacer_degradation_flag .and. &
+        .not. associated(this%spacer_mech_list)) then
+      option%io_buffer = 'SPACER_MECHANISM_NAME "' &
+                       // trim(cur_waste_form%spacer_mech_name) &
+                       //'" was spacified for waste form "' &
+                       // trim(cur_waste_form%mechanism%name) &
+                       //'" but no SPACER_DEGRADATION_MECHANISM block was ' &
+                       //'actually provided.'
+      call PrintErrMsg(option)
+    endif
 
     cur_waste_form => cur_waste_form%next
   enddo
