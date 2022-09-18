@@ -1,0 +1,354 @@
+#================================= flow mode ==================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        ALLOW_NEGATIVE_GAS_PRESSURE
+        HARMONIC_PERMEABILITY_ONLY
+        DEFAULT_ALPHA
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
+      /
+    /
+    SUBSURFACE_TRANSPORT  nw_trans
+    MODE NWT
+    /
+    WASTE_FORM wf_general
+      TYPE GENERAL
+    /
+    UFD_DECAY ufd_decay
+    /
+  /
+  #CHECKPOINT
+  #  TIMES y 1.0d0 2.0d0 3.0d0 4.0d0
+  #  FORMAT HDF5
+  #/
+  INPUT_RECORD_FILE
+/
+
+#==============================================================================
+SUBSURFACE
+
+#========================= numerical methods - flow ===========================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0
+    TIMESTEP_REDUCTION_FACTOR 5.0d-1
+    GAS_SAT_CHANGE_TS_GOVERNOR       3.d-1
+    GAS_SAT_GOV_SWITCH_ABS_TO_REL    1.d0
+    LIQ_PRES_CHANGE_TS_GOVERNOR      5.d5   ! Pa
+  /
+
+  NEWTON_SOLVER
+    LIQUID_RESIDUAL_INFINITY_TOL     1.d-6
+    GAS_RESIDUAL_INFINITY_TOL        1.d-6
+    MAX_ALLOW_REL_LIQ_PRES_CHANG_NI  1.d-5
+    MAX_ALLOW_REL_GAS_SAT_CHANGE_NI  1.d-4
+    REL_GAS_SATURATION_PERTURBATION  1.d-8
+    REL_LIQ_PRESSURE_PERTURBATION    1.d-8
+    MIN_GAS_SATURATION_PERTURBATION  1.d-10
+    MIN_LIQ_PRESSURE_PERTURBATION    1.d-2
+    GAS_SAT_THRESH_FORCE_EXTRA_NI    1.d-3
+    GAS_SAT_THRESH_FORCE_TS_CUT      0.20d0
+    MAX_ALLOW_GAS_SAT_CHANGE_TS      1.0d0
+    MIN_LIQ_PRES_FORCE_TS_CUT       -1.d8   ! Pa
+    MAX_ALLOW_LIQ_PRES_CHANGE_TS     1.d7   ! Pa
+    JACOBIAN_PRESSURE_DERIV_SCALE    1.d7
+    SCALE_JACOBIAN
+  /
+
+END
+
+#====================== numerical methods - transport =========================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    NUM_STEPS_AFTER_TS_CUT 2
+    DT_FACTOR 2.0 2.0 1.8 1.6 1.4 1.4 1.3 1.3 1.2 1.2 1.1 1.1
+  /
+
+  NEWTON_SOLVER
+    NWT_ITOL_RELATIVE_UPDATE
+      Am241  1.0d-1
+    /
+    NWT_ITOL_SCALED_RESIDUAL
+      Am241  1.D-3
+    /
+    NWT_ITOL_ABSOLUTE_RESIDUAL
+      Am241  1.D-7
+    /
+    #VERBOSE_LOGGING
+    #PRINT_DETAILED_CONVERGENCE
+    MAXIMUM_NUMBER_OF_ITERATIONS 12
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+    #SOLVER ITERATIVE
+    #MAXIMUM_NUMBER_OF_ITERATIONS 2000
+    #RTOL 1.D-7
+  /
+
+END
+
+#================================= regression =================================
+REGRESSION
+  CELL_IDS
+    3
+  /
+END
+
+#============================== discretization ================================
+GRID
+  GRAVITY 0.0d0  -9.80665d+00  0.0d0  ! use y as the vertical direction
+  TYPE structured
+  NXYZ 1 5 1
+  DXYZ
+     1*100.0d0
+     1*100.0d0
+     1*4.38406d1
+  /
+END
+
+#============================ fluid properties ================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+EOS WATER
+  DENSITY EXPONENTIAL 1.2200d+03 101325.d0 3.1000d-10 ! ref_dens ref_pres compres
+  VISCOSITY CONSTANT 2.10000d-03
+END
+
+EOS GAS
+  DENSITY IDEAL
+  VISCOSITY CONSTANT 8.93389d-06
+END
+
+#========================== saturation functions ==============================
+# Note: The liquid residual saturation must be set to zero, so
+#       that all liquid can flow out and make a dry-out condition.
+#       KRP11 must be used, because it sets capillary pressure to zero,
+#       allowing a full dry out condition.
+
+CHARACTERISTIC_CURVES cc_KRP4
+  SATURATION_FUNCTION BRAGFLO_KRP11
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP11_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    GAS_RESIDUAL_SATURATION    1.000000d-01
+    TOLC 0.50d0
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP11_GAS
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    GAS_RESIDUAL_SATURATION    1.000000d-01
+    TOLC 0.50d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY REPO
+  ID 3
+  CHARACTERISTIC_CURVES cc_KRP4
+  POROSITY 3.000000D-01
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 1.0D-09
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0d-12
+  /
+END
+
+#================================== regions ===================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION rgs_repo_face
+  FACE SOUTH
+  COORDINATES
+    0.0d0   0.0d0 0.0d0
+    100.0d0 0.0d0 4.38406d1
+  /
+END
+
+REGION rgs_repo
+  COORDINATES
+    0.d0   400.d0 0.d0
+    100.d0 500.d0 4.38406d1
+  /
+END
+
+REGION wf
+  COORDINATES
+    0.d0    80.d0   0.d0
+    100.d0 100.d0   4.38406d1
+  /
+END
+
+#========================== stratigraphy couplers =============================
+STRATA
+  MATERIAL REPO
+  REGION all
+END
+
+#============================= flow conditions ================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.51d6 Pa
+  LIQUID_SATURATION 0.25d0
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION transport_initial_condition
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    # time[s]    constraint
+    0.0d0        constraint_inventory_initial
+  /
+END
+
+#========================== initial condition couplers ========================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION all
+END
+
+#========================= boundary condition couplers ========================
+BOUNDARY_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION rgs_repo_face
+END
+
+#================================== times =====================================
+TIME
+  FINAL_TIME 5.0 yr
+  INITIAL_TIMESTEP_SIZE 1.d-4 s
+  MAXIMUM_TIMESTEP_SIZE 1.d0 yr
+END
+
+#============================== output options ================================
+OBSERVATION
+  REGION rgs_repo
+END
+
+#================================== transport =================================
+NUCLEAR_WASTE_CHEMISTRY
+
+  SPECIES
+    NAME                 Am241
+    SOLUBILITY           3.08531847680638d-03    # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         0.0d0                   # [m^3-water/m^3-bulk]
+  /
+
+  OUTPUT
+    ALL_SPECIES
+    ALL_CONCENTRATIONS
+    MINERAL_VOLUME_FRACTION
+  /
+
+  TRUNCATE_CONCENTRATION 1.0d-20
+
+END
+
+#============================ transport constraints ===========================
+CONSTRAINT constraint_inventory_initial
+  CONCENTRATIONS
+   # species_name  concentration  constraint_type
+   # AQ is for aqueous concentration [mol/m^3-liq]
+   # Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
+    Am241    1.0d-1    AQ  # [mol/m^3-liq]
+  /
+END
+
+END_SUBSURFACE
+
+#=============================== waste forms ==================================
+WASTE_FORM_GENERAL
+  WASTE_FORM
+    REGION  wf
+    EXPOSURE_FACTOR 1.0d0
+    VOLUME 1.0d0 m^3
+    MECHANISM_NAME csnf
+    CANISTER_BREACH_TIME 1.0d0 y
+    CRITICALITY_MECHANISM_NAME crit_01
+    #SPACER_MECHANISM_NAME spc_01
+  /
+  PRINT_MASS_BALANCE
+  IMPLICIT_SOLUTION
+
+  MECHANISM CUSTOM
+    NAME csnf
+    FRACTIONAL_DISSOLUTION_RATE 1.d-7 1/yr
+    MATRIX_DENSITY 10970.0d0
+    SPECIES
+      Am241  241.06d0  5.08d-11  0.d0   0.0d0
+    /
+    CANISTER_DEGRADATION_MODEL
+      CANISTER_MATERIAL_CONSTANT 1500.
+    /
+  END
+
+  CRITICALITY_MECH
+    NAME crit_01
+    CRIT_START 0.1d0 y
+    CRIT_END   0.5d0 y
+
+    HEAT_OF_CRITICALITY
+      CONSTANT_POWER 1.0d-7 W
+    /
+
+    DECAY_HEAT TOTAL
+      DATASET nwt_decay_heat.txt
+    /
+
+    #INVENTORY
+    #  EXPANDED_DATASET nwt_crit_inv.txt
+    #  OPTION
+    #    USE_LOOKUP_AND_IMPLICIT
+    #  /
+    #/
+  /
+
+skip
+  SPACER_DEGRADATION_MECHANISM
+    NAME           spc_01
+    MASS           1.67040d+05 g
+    SURFACE_AREA   2.37309d+04 dm^2
+    EXPOSURE_LEVEL 9.93317d-01
+    C              3.47000d+07 mg/s-dm^2
+    Q              2.26750d+04 cal/mol
+  /
+noskip
+
+END_WASTE_FORM_GENERAL
+
+#================================== ufd_decay =================================
+UFD_DECAY
+  IMPLICIT_SOLUTION
+  ELEMENT Am
+    SOLUBILITY 4.d-7
+    KD
+      REPO 2.11d7
+    /
+  /
+  ISOTOPE Am241
+    ELEMENT Am
+    DECAY_RATE 5.08d-11
+  /
+END
+
+#==============================================================================
+#END_SUBSURFACE
+#==============================================================================
