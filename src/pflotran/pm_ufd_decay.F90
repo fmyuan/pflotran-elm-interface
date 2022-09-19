@@ -617,6 +617,7 @@ subroutine PMUFDDecayInit(this)
   grid => this%realization%patch%grid
   if (associated(this%realization%reaction)) then
     reaction => this%realization%reaction
+    nullify(reaction_nw)
   elseif (associated(this%realization%reaction_nw)) then
     reaction_nw => this%realization%reaction_nw
     nullify(reaction)
@@ -1298,6 +1299,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   option => this%realization%option
   if (associated(this%realization%reaction)) then
     reaction => this%realization%reaction
+    nullify(reaction_nw)
   elseif (associated(this%realization%reaction_nw)) then
     reaction_nw => this%realization%reaction_nw
     nullify(reaction)
