@@ -633,13 +633,13 @@ subroutine PMUFDDecayInit(this)
       allocate(rt_auxvars(ghosted_id)%total_sorb_eq(reaction%naqcomp))
       rt_auxvars(ghosted_id)%total_sorb_eq = 0.d0
       if (option%use_sc) then
-         rt_sec_transport_vars => &
-           this%realization%patch%aux%SC_RT%sec_transport_vars
+        rt_sec_transport_vars => &
+          this%realization%patch%aux%SC_RT%sec_transport_vars
         do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
-           allocate(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
-                    total_sorb_eq(reaction%naqcomp))
-           rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
-             total_sorb_eq = 0.d0
+          allocate(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
+                   total_sorb_eq(reaction%naqcomp))
+          rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
+            total_sorb_eq = 0.d0
         enddo
       endif
     enddo
