@@ -341,7 +341,7 @@ UFD_DECAY
   ELEMENT Am
     SOLUBILITY 4.d-7
     KD
-      REPO 2.11d7
+      REPO 0.0d0
     /
   /
   ISOTOPE Am241
