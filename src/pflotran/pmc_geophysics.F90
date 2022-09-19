@@ -25,6 +25,10 @@ module PMC_Geophysics_class
     procedure, public :: InitializeRun => PMCGeophysicsInitializeRun
     procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers
     procedure, public :: StepDT => PMCGeophysicsStepDT
+    procedure, public :: CheckpointBinary => PMCGeophysicsCheckpointBinary
+    procedure, public :: RestartBinary => PMCGeophysicsRestartBinary
+    procedure, public :: CheckpointHDF5 => PMCGeophysicsCheckpointHDF5
+    procedure, public :: RestartHDF5 => PMCGeophysicsRestartHDF5
     procedure, public :: FinalizeRun => PMCGeophysicsFinalizeRun
     procedure, public :: Destroy => PMCGeophysicsDestroy
   end type pmc_geophysics_type
@@ -98,6 +102,15 @@ recursive subroutine PMCGeophysicsInitializeRun(this)
 
   pm_ert => PMERTCast(this%pm_ptr%pm)
   this%cur_waypoint => pm_ert%waypoint_list%first
+
+  ! if restarting at a time greater than time 0, the waypoint pointer needs
+  ! to skip ahead
+  if (this%option%restart_flag .and. &
+      .not. pm_ert%skip_restart .and. &
+      .not.Initialized(this%option%restart_time)) then
+    call WaypointSkipToTime(this%cur_waypoint, &
+                            this%timestepper%target_time)
+  endif
 
   ! ensure that the first waypoint is not at time zero.
   if (associated(this%cur_waypoint)) then
@@ -351,8 +364,9 @@ recursive subroutine PMCGeophysicsRestartBinary(this,viewer)
       call this%timestepper%Reset()
       ! note that this sets the target time back to zero.
     endif
-    call WaypointSkipToTime(this%cur_waypoint, &
-                            this%timestepper%target_time)
+! this skip occurs later
+!    call WaypointSkipToTime(this%cur_waypoint, &
+!                            this%timestepper%target_time)
     this%option%time = this%timestepper%target_time
   endif
 
@@ -506,9 +520,9 @@ recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
           &checkpointed process models must restart at time 0.'
         call PrintErrMsg(this%option)
     endif
-
-    call WaypointSkipToTime(this%cur_waypoint, &
-                            this%timestepper%target_time)
+! this skip occurs later
+!    call WaypointSkipToTime(this%cur_waypoint, &
+!                            this%timestepper%target_time)
     this%option%time = this%timestepper%target_time
   endif
 
