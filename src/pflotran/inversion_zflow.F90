@@ -21,6 +21,12 @@ module Inversion_ZFlow_class
     PetscReal :: target_chi2             ! target CHI^2 norm
     PetscReal :: current_chi2
 
+    ! For joint inversion
+    PetscReal :: alpha_liquid_pressure      ! weight to liquid pressure cost
+    PetscReal :: alpha_liquid_saturation    ! weight to saturation cost
+    PetscReal :: alpha_solute_concentration ! weight to concentration cost
+    PetscReal :: alpha_ert_measurement      ! weight to ERT cost
+
     ! Cost/objective functions
     PetscReal :: min_phi_red             ! min change in cost function
     PetscReal :: phi_total_0,phi_total
@@ -150,6 +156,11 @@ subroutine InversionZFlowInit(this,driver)
   this%maxparam = 1d-07
   this%target_chi2 = 1.d0
   this%min_phi_red = 0.2d0
+
+  this%alpha_liquid_pressure = 1.d0
+  this%alpha_liquid_saturation = 1.d0
+  this%alpha_solute_concentration = 1.d0
+  this%alpha_ert_measurement = 1.d0
 
   this%start_iteration = 1
   this%maximum_iteration = 20
@@ -487,6 +498,19 @@ subroutine InversionZFlowReadBlock(this,input,option)
       case('BETA_REDUCTION_FACTOR')
         call InputReadDouble(input,option,this%beta_red_factor)
         call InputErrorMsg(input,option,'BETA_REDUCTION_FACTOR',error_string)
+      case('ALPHA_LIQUID_PRESSURE')
+        call InputReadDouble(input,option,this%alpha_liquid_pressure)
+        call InputErrorMsg(input,option,'ALPHA_LIQUID_PRESSURE',error_string)
+      case('ALPHA_LIQUID_SATURATION')
+        call InputReadDouble(input,option,this%alpha_liquid_saturation)
+        call InputErrorMsg(input,option,'ALPHA_LIQUID_SATURATION',error_string)
+      case('ALPHA_SOLUTE_CONCENTRATION')
+        call InputReadDouble(input,option,this%alpha_solute_concentration)
+        call InputErrorMsg(input,option,'ALPHA_SOLUTE_CONCENTRATION', &
+                           error_string)
+      case('ALPHA_ERT_MEASUREMENT')
+        call InputReadDouble(input,option,this%alpha_ert_measurement)
+        call InputErrorMsg(input,option,'ALPHA_ERT_MEASUREMENT',error_string)
       case('TARGET_CHI2')
         call InputReadDouble(input,option,this%target_chi2)
         call InputErrorMsg(input,option,'TARGET_CHI2',error_string)
@@ -783,6 +807,8 @@ subroutine InvZFlowEvaluateCostFunction(this)
   use Patch_module
   use Material_Aux_module
   use String_module
+  use Inversion_Measurement_Aux_module, only : OBS_LIQUID_PRESSURE, &
+        OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION,OBS_ERT_MEASUREMENT
   use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
@@ -820,6 +846,18 @@ subroutine InvZFlowEvaluateCostFunction(this)
   this%phi_data = 0.d0
   do idata=1,num_measurement
     wd = this%measurements(idata)%weight
+    select case(this%measurements(idata)%iobs_var)
+      case(OBS_LIQUID_PRESSURE)
+        wd = this%alpha_liquid_pressure * wd
+      case(OBS_LIQUID_SATURATION)
+        wd = this%alpha_liquid_saturation * wd
+      case(OBS_SOLUTE_CONCENTRATION)
+        wd = this%alpha_solute_concentration * wd
+      case(OBS_ERT_MEASUREMENT)
+        wd = this%alpha_ert_measurement * wd
+      case default
+        wd = wd
+    end select
     tempreal = wd * (this%measurements(idata)%value - &
                      this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
@@ -1300,6 +1338,8 @@ subroutine InversionZFlowCGLSRhs(this)
   use Material_Aux_module
   use Option_module
   use String_module
+  use Inversion_Measurement_Aux_module, only : OBS_LIQUID_PRESSURE, &
+        OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION,OBS_ERT_MEASUREMENT
   use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
@@ -1335,6 +1375,18 @@ subroutine InversionZFlowCGLSRhs(this)
   ! Data part
   do idata=1,num_measurement
     wd = this%measurements(idata)%weight
+    select case(this%measurements(idata)%iobs_var)
+      case(OBS_LIQUID_PRESSURE)
+        wd = this%alpha_liquid_pressure * wd
+      case(OBS_LIQUID_SATURATION)
+        wd = this%alpha_liquid_saturation * wd
+      case(OBS_SOLUTE_CONCENTRATION)
+        wd = this%alpha_solute_concentration * wd
+      case(OBS_ERT_MEASUREMENT)
+        wd = this%alpha_ert_measurement * wd
+      case default
+        wd = wd
+    end select
     this%b(idata) = wd * (this%measurements(idata)%value - &
                           this%measurements(idata)%simulated_value)
   enddo
@@ -2348,6 +2400,8 @@ subroutine InversionZFlowScaleSensitivity(this)
   !
   use Discretization_module
   use Realization_Base_class
+  use Inversion_Measurement_Aux_module, only : OBS_LIQUID_PRESSURE, &
+        OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION,OBS_ERT_MEASUREMENT
 
   class(inversion_zflow_type) :: this
 
@@ -2363,6 +2417,18 @@ subroutine InversionZFlowScaleSensitivity(this)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
     wd = this%measurements(idata)%weight
+    select case(this%measurements(idata)%iobs_var)
+      case(OBS_LIQUID_PRESSURE)
+        wd = this%alpha_liquid_pressure * wd
+      case(OBS_LIQUID_SATURATION)
+        wd = this%alpha_liquid_saturation * wd
+      case(OBS_SOLUTE_CONCENTRATION)
+        wd = this%alpha_solute_concentration * wd
+      case(OBS_ERT_MEASUREMENT)
+        wd = this%alpha_ert_measurement * wd
+      case default
+        wd = wd
+    end select
     wdvec_ptr(idata) = wd
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
