@@ -390,7 +390,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         (q * dconc_upwind_ddn + &
          area * Deff_over_dist * (-1.d0)) * &
         L_per_m3
-         if (zflow_liq_flow_eq > 0) then
+      if (zflow_liq_flow_eq > 0) then
         if (D_mech_up > 0.d0) then
           ! implement derivatives here and in boundary flux
           option%io_buffer = 'Implement derivatives for D_mech_up'
