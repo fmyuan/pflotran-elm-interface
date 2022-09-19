@@ -12,6 +12,9 @@ module Option_Inversion_module
 
   type, public :: inversion_option_type
     PetscBool :: use_perturbation
+    PetscBool :: coupled_flow_ert
+    PetscBool :: calculate_ert
+    PetscBool :: calculate_ert_jacobian
   end type inversion_option_type
 
   public :: OptionInversionCreate, &
@@ -58,6 +61,9 @@ subroutine OptionInversionInit(option)
   type(inversion_option_type) :: option
 
   option%use_perturbation = PETSC_FALSE
+  option%coupled_flow_ert = PETSC_FALSE
+  option%calculate_ert = PETSC_FALSE
+  option%calculate_ert_jacobian = PETSC_FALSE
 
 end subroutine OptionInversionInit
 

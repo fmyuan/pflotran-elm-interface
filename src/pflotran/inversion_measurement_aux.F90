@@ -509,9 +509,12 @@ function InvMeasAnnounceToString(measurement,rvalue,option)
       trim(adjustl(StringWriteF('(f20.2)',measurement%coordinate%z))) // ')'
   endif
   string = trim(string) // ' for variable "' // &
-           trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
-           '" recorded as ' // &
-           trim(StringWrite('(es22.14)',rvalue)) // ' at ' // &
+           trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option))
+  if (Initialized(rvalue)) then
+    string = trim(string) // '" recorded as ' // &
+      trim(StringWrite('(es22.14)',rvalue))
+  endif
+  string = trim(string) // ' at ' // &
            trim(StringWrite(measurement%time / &
                       UnitsConvertToInternal(measurement%time_units,word, &
                                              option,ierr))) // ' ' // &
@@ -574,9 +577,6 @@ subroutine InversionMeasurementAuxDestroy(aux)
   use Utility_module, only : DeallocateArray
 
   type(inversion_measurement_aux_type), pointer :: aux
-
-  PetscInt :: iaux
-  PetscErrorCode :: ierr
 
   if (.not.associated(aux)) return
 

@@ -240,6 +240,7 @@ misc_obj = \
 	${common_src}integral_flux.o \
 	${common_src}inversion_aux.o \
 	${common_src}inversion_base.o \
+	${common_src}inversion_coupled_aux.o \
 	${common_src}inversion_ert.o \
 	${common_src}inversion_measurement_aux.o \
 	${common_src}inversion_parameter.o \

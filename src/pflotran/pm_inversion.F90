@@ -162,6 +162,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   ! Date: 06/10/22
 
   use Inversion_TS_Aux_module
+  use Inversion_Coupled_Aux_module
   use Inversion_Measurement_Aux_module
   use Option_module
   use Realization_Base_class
@@ -180,6 +181,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
 
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
   type(inversion_measurement_aux_type), pointer :: measurements(:)
+  type(inversion_coupled_soln_type), pointer :: solutions(:)
   PetscInt :: imeasurement
   PetscInt :: iert_measurement
   PetscInt :: icount
@@ -188,6 +190,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscInt :: ivar
   PetscInt :: isubvar
   PetscReal :: tempreal
+  PetscBool :: iflag
 
   inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
   nullify(measurements)
@@ -234,17 +237,17 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                 endif
                 tempreal = &
                   RealizGetVariableValueAtCell(this%realization,ghosted_id, &
-                                               ivar,ZERO_INTEGER)
+                                              ivar,ZERO_INTEGER)
             end select
             inversion_forward_aux%local_measurement_values_ptr(icount) = &
               tempreal
             this%option%io_buffer = &
-               InvMeasAnnounceToString(measurements(imeasurement), &
-                                       tempreal,this%option)
+              InvMeasAnnounceToString(measurements(imeasurement), &
+                                      tempreal,this%option)
             call PrintMsgByRank(this%option)
             ! store partial derivatives
             if (associated(inversion_forward_aux% &
-                             local_derivative_values_ptr)) then
+                            local_derivative_values_ptr)) then
               isubvar = UNINITIALIZED_INTEGER
               select case(measurements(imeasurement)%iobs_var)
                 case(OBS_LIQUID_SATURATION)
@@ -261,6 +264,35 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
           endif
         endif
       enddo
+      if (associated(inversion_forward_aux%inversion_coupled_aux)) then
+        solutions => inversion_forward_aux%inversion_coupled_aux%solutions
+        do icount = 1, size(solutions)
+          if (.not.solutions(icount)%measured .and. &
+              Equal(solutions(icount)%time,time)) then
+            call RealizationGetVariable(this%realization, &
+                                        solutions(icount)% &
+                                          perturbed_saturation_solution, &
+                                        LIQUID_SATURATION,ZERO_INTEGER)
+            iflag = PETSC_FALSE
+            if (solutions(icount)%perturbed_solute_solution /= &
+                PETSC_NULL_VEC) then
+              iflag = PETSC_TRUE
+              call RealizationGetVariable(this%realization, &
+                                          solutions(icount)% &
+                                            perturbed_solute_solution, &
+                                          SOLUTE_CONCENTRATION,ZERO_INTEGER)
+            endif
+            this%option%io_buffer = 'Full saturation '
+            if (iflag) then
+              this%option%io_buffer = trim(this%option%io_buffer) // &
+                'and solute concentration '
+            endif
+            this%option%io_buffer = trim(this%option%io_buffer) // &
+                'solutions measured.'
+            call PrintMsg(this%option)
+          endif
+        enddo
+      endif
     else
       call PrintMsg(this%option,'  No measurement requested at this time.')
     endif

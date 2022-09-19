@@ -3,7 +3,9 @@ module Inversion_TS_Aux_module
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use PFLOTRAN_Constants_module
+  use Inversion_Coupled_Aux_module
   use Inversion_Measurement_Aux_module
+  use Inversion_Parameter_module
 
   implicit none
 
@@ -12,15 +14,15 @@ module Inversion_TS_Aux_module
   type, public :: inversion_forward_aux_type
     PetscBool :: store_adjoint
     PetscInt :: num_timesteps
-    PetscInt :: iobs_var
-    PetscInt :: isync_time
-    PetscReal, pointer :: sync_times(:)
+    PetscInt :: isync_time              ! current index of sync_times
+    PetscReal, pointer :: sync_times(:) ! an array with all measurement times
     Mat :: M_ptr
     Vec :: solution_ptr
     type(inversion_forward_ts_aux_type), pointer :: first
     type(inversion_forward_ts_aux_type), pointer :: last
     type(inversion_forward_ts_aux_type), pointer :: current
     type(inversion_measurement_aux_type), pointer :: measurements(:)
+    type(inversion_coupled_aux_type), pointer :: inversion_coupled_aux
     Vec :: measurement_vec
     PetscReal, pointer :: local_measurement_values_ptr(:)
     PetscReal, pointer :: local_derivative_values_ptr(:)
@@ -74,7 +76,6 @@ function InversionForwardAuxCreate()
 
   aux%store_adjoint = PETSC_TRUE
   aux%num_timesteps = 0
-  aux%iobs_var = UNINITIALIZED_INTEGER
   aux%isync_time = 1
   nullify(aux%sync_times)
   aux%M_ptr = PETSC_NULL_MAT
@@ -83,6 +84,7 @@ function InversionForwardAuxCreate()
   nullify(aux%last)
   nullify(aux%current)
   nullify(aux%measurements)
+  nullify(aux%inversion_coupled_aux)
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
   nullify(aux%local_derivative_values_ptr)
@@ -281,6 +283,7 @@ subroutine InversionForwardAuxDestroy(aux)
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
   nullify(aux%local_derivative_values_ptr)
+  nullify(aux%inversion_coupled_aux)
 
   deallocate(aux)
   nullify(aux)
@@ -339,7 +342,6 @@ subroutine InversionTSAuxDestroy(aux)
 
   type(inversion_forward_ts_aux_type), pointer :: aux
 
-  PetscInt :: iaux
   PetscErrorCode :: ierr
 
   if (.not.associated(aux)) return

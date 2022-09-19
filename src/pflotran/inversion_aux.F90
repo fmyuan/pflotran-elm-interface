@@ -20,7 +20,6 @@ module Inversion_Aux_module
     PetscInt, pointer :: cell_to_bc_connection(:,:)
     type(inversion_forward_aux_type), pointer :: inversion_forward_aux
     type(inversion_measurement_aux_type), pointer :: measurements(:)
-    type(inversion_parameter_type), pointer :: parameters(:)
     VecScatter :: scatter_global_to_measurement
     Vec :: measurement_vec
   end type inversion_aux_type
@@ -86,7 +85,6 @@ subroutine InversionAuxDestroy(aux)
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
   nullify(aux%measurements)
-  nullify(aux%parameters)
   aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   aux%measurement_vec = PETSC_NULL_VEC
 
