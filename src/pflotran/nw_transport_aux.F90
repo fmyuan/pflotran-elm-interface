@@ -482,7 +482,6 @@ subroutine NWTRead(reaction_nw,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'radioactive species name', &
                              error_string)
-          call StringToUpper(word)
           new_rad_rxn%name = trim(word)
           parent_name_hold = trim(word)
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -490,7 +489,6 @@ subroutine NWTRead(reaction_nw,input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'radioactive species daughter &
                                &name',error_string)
-            call StringToUpper(word)
             new_rad_rxn%daughter_name = trim(word)
             j = 0
             ! record which species was the parent
