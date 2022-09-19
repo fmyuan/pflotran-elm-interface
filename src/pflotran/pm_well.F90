@@ -255,8 +255,10 @@ module PM_Well_class
     PetscInt :: max_iter
     ! maximum number of time step cuts
     PetscInt :: max_ts_cut
-    ! time step cuts factor (divides the time step)
-    PetscInt :: ts_cut_factor
+    ! time step cut factor (divides the time step)
+    PetscReal :: ts_cut_factor
+    ! time step ramp-up factor (multiplies the time step)
+    PetscReal :: ts_ramp_factor
     ! convergence criterial
     PetscReal :: itol_abs_res
     PetscReal :: itol_scaled_res
@@ -565,7 +567,8 @@ function PMWellCreate()
   PMWellCreate%flow_soln%cut_timestep = PETSC_FALSE
   PMWellCreate%flow_soln%max_iter = 8
   PMWellCreate%flow_soln%max_ts_cut = 20
-  PMWellCreate%flow_soln%ts_cut_factor = 2
+  PMWellCreate%flow_soln%ts_cut_factor = 2.0d0
+  PMWellCreate%flow_soln%ts_ramp_factor = 1.1d0
   PMWellCreate%flow_soln%itol_abs_res = 1.0d-8
   PMWellCreate%flow_soln%itol_scaled_res = 1.0d-5
   PMWellCreate%flow_soln%itol_abs_update_p = 1.0d0
@@ -588,7 +591,8 @@ function PMWellCreate()
   PMWellCreate%tran_soln%cut_timestep = PETSC_FALSE
   PMWellCreate%tran_soln%max_iter = 8
   PMWellCreate%tran_soln%max_ts_cut = 20
-  PMWellCreate%tran_soln%ts_cut_factor = 2
+  PMWellCreate%tran_soln%ts_cut_factor = 2.0d0
+  PMWellCreate%tran_soln%ts_ramp_factor = 1.1d0
   PMWellCreate%tran_soln%itol_abs_res = 1.0d-8
   PMWellCreate%tran_soln%itol_scaled_res = 1.0d-4
   PMWellCreate%tran_soln%itol_abs_update = 1.0d0
@@ -1746,8 +1750,13 @@ subroutine PMWellReadFlowSolver(pm_well,input,option,keyword,error_string, &
                                error_string)
         !-----------------------------
           case('TIMESTEP_CUT_FACTOR')
-            call InputReadInt(input,option,pm_well%flow_soln%ts_cut_factor)
+            call InputReadDouble(input,option,pm_well%flow_soln%ts_cut_factor)
             call InputErrorMsg(input,option,'TIMESTEP_CUT_FACTOR', &
+                               error_string)
+        !-----------------------------
+          case('TIMESTEP_RAMP_FACTOR')
+            call InputReadDouble(input,option,pm_well%flow_soln%ts_ramp_factor)
+            call InputErrorMsg(input,option,'TIMESTEP_RAMP_FACTOR', &
                                error_string)
         !-----------------------------
           case('ITOL_ABSOLUTE_RESIDUAL')
@@ -1859,8 +1868,13 @@ subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
                                error_string)
         !-----------------------------
           case('TIMESTEP_CUT_FACTOR')
-            call InputReadInt(input,option,pm_well%tran_soln%ts_cut_factor)
+            call InputReadDouble(input,option,pm_well%tran_soln%ts_cut_factor)
             call InputErrorMsg(input,option,'TIMESTEP_CUT_FACTOR', &
+                               error_string)
+        !-----------------------------
+          case('TIMESTEP_RAMP_FACTOR')
+            call InputReadDouble(input,option,pm_well%tran_soln%ts_ramp_factor)
+            call InputErrorMsg(input,option,'TIMESTEP_RAMP_FACTOR', &
                                error_string)
         !-----------------------------
           case('ITOL_ABSOLUTE_RESIDUAL')
@@ -4214,8 +4228,8 @@ subroutine PMWellSolveTran(this,time,ierr)
   type(well_soln_tran_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
-  PetscInt :: n_iter, ts_cut, easy_converge_count
   PetscReal :: res_fixed(this%tran_soln%ndof*this%well_grid%nsegments)
+  PetscInt :: n_iter, ts_cut
   PetscInt :: istart, iend
   PetscInt :: k
 
@@ -4225,7 +4239,6 @@ subroutine PMWellSolveTran(this,time,ierr)
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   ts_cut = 0
-  easy_converge_count = 0
 
   this%cumulative_dt_tran = 0.d0
   soln%converged = PETSC_FALSE
@@ -4246,7 +4259,6 @@ subroutine PMWellSolveTran(this,time,ierr)
         call PMWellCutTimestepTran(this)
         n_iter = 0
         ts_cut = ts_cut + 1
-        easy_converge_count = 0
         exit
       endif
       if (ts_cut > soln%max_ts_cut) then
@@ -4266,14 +4278,21 @@ subroutine PMWellSolveTran(this,time,ierr)
       enddo
       soln%residual = res_fixed / this%dt_tran
 
-      easy_converge_count = easy_converge_count + 1
-
       call PMWellNewtonTran(this,n_iter)
 
       call PMWellCheckConvergenceTran(this,n_iter,res_fixed)
 
     enddo
 
+    ! try to increase the time step, if possible
+    if (soln%converged) then
+      this%dt_tran = soln%ts_ramp_factor * this%dt_tran
+    endif 
+    if (this%dt_tran > this%realization%option%flow_dt) then
+      this%dt_tran = this%realization%option%flow_dt
+    endif
+
+    ! if this next time step will overstep flow_dt, then correct it
     if (this%cumulative_dt_tran + this%dt_tran > &
         this%realization%option%flow_dt) then
       this%dt_tran = this%realization%option%flow_dt - this%cumulative_dt_tran
