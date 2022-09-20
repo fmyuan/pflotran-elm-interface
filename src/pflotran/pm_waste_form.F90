@@ -1264,7 +1264,7 @@ subroutine PMWFReadPMBlock(this,input)
         .not. associated(this%spacer_mech_list)) then
       option%io_buffer = 'SPACER_MECHANISM_NAME "' &
                        // trim(cur_waste_form%spacer_mech_name) &
-                       //'" was spacified for waste form "' &
+                       //'" was specified for waste form "' &
                        // trim(cur_waste_form%mechanism%name) &
                        //'" but no SPACER_DEGRADATION_MECHANISM block was ' &
                        //'actually provided.'
