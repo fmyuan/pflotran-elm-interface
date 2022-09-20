@@ -725,6 +725,7 @@ subroutine InversionZFlowInitialize(this)
   !
   use Discretization_module
   use Inversion_TS_Aux_module
+  use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Option_module
   use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
@@ -736,6 +737,7 @@ subroutine InversionZFlowInitialize(this)
   PetscBool :: exists
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: iqoi(2)
+  PetscInt :: i,num_measurements
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
@@ -762,6 +764,26 @@ subroutine InversionZFlowInitialize(this)
   endif
 
   call InversionZFlowConstrainedArraysFromList(this)
+
+  ! scale data weight by a scalar weight for joint inversion
+  if (this%iteration==1) then
+    num_measurements = size(this%measurements)
+    do i=1,num_measurements
+      if (this%measurements(i)%iobs_var == OBS_LIQUID_PRESSURE) then
+        this%measurements(i)%weight = this%alpha_liquid_pressure * &
+                                      this%measurements(i)%weight
+      elseif (this%measurements(i)%iobs_var == OBS_LIQUID_SATURATION) then
+        this%measurements(i)%weight = this%alpha_liquid_saturation * &
+                                      this%measurements(i)%weight
+      elseif (this%measurements(i)%iobs_var == OBS_SOLUTE_CONCENTRATION) then
+        this%measurements(i)%weight = this%alpha_solute_concentration * &
+                                      this%measurements(i)%weight
+      elseif (this%measurements(i)%iobs_var == OBS_ERT_MEASUREMENT) then
+        this%measurements(i)%weight = this%alpha_ert_measurement * &
+                                      this%measurements(i)%weight
+      endif
+    enddo
+  endif
 
   ! Build Wm matrix
   call InversionZFlowBuildWm(this)
@@ -807,8 +829,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   use Patch_module
   use Material_Aux_module
   use String_module
-  use Inversion_Measurement_Aux_module, only : OBS_LIQUID_PRESSURE, &
-        OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION,OBS_ERT_MEASUREMENT
   use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
@@ -846,18 +866,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   this%phi_data = 0.d0
   do idata=1,num_measurement
     wd = this%measurements(idata)%weight
-    select case(this%measurements(idata)%iobs_var)
-      case(OBS_LIQUID_PRESSURE)
-        wd = this%alpha_liquid_pressure * wd
-      case(OBS_LIQUID_SATURATION)
-        wd = this%alpha_liquid_saturation * wd
-      case(OBS_SOLUTE_CONCENTRATION)
-        wd = this%alpha_solute_concentration * wd
-      case(OBS_ERT_MEASUREMENT)
-        wd = this%alpha_ert_measurement * wd
-      case default
-        wd = wd
-    end select
     tempreal = wd * (this%measurements(idata)%value - &
                      this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
@@ -1338,8 +1346,6 @@ subroutine InversionZFlowCGLSRhs(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Inversion_Measurement_Aux_module, only : OBS_LIQUID_PRESSURE, &
-        OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION,OBS_ERT_MEASUREMENT
   use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
@@ -1375,18 +1381,6 @@ subroutine InversionZFlowCGLSRhs(this)
   ! Data part
   do idata=1,num_measurement
     wd = this%measurements(idata)%weight
-    select case(this%measurements(idata)%iobs_var)
-      case(OBS_LIQUID_PRESSURE)
-        wd = this%alpha_liquid_pressure * wd
-      case(OBS_LIQUID_SATURATION)
-        wd = this%alpha_liquid_saturation * wd
-      case(OBS_SOLUTE_CONCENTRATION)
-        wd = this%alpha_solute_concentration * wd
-      case(OBS_ERT_MEASUREMENT)
-        wd = this%alpha_ert_measurement * wd
-      case default
-        wd = wd
-    end select
     this%b(idata) = wd * (this%measurements(idata)%value - &
                           this%measurements(idata)%simulated_value)
   enddo
@@ -2400,8 +2394,6 @@ subroutine InversionZFlowScaleSensitivity(this)
   !
   use Discretization_module
   use Realization_Base_class
-  use Inversion_Measurement_Aux_module, only : OBS_LIQUID_PRESSURE, &
-        OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION,OBS_ERT_MEASUREMENT
 
   class(inversion_zflow_type) :: this
 
@@ -2416,20 +2408,7 @@ subroutine InversionZFlowScaleSensitivity(this)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
-    wd = this%measurements(idata)%weight
-    select case(this%measurements(idata)%iobs_var)
-      case(OBS_LIQUID_PRESSURE)
-        wd = this%alpha_liquid_pressure * wd
-      case(OBS_LIQUID_SATURATION)
-        wd = this%alpha_liquid_saturation * wd
-      case(OBS_SOLUTE_CONCENTRATION)
-        wd = this%alpha_solute_concentration * wd
-      case(OBS_ERT_MEASUREMENT)
-        wd = this%alpha_ert_measurement * wd
-      case default
-        wd = wd
-    end select
-    wdvec_ptr(idata) = wd
+    wdvec_ptr(idata) = this%measurements(idata)%weight
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   call InvSubsurfScatMeasToDistMeas(this, &
