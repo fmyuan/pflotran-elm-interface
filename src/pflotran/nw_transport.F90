@@ -1384,9 +1384,13 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
-  Mat :: J, J_num, J_ana, J_flux
+  Mat :: J
   MatType :: mat_type
-  PetscViewer :: viewer, viewer2
+  PetscViewer :: viewer
+#ifdef DEBUG
+  Mat :: J_num, J_ana, J_flux
+  PetscViewer :: viewer2
+#endif
   Vec :: xx_pert, res, res_pert, fixed_accum
   PetscReal, pointer :: res_pert_p(:), res_p(:), xx_pert_p(:)
   PetscReal, pointer :: fixed_accum_p(:)
@@ -1460,7 +1464,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   nspecies = realization%reaction_nw%params%nspecies
 
   ! For debugging only. Set the type of jacobian here:
-  numerical = PETSC_FALSE
+  numerical = PETSC_TRUE ! build numerical Jacobian
 
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -1476,6 +1480,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   ! Zero out the Jacobian matrix
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
 
+#ifdef DEBUG
   ! For debugging viewer:
   call MatCreate(option%mycomm,J_ana,ierr);CHKERRQ(ierr)
   call MatSetSizes(J_ana,grid%nlmax*option%ntrandof,grid%nlmax*option%ntrandof,&
@@ -1493,6 +1498,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call MatSetFromOptions(J_flux,ierr);CHKERRQ(ierr)
   call MatSetUp(J_flux,ierr);CHKERRQ(ierr)
   call MatZeroEntries(J_flux,ierr);CHKERRQ(ierr)
+#endif
 
 #if 1
   !== Accumulation Terms ======================================
@@ -1508,8 +1514,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_accum, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+#ifdef DEBUG
       call MatSetValuesBlockedLocal(J_ana,1,ghosted_id-1,1,ghosted_id-1, &
                                     Jac_accum,ADD_VALUES,ierr);CHKERRQ(ierr)
+#endif
 
     enddo
   endif
@@ -1540,8 +1548,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1, &
                                     Jac_srcsink,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)
+#ifdef DEBUG
       call MatSetValuesBlockedLocal(J_ana,1,ghosted_id-1,1,ghosted_id-1, &
                                     Jac_srcsink,ADD_VALUES,ierr);CHKERRQ(ierr)
+#endif
 
     enddo
 
@@ -1562,8 +1572,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
     call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_rxn, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+#ifdef DEBUG
     call MatSetValuesBlockedLocal(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_rxn, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+#endif
 
   enddo
 #endif
@@ -1611,18 +1623,22 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
+#ifdef DEBUG
         call MatSetValuesBlockedLocal(J_ana,1,ghosted_id_up-1,1, &
                                       ghosted_id_up-1,JacUp,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
+#endif
       endif
 
       if (local_id_dn>0) then
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
+#ifdef DEBUG
         call MatSetValuesBlockedLocal(J_ana,1,ghosted_id_dn-1,1, &
                                       ghosted_id_dn-1,JacDn,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
+#endif
       endif
 
     enddo
@@ -1662,8 +1678,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+#ifdef DEBUG
       call MatSetValuesBlockedLocal(J_ana,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+#endif
       ! note: Don't need to worry about JacUp because that is outside of
       ! the domain, and doesn't have a place in A.
 
@@ -1676,8 +1694,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
+#ifdef DEBUG
   call MatAssemblyBegin(J_ana,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J_ana,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+#endif
 
   !== ?????? ==================================================
 
@@ -1699,12 +1719,14 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                             ierr);CHKERRQ(ierr)
   endif
 
+#ifdef DEBUG
   if (realization%debug%matview_Matrix) then
     string = 'NWTjacobianAN'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J_ana,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
+#endif
 
   if (realization%reaction_nw%use_log_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
@@ -1720,7 +1742,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
   ! numerical jacobian:
   ! for debugging ONLY!! assumes no decay, and single processor
-#if 0
+#ifdef DEBUG
   call MatCreate(option%mycomm,J_num,ierr);CHKERRQ(ierr)
   call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%ntrandof, &
                    grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
@@ -2136,11 +2158,11 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   call MatDestroy(J_num,ierr);CHKERRQ(ierr)
+  call MatDestroy(J_ana,ierr);CHKERRQ(ierr)
+  call MatDestroy(J_flux,ierr);CHKERRQ(ierr)
 
 #endif
 
-  call MatDestroy(J_ana,ierr);CHKERRQ(ierr)
-  call MatDestroy(J_flux,ierr);CHKERRQ(ierr)
   call PetscLogEventEnd(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
 end subroutine NWTJacobian
