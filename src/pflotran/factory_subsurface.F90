@@ -1479,11 +1479,6 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
-    found = PETSC_FALSE
-    call PMBaseReadSimOptionsSelectCase(pm,input,word,found, &
-                                        error_string,option)
-    if (found) cycle
-
     select case(word)
       case('TYPE')
         call InputReadCard(input,option,word,PETSC_FALSE)
@@ -1499,6 +1494,20 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
             call PrintErrMsg(option)
         end select
         pm%option => option
+      case('SKIP_RESTART')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        pm%skip_restart = PETSC_TRUE
+      case('STEADY_STATE')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        pm%steady_state = PETSC_TRUE
       case('OPTIONS')
         if (.not.associated(pm)) then
           option%io_buffer = 'TYPE keyword must be read first under ' // &
