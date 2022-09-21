@@ -998,15 +998,17 @@ recursive subroutine PMUFDDecayInitializeRun(this)
     if (imat <= 0) cycle
 
     if (associated(patch%material_transform_array) .and. &
-        Initialized(patch%mtf_id(ghosted_id))) then
-      material_transform => &
-        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-      if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
-          associated(material_transform)) then
-        call material_transform%illitization%illitization_function% &
-               CheckElements(this%element_name, &
-                             this%num_elements, &
-                             this%option)
+        associated(patch%mtf_id)) then
+      if (Initialized(patch%mtf_id(ghosted_id))) then
+        material_transform => &
+          patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
+            associated(material_transform)) then
+          call material_transform%illitization%illitization_function% &
+                 CheckElements(this%element_name, &
+                               this%num_elements, &
+                               this%option)
+        endif
       endif
     endif
 
@@ -1399,10 +1401,12 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   nullify(material_transform)
 
   if (associated(patch%material_transform_array) .and. &
-      Initialized(patch%mtf_id(grid%nL2G(local_id)))) then
-    ! pointer to material transform object
-    material_transform => &
-      patch%material_transform_array(patch%mtf_id(grid%nL2G(local_id)))%ptr
+      associated(patch%mtf_id)) then
+    if (Initialized(patch%mtf_id(grid%nL2G(local_id)))) then
+      ! pointer to material transform object
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(grid%nL2G(local_id)))%ptr
+    endif
   endif
 
   do iele = 1, this%num_elements
