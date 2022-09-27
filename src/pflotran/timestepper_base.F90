@@ -523,6 +523,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   call PrintMsg(option)
 #endif
 
+!geh: for debugging purposes
+!  call TimestepperBaseHardwireStep(this%steps,this%dt)
+
   if (this%time_step_cut_flag) then
     this%time_step_cut_flag = PETSC_FALSE
     !geh: pointing the cur_waypoint back may cause problems in the checkpoint
@@ -1220,6 +1223,30 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   call PrintMsg(option,string)
 
 end subroutine TimestepperBaseFinalizeRun
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseHardwireStep(istep,ts)
+  !
+  ! Hardwires the timestep for debugging purposes
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/22
+  !
+  implicit none
+
+  PetscInt :: istep
+  PetscReal :: ts
+
+  PetscReal :: ts_(15) = [0.1,2.,1.,3.,0.5, &
+                          0.3,1.5,0.4,2.1,0.05, &
+                          1.,2.,0.6,1.9,1.]
+
+  if (istep > 0 .and. istep <= size(ts_)) then
+    ts = ts_(istep)*3600.d0
+  endif
+
+end subroutine TimestepperBaseHardwireStep
 
 ! ************************************************************************** !
 

@@ -58,6 +58,7 @@ module Inversion_Subsurface_class
     PetscBool :: qoi_is_full_vector
     PetscBool :: first_inversion_interation
     PetscBool :: annotate_output
+    PetscBool :: perturbation_risk_acknowledged
   contains
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
@@ -162,6 +163,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%qoi_is_full_vector = PETSC_FALSE
   this%first_inversion_interation = PETSC_TRUE
   this%annotate_output = PETSC_FALSE
+  this%perturbation_risk_acknowledged = PETSC_FALSE
 
   nullify(this%local_measurement_values)
   nullify(this%local_derivative_values)
@@ -483,12 +485,14 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(keyword)
         select case(trim(keyword))
-        case('PERTURBATION_TOLERANCE')
-            call InputReadDouble(input,option,this%perturbation%tolerance)
-            call InputErrorMsg(input,option,keyword,error_string)
+          case('PERTURBATION_TOLERANCE')
+              call InputReadDouble(input,option,this%perturbation%tolerance)
+              call InputErrorMsg(input,option,keyword,error_string)
           case('SELECT_CELLS')
             call UtilityReadArray(this%perturbation%select_cells, &
                                   ZERO_INTEGER,error_string,input,option)
+          case('ACKNOWLEDGE_RISK_OF_PERTURBATION')
+            this%perturbation_risk_acknowledged = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
@@ -516,6 +520,8 @@ subroutine InversionSubsurfInitialize(this)
   use Material_module
   use Option_module
   use Patch_module
+  use PM_Base_class
+  use PM_Subsurface_Flow_class
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
@@ -553,6 +559,28 @@ subroutine InversionSubsurfInitialize(this)
 
   patch => this%realization%patch
   if (.not.associated(this%inversion_aux)) then
+    ! perturbation can be problematic with certain flow/transport configurations
+    ! check for these situations here
+    if (associated(this%perturbation) .and. &
+        .not.this%perturbation_risk_acknowledged) then
+      select type(pm => &
+                  this%forward_simulation%flow_process_model_coupler%pm_list)
+        class is(pm_subsurface_flow_type)
+          if (Initialized(pm%cfl_governor) .or. &
+              Initialized(pm%pressure_change_governor) .or. &
+              Initialized(pm%temperature_change_governor) .or. &
+              Initialized(pm%saturation_change_governor) .or. &
+              Initialized(pm%xmol_change_governor)) then
+            call this%driver%PrintErrMsg('The use of timestep size governors &
+              &combined with a sensitivity Jacobian calculated using &
+              &perturbation can produce incorrect derivatives. Please add &
+              &the card ACKNOWLEDGE_RISK_OF_PERTURBATION to the PERTURBATION &
+              &block in the input file.')
+          endif
+          ! add other situations here
+        ! add other classes here
+      end select
+    endif
     this%n_qoi_per_cell = 1 ! 1 perm per cell
 
     this%inversion_aux => InversionAuxCreate()
