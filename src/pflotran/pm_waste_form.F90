@@ -2986,8 +2986,9 @@ subroutine PMWFSetup(this)
           cur_waste_form%mechanism%rad_species_list(j)%name, &
           this%realization%reaction,this%option)
       else
-        option%io_buffer = 'Currently, reactive transport is required to use ' &
-                         //'the WASTE_FORM_GENERAL process model.'
+        option%io_buffer = 'Currently, a transport process model (GIRT/OSRT ' &
+                         //'or NWT) is required to use the WASTE_FORM_GENERAL '&
+                         //'process model.'
         call PrintErrMsg(option)
       endif
     enddo

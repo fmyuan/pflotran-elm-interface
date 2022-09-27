@@ -544,7 +544,7 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
 
   if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
      option%io_buffer = 'The Waste Form process model requires &
-          &reactive transport.'
+          &a transport process model (GIRT/OSRT or NWT).'
      call PrintErrMsg(option)
   endif
   cur_mechanism => pm_waste_form%mechanism_list
@@ -619,8 +619,8 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
   call pm_ufd_decay%ReadPMBlock(input)
 
   if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
-     option%io_buffer = 'The UFD_DECAY process model requires reactive &
-          &transport.'
+     option%io_buffer = 'The UFD_DECAY process model requires a transport &
+          &process model (GIRT/OSRT or NWT).'
      call PrintErrMsg(option)
   endif
 
