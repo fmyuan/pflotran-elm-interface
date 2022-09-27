@@ -1464,7 +1464,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   nspecies = realization%reaction_nw%params%nspecies
 
   ! For debugging only. Set the type of jacobian here:
-  numerical = PETSC_TRUE ! build numerical Jacobian
+  numerical = PETSC_FALSE
 
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
