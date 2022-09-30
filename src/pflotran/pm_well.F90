@@ -145,6 +145,10 @@ module PM_Well_class
     PetscReal, pointer :: pl(:)
     ! well gas pressure [Pa]
     PetscReal, pointer :: pg(:)
+    ! flag for output
+    PetscBool :: output_pl 
+    ! flag for output
+    PetscBool :: output_pg 
     ! well liquid Darcy flux [m3/m2-s] of interior interfaces
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces
@@ -179,6 +183,10 @@ module PM_Well_class
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (ispecies,mass@segment)
     PetscReal, pointer :: aqueous_mass(:,:)
+    ! flag for output
+    PetscBool :: output_aqc 
+    ! flag for output
+    PetscBool :: output_aqm
     ! well species aqueous concentration top of hole BC [mol/m3-liq]
     PetscReal, pointer :: aqueous_conc_th(:)
     ! well bottom of hole pressure BC flag
@@ -224,6 +232,8 @@ module PM_Well_class
     PetscReal, pointer :: s(:)
     ! fluid source/sink in/out of well [kmol/s]
     PetscReal, pointer :: Q(:)
+    ! flag for output
+    PetscBool :: output_Q
   end type well_fluid_type
 
   ! primary variables necessary to reset flow solution
@@ -392,6 +402,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well%r0)
   nullify(PMWellCreate%well%pl)
   nullify(PMWellCreate%well%pg)
+  PMWellCreate%well%output_pl = PETSC_FALSE
+  PMWellCreate%well%output_pg = PETSC_FALSE
   nullify(PMWellCreate%well%ql)
   nullify(PMWellCreate%well%qg)
   nullify(PMWellCreate%well%ql_bc)
@@ -409,6 +421,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well%species_parent_decay_rate)
   nullify(PMWellCreate%well%aqueous_conc)
   nullify(PMWellCreate%well%aqueous_mass)
+  PMWellCreate%well%output_aqc = PETSC_FALSE
+  PMWellCreate%well%output_aqm = PETSC_FALSE
   nullify(PMWellCreate%well%aqueous_conc_th)
   nullify(PMWellCreate%well%ccid)
   nullify(PMWellCreate%well%permeability)
@@ -523,6 +537,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%liq%visc)
   nullify(PMWellCreate%well%liq%s)
   nullify(PMWellCreate%well%liq%Q)
+  PMWellCreate%well%liq%output_Q = PETSC_FALSE
   allocate(PMWellCreate%well_pert(ONE_INTEGER)%liq)
   allocate(PMWellCreate%well_pert(TWO_INTEGER)%liq)
   PMWellCreate%well_pert(ONE_INTEGER)%liq%ifluid = 1
@@ -541,6 +556,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%gas%visc)
   nullify(PMWellCreate%well%gas%s)
   nullify(PMWellCreate%well%gas%Q)
+  PMWellCreate%well%gas%output_Q = PETSC_FALSE
   allocate(PMWellCreate%well_pert(ONE_INTEGER)%gas)
   allocate(PMWellCreate%well_pert(TWO_INTEGER)%gas)
   PMWellCreate%well_pert(ONE_INTEGER)%gas%ifluid = 2
@@ -638,6 +654,7 @@ subroutine PMWellSetup(this)
   type(well_grid_type), pointer :: well_grid
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
+  class(realization_subsurface_type), pointer :: realization
   class(dataset_ascii_type), pointer :: dataset_ascii
   type(point3d_type) :: dummy_h
   class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
@@ -667,7 +684,8 @@ subroutine PMWellSetup(this)
   PetscErrorCode :: ierr
 
   option => this%option
-  res_grid => this%realization%patch%grid
+  realization => this%realization
+  res_grid => realization%patch%grid
   well_grid => this%well_grid
   nsegments = this%well_grid%nsegments
 
@@ -996,7 +1014,7 @@ subroutine PMWellSetup(this)
       &WELLBORE_MODEL,WELL_GRID,XY_SEARCH_MULTIPLIER (default value = 10).'
     call PrintErrMsg(option)
   else
-    option%io_buffer = 'WELLBORE_MODEL:  &
+    option%io_buffer = 'WELLBORE_MODEL: &
       &Well grid resolution is adequate. No reservoir grid cell &
       &connections have been skipped.'
     call PrintMsg(option)
@@ -1026,7 +1044,7 @@ subroutine PMWellSetup(this)
       &WELLBORE_MODEL is NWT_MODE.'
       call PrintErrMsg(option)
     endif
-    this%nspecies = this%realization%reaction_nw%params%nspecies
+    this%nspecies = realization%reaction_nw%params%nspecies
     this%tran_soln%ndof = this%nspecies
   endif
 
@@ -1195,6 +1213,10 @@ subroutine PMWellReadPMBlock(this,input)
 
     error_string = 'WELLBORE_MODEL'
     call PMWellReadWellModelType(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadWellOutput(this,input,option,word,error_string,found)
     if (found) cycle
 
     if (.not. found) then
@@ -2002,6 +2024,79 @@ end subroutine PMWellReadWellModelType
 
 ! ************************************************************************** !
 
+subroutine PMWellReadWellOutput(this,input,option,keyword,error_string, &
+                                found)
+  !
+  ! Reads input file parameters associated with the well model type.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 09/29/2022
+  !
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',WELL_MODEL_OUTPUT'
+  found = PETSC_TRUE
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('WELL_MODEL_OUTPUT')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('WELL_LIQ_PRESSURE')
+            this%well%output_pl = PETSC_TRUE
+        !-----------------------------
+          case('WELL_GAS_PRESSURE')
+            this%well%output_pg = PETSC_TRUE
+        !-----------------------------
+          case('WELL_AQ_CONC')
+            this%well%output_aqc = PETSC_TRUE
+        !-----------------------------
+          case('WELL_AQ_MASS')
+            this%well%output_aqm = PETSC_TRUE
+        !-----------------------------
+          case('WELL_LIQ_Q')
+            this%well%liq%output_Q = PETSC_TRUE
+        !-----------------------------
+          case('WELL_GAS_Q')
+            this%well%gas%output_Q = PETSC_TRUE
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+end subroutine PMWellReadWellOutput
+
+! ************************************************************************** !
+
 subroutine PMWellReadPass2(input,option)
   !
   ! Reads input file parameters associated with the well process model.
@@ -2039,7 +2134,7 @@ subroutine PMWellReadPass2(input,option)
     select case(trim(keyword))
       !--------------------
       case('WELL_GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
-           'WELL_TRANSPORT_SOLVER')
+           'WELL_TRANSPORT_SOLVER','WELL_MODEL_OUTPUT')
         call InputSkipToEND(input,option,card)
       !--------------------
       case('WELL_BOUNDARY_CONDITIONS')
@@ -2084,6 +2179,7 @@ recursive subroutine PMWellInitializeRun(this)
 
   use Condition_module
   use Strata_module
+  use Output_Aux_module
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_module
@@ -2097,6 +2193,7 @@ recursive subroutine PMWellInitializeRun(this)
   type(species_type), pointer :: species
   type(tran_condition_type), pointer :: tran_condition
   class(tran_constraint_base_type), pointer :: cur_constraint
+  type(output_variable_list_type), pointer :: output_var_list
   PetscInt :: nsegments, k, i, j
   PetscReal :: curr_time
 
@@ -2358,6 +2455,16 @@ recursive subroutine PMWellInitializeRun(this)
         endif
         this%well%aqueous_conc_th = constraint%nwt_species%constraint_conc
     end select
+  endif
+
+  ! Setup the output variables for snapshot and observation files
+  output_var_list => this%realization%output_option%output_snap_variable_list
+  call PMWellSetPlotVariables(output_var_list,this)
+  if (.not.associated( &
+                this%realization%output_option%output_snap_variable_list, &
+                this%realization%output_option%output_obs_variable_list)) then
+    output_var_list => this%realization%output_option%output_obs_variable_list
+    call PMWellSetPlotVariables(output_var_list,this)
   endif
 
   call PMWellOutputHeader(this)
@@ -3764,16 +3871,20 @@ subroutine PMWellPreSolveFlow(this)
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscReal :: cur_time
+  PetscReal :: cur_time, cur_time_converted
+  PetscReal :: dt_converted
 
   this%flow_soln%not_converged = PETSC_TRUE
   this%flow_soln%converged = PETSC_FALSE
 
   cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt_flow
+  cur_time_converted = cur_time/this%output_option%tconv
+  dt_converted = this%dt_flow/this%output_option%tconv
 
   write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
-                     1pe12.5," sec.")') &
-                   (this%flow_soln%n_steps+1),cur_time,this%dt_flow
+                     1pe12.5," ",a4)') &
+                   (this%flow_soln%n_steps+1),cur_time_converted, &
+                   dt_converted,this%output_option%tunit
   call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveFlow
@@ -3790,16 +3901,20 @@ subroutine PMWellPreSolveTran(this)
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscReal :: cur_time
+  PetscReal :: cur_time, cur_time_converted
+  PetscReal :: dt_converted
 
   this%tran_soln%not_converged = PETSC_TRUE
   this%tran_soln%converged = PETSC_FALSE
 
   cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt_tran
+  cur_time_converted = cur_time/this%output_option%tconv
+  dt_converted = this%dt_tran/this%output_option%tconv
 
   write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
-                     1pe12.5," sec.")') &
-                   (this%tran_soln%n_steps+1),cur_time,this%dt_tran
+                     1pe12.5," ",a4)') &
+                   (this%tran_soln%n_steps+1),cur_time_converted, &
+                   dt_converted,this%output_option%tunit
   call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveTran
@@ -4570,10 +4685,14 @@ subroutine PMWellPostSolveFlow(this)
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: cur_time_converted
 
-  WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," sec &
-                     & Total Newton Its =",i8)') &
-                    this%option%time,this%flow_soln%n_newton
+  cur_time_converted = this%option%time/this%output_option%tconv
+
+  WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," &
+                    &",a4,"Total Newton Its =",i8)') &
+                    cur_time_converted,this%output_option%tunit, &
+                    this%flow_soln%n_newton
   call PrintMsg(this%option,out_string)
   WRITE(*,*) ""
 
@@ -4591,10 +4710,14 @@ subroutine PMWellPostSolveTran(this)
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: cur_time_converted
 
-  WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," sec &
-                     & Total Newton Its =",i8)') &
-                    this%option%time,this%tran_soln%n_newton
+  cur_time_converted = this%option%time/this%output_option%tconv
+
+  WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," &
+                    &",a4,"Total Newton Its =",i8)') &
+                    cur_time_converted,this%output_option%tunit, &
+                    this%flow_soln%n_newton
   call PrintMsg(this%option,out_string)
   WRITE(*,*) ""
 
@@ -4867,6 +4990,11 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   cnvgd_due_to_scaled_res = PETSC_FALSE
   cnvgd_due_to_update = PETSC_FALSE
   rsn_string = ''
+
+  ! Update the residual
+  soln%residual = 0.d0
+  soln%residual = fixed_accum/this%dt_tran 
+  call PMWellResidualTran(this)
 
   do k = 1,(this%well_grid%nsegments*soln%ndof)
     ! Absolute Residual
@@ -6111,6 +6239,69 @@ subroutine PMWellCopyWell(well,well_copy)
 
 end subroutine PMWellCopyWell
 
+! ************************************************************************** !
+
+subroutine PMWellSetPlotVariables(list,this)
+  !
+  ! Adds variables to be printed for plotting.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 09/29/2022
+  !
+  use Output_Aux_module
+  use Variables_module
+
+  type(output_variable_list_type), pointer :: list
+  class(pm_well_type) :: this
+
+  character(len=MAXWORDLENGTH) :: name,  units
+  PetscInt :: i
+
+  if (this%well%output_pl) then
+    name = 'Well Liq. Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                 WELL_LIQ_PRESSURE) 
+  endif
+  
+  if (this%well%output_pg) then
+    name = 'Well Gas Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                 WELL_GAS_PRESSURE)
+  endif
+
+  if (this%well%output_aqc .and. this%transport) then
+    do i=1,this%nspecies
+      name = 'AQ Conc. ' // trim(this%well%species_names(i))
+      units = 'mol/m^3-liq'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   WELL_AQ_CONC,i)
+    enddo
+  endif
+
+  if (this%well%output_aqm .and. this%transport) then
+    do i=1,this%nspecies
+      name = 'AQ Mass ' // trim(this%well%species_names(i))
+      units = 'mol'
+      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                   WELL_AQ_MASS,i)
+    enddo  
+  endif
+
+  if (this%well%liq%output_Q) then
+    name = 'Well Liq. Q'
+    units = 'kmol/sec'
+    call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_LIQ_Q)
+  endif
+
+  if (this%well%gas%output_Q) then
+    name = 'Well Gas Q'
+    units = 'kmol/sec'
+    call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_GAS_Q)
+  endif
+
+end subroutine PMWellSetPlotVariables
 
 ! ************************************************************************** !
 
@@ -6244,6 +6435,11 @@ subroutine PMWellOutputHeader(this)
         units_string = 'mol'
         call OutputWriteToHeader(fid,variable_string,units_string, &
                                  cell_string,icolumn)
+        variable_string = 'Res Aqueous Conc. ' // &
+                          trim(this%well%species_names(j))
+        units_string = 'mol/m^3-liq'
+        call OutputWriteToHeader(fid,variable_string,units_string, &
+                                 cell_string,icolumn)
       enddo
     endif
   enddo
@@ -6313,7 +6509,8 @@ subroutine PMWellOutput(this)
     if (this%transport) then
       do j = 1,this%nspecies
         write(fid,100,advance="no") this%well%aqueous_conc(j,k), &
-                                    this%well%aqueous_mass(j,k)
+                                    this%well%aqueous_mass(j,k), &
+                                    this%reservoir%aqueous_conc(j,k)
       enddo
     endif
   enddo
