@@ -12,6 +12,7 @@ module Inversion_Subsurface_class
   use Inversion_Base_class
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
+  use Option_Inversion_module
 
   implicit none
 
@@ -46,21 +47,21 @@ module Inversion_Subsurface_class
     Vec :: dist_parameter_vec
     Vec :: ref_parameter_vec    ! needed?
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
+    ! flags reference in objects below the inversion objects should be
+    ! stored in option_inversion_type
     PetscBool :: print_sensitivity_jacobian
+    PetscBool :: qoi_is_full_vector
+    PetscBool :: first_inversion_interation
+    PetscBool :: annotate_output
+    PetscBool :: perturbation_risk_acknowledged
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
-    PetscBool :: local_adjoint
     VecScatter :: scatter_measure_to_dist_measure
     VecScatter :: scatter_param_to_dist_param
     VecScatter :: scatter_global_to_dist_param
     PetscReal, pointer :: local_measurement_values(:)
     PetscReal, pointer :: local_derivative_values(:)
     PetscInt, pointer :: local_measurement_map(:)
-    PetscBool :: qoi_is_full_vector
-    PetscBool :: first_inversion_interation
-    PetscBool :: annotate_output
-    PetscBool :: perturbation_risk_acknowledged
-    PetscBool :: coupled_flow_ert
   contains
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
@@ -153,7 +154,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%forward_simulation_filename = ''
   this%print_sensitivity_jacobian = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
-  this%local_adjoint = PETSC_FALSE
   this%debug_verbosity = UNINITIALIZED_INTEGER
   this%scatter_measure_to_dist_measure = PETSC_NULL_VECSCATTER
   this%scatter_param_to_dist_param = PETSC_NULL_VECSCATTER
@@ -165,7 +165,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%first_inversion_interation = PETSC_TRUE
   this%annotate_output = PETSC_FALSE
   this%perturbation_risk_acknowledged = PETSC_FALSE
-  this%coupled_flow_ert = PETSC_FALSE
 
   nullify(this%local_measurement_values)
   nullify(this%local_derivative_values)
@@ -472,10 +471,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       if (input%ierr == 0) then
         this%debug_verbosity = i
       endif
-    case('LOCAL_ADJOINT')
-      this%local_adjoint = PETSC_TRUE
     case('COUPLED_FLOW_AND_ERT')
-      this%coupled_flow_ert = PETSC_TRUE
+      this%inversion_option%coupled_flow_ert = PETSC_TRUE
     case('PERTURBATION')
       string = trim(error_string)//keyword
       input%ierr = 0
@@ -629,7 +626,7 @@ subroutine InversionSubsurfInitialize(this)
                                    &supported for full vector inversion.')
     endif
 
-    if (this%coupled_flow_ert) then
+    if (this%inversion_option%coupled_flow_ert) then
       if (.not.(associated(this%forward_simulation% &
                             flow_process_model_coupler) .and. &
                 associated(this%forward_simulation% &
@@ -909,9 +906,10 @@ subroutine InversionSubsurfInitialize(this)
 
   if (associated(this%perturbation)) then
 
-    if (this%coupled_flow_ert) then
-      this%realization%option%inversion%coupled_flow_ert = PETSC_TRUE
+    if (this%inversion_option%coupled_flow_ert) then
       this%realization%option%inversion%calculate_ert = &
+        this%perturbation%idof_pert <= 0
+      this%realization%option%inversion%record_measurements = &
         this%perturbation%idof_pert <= 0
       this%realization%option%inversion%calculate_ert_jacobian = &
         this%perturbation%idof_pert < 0
@@ -2090,7 +2088,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   ! destroy non-perturbed forward run
   iteration = 0
   ! InvSubsurfPerturbationFillRow performs setup on iteration 0
-  if (this%coupled_flow_ert) then
+  if (this%inversion_option%coupled_flow_ert) then
     call InvSubsurfFVCalcPartialJs(this,iteration)
   else
     call InvSubsurfPerturbationFillRow(this,iteration)
@@ -2107,7 +2105,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call InversionSubsurfInitialize(this) ! do not call mapped version
     call this%ConnectToForwardRun()
     call this%ExecuteForwardRun()
-    if (this%coupled_flow_ert) then
+    if (this%inversion_option%coupled_flow_ert) then
       call InvSubsurfFVCalcPartialJs(this,iteration)
     else
       call InvSubsurfPerturbationFillRow(this,iteration)
@@ -2119,7 +2117,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call this%DestroyForwardRun()
   enddo
 
-  if (this%coupled_flow_ert) then
+  if (this%inversion_option%coupled_flow_ert) then
     ! destroy last from loop above (we are not calculating Jsense)
     call this%DestroyForwardRun()
     ! -1 is a non-perturbed forward run after perturbation is complete

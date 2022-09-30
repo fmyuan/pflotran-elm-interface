@@ -6,6 +6,7 @@ module Inversion_Aux_module
   use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Inversion_TS_Aux_module
+  use Option_Inversion_module
 
   implicit none
 

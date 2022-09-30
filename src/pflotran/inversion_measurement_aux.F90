@@ -4,6 +4,7 @@ module Inversion_Measurement_Aux_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Geometry_module
+  use Option_Inversion_module
 
   implicit none
 
