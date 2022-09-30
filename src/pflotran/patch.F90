@@ -6311,11 +6311,13 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       select case(ivar)
         case(WELL_LIQ_PRESSURE)
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = 1.0d0
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pl
           enddo
         case(WELL_GAS_PRESSURE)
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = 2.0d0
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
           enddo
         case(WELL_AQ_CONC)
           do local_id=1,grid%nlmax
@@ -6327,11 +6329,13 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           enddo
         case(WELL_LIQ_Q)
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = 3.0d0
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Ql
           enddo
         case(WELL_GAS_Q)
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = 4.0d0
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Qg
           enddo
       end select 
     case default
@@ -7306,17 +7310,21 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          WELL_LIQ_Q,WELL_GAS_Q)
       select case(ivar)
         case(WELL_LIQ_PRESSURE)
-          value = 1.0d0 !patch%aux%NWT%auxvars(ghosted_id)%total_bulk_conc(isubvar)
+          value = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pl
         case(WELL_GAS_PRESSURE)
-          value = 2.0d0 
+          value = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
         case(WELL_AQ_CONC)
           value = 5.0d0 
         case(WELL_AQ_MASS)
           value = 6.0d0 
         case(WELL_LIQ_Q)
-          value = 3.0d0 
+          value = &
+            patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Ql 
         case(WELL_GAS_Q)
-          value = 4.0d0 
+          value = &
+            patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Qg 
       end select 
     case default
       call PatchUnsupportedVariable(ivar,option)

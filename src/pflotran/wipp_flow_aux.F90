@@ -90,6 +90,8 @@ module WIPP_Flow_Aux_module
     PetscReal :: pg
     PetscReal :: dpl
     PetscReal :: dpg
+    PetscReal :: Ql
+    PetscReal :: Qg
   end type wippflo_well_aux_type
 
   type, public :: wippflo_auxvar_type
@@ -239,6 +241,8 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%well%pg = UNINITIALIZED_DOUBLE
   auxvar%well%dpl = UNINITIALIZED_DOUBLE
   auxvar%well%dpg = UNINITIALIZED_DOUBLE
+  auxvar%well%Ql = UNINITIALIZED_DOUBLE
+  auxvar%well%Qg = UNINITIALIZED_DOUBLE
 
 
 end subroutine WIPPFloAuxVarInit

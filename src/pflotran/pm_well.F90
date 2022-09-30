@@ -325,6 +325,7 @@ module PM_Well_class
     PetscInt :: well_res_ratio
     PetscBool :: transport
     PetscBool :: ss_check
+    PetscBool :: print_well
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
@@ -371,6 +372,7 @@ function PMWellCreate()
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
   PMWellCreate%ss_check = PETSC_FALSE
+  PMWellCreate%print_well = PETSC_FALSE
   PMWellCreate%min_dz = UNINITIALIZED_DOUBLE
   PMWellCreate%well_res_ratio = 1
 
@@ -1156,6 +1158,10 @@ subroutine PMWellReadPMBlock(this,input)
     !-------------------------------------
       case('TWO_PHASE')
         this%nphase = 2
+        cycle
+    !-------------------------------------
+      case('PRINT_WELL_FILE')
+        this%print_well = PETSC_TRUE
         cycle
     !-------------------------------------
       case('CHECK_FOR_SS')
@@ -2467,7 +2473,9 @@ recursive subroutine PMWellInitializeRun(this)
     call PMWellSetPlotVariables(output_var_list,this)
   endif
 
-  call PMWellOutputHeader(this)
+  if (this%print_well) then
+    call PMWellOutputHeader(this)
+  endif
 
 end subroutine PMWellInitializeRun
 
@@ -2818,7 +2826,9 @@ subroutine PMWellFinalizeTimestep(this)
 
   call PMWellMassBalance(this)
 
-  call PMWellOutput(this)
+  if (this%print_well) then
+    call PMWellOutput(this)
+  endif
 
 end subroutine PMWellFinalizeTimestep
 
@@ -2887,6 +2897,10 @@ subroutine PMWellUpdateReservoirSrcSink(this)
              well%dpl = well_delta_liq
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
              well%dpg = well_delta_gas
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%Ql = this%well%liq%Q(k)
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%Qg = this%well%gas%Q(k)
 
         if (this%transport) then
           ! access nwt_auxvar from the tran_condition
@@ -2894,7 +2908,7 @@ subroutine PMWellUpdateReservoirSrcSink(this)
             TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
                                        cur_constraint_coupler)
           ! modify nwt_auxvar from the tran_condition
-          nwt_auxvar%aqueous_eq_conc(:) = this%well%aqueous_mass(:,k)
+          nwt_auxvar%aqueous_eq_conc(:) = this%well%aqueous_conc(:,k)
         endif
         exit
       endif
@@ -4249,7 +4263,9 @@ subroutine PMWellSolveFlow(this,time,ierr)
         this%realization%option%io_buffer = &
           ' Maximum timestep cuts reached in PM Well FLOW. Solution has not &
            &converged. Exiting.'
-        call PMWellOutput(this)
+        if (this%print_well) then
+          call PMWellOutput(this)  
+        endif
         call PrintErrMsg(this%realization%option)
       endif
 
@@ -4380,7 +4396,9 @@ subroutine PMWellSolveTran(this,time,ierr)
         this%realization%option%io_buffer = &
           ' Maximum timestep cuts reached in PM Well TRAN. Solution has not &
            &converged. Exiting.'
-        call PMWellOutput(this)
+        if (this%print_well) then
+          call PMWellOutput(this)
+        endif
         call PrintErrMsg(this%realization%option)
       endif
 
@@ -6273,7 +6291,7 @@ subroutine PMWellSetPlotVariables(list,this)
 
   if (this%well%output_aqc .and. this%transport) then
     do i=1,this%nspecies
-      name = 'AQ Conc. ' // trim(this%well%species_names(i))
+      name = 'Well AQ Conc. ' // trim(this%well%species_names(i))
       units = 'mol/m^3-liq'
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
                                    WELL_AQ_CONC,i)
@@ -6282,7 +6300,7 @@ subroutine PMWellSetPlotVariables(list,this)
 
   if (this%well%output_aqm .and. this%transport) then
     do i=1,this%nspecies
-      name = 'AQ Mass ' // trim(this%well%species_names(i))
+      name = 'Well AQ Mass ' // trim(this%well%species_names(i))
       units = 'mol'
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
                                    WELL_AQ_MASS,i)
