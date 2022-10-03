@@ -236,15 +236,16 @@ contains
 
       tmp_region_id = 0
 
-      if (associated(observation) .and.      &
-          associated(observation%region) ) then
+      if (associated(observation)) then
+        if (associated(observation%region)) then
 
-        tmp_region_id = observation%region%id
+          tmp_region_id = observation%region%id
 
-        ! fill some array elements
-        obs_region_ids(tmp_region_id) = tmp_region_id
-        obs_region_numcells(comm_rank+1, tmp_region_id) =   &
-                            observation%region%num_cells
+          ! fill some array elements
+          obs_region_ids(tmp_region_id) = tmp_region_id
+          obs_region_numcells(comm_rank+1, tmp_region_id) =   &
+                              observation%region%num_cells
+        endif
 
       endif
 

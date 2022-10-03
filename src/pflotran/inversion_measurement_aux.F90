@@ -33,6 +33,8 @@ module Inversion_Measurement_Aux_module
     PetscInt :: local_id
     PetscInt :: iobs_var
     PetscReal :: value
+    PetscReal :: weight
+    PetscReal :: simulated_derivative
     PetscReal :: simulated_value
     PetscBool :: first_lambda
     PetscBool :: measured
@@ -45,7 +47,9 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxReset, &
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
+            InversionMeasurementPrintConcise, &
             InvMeasAnnounceToString, &
+            InvMeasAuxObsVarIDToString, &
             InversionMeasurementMeasure, &
             InversionMeasurementAuxRead, &
             InvMeasAuxReadObservedVariable, &
@@ -96,6 +100,8 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%local_id = UNINITIALIZED_INTEGER
   measurement%iobs_var = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
+  measurement%weight = UNINITIALIZED_DOUBLE
+  measurement%simulated_derivative = UNINITIALIZED_DOUBLE
   measurement%simulated_value = UNINITIALIZED_DOUBLE
   measurement%first_lambda = PETSC_FALSE
   measurement%measured = PETSC_FALSE
@@ -143,6 +149,8 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%local_id = measurement%local_id
   measurement2%iobs_var = measurement%iobs_var
   measurement2%value = measurement%value
+  measurement2%weight = measurement%weight
+  measurement2%simulated_derivative = measurement%simulated_derivative
   measurement2%simulated_value = measurement%simulated_value
   call GeometryCopyCoordinate(measurement%coordinate,measurement2%coordinate)
 
@@ -171,6 +179,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
   character(len=MAXWORDLENGTH) :: keyword
   type(inversion_measurement_aux_type), pointer :: new_measurement
   PetscReal :: units_conversion
+  PetscReal :: sd
   character(len=MAXWORDLENGTH) :: internal_units, word
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -208,6 +217,11 @@ function InversionMeasurementAuxRead(input,error_string,option)
       case('VALUE')
         call InputReadDouble(input,option,new_measurement%value)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('STANDARD_DEVIATION')
+        call InputReadDouble(input,option,sd)
+        call InputErrorMsg(input,option,keyword,error_string)
+        if (sd <= 0) sd = 1.d16
+        new_measurement%weight = 1 / sd
       case('OBSERVED_VARIABLE')
         new_measurement%iobs_var = &
           InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
@@ -226,6 +240,10 @@ function InversionMeasurementAuxRead(input,error_string,option)
   if (UnInitialized(new_measurement%value)) then
     option%io_buffer = 'VALUE not specified for measurement.'
     call PrintErrMsg(option)
+  endif
+  if (UnInitialized(new_measurement%weight)) then
+    sd = 0.05 * new_measurement%value
+    new_measurement%weight = 1 / sd
   endif
 
   InversionMeasurementAuxRead => new_measurement
@@ -379,6 +397,49 @@ end subroutine InversionMeasurementMeasure
 
 ! ************************************************************************** !
 
+subroutine InversionMeasurementPrintConcise(measurement,optional_string, &
+                                            option)
+  !
+  ! Print contents of measurement object for debugging
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  type(inversion_measurement_aux_type) :: measurement
+  character(len=*) :: optional_string
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  if (OptionPrintToScreen(option)) then
+    word = 'sec'
+    option%io_buffer = 'Measurement #' // &
+      trim(StringWrite(measurement%id)) // ', Time: ' // &
+      trim(StringWrite(measurement%time / &
+                       UnitsConvertToInternal(measurement%time_units,word, &
+                                              option,ierr))) // ' ' // &
+      trim(measurement%time_units) // ', Var: ' // &
+      trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
+      ', Cell: ' // &
+      trim(StringWrite(measurement%cell_id)) // ', Value: ' // &
+      trim(StringWrite(measurement%simulated_value)) // ', Deriv: ' // &
+      trim(StringWrite(measurement%simulated_derivative))
+    if (len_trim(optional_string) > 0) then
+      option%io_buffer = trim(optional_string) // ' : ' // &
+        trim(option%io_buffer)
+    endif
+    call PrintMsg(option)
+  endif
+
+end subroutine InversionMeasurementPrintConcise
+
+! ************************************************************************** !
+
 subroutine InversionMeasurementPrint(measurement,option)
   !
   ! Print contents of measurement object for debugging
@@ -397,17 +458,21 @@ subroutine InversionMeasurementPrint(measurement,option)
   PetscErrorCode :: ierr
 
   if (OptionPrintToScreen(option)) then
-    print *, 'Measurment: ' // trim(StringWrite(measurement%id))
+    print *, 'Measurement: ' // trim(StringWrite(measurement%id))
     word = 'sec'
-    print *, '             Time: ' // &
+    print *, '                Time: ' // &
       trim(StringWrite(measurement%time / &
                        UnitsConvertToInternal(measurement%time_units,word, &
                                               option,ierr))) // ' ' // &
       measurement%time_units
-    print *, '          Cell ID: ' // trim(StringWrite(measurement%cell_id))
-    print *, '            Value: ' // trim(StringWrite(measurement%value))
-    print *, '  Simulated Value: ' // &
+    print *, '             Cell ID: ' // trim(StringWrite(measurement%cell_id))
+    print *, '            Variable: ' // &
+      trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option))
+    print *, '               Value: ' // trim(StringWrite(measurement%value))
+    print *, '     Simulated Value: ' // &
       trim(StringWrite(measurement%simulated_value))
+    print *, 'Simulated Derivative: ' // &
+      trim(StringWrite(measurement%simulated_derivative))
   endif
 
 end subroutine InversionMeasurementPrint

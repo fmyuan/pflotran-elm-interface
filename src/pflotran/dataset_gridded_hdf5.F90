@@ -253,6 +253,12 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
       call h5tclose_f(atype_id,hdf5_err)
       ! set dimensionality of dataset
       call DatasetGriddedHDF5SetDimension(this,word)
+      if (this%data_dim == DIM_NULL) then
+        option%io_buffer = 'Unknown dimension "' // &
+          trim(adjustl(word)) // '" read for gridded dataset "' // &
+          trim(this%hdf5_dataset_name) // '".'
+        call PrintErrMsg(option)
+      endif
     else
       option%io_buffer = &
         'Dimension attribute must be included in hdf5 dataset file.'
@@ -305,8 +311,9 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
         case('LINEAR')
           this%interpolation_method = INTERPOLATION_LINEAR
         case default
-          option%io_buffer = '"Interpolation Method" not recognized in ' // &
-            'Gridded HDF5 Dataset "' // trim(this%name) // '".'
+          option%io_buffer = 'Interpolation method "' // &
+            trim(adjustl(word)) // '" not recognized in &
+            &Gridded HDF5 Dataset "' // trim(this%name) // '".'
           call PrintErrMsg(option)
       end select
     endif
@@ -1015,7 +1022,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           z2 = z1 + dz
 
           nx = this%dims(1)
-          ny = this%dims(1)
+          ny = this%dims(2)
 
           index = i + (j-1)*nx + (k-1)*nx*ny
 

@@ -13,7 +13,7 @@ module EOS_Gas_module
 
   ! module variables
   PetscReal :: fmw_gas           !kg/Kmol
-  PetscReal :: constant_density
+  PetscReal :: constant_density  !kmol/m^3
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
@@ -201,7 +201,7 @@ subroutine EOSGasInit()
 
   implicit none
 
-  fmw_gas = UNINITIALIZED_DOUBLE
+  fmw_gas = FMWAIR
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
@@ -316,12 +316,6 @@ subroutine EOSGasVerify(ierr,error_string)
       endif
     endif
   endif
-
-  if (Uninitialized(fmw_gas)) then
-    fmw_gas = FMWAIR
-    !ierr = 6
-    !error_string = trim(error_string) // " FMWAIR"
-  end if
 
 end subroutine EOSGasVerify
 
@@ -450,13 +444,13 @@ end function EOSGasGetSurfaceDensity
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetDensityConstant(density)
+subroutine EOSGasSetDensityConstant(density_kg)
 
   implicit none
 
-  PetscReal, intent(in) :: density
+  PetscReal, intent(in) :: density_kg
 
-  constant_density = density
+  constant_density = density_kg / fmw_gas
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityConstant
 
@@ -1985,7 +1979,7 @@ subroutine EOSGasInputRecord()
   if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
       associated(EOSGasDensityPtr,EOSGasDensityConstant)) then
     write(id,'(a29)',advance='no') 'gas density: '
-    write(word1,*) constant_density
+    write(word1,*) constant_density * fmw_gas
     write(id,'(a)') 'constant, ' // adjustl(trim(word1)) // ' kg/m^3'
   endif
   if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
