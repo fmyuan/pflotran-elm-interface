@@ -74,6 +74,8 @@ subroutine InversionAuxDestroy(aux)
 
   type(inversion_aux_type), pointer :: aux
 
+  PetscErrorCode :: ierr
+
   if (.not.associated(aux)) return
 
   call DeallocateArray(aux%cell_to_internal_connection)
@@ -81,8 +83,11 @@ subroutine InversionAuxDestroy(aux)
 
   call InversionForwardAuxDestroy(aux%inversion_forward_aux)
 
+  if (aux%JsensitivityT /= PETSC_NULL_MAT) then
+    call MatDestroy(aux%JsensitivityT,ierr);CHKERRQ(ierr)
+  endif
+
   ! these objects are destroyed elsewhere, do not destroy
-  aux%JsensitivityT = PETSC_NULL_MAT
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
   nullify(aux%measurements)

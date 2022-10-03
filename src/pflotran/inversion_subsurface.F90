@@ -869,6 +869,7 @@ subroutine InversionSubsurfInitialize(this)
     endif
 
     inversion_forward_aux => InversionForwardAuxCreate()
+    inversion_forward_aux%JsensitivityT_ptr = this%inversion_aux%JsensitivityT
     inversion_forward_aux%measurements => this%measurements
     inversion_forward_aux%measurement_vec = this%measurement_vec
     inversion_forward_aux%inversion_coupled_aux => this%inversion_coupled_aux

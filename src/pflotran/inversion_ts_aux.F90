@@ -17,6 +17,7 @@ module Inversion_TS_Aux_module
     PetscInt :: isync_time              ! current index of sync_times
     PetscReal, pointer :: sync_times(:) ! an array with all measurement times
     Mat :: M_ptr
+    Mat :: JsensitivityT_ptr
     Vec :: solution_ptr
     type(inversion_forward_ts_aux_type), pointer :: first
     type(inversion_forward_ts_aux_type), pointer :: last
@@ -79,6 +80,7 @@ function InversionForwardAuxCreate()
   aux%isync_time = 1
   nullify(aux%sync_times)
   aux%M_ptr = PETSC_NULL_MAT
+  aux%JsensitivityT_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%first)
   nullify(aux%last)
@@ -278,6 +280,7 @@ subroutine InversionForwardAuxDestroy(aux)
   nullify(aux%last)
   nullify(aux%current)
   aux%M_ptr = PETSC_NULL_MAT
+  aux%JsensitivityT_ptr = PETSC_NULL_MAT
   aux%solution_ptr = PETSC_NULL_VEC
   nullify(aux%measurements)
   aux%measurement_vec = PETSC_NULL_VEC
