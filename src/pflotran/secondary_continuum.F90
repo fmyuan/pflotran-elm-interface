@@ -40,7 +40,7 @@ contains
 ! ************************************************************************** !
 
 subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
-            volm,dm1,dm2,aperture,epsilon,log_spacing,outer_spacing, &
+            volm,dm1,dm2,half_aperture,epsilon,log_spacing,outer_spacing, &
             interfacial_area,option)
   !
   ! The area, volume, grid sizes for secondary continuum
@@ -63,7 +63,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
   PetscInt :: igeom, nmat, m
   PetscReal :: aream(nmat), volm(nmat), dm1(nmat), dm2(nmat)
   PetscReal :: dy, r0, r1, aream0, am0, vm0, interfacial_area
-  PetscReal :: num_density, aperture, epsilon, fracture_spacing
+  PetscReal :: num_density, half_aperture, epsilon, fracture_spacing
   PetscReal :: outer_spacing, matrix_block_size
   PetscReal :: grid_spacing(nmat)
   PetscBool :: log_spacing
@@ -78,34 +78,31 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
   select case (igeom)
     case(SLAB)
-      if (Initialized(epsilon) .and. Initialized(aperture) .and. &
-          Initialized(sec_continuum%slab%length)) then
+      if (Initialized(epsilon) .and. Initialized(half_aperture) .and. &
+          Initialized(sec_continuum%slab%half_matrix_width)) then
         option%io_buffer = 'SLAB GEOMETRY OVERDEFINED. DEFINE ONLY &
                             &EPSILON and APERTURE, LENGTH and APERTURE &
                             &or LENGTH and EPSILON '
         call PrintErrMsg(option)
-      else if (Initialized(epsilon) .and. Initialized(aperture)) then
-        sec_continuum%slab%length = 2.d0 * aperture / ((1.d0 - epsilon) ** (-1.d0/3.d0) - 1.d0)
-      else if (Initialized(sec_continuum%slab%length) .and. Initialized(aperture)) then
-        epsilon = aperture / (sec_continuum%slab%length + aperture)
-      else if (Initialized(sec_continuum%slab%length) .and. Initialized(epsilon)) then
-        aperture = (sec_continuum%slab%length * epsilon) / (1.d0 - epsilon)
+      else if (Initialized(epsilon) .and. Initialized(half_aperture)) then
+        sec_continuum%slab%half_matrix_width = (half_aperture - epsilon * half_aperture) / (epsilon)
+      else if (Initialized(sec_continuum%slab%half_matrix_width) .and. Initialized(half_aperture)) then
+        epsilon = half_aperture / (sec_continuum%slab%half_matrix_width + half_aperture)
+      else if (Initialized(sec_continuum%slab%half_matrix_width) .and. Initialized(epsilon)) then
+        half_aperture = (sec_continuum%slab%half_matrix_width * epsilon) / (1.d0 - epsilon)
       else
         option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE &
                            &or LENGTH and EPSILON &
                            &must be specified for SLAB type '
         call PrintErrMsg(option)
       endif
-      if (Initialized(sec_continuum%slab%area)) then
-        aream0 = sec_continuum%slab%area
-      else
-        aream0 = 1.0 / (sec_continuum%slab%length + aperture)
-      endif
-      am0 = aream0
-      vm0 = sec_continuum%slab%length*aream0
-      interfacial_area = am0/vm0
+
+      !area cancels out in slab
+      aream0 = 1.d0
+      vm0 = sec_continuum%slab%half_matrix_width*aream0 
+      interfacial_area = 1.d0/(sec_continuum%slab%half_matrix_width + half_aperture)
       if (log_spacing) then
-        call SecondaryContinuumCalcLogSpacing(sec_continuum%slab%length,outer_spacing, &
+        call SecondaryContinuumCalcLogSpacing(sec_continuum%slab%half_matrix_width,outer_spacing, &
              nmat,grid_spacing,option)
         do m = 1, nmat
           volm(m) = 2.0d0 * grid_spacing(m) * aream0
@@ -115,7 +112,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         enddo
 
       else
-        dy = sec_continuum%slab%length/nmat
+        dy = sec_continuum%slab%half_matrix_width/nmat
         do m = 1, nmat
           volm(m) = dy*aream0
           aream(m) = aream0
@@ -132,15 +129,13 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         write(option%fid_out,'(2x,a,/)') trim(string)
         num_density = (1.d0-epsilon)/vm0
         write(option%fid_out,'(2x,"number density: ",11x,1pe12.4," m^(-3)")') num_density
-        write(option%fid_out,'(2x,"matrix block size: ",8x,1pe12.4," m")') sec_continuum%slab%length
+        write(option%fid_out,'(2x,"matrix block size: ",8x,1pe12.4," m")') sec_continuum%slab%half_matrix_width
         write(option%fid_out,'(2x,"epsilon: ",18x,1pe12.4)') epsilon
         write(option%fid_out,'(2x,"specific interfacial area: ",1pe12.4," m^(-1)")') interfacial_area
         do m = 1, nmat
           if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")')
           write(option%fid_out,'(2x,i3,3x,1pe12.4)') m,volm(m)/vm0 !*(1.d0 - epsilon)
         enddo
-!       aperture = r0*(1.d0/(1.d0-epsilon)**(1.d0/3.d0)-1.d0)
-!       write(option%fid_out,'(2x,"aperture: ",17x,1pe12.4," m")') aperture
       endif
 
       ! Store the distances
@@ -156,15 +151,15 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
         fracture_spacing = sec_continuum%nested_cube%fracture_spacing
 !        override epsilon if aperture defined
-        if (Initialized(aperture)) then
-          r0 = fracture_spacing - aperture
-          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
+        if (Initialized(half_aperture)) then
+          r0 = fracture_spacing - half_aperture
+          epsilon = 1.d0 - (1.d0 + half_aperture/r0)**(-3.d0)
         else if (Initialized(epsilon)) then
           r0 = fracture_spacing*(1.d0-epsilon)**(1.d0/3.d0)
-          aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
+          half_aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
         else if (Initialized(sec_continuum%nested_cube%matrix_block_size)) then
           r0 = sec_continuum%nested_cube%matrix_block_size
-          aperture = 0.5 * (fracture_spacing - r0)
+          half_aperture = 0.5 * (fracture_spacing - r0)
           epsilon = 1.0 - (r0/fracture_spacing)**3
         else
           option%io_buffer = 'EPSILON, APERTURE, or MATRIX BOCK SIZE' // &
@@ -178,12 +173,12 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         r0 = sec_continuum%nested_cube%matrix_block_size
 
 !        override epsilon if aperture defined
-        if (Initialized(aperture)) then
-          fracture_spacing = r0 + aperture
-          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
+        if (Initialized(half_aperture)) then
+          fracture_spacing = r0 + half_aperture
+          epsilon = 1.d0 - (1.d0 + half_aperture/r0)**(-3.d0)
         else if (Initialized(epsilon)) then
           fracture_spacing = r0*(1.d0-epsilon)**(-1.d0/3.d0)
-          aperture = fracture_spacing - r0
+          half_aperture = fracture_spacing - r0
         else
           option%io_buffer = 'EPSILON or APERTURE must be specified for' // &
                              ' MATRIX BLOCK SIZE in NESTED_CUBES type '
@@ -253,7 +248,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         write(option%fid_out,'(2x,"matrix block size: ",8x,1pe12.4," m")') r0
         write(option%fid_out,'(2x,"epsilon: ",18x,1pe12.4)') epsilon
         write(option%fid_out,'(2x,"specific interfacial area: ",1pe12.4," m^(-1)")') interfacial_area
-        write(option%fid_out,'(2x,"fracture aperture: ",8x,1pe12.4," m")') aperture
+        write(option%fid_out,'(2x,"fracture half aperture: ",8x,1pe12.4," m")') half_aperture
         write(option%fid_out,'(2x,"fracture spacing: ",9x,1pe12.4," m")') fracture_spacing
         write(option%fid_out,'(/,2x,"node  vol. frac.      dm1         dm2         aream       dy          y")')
         r0 = 0.d0
@@ -321,9 +316,6 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")')
           write(option%fid_out,'(2x,i3,3x,1pe12.4)') m,volm(m)/vm0*(1.d0 - epsilon)
         enddo
-
-!       aperture = r0*(1.d0/(1.d0-epsilon)**(1.d0/3.d0)-1.d0)
-!       write(option%fid_out,'(2x,"aperture: ",17x,1pe12.4," m")') aperture
       endif
 
       ! Store the distances
@@ -363,12 +355,11 @@ end subroutine SecondaryContinuumType
 
 subroutine SecondaryContinuumSetProperties(sec_continuum, &
                                            sec_continuum_name, &
-                                           sec_continuum_length, &
+                                           sec_continuum_half_matrix_width, &
                                            sec_continuum_matrix_block_size, &
                                            sec_continuum_fracture_spacing, &
                                            sec_continuum_radius, &
-                                           sec_continuum_area,porosity, &
-                                           option)
+                                           porosity, option)
   !
   ! The type, dimensions of the secondary
   ! continuum are set
@@ -386,8 +377,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   type(option_type) :: option
   PetscReal :: sec_continuum_matrix_block_size
   PetscReal :: sec_continuum_fracture_spacing
-  PetscReal :: sec_continuum_length
-  PetscReal :: sec_continuum_area
+  PetscReal :: sec_continuum_half_matrix_width
   PetscReal :: sec_continuum_radius
   PetscReal :: porosity
   character(len=MAXWORDLENGTH) :: sec_continuum_name
@@ -402,8 +392,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   select case(trim(sec_continuum_name))
     case("SLAB")
       sec_continuum%itype = SLAB
-      sec_continuum%slab%length = sec_continuum_length
-      sec_continuum%slab%area = sec_continuum_area
+      sec_continuum%slab%half_matrix_width = sec_continuum_half_matrix_width
     case("NESTED_CUBES")
       sec_continuum%itype = NESTED_CUBES
       if (sec_continuum_matrix_block_size < 0.d0 .and. &
@@ -556,8 +545,9 @@ end subroutine SecondaryRTTimeCut
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_vars, &
-                                 reaction,initial_condition,constraint,option)
+subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
+                                 rt_sec_transport_vars, reaction, &
+                                 initial_condition,constraint,option)
   !
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -599,7 +589,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   PetscReal :: area_per_vol
   PetscReal :: dum1
   PetscReal :: epsilon
-  PetscReal :: length
+  PetscReal :: half_matrix_width
   PetscInt :: num_iterations
   PetscErrorCode :: ierr
 
@@ -612,16 +602,14 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
         multicontinuum%name, &
-        length, &
+        half_matrix_width, &
         multicontinuum%matrix_block_size, &
         multicontinuum%fracture_spacing, &
         multicontinuum%radius, &
-        multicontinuum%area, multicontinuum%porosity, &
-        option)
-
+        multicontinuum%porosity, option)
 
   rt_sec_transport_vars%ncells = multicontinuum%ncells
-  rt_sec_transport_vars%aperture = multicontinuum%aperture
+  rt_sec_transport_vars%half_aperture = multicontinuum%half_aperture
   rt_sec_transport_vars%epsilon = epsilon
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
   rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing
@@ -639,7 +627,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
                               rt_sec_transport_vars%vol, &
                               rt_sec_transport_vars%dm_minus, &
                               rt_sec_transport_vars%dm_plus, &
-                              rt_sec_transport_vars%aperture, &
+                              rt_sec_transport_vars%half_aperture, &
                               rt_sec_transport_vars%epsilon, &
                               rt_sec_transport_vars%log_spacing, &
                               rt_sec_transport_vars%outer_spacing, &

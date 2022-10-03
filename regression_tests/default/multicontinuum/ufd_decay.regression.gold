@@ -1,14 +1,14 @@
 -- CONCENTRATION: Total A1 --
       Max:   1.0000000000000E-01
-      Min:   4.7975460725290E-02
-     Mean:   7.3987730362645E-02
+      Min:   4.7975934634037E-02
+     Mean:   7.3987967317019E-02
         1:   1.0000000000000E-01
-        2:   4.7975460725290E-02
+        2:   4.7975934634037E-02
 -- VOLUME_FRACTION: A1(s) VF --
-      Max:   4.2831676903342E-03
+      Max:   4.2831835197982E-03
       Min:   0.0000000000000E+00
-     Mean:   2.1415838451671E-03
-        1:   4.2831676903342E-03
+     Mean:   2.1415917598991E-03
+        1:   4.2831835197982E-03
         2:   0.0000000000000E+00
 -- RATE: A1(s) Rate --
       Max:  -0.0000000000000E+00
@@ -23,10 +23,10 @@
         1:         1
         2:         1
 -- SOLUTION: Transport --
-   Time (seconds):   5.5103381002482E-02
+   Time (seconds):   4.3906701001561E-02
    Time Steps:          208
    Newton Iterations:          208
    Linear Solver Iterations:          208
    Time Step Cuts:            0
-   Solution 2-Norm:   1.1122862439539E-01
-   Residual 2-Norm:   2.7987720505896E-23
+   Solution 2-Norm:   1.1122882996978E-01
+   Residual 2-Norm:   4.8579945940077E-23

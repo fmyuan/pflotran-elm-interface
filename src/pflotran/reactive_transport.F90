@@ -264,7 +264,7 @@ subroutine RTSetup(realization)
                                  multicontinuum,material_auxvars(ghosted_id)% &
                                    soil_properties(epsilon_index), &
                                  material_auxvars(ghosted_id)% &
-                                   soil_properties(matrix_length_index), &
+                                   soil_properties(half_matrix_width_index), &
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
