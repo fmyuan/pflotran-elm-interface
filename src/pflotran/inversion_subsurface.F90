@@ -793,7 +793,7 @@ subroutine InversionSubsurfInitialize(this)
         endif
       else if (OptionIsIORank(this%realization%option)) then
         icount = icount + 1
-        this%measurements(i)%local_id = -this%measurements(i)%cell_id
+        this%measurements(i)%local_id = this%measurements(i)%cell_id
       endif
     enddo
     allocate(this%local_measurement_values(icount))
