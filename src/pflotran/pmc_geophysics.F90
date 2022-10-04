@@ -167,6 +167,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   ! Date: 01/29/21
   !
   use Option_module
+  use Option_Inversion_module
   use Output_Aux_module
   use PM_Base_class
   use Timestepper_Steady_class
@@ -218,6 +219,18 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
     call PrintErrMsg(option)
   else
     skip_survey = PETSC_FALSE
+  endif
+
+  if (associated(option%inversion)) then
+    if (option%inversion%coupled_flow_ert .and. &
+        .not.option%inversion%calculate_ert) then
+      write(option%io_buffer,'(" Time= ",1pe12.5," [",a,"]", &
+            &" Skipping geophysics as this is a perturbed coupled &
+            &flow-ert run.")') &
+        timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+      call PrintMsg(option)
+      return
+    endif
   endif
 
   if (skip_survey) then

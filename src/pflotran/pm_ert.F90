@@ -1008,9 +1008,13 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
+  use Inversion_Coupled_Aux_module
+  use Inversion_Parameter_module
+  use Inversion_TS_Aux_module
   use Material_Aux_module
-  use Timer_class
   use String_module
+  use Timer_class
+  use Utility_module
 
   implicit none
 
@@ -1023,6 +1027,8 @@ subroutine PMERTBuildJacobian(this)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
+  type(inversion_coupled_soln_type), pointer :: solutions(:)
+  type(inversion_parameter_type), pointer :: parameters(:)
 
   PetscInt, pointer :: cell_neighbors(:,:)
   PetscReal, allocatable :: phi_sor(:), phi_rec(:)
@@ -1131,6 +1137,32 @@ subroutine PMERTBuildJacobian(this)
       deallocate(phi_sor, phi_rec)
     enddo
   enddo
+
+  if (associated(option%inversion)) then
+    if (option%inversion%coupled_flow_ert .and. &
+        option%inversion%calculate_ert_jacobian) then
+      solutions => &
+        patch%aux%inversion_forward_aux%inversion_coupled_aux%solutions
+      parameters => &
+        patch%aux%inversion_forward_aux%inversion_coupled_aux%parameters
+      do im = 1, size(solutions)
+        if (.not.Equal(solutions(im)%time,option%time)) cycle
+        do in = 1, size(parameters)
+          print *, 'liquid saturation -> ', &
+                   trim(parameters(in)%parameter_name), ' : ', &
+                   trim(parameters(in)%material_name), ' ', im
+!          call VecView(solutions(im)%dsaturation_dparameter(in), &
+!                       PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+          print *, 'solute concentration -> ', &
+                   trim(parameters(in)%parameter_name), ' : ', &
+                   trim(parameters(in)%material_name), ' ', im
+!          call VecView(solutions(im)%dsolute_dparameter(in), &
+!                       PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+        enddo
+      enddo
+    endif
+  endif
+
 
   ! I can now deallocate potential and delM (and M just after solving)
   ! But what about potential field output?
