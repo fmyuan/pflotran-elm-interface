@@ -1031,13 +1031,13 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
 
           index = i + j*nx + (k-1)*nx*ny
 
-          c001 = this%rarray(index)
-          c101 = this%rarray(index+1)
+          c010 = this%rarray(index)
+          c110 = this%rarray(index+1)
 
           index = i + (j-1)*nx + k*nx*ny
 
-          c010 = this%rarray(index)
-          c110 = this%rarray(index+1)
+          c001 = this%rarray(index)
+          c101 = this%rarray(index+1)
 
           index = i + j*nx + k*nx*ny
 
