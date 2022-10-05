@@ -2032,8 +2032,6 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
        !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
 
-       !MAN: Try perturbing upward, because lower gas pressure is associated with
-       !     lower gas saturation (i.e. two-phase)
        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
                                 x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
 

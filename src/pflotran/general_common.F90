@@ -2398,16 +2398,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   heat_flux = dheat_flux_ddelta_temp * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
 
-! MAN: Kris changes
-!  delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-!  dheat_flux_ddelta_temp_up = (dkeff_up_dTup * delta_temp - k_eff_ave) &
-!                               * 1.d-6 * area
-!  dheat_flux_ddelta_temp_dn = (dkeff_dn_dTdn * delta_temp + k_eff_ave) &
-!                               * 1.d-6 * area
-!  heat_flux = area * k_eff_ave * delta_temp * 1.d-6
-!  dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
-! MAN: end Kris changes
-
   ! MJ/s or MW
   Res(energy_id) = Res(energy_id) + heat_flux
 
@@ -2419,11 +2409,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-
-        ! MAN: Kris changes
-        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
-        !
-
         Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
 
       case(TWO_PHASE_STATE)
@@ -2434,9 +2419,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! derivative energy wrt temperature
         ! positive for upwind
 
-        ! MAN: Kris change
-        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
-        ! MAN: end Kris change
 
         Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
 
@@ -2447,9 +2429,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! derivative energy wrt temperature
         ! positive for upwind
 
-        ! MAN: Kris change
-        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
-        ! MAN: end Kris change
 
         Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
 
@@ -2461,9 +2440,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! derivative energy wrt temperature
         ! positive for upwind
 
-        ! MAN: Kris change
-        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
-        ! MAN: end Kris change
 
         Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
 
@@ -3856,11 +3832,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
       dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
       heat_flux = dheat_flux_ddelta_temp * delta_temp
-      ! AS3 Kris changes
-      ! dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
-      !      * area * 1.d-6 ! J/s -> MJ/s
-      ! heat_flux = area * k_eff_ave * delta_temp * 1.d-6
-      ! AS3 end Kris changes
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
@@ -3885,10 +3856,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! derivative energy wrt temperature
         ! positive for upwind
         Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
-        ! AS3 Kris changes
-        ! Jc(3,3) = dheat_flux_ddelta_temp
-        ! AS3 end Kris changes
-
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
         ! derivative energy wrt gas saturation
@@ -3897,9 +3864,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! derivative energy wrt temperature
         ! positive for upwind
         Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
-        ! AS3 Kris changes
-        ! Jc(3,3) = dheat_flux_ddelta_temp
-        ! AS3 end Kris changes
     end select
     J = J + Jc
   endif
@@ -4038,8 +4002,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
 
   qsrc_mol = 0.d0
   if (flow_src_sink_type == TOTAL_MASS_RATE_SS) then
-    !MAN: this has only been tested for an extraction well. Scales the mass of
-    !water and gas extracted by the mobility ratio.
+    !Scales the mass of water and gas extracted by the mobility ratio.
     mob_tot = gen_auxvar_ss%mobility(lid) + &
               gen_auxvar_ss%mobility(gid)
       if (gen_auxvar_ss%sat(gid) <= 0.d0) then

@@ -74,6 +74,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: liquid_flux
     type(flow_sub_condition_type), pointer :: gas_flux
     type(flow_sub_condition_type), pointer :: energy_flux
+    character(len=MAXWORDLENGTH) :: state ! state of the flow condition
     ! any new sub conditions must be added to FlowConditionIsTransient
   end type flow_hydrate_condition_type
 
@@ -348,6 +349,8 @@ function FlowHydrateConditionCreate(option)
   nullify(hydrate_condition%energy_flux)
   nullify(hydrate_condition%rate)
 
+  hydrate_condition%state = 'ANY_STATE'
+
   FlowHydrateConditionCreate => hydrate_condition
 
 end function FlowHydrateConditionCreate
@@ -497,20 +500,20 @@ function FlowHydrateSubConditionPtr(input,sub_condition_name,hydrate, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         hydrate%gas_pressure => sub_condition_ptr
       endif
-    case('LIQUID_SATURATION','GAS_SATURATION') !MAN should split this
+    case('GAS_SATURATION')
       if (associated(hydrate%gas_saturation)) then
         sub_condition_ptr => hydrate%gas_saturation
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         hydrate%gas_saturation => sub_condition_ptr
       endif
-!    case('LIQUID_SATURATION')
-!      if (associated(hydrate%gas_saturation)) then
-!         sub_condition_ptr => hydrate%liquid_saturation
-!      else
-!         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-!         hydrate%liquid_saturation => sub_condition_ptr
-!      endif
+    case('LIQUID_SATURATION')
+      if (associated(hydrate%liquid_saturation)) then
+         sub_condition_ptr => hydrate%liquid_saturation
+      else
+         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+         hydrate%liquid_saturation => sub_condition_ptr
+      endif
     case('HYDRATE_SATURATION')
       if (associated(hydrate%hydrate_saturation)) then
         sub_condition_ptr => hydrate%hydrate_saturation
@@ -2478,15 +2481,10 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                                  sub_condition_ptr%dataset, &
                                  sub_condition_ptr%units,internal_units)
         input%force_units = PETSC_FALSE
-        select case(word)
-          case('LIQUID_SATURATION') ! convert to gas saturation
-            if (associated(sub_condition_ptr%dataset%rbuffer)) then
-              sub_condition_ptr%dataset%rbuffer(:) = 1.d0 - &
-                sub_condition_ptr%dataset%rbuffer(:)
-            endif
-            sub_condition_ptr%dataset%rarray(:) = 1.d0 - &
-              sub_condition_ptr%dataset%rarray(:)
-        end select
+      case('STATE')
+        call InputReadCard(input,option,word)
+        call StringToUpper(word)
+        hydrate%state = trim(word)
       case default
         call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
@@ -2528,29 +2526,6 @@ subroutine FlowConditionHydrateRead(condition,input,option)
              associated(hydrate%temperature))) then
       condition%iphase = HYD_ANY_STATE
     else
-      ! some sort of dirichlet-based pressure, temperature, etc.
-      if (.not.associated(hydrate%liquid_pressure) .and. &
-          .not.associated(hydrate%gas_pressure)) then
-        option%io_buffer = 'Hydrate Mode non-rate condition must include &
-          &a liquid or gas pressure'
-        call printErrMsg(option)
-      endif
-      if (.not.associated(hydrate%mole_fraction) .and. &
-          .not.associated(hydrate%relative_humidity) .and. &
-          .not.associated(hydrate%gas_saturation)) then
-        if (.not.associated(hydrate%hydrate_saturation) .and. &
-                .not.associated(hydrate%ice_saturation)) then
-          option%io_buffer = 'Hydrate Mode non-rate condition must &
-                  &include a mole fraction, relative humidity, or &
-                  &gas/liquid/hydrate/ice saturation'
-          call printErrMsg(option)
-        endif
-      endif
-      if (.not.associated(hydrate%temperature)) then
-        option%io_buffer = 'Hydrate Mode non-rate condition must include &
-          &a temperature, for now...'
-        call printErrMsg(option)
-      endif
       if ( associated(hydrate%gas_pressure) .and. &
            associated(hydrate%gas_saturation) .and. &
            associated(hydrate%liquid_pressure) .and. &
@@ -2558,55 +2533,103 @@ subroutine FlowConditionHydrateRead(condition,input,option)
             associated(hydrate%relative_humidity)) ) then
         ! multiphase condition
         condition%iphase = HYD_MULTI_STATE
-      elseif (associated(hydrate%liquid_pressure) .and. &
+      elseif (hydrate%state /= 'I' .and. &
+              hydrate%state /= 'H' .and. &
+              associated(hydrate%liquid_pressure) .and. &
               associated(hydrate%mole_fraction) .and. &
               associated(hydrate%temperature)) then
         ! liquid phase condition
         condition%iphase = L_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
+      elseif (hydrate%state /= 'I' .and. &
+              hydrate%state /= 'H' .and. &
+                associated(hydrate%gas_pressure) .and. &
                (associated(hydrate%mole_fraction) .or. &
                 associated(hydrate%relative_humidity)) .and. &
                 associated(hydrate%temperature)) then
         ! gas phase condition
         condition%iphase = G_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%gas_saturation) .and. &
+      elseif (hydrate%state == 'H' .and. &
+              associated(hydrate%gas_pressure) .and. &
               associated(hydrate%temperature)) then
-        ! two phase condition
+        ! hydrate phase condition
+        condition%iphase = H_STATE
+      elseif (hydrate%state == 'I' .and. &
+              associated(hydrate%gas_pressure) .and. &
+              associated(hydrate%temperature)) then
+        ! ice phase condition
+        condition%iphase = I_STATE
+      elseif (hydrate%state /= 'HG' .and.  &
+              (associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%gas_saturation) .and. &
+               associated(hydrate%temperature)) then
+        ! gas-aqueous phase condition
         condition%iphase = GA_STATE
       elseif ((associated(hydrate%gas_pressure) .or. &
-          associated(hydrate%liquid_pressure)) .and. &
-          associated(hydrate%hydrate_saturation)) then
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%gas_saturation) .and. &
+               associated(hydrate%temperature)) then
+        ! hydrate-gas phase condition
+        condition%iphase = HG_STATE
+      elseif (hydrate%state /= 'HI' .and. &
+              (associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%hydrate_saturation) .and. &
+               associated(hydrate%temperature)) then
+        ! hydrate-aqueous condition
         condition%iphase = HA_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%ice_saturation) .and. &
-              associated(hydrate%temperature)) then
+      elseif (hydrate%state == 'HI' .and. &
+              (associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%hydrate_saturation) .and. &
+               associated(hydrate%temperature)) then
+        ! hydrate-aqueous condition
+        condition%iphase = HI_STATE
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%ice_saturation) .and. &
+               associated(hydrate%temperature)) then
+        ! gas-ice condition
         condition%iphase = GI_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%mole_fraction) .and. &
-              associated(hydrate%liquid_saturation)) then
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)).and. &
+               associated(hydrate%mole_fraction) .and. &
+               associated(hydrate%liquid_saturation)) then
+        ! aqueous-ice condition
         condition%iphase = AI_STATE
-      elseif (associated(hydrate%gas_saturation) .and. &
+      elseif (associated(hydrate%liquid_saturation) .and. &
               associated(hydrate%hydrate_saturation) .and. &
               associated(hydrate%temperature)) then
+        ! hydrate-gas-aqueous condition
         condition%iphase = HGA_STATE
-      elseif (associated(hydrate%gas_pressure) .and. &
-              associated(hydrate%liquid_saturation) .and. &
-              associated(hydrate%ice_saturation)) then
+      elseif (hydrate%state == 'HAI' .and. &
+              (associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%liquid_saturation) .and. &
+               associated(hydrate%ice_saturation)) then
+        ! hydrate-aqueous-ice condition
         condition%iphase = HAI_STATE
+      elseif ((associated(hydrate%gas_pressure) .or. &
+               associated(hydrate%liquid_pressure)) .and. &
+               associated(hydrate%liquid_saturation) .and. &
+               associated(hydrate%ice_saturation)) then
+        ! hydrate-aqueous-ice condition
+        condition%iphase = GAI_STATE
       elseif (associated(hydrate%ice_saturation) .and. &
               associated(hydrate%hydrate_saturation) .and. &
               associated(hydrate%temperature)) then
+        ! hydrate-gas-ice condition
         condition%iphase = HGI_STATE
       elseif (associated(hydrate%liquid_saturation) .and. &
               associated(hydrate%gas_saturation) .and. &
               associated(hydrate%ice_saturation)) then
-        condition%iphase = QUAD_STATE
+        ! hydrate-gas-aqueous-ice condition
+        condition%iphase = HGAI_STATE
       endif
 
     endif
     if (condition%iphase == NULL_STATE) then
-      option%io_buffer = 'General Phase non-rate/flux condition contains &
+      option%io_buffer = 'Hydrate Phase non-rate/flux condition contains &
         &an unsupported combination of primary dependent variables.'
       call printErrMsg(option)
     endif
