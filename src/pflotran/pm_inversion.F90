@@ -292,13 +292,13 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                                           perturbed_solute_solution, &
                                         SOLUTE_CONCENTRATION,ZERO_INTEGER)
           endif
-          option%io_buffer = 'Full saturation '
+          option%io_buffer = 'Full saturation'
           if (iflag) then
             option%io_buffer = trim(option%io_buffer) // &
-              'and solute concentration '
+              ' and solute concentration'
           endif
           option%io_buffer = trim(option%io_buffer) // &
-              'solutions measured.'
+              ' solutions measured.'
           call PrintMsg(option)
         endif
       enddo
