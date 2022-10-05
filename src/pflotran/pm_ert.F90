@@ -775,6 +775,7 @@ subroutine PMERTPreSolve(this)
                                          cond_c,empirical_law,cond,dcond_dsat)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
     if (this%coupled_ert_flow_jacobian) then
+print*,local_id,cond,n,sat,dcond_dsat,dcond_dconc
       if (local_id > 0) dcond_dsat_vec_ptr(local_id) = dcond_dsat
       if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
         if (local_id > 0) dcond_dconc_vec_ptr(local_id) = dcond_dconc
@@ -1383,7 +1384,7 @@ subroutine PMERTBuildCoupledJacobian(this)
                               jacob * dconc_dparam_ptr(local_id) * &
                               dcond_dconc_vec_ptr(local_id)
             endif
-
+print*,imeasurement,iparam,idata,local_id
             call MatSetValue(patch%aux%inversion_forward_aux% &
                                JsensitivityT_ptr, &
                              iparam-1,imeasurement-1,coupled_jacob, &
