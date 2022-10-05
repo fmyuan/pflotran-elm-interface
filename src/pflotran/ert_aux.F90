@@ -87,11 +87,19 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
   auxvar%potential = 0.d0
 
   nullify(auxvar%jacobian)
+  nullify(auxvar%delM)
+
+  ! return if coupled FLOW-ERT inversion
+  if (associated(option%inversion)) then
+    if (option%inversion%coupled_flow_ert) then
+      return
+    endif
+  endif
+
   if (option%geophysics%compute_jacobian) then
     allocate(auxvar%jacobian(survey%num_measurement))
     auxvar%jacobian = 0.d0
   endif
-  nullify(auxvar%delM)
 
 end subroutine ERTAuxVarInit
 
