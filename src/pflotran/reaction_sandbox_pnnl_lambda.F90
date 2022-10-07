@@ -67,7 +67,7 @@ function LambdaCreate()
   LambdaCreate%i_nh4 = UNINITIALIZED_INTEGER
 
   LambdaCreate%mu_max = UNINITIALIZED_DOUBLE
-  LambdaCreate%vh = UNINITIALIZED_DOUBLE
+  LambdaCreate%vh = 1.d0 ! m^3
   LambdaCreate%k_deg = UNINITIALIZED_DOUBLE
   LambdaCreate%cc = UNINITIALIZED_DOUBLE
   LambdaCreate%nh4_inhibit = UNINITIALIZED_DOUBLE
@@ -322,6 +322,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   ! Reactions are modulated by biomass concentration
   ! Biomass is moduluated by a carrying capacity (CC)
   Biomass_mod = C_aq(this%i_biomass) * (1 - C_aq(this%i_biomass) / this%cc)
+  Biomass_mod = max(Biomass_mod, 0.d0)
 
   Rate = 0.d0
 
