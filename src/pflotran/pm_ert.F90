@@ -715,6 +715,7 @@ subroutine PMERTPreSolve(this)
   cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
   cond_w0 = cond_w
+  tracer_scale = 0.d0
 
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
@@ -762,17 +763,16 @@ subroutine PMERTPreSolve(this)
         species_id = 1
         cond_sp = tracer_scale * rt_auxvars(ghosted_id)%total(species_id,1)
         cond_w = cond_w0 + cond_sp
-        dcond_dconc = tracer_scale
       endif
     endif
     if (associated(zflow_auxvars)) then
       cond_sp = tracer_scale * zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc
       cond_w = cond_w0 + cond_sp
-      dcond_dconc = tracer_scale
     endif
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
-                                         cond_c,empirical_law,cond,dcond_dsat)
+                                         cond_c,empirical_law,cond, &
+                                         tracer_scale,dcond_dsat,dcond_dconc)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
     if (this%coupled_ert_flow_jacobian) then
       if (local_id > 0) dcond_dsat_vec_ptr(local_id) = dcond_dsat
@@ -1286,23 +1286,23 @@ subroutine PMERTBuildCoupledJacobian(this)
     parameters => &
       patch%aux%inversion_forward_aux%inversion_coupled_aux%parameters
 
-    call VecGetArrayF90(this%dconductivity_dsaturation, &
-                        dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(this%dconductivity_dsaturation, &
+                            dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
     if (Initialized(zflow_sol_tran_eq)) then
-      call VecGetArrayF90(this%dconductivity_dconcentration, &
-                          dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArrayReadF90(this%dconductivity_dconcentration, &
+                              dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
 
     do isurvey = 1, size(solutions)
       if (.not.Equal(solutions(isurvey)%time,option%time)) cycle
       do iparam = 1, size(parameters)
-        call VecGetArrayF90(solutions(isurvey)% &
-                              dsaturation_dparameter(iparam), &
-                            dsat_dparam_ptr,ierr);CHKERRQ(ierr)
+        call VecGetArrayReadF90(solutions(isurvey)% &
+                                dsaturation_dparameter(iparam), &
+                                dsat_dparam_ptr,ierr);CHKERRQ(ierr)
         if (Initialized(zflow_sol_tran_eq)) then
-          call VecGetArrayF90(solutions(isurvey)% &
-                                dsolute_dparameter(iparam), &
-                              dconc_dparam_ptr,ierr);CHKERRQ(ierr)
+          call VecGetArrayReadF90(solutions(isurvey)% &
+                                  dsolute_dparameter(iparam), &
+                                  dconc_dparam_ptr,ierr);CHKERRQ(ierr)
         endif
 
         do idata=1,ndata
@@ -1315,6 +1315,8 @@ subroutine PMERTBuildCoupledJacobian(this)
 
           imeasurement = idata + (isurvey - 1) * ndata
 
+          jacob = 0.d0
+          coupled_jacob = 0.d0
           do local_id=1,grid%nlmax
 
             ghosted_id = grid%nL2G(local_id)
@@ -1376,7 +1378,7 @@ subroutine PMERTBuildCoupledJacobian(this)
 
             ! dERT/dparam = dERT/dCond * dCond/dSat  * dSat/dParam + &
             !               dERT/dCond * dCond/dConc * dConc/dParam
-            coupled_jacob = jacob * dsat_dparam_ptr(local_id) * &
+            coupled_jacob = coupled_jacob + jacob * dsat_dparam_ptr(local_id) *&
                             dcond_dsat_vec_ptr(local_id)
             if (Initialized(zflow_sol_tran_eq)) then
               coupled_jacob = coupled_jacob + &
@@ -1384,31 +1386,31 @@ subroutine PMERTBuildCoupledJacobian(this)
                               dcond_dconc_vec_ptr(local_id)
             endif
 
-            call MatSetValue(patch%aux%inversion_forward_aux% &
-                               JsensitivityT_ptr, &
-                             iparam-1,imeasurement-1,coupled_jacob, &
-                             ADD_VALUES,ierr);CHKERRQ(ierr)
-
             deallocate(phi_sor, phi_rec)
 
           enddo
+
+          call MatSetValue(patch%aux%inversion_forward_aux% &
+                               JsensitivityT_ptr, &
+                             iparam-1,imeasurement-1,coupled_jacob, &
+                             INSERT_VALUES,ierr);CHKERRQ(ierr)
         enddo
-        call VecRestoreArrayF90(solutions(isurvey)% &
-                              dsaturation_dparameter(iparam), &
-                            dsat_dparam_ptr,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayReadF90(solutions(isurvey)% &
+                                    dsaturation_dparameter(iparam), &
+                                    dsat_dparam_ptr,ierr);CHKERRQ(ierr)
         if (Initialized(zflow_sol_tran_eq)) then
-          call VecRestoreArrayF90(solutions(isurvey)% &
-                              dsolute_dparameter(iparam), &
-                            dconc_dparam_ptr,ierr);CHKERRQ(ierr)
+          call VecRestoreArrayReadF90(solutions(isurvey)% &
+                                      dsolute_dparameter(iparam), &
+                                      dconc_dparam_ptr,ierr);CHKERRQ(ierr)
         endif
       enddo
     enddo
 
-    call VecRestoreArrayF90(this%dconductivity_dsaturation, &
-                            dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(this%dconductivity_dsaturation, &
+                                dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
     if (Initialized(zflow_sol_tran_eq)) then
-      call VecRestoreArrayF90(this%dconductivity_dconcentration, &
-                              dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(this%dconductivity_dconcentration, &
+                                  dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
 
   endif

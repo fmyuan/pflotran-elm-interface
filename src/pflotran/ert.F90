@@ -405,7 +405,8 @@ end subroutine ERTCalculateMatrix
 ! ************************************************************************** !
 
 subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
-                                           cond_c,empirical_law,cond,dcond_dsat)
+                                           cond_c,empirical_law,cond, &
+                                           tracer_scale,dcond_dsat,dcond_dconc)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -435,16 +436,22 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   PetscReal :: cond
 
   ! to get dconductivty/dsaturation
-  PetscReal, optional :: dcond_dsat
-  PetscReal :: tempreal,cond_ws
+  PetscReal :: tracer_scale
+  PetscReal :: dcond_dsat
+  PetscReal :: dcond_dconc
+  PetscReal :: cond_ws
 
   ! Archie's law
   cond = cond_w * (por**m) * (sat**n) / a
+
+  ! dcond/dsat
+  dcond_dsat = n * cond / sat
+
   ! Modify by adding surface conductivity
   cond = cond + cond_s
 
-  ! dcond/dsat
-  tempreal = n * cond / sat
+  !dcond/dconc
+  dcond_dconc = tracer_scale * (por**m) * (sat**n) / a
 
   select case(empirical_law)
     case(ARCHIE)
@@ -453,12 +460,8 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
       ! Waxmax-Smits equations/Dual-Water model
       cond_ws = cond_c * Vc * (1-por) * sat**(n-1)
       cond = cond + cond_ws
-      tempreal = tempreal + (n-1) * cond_ws / sat
+      dcond_dsat = dcond_dsat + (n-1) * cond_ws / sat
   end select
-
-  if (present(dcond_dsat)) then
-     dcond_dsat = tempreal
-  endif
 
 end subroutine ERTConductivityFromEmpiricalEqs
 
