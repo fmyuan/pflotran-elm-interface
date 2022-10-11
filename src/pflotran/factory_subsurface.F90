@@ -3859,6 +3859,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                  'Group size')
             case('EXTEND_HDF5_TIME_FORMAT')
               output_option%extend_hdf5_time_format = PETSC_TRUE
+            case ('ACKNOWLEDGE_VTK_FLAW')
+              output_option%vtk_acknowledgment = PETSC_TRUE
             case default
               call InputKeywordUnrecognized(input,word,'OUTPUT',option)
           end select
