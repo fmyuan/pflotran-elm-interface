@@ -1259,6 +1259,17 @@ subroutine PMWFReadPMBlock(this,input)
         call PrintErrMsg(option)
       endif
     endif
+    
+    if (cur_waste_form%spacer_degradation_flag .and. &
+        .not. associated(this%spacer_mech_list)) then
+      option%io_buffer = 'SPACER_MECHANISM_NAME "' &
+                       // trim(cur_waste_form%spacer_mech_name) &
+                       //'" was specified for waste form "' &
+                       // trim(cur_waste_form%mechanism%name) &
+                       //'" but no SPACER_DEGRADATION_MECHANISM block was ' &
+                       //'actually provided.'
+      call PrintErrMsg(option)
+    endif
 
     cur_waste_form => cur_waste_form%next
   enddo
@@ -2701,6 +2712,7 @@ subroutine PMWFSetup(this)
   use Grid_Unstructured_module
   use Option_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Utility_module, only : GetRndNumFromNormalDist
   use String_module
 
@@ -2963,10 +2975,22 @@ subroutine PMWFSetup(this)
     allocate(cur_waste_form%inst_release_amount(num_species))
     cur_waste_form%inst_release_amount = 0.d0
     do j = 1, num_species
-      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
-        GetPrimarySpeciesIDFromName( &
-        cur_waste_form%mechanism%rad_species_list(j)%name, &
-        this%realization%reaction,this%option)
+      if (associated(this%realization%reaction_nw)) then
+        cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+          NWTGetSpeciesIDFromName( &
+          cur_waste_form%mechanism%rad_species_list(j)%name, &
+          this%realization%reaction_nw,this%option)
+      elseif (associated(this%realization%reaction)) then
+        cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+          GetPrimarySpeciesIDFromName( &
+          cur_waste_form%mechanism%rad_species_list(j)%name, &
+          this%realization%reaction,this%option)
+      else
+        option%io_buffer = 'Currently, a transport process model (GIRT/OSRT ' &
+                         //'or NWT) is required to use the WASTE_FORM_GENERAL '&
+                         //'process model.'
+        call PrintErrMsg(option)
+      endif
     enddo
     cur_waste_form => cur_waste_form%next
   enddo
@@ -3023,17 +3047,19 @@ end subroutine PMWFSetup
 
   ! ensure that waste form is not being used with other reactive transport
   ! capability
-  if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
-      reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
-      reaction%immobile%nimmobile > 0 .or. &
-      GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
-      associated(rxn_sandbox_list)) then
-    this%option%io_buffer = 'The UFD_DECAY process model may not be used &
-      &with other reactive transport capability within PFLOTRAN. &
-      &Minerals (and mineral kinetics) are used because their data &
-      &structures are leveraged by UFD_DECAY, but no "conventional" &
-      &mineral precipitation-dissolution capability is used.'
-    call PrintErrMsg(this%option)
+  if (associated(reaction)) then
+    if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
+        reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
+        reaction%immobile%nimmobile > 0 .or. &
+        GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+        associated(rxn_sandbox_list)) then
+      this%option%io_buffer = 'The UFD_DECAY process model may not be used &
+        &with other reactive transport capability within PFLOTRAN. &
+        &Minerals (and mineral kinetics) are used because their data &
+        &structures are leveraged by UFD_DECAY, but no "conventional" &
+        &mineral precipitation-dissolution capability is used.'
+      call PrintErrMsg(this%option)
+    endif
   endif
 
   if (this%print_mass_balance) then

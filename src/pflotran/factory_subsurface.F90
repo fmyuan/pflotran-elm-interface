@@ -542,9 +542,9 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   call InputFindStringErrorMsg(input,option,string)
   call pm_waste_form%ReadPMBlock(input)
 
-  if (option%itranmode /= RT_MODE) then
+  if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
      option%io_buffer = 'The Waste Form process model requires &
-          &reactive transport.'
+          &a transport process model (GIRT/OSRT or NWT).'
      call PrintErrMsg(option)
   endif
   cur_mechanism => pm_waste_form%mechanism_list
@@ -618,9 +618,9 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
   call InputFindStringErrorMsg(input,option,string)
   call pm_ufd_decay%ReadPMBlock(input)
 
-  if (option%itranmode /= RT_MODE) then
-     option%io_buffer = 'The UFD_DECAY process model requires reactive &
-          &transport.'
+  if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
+     option%io_buffer = 'The UFD_DECAY process model requires a transport &
+          &process model (GIRT/OSRT or NWT).'
      call PrintErrMsg(option)
   endif
 
@@ -1494,6 +1494,20 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
             call PrintErrMsg(option)
         end select
         pm%option => option
+      case('SKIP_RESTART')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        pm%skip_restart = PETSC_TRUE
+      case('STEADY_STATE')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        pm%steady_state = PETSC_TRUE
       case('OPTIONS')
         if (.not.associated(pm)) then
           option%io_buffer = 'TYPE keyword must be read first under ' // &

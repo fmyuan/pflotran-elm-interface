@@ -134,6 +134,11 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
 
+  interface NWTGetSpeciesIDFromName
+    module procedure NWTGetSpeciesIDFromName1
+    module procedure NWTGetSpeciesIDFromName2
+  end interface
+
   public :: NWTAuxCreate, &
             NWTSpeciesCreate, &
             NWTSpeciesConstraintCreate, &
@@ -149,7 +154,8 @@ module NW_Transport_Aux_module
             NWTAuxDestroy, &
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
-            NWTReactionDestroy
+            NWTReactionDestroy, &
+            NWTGetSpeciesIDFromName
 
 
 contains
@@ -408,7 +414,6 @@ subroutine NWTRead(reaction_nw,input,option)
             case('NAME')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'species name',error_string)
-              call StringToUpper(word)
               temp_species_names(k) = trim(word)
               new_species%name = trim(word)
             case('SOLUBILITY')
@@ -477,7 +482,6 @@ subroutine NWTRead(reaction_nw,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'radioactive species name', &
                              error_string)
-          call StringToUpper(word)
           new_rad_rxn%name = trim(word)
           parent_name_hold = trim(word)
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -485,7 +489,6 @@ subroutine NWTRead(reaction_nw,input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'radioactive species daughter &
                                &name',error_string)
-            call StringToUpper(word)
             new_rad_rxn%daughter_name = trim(word)
             j = 0
             ! record which species was the parent
@@ -1079,6 +1082,86 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
   enddo
 
 end subroutine NWTVerifySpecies
+
+! ************************************************************************** !
+
+function NWTGetSpeciesIDFromName1(name,reaction,option)
+  !
+  ! Returns the ID of the named species
+  !
+  ! Author: Alex Salazar III
+  ! Based on code from Glenn Hammond
+  ! Date: 09/13/2022
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: NWTGetSpeciesIDFromName1
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_nw_type) :: reaction
+  type(option_type) :: option
+
+  NWTGetSpeciesIDFromName1 = NWTGetSpeciesIDFromName2(name, reaction, &
+                                                      PETSC_TRUE, option)
+
+end function NWTGetSpeciesIDFromName1
+
+! ************************************************************************** !
+
+function NWTGetSpeciesIDFromName2(name,reaction,return_error,option)
+  !
+  ! Returns the ID of the named species
+  !
+  ! Author: Alex Salazar III
+  ! Based on code from Glenn Hammond
+  ! Date: 09/13/2022
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: NWTGetSpeciesIDFromName2
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_nw_type) :: reaction
+  type(option_type) :: option
+
+  type(species_type), pointer :: species
+  PetscInt :: i
+  PetscBool :: return_error
+
+  NWTGetSpeciesIDFromName2 = UNINITIALIZED_INTEGER
+
+  if (associated(reaction%species_names)) then
+    do i = 1, size(reaction%species_names)
+      if (StringCompare(name,reaction%species_names(i),MAXWORDLENGTH)) then
+        NWTGetSpeciesIDFromName2 = i
+        exit
+      endif
+    enddo
+  else
+    species => reaction%species_list
+    i = 0
+    do
+      if (.not.associated(species)) exit
+      i = i + 1
+      if (StringCompare(name,species%name,MAXWORDLENGTH)) then
+        NWTGetSpeciesIDFromName2 = i
+        exit
+      endif
+      species => species%next
+    enddo
+  endif
+
+  if (return_error .and. NWTGetSpeciesIDFromName2 <= 0) then
+    option%io_buffer = 'Species "' // trim(name) // &
+      '" not found within species list in NWTGetSpeciesIDFromName().'
+    call PrintErrMsg(option)
+  endif
+
+end function NWTGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 
