@@ -204,18 +204,17 @@ subroutine MphaseSetupPatch(realization)
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
         patch%material_property_array(1)%ptr%multicontinuum%name, &
-        patch%aux%Material%auxvars(ghosted_id)%soil_properties(matrix_length_index), &
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
         patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
         patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
         patch%material_property_array(1)%ptr%multicontinuum%radius, &
-        patch%material_property_array(1)%ptr%multicontinuum%area, &
         patch%material_property_array(1)%ptr%multicontinuum%porosity, &
         option)
 
       mphase_sec_heat_vars(local_id)%ncells = &
         patch%material_property_array(1)%ptr%multicontinuum%ncells
-      mphase_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%multicontinuum%aperture
+      mphase_sec_heat_vars(local_id)%half_aperture = &
+        patch%material_property_array(1)%ptr%multicontinuum%half_aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
         patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
       mphase_sec_heat_vars(local_id)%log_spacing = &
@@ -238,7 +237,7 @@ subroutine MphaseSetupPatch(realization)
                               mphase_sec_heat_vars(local_id)%vol, &
                               mphase_sec_heat_vars(local_id)%dm_minus, &
                               mphase_sec_heat_vars(local_id)%dm_plus, &
-                              mphase_sec_heat_vars(local_id)%aperture, &
+                              mphase_sec_heat_vars(local_id)%half_aperture, &
                               mphase_sec_heat_vars(local_id)%epsilon, &
                               mphase_sec_heat_vars(local_id)%log_spacing, &
                               mphase_sec_heat_vars(local_id)%outer_spacing, &
