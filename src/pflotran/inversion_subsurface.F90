@@ -919,7 +919,7 @@ subroutine InversionSubsurfInitialize(this)
     inversion_forward_aux%first => &
       InversionTSAuxCreate(inversion_forward_aux%first, &
                           inversion_forward_aux%M_ptr)
-    inversion_forward_aux%current => inversion_forward_aux%first
+    inversion_forward_aux%last => inversion_forward_aux%first
     call InvTSAuxAllocate(inversion_forward_aux%first, &
                           inversion_forward_aux%M_ptr, &
                           this%realization%option%nflowdof, &
@@ -1614,7 +1614,6 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   type(option_type), pointer :: option
   class(timer_type), pointer :: timer
   PetscInt :: imeasurement
-  PetscErrorCode :: ierr
 
   option => this%realization%option
   inversion_aux => this%inversion_aux
@@ -1657,36 +1656,7 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
     this%inversion_aux%max_ts = prev_inversion_ts_aux%timestep
   endif
 
-  ! work backward through list
-  call PrintMsg(option,' Working backward through inversion_ts_aux list &
-                   &calculating lambdas.')
-  cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%last
-  do
-    if (.not.associated(cur_inversion_ts_aux)) exit
-    option%io_buffer = '  call InvSubsurfCalcLambda: ' // &
-      StringWrite(cur_inversion_ts_aux%timestep)
-    call PrintMsg(option)
-    call InvSubsurfAdjointCalcLambda(this,cur_inversion_ts_aux)
-    cur_inversion_ts_aux => cur_inversion_ts_aux%prev
-  enddo
-
-  ! work forward through list
-  call PrintMsg(option,' Working forward through inversion_ts_aux list &
-                   &calculating sensitivity coefficients.')
-  call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-  cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%first
-  do
-    if (.not.associated(cur_inversion_ts_aux)) exit
-    option%io_buffer = '  call InvSubsurfAddSensitivity: ' // &
-      StringWrite(cur_inversion_ts_aux%timestep)
-    call PrintMsg(option)
-    call InvSubsurfAdjointAddSensitivity(this,cur_inversion_ts_aux)
-    cur_inversion_ts_aux => cur_inversion_ts_aux%next
-  enddo
-  call MatAssemblyBegin(inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
-                        ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
-                      ierr);CHKERRQ(ierr)
+  call InvSubsurfAdjAddSensitivities(this)
 
   call InvForwardAuxDestroyList(inversion_aux%inversion_forward_aux, &
                                 PETSC_TRUE)
@@ -1702,9 +1672,10 @@ end subroutine InvSubsurfAdjointCalcSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
+subroutine InvSubsurfAdjAddSensitivities(this)
   !
-  ! Calculates sensitivity matrix Jsensitivity
+  ! Calculates lambda and resulting sensitivities and adds them the
+  ! sensitivity matrix
   !
   ! Author: Glenn Hammond
   ! Date: 09/17/21
@@ -1725,11 +1696,10 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   use Variables_module
 
   class(inversion_subsurface_type) :: this
-  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
 
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
-  type(inversion_aux_type), pointer :: inversion_aux
+  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
@@ -1750,11 +1720,22 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   ! times lambda at k time level
   Vec :: dReskp1_duk_lambdak
   Vec :: natural_vec
+
+  ! for forward loop sensitivity calculation
+  Vec :: dResdKLambda
+  Vec :: ndof_vec1
+  Vec :: ndof_vec2
+  PetscInt :: iparameter
+  PetscInt :: natural_id_
+  Vec, pointer :: lambda(:)
+
   class(timer_type), pointer :: timer
   PetscReal, parameter :: tol = 1.d-6
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
+  nullify(vec_ptr2)
+  nullify(lambda)
 
   solver => this%forward_simulation%flow_process_model_coupler% &
               timestepper%solver
@@ -1762,7 +1743,6 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   discretization => this%realization%discretization
   patch => this%realization%patch
   grid => patch%grid
-  inversion_aux => this%inversion_aux
   ndof = option%nflowdof
 
   timer => TimerCreate()
@@ -1770,302 +1750,193 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   call timer%Start()
 
   work = this%realization%field%work ! DO NOT DESTROY!
-  call VecDuplicate(work,onedof_vec,ierr);CHKERRQ(ierr)
   ndof_vec = this%realization%field%flow_xx ! DO NOT DESTROY!
+
+  dResdKLambda = PETSC_NULL_VEC
+  ndof_vec1 = PETSC_NULL_VEC
+  ndof_vec2 = PETSC_NULL_VEC
+
+  call VecDuplicate(work,onedof_vec,ierr);CHKERRQ(ierr)
   call VecDuplicate(ndof_vec,p_,ierr);CHKERRQ(ierr)
   call VecDuplicate(ndof_vec,rhs,ierr);CHKERRQ(ierr)
   call VecDuplicate(ndof_vec,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
+  if (this%qoi_is_full_vector) then
+    call VecDuplicate(ndof_vec,dResdKLambda,ierr);CHKERRQ(ierr)
+  else
+    call VecDuplicate(ndof_vec,ndof_vec1,ierr);CHKERRQ(ierr)
+    call VecDuplicate(ndof_vec1,ndof_vec2,ierr);CHKERRQ(ierr)
+  endif
   ! must use natural vec, not parameter vec since offset is based on measurement
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
-  if (this%debug_verbosity > 2) then
-    if (OptionPrintToScreen(option)) print *, 'M'
-    call MatView(inversion_forward_ts_aux%dResdu,PETSC_VIEWER_STDOUT_WORLD, &
-                 ierr);CHKERRQ(ierr)
-  endif
-  call VecDuplicateVecsF90(ndof_vec,size(this%measurements), &
-                           inversion_forward_ts_aux%lambda, &
-                           ierr);CHKERRQ(ierr)
-  call KSPSetOperators(solver%ksp,inversion_forward_ts_aux%dResdu, &
-                       inversion_forward_ts_aux%dResdu,ierr);CHKERRQ(ierr)
-  do imeasurement = 1, size(this%measurements)
-    if (Initialized(this%measurements(imeasurement)%time) .and. &
-        inversion_forward_ts_aux%time > &
-          this%measurements(imeasurement)%time + tol) then
-      call VecZeroEntries(inversion_forward_ts_aux%lambda(imeasurement), &
+  call VecDuplicateVecsF90(ndof_vec,size(this%measurements),lambda, &
                           ierr);CHKERRQ(ierr)
-      cycle
-    endif
-    if (.not.this%measurements(imeasurement)%first_lambda) then
-      this%measurements(imeasurement)%first_lambda = PETSC_TRUE
-      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
-      if (option%myrank == 0) then
-        icell_measurement = this%measurements(imeasurement)%cell_id
-        tempreal = -1.d0
-        ! scale by partial derivative if measurement is not the
-        ! primary dependent variable
-        select case(this%measurements(imeasurement)%iobs_var)
-          case(OBS_LIQUID_SATURATION)
-            tempreal = tempreal * &
-                       this%measurements(imeasurement)%simulated_derivative
-        end select
-        call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
-                         INSERT_VALUES,ierr);CHKERRQ(ierr)
-      endif
-      call InversionMeasurementPrintConcise(this%measurements(imeasurement), &
-                                            '',option)
-      call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
-      call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
-      call DiscretizationNaturalToGlobal(discretization,natural_vec, &
-                                         onedof_vec,ONEDOF)
-      select case(this%measurements(imeasurement)%iobs_var)
-        case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION)
-          tempint = zflow_liq_flow_eq
-        case(OBS_SOLUTE_CONCENTRATION)
-          tempint = zflow_sol_tran_eq
-        case(OBS_ERT_MEASUREMENT)
-          option%io_buffer = 'ERT measurement are currently not supported &
-            &adjoint-based inversion.'
-          call PrintErrMsg(option)
-        case default
-          option%io_buffer = 'Unknown observation type in InvSubsurfCalcLambda'
-          call PrintErrMsg(option)
-      end select
-      if (Uninitialized(tempint)) then
-        option%io_buffer = 'The observed state variable is not being modeled.'
-        call PrintErrMsg(option)
-      endif
-      call VecZeroEntries(p_,ierr);CHKERRQ(ierr)
-      call VecStrideScatter(onedof_vec,tempint-1,p_,INSERT_VALUES, &
-                            ierr);CHKERRQ(ierr)
-      if (this%debug_verbosity > 2) then
-        if (OptionPrintToScreen(option)) print *, 'p'
-        call VecView(p_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      endif
-#if 0
-  ! for debugging lambda with multiple measurements/parameters
-      if (this%measurements(imeasurement)%iobs_var == &
-            OBS_SOLUTE_CONCENTRATION .and. &
-          this%measurements(imeasurement)%time < 0.21*3600*24) then
-        call VecView(p_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-        call InversionMeasurementPrint(this%measurements(imeasurement),option)
-        print *, 'vec loc: ', (icell_measurement-1)*grid%nmax+tempint + 1
-        print *, tempreal
-!        stop
-      endif
-#endif
-      call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
-    else
-      call VecZeroEntries(p_,ierr);CHKERRQ(ierr)
-      call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(inversion_forward_ts_aux%next%lambda(imeasurement), &
-                          vec_ptr2,ierr);CHKERRQ(ierr)
-      do local_id = 1, grid%nlmax
-        offset = (local_id-1)*ndof
-        do i = 1, ndof
-          tempreal = 0.d0
-          do j = 1, ndof
-            tempreal = tempreal + &
-              ! this is a transpose block matmult: i,j -> j,i
-              inversion_forward_ts_aux%next%dRes_du_k(j,i,local_id) * &
-              vec_ptr2(offset+j)
-          enddo
-          vec_ptr(offset+i) = tempreal
-        enddo
-      enddo
-      call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(inversion_forward_ts_aux%next% &
-                                lambda(imeasurement), &
-                              vec_ptr2,ierr);CHKERRQ(ierr)
-    endif
-    call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p_,ierr);CHKERRQ(ierr)
-    call KSPSolveTranspose(solver%ksp,rhs, &
-                           inversion_forward_ts_aux%lambda(imeasurement), &
-                           ierr);CHKERRQ(ierr)
-    if (this%debug_verbosity > 2) then
-      if (OptionPrintToScreen(option)) print *, 'lambda'
-      call VecView(inversion_forward_ts_aux%lambda(imeasurement), &
-                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      if (option%comm%mycommsize == 1) then
-        call VecGetArrayF90(inversion_forward_ts_aux%lambda(imeasurement), &
-                            vec_ptr,ierr);CHKERRQ(ierr)
-        print *, vec_ptr(:)
-        call VecRestoreArrayF90(inversion_forward_ts_aux% &
-                                  lambda(imeasurement), &
-                                vec_ptr,ierr);CHKERRQ(ierr)
-      endif
-    endif
+  do i = 1, size(lambda)
+    call VecZeroEntries(lambda(i),ierr);CHKERRQ(ierr)
   enddo
+
+  call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
+
+  inversion_forward_ts_aux => this%inversion_aux%inversion_forward_aux%last
+  do
+    if (.not.associated(inversion_forward_ts_aux)) exit
+
+    call KSPSetOperators(solver%ksp,inversion_forward_ts_aux%dResdu, &
+                        inversion_forward_ts_aux%dResdu,ierr);CHKERRQ(ierr)
+    do imeasurement = 1, size(this%measurements)
+
+      ! skip lambdas after the measurement time
+      if (Initialized(this%measurements(imeasurement)%time) .and. &
+          inversion_forward_ts_aux%time > &
+            this%measurements(imeasurement)%time + tol) then
+        cycle
+      endif
+
+      ! backward loop contribution (calculating lambda for the ts)
+      if (.not.this%measurements(imeasurement)%first_lambda) then
+        this%measurements(imeasurement)%first_lambda = PETSC_TRUE
+        call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+        if (option%myrank == 0) then
+          icell_measurement = this%measurements(imeasurement)%cell_id
+          tempreal = -1.d0
+          ! scale by partial derivative if measurement is not the
+          ! primary dependent variable
+          select case(this%measurements(imeasurement)%iobs_var)
+            case(OBS_LIQUID_SATURATION)
+              tempreal = tempreal * &
+                        this%measurements(imeasurement)%simulated_derivative
+          end select
+          call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
+                          INSERT_VALUES,ierr);CHKERRQ(ierr)
+        endif
+        call InversionMeasurementPrintConcise( &
+               this%measurements(imeasurement),'',option)
+        call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+        call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+        call DiscretizationNaturalToGlobal(discretization,natural_vec, &
+                                          onedof_vec,ONEDOF)
+        select case(this%measurements(imeasurement)%iobs_var)
+          case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION)
+            tempint = zflow_liq_flow_eq
+          case(OBS_SOLUTE_CONCENTRATION)
+            tempint = zflow_sol_tran_eq
+          case(OBS_ERT_MEASUREMENT)
+            option%io_buffer = 'ERT measurement are currently not supported &
+              &adjoint-based inversion.'
+            call PrintErrMsg(option)
+          case default
+            option%io_buffer = 'Unknown observation type in &
+              &InvSubsurfCalcLambda'
+            call PrintErrMsg(option)
+        end select
+        if (Uninitialized(tempint)) then
+          option%io_buffer = 'The observed state variable is not being &
+            &modeled.'
+          call PrintErrMsg(option)
+        endif
+        call VecZeroEntries(p_,ierr);CHKERRQ(ierr)
+        call VecStrideScatter(onedof_vec,tempint-1,p_,INSERT_VALUES, &
+                              ierr);CHKERRQ(ierr)
+        call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
+      else
+        call VecZeroEntries(p_,ierr);CHKERRQ(ierr)
+        call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(lambda(imeasurement),vec_ptr2,ierr);CHKERRQ(ierr)
+        do local_id = 1, grid%nlmax
+          offset = (local_id-1)*ndof
+          do i = 1, ndof
+            tempreal = 0.d0
+            do j = 1, ndof
+              tempreal = tempreal + &
+                ! this is a transpose block matmult: i,j -> j,i
+                inversion_forward_ts_aux%next%dRes_du_k(j,i,local_id) * &
+                vec_ptr2(offset+j)
+            enddo
+            vec_ptr(offset+i) = tempreal
+          enddo
+        enddo
+        call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(lambda(imeasurement), &
+                                vec_ptr2,ierr);CHKERRQ(ierr)
+      endif
+      call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p_,ierr);CHKERRQ(ierr)
+      call KSPSolveTranspose(solver%ksp,rhs,lambda(imeasurement), &
+                            ierr);CHKERRQ(ierr)
+
+      ! forward loop (adding sensitivity contributions)
+      if (this%qoi_is_full_vector) then
+        call MatMultTranspose(inversion_forward_ts_aux%dResdparam, &
+                              lambda(imeasurement), &
+                              dResdKLambda,ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+        do iparameter = 1, grid%nlmax
+          natural_id_ = grid%nG2A(grid%nL2G(iparameter))
+          offset = (iparameter-1)*option%nflowdof
+          call MatSetValue(this%inversion_aux%JsensitivityT,natural_id_-1, &
+                           imeasurement-1,vec_ptr(offset+1),ADD_VALUES, &
+                           ierr);CHKERRQ(ierr)
+        enddo
+        call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+      else
+        do iparameter = 1, size(this%parameters)
+          call VecZeroEntries(ndof_vec1,ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
+          do local_id = 1, grid%nlmax
+            if (patch%imat(grid%nL2G(local_id)) == &
+                this%parameters(iparameter)%imat) then
+              offset = (local_id-1)*option%nflowdof
+              vec_ptr(offset+1:offset+option%nflowdof) = 1.d0
+            endif
+          enddo
+          call VecRestoreArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
+          call MatMult(inversion_forward_ts_aux%dResdparam,ndof_vec1, &
+                       ndof_vec2,ierr);CHKERRQ(ierr)
+          call VecDot(ndof_vec2,lambda(imeasurement), &
+                      tempreal,ierr);CHKERRQ(ierr)
+          if (option%comm%myrank == option%driver%io_rank) then
+            call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
+                             imeasurement-1,tempreal,ADD_VALUES, &
+                             ierr);CHKERRQ(ierr)
+          endif
+        enddo
+      endif
+    enddo
+    inversion_forward_ts_aux => inversion_forward_ts_aux%prev
+  enddo
+
+  call MatAssemblyBegin(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
+                        ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
+                      ierr);CHKERRQ(ierr)
+
+  call VecDestroyVecs(size(lambda),lambda,ierr);CHKERRQ(ierr)
   call VecDestroy(onedof_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(p_,ierr);CHKERRQ(ierr)
   call VecDestroy(rhs,ierr);CHKERRQ(ierr)
   call VecDestroy(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
-  call timer%Stop()
-  option%io_buffer = '    ' // &
-    trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
-  option%io_buffer = trim(option%io_buffer) // &
-    ' seconds to calculate lambdas.'
-  call PrintMsg(option)
-  call TimerDestroy(timer)
-
-end subroutine InvSubsurfAdjointCalcLambda
-
-! ************************************************************************** !
-
-subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
-  !
-  ! Calculates sensitivity matrix Jsensitivity
-  !
-  ! Author: Glenn Hammond
-  ! Date: 09/17/21
-  !
-  use Connection_module
-  use Debug_module
-  use Discretization_module
-  use Grid_module
-  use Option_module
-  use Patch_module
-  use Solver_module
-  use String_module
-  use Timer_class
-
-  class(inversion_subsurface_type) :: this
-
-  type(grid_type), pointer :: grid
-  type(discretization_type), pointer :: discretization
-  type(inversion_aux_type), pointer :: inversion_aux
-  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(solver_type), pointer :: solver
-  PetscReal, pointer :: vec_ptr(:)
-  PetscReal, pointer :: vec_ptr2(:)
-  PetscInt :: iparameter, imeasurement
-  PetscInt :: natural_id
-  PetscInt :: local_id
-  PetscInt :: offset
-  PetscReal :: tempreal
-  Vec :: ndof_vec1
-  Vec :: ndof_vec2
-  Vec :: dResdKLambda
-  PetscViewer :: viewer
-  class(timer_type), pointer :: timer
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
-
-  nullify(vec_ptr)
-  nullify(vec_ptr2)
-
-  dResdKLambda = PETSC_NULL_VEC
-
-  solver => this%forward_simulation%flow_process_model_coupler% &
-              timestepper%solver
-  option => this%realization%option
-  discretization => this%realization%discretization
-  patch => this%realization%patch
-  grid => patch%grid
-  inversion_aux => this%inversion_aux
-
-  timer => TimerCreate()
-
-  call timer%Start()
-
-  if (this%debug_adjoint) then
-    string = 'dResdK_ts' // &
-             trim(StringWrite(inversion_forward_ts_aux%timestep)) // '.txt'
-    call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr);CHKERRQ(ierr)
-    call MatView(inversion_forward_ts_aux%dResdparam,viewer, &
-                 ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    if (this%debug_verbosity > 2) then
-      if (OptionPrintToScreen(option)) print *, 'dResdK'
-      call MatView(inversion_forward_ts_aux%dResdparam, &
-                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-    endif
+  if (dResdKLambda /= PETSC_NULL_VEC) then
+    call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
+  endif
+  if (ndof_vec1 /= PETSC_NULL_VEC) then
+    call VecDestroy(ndof_vec1,ierr);CHKERRQ(ierr)
+  endif
+  if (ndof_vec2 /= PETSC_NULL_VEC) then
+    call VecDestroy(ndof_vec2,ierr);CHKERRQ(ierr)
   endif
 
-  do imeasurement = 1, size(this%measurements)
-    if (this%debug_adjoint) then
-      string = 'lambda_ts' // &
-               trim(StringWrite(inversion_forward_ts_aux%timestep)) // &
-               '_' // &
-               trim(StringWrite(this%measurements(imeasurement)%cell_id)) // &
-               '.txt'
-      call PetscViewerASCIIOpen(option%mycomm,string,viewer, &
-                                ierr);CHKERRQ(ierr)
-      call VecView(inversion_forward_ts_aux%lambda(imeasurement),viewer, &
-                   ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-      if (this%debug_verbosity > 2) then
-        if (OptionPrintToScreen(option)) print *, 'lambda ', imeasurement
-        call VecView(inversion_forward_ts_aux%lambda(imeasurement), &
-                     PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      endif
-    endif
-    if (this%qoi_is_full_vector) then
-      call VecDuplicate(this%realization%field%flow_xx,dResdKLambda, &
-                        ierr);CHKERRQ(ierr)
-      call MatMultTranspose(inversion_forward_ts_aux%dResdparam, &
-                            inversion_forward_ts_aux%lambda(imeasurement), &
-                            dResdKLambda,ierr);CHKERRQ(ierr)
-      if (this%debug_verbosity > 2) then
-        if (OptionPrintToScreen(option)) print *, 'dGamdp ', imeasurement
-        call VecView(dResdKLambda,PETSC_VIEWER_STDOUT_WORLD, &
-                     ierr);CHKERRQ(ierr)
-      endif
-      call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
-      do iparameter = 1, grid%nlmax
-        natural_id = grid%nG2A(grid%nL2G(iparameter))
-        offset = (iparameter-1)*option%nflowdof
-        call MatSetValue(inversion_aux%JsensitivityT,natural_id-1, &
-                         imeasurement-1,vec_ptr(offset+1),ADD_VALUES, &
-                         ierr);CHKERRQ(ierr)
-      enddo
-      call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
-    else
-      call VecDuplicate(this%realization%field%flow_xx,ndof_vec1, &
-                        ierr);CHKERRQ(ierr)
-      call VecDuplicate(ndof_vec1,ndof_vec2,ierr);CHKERRQ(ierr)
-      do iparameter = 1, size(this%parameters)
-        call VecZeroEntries(ndof_vec1,ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
-        do local_id = 1, grid%nlmax
-          if (patch%imat(grid%nL2G(local_id)) == &
-              this%parameters(iparameter)%imat) then
-            offset = (local_id-1)*option%nflowdof
-            vec_ptr(offset+1:offset+option%nflowdof) = 1.d0
-          endif
-        enddo
-        call VecRestoreArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
-        call MatMult(inversion_forward_ts_aux%dResdparam,ndof_vec1,ndof_vec2, &
-                     ierr);CHKERRQ(ierr)
-        call VecDot(ndof_vec2,inversion_forward_ts_aux%lambda(imeasurement), &
-                    tempreal,ierr);CHKERRQ(ierr)
-        if (option%comm%myrank == option%driver%io_rank) then
-          call MatSetValue(inversion_aux%JsensitivityT,iparameter-1, &
-                           imeasurement-1,tempreal,ADD_VALUES, &
-                           ierr);CHKERRQ(ierr)
-        endif
-      enddo
-      call VecDestroy(ndof_vec1,ierr);CHKERRQ(ierr)
-      call VecDestroy(ndof_vec2,ierr);CHKERRQ(ierr)
-    endif
-  enddo
-
   call timer%Stop()
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
   option%io_buffer = trim(option%io_buffer) // &
-    ' seconds to add contributions to Jsensitivity.'
+    ' seconds to calculate lambdas and sensitivities.'
   call PrintMsg(option)
   call TimerDestroy(timer)
 
-end subroutine InvSubsurfAdjointAddSensitivity
+end subroutine InvSubsurfAdjAddSensitivities
 
 ! ************************************************************************** !
 
