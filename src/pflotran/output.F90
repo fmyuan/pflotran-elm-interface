@@ -512,6 +512,9 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(input,word,string,option)
         end select
 
+      case ('ACKNOWLEDGE_VTK_FLAW')
+        output_option%vtk_acknowledgment = PETSC_TRUE
+
 !...................................
       case ('HDF5_WRITE_GROUP_SIZE')
         string = 'OUTPUT,' // trim(block_name) // ',HDF5_WRITE_GROUP_SIZE'
