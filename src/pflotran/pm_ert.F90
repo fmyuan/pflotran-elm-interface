@@ -1386,9 +1386,15 @@ subroutine PMERTBuildCoupledJacobian(this)
                               dcond_dconc_vec_ptr(local_id)
             endif
 
+print*,imeasurement,local_id,coupled_jacob,dsat_dparam_ptr(local_id), &
+       dconc_dparam_ptr(local_id)
             deallocate(phi_sor, phi_rec)
 
           enddo
+
+          call MPI_Allreduce(MPI_IN_PLACE,coupled_jacob,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
 
           call MatSetValue(patch%aux%inversion_forward_aux% &
                                JsensitivityT_ptr, &
@@ -1545,9 +1551,9 @@ subroutine PMERTStrip(this)
   if (this%rhs /= PETSC_NULL_VEC) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)
   endif
-!  if (this%dconductivity_dsaturation /= PETSC_NULL_VEC) then
-!    call VecDestroy(this%dconductivity_dsaturation,ierr);CHKERRQ(ierr)
-!  endif
+  if (this%dconductivity_dsaturation /= PETSC_NULL_VEC) then
+    call VecDestroy(this%dconductivity_dsaturation,ierr);CHKERRQ(ierr)
+  endif
   if (this%dconductivity_dconcentration /= PETSC_NULL_VEC) then
    call VecDestroy(this%dconductivity_dconcentration,ierr);CHKERRQ(ierr)
   endif
