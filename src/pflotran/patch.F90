@@ -6321,11 +6321,13 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           enddo
         case(WELL_AQ_CONC)
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = 5.0d0
+            vec_ptr(local_id) = patch%aux%nwt%auxvars(grid%nL2G(local_id))%&
+                                well%AQ_conc(isubvar)
           enddo
         case(WELL_AQ_MASS)
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = 6.0d0
+            vec_ptr(local_id) = patch%aux%nwt%auxvars(grid%nL2G(local_id))%&
+                                well%AQ_mass(isubvar)
           enddo
         case(WELL_LIQ_Q)
           do local_id=1,grid%nlmax
@@ -7316,9 +7318,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = &
               patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
         case(WELL_AQ_CONC)
-          value = 5.0d0 
+          value = patch%aux%NWT%auxvars(grid%nL2G(local_id))%&
+                  well%AQ_conc(isubvar)
         case(WELL_AQ_MASS)
-          value = 6.0d0 
+          value = patch%aux%NWT%auxvars(grid%nL2G(local_id))%&
+                  well%AQ_mass(isubvar)
         case(WELL_LIQ_Q)
           value = &
             patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Ql 

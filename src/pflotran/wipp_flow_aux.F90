@@ -86,12 +86,12 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_radiolysis = PETSC_FALSE
 
   type, public :: wippflo_well_aux_type
-    PetscReal :: pl
-    PetscReal :: pg
+    PetscReal :: pl   ! liquid pressure
+    PetscReal :: pg   ! gas pressure
     PetscReal :: dpl
     PetscReal :: dpg
-    PetscReal :: Ql
-    PetscReal :: Qg
+    PetscReal :: Ql   ! liquid exchange flux
+    PetscReal :: Qg   ! gas exchange flux
   end type wippflo_well_aux_type
 
   type, public :: wippflo_auxvar_type

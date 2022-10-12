@@ -2849,7 +2849,6 @@ subroutine PMWellUpdateReservoirSrcSink(this)
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: srcsink_name
-  type(wippflo_auxvar_type), pointer :: wippflo_auxvar
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   type(coupler_type), pointer :: source_sink
   PetscInt :: k, ghosted_id
@@ -2861,8 +2860,6 @@ subroutine PMWellUpdateReservoirSrcSink(this)
     srcsink_name = 'well_segment_' // trim(string)
 
     ghosted_id = this%well_grid%h_ghosted_id(k)
-    wippflo_auxvar => &
-      this%realization%patch%aux%wippflo%auxvars(0,ghosted_id)
 
     ! [kg-liq/m3]
     density_avg = 0.5d0 * (this%well%liq%rho(k) + this%reservoir%rho_l(k))
@@ -2909,6 +2906,11 @@ subroutine PMWellUpdateReservoirSrcSink(this)
                                        cur_constraint_coupler)
           ! modify nwt_auxvar from the tran_condition
           nwt_auxvar%aqueous_eq_conc(:) = this%well%aqueous_conc(:,k)
+
+          this%realization%patch%aux%nwt%auxvars(ghosted_id)%&
+            well%AQ_conc(1:this%nspecies) = this%well%aqueous_conc(:,k)
+          this%realization%patch%aux%nwt%auxvars(ghosted_id)%&
+            well%AQ_mass(1:this%nspecies) = this%well%aqueous_mass(:,k)
         endif
         exit
       endif
