@@ -2417,9 +2417,10 @@ end subroutine PMWellUpdateReservoir
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                               num_newton_iterations,tfac, &
-                               time_step_max_growth_factor)
+subroutine PMWellUpdateTimestep(this,update_dt, &
+                                dt,dt_min,dt_max,iacceleration, &
+                                num_newton_iterations,tfac, &
+                                time_step_max_growth_factor)
   !
   ! Updates the time step for the well process model.
   !
@@ -2429,6 +2430,7 @@ subroutine PMWellUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_well_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration

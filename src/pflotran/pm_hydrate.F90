@@ -116,38 +116,68 @@ function PMHydrateCreate()
   PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-5 !1.d-10
   !For convergence using hydrate and ice formation capability
   PetscReal, parameter :: abs_update_inf_tol(3,15) = &
+             !L_STATE
     reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+             !G_STATE
              pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol,  &
+             !H_STATE
+             pres_abs_inf_tol,999.d0,temp_abs_inf_tol,  &
+             !I_STATE
              pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
-             pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
+             !GA_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HG_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HA_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HI_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !GI_STATE
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !AI_STATE
              pres_abs_inf_tol,xmol_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             !HGA_STATE
              hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HAI_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             !HGI_STATE
              hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !GAI_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             !HGAI_STATE
              hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol], &
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
   PetscReal, parameter :: rel_update_inf_tol(3,15) = &
+             !L_STATE
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+             !G_STATE
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !H_STATE
              pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             !I_STATE
              pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             !GA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HG_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !GI_STATE
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !AI_STATE
              pres_rel_inf_tol,xmol_rel_inf_tol,sat_rel_inf_tol, &
+             !HGA_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HAI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             !HGI_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !GAI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             !HGAI_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
@@ -494,7 +524,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         hydrate_diffuse_xmol = PETSC_FALSE
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
+        call InputReadDouble(input,option,hydrate_fmw_comp(2))
         call InputErrorMsg(input,option,keyword,error_string)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         hydrate_harmonic_diff_density = PETSC_TRUE
@@ -502,7 +532,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         hydrate_immiscible = PETSC_TRUE
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
         !heeho: assuming liquid component is index 1
-        call InputReadDouble(input,option,fmw_comp(1))
+        call InputReadDouble(input,option,hydrate_fmw_comp(1))
         call InputErrorMsg(input,option,keyword,error_string)
       case('NO_STATE_TRANSITION_OUTPUT')
         hydrate_print_state_transition = PETSC_FALSE
@@ -595,8 +625,6 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         this%abs_update_inf_tol(1:2,13) = tempreal
         this%abs_update_inf_tol(2:3,14) = tempreal
         this%abs_update_inf_tol(:,15) = tempreal
-
-      !man: phase change
       case('MAX_NEWTON_ITERATIONS')
         call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                     'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
@@ -656,16 +684,13 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
       case('PRES_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        this%abs_update_inf_tol(1,:) = tempreal
-        this%abs_update_inf_tol(2,2) = tempreal
         this%abs_update_inf_tol(1,1:10) = tempreal
+        this%abs_update_inf_tol(2,2) = tempreal
         this%abs_update_inf_tol(1,12) = tempreal
         this%abs_update_inf_tol(1,14) = tempreal
-        this%abs_update_inf_tol(2,2) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        this%abs_update_inf_tol(3,:) = tempreal
         this%abs_update_inf_tol(3,1:9) = tempreal
         this%abs_update_inf_tol(3,11) = tempreal
         this%abs_update_inf_tol(3,13) = tempreal
@@ -673,10 +698,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,6:9) = tempreal
-        this%abs_update_inf_tol(3,10) = tempreal
+        this%abs_update_inf_tol(2,5:9) = tempreal
         this%abs_update_inf_tol(2,11:15) = tempreal
+        this%abs_update_inf_tol(3,10) = tempreal
         this%abs_update_inf_tol(3,12) = tempreal
         this%abs_update_inf_tol(3,14:15) = tempreal
         this%abs_update_inf_tol(1,11) = tempreal
@@ -884,7 +908,8 @@ end subroutine PMHydratePostSolve
 
 ! ************************************************************************** !
 
-subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMHydrateUpdateTimestep(this,update_dt, &
+                                   dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
   !
@@ -904,6 +929,7 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_hydrate_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -922,57 +948,59 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   character(MAXSTRINGLENGTH) :: string
   type(field_type), pointer :: field
 
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    umin = 0.d0
-  else
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
-    ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
-    us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
-    umin = min(up,ut,ux,us)
-  endif
-  ifac = max(min(num_newton_iterations,size(tfac)),1)
-  umin_scale = fac * (1.d0 + umin)
-  governed_dt = umin_scale * dt
-  dtt = min(time_step_max_growth_factor*dt,governed_dt)
-  dt = min(dtt,tfac(ifac)*dt,dt_max)
-  dt = max(dt,dt_min)
-
-   ! Inform user that time step is being limited by a state variable.
-  if (Equal(dt,governed_dt)) then
-    umin = umin * (1.d0 + 1.d-8)
-    if (up < umin) then
-      string = 'Pressure'
-      value = this%max_pressure_change
-      governor_value = this%pressure_change_governor
-    else if (ut < umin) then
-      string = 'Temperature'
-      value = this%max_temperature_change
-      governor_value = this%temperature_change_governor
-    else if (ux < umin) then
-      string = 'Mole Fraction'
-      value = this%max_xmol_change
-      governor_value = this%xmol_change_governor
-    else if (us < umin) then
-      string = 'Saturation'
-      value = this%max_saturation_change
-      governor_value = this%saturation_change_governor
+  if (update_dt .and. iacceleration /= 0) then
+    fac = 0.5d0
+    if (num_newton_iterations >= iacceleration) then
+      fac = 0.33d0
+      umin = 0.d0
     else
-      string = 'Unknown'
-      value = -999.d0
-      governor_value = -999.d0
+      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+      ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+      ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
+      us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
+      umin = min(up,ut,ux,us)
     endif
-    string = ' Dt limited by ' // trim(string) // ': Val=' // &
-      trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
-      trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
-      trim(StringWriteF('(f4.2)',umin_scale))
-    if (OptionPrintToScreen(this%option)) then
-      write(*,'(a,/)') trim(string)
-    endif
-    if (OptionPrintToFile(this%option)) then
-      write(this%option%fid_out,'(a,/)') trim(string)
+    ifac = max(min(num_newton_iterations,size(tfac)),1)
+    umin_scale = fac * (1.d0 + umin)
+    governed_dt = umin_scale * dt
+    dtt = min(time_step_max_growth_factor*dt,governed_dt)
+    dt = min(dtt,tfac(ifac)*dt,dt_max)
+    dt = max(dt,dt_min)
+
+    ! Inform user that time step is being limited by a state variable.
+    if (Equal(dt,governed_dt)) then
+      umin = umin * (1.d0 + 1.d-8)
+      if (up < umin) then
+        string = 'Pressure'
+        value = this%max_pressure_change
+        governor_value = this%pressure_change_governor
+      else if (ut < umin) then
+        string = 'Temperature'
+        value = this%max_temperature_change
+        governor_value = this%temperature_change_governor
+      else if (ux < umin) then
+        string = 'Mole Fraction'
+        value = this%max_xmol_change
+        governor_value = this%xmol_change_governor
+      else if (us < umin) then
+        string = 'Saturation'
+        value = this%max_saturation_change
+        governor_value = this%saturation_change_governor
+      else
+        string = 'Unknown'
+        value = -999.d0
+        governor_value = -999.d0
+      endif
+      string = ' Dt limited by ' // trim(string) // ': Val=' // &
+        trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
+        trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
+        trim(StringWriteF('(f4.2)',umin_scale))
+      if (OptionPrintToScreen(this%option)) then
+        write(*,'(a,/)') trim(string)
+      endif
+      if (OptionPrintToFile(this%option)) then
+        write(this%option%fid_out,'(a,/)') trim(string)
+      endif
     endif
   endif
 

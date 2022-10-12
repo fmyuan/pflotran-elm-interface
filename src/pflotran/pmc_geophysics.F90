@@ -25,6 +25,10 @@ module PMC_Geophysics_class
     procedure, public :: InitializeRun => PMCGeophysicsInitializeRun
     procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers
     procedure, public :: StepDT => PMCGeophysicsStepDT
+    procedure, public :: CheckpointBinary => PMCGeophysicsCheckpointBinary
+    procedure, public :: RestartBinary => PMCGeophysicsRestartBinary
+    procedure, public :: CheckpointHDF5 => PMCGeophysicsCheckpointHDF5
+    procedure, public :: RestartHDF5 => PMCGeophysicsRestartHDF5
     procedure, public :: FinalizeRun => PMCGeophysicsFinalizeRun
     procedure, public :: Destroy => PMCGeophysicsDestroy
   end type pmc_geophysics_type
@@ -94,14 +98,19 @@ recursive subroutine PMCGeophysicsInitializeRun(this)
 
   class(pmc_geophysics_type) :: this
 
-  select type(pm=>this%pm_ptr%pm)
-    class is(pm_ert_type)
-      this%cur_waypoint => pm%waypoint_list%first
-    class default
-      this%option%io_buffer = 'PMCGeophysicsInitializeRun implemented only &
-                              &for ERT geophysics process model.'
-      call PrintErrMsg(this%option)
-  end select
+  class(pm_ert_type), pointer :: pm_ert
+
+  pm_ert => PMERTCast(this%pm_ptr%pm)
+  this%cur_waypoint => pm_ert%waypoint_list%first
+
+  ! if restarting at a time greater than time 0, the waypoint pointer needs
+  ! to skip ahead
+  if (this%option%restart_flag .and. &
+      .not. pm_ert%skip_restart .and. &
+      .not.Initialized(this%option%restart_time)) then
+    call WaypointSkipToTime(this%cur_waypoint, &
+                            this%timestepper%target_time)
+  endif
 
   ! ensure that the first waypoint is not at time zero.
   if (associated(this%cur_waypoint)) then
@@ -158,6 +167,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   ! Date: 01/29/21
   !
   use Option_module
+  use Option_Inversion_module
   use Output_Aux_module
   use PM_Base_class
   use Timestepper_Steady_class
@@ -179,6 +189,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   PetscLogDouble :: log_end_time
   PetscInt :: local_stop_flag
   PetscInt :: linear_iterations_in_step
+  PetscBool :: skip_survey
   PetscErrorCode :: ierr
 
   if (stop_flag == TS_STOP_FAILURE) return
@@ -187,66 +198,63 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   call this%PrintHeader()
 
   option => this%option
-  output_option => this%pm_ptr%pm%output_option
+  pm_ert => PMERTCast(this%pm_ptr%pm)
+  output_option => pm_ert%output_option
   timestepper => TimestepperSteadyCast(this%timestepper)
   linear_iterations_in_step = 0
 
-  if (associated(this%cur_waypoint)) then
-    if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
-      this%cur_waypoint => this%cur_waypoint%next
-    else
-      if (this%option%print_screen_flag) then
-        write(*, '(/," Time= ",1pe12.5," [",a,"]", &
-              &" Skipping geophysics as this is not a survey time.",/)') &
-           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+  skip_survey = PETSC_TRUE
+  if (pm_ert%waypoint_list%num_waypoints > 0) then
+    if (associated(this%cur_waypoint)) then
+      if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
+        skip_survey = PETSC_FALSE
+        this%cur_waypoint => this%cur_waypoint%next
       endif
-      if (this%option%print_file_flag) then
-        write(this%option%fid_out, '(/," Time= ",1pe12.5," [",a,"]", &
-              &" Skipping geophysics as this is not a survey time.",/)') &
-           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
-      endif
-      return
     endif
+  elseif (option%iflowmode /= NULL_MODE .or. &
+          option%itranmode /= NULL_MODE) then
+    option%io_buffer = 'SURVEY_TIMES must be listed under &
+      &SUBSURFACE_GEOPHYSICS OPTIONS when geophysics is coupled to flow &
+      &or transport.'
+    call PrintErrMsg(option)
   else
-    if (option%iflowmode /= NULL_MODE .or. option%itranmode /= NULL_MODE) then
-      option%io_buffer = 'SURVEY_TIMES must be listed under &
-        &SUBSURFACE_GEOPHYSICS OPTIONS when geophysics is coupled to flow &
-        &or transport.'
-       call PrintErrMsg(option)
+    skip_survey = PETSC_FALSE
+  endif
+
+  if (associated(option%inversion)) then
+    if (option%inversion%coupled_flow_ert .and. &
+        .not.option%inversion%calculate_ert) then
+      write(option%io_buffer,'(" Time= ",1pe12.5," [",a,"]", &
+            &" Skipping geophysics as this is a perturbed coupled &
+            &flow-ert run.")') &
+        timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+      call PrintMsg(option)
+      return
     endif
   endif
 
-  pm_base => this%pm_ptr%pm
-  select type(pm=>this%pm_ptr%pm)
-    class is(pm_ert_type)
-      pm_ert => pm
-      call pm_ert%PreSolve()
-      call pm_ert%Solve(timestepper%target_time,ierr)
-      linear_iterations_in_step = pm_ert%linear_iterations_in_step
-    class default
-      option%io_buffer = 'RunToTime implemented only for ERT &
-                          &geophysics process model.'
-      call PrintErrMsg(option)
-  end select
+  if (skip_survey) then
+    write(this%option%io_buffer,'(" Time= ",1pe12.5," [",a,"]", &
+          &" Skipping geophysics as this is not a survey time.")') &
+      timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+    call PrintMsg(this%option)
+    return
+  endif
+
+  call pm_ert%PreSolve()
+  call pm_ert%Solve(timestepper%target_time,ierr)
+  linear_iterations_in_step = pm_ert%linear_iterations_in_step
   if (ierr /= 0) stop_flag = TS_STOP_FAILURE
 
   timestepper%steps = timestepper%steps + 1
   timestepper%cumulative_linear_iterations = &
     timestepper%cumulative_linear_iterations + linear_iterations_in_step
-  if (this%option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-         & /,"  linear = ",i5," [",i10,"]")') &
-         timestepper%steps, timestepper%target_time/output_option%tconv, &
-         trim(output_option%tunit), linear_iterations_in_step, &
-         timestepper%cumulative_linear_iterations
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
-         & /,"  linear = ",i5," [",i10,"]")') &
-         timestepper%steps, this%timestepper%target_time/output_option%tconv, &
-         trim(output_option%tunit), linear_iterations_in_step, &
-         timestepper%cumulative_linear_iterations
-  endif
+  write(this%option%io_buffer,'(" Step ",i6," Time= ",1pe12.5," [",a,"]", &
+                              &a,"  linear = ",i5," [",i10,"]")') &
+       timestepper%steps, timestepper%target_time/output_option%tconv, &
+       trim(output_option%tunit),new_line('a'), &
+       linear_iterations_in_step,timestepper%cumulative_linear_iterations
+  call PrintMsg(this%option)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
@@ -275,21 +283,284 @@ recursive subroutine PMCGeophysicsFinalizeRun(this)
   class(pmc_geophysics_type) :: this
 
   class(timestepper_steady_type), pointer :: timestepper
+  class(pm_ert_type), pointer :: pm_ert
 
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCGeophysics%FinalizeRun()')
 #endif
 
   nullify(this%realization)
-  select type(pm=>this%pm_ptr%pm)
-    class is(pm_ert_type)
-      timestepper => TimestepperSteadyCast(this%timestepper)
-      timestepper%cumulative_solver_time = pm%ksp_time
-    class default
-  end select
+  pm_ert => PMERTCast(this%pm_ptr%pm)
+  timestepper => TimestepperSteadyCast(this%timestepper)
+  timestepper%cumulative_solver_time = pm_ert%ksp_time
   call PMCBaseFinalizeRun(this)
 
 end subroutine PMCGeophysicsFinalizeRun
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsCheckpointBinary(this,viewer,append_name)
+  !
+  ! Checkpoints geophysics PMC, timestepper and state variables.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: append_name
+
+  class(pm_base_type), pointer :: cur_pm
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot checkpoint as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  endif
+
+  if (associated(this%timestepper)) then
+    call this%timestepper%CheckpointBinary(viewer,this%option)
+  endif
+
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    call cur_pm%CheckpointBinary(viewer)
+    cur_pm => cur_pm%next
+  enddo
+
+  if (associated(this%child)) then
+    call this%child%CheckpointBinary(viewer,append_name)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%CheckpointBinary(viewer,append_name)
+  endif
+
+end subroutine PMCGeophysicsCheckpointBinary
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsRestartBinary(this,viewer)
+  !
+  ! Restarts PMC timestepper and state variables.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  PetscViewer :: viewer
+
+  class(pm_base_type), pointer :: cur_pm
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot restart as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  endif
+
+  if (associated(this%timestepper)) then
+    call this%timestepper%RestartBinary(viewer,this%option)
+    if (Initialized(this%option%restart_time)) then
+      ! simply a flag to set time back to zero, no matter what the restart
+      ! time is set to.
+      call this%timestepper%Reset()
+      ! note that this sets the target time back to zero.
+    endif
+! this skip occurs later
+!    call WaypointSkipToTime(this%cur_waypoint, &
+!                            this%timestepper%target_time)
+    this%option%time = this%timestepper%target_time
+  endif
+
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      this%option%io_buffer = 'Due to sequential nature of binary files, &
+        &skipping restart for binary formatted files is not allowed.'
+      call PrintErrMsg(this%option)
+    endif
+    call cur_pm%RestartBinary(viewer)
+    cur_pm => cur_pm%next
+  enddo
+
+  if (associated(this%child)) then
+    call this%child%RestartBinary(viewer)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%RestartBinary(viewer)
+  endif
+
+end subroutine PMCGeophysicsRestartBinary
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
+  !
+  ! Checkpoints PMC timestepper and state variables in HDF5 format.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use hdf5
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  integer(HID_T) :: h5_chk_grp_id
+  character(len=MAXSTRINGLENGTH) :: append_name
+
+  integer(HID_T) :: h5_pmc_grp_id
+  integer(HID_T) :: h5_pm_grp_id
+
+  class(pm_base_type), pointer :: cur_pm
+  PetscErrorCode :: ierr
+  PetscMPIInt :: hdf5_err
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot checkpoint as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  else
+    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
+                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  endif
+
+  if (associated(this%timestepper)) then
+    call this%timestepper%CheckpointHDF5(h5_pmc_grp_id, this%option)
+  endif
+
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+
+    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
+         hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call cur_pm%CheckpointHDF5(h5_pm_grp_id)
+    call h5gclose_f(h5_pm_grp_id, hdf5_err)
+
+    cur_pm => cur_pm%next
+  enddo
+
+  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+
+  if (associated(this%child)) then
+    call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%CheckpointHDF5(h5_chk_grp_id,append_name)
+  endif
+
+end subroutine PMCGeophysicsCheckpointHDF5
+
+! ************************************************************************** !
+
+recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
+  !
+  ! Restarts PMC timestepper and state variables from a HDF5
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/13/22
+  !
+  use hdf5
+  use HDF5_Aux_module
+  use PM_Base_class
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+  integer(HID_T) :: h5_chk_grp_id
+
+  class(pm_base_type), pointer :: cur_pm
+  PetscErrorCode :: ierr
+  PetscMPIInt :: hdf5_err
+
+  integer(HID_T) :: h5_pmc_grp_id
+  integer(HID_T) :: h5_pm_grp_id
+
+  PetscBool :: skip_restart
+
+  ! search pm for skip restart flag which will apply to everything in pmc
+  skip_restart = PETSC_FALSE
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      skip_restart = PETSC_TRUE
+      exit
+    endif
+    cur_pm => cur_pm%next
+  enddo
+
+  ! if the top PMC
+  if (this%is_master) then
+    this%option%io_buffer = 'PMC Geophysics cannot restart as the master &
+      &process model coupler'
+    call PrintErrMsg(this%option)
+  else
+    if (.not.skip_restart) then
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+    endif
+  endif
+
+  if (associated(this%timestepper)) then
+    if (.not.skip_restart) then
+      call this%timestepper%RestartHDF5(h5_pmc_grp_id, this%option)
+    endif
+
+    if (Initialized(this%option%restart_time)) then
+      ! simply a flag to set time back to zero, no matter what the restart
+      ! time is set to.
+      call this%timestepper%Reset()
+      ! note that this sets the target time back to zero.
+    else if (skip_restart) then
+        this%option%io_buffer = 'Restarted simulations that SKIP_RESTART on &
+          &checkpointed process models must restart at time 0.'
+        call PrintErrMsg(this%option)
+    endif
+! this skip occurs later
+!    call WaypointSkipToTime(this%cur_waypoint, &
+!                            this%timestepper%target_time)
+    this%option%time = this%timestepper%target_time
+  endif
+
+  if (.not.skip_restart) then
+    cur_pm => this%pm_list
+    do
+      if (.not.associated(cur_pm)) exit
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call cur_pm%RestartHDF5(h5_pm_grp_id)
+      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      cur_pm => cur_pm%next
+    enddo
+
+    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  endif
+
+  if (associated(this%child)) then
+    call this%child%RestartHDF5(h5_chk_grp_id)
+  endif
+
+  if (associated(this%peer)) then
+    call this%peer%RestartHDF5(h5_chk_grp_id)
+  endif
+
+end subroutine PMCGeophysicsRestartHDF5
 
 ! ************************************************************************** !
 

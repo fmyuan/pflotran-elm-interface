@@ -278,17 +278,14 @@ subroutine TimestepperSNESUpdateDT(this,process_model)
     update_time_step = PETSC_FALSE
   endif
 
-  if (update_time_step .and. this%iaccel /= 0) then
-
-    call process_model%UpdateTimestep(this%dt, &
-                                      this%dt_min, &
-                                      this%dt_max, &
-                                      this%iaccel, &
-                                      this%num_newton_iterations, &
-                                      this%tfac, &
-                                      this%time_step_max_growth_factor)
-
-  endif
+  call process_model%UpdateTimestep(update_time_step, &
+                                    this%dt, &
+                                    this%dt_min, &
+                                    this%dt_max, &
+                                    this%iaccel, &
+                                    this%num_newton_iterations, &
+                                    this%tfac, &
+                                    this%time_step_max_growth_factor)
 
   ! rescue mode - heeho
   if (this%rescue_mode) then
@@ -426,6 +423,7 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
           end select
         endif
       endif
+      if (stop_flag == TS_STOP_FAILURE) return
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt

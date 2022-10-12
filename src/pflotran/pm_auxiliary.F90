@@ -17,7 +17,6 @@ module PM_Auxiliary_class
     class(communicator_type), pointer :: comm1
     character(len=MAXWORDLENGTH) :: ctype
     type(pm_auxiliary_salinity_type), pointer :: salinity
-    PetscBool :: evaluate_at_end_of_simulation
     procedure(PMAuxliaryEvaluate), pointer :: Evaluate => null()
   contains
     procedure, public :: Setup => PMAuxiliarySetup
@@ -58,7 +57,7 @@ contains
 
 function PMAuxiliaryCreate()
   !
-  ! Creates reactive transport process models shell
+  ! Creates an auxiliary process model
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -95,7 +94,6 @@ subroutine PMAuxiliaryInit(this)
   nullify(this%salinity)
   this%ctype = ''
   this%name = ''
-  this%evaluate_at_end_of_simulation = PETSC_TRUE
 
   call PMBaseInit(this)
   ! restart not currently supported for auxiliary pm's, and not needed.
@@ -122,10 +120,12 @@ end subroutine PMAuxiliarySetup
 
 function PMAuxiliaryCast(this)
   !
-  ! Initializes auxiliary process model
+  ! Casts a base process model to auxiliary
   !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
+
+  use Option_module
 
   implicit none
 
@@ -139,7 +139,9 @@ function PMAuxiliaryCast(this)
     class is (pm_auxiliary_type)
       PMAuxiliaryCast => this
     class default
-      !geh: have default here to pass a null pointer if not of type ascii
+      this%option%io_buffer = 'Cannot cast pm_base_type to pm_auxiliary_type &
+        &in PMAuxiliaryCast.'
+      call PrintErrMsg(this%option)
   end select
 
 end function PMAuxiliaryCast
@@ -247,10 +249,6 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
       this%header = 'AUXILIARY EVOLVING STRATA'
-      this%evaluate_at_end_of_simulation = PETSC_FALSE
-    case('INVERSION')
-      this%Evaluate => PMAuxiliaryInversion
-      this%header = 'AUXILIARY INVERSION'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
@@ -359,6 +357,9 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   ! Date: 02/10/16
 
   use Init_Subsurface_module
+  use Option_module
+  use Strata_module
+  use Utility_module
 
   implicit none
 
@@ -366,52 +367,32 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
-  ierr = 0
-  call InitSubsurfAssignMatIDsToRegns(this%realization)
-  call InitSubsurfAssignMatProperties(this%realization)
-  call InitSubsurfaceSetupZeroArrays(this%realization)
-
-end subroutine PMAuxiliaryEvolvingStrata
-
-! ************************************************************************** !
-
-subroutine PMAuxiliaryInversion(this,time,ierr)
-  !
-  ! Initializes auxiliary process model
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/10/16
-
-  use Inversion_TS_Aux_module
-  use Realization_Base_class
-
-  implicit none
-
-  class(pm_auxiliary_type) :: this
-  PetscReal :: time
-  PetscErrorCode :: ierr
-
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  type(strata_type), pointer :: cur_strata
+  PetscBool :: evolve
 
   ierr = 0
-  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
-  if (associated(this%realization%patch%aux%inversion_forward_aux)) then
-    call RealizationGetVariable(this%realization, &
-                                this%realization%field%work, &
-                                inversion_forward_aux%iobsfunc,ZERO_INTEGER)
-    call VecScatterBegin(inversion_forward_aux%scatter_global_to_measurement, &
-                         this%realization%field%work, &
-                         inversion_forward_aux%measurement_vec,INSERT_VALUES, &
-                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(inversion_forward_aux%scatter_global_to_measurement, &
-                       this%realization%field%work, &
-                       inversion_forward_aux%measurement_vec,INSERT_VALUES, &
-                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call InversionForwardAuxStep(this%realization%patch%aux% &
-                                 inversion_forward_aux,time)
+  evolve = PETSC_FALSE
+
+  cur_strata => this%realization%patch%strata_list%first
+  do
+    if (.not.associated(cur_strata)) exit
+    if (Equal(cur_strata%start_time,time) .or. &
+        Equal(cur_strata%final_time,time)) then
+      evolve = PETSC_TRUE
+      exit
+    endif
+    cur_strata => cur_strata%next
+  enddo
+  if (evolve) then
+    call PrintMsg(this%option,'  Strata updated.')
+    call InitSubsurfAssignMatIDsToRegns(this%realization)
+    call InitSubsurfAssignMatProperties(this%realization)
+    call InitSubsurfaceSetupZeroArrays(this%realization)
+  else
+    call PrintMsg(this%option,'  No strata update requested at this time.')
   endif
 
-end subroutine PMAuxiliaryInversion
+end subroutine PMAuxiliaryEvolvingStrata
 
 ! ************************************************************************** !
 
@@ -518,7 +499,6 @@ subroutine PMAuxiliaryDestroy(this)
   nullify(this%realization)
   nullify(this%comm1)
   nullify(this%option)
-  nullify(this%output_option)
 
   if (associated(this%salinity)) then
     deallocate(this%salinity)

@@ -4,11 +4,13 @@ module Reaction_Sandbox_module
   use petscsys
 
   use Reaction_Sandbox_Base_class
+  use Reaction_Sandbox_Calcite_class
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
   use Reaction_Sandbox_Simple_class
   use Reaction_Sandbox_Cyber_class
+  use Reaction_Sandbox_Lambda_class
   use Reaction_Sandbox_Gas_class
   use Reaction_Sandbox_BioHill_class
   use Reaction_Sand_FlexBioHill_class
@@ -167,6 +169,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => SimpleCreate()
       case('CYBERNETIC')
         new_sandbox => CyberCreate()
+      case('LAMBDA')
+        new_sandbox => LambdaCreate()
       case('GAS')
         new_sandbox => GasCreate()
       case('BIODEGRADATION_HILL')
@@ -175,6 +179,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => FlexBioHillCreate()
       case('BIOPARTICLE')
         new_sandbox => BioTH_Create()
+      case('CALCITE')
+        new_sandbox => CalciteCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)

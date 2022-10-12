@@ -191,7 +191,7 @@ subroutine MphaseSetupPatch(realization)
 
 ! Create secondary continuum variables - Added by SK 06/28/12
 
-  if (option%use_mc) then
+  if (option%use_sc) then
 
     initial_condition => patch%initial_condition_list%first
     allocate(mphase_sec_heat_vars(grid%nlmax))
@@ -204,18 +204,17 @@ subroutine MphaseSetupPatch(realization)
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
         patch%material_property_array(1)%ptr%multicontinuum%name, &
-        patch%aux%Material%auxvars(ghosted_id)%soil_properties(matrix_length_index), &
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
         patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
         patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
         patch%material_property_array(1)%ptr%multicontinuum%radius, &
-        patch%material_property_array(1)%ptr%multicontinuum%area, &
         patch%material_property_array(1)%ptr%multicontinuum%porosity, &
         option)
 
       mphase_sec_heat_vars(local_id)%ncells = &
         patch%material_property_array(1)%ptr%multicontinuum%ncells
-      mphase_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%multicontinuum%aperture
+      mphase_sec_heat_vars(local_id)%half_aperture = &
+        patch%material_property_array(1)%ptr%multicontinuum%half_aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
         patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
       mphase_sec_heat_vars(local_id)%log_spacing = &
@@ -238,7 +237,7 @@ subroutine MphaseSetupPatch(realization)
                               mphase_sec_heat_vars(local_id)%vol, &
                               mphase_sec_heat_vars(local_id)%dm_minus, &
                               mphase_sec_heat_vars(local_id)%dm_plus, &
-                              mphase_sec_heat_vars(local_id)%aperture, &
+                              mphase_sec_heat_vars(local_id)%half_aperture, &
                               mphase_sec_heat_vars(local_id)%epsilon, &
                               mphase_sec_heat_vars(local_id)%log_spacing, &
                               mphase_sec_heat_vars(local_id)%outer_spacing, &
@@ -1199,7 +1198,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
   auxvars => mphase%auxvars
   global_auxvars => patch%aux%Global%auxvars
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     mphase_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   endif
 
@@ -1207,7 +1206,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
     call MphaseUpdateMassBalancePatch(realization)
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
 
   ! Secondary continuum contribution (Added by SK 06/26/2012)
   ! only one secondary continuum for now for each primary continuum node
@@ -1329,7 +1328,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = mphase_sec_heat_vars(local_id)%epsilon
     endif
 
@@ -1695,7 +1694,7 @@ subroutine MphaseFlux(auxvar_up,por_up,tor_up,sir_up,dd_up,perm_up,Dk_up, &
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
 #if 0
 ! This factor 2/3 is multiplied to get bulk perm k=delta^3/12/l, karra 05/14/2013
-  if (option%use_mc) Dq = Dq*2.d0/3.d0*vol_frac_prim
+  if (option%use_sc) Dq = Dq*2.d0/3.d0*vol_frac_prim
 #endif
   diffdp = (por_up*tor_up * por_dn*tor_dn) / &
     (dd_dn*por_up*tor_up + dd_up*por_dn*tor_dn)*area*vol_frac_prim
@@ -1896,7 +1895,7 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
         Dq = perm_dn / dd_up
 #if 0
 ! This factor 2/3 is multiplied to get bulk perm k=delta^3/12/l, karra 05/14/2013
-        if (option%use_mc) Dq = Dq*2.d0/3.d0*vol_frac_prim
+        if (option%use_sc) Dq = Dq*2.d0/3.d0*vol_frac_prim
 #endif
         ! Flow term
         ukvr = 0.D0
@@ -2688,7 +2687,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = mphase_sec_heat_vars(local_id)%epsilon
     endif
 
@@ -2707,7 +2706,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
 ! ================== Secondary continuum heat source terms =====================
 #if 1
-  if (option%use_mc) then
+  if (option%use_sc) then
   ! Secondary continuum contribution (Added by SK 06/26/2012)
   ! only one secondary continuum for now for each primary continuum node
     do local_id = 1, grid%nlmax  ! For each local node do...
@@ -3327,7 +3326,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = sec_heat_vars(local_id)%epsilon
     endif
 
@@ -3546,7 +3545,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
     Jup = ra(1:option%nflowdof,1:option%nflowdof)
 
-    if (option%use_mc) then
+    if (option%use_sc) then
 
       call MphaseSecondaryHeatJacobian(sec_heat_vars(local_id), &
                         mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &

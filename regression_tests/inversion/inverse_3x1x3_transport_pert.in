@@ -4,9 +4,6 @@ SIMULATION
     PERTURBATION
     /
     EXTERNAL_FILE inverse_3x1x3_transport.txt
-    # OBSERVATION_FUNCTION is set to LIQUID_PRESSURE in 
-    # inverse_3x1x3_transport.txt. The below overrides it.
-    OBSERVATION_FUNCTION SOLUTE_CONCENTRATION
   /
 END
 

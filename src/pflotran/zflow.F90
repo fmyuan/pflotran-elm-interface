@@ -698,7 +698,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
     call PetUtilVecSVBL(accum_p,local_id,Res,ndof,PETSC_TRUE)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
-      patch%aux%inversion_forward_aux%current%dRes_du_k(:,:,local_id) = &
+      patch%aux%inversion_forward_aux%last%dRes_du_k(:,:,local_id) = &
         -Jdum(1:ndof,1:ndof)
     endif
   enddo
@@ -818,7 +818,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   call MatZeroEntries(A,ierr);CHKERRQ(ierr)
   if (associated(patch%aux%inversion_forward_aux)) then
     if (patch%aux%inversion_forward_aux%store_adjoint) then
-      MatdResdparam = patch%aux%inversion_forward_aux%current%dResdparam
+      MatdResdparam = patch%aux%inversion_forward_aux%last%dResdparam
       if (MatdResdparam /= PETSC_NULL_MAT) then
         store_adjoint = PETSC_TRUE
         call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)
@@ -916,12 +916,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
         icc_up = patch%cc_id(ghosted_id_up)
         icc_dn = patch%cc_id(ghosted_id_dn)
-
-        option%iflag = 0
-        if ((grid%nG2A(ghosted_id_up) == 84 .and. &
-             grid%nG2A(ghosted_id_dn) == 85) .or. &
-            (grid%nG2A(ghosted_id_up) == 85 .and. &
-             grid%nG2A(ghosted_id_dn) == 84)) option%iflag = 1
 
         call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
                               global_auxvars(ghosted_id_up), &

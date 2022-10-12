@@ -315,6 +315,7 @@ subroutine WriteVTKGrid(fid,realization_base)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
+  type(output_option_type), pointer :: output_option
   PetscInt :: i, j, k, nx, ny, nz
   PetscReal :: x, y, z
   PetscInt :: nxp1Xnyp1, nxp1, nyp1, nzp1
@@ -327,6 +328,7 @@ subroutine WriteVTKGrid(fid,realization_base)
   call PetscLogEventBegin(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
 
   discretization => realization_base%discretization
+  output_option => realization_base%output_option
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
@@ -393,6 +395,16 @@ subroutine WriteVTKGrid(fid,realization_base)
       write(fid,'(a)') ""
 
     endif
+  else
+    option%io_buffer = 'For unstructured grids, VTK formatted output lacks &
+      &cell geometry information.'
+    if (.not.output_option%vtk_acknowledgment) then
+      option%io_buffer = trim(option%io_buffer) // &
+        ' Please add ACKNOWLEDGE_VTK_FLAW to the OUTPUT block &
+        &to acknowledge this defect, and the file will be printed.'
+      call PrintErrMsg(option)
+    endif
+    call PrintWrnMsg(option)
   endif
 
   call PetscLogEventEnd(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)

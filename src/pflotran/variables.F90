@@ -164,7 +164,7 @@ module Variables_module
 
 
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
-  PetscInt, parameter, public :: MATRIX_LENGTH    = 135
+  PetscInt, parameter, public :: HALF_MATRIX_WIDTH    = 135
 
   PetscInt, parameter, public :: VG_ALPHA                = 136
   PetscInt, parameter, public :: VG_M                    = 137
@@ -173,5 +173,6 @@ module Variables_module
   PetscInt, parameter, public :: NWT_AUXILIARY = 139
 
   PetscInt, parameter, public :: SMECTITE                = 140
+  PetscInt, parameter, public :: GAS_PARTIAL_PRESSURE    = 141
 
 end module Variables_module

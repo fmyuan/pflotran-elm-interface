@@ -97,16 +97,15 @@ module Material_module
 
   type, public :: multicontinuum_property_type
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: length
-    class(dataset_base_type), pointer :: length_dataset
+    PetscReal :: half_matrix_width
+    class(dataset_base_type), pointer :: half_matrix_width_dataset
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
-    PetscReal :: area
     PetscInt :: ncells
     PetscReal :: epsilon
     class(dataset_base_type), pointer :: epsilon_dataset
-    PetscReal :: aperture
+    PetscReal :: half_aperture
     PetscReal :: init_temp
     PetscReal :: init_conc
     PetscReal :: porosity
@@ -237,16 +236,15 @@ function MaterialPropertyCreate(option)
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
-    material_property%multicontinuum%length = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%half_matrix_width = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%matrix_block_size = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%fracture_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%radius = UNINITIALIZED_DOUBLE
-    material_property%multicontinuum%area = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%epsilon = UNINITIALIZED_DOUBLE
-    material_property%multicontinuum%aperture = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%half_aperture = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%init_temp = 100.d0
     material_property%multicontinuum%init_conc = 0.d0
     material_property%multicontinuum%diff_coeff(1) = 1.d-9
@@ -259,7 +257,7 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
-    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%half_matrix_width_dataset)
   endif
 
   nullify(material_property%next)
@@ -837,19 +835,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 call PrintErrMsg(option)
               endif
               call DatasetReadDoubleorDataset(input, &
-                material_property%multicontinuum%length, &
-                material_property%multicontinuum%length_dataset, &
+                material_property%multicontinuum%half_matrix_width, &
+                material_property%multicontinuum%half_matrix_width_dataset, &
                 'length', 'MATERIAL_PROPERTY',option)
             case('AREA')
-              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
-                option%io_buffer = 'AREA is &
-                                    &only supported for SLAB.'
-                call PrintErrMsg(option)
-              endif
-              call InputReadDouble(input,option, &
-                                   material_property%multicontinuum%area)
-              call InputErrorMsg(input,option,'area', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call PrintErrMsg(option,'AREA has been removed as input &
+                               &in multiple continuum model.')
             case('NUM_CELLS')
               call InputReadInt(input,option, &
                                    material_property%multicontinuum%ncells)
@@ -867,7 +858,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
-                             material_property%multicontinuum%aperture)
+                             material_property%multicontinuum%half_aperture)
               call InputErrorMsg(input,option,'aperture', &
                            'MATERIAL_PROPERTY')
             case('TEMPERATURE')
@@ -1558,7 +1549,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_reference_pressure_index = 0
   max_material_index = 0
   epsilon_index = 0
-  matrix_length_index = 0
+  half_matrix_width_index = 0
 
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
@@ -1624,9 +1615,9 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
         icount = icount + 1
         epsilon_index = icount
       endif
-      if (matrix_length_index == 0) then
+      if (half_matrix_width_index == 0) then
         icount = icount + 1
-        matrix_length_index = icount
+        half_matrix_width_index = icount
       endif
     endif
 !    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
@@ -1782,9 +1773,9 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         material_auxvars(i)%soil_properties(epsilon_index) = value
       enddo
-    case(MATRIX_LENGTH)
+    case(HALF_MATRIX_WIDTH)
       do i=1, Material%num_aux
-        material_auxvars(i)%soil_properties(matrix_length_index) = value
+        material_auxvars(i)%soil_properties(half_matrix_width_index) = value
       enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
@@ -1891,10 +1882,10 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)%&
           soil_properties(epsilon_index) = vec_loc_p(ghosted_id)
       enddo
-    case(MATRIX_LENGTH)
+    case(HALF_MATRIX_WIDTH)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%&
-          soil_properties(matrix_length_index) = vec_loc_p(ghosted_id)
+          soil_properties(half_matrix_width_index) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
@@ -2458,7 +2449,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%soil_reference_pressure_dataset)
 
   if (associated(material_property%multicontinuum)) then
-    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%half_matrix_width_dataset)
     nullify(material_property%multicontinuum%epsilon_dataset)
     deallocate(material_property%multicontinuum)
     nullify(material_property%multicontinuum)

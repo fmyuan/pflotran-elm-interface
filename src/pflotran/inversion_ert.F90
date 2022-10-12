@@ -53,6 +53,7 @@ module Inversion_ERT_class
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
     procedure, public :: Step => InversionERTStep
+    procedure, public :: ExecuteForwardRun => InversionERTExecuteForwardRun
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
@@ -800,6 +801,24 @@ subroutine InversionERTStep(this)
   call this%DestroyForwardRun()
 
 end subroutine InversionERTStep
+
+
+! ************************************************************************** !
+
+subroutine InversionERTExecuteForwardRun(this)
+  !
+  ! Executes a forward simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/02/22
+
+  class(inversion_ert_type) :: this
+
+  if (this%realization%option%status == PROCEED) then
+    call this%forward_simulation%ExecuteRun()
+  endif
+
+end subroutine InversionERTExecuteForwardRun
 
 ! ************************************************************************** !
 

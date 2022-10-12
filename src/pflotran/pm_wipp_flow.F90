@@ -1131,7 +1131,8 @@ end subroutine PMWIPPFloPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMWIPPFloUpdateTimestep(this,update_dt, &
+                                   dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
   !
@@ -1150,6 +1151,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_wippflo_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -1164,34 +1166,35 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
 
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  dtime(1) = (2.d0*this%gas_sat_change_ts_governor)/ &
-             (this%gas_sat_change_ts_governor+this%max_saturation_change)
-  dtime(2) = (2.d0*this%liq_pres_change_ts_governor)/ &
-             (this%liq_pres_change_ts_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(dtime(1),dtime(2))*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (minval(dtime) > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else if (dtime(1) < dtime(2)) then
-      string = 'gas saturation governor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    dtime(1) = (2.d0*this%gas_sat_change_ts_governor)/ &
+              (this%gas_sat_change_ts_governor+this%max_saturation_change)
+    dtime(2) = (2.d0*this%liq_pres_change_ts_governor)/ &
+              (this%liq_pres_change_ts_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(min(dtime(1),dtime(2))*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (minval(dtime) > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else if (dtime(1) < dtime(2)) then
+        string = 'gas saturation governor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call PrintMsg(this%option,string)
+    ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
+    ! within timestepper_BE. use %minimum_timestep_size, which is specific to
+    ! wipp_flow.
+    dt = max(dt,this%minimum_timestep_size)
   endif
-  ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
-  ! within timestepper_BE. use %minimum_timestep_size, which is specific to
-  ! wipp_flow.
-  dt = max(dt,this%minimum_timestep_size)
 
   if (wippflo_debug_ts_update) then
     if (minval(dtime(:)) < time_step_max_growth_factor .and. dt < dt_max) then

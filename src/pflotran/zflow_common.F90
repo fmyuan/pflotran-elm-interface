@@ -324,11 +324,6 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         Res(zflow_liq_flow_eq) = Res(zflow_liq_flow_eq) + &
                                                  q * zflow_density_kmol
 
-        if (option%iflag > 0) then
-          print *, option%myrank, zflow_auxvar_up%pres, zflow_auxvar_dn%pres, &
-          perm_ave_over_dist_visc, kr, delta_pressure, v_darcy, area, q, zflow_density_kmol
-        endif
-
         if (calculate_derivatives) then
           tempreal = perm_ave_over_dist_visc * area
           dq_dpup = tempreal * (delta_pressure * dkr_dpup + kr)
@@ -395,7 +390,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         (q * dconc_upwind_ddn + &
          area * Deff_over_dist * (-1.d0)) * &
         L_per_m3
-         if (zflow_liq_flow_eq > 0) then
+      if (zflow_liq_flow_eq > 0) then
         if (D_mech_up > 0.d0) then
           ! implement derivatives here and in boundary flux
           option%io_buffer = 'Implement derivatives for D_mech_up'
@@ -439,6 +434,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
             (dq_dKdn * conc_upwind + &
              area * dDeff_over_dist_dKdn * delta_conc) * &
             L_per_m3
+        else if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
+          print *, 'adjoint derivatives for solute concentration wrt &
+                   &porosity have not been implemented.'
+          stop
         endif
       endif
     endif

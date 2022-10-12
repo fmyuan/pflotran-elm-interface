@@ -391,6 +391,7 @@ module Reaction_Aux_module
             IonExchangeRxnCreate, &
             IonExchangeCationCreate, &
             ReactionInputRecord, &
+            ReactionNetworkToStoich, &
             ReactionDestroy
 
 contains
@@ -1758,6 +1759,84 @@ subroutine ReactionInputRecord(rxn)
   endif
 
 end subroutine ReactionInputRecord
+
+! ************************************************************************** !
+
+subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
+ 
+  ! Reads in a reaction network and parses the stoichiometries and species ids
+
+  ! Authors: Glenn Hammond
+  ! Date: 05/24/22
+
+  use Input_Aux_module
+  use Option_module
+  use Reaction_Database_Aux_module
+
+  implicit none
+
+  type(reaction_rt_type) :: reaction
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt, pointer :: spec_ids(:,:)
+  PetscReal, pointer :: stoich(:,:)
+  type(option_type) :: option
+
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: icomp, irxn, nrxn
+  type(database_rxn_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
+
+  input => InputCreate(IUNIT_TEMP,filename,option)
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  nullify(rxn_list)
+  nrxn = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    cur_rxn => DatabaseRxnPtrCreate()
+    string = input%buf
+    cur_rxn%dbaserxn => &
+      DatabaseRxnCreateFromRxnString(string, &
+                                     reaction%naqcomp, &
+                                     reaction%offset_aqueous, &
+                                     reaction%primary_species_names, &
+                                     reaction%nimcomp, &
+                                     reaction%offset_immobile, &
+                                     reaction%immobile%names, &
+                                     PETSC_FALSE,option)
+    if (.not.associated(rxn_list)) then
+      rxn_list => cur_rxn
+    else
+      last_rxn%next => cur_rxn
+    endif
+    last_rxn => cur_rxn
+    nrxn = nrxn + 1
+  enddo
+  call InputPopBlock(input,option)
+  call InputDestroy(input)
+
+  allocate(spec_ids(0:reaction%naqcomp,nrxn))
+  allocate(stoich(reaction%naqcomp,nrxn))
+  spec_ids = 0
+  stoich = 0.d0
+
+  cur_rxn => rxn_list
+  irxn = 0
+  do
+    if (.not.associated(cur_rxn)) exit
+    irxn = irxn + 1
+    spec_ids(0,irxn) = cur_rxn%dbaserxn%nspec
+    spec_ids(1:cur_rxn%dbaserxn%nspec,irxn) = &
+      cur_rxn%dbaserxn%spec_ids(:)
+    stoich(1:cur_rxn%dbaserxn%nspec,irxn) = cur_rxn%dbaserxn%stoich(:)
+    cur_rxn => cur_rxn%next
+  enddo
+
+  call DatabaseRxnPtrDestroy(rxn_list)
+
+end subroutine ReactionNetworkToStoich
 
 ! ************************************************************************** !
 

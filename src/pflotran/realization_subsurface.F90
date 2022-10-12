@@ -1037,19 +1037,19 @@ subroutine RealProcessMatPropAndSatFunc(realization)
             call PrintErrMsg(option)
         end select
       endif
-      if (associated(cur_material_property%multicontinuum%length_dataset)) then
+      if (associated(cur_material_property%multicontinuum%half_matrix_width_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                  '),LENGTH'
         dataset => &
           DatasetBaseGetPointer(realization%datasets, &
                                 cur_material_property% &
-                                  multicontinuum%length_dataset%name, &
+                                  multicontinuum%half_matrix_width_dataset%name, &
                                 string,option)
         call DatasetDestroy(cur_material_property% &
-                              multicontinuum%length_dataset)
+                              multicontinuum%half_matrix_width_dataset)
         select type(dataset)
           class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%length_dataset => dataset
+            cur_material_property%multicontinuum%half_matrix_width_dataset => dataset
           class default
             option%io_buffer = 'Incorrect dataset type for length.'
             call PrintErrMsg(option)
@@ -1362,7 +1362,7 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     select type(constraint=>realization%sec_transport_constraint)
       class is (tran_constraint_rt_type)
         call ReactionProcessConstraint(realization%reaction, &
@@ -2993,9 +2993,7 @@ subroutine RealizationStrip(this)
     call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
   endif
 
-  if (associated(this%material_transform)) then
-    call MaterialTransformDestroy(this%material_transform)
-  endif
+  nullify(this%material_transform)
 
   call DatasetDestroy(this%datasets)
 
