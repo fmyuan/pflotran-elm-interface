@@ -90,7 +90,7 @@ subroutine OutputVTK(realization_base)
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
   if (OptionIsIORank(option)) then
-    write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
+    write(OUTPUT_UNIT,'(''CELL_DATA '',i8)') grid%nmax
   endif
 
   cur_variable => output_option%output_snap_variable_list%first
@@ -232,7 +232,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
   if (OptionIsIORank(option)) then
-    write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
+    write(OUTPUT_UNIT,'(''CELL_DATA '',i8)') grid%nmax
   endif
 
   word = 'Vlx'

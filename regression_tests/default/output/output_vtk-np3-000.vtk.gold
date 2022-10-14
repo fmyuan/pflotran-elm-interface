@@ -29,7 +29,7 @@ CELL_TYPES            3
 12
 12
 
-CELL_DATA       3
+CELL_DATA        3
 SCALARS Liquid_Pressure      float 1
 LOOKUP_TABLE default
  2.000030E+05  2.000020E+05  2.000010E+05
