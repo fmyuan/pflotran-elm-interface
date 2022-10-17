@@ -40,6 +40,7 @@ module PM_ERT_class
     PetscReal :: max_tracer_conc
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
+    character(len=MAXSTRINGLENGTH) :: survey_time_units
     ! Starting sulution/potential
     PetscBool :: analytical_potential
     PetscBool :: coupled_ert_flow_jacobian
@@ -132,6 +133,7 @@ subroutine PMERTInit(pm_ert)
 
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
+  pm_ert%survey_time_units = ''
 
 end subroutine PMERTInit
 
@@ -236,6 +238,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       case('SURVEY_TIMES')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'units','OUTPUT,TIMES')
+        this%survey_time_units = word
         internal_units = 'sec'
         units_conversion = &
           UnitsConvertToInternal(word,internal_units,option)
@@ -1227,6 +1230,7 @@ subroutine PMERTBuildCoupledJacobian(this)
   use Material_Aux_module
   use String_module
   use Timer_class
+  use Units_module
   use Utility_module
   use ZFlow_Aux_module
 
@@ -1259,6 +1263,8 @@ subroutine PMERTBuildCoupledJacobian(this)
   PetscInt :: local_id_m,local_id_n
   PetscInt :: ghosted_id_m,ghosted_id_n
   PetscInt :: inbr,num_neighbors
+  PetscBool :: iflag
+  character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
   option => this%option
@@ -1293,8 +1299,10 @@ subroutine PMERTBuildCoupledJacobian(this)
                               dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
 
+    iflag = PETSC_FALSE
     do isurvey = 1, size(solutions)
       if (.not.Equal(solutions(isurvey)%time,option%time)) cycle
+      iflag = PETSC_TRUE
       do iparam = 1, size(parameters)
         call VecGetArrayReadF90(solutions(isurvey)% &
                                 dsaturation_dparameter(iparam), &
@@ -1411,6 +1419,17 @@ print*,imeasurement,local_id,coupled_jacob,dsat_dparam_ptr(local_id), &
         endif
       enddo
     enddo
+
+    if (.not.iflag) then
+      word = 'sec'
+      option%io_buffer = 'No flow or transport measurements were recorded &
+        &for the Jacobian calculation at ' // &
+        trim(StringWrite(option%time*&
+                         UnitsConvertToExternal(this%survey_time_units, &
+                         word,option))) // &
+        ' ' // trim(this%survey_time_units)
+      call PrintErrMsg(option)
+    endif
 
     call VecRestoreArrayReadF90(this%dconductivity_dsaturation, &
                                 dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
