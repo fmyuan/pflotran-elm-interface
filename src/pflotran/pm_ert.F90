@@ -1394,8 +1394,6 @@ subroutine PMERTBuildCoupledJacobian(this)
                               dcond_dconc_vec_ptr(local_id)
             endif
 
-print*,imeasurement,local_id,coupled_jacob,dsat_dparam_ptr(local_id), &
-       dconc_dparam_ptr(local_id)
             deallocate(phi_sor, phi_rec)
 
           enddo

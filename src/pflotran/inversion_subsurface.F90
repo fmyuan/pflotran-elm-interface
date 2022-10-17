@@ -2173,7 +2173,8 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
   !  enddo
   !endif
 
-  if (.not.this%qoi_is_full_vector) then
+  if (.not.this%qoi_is_full_vector .and. &
+      this%perturbation%idof_pert > 0) then
     ! revert back to base value
     this%parameters(this%perturbation%idof_pert)%value = &
       this%perturbation%base_value
