@@ -37,9 +37,13 @@ MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 #MYFLAGS += ${FC_DEFINE_FLAG}LEGACY_SATURATION_FUNCTION
 
-ifdef codecov
+ifdef gnu_code_coverage
   MYFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
+endif
+
+ifdef gnu_runtime_checks
+  MYFLAGS += -fcheck=all
 endif
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 

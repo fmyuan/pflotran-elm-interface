@@ -917,7 +917,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     temp_int = temp_int + 1
                     iflag = PETSC_TRUE
                 end select
-                allocate(coupler%flow_bc_type(ndof))
+                allocate(coupler%flow_bc_type(ndof+temp_int))
                 allocate(coupler%flow_aux_real_var(ndof+temp_int, &
                                                    num_connections))
                 !geh: don't need this
@@ -1019,7 +1019,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     &supported in ZFLOW mode.'
                   call PrintErrMsg(option)
               end select
-              allocate(coupler%flow_bc_type(ndof))
+              allocate(coupler%flow_bc_type(ndof+temp_int))
               allocate(coupler%flow_aux_real_var(ndof+temp_int,num_connections))
               coupler%flow_bc_type = 0
               coupler%flow_aux_real_var = 0.d0

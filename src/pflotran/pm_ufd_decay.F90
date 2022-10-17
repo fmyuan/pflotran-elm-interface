@@ -357,7 +357,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                     call PrintErrMsg(option)
                   endif
                 endif
-                Kd(i,:) = temp_real_array(1:j)
+                Kd(i,1:j) = temp_real_array(1:j)
                 call DeallocateArray(temp_real_array)
               enddo
               if (i == 0) then

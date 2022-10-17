@@ -185,9 +185,13 @@ ifdef scorpio
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
-ifdef codecov
+ifdef gnu_code_coverage
   MYFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
+endif
+
+ifdef gnu_runtime_checks
+  MYFLAGS += -fcheck=all
 endif
 
 ###############################################################################
