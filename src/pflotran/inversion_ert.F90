@@ -1044,10 +1044,7 @@ subroutine InversionERTUpdateParameters(this)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
 
-  PetscInt :: local_id,ghosted_id
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iqoi(2)
-  PetscErrorCode :: ierr
 
   field => this%realization%field
   discretization => this%realization%discretization
@@ -1875,7 +1872,6 @@ subroutine InversionERTWriteIterationInfo(this)
   class(inversion_ert_type) :: this
 
   PetscInt :: fid
-  character(len=MAXWORDLENGTH) :: string
 
   if (this%driver%PrintToScreen()) then
     write(*,*)

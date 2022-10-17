@@ -289,9 +289,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXSTRINGLENGTH) :: tcc_name
 
   PetscInt :: length
@@ -1113,8 +1112,6 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   type(option_type) :: option
 
   type(material_property_type), pointer :: cur_material_property
-  type(material_property_type), pointer :: prev_material_property
-  type(material_property_type), pointer :: next_material_property
   PetscInt :: i, j, length1,length2, max_internal_id, max_external_id
   PetscInt, allocatable :: id_count(:)
   PetscBool :: error_flag
@@ -2230,8 +2227,7 @@ subroutine MaterialPropInputRecord(material_property_list)
   type(material_property_type), pointer :: material_property_list
 
   type(material_property_type), pointer :: cur_matprop
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') ' '

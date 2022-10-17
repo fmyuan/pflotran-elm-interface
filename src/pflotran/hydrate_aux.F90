@@ -652,27 +652,21 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: den_air, h_air, u_air
   PetscReal :: xmol_air_in_gas, xmol_water_in_gas
   PetscReal :: krl, visl
-  PetscReal :: dkrl_dsatl, dkrl_dsatg
-  PetscReal :: dkrg_dsatl, dkrg_dsatg
+  PetscReal :: dkrl_dsatl
+  PetscReal :: dkrg_dsatl
   PetscReal :: krg, visg
   PetscReal :: K_H_tilde, K_H_tilde_hyd
   PetscInt :: apid, cpid, vpid, spid
-  PetscReal :: xmass_air_in_gas
-  PetscReal :: Ugas_J_kg, Hgas_J_kg
-  PetscReal :: Uair_J_kg, Hair_J_kg
-  PetscReal :: Uvapor_J_kg, Hvapor_J_kg
   PetscReal :: Hg_mixture_fractioned
   PetscReal :: H_hyd, U_ice, PE_hyd
   PetscReal :: aux(1)
-  PetscReal :: hw, hw_dp, hw_dT
+  PetscReal :: hw
   PetscReal :: dpor_dp
   PetscReal :: dpc_dsatl
-  PetscReal :: dden_ice_dT, dden_ice_dP
-  character(len=8) :: state_char
-  PetscErrorCode :: ierr, eos_henry_ierr
   PetscReal :: dTf, dTfs, h_sat_eff, i_sat_eff, l_sat_eff, g_sat_eff
   PetscReal :: solid_sat_eff
   PetscReal :: sigma, dP
+  PetscErrorCode :: ierr
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -706,7 +700,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   if (option%iflag >= HYDRATE_UPDATE_FOR_ACCUM) then
     if (option%iflag == HYDRATE_UPDATE_FOR_ACCUM) then
       write(*,'(a,i3,3es17.8,a3)') 'before: ', &
-        natural_id, x(1:3), trim(state_char)
+        natural_id, x(1:3)
     else
     endif
   endif
@@ -1347,8 +1341,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       else
         dTf = 0.d0
       endif
-      
-      hyd_auxvar%temp = TQD - dTf 
+
+      hyd_auxvar%temp = TQD - dTf
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP, &
           characteristic_curves, material_auxvar, option)
       hyd_auxvar%pres(apid) = PE_hyd
@@ -1635,17 +1629,15 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
   PetscReal, parameter :: epsilon = 0.d0
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
-  PetscReal :: ga_epsilon, ha_epsilon
+  PetscReal :: ha_epsilon
   PetscReal :: x(option%nflowdof)
-  PetscReal :: PE_hyd, dP, K_H, Tf_ice, dTf, dTfs
-  PetscReal :: l_sat_eff,h_sat_eff,g_sat_eff,i_sat_eff
-  PetscReal :: dTfs_ice
+  PetscReal :: PE_hyd, dP, Tf_ice, dTf, dTfs
+  PetscReal :: h_sat_eff,g_sat_eff,i_sat_eff
   PetscReal :: K_H_tilde, K_H_tilde_hyd
   PetscInt :: apid, cpid, vpid, spid
-  PetscInt :: gid, lid, hid, iid, acid, wid
+  PetscInt :: gid, lid, hid, iid, acid
   PetscInt :: old_state,new_state
   PetscBool :: istatechng
-  PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string, append
 
   if (hydrate_immiscible .or. hyd_auxvar%istatechng) return
@@ -1716,7 +1708,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
   TQD = dTfs - dTf
 
-  Tf_ice = TQD !- dTf 
+  Tf_ice = TQD !- dTf
 
   !Update State
 
@@ -3555,7 +3547,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
-  PetscReal :: T_temp, dTf, dTfs, xmol
+  PetscReal :: T_temp, dTf, dTfs
 
   T_temp = T + 273.15d0
   dP = 0.d0
@@ -3602,7 +3594,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         if (hydrate_adjust_ghsz_solubility) then
           dP = PE - exp(0.0334940999*(T_temp-dTf) - 8.1938174346)
           dP = dP * 1.d6
-        endif 
+        endif
     end select
   else
     select case(hydrate_phase_boundary)
@@ -3719,10 +3711,10 @@ end subroutine HenrysConstantMethane
 
 subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                         h_sat_eff,i_sat_eff)
-  ! 
+  !
   ! Computes effective saturation assuming equal nonwetting phase
   ! distribution in large pores.
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 09/01/2022
   !
@@ -3730,7 +3722,7 @@ subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
   implicit none
 
   type(hydrate_auxvar_type) :: hyd_auxvar
-  PetscReal :: l_sat_eff, g_sat_eff,h_sat_eff,i_sat_eff
+  PetscReal :: g_sat_eff,h_sat_eff,i_sat_eff
 
   if (hydrate_gt_3phase) then
     if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
@@ -3763,7 +3755,7 @@ subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
       h_sat_eff = 3.d0 * hyd_auxvar%sat(hid)
     else
       ! Sg > Si > Sh
-      g_sat_eff = 1.d0 - hyd_auxvar%sat(lid)   
+      g_sat_eff = 1.d0 - hyd_auxvar%sat(lid)
       i_sat_eff = 2.d0 * hyd_auxvar%sat(iid) + hyd_auxvar%sat(hid)
       h_sat_eff = 3.d0 * hyd_auxvar%sat(hid)
     endif
@@ -3773,7 +3765,7 @@ subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
     i_sat_eff = hyd_auxvar%sat(iid)
   endif
 
-   
+
 
 end subroutine HydrateComputeEffectiveSat
 

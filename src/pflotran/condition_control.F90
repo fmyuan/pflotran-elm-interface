@@ -57,7 +57,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscInt :: icell, iconn, idof, iface
+  PetscInt :: icell, iconn, idof
   PetscInt :: local_id, ghosted_id, iend, ibegin
   PetscReal, pointer :: xx_p(:)
   PetscErrorCode :: ierr
@@ -74,15 +74,12 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(flow_general_condition_type), pointer :: general
   type(flow_hydrate_condition_type), pointer :: hydrate
   class(dataset_base_type), pointer :: dataset
-  type(global_auxvar_type) :: global_aux
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
   PetscInt, pointer :: conn_id_ptr(:)
   PetscInt :: offset, istate
-  PetscReal :: x(realization%option%nflowdof)
   PetscReal :: temperature, p_sat
   PetscReal :: tempreal
-  type(global_auxvar_type), pointer :: global_auxvars(:)
 
   option => realization%option
   discretization => realization%discretization
@@ -1012,10 +1009,10 @@ subroutine CondControlAssignRTTranInitCond(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscInt :: icell, iconn, idof, isub_condition, temp_int, iimmobile
+  PetscInt :: icell, idof, temp_int, iimmobile
   PetscInt :: local_id, ghosted_id, iend, ibegin
   PetscInt :: irxn, isite, imnrl, ikinrxn
-  PetscReal, pointer :: xx_p(:), xx_loc_p(:), vec_p(:), vec_p2(:)
+  PetscReal, pointer :: xx_p(:), xx_loc_p(:), vec_p(:)
   Vec :: vec1_loc
   Vec :: vec2_loc
   PetscErrorCode :: ierr

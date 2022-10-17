@@ -66,8 +66,7 @@ subroutine WIPPFloSetup(realization)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
-  PetscInt :: i, idof, count, ndof
-  PetscReal :: dist(3)
+  PetscInt :: i, idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
   PetscErrorCode :: ierr
@@ -290,10 +289,9 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: iphase, icomp
+  PetscInt :: iphase
   PetscReal :: vol_phase
 
   option => realization%option
@@ -707,9 +705,8 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   PetscReal :: derivative, perturbation
-  PetscReal :: perturbation_tolerance = 1.d-6
   PetscInt, save :: icall = 0
-  character(len=MAXWORDLENGTH) :: word, word2
+  character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: idof, idof2, icell
 
@@ -894,7 +891,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   PetscBool :: debug_connection
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: k, irow, vecsize
+  PetscInt :: irow
 
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -948,7 +945,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,&
                                      NFLOWDOF)
   endif
-  
+
   call WIPPFloUpdateAuxVars(realization)
 
   ! override flags since they will soon be out of date
@@ -1371,7 +1368,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
-  PetscInt, pointer :: zeros(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1386,7 +1382,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   PetscInt, pointer :: upwind_direction_bc(:,:)
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: k
 
   patch => realization%patch
   grid => patch%grid
@@ -1745,7 +1740,6 @@ subroutine WIPPFloSetPlotVariables(realization,list)
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
-  type(output_variable_type), pointer :: output_variable
 
   if (associated(list%first)) then
     return

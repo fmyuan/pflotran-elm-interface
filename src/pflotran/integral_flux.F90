@@ -612,8 +612,6 @@ subroutine IntegralFluxDestroy(integral_flux)
 
   type(integral_flux_type), pointer :: integral_flux
 
-  PetscInt :: i
-
   if (.not.associated(integral_flux)) return
 
   if (associated(integral_flux%polygon)) &

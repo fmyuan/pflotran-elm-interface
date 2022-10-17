@@ -675,7 +675,6 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   PetscInt :: ghosted_id
 
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
 #ifdef GEOMECH_DEBUG
   print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
@@ -754,7 +753,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
   PetscScalar, pointer :: temp_p(:)
-  PetscScalar, pointer :: sub_por_loc_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
 

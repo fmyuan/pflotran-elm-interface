@@ -417,8 +417,6 @@ subroutine SatFunctionComputePolynomial(option,saturation_function)
   PetscReal :: pressure_1, pressure_2
   PetscReal :: saturation_1, saturation_2
 
-  PetscReal :: n
-
   select case(saturation_function%saturation_function_itype)
     case(BROOKS_COREY)
 
@@ -531,9 +529,6 @@ subroutine PermFunctionComputePolynomial(option,saturation_function)
 
   type(option_type) :: option
   type(saturation_function_type) :: saturation_function
-
-  PetscReal :: b(4)
-  PetscReal :: Se_high, Se_low, one_over_m, Se_one_over_m, m
 
   select case(saturation_function%saturation_function_itype)
 
@@ -1015,11 +1010,9 @@ implicit none
   type(saturation_function_type) :: saturation_function
   type(option_type) :: option
 
-  PetscReal :: alpha, lambda, m, n
-  PetscReal :: pc, Se, one_over_m, Se_one_over_m, dSe_dpc, dkr_dpc
-  PetscReal :: dkr_dSe, power
+  PetscReal :: alpha, m, n
+  PetscReal :: pc, Se, one_over_m, dSe_dpc
   PetscReal :: pc_alpha, pc_alpha_n, one_plus_pc_alpha_n
-  PetscReal :: pc_alpha_neg_lambda
   PetscReal :: function_A, function_B
   PetscReal :: pc_il, gamma, pc_il_alpha, pc_il_alpha_n, Se_temp
   PetscReal :: one_plus_pc_il_alpha_n
@@ -1030,9 +1023,6 @@ implicit none
   PetscReal, parameter :: den_ice = 9.167d2 !in kg/m3 at 273.15K
   PetscReal, parameter :: interfacial_tensions_ratio = 2.33
   PetscReal, parameter :: T_0 = 273.15d0 !in K
-
-  PetscReal :: dsi_dpl, dsg_dpl, dsl_dpl
-  PetscReal :: dsi_dT, dsg_dT, dsl_dT
 
   dsl_pl = 0.d0
   dsl_temp = 0.d0
@@ -1632,7 +1622,7 @@ implicit none
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
   PetscReal, parameter :: T_0 = 273.15         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
-  PetscReal :: T_f, theta, X, Y, dS_dX
+  PetscReal :: T_f, theta, X, dS_dX
 
 
   type(saturation_function_type) :: saturation_function
@@ -1766,7 +1756,7 @@ implicit none
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
   PetscReal, parameter :: T_0 = 273.15         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
-  PetscReal :: T_f, theta, X, Y, dS_dX
+  PetscReal :: T_f, theta, X, dS_dX
 
 
   type(saturation_function_type) :: saturation_function
@@ -1912,7 +1902,6 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
   PetscReal :: H, dH_dT
   PetscReal :: T_star
   PetscReal :: theta
-  PetscReal :: x
   PetscReal :: dummy
   PetscBool :: switch
   PetscReal :: numer
@@ -2194,7 +2183,6 @@ subroutine SatFuncGetGasRelPermFromSat(liquid_saturation, &
   PetscReal :: power, pct_over_pcmax, pc_over_pcmax, pc_log_ratio
   PetscReal :: pcmax, one_over_alpha, alpha, liq_relative_perm
   type(saturation_function_type) :: saturation_function
-  PetscBool :: derivative
   type(option_type) :: option
 
   PetscReal :: Srl, Srg

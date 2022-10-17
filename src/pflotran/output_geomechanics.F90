@@ -146,9 +146,8 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   type(realization_geomech_type) :: geomech_realization
 
   PetscInt, parameter :: icolumn = -1
-  character(len=MAXSTRINGLENGTH) :: filename, string, string2
+  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: tmp_global_prefix
-  character(len=MAXWORDLENGTH) :: word
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(geomech_discretization_type), pointer :: geomech_discretization
@@ -156,15 +155,9 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   type(geomech_patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
-  Vec :: global_vertex_vec
-  Vec :: global_cconn_vec
   Vec :: global_vec
   Vec :: natural_vec
-  PetscInt :: ivar, isubvar, var_type
   PetscErrorCode :: ierr
-
-  type(gmdm_type), pointer :: gmdm_element
 
   geomech_discretization => geomech_realization%geomech_discretization
   patch => geomech_realization%geomech_patch
@@ -253,7 +246,6 @@ subroutine WriteTecplotGeomechGridElements(fid,geomech_realization)
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(geomech_patch_type), pointer :: patch
-  Vec :: global_cconn_vec
   type(gmdm_type), pointer :: gmdm_element
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
@@ -414,8 +406,7 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
   type(realization_geomech_type) :: geomech_realization
   PetscInt :: icolumn
 
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(geomech_patch_type), pointer :: patch
@@ -672,8 +663,6 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
   PetscInt :: ivar
   PetscInt :: isubvar
   PetscInt, optional :: isubvar1
-
-  PetscErrorCode :: ierr
 
   call GeomechRealizGetDataset(geomech_realization,vec,ivar,isubvar,isubvar1)
 
@@ -1028,13 +1017,12 @@ subroutine OutputXMFHeaderGeomech(fid,time,nmax,xmf_vert_len,ngvert,filename)
 
   implicit none
 
-  PetscInt :: fid, vert_count
+  PetscInt :: fid
   PetscReal :: time
   PetscInt :: nmax,xmf_vert_len,ngvert
   character(len=MAXSTRINGLENGTH) :: filename
 
   character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXWORDLENGTH) :: word
 
   string="<?xml version=""1.0"" ?>"
   write(fid,'(a)') trim(string)
@@ -1212,17 +1200,9 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   PetscInt :: var_list_type
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: memory_space_id
-  integer(HID_T) :: data_set_id
+
   integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
-  integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3)
 
   type(geomech_grid_type), pointer :: grid
   type(geomech_discretization_type), pointer :: geomech_discretization
@@ -1234,24 +1214,14 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   Vec :: global_vec
   Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
-  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
-  PetscInt :: istart
-  PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
   PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_err
   PetscBool :: first
-  PetscInt :: ivar, isubvar, var_type
-  PetscInt :: vert_count
   PetscErrorCode :: ierr
 
   geomech_discretization => geomech_realization%geomech_discretization
@@ -1477,16 +1447,13 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
@@ -1500,7 +1467,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:)
   PetscReal, pointer :: double_array(:)
   Vec :: global_x_vertex_vec,global_y_vertex_vec,global_z_vertex_vec
-  Vec :: natural_x_vertex_vec,natural_y_vertex_vec,natural_z_vertex_vec
 
   PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec, natural_vec
@@ -1508,6 +1474,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   type(gmdm_type),pointer :: gmdm_element
+
   PetscErrorCode :: ierr
 
   PetscInt :: TET_ID_XDMF = 6

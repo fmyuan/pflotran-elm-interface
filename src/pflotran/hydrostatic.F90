@@ -60,8 +60,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: gas_pressure
   PetscReal :: xm_nacl
   PetscReal :: max_z, min_z, temp_real
-  PetscInt :: num_faces, face_id_ghosted, conn_id, num_regions
-  type(connection_set_type), pointer :: conn_set_ptr
+  PetscInt :: num_faces
   PetscReal, pointer :: pressure_array(:)
   PetscReal, allocatable :: density_array(:), z(:)
   PetscReal :: pressure_gradient(3), piezometric_head_gradient(3), datum(3)
@@ -70,7 +69,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: z_offset
   PetscReal :: aux(1), dummy
   PetscReal :: lower_segment, upper_segment
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: water_index, conductance_index, energy_index, solute_index
   PetscErrorCode :: ierr
 
@@ -79,8 +77,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: datum_dataset_rmin
 
   type(flow_condition_type), pointer :: condition
-
-  type(connection_set_type), pointer :: cur_connection_set
 
   condition => coupler%flow_condition
 

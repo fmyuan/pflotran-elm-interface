@@ -111,9 +111,6 @@ subroutine InversionParameterPrint(inversion_parameter,option)
   type(inversion_parameter_type) :: inversion_parameter
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word
-  PetscErrorCode :: ierr
-
 end subroutine InversionParameterPrint
 
 ! ************************************************************************** !

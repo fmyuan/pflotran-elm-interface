@@ -984,7 +984,7 @@ subroutine BufferErosionRead(this, input, option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string, verify_string
   ! class(buffer_erosion_base_type), pointer :: buffer_erosion_model_ptr
 
@@ -2133,12 +2133,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   type(material_transform_type), pointer :: material_transform_list
 
   class(material_transform_type), pointer :: cur_material_transform
-  class(illitization_base_type), pointer :: illitization_function
-  class(ILT_kd_effects_type), pointer :: kdl
-  class(ILT_perm_effects_type), pointer :: perm
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
-  PetscInt :: i, j, k
 
   write(id,'(a)') ' '
   write(id,'(a)') '---------------------------------------------------------&

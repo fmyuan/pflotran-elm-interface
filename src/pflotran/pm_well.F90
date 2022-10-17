@@ -563,7 +563,6 @@ subroutine PMWellSetup(this)
   type(well_grid_type), pointer :: well_grid
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
-  class(dataset_ascii_type), pointer :: dataset_ascii
   type(point3d_type) :: dummy_h
   class(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -575,7 +574,7 @@ subroutine PMWellSetup(this)
   PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id
   PetscInt :: local_id_well, local_id_res
   PetscInt :: nsegments
   PetscInt :: max_val, min_val
@@ -2518,7 +2517,7 @@ subroutine PMWellResidualFlow(this)
 
   class(pm_well_type) :: this
 
-  PetscInt :: i, k, iup, idn
+  PetscInt :: i, iup, idn
   PetscReal :: res_accum(this%nphase)
   PetscReal :: res_src_sink(this%nphase)
   PetscReal :: res_flux(this%nphase)
@@ -3019,17 +3018,9 @@ subroutine PMWellJacobianFlow(this)
 
   class(pm_well_type) :: this
 
-  Mat :: A, B
-  Mat :: J
-  MatType :: mat_type
-  PetscErrorCode :: ierr
-
-  PetscReal :: qsrc, scale
-  PetscInt :: imat, imat_up, imat_dn
-  PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: irow, iconn
+  PetscInt :: local_id
+  PetscInt :: iconn
   PetscInt :: local_id_up, local_id_dn
-  PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(this%nphase,this%nphase), &
@@ -3510,7 +3501,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
   PetscBool :: steady_state
   PetscReal :: ss_check_p(this%well_grid%nsegments,2), &
                ss_check_s(this%well_grid%nsegments,2)
-  PetscReal :: dpdt(this%well_grid%nsegments), dsdt(this%well_grid%nsegments)
   PetscInt :: ss_step_count, steps_to_declare_ss
   PetscReal, parameter :: eps_p = 1.d-2
   PetscReal, parameter :: eps_s = 1.d-5
@@ -3809,7 +3799,7 @@ subroutine PMWellUpdateSolutionTran(this)
 
   class(pm_well_type) :: this
 
-  PetscInt :: ispecies, isegment, k
+  PetscInt :: isegment
   PetscInt :: offset, istart, iend
   PetscReal :: vol
 
@@ -3896,8 +3886,6 @@ subroutine PMWellNewtonFlow(this)
 
   PetscReal :: identity(this%nphase*this%well_grid%nsegments,&
                         this%nphase*this%well_grid%nsegments)
-  PetscReal :: inv_Jac(this%nphase*this%well_grid%nsegments, &
-                       this%nphase*this%well_grid%nsegments)
   PetscReal :: new_dx(this%nphase*this%well_grid%nsegments)
   PetscInt :: indx(this%nphase*this%well_grid%nsegments)
   PetscInt :: i,j
@@ -4603,8 +4591,6 @@ subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
   PetscInt :: id
   PetscReal :: Res(pm_well%nphase)
 
-  PetscInt :: iphase
-
   Res = 0.d0
 
   select case(well%well_model_type)
@@ -4644,8 +4630,6 @@ subroutine PMWellSrcSink(pm_well,well,id,Res)
   type(well_type) :: well
   PetscInt :: id
   PetscReal :: Res(pm_well%nphase)
-
-  PetscInt :: iphase
 
   Res = 0.d0
 
@@ -4790,13 +4774,10 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
 
   type(well_grid_type), pointer :: well_grid
 
-  PetscInt :: i, ghosted_id
-  PetscReal :: pres_up, pres_dn
-
   PetscReal :: perm_ave_over_dist(2), perm_rho_mu_area_up(2), &
                perm_rho_mu_area_dn(2)
   PetscReal :: perm_up, perm_dn, dist_up, dist_dn, density_kg_ave, rel_perm
-  PetscReal :: gravity_term, delta_pressure, v_darcy
+  PetscReal :: gravity_term, delta_pressure
   PetscReal :: density_ave_kmol, q, tot_mole_flux
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
@@ -4991,18 +4972,14 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   class(characteristic_curves_type), pointer :: characteristic_curves
   class(sat_func_base_type), pointer :: saturation_function
 
-  PetscInt :: iup
-  PetscReal :: pres_up, pres_dn
-
   !MAN: clean these up
   PetscReal :: perm_ave_over_dist
-  PetscReal :: perm_up, perm_dn
   PetscReal :: gravity_term, delta_pressure
   PetscReal :: density_ave, tot_mole_flux
-  PetscReal :: boundary_pressure, viscosity, boundary_rho
+  PetscReal :: boundary_pressure, boundary_rho
   PetscReal :: boundary_pg, boundary_krg, dn_scale
-  PetscReal :: t,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
-  PetscReal :: Pc,dpc_dsatl,krl,dkrl_dsatl,krg,dkrg_dsatl
+  PetscReal :: t,dwmol,dwp,dwt,Psat,visl,visg
+  PetscReal :: Pc,dpc_dsatl,dkrl_dsatl,dkrg_dsatl
   PetscReal :: v_darcy,q,rel_perm
   PetscBool :: upwind
   PetscInt :: itop

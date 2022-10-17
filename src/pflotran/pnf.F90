@@ -53,15 +53,13 @@ subroutine PNFSetup(realization)
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
-  type(material_parameter_type), pointer :: material_parameter
 
-  PetscInt :: ghosted_id, iconn, sum_connection, local_id
-  PetscErrorCode :: ierr
+  PetscInt :: ghosted_id, iconn, sum_connection
+
                                                 ! extra index for derivatives
   type(pnf_auxvar_type), pointer :: pnf_auxvars(:)
   type(pnf_auxvar_type), pointer :: pnf_auxvars_bc(:)
   type(pnf_auxvar_type), pointer :: pnf_auxvars_ss(:)
-  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   option => realization%option
   patch => realization%patch

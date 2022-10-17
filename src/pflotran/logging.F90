@@ -370,10 +370,7 @@ subroutine LoggingCreateStage(stage_name,stage_id)
 
   logging%stage_count = logging%stage_count + 1
   full_stage_name = trim(stage_name) // ' Stage'
-  !TODO(geh): fix after PETSc fixes bug in implementation.  PetscLogStageGetId
-  !           currently returns the number of stages, not -1, when one exists.
   ! No two stages can have the same name
-#if 0
   i = 0
   temp_stage_name = full_stage_name
   do
@@ -389,7 +386,6 @@ subroutine LoggingCreateStage(stage_name,stage_id)
       exit
     endif
   enddo
-#endif
   call PetscLogStageRegister(full_stage_name,stage_id,ierr);CHKERRQ(ierr)
 
   stage_id = logging%stage_count

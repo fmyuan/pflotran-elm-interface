@@ -213,19 +213,15 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscInt :: natural_id
   PetscBool :: update_porosity
 
-  PetscInt :: i
   PetscBool :: saturated
   PetscErrorCode :: ierr
-  PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
+  PetscReal :: pw,dw_kg,dw_mol,sat_pressure,visl
   PetscReal :: kr, ds_dp, dkr_dp
   PetscReal :: dvis_dt, dvis_dp
-  PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
-  PetscReal :: pert, pw_pert, dw_kg_pert
-  PetscReal :: fs, ani_A, ani_B, ani_C, ani_n, ani_coef
+  PetscReal :: dw_dp, dw_dt, hw_dp
   PetscReal :: dkr_sat
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
 
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -396,7 +392,6 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   type(material_auxvar_type) :: material_auxvar_pert
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
   PetscInt :: ideriv
-  PetscErrorCode :: ierr
 
   rich_auxvar%d2sat_dp2 = 0.d0
   rich_auxvar%d2den_dp2 = 0.d0

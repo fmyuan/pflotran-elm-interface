@@ -652,7 +652,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   PetscInt :: local_id, local_id_max
   Vec :: vec_x,vec_y,vec_z,global_vec
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:), vec_calc_ptr(:)
-  Vec :: vec_calc,velx,vely,velz
+  Vec :: vec_calc
   PetscBool :: flag
   PetscErrorCode :: ierr
   type(discretization_type), pointer :: discretization

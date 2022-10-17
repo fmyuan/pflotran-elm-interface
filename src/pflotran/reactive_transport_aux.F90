@@ -681,7 +681,6 @@ subroutine RTAuxDestroy(aux)
   implicit none
 
   type(reactive_transport_type), pointer :: aux
-  PetscInt :: iaux
 
   if (.not.associated(aux)) return
 

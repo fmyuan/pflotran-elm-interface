@@ -199,8 +199,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   PetscInt :: iphase
   PetscInt :: icomp
   PetscReal :: tempreal
-  PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
-               yco2,pco2,sat_pressure,lngamco2
+  PetscReal :: pco2,sat_pressure,lngamco2
   PetscReal :: den_kg_per_L
   PetscReal :: den
   PetscReal :: lnQK

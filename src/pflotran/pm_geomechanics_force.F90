@@ -434,7 +434,6 @@ subroutine PMGeomechForceInputRecord(this)
 
   class(pm_geomech_force_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

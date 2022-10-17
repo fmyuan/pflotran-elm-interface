@@ -116,7 +116,6 @@ function RealizationCreate1()
 
   class(realization_subsurface_type), pointer :: RealizationCreate1
 
-  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
   nullify(option)
@@ -209,7 +208,6 @@ subroutine RealizationCreateDiscretization(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  type(coupler_type), pointer :: boundary_condition
   PetscErrorCode :: ierr
   PetscInt :: ivar
 
@@ -778,7 +776,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscBool :: found
   PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
@@ -1210,8 +1207,6 @@ subroutine RealProcessFluidProperties(realization)
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  PetscInt :: icc, ncc, maxsatn
-  PetscBool :: satnum_set, ccset
 
   option => realization%option
 
@@ -1256,7 +1251,6 @@ subroutine RealProcessFlowConditions(realization)
   class(realization_subsurface_type) :: realization
 
   type(flow_condition_type), pointer :: cur_flow_condition
-  type(flow_sub_condition_type), pointer :: cur_flow_sub_condition
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
@@ -1855,7 +1849,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(strata_type), pointer :: cur_strata
   type(time_storage_type), pointer :: time_storage_ptr
   PetscInt :: itime, isub_condition
-  PetscReal :: temp_real, final_time
+  PetscReal :: final_time
   PetscReal, pointer :: times(:)
 
   option => realization%option
@@ -2054,16 +2048,13 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
+  PetscInt :: imnrl, imat
+  PetscReal :: scale
   PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: porosity0_p(:)
   PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscReal, pointer :: perm0_xy_p(:), perm0_xz_p(:), perm0_yz_p(:)
-  PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
   PetscReal :: porosity_base_
@@ -2352,7 +2343,6 @@ subroutine RealizationCalcMineralPorosity(realization)
   PetscInt :: local_id, ghosted_id
   PetscInt :: imnrl
   PetscReal :: sum_volfrac
-  PetscErrorCode :: ierr
 
   option => realization%option
   discretization => realization%discretization
@@ -2522,7 +2512,7 @@ subroutine RealizationPrintGridStatistics(realization)
   type(grid_type), pointer :: grid
 
   PetscInt :: i1, i2, i3
-  PetscReal :: r1, r2, r3
+  PetscReal :: r1
   PetscInt :: global_total_count, global_active_count
   PetscInt :: total_count, active_count
   PetscReal :: total_min, total_max, total_mean, total_variance

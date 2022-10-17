@@ -89,7 +89,6 @@ recursive subroutine PMCThirdPartyRunToTime(this,sync_time,stop_flag)
   PetscReal :: sync_time
   PetscInt :: stop_flag
 
-  class(pmc_base_type), pointer :: pmc_base
   PetscErrorCode :: ierr
   PetscInt :: local_stop_flag
 
@@ -137,9 +136,6 @@ subroutine PMCThirdPartyGetAuxData(this)
 
   class(pmc_third_party_type) :: this
 
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
-
 end subroutine PMCThirdPartyGetAuxData
 
 ! ************************************************************************** !
@@ -173,8 +169,6 @@ subroutine PMCThirdPartyStrip(this)
 
   class(pmc_third_party_type) :: this
 
-  PetscErrorCode :: ierr
-
   call PMCBaseStrip(this)
   nullify(this%realization)
 
@@ -195,8 +189,6 @@ recursive subroutine PMCThirdPartyDestroy(this)
   implicit none
 
   class(pmc_third_party_type) :: this
-
-  PetscErrorCode :: ierr
 
 !  call PrintMsg(this%option,'PMCThirdParty%Destroy()')
 

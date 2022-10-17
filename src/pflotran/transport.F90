@@ -271,11 +271,9 @@ subroutine TDispersionBC(ibndtype, &
                                              rt_parameter%nphase)
 
   PetscInt :: iphase, nphase
-  PetscReal :: spD
   PetscReal :: sat_up, sat_dn
   PetscReal :: abs_dist_dn(3)
   PetscReal :: velocity_dn(3)
-  PetscReal :: distance_gravity, upwind_weight ! both are dummy variables
   PetscReal :: q
   PetscReal :: Dxx, Dyy, Dzz
   PetscInt, parameter :: LONGITUDINAL = 1
@@ -405,8 +403,6 @@ subroutine TFlux(rt_parameter, &
   PetscInt :: iphase
   PetscInt :: idof
   PetscInt :: ndof
-  PetscInt :: istart
-  PetscInt :: iend
   PetscInt :: icollcomp
   PetscInt :: icoll
   PetscInt :: iaqcomp
@@ -483,8 +479,6 @@ subroutine TFlux_CD(rt_parameter, &
   PetscInt :: iphase
   PetscInt :: idof
   PetscInt :: ndof
-  PetscInt :: istart
-  PetscInt :: iend
   PetscInt :: icollcomp
   PetscInt :: icoll
   PetscInt :: iaqcomp
@@ -873,11 +867,9 @@ subroutine TFluxCoef_CD(rt_parameter, &
   PetscReal :: T_22(rt_parameter%naqcomp,rt_parameter%nphase)
 
   PetscInt :: iphase
-  PetscReal :: coef_up(rt_parameter%naqcomp), coef_dn(rt_parameter%naqcomp)
   PetscReal :: tempreal
   PetscReal :: advection_upwind(rt_parameter%nphase)
   PetscReal :: advection_downwind(rt_parameter%nphase)
-  PetscReal :: q
 
   ! T_11 = diagonal term for upwind cell (row)
   ! T_12 = off diagonal term for upwind cell (row)

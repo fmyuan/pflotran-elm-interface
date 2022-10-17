@@ -232,9 +232,8 @@ subroutine DatasetBaseInterpolateTime(this)
 
   class(dataset_base_type) :: this
 
-  PetscInt :: array_size,i
+  PetscInt :: array_size
   PetscInt :: time_interpolation_method
-  PetscReal :: weight2
   PetscInt :: time1_start, time1_end, time2_start, time2_end
 
   if (.not.associated(this%rbuffer)) return

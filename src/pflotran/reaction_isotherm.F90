@@ -35,7 +35,6 @@ subroutine IsothermRead(isotherm,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word, word2
-  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: kd_units
   character(len=MAXWORDLENGTH) :: multi_kd_units
   PetscInt :: ikd_units, imulti_kd_units
@@ -43,8 +42,6 @@ subroutine IsothermRead(isotherm,input,option)
   type(isotherm_link_type), pointer :: isotherm_rxn, prev_isotherm_rxn
   type(isotherm_link_type), pointer :: sec_cont_isotherm_rxn, &
                                        sec_cont_prev_isotherm_rxn
-
-  PetscErrorCode :: ierr
 
   if (associated(isotherm%isotherm_list)) then
     option%io_buffer = 'SORPTION ISOTHERM_REACTIONS must be entered in a &

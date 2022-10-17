@@ -262,7 +262,7 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscReal :: kT, dkT_dsat, dkT_dsat_numerical
   PetscReal :: dkT_dtemp, dkT_dtemp_numerical
   PetscReal :: dkT_dpor_numerical
-  PetscReal :: perturbed_temp, perturbed_sat, temp_por, perturbed_por
+  PetscReal :: perturbed_temp, perturbed_sat, perturbed_por
   PetscReal :: kT_temp_pert, kT_sat_pert, kT_por_pert, unused1, unused2
   PetscReal :: temp_min, temp_max, sat_min, sat_max, por_min, por_max
   PetscInt :: i,j,k, np
@@ -1104,7 +1104,7 @@ subroutine TCFASMAxialConductivity(this,liquid_saturation,temperature, &
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: tempreal, k1, k2
+  PetscReal :: k1, k2
 
   ! Assumes parallel heat condition of DPC internals and water
 
@@ -2373,7 +2373,6 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
   class(thermal_conductivity_base_type) :: thermal_conductivity_function
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
 
   error_string = 'THERMAL_CHARACTERISTIC_CURVES, THERMAL_CONDUCTIVITY_FUNCTION,'

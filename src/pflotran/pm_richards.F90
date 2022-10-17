@@ -920,7 +920,6 @@ subroutine PMRichardsInputRecord(this)
 
   class(pm_richards_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

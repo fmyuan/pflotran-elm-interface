@@ -140,7 +140,6 @@ subroutine PMCGeophysicsSetupSolvers(this)
 
   type(option_type), pointer :: option
   class(pm_ert_type), pointer :: pm_ert
-  PetscErrorCode :: ierr
 
   option => this%option
 
@@ -179,7 +178,6 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   class(pmc_geophysics_type) :: this
   PetscInt :: stop_flag
 
-  class(pm_base_type), pointer :: pm_base
   class(pm_ert_type), pointer :: pm_ert
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
@@ -187,7 +185,6 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
 
   PetscLogDouble :: log_start_time
   PetscLogDouble :: log_end_time
-  PetscInt :: local_stop_flag
   PetscInt :: linear_iterations_in_step
   PetscBool :: skip_survey
   PetscErrorCode :: ierr
@@ -427,7 +424,6 @@ recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
   integer(HID_T) :: h5_pm_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
   ! if the top PMC
@@ -487,7 +483,6 @@ recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
   integer(HID_T) :: h5_chk_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
   integer(HID_T) :: h5_pmc_grp_id

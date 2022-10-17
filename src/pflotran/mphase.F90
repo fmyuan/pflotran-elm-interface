@@ -54,12 +54,9 @@ subroutine MphaseTimeCut(realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
 
-  PetscReal, pointer :: xx_p(:),yy_p(:)
   type(mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
-  PetscInt :: local_id
 
   option => realization%option
   field => realization%field
@@ -386,11 +383,10 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   type(mphase_auxvar_type), pointer :: mphase_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iphase
-  PetscInt :: ispec_start, ispec_end, ispec
+  PetscInt :: ispec
   PetscReal :: pckr_sir(realization%option%nphase)
 
   option => realization%option
@@ -627,7 +623,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
   PetscReal, pointer :: xx_p(:), yy_p(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: n,n0,re
-  PetscInt :: re0, iipha
+  PetscInt :: iipha
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -1122,8 +1118,6 @@ subroutine MphaseUpdateSolution(realization)
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
   field => realization%field
   auxvars => realization%patch%aux%Mphase%auxvars
@@ -1186,7 +1180,6 @@ subroutine MphaseUpdateSolutionPatch(realization)
   PetscInt :: local_id, ghosted_id
   ! secondary continuum variables
   PetscReal :: sec_dencpr
-  PetscErrorCode :: ierr
 
   patch => realization%patch
   grid => patch%grid
@@ -1458,7 +1451,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
   PetscReal :: enth_src_h2o, enth_src_co2
   PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
   PetscReal :: ukvr, v_darcy, dq, dphi
-  PetscReal :: well_status, well_diameter
+  PetscReal :: well_status
   PetscReal :: pressure_bh, well_factor, pressure_max, pressure_min
   PetscReal :: well_inj_water, well_inj_co2
   PetscInt :: np
@@ -2172,18 +2165,16 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
   PetscReal :: p2,p,tmp,t
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp
   PetscReal :: ug,xphi,henry,sat_pressure
-  PetscReal :: k1, k2, z1, z2, xg, vmco2, vmh2o, sg, sgg
+  PetscReal :: k1, k2, z1, z2, xg, vmco2, vmh2o, sg
   PetscReal :: xmol(realization%option%nphase*realization%option%nflowspec),&
                satu(realization%option%nphase)
   PetscReal :: yh2o_in_co2 = 1.d-2
 ! PetscReal :: yh2o_in_co2 = 0.d0
   PetscReal :: wat_sat_x, co2_sat_x
-  PetscReal :: lngamco2, m_na, m_cl, m_nacl, Qkco2, mco2, xco2eq, temp
+  PetscReal :: lngamco2, m_na, m_cl, m_nacl, Qkco2, mco2, xco2eq
 ! PetscReal :: xla,co2_poyn
   PetscInt :: local_id, ghosted_id, dof_offset
   PetscInt :: iflag
-  PetscInt :: idum
-  PetscReal :: min_value
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -2491,23 +2482,20 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i, jn
-  PetscInt :: ip1, ip2
+  PetscInt :: i
   PetscInt :: local_id, ghosted_id, local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: accum_p(:)
 
-  PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
+  PetscReal, pointer :: r_p(:), xx_loc_p(:)
 
   PetscInt :: iphase
   PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
-  PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
   PetscReal :: D_up, D_dn  ! "Diffusion" constants at upstream, downstream faces.
-  PetscReal :: dw_kg, dw_mol,dddt,dddp
-  PetscReal :: tsrc1, qsrc1, csrc1, enth_src_h2o, enth_src_co2 , hsrc1
-  PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
+  PetscReal :: tsrc1, csrc1, hsrc1
+  PetscReal :: xphi
   PetscReal :: upweight
   PetscReal :: Res(realization%option%nflowdof), v_darcy(realization%option%nphase)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -2548,7 +2536,6 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
   ! secondary continuum variables
   PetscReal :: sec_dencpr
-  PetscReal :: area_prim_sec
   PetscReal :: res_sec_heat
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -3134,7 +3121,6 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
   MatType :: mat_type
   PetscViewer :: viewer
   type(patch_type), pointer :: cur_patch
-  type(grid_type),  pointer :: grid
   type(option_type), pointer :: option
   PetscReal :: norm
   character(len=MAXSTRINGLENGTH) :: string
@@ -3208,26 +3194,20 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: nvar,neq,nr
-  PetscInt :: icct_up, icct_dn, i, j
-  PetscInt :: ip1, ip2
+  PetscInt :: nvar,neq
+  PetscInt :: icct_up, icct_dn
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscInt :: iphas,iphas_up,iphas_dn,icc_up,icc_dn
-  PetscInt :: ii, jj
-  PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
-  PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
-  PetscReal :: dd_up, dd_dn, dd, f_up, f_dn
+  PetscInt :: iphas_up,iphas_dn,icc_up,icc_dn
+  PetscReal :: tsrc1,csrc1,hsrc1
+  PetscReal :: dd_up, dd_dn, f_up
   PetscReal :: perm_up, perm_dn
-  PetscReal :: dw_dp,dw_dt,hw_dp,hw_dt,dresT_dp,dresT_dt
   PetscReal :: D_up, D_dn  ! "Diffusion" constants upstream and downstream of a face.
-  PetscReal :: zero, norm
   PetscReal :: upweight
 ! PetscReal :: max_dev
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  PetscInt :: natural_id_up,natural_id_dn
 
   PetscReal :: Jup(1:realization%option%nflowdof,1:realization%option%nflowdof), &
                Jdn(1:realization%option%nflowdof,1:realization%option%nflowdof)
@@ -3263,17 +3243,13 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscReal :: ra(1:realization%option%nflowdof,1:realization%option%nflowdof*2)
   PetscReal, pointer :: msrc(:)
   PetscReal :: psrc(1:realization%option%nphase)
-  PetscReal :: dddt, dddp, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt,&
-               dvdp, xphi
   PetscInt :: iphasebc
   PetscInt :: nsrcpara
 
   PetscViewer :: viewer
-  Vec :: debug_vec
   PetscReal :: vol_frac_prim
 
   ! secondary continuum variables
-  PetscReal :: area_prim_sec
   PetscReal :: jac_sec_heat
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -4189,7 +4165,6 @@ subroutine MphaseSecondaryHeat(sec_heat_vars,auxvar,global_auxvar, &
   PetscReal :: coeff_diag(sec_heat_vars%ncells)
   PetscReal :: coeff_right(sec_heat_vars%ncells)
   PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
   PetscReal :: area(sec_heat_vars%ncells)
   PetscReal :: vol(sec_heat_vars%ncells)
   PetscReal :: dm_plus(sec_heat_vars%ncells)

@@ -48,7 +48,6 @@ subroutine SurfaceComplexationRead(reaction,input,option)
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: name
   type(surface_complexation_type), pointer :: surface_complexation
   type(surface_complex_type), pointer :: srfcplx, cur_srfcplx, prev_srfcplx, &
                                          cur_srfcplx_in_rxn
@@ -711,7 +710,7 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dSx_dmi(reaction%naqcomp)
   PetscReal :: nui_Si_over_Sx
   PetscReal :: ln_free_site
-  PetscReal :: lnQK, tempreal, tempreal1, tempreal2, total
+  PetscReal :: lnQK, tempreal, total
   PetscInt, parameter :: iphase = 1
   PetscReal, parameter :: tol = 1.d-12
   PetscReal :: ln_conc(reaction%naqcomp)

@@ -190,7 +190,7 @@ subroutine PMCBaseReadNumericalMethods(this,input,pm_label)
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found, found2
+  PetscBool :: found
 
   option => this%option
 
@@ -289,7 +289,6 @@ recursive subroutine PMCBaseInputRecord(this)
   class(pmc_base_type) :: this
 
   class(pm_base_type), pointer :: cur_pm
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -565,7 +564,6 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
 
   character(len=MAXSTRINGLENGTH) :: filename_append
   PetscInt :: local_stop_flag
-  PetscBool :: failure
   PetscBool :: sync_flag
   PetscBool :: checkpoint_at_this_time_flag
   PetscBool :: snapshot_plot_at_this_time_flag
@@ -680,7 +678,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     peer_already_run_to_time = PETSC_FALSE
     if (associated(this%peer)) then
       if ( &
-          this%pm_list%output_option%force_synchronized_output .and. &  
+          this%pm_list%output_option%force_synchronized_output .and. &
           ! specified synchronization of process model couplers
           (sync_flag .or. &
           ! printing output
@@ -845,8 +843,6 @@ recursive subroutine PMCBaseFinalizeRun(this)
   implicit none
 
   class(pmc_base_type) :: this
-
-  character(len=MAXSTRINGLENGTH) :: string
 
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCBase%FinalizeRun()')
@@ -1106,8 +1102,6 @@ subroutine PMCBaseSetHeader(this,bag,header)
   class(pmc_base_header_type) :: header
   PetscBag :: bag
 
-  PetscErrorCode :: ierr
-
   header%plot_number = &
     this%pm_list%realization_base%output_option%plot_number
 
@@ -1309,7 +1303,6 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   integer(HID_T) :: h5_pm_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
   PetscSizeT :: bagsize

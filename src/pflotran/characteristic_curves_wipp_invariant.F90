@@ -953,7 +953,7 @@ pure subroutine RPFWIPPBBCKrg(this, Sw, Kr, dKr_dSw)
   class(rpf_WIPP_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
-  PetscReal :: Se, Se_comp, Se_expon, Se_expon_comp
+  PetscReal :: Se, Se_comp, Se_expon_comp
 
   Se = (Sw - this%Swr) * this%dSe_dSw
   Se_comp = 1d0 - Se

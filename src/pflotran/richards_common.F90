@@ -44,11 +44,9 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   use Option_module
   use Characteristic_Curves_module
   use Material_Aux_module, only : material_auxvar_type, &
-                                 soil_compressibility_index, &
                                  MaterialAuxVarInit, &
                                  MaterialAuxVarCopy, &
-                                 MaterialAuxVarStrip, &
-                                 MaterialCompressSoil
+                                 MaterialAuxVarStrip
 
   implicit none
 
@@ -59,12 +57,9 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
-  PetscInt :: ispec
   PetscReal :: vol_over_dt
-  PetscReal :: tempreal
-  PetscReal :: derivative
 
-  PetscInt :: iphase, ideriv
+  PetscInt :: ideriv
   type(richards_auxvar_type) :: rich_auxvar_pert
   type(global_auxvar_type) :: global_auxvar_pert
   ! leave as type
@@ -126,9 +121,7 @@ subroutine RichardsAccumulation(rich_auxvar,global_auxvar, &
   !
 
   use Option_module
-  use Material_Aux_module, only : material_auxvar_type, &
-                                 soil_compressibility_index, &
-                                 MaterialCompressSoil
+  use Material_Aux_module, only : material_auxvar_type
 
   implicit none
 
@@ -187,7 +180,7 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   PetscReal :: ukvr,Dq
   PetscReal :: dd_up, dd_dn, perm_up, perm_dn
   PetscReal :: dist_gravity
-  PetscReal :: upweight,density_ave,cond,gravity,dphi
+  PetscReal :: upweight,density_ave,gravity,dphi
 
   PetscReal :: dden_ave_dp_up, dden_ave_dp_dn
   PetscReal :: dgravity_dden_up, dgravity_dden_dn
@@ -198,7 +191,7 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
 !  PetscReal :: dukvr_z_dp_up, dukvr_z_dp_dn
   PetscReal :: dq_dp_up, dq_dp_dn
 
-  PetscInt :: iphase, ideriv
+  PetscInt :: ideriv
   type(richards_auxvar_type) :: rich_auxvar_pert_up, rich_auxvar_pert_dn
   type(global_auxvar_type) :: global_auxvar_pert_up, global_auxvar_pert_dn
   ! leave as type
@@ -368,12 +361,11 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
   PetscReal :: v_darcy, area, dist(-1:3)
   PetscReal :: Res(1:option%nflowdof)
 
-  PetscInt :: ispec
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: dd_up, dd_dn, perm_up, perm_dn
   PetscReal :: fluxm, q
   PetscReal :: ukvr,Dq
-  PetscReal :: upweight, density_ave, cond, gravity, dphi
+  PetscReal :: upweight, density_ave, gravity, dphi
 
   fluxm = 0.d0
   v_darcy = 0.D0
@@ -470,8 +462,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
   PetscReal :: v_darcy
   PetscReal :: q,density_ave
-  PetscReal :: ukvr,diffdp,Dq
-  PetscReal :: upweight,cond,gravity,dphi
+  PetscReal :: ukvr,Dq
+  PetscReal :: upweight,gravity,dphi
 
   PetscReal :: dden_ave_dp_dn
   PetscReal :: dgravity_dden_dn
@@ -479,22 +471,14 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: dukvr_dp_dn
   PetscReal :: dq_dp_dn
   PetscInt :: pressure_bc_type
-  PetscReal :: dphi_x_dp_dn,dphi_y_dp_dn,dphi_z_dp_dn
-  PetscReal :: dHdn_x_dp_dn, dHdn_y_dp_dn, dHdn_z_dp_dn
 
-  PetscInt :: iphase, ideriv
+  PetscInt ::  ideriv
   type(richards_auxvar_type) :: rich_auxvar_pert_dn, rich_auxvar_pert_up
   type(global_auxvar_type) :: global_auxvar_pert_dn, global_auxvar_pert_up
   type(material_auxvar_type), allocatable :: material_auxvar_pert_dn, &
                                               material_auxvar_pert_up
-  PetscReal :: perturbation
   PetscReal :: x_dn(1), x_up(1), x_pert_dn(1), x_pert_up(1), pert_dn, res(1), &
             res_pert_dn(1), J_pert_dn(1,1)
-  PetscReal :: rho
-  PetscReal :: dum1
-  PetscReal :: dq_lin,dP_lin
-  PetscReal :: q_approx, dq_approx
-  PetscErrorCode :: ierr
 
   v_darcy = 0.d0
   ukvr = 0.d0
@@ -726,17 +710,11 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
   PetscReal :: dist_gravity  ! distance along gravity vector
 
-  PetscInt :: ispec
   PetscReal :: perm_dn
   PetscReal :: fluxm,q,density_ave
-  PetscReal :: ukvr,diffdp,Dq
-  PetscReal :: upweight,cond,gravity,dphi
+  PetscReal :: ukvr,Dq
+  PetscReal :: upweight,gravity,dphi
   PetscInt :: pressure_bc_type
-  PetscReal :: dphi_x,dphi_y,dphi_z
-  PetscReal :: rho
-  PetscReal :: dum1
-  PetscReal :: q_approx, dq_approx
-  PetscErrorCode :: ierr
 
   fluxm = 0.d0
   v_darcy = 0.d0

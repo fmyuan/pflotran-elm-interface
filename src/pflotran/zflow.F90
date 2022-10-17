@@ -650,7 +650,6 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: ndof
 
   PetscErrorCode :: ierr

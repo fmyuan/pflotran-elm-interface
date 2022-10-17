@@ -1354,7 +1354,6 @@ subroutine OutputVariableAppendDefaults(output_variable_list,option)
   type(output_variable_list_type), pointer :: output_variable_list
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
 

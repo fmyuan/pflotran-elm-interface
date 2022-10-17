@@ -2399,7 +2399,6 @@ subroutine InversionZFlowScaleSensitivity(this)
 
   Vec :: wd_vec
   PetscInt :: idata,num_measurement
-  PetscReal :: wd
   PetscReal, pointer :: wdvec_ptr(:)
   PetscErrorCode :: ierr
 

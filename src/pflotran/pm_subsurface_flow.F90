@@ -238,7 +238,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
-      
+
     case default
       found = PETSC_FALSE
   end select
@@ -264,11 +264,10 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   class(pm_subsurface_flow_type) :: this
   type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
-  character(len=MAXSTRINGLENGTH) :: error_string, string
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
-  PetscErrorCode :: ierr
 
 !  found = PETSC_FALSE
 !  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
@@ -333,7 +332,6 @@ subroutine PMSubsurfaceFlowSetup(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  PetscErrorCode :: ierr
   class(characteristic_curves_type), pointer :: cur_cc
 
   ! set the communicator
@@ -404,7 +402,7 @@ subroutine PMSubsurfaceFlowSetRealization(this,realization)
   this%realization_base => realization
 
   ! scale pressures down to the range near saturation (0 to 1)
-  if (this%option%flow%scale_all_pressure) then 
+  if (this%option%flow%scale_all_pressure) then
     this%solution_vec = realization%field%flow_scaled_xx
   else
     this%solution_vec = realization%field%flow_xx
@@ -526,7 +524,6 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_type), pointer :: Material
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(material_property_type), pointer :: material_property
   type(option_type), pointer :: option
@@ -691,8 +688,6 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
 
   if (this%option%ntrandof > 0) then ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
@@ -766,9 +761,9 @@ subroutine PMSubsurfaceFlowPreSolve(this)
     inverse_factor = this%option%flow%pressure_scaling_factor**(-1.d0)
     call VecStrideScale(this%realization%field%flow_scaled_xx,ZERO_INTEGER, &
                         inverse_factor, ierr);CHKERRQ(ierr)
-  endif 
+  endif
 
-  this%norm_history = 0.d0  
+  this%norm_history = 0.d0
   call DataMediatorUpdate(this%realization%flow_data_mediator_list, &
                           this%realization%field%flow_mass_transfer, &
                           this%realization%option)
@@ -934,8 +929,6 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-
-  PetscErrorCode :: ierr
 
   this%option%flow_dt = this%option%dt
 
@@ -1192,7 +1185,6 @@ subroutine PMSubsurfaceFlowInputRecord(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

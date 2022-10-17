@@ -128,7 +128,7 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Res(option%nflowdof)
   PetscBool :: debug_cell
 
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
@@ -209,12 +209,9 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure
-  PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, q
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
-  PetscReal :: stpd_up, stpd_dn
-  PetscReal :: sat_up, sat_dn, den_up, den_dn
 
   PetscReal :: temp_perm_up, temp_perm_dn
 
@@ -432,16 +429,10 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_rho_mu_area_ave_over_dist(2)
   PetscReal :: area_up, area_dn, area_ave
   PetscReal :: perm_up, perm_dn
-  PetscReal :: dummy
   PetscReal :: delta_pressure
-  PetscReal :: pressure_ave
   PetscReal :: gravity_term
-  PetscReal :: rel_perm, q
+  PetscReal :: rel_perm
   PetscReal :: wat_mole_flux, air_mole_flux
-  PetscReal :: stpd_up, stpd_dn
-  PetscReal :: sat_up, sat_dn, den_up, den_dn
-
-  PetscReal :: temp_perm_up, temp_perm_dn
 
   PetscReal :: up_scale, dn_scale
   PetscInt :: iabs_upwind_direction1
@@ -666,7 +657,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: debug_connection
 
   PetscInt :: wat_comp_id, air_comp_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: perm_dn_adj(option%nphase)
@@ -678,7 +669,6 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
-  PetscReal :: tempreal
   PetscReal :: wat_mole_flux, air_mole_flux
   PetscBool :: upwind
   PetscInt :: iabs_upwind_direction1
@@ -982,9 +972,9 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: debug_connection
 
   PetscInt :: wat_comp_id, air_comp_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
-  PetscReal :: density_ave, density_kg_ave
+  PetscReal :: density_ave
   PetscReal :: perm_dn_adj(2)
   PetscReal :: perm_ave_over_dist
   PetscReal :: delta_pressure
@@ -994,13 +984,11 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
-  PetscReal :: tempreal
   PetscReal :: wat_mole_flux, air_mole_flux
   PetscBool :: upwind
   PetscInt :: iabs_upwind_direction1
 
   PetscReal :: dn_scale
-  PetscReal :: dummy
 
   PetscInt :: idof
 
@@ -1262,10 +1250,8 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
   PetscBool :: debug_cell
 
   PetscReal :: qsrc_mol
-  PetscReal :: cell_pressure, dummy_pressure
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: wat_comp_id, air_comp_id
   PetscReal :: dden_bool
-  PetscErrorCode :: ierr
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id

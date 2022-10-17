@@ -195,7 +195,6 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer :: tempint
-  PetscLogDouble :: tstart, tend
 
   character(len=MAXWORDLENGTH) :: attribute_name, dataset_name, word
 
@@ -691,7 +690,6 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
   PetscReal :: real_value
   type(option_type) :: option
 
-  PetscInt :: spatial_interpolation_method
   PetscInt :: i, j, k
   PetscReal :: x, y, z
   PetscReal :: x1, x2, y1, y2, z1

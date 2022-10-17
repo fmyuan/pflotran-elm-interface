@@ -1259,7 +1259,7 @@ subroutine PMWFReadPMBlock(this,input)
         call PrintErrMsg(option)
       endif
     endif
-    
+
     if (cur_waste_form%spacer_degradation_flag .and. &
         .not. associated(this%spacer_mech_list)) then
       option%io_buffer = 'SPACER_MECHANISM_NAME "' &
@@ -3035,7 +3035,6 @@ end subroutine PMWFSetup
   class(waste_form_base_type), pointer :: cur_waste_form
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: num_waste_form_cells
-  PetscInt :: num_species
   PetscInt :: size_of_vec
   PetscInt :: i, j, k
   PetscInt, allocatable :: species_indices_in_residual(:), &
@@ -4473,16 +4472,13 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   PetscInt :: icomp_fmdm
   PetscInt :: icomp_pflotran
   PetscInt :: ghosted_id
-  PetscReal :: avg_temp_local
 ! --------------------------------------------------------------
 
  ! FMDM model:
  !=======================================================
   integer ( kind = 4) :: success
   logical ( kind = 4) :: initialRun
-  PetscReal :: time
   PetscReal :: Usource
-  PetscReal :: avg_temp_global
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(option_type), pointer :: option
  !========================================================
@@ -5748,7 +5744,6 @@ subroutine WasteFormInputRecord(this)
   ! ================
   class(waste_form_base_type), pointer :: cur_waste_form
   character(len=MAXWORDLENGTH) :: word
-  PetscInt :: i
   PetscInt :: id = INPUT_RECORD_UNIT
   ! ---------------------------------
 
@@ -7078,16 +7073,9 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscInt :: length, i, icount
-  PetscInt :: icol
-  PetscInt :: ndims
-  PetscInt, pointer :: dims(:)
-  PetscReal, pointer :: real_buffer(:)
+  PetscInt :: length, i
   PetscErrorCode :: ierr
 
-  integer(HID_T) :: file_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: hdf5_err
   ! dataset_base, though of type dataset_base_type, should always be created
   ! as dataset_ascii_type.
   dataset_ascii => DatasetAsciiCast(dataset_base)
@@ -7823,7 +7811,6 @@ subroutine CritInventoryRealTimeSections(this,string,option)
   PetscInt  :: sz
   PetscInt  :: bnd1, bnd2
   PetscReal :: tmp1, tmp2
-  character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
   ! This subroutine only operates upon axis3
@@ -7920,8 +7907,6 @@ subroutine CritInventoryDataSections(this,string,option)
   PetscInt  :: i, j, k, l
   PetscInt  :: szlim, sz
   PetscInt  :: bnd1, bnd2
-  PetscReal :: tmp1, tmp2
-  character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
   ! This subroutine is not needed if axis3 was not partitioned
@@ -8119,7 +8104,7 @@ subroutine CritInventoryUseLog10(inventory,option)
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
   PetscReal :: zero_sub ! substitute value for instances of zero
-  PetscInt :: i, j, psize
+  PetscInt :: i, psize
   PetscBool :: modified
   ! ----------------------------------
 
@@ -8212,7 +8197,7 @@ subroutine CritInventoryCheckZeroSub(zero_sub,inventory,option)
   type(option_type) :: option
   ! ----------------------------------
   type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
-  PetscInt :: i, j, psize
+  PetscInt :: i, psize
   PetscReal :: min_nonzero ! smallest nonzero number in array
   character(len=MAXSTRINGLENGTH) :: word1, word2
   PetscBool :: checked
@@ -8409,8 +8394,6 @@ function CritInventoryCreate()
   class(crit_inventory_type), pointer :: CritInventoryCreate
   class(crit_inventory_type), pointer :: ci
 
-  PetscInt :: i
-
   allocate(ci)
   nullify(ci%next)
   nullify(ci%radionuclide_table)
@@ -8562,7 +8545,6 @@ subroutine ANNReadH5File(this, option)
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
@@ -8667,7 +8649,6 @@ subroutine ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id,&
 
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
 
-  PetscInt :: i
   PetscInt :: ndims_h5
 
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -8702,7 +8683,7 @@ subroutine KnnrInit(this,option)
 
   type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
-  PetscInt :: i_n, i_d, d
+  PetscInt :: i_d, d
   PetscInt :: data_array_shape(2)
 
   call KnnrReadH5File(this, option)
@@ -8738,8 +8719,6 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   PetscReal :: burnup
   PetscReal :: sTme
   PetscInt :: nn
-
-  PetscReal :: fuelDisRate
 
   ! features
   PetscReal :: f(4)
@@ -8785,13 +8764,11 @@ subroutine KnnrReadH5File(this, option)
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
   integer(HID_T) :: prop_id
   integer(HID_T) :: file_id
-  integer(HID_T) :: parent_id
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
   integer(HID_T) :: file_space_id
@@ -8879,7 +8856,6 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
-  integer(HID_T) :: file_space_id
 
   integer(HSIZE_T) :: dims_h5(1) = 1
 

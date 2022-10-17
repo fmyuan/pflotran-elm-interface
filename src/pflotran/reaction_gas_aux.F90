@@ -359,9 +359,6 @@ subroutine GasDestroy(gas)
 
   type(gas_type), pointer :: gas
 
-  type(gas_species_type), pointer :: cur_gas_species, &
-                                     prev_gas_species
-
   if (.not.associated(gas)) return
 
   call GasSpeciesListDestroy(gas%list)

@@ -1337,7 +1337,6 @@ subroutine SFKRP5CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
 
   PetscReal :: Se2
-  PetscReal :: dummy_lambda
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl

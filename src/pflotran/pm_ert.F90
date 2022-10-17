@@ -279,8 +279,6 @@ subroutine PMERTSetup(this)
 
   class(pm_ert_type) :: this
 
-  type(ert_type), pointer :: ert
-
   ! set the communicator
   this%comm1 => this%realization%comm1
   ! setup survey
@@ -374,7 +372,6 @@ recursive subroutine PMERTInitializeRun(this)
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
-  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(patch_type), pointer :: patch
   character(len=MAXWORDLENGTH) :: word
@@ -383,7 +380,6 @@ recursive subroutine PMERTInitializeRun(this)
   PetscReal :: tempreal
   PetscReal, parameter :: ELEMENTARY_CHARGE = 1.6022d-19 ! C
   PetscReal, parameter :: AVOGADRO_NUMBER = 6.02214d23 ! atoms per mol
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iconn, sum_connection
   PetscInt :: local_id, ghosted_id
   PetscInt :: i
@@ -673,7 +669,6 @@ subroutine PMERTPreSolve(this)
   PetscReal :: por,sat
   PetscReal :: cond_sp,cond_w0
   PetscReal :: tracer_scale
-  PetscErrorCode :: ierr
 
   option => this%option
   if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
@@ -774,7 +769,7 @@ subroutine PMERTSolve(this,time,ierr)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscInt :: ielec,nelec
-  PetscInt :: elec_id, local_elec_id
+  PetscInt :: elec_id
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: num_linear_iterations
@@ -930,7 +925,6 @@ subroutine PMERTAssembleSimulatedData(this,time)
 
 
   PetscInt :: idata
-  PetscInt :: ielec
   PetscInt :: ia,ib,im,in
   PetscInt :: local_id_m,local_id_n
   PetscInt :: ghosted_id_m,ghosted_id_n
@@ -1035,13 +1029,8 @@ subroutine PMERTBuildJacobian(this)
   PetscReal :: jacob
   PetscReal :: cond,wd,wd_cull
   PetscInt :: idata
-  PetscInt :: ielec
   PetscInt :: ia,ib,im,in
   PetscInt :: local_id,ghosted_id
-  PetscInt :: local_id_a,local_id_b
-  PetscInt :: ghosted_id_a,ghosted_id_b
-  PetscInt :: local_id_m,local_id_n
-  PetscInt :: ghosted_id_m,ghosted_id_n
   PetscInt :: inbr,num_neighbors
   PetscErrorCode :: ierr
 
@@ -1260,7 +1249,6 @@ subroutine PMERTInputRecord(this)
 
   class(pm_ert_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
