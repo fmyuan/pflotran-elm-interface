@@ -202,7 +202,9 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   ierr = 0
   no_measurement_flag = PETSC_TRUE
   if (associated(inversion_forward_aux)) then
-    if (option%inversion%record_measurements) then
+    if (option%inversion%record_measurements .and. &
+        inversion_forward_aux%isync_time <= &
+        size(inversion_forward_aux%sync_times)) then
       measurements => inversion_forward_aux%measurements
       if (Equal(inversion_forward_aux%sync_times( &
                   inversion_forward_aux%isync_time),time)) then
