@@ -917,7 +917,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     temp_int = temp_int + 1
                     iflag = PETSC_TRUE
                 end select
-                allocate(coupler%flow_bc_type(ndof))
+                allocate(coupler%flow_bc_type(ndof+temp_int))
                 allocate(coupler%flow_aux_real_var(ndof+temp_int, &
                                                    num_connections))
                 !geh: don't need this
@@ -1019,7 +1019,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     &supported in ZFLOW mode.'
                   call PrintErrMsg(option)
               end select
-              allocate(coupler%flow_bc_type(ndof))
+              allocate(coupler%flow_bc_type(ndof+temp_int))
               allocate(coupler%flow_aux_real_var(ndof+temp_int,num_connections))
               coupler%flow_bc_type = 0
               coupler%flow_aux_real_var = 0.d0
@@ -2135,7 +2135,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     coupler%flow_aux_mapping(HYDRATE_HYD_SATURATION_INDEX) = 2
     coupler%flow_aux_mapping(HYDRATE_GAS_FLUX_INDEX) = 2
     coupler%flow_aux_mapping(HYDRATE_TWO_INDEX) = 2
-    
+
 
     coupler%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX) = 3
     coupler%flow_aux_mapping(HYDRATE_ICE_SATURATION_INDEX) = 3
@@ -4872,6 +4872,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
+  use Reaction_Gas_module, only : RGasConcentration
   use Reaction_Mineral_module
   use Reaction_Redox_module
   use Reaction_module
@@ -4880,7 +4881,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
   use Hydrate_Aux_module, only : hydrate_fmw => hydrate_fmw_comp, &
-                                 G_STATE, L_STATE 
+                                 G_STATE, L_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use ZFlow_Aux_module
   use Output_Aux_module
@@ -6025,13 +6026,12 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             endif
           enddo
           if (ivar == GAS_CONCENTRATION) then
-            ! 1.d5 Pa [1 bar] / Pa-m^3/mol-K = mol-K/m^3
-            tempreal = 1.d5/IDEAL_GAS_CONSTANT 
             do local_id=1,grid%nlmax
               ! mol/m^3 gas
-              vec_ptr(local_id) = vec_ptr(local_id) * &
-                tempreal / &
-                (patch%aux%Global%auxvars(grid%nL2G(local_id))%temp+273.15d0)
+              vec_ptr(local_id) = &
+                RGasConcentration(vec_ptr(local_id), &
+                                  patch%aux%Global% &
+                                    auxvars(grid%nL2G(local_id))%temp)
             enddo
           endif
         case(MINERAL_VOLUME_FRACTION)
@@ -6449,6 +6449,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use TH_Aux_module
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
+  use Reaction_Gas_module, only : RGasConcentration
   use Reaction_Mineral_module
   use Reaction_Redox_module
   use Reaction_module
@@ -7147,9 +7148,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = 0.d0
           endif
           if (ivar == GAS_CONCENTRATION) then
-            ! 1.d5 Pa [1 bar] / Pa-m^3/mol-K = mol-K/m^3
-            value = value * 1.d5 / IDEAL_GAS_CONSTANT / &
-                    (patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0)
+            value = RGasConcentration(value, &
+                                      patch%aux%Global% &
+                                        auxvars(ghosted_id)%temp)
           endif
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)
