@@ -290,7 +290,6 @@ subroutine PatchConvertListToArray(patch_list)
 
   type(patch_list_type) :: patch_list
 
-  PetscInt :: count
   type(patch_type), pointer :: cur_patch
 
 
@@ -369,12 +368,11 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
-  type(coupler_list_type), pointer :: coupler_list
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation, next_observation
   type(integral_flux_type), pointer :: integral_flux
 
-  PetscInt :: temp_int, isub
+  PetscInt :: temp_int
   PetscInt :: nphase
   PetscErrorCode :: ierr
 
@@ -854,12 +852,10 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   type(option_type) :: option
 
   PetscInt :: num_connections
-  PetscBool :: force_update_flag
   PetscBool :: iflag
 
   type(coupler_type), pointer :: coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
-  PetscInt :: idof
   PetscInt :: ndof
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: temp_int
@@ -1128,8 +1124,6 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   PetscBool :: force_update_flag
   type(option_type) :: option
 
-  PetscInt :: iconn
-
   !geh: no need to update initial conditions as they only need updating
   !     once as performed in PatchInitCouplerAuxVars()
   call PatchUpdateCouplerAuxVars(patch,patch%boundary_condition_list, &
@@ -1240,19 +1234,11 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
   type(flow_general_condition_type), pointer :: general
-  PetscBool :: update
   PetscBool :: dof1, dof2
-  PetscReal :: temperature, p_sat, p_air, p_gas, p_cap, s_liq, xmol
-  PetscReal :: relative_humidity
-  PetscReal :: dummy_real
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: string
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
   ! use to map flow_aux_map to the flow_aux_real_var array
   PetscInt :: real_count
 
@@ -1475,19 +1461,16 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
   type(flow_general_condition_type), pointer :: general
-  PetscBool :: update
   PetscBool :: dof1, dof2, dof3
   PetscReal :: temperature, p_sat, p_cap, s_liq, xmol
   PetscReal :: relative_humidity
-  PetscReal :: gas_sat, hyd_sat, air_pressure, gas_pressure, liq_pressure
+  PetscReal :: gas_sat, air_pressure, gas_pressure, liq_pressure
   PetscReal :: dummy_real
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
-  PetscInt :: idof, num_connections,sum_connection
+  PetscInt :: num_connections
   PetscInt :: iconn, local_id, ghosted_id
   PetscInt :: real_count
   PetscInt :: dof_count_local(3)
@@ -2088,21 +2071,18 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
   type(flow_hydrate_condition_type), pointer :: hydrate
-  PetscBool :: update
   PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat, p_cap, s_liq, xmol
+  PetscReal :: temperature, p_sat, xmol
   PetscReal :: relative_humidity
   PetscReal :: liq_sat, gas_sat, hyd_sat, ice_sat, air_pressure, gas_pressure, &
                liq_pressure
   PetscReal :: dummy_real
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
+  PetscInt :: iconn
   PetscInt :: real_count
   PetscInt :: dof_count_local(3)
   PetscInt :: dof_count_global(3)
@@ -3255,18 +3235,8 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
 
   num_connections = coupler%connection_set%num_connections
 
@@ -3357,20 +3327,11 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: apply_temp_cond
   PetscInt :: rate_scale_type
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
   PetscInt :: iphase
 
   num_connections = coupler%connection_set%num_connections
@@ -3627,18 +3588,8 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
 
   num_connections = coupler%connection_set%num_connections
 
@@ -3706,16 +3657,8 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
 
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
 
   num_connections = coupler%connection_set%num_connections
 
@@ -3810,10 +3753,8 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  class(dataset_common_hdf5_type), pointer :: dataset
   PetscInt :: water_index, water_aux_index, energy_index, solute_index
-  PetscInt :: num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
   PetscBool :: hydrostatic_update_called
 
   hydrostatic_update_called = PETSC_FALSE
@@ -3928,16 +3869,7 @@ subroutine PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
-
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
+  PetscInt :: num_connections
 
   num_connections = coupler%connection_set%num_connections
 
@@ -4128,8 +4060,6 @@ subroutine PatchUpdateCouplerSaturation(coupler,option,grid,cc_array,cc_id)
   PetscReal :: liquid_pressure
 
   type(flow_condition_type), pointer :: condition
-
-  type(connection_set_type), pointer :: cur_connection_set
 
   condition => coupler%flow_condition
 
@@ -4370,11 +4300,9 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
 
   type(connection_set_type), pointer :: cur_connection_set
   type(grid_type),pointer :: grid
-  PetscErrorCode :: ierr
   PetscInt :: iconn
   PetscInt :: ghosted_id,local_id
   PetscInt,pointer ::cell_ids_nat(:)
-  type(flow_sub_condition_type) :: flow_sub_condition
 
   class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
   class(dataset_ascii_type), pointer :: dataset_ascii
@@ -4465,8 +4393,8 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscInt :: ncells
 
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: ghosted_id,local_id
-  PetscInt :: ii,count
+  PetscInt :: local_id
+  PetscInt :: ii
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
   PetscInt :: max_id_loc, max_id_global
@@ -4475,7 +4403,6 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   IS :: is_from, is_to
   Vec :: map_ids_1, map_ids_2,map_ids_3
   VecScatter ::vec_scatter
-  PetscViewer :: viewer
 
   ! Step-1: Rearrange map dataset
   max_id_loc = maxval(dataset_map_hdf5%mapping(2,:))
@@ -4906,11 +4833,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal :: xmass, lnQKgas, ehfac, eh0, pe0, ph0, tk
+  PetscReal, pointer :: vec_ptr(:)
+  PetscReal :: xmass, lnQKgas, eh0, pe0, ph0
   PetscReal :: tempreal
   PetscInt :: tempint, tempint2
-  PetscInt :: irate, istate, irxn, ifo2, jcomp, comp_id
+  PetscInt :: irate, irxn
   PetscInt :: ivar_temp
   PetscErrorCode :: ierr
 
@@ -6485,8 +6412,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   PetscInt :: local_id
   PetscInt :: ivar_temp
 
-  PetscReal :: value, xmass, lnQKgas, tk, ehfac, eh0, pe0, ph0
-  PetscInt :: irate, istate, irxn, ifo2, jcomp, comp_id
+  PetscReal :: value, xmass, lnQKgas, eh0, pe0, ph0
+  PetscInt :: irate, irxn
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
   PetscErrorCode :: ierr
@@ -7432,12 +7359,12 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   PetscInt :: vec_format
   PetscInt :: ivar
   PetscInt :: isubvar
-  PetscInt :: iphase, istate
+  PetscInt :: iphase
 
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -8464,13 +8391,9 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
   PetscInt :: isubvar2
   PetscInt :: iphase
 
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id
   type(grid_type), pointer :: grid
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal :: xmass
-  PetscReal :: tempreal
-  PetscInt :: tempint
-  PetscInt :: irate, istate, irxn
+  PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -8520,11 +8443,10 @@ subroutine PatchGetCellCenteredVelocities(patch,iphase,velocities)
   PetscReal, intent(out) :: velocities(:,:)
 
   type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: sum_connection, iconn, num_connections
+  PetscInt :: sum_connection, iconn
   PetscReal, allocatable :: sum_area(:,:), sum_velocity(:,:)
   PetscReal :: area(3), velocity(3)
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -8630,16 +8552,13 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
   PetscReal, pointer :: error(:)
   class (connection_set_type), pointer :: cur_connection_set
 
-  PetscInt :: cell_id, face_id, i, iconn
+  PetscInt :: face_id, i, iconn
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscReal :: v1(3),v2(3),normal(3), num(3), den(3)
-  PetscReal :: face_error, normal_magnitude
+  PetscReal :: normal_magnitude
   type(point3d_type) :: point1, point2, point3
   PetscReal, allocatable :: array_normal(:), array_error(:)
-  PetscErrorCode :: ierr
   PetscReal :: kx, kxy, kxz, ky, kyz, kz
-
-  type(option_type) :: option
 
   !unstructured_grid => patch%grid%unstructured_grid
   cur_connection_set => grid%internal_connection_set_list%first
@@ -8767,7 +8686,6 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscInt,pointer :: vertices(:,:)
   PetscInt,pointer :: by_cell_ids(:,:)
   type(grid_type), pointer :: grid
-  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
 
@@ -8789,7 +8707,6 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal :: magnitude
   PetscReal :: v1(3), v2(3), cp(3)
   PetscReal :: x, y, z
-  PetscReal :: coord(3)
   PetscReal :: unit_direction(3)
   PetscReal, parameter :: absolute_tolerance = 1.d-10
   PetscReal, parameter :: relative_tolerance = 1.d-6
@@ -9222,8 +9139,7 @@ subroutine PatchCouplerInputRecord(patch)
   type(patch_type), pointer :: patch
 
   type(coupler_type), pointer :: cur_coupler
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: k
   PetscInt :: id = INPUT_RECORD_UNIT
 
@@ -9337,7 +9253,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: m3_water, kg_water
-  PetscInt :: k, j, m
+  PetscInt :: k
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
   PetscReal :: local_water_mass

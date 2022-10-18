@@ -1900,7 +1900,6 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   type(option_type) :: option
 
   PetscReal :: CharCurvesGetGetResidualSats(option%nphase)
-  PetscReal :: sgcr_dummy,sowcr_dummy, sogcr_dummy, swco_dummy
   PetscReal :: gas_res_sat
 
   select case(option%iflowmode)

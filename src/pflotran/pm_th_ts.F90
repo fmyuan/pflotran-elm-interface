@@ -122,7 +122,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   type(patch_type), pointer :: patch
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
-  PetscInt :: ghosted_id,local_id,istart,iend
+  PetscInt :: ghosted_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
@@ -261,7 +261,6 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
   PetscInt :: istart, iend
   PetscReal, pointer :: f_p(:)
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
   PetscReal :: por, den, sat, u, temp
   PetscReal :: dpor_dP, dpor_dt
   PetscReal :: dmass_dP, dmass_dt
@@ -449,7 +448,6 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: istart, iend
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
   PetscReal :: por, dpor_dP, d2por_dP2, dpor_dt, d2por_dt2
   PetscReal :: d2por_dtdP, d2por_dPdt
   PetscReal :: sat, dsat_dP, d2sat_dP2, dsat_dt, d2sat_dt2

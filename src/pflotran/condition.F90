@@ -1677,10 +1677,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
   PetscReal :: default_time
   PetscInt :: default_iphase
-  class(dataset_base_type), pointer :: default_flow_dataset
-  class(dataset_base_type), pointer :: default_gradient
   PetscInt :: idof, i
-  PetscBool :: default_is_cyclic
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXWORDLENGTH) :: flow_mode_chars
@@ -2217,10 +2214,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
   type(flow_sub_condition_type), pointer :: sub_condition_ptr
   PetscReal :: default_time
   PetscInt :: default_iphase
-  class(dataset_base_type), pointer :: default_flow_dataset
-  class(dataset_base_type), pointer :: default_gradient
   PetscInt :: idof, i
-  PetscBool :: default_is_cyclic
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXWORDLENGTH) :: flow_mode_chars
@@ -2813,11 +2807,8 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: internal_units_string
-  character(len=MAXWORDLENGTH) :: internal_units_word
 
   class(dataset_ascii_type), pointer :: dataset_ascii
-  character(len=MAXWORDLENGTH) :: sub_word
-
 
   card_found = PETSC_FALSE
   select case (trim(word))
@@ -2902,15 +2893,10 @@ subroutine TranConditionRead(condition,constraint_list, &
   class(tran_constraint_base_type), pointer :: constraint
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
   class(reaction_rt_type), pointer :: reaction
   class(reaction_nw_type), pointer :: reaction_nw
-  PetscInt :: default_itype
-  PetscBool :: found
-  PetscInt :: icomp
-  PetscBool :: minerals_exist
   PetscErrorCode :: ierr
   PetscReal :: conversion
 
@@ -3195,16 +3181,8 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscInt :: length, i, icount
-  PetscInt :: icol
-  PetscInt :: ndims
-  PetscInt, pointer :: dims(:)
-  PetscReal, pointer :: real_buffer(:)
+  PetscInt :: length, i
   PetscErrorCode :: ierr
-
-  integer(HID_T) :: file_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: hdf5_err
 
   call PetscLogEventBegin(logging%event_flow_condition_read_values, &
                           ierr);CHKERRQ(ierr)
@@ -4119,8 +4097,6 @@ subroutine FlowCondInputRecord(flow_condition_list,option)
   type(option_type), pointer :: option
 
   type(flow_condition_type), pointer :: cur_fc
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
   PetscInt :: id = INPUT_RECORD_UNIT
 
@@ -4180,7 +4156,7 @@ subroutine TranCondInputRecord(tran_condition_list,option)
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   class(tran_constraint_base_type), pointer :: constraint
   type(tran_condition_type), pointer :: cur_condition
-  character(len=MAXWORDLENGTH) :: word1, word2
+  character(len=MAXWORDLENGTH) :: word1
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
   PetscInt :: id = INPUT_RECORD_UNIT

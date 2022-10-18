@@ -57,11 +57,10 @@ subroutine HydrateSetup(realization)
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
-  type(coupler_type), pointer :: boundary_condition
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
-  PetscInt :: i, idof, count, ndof
+  PetscInt :: idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
   PetscErrorCode :: ierr
@@ -271,8 +270,7 @@ subroutine HydrateUpdateSolution(realization)
   type(field_type), pointer :: field
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  PetscInt :: local_id, ghosted_id
-  PetscErrorCode :: ierr
+  PetscInt :: ghosted_id
 
   option => realization%option
   field => realization%field
@@ -321,8 +319,7 @@ subroutine HydrateTimeCut(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
 
-  PetscInt :: local_id, ghosted_id
-  PetscErrorCode :: ierr
+  PetscInt :: ghosted_id
 
   option => realization%option
   patch => realization%patch
@@ -380,7 +377,7 @@ subroutine HydrateNumericalJacobianTest(xx,realization,B)
   PetscReal :: derivative, perturbation
   PetscReal :: perturbation_tolerance = 1.d-6
   PetscInt, save :: icall = 0
-  character(len=MAXWORDLENGTH) :: word, word2
+  character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: idof, idof2, icell
 
@@ -493,7 +490,6 @@ subroutine HydrateComputeMassBalance(realization,mass_balance)
   type(hydrate_auxvar_type), pointer :: hydrate_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iphase, icomp
@@ -627,9 +623,9 @@ end subroutine HydrateUpdateMassBalance
 ! ************************************************************************** !
 
 subroutine HydrateUpdateAuxVars(realization,update_state)
-  ! 
+  !
   ! Updates the auxiliary variables associated with Hydrate mode
-  ! 
+  !
   ! Author: Michael Nole
   ! Date: 07/23/19
   !
@@ -664,16 +660,15 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:),&
                                        global_auxvars_ss(:)
-  
+
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end, i
-  PetscInt :: iphasebc, iphase
+  PetscInt :: ghosted_start, ghosted_end
   PetscInt :: offset
   PetscInt :: istate
   PetscInt :: wat_comp_id, air_comp_id
-  PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
+  PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
   PetscReal :: qsrc(3)
   PetscInt :: real_index, variable, flow_src_sink_type
@@ -757,7 +752,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                           flow_aux_mapping(dof_to_primary_variable(idof,istate))
                   xxbc(idof) = boundary_condition% &
                           flow_aux_real_var(real_index,iconn)
-              end select   
+              end select
             enddo
           case(GA_STATE)
             do idof = 1, option%nflowdof
@@ -786,7 +781,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                     case(HYDRATE_AIR_PRESSURE_INDEX)
                       real_index = boundary_condition%flow_aux_mapping(variable)
                       if (real_index == 0) then ! air pressure not found
-                      ! if air pressure is not available, let's try temperature 
+                      ! if air pressure is not available, let's try temperature
                         real_index = boundary_condition% &
                                      flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX)
                         if (real_index /= 0) then
@@ -952,10 +947,10 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/ &
                                 (hydrate_fmw_comp(air_comp_id)* &
-                                hyd_auxvar%den(air_comp_id))*scale 
+                                hyd_auxvar%den(air_comp_id))*scale
         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/ &
                                 (hydrate_fmw_comp(wat_comp_id)* &
-                                hyd_auxvar%den(wat_comp_id))*scale 
+                                hyd_auxvar%den(wat_comp_id))*scale
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
       ! qsrc1 = m^3/sec             ! den = kmol/m^3
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
@@ -1055,7 +1050,7 @@ subroutine HydrateUpdateFixedAccum(realization)
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:)
-  PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: accum_p(:)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
 
@@ -1164,7 +1159,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: iconn
-  PetscInt :: iphase
   PetscReal :: scale
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
@@ -1172,17 +1166,14 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
-  PetscInt, save :: iplot = 0
   PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
-  PetscReal, pointer :: vec_p(:)
 
   PetscReal :: qsrc(3)
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1552,7 +1543,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: irow
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = tVec(0)
@@ -1565,9 +1555,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
-  PetscReal :: distance, fraction_upwind
-  PetscReal :: distance_gravity
-  PetscInt, pointer :: zeros(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1581,7 +1568,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
 
   patch => realization%patch
   grid => patch%grid

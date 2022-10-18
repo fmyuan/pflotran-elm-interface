@@ -157,13 +157,11 @@ subroutine SimulationMRInitializeRun(this)
   type(option_type), pointer :: option
   PetscInt :: i
   PetscInt :: offset, delta, remainder
-  PetscInt :: realization_id
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: option_found
   PetscInt, pointer :: realization_ids_from_file(:)
   character(len=MAXSTRINGLENGTH) :: filename
   type(input_type), pointer :: input
-  PetscErrorCode :: ierr
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)

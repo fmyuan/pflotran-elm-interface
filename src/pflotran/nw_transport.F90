@@ -346,7 +346,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
-  class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
   PetscInt, save :: icall
 
   data icall/0/
@@ -581,7 +580,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: r_p(:), fixed_accum_p(:), vec_p(:)
+  PetscReal, pointer :: r_p(:), fixed_accum_p(:)
   PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id, local_id_up, local_id_dn
   PetscInt :: nphase, iphase, nspecies
@@ -1245,8 +1244,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   PetscInt :: unit_n_up, unit_n_dn
   PetscInt :: nspecies
-  PetscReal :: q, u
-  PetscReal :: harmonic_ps
+  PetscReal :: q
   PetscReal :: sat_up, sat_dn
   PetscReal :: por_up, por_dn
   PetscReal :: ps_up, ps_dn
@@ -1405,7 +1403,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: boundary_condition
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: istart, iend, offset
-  PetscInt :: i, k, nspecies
+  PetscInt :: nspecies
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -1714,7 +1712,6 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
   PetscInt :: istart, iend, ispecies
   PetscReal :: qsrc, u, vol
   PetscReal :: coef_in
-  PetscBool :: dry_out
 
   Jac = 0.d0
 
@@ -1874,7 +1871,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   PetscInt :: nspecies, ispecies
   PetscBool :: dry_out_up, dry_out_dn
   PetscReal :: q, u
-  PetscReal :: harmonic_ps
   PetscReal :: sat_up, sat_dn
   PetscReal :: por_up, por_dn
   PetscReal :: ps_up, ps_dn
@@ -2079,7 +2075,6 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   PetscReal :: sum_mol_sb(max_size)
   PetscReal :: sum_mol_mnrl(max_size)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id, ghosted_id
   PetscInt :: nspecies
   PetscReal :: liquid_saturation, porosity, volume

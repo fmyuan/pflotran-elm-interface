@@ -571,7 +571,6 @@ subroutine PMMphaseInputRecord(this)
 
   class(pm_mphase_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

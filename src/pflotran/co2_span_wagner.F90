@@ -57,7 +57,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
       implicit none
       PetscInt, optional :: itable
 
-      PetscReal :: pl,tl,tmp,tmp2,dtmp,dtemp,dpres,dddt,dddp
+      PetscReal :: pl,tl,tmp,tmp2,dtemp,dpres
 
       PetscReal :: rhodp,rhodt,fgdp,fgdt,engdp,engdt,entdp,entdt,vdp,vdt
 
@@ -68,7 +68,6 @@ subroutine initialize_span_wagner(itable,myrank,option)
       character*3 :: q
       character*1 :: tab
 
-      PetscReal :: temparray(15)
       PetscInt :: status
 
       character(len=MAXSTRINGLENGTH) :: co2_database_filename

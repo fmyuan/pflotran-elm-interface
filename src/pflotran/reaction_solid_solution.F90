@@ -40,9 +40,6 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: name
-  character(len=MAXWORDLENGTH) :: card
   PetscInt, parameter :: max_stoich_solid_names = 200
   PetscInt :: stoich_solid_count
   character(len=MAXWORDLENGTH) :: stoich_solid_names(max_stoich_solid_names)

@@ -286,7 +286,6 @@ subroutine SimSubsurfInputRecord(this)
 
   class(simulation_subsurface_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
 
   ! print checkpoint information
@@ -536,7 +535,6 @@ subroutine SimSubsurfExecuteRun(this)
   class(simulation_subsurface_type) :: this
 
   PetscReal :: final_time
-  PetscReal :: sync_time
   type(waypoint_type), pointer :: cur_waypoint
   character(len=MAXSTRINGLENGTH) :: append_name
 
@@ -589,8 +587,6 @@ subroutine SimSubsurfRunToTime(this,target_time)
 
   class(simulation_subsurface_type) :: this
   PetscReal :: target_time
-
-  class(pmc_base_type), pointer :: cur_process_model_coupler
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfRunToTime()')
@@ -692,7 +688,6 @@ subroutine SimSubsurfFinalizeRun(this)
   class(simulation_subsurface_type) :: this
 
   character(MAXSTRINGLENGTH) :: string
-  class(pmc_base_type), pointer :: cur_process_model_coupler
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_base_type), pointer :: tran_timestepper
   PetscErrorCode :: ierr

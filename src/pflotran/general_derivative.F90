@@ -379,7 +379,6 @@ subroutine GeneralDerivativeSetupEOS(option)
   type(option_type), pointer :: option
   PetscReal :: tlow, thigh, plow, phigh
   PetscInt :: ntemp, npres
-  PetscReal :: aux(1)
   character(len=MAXWORDLENGTH) :: word
 
 #if 1

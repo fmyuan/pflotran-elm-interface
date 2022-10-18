@@ -99,7 +99,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
       !area cancels out in slab
       aream0 = 1.d0
-      vm0 = sec_continuum%slab%half_matrix_width*aream0 
+      vm0 = sec_continuum%slab%half_matrix_width*aream0
       interfacial_area = 1.d0/(sec_continuum%slab%half_matrix_width + half_aperture)
       if (log_spacing) then
         call SecondaryContinuumCalcLogSpacing(sec_continuum%slab%half_matrix_width,outer_spacing, &
@@ -584,8 +584,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   type(flow_condition_type), pointer :: initial_flow_condition
 
 
-  PetscReal :: equil_conc(reaction%mineral%nmnrl)
-  PetscInt :: i, cell
+  PetscInt :: cell
   PetscReal :: area_per_vol
   PetscReal :: dum1
   PetscReal :: epsilon
@@ -804,7 +803,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: area_fm, RT
   PetscReal :: diffusion_coefficient(option%transport%nphase)
   PetscReal :: porosity
-  PetscReal :: arrhenius_factor
   PetscReal :: pordt, pordiff(option%transport%nphase)
   PetscReal :: prim_vol ! volume of primary grid cell
   PetscReal :: dCsec_dCprim(reaction%naqcomp,reaction%naqcomp)
@@ -1771,7 +1769,6 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   PetscReal :: area_fm
   PetscReal :: diffusion_coefficient(option%transport%nphase)
   PetscReal :: porosity
-  PetscReal :: arrhenius_factor
   PetscReal :: pordt, pordiff(option%transport%nphase)
   PetscReal :: inf_norm_sec
   type(material_auxvar_type), allocatable :: material_auxvar
@@ -1950,8 +1947,6 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
   PetscInt :: i, j, n
   PetscInt :: ngcells, ncomp
   PetscInt :: pivot(reaction%naqcomp,sec_transport_vars%ncells)
-  PetscInt :: indx(reaction%naqcomp)
-  PetscInt :: d
 
   ngcells = sec_transport_vars%ncells
   ncomp = reaction%naqcomp
@@ -2404,7 +2399,6 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   type(patch_type), pointer :: patch
   PetscReal, pointer :: vec_p(:)
   PetscInt :: local_id
-  PetscInt :: ghosted_id
   PetscErrorCode :: ierr
   patch => realization%patch
   grid => patch%grid
@@ -2412,7 +2406,7 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   if (vec_format == NATURAL .or. vec_format == LOCAL) then
     call PrintErrMsg(realization%option,&
                      'NATURAL and LOCAL vector formats not supported by &
-SecondaryRTSetVariable')
+                      &SecondaryRTSetVariable')
   endif
 
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)

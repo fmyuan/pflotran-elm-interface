@@ -157,8 +157,6 @@ subroutine CommDestroy(comm)
 
   type(comm_type), pointer :: comm
 
-  PetscErrorCode :: ierr
-
   deallocate(comm)
   nullify(comm)
 

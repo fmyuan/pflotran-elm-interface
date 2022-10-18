@@ -652,7 +652,6 @@ subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   PetscInt :: ja, jb
   PetscInt :: istart, iend
   class(lookup_table_axis2_general_type), pointer :: axis2
-  class(lookup_table_axis3_general_type), pointer :: axis3
 
   ! axis 1 corresponds to the j dim below
   call LookupTableAxisIndexGeneral(lookup1,this%axis1%values, &

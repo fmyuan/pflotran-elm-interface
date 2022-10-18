@@ -103,8 +103,6 @@ subroutine GeomechDiscretizationCreateDMs(geomech_discretization,option)
   type(option_type) :: option
 
   PetscInt :: ndof
-  PetscErrorCode :: ierr
-  type(geomech_grid_type), pointer :: geomech_grid
 
   !-----------------------------------------------------------------------
   ! Generate the DM objects that will manage communication.
@@ -193,7 +191,6 @@ subroutine GeomechDiscretizationCreateVector(geomech_discretization, &
   PetscInt :: dm_index
   Vec :: vector
   PetscInt :: vector_type
-  PetscInt :: ndof
   PetscErrorCode :: ierr
 
 
@@ -526,9 +523,6 @@ subroutine GeomechDiscretizationDestroy(geomech_discretization)
   implicit none
 
   type(geomech_discretization_type), pointer :: geomech_discretization
-
-  PetscErrorCode :: ierr
-  PetscInt :: i
 
   if (.not.associated(geomech_discretization)) return
 

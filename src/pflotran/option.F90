@@ -551,9 +551,7 @@ subroutine OptionCheckCommandLine(option)
   type(option_type) :: option
 
   PetscBool :: option_found
-  PetscInt :: temp_int
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                            "-buffer_matrix",option%use_matrix_buffer, &

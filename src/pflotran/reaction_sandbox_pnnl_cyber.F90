@@ -180,8 +180,7 @@ subroutine CyberRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word, internal_units, units
+  character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
 
   error_string = 'CHEMISTRY,REACTION_SANDBOX,CYBERNETIC'
@@ -576,7 +575,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt :: i, j, irxn
 
-  PetscReal :: Co2, Cno3, Cno2, Cn2, Cdoc, Cco2, Cnh4, X
+  PetscReal :: Co2, Cno3, Cno2, Cn2, Cdoc, Cnh4, X
   PetscReal :: r1docmonod, r1docmonod_denom
   PetscReal :: r2docmonod, r2docmonod_denom
   PetscReal :: r3docmonod, r3docmonod_denom

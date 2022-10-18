@@ -350,7 +350,6 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
   PetscInt :: sum_wasted_newton_iterations
 
   PetscReal :: fnorm, inorm, scaled_fnorm
-  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
@@ -595,8 +594,6 @@ subroutine TimestepperSNESSetHeader(this,bag,header)
   class(timestepper_SNES_type) :: this
   class(stepper_SNES_header_type) :: header
   PetscBag :: bag
-
-  PetscErrorCode :: ierr
 
   header%cumulative_newton_iterations = this%cumulative_newton_iterations
   header%cumulative_linear_iterations = this%cumulative_linear_iterations

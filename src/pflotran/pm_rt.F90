@@ -546,7 +546,6 @@ subroutine PMRTWeightFlowParameters(this,time_level)
   PetscInt :: time_level
 
   PetscReal :: tran_weight
-  PetscErrorCode :: ierr
 
   if (time_level == TIME_T) then ! for ts initialization and ts cut
     if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
@@ -652,7 +651,6 @@ subroutine PMRTFinalizeTimestep(this)
   implicit none
 
   class(pm_rt_type) :: this
-  PetscReal :: time
   PetscErrorCode :: ierr
 
   if (this%transient_porosity) then
@@ -999,7 +997,6 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: converged_flag
   PetscInt :: temp_int
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
-  PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
   PetscMPIInt :: mpi_int
   PetscInt :: local_id, offset, idof, index
   PetscReal :: tempreal
@@ -2228,7 +2225,6 @@ subroutine PMRTInputRecord(this)
 
   class(pm_rt_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

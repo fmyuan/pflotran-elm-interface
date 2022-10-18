@@ -142,7 +142,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   class(reaction_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
 

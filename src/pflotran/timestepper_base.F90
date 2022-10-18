@@ -513,9 +513,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: equal_to_or_exceeds_sync_time
   PetscBool :: revert_due_to_waypoint
   PetscBool :: revert_due_to_sync_time
-  PetscBool :: truncated_due_to_next_dt_max
-  PetscReal :: temp_time
-  type(waypoint_type), pointer :: cur_waypoint, next_waypoint, prev_waypoint
+  type(waypoint_type), pointer :: cur_waypoint
 
 !geh: for debugging
 #ifdef DEBUG
@@ -994,8 +992,6 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
-
-  PetscErrorCode :: ierr
 
   header%time = this%target_time
   header%dt = this%dt

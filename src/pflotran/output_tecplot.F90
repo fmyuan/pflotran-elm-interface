@@ -53,14 +53,12 @@ subroutine OutputTecplotHeader(fid,realization_base,icolumn)
   class(realization_base_type) :: realization_base
   PetscInt :: icolumn
 
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   PetscInt :: variable_count
-  PetscInt :: i
 
   patch => realization_base%patch
   grid => patch%grid
@@ -237,10 +235,9 @@ subroutine OutputTecplotBlock(realization_base)
 
   class(realization_base_type) :: realization_base
 
-  PetscInt :: i, comma_count, quote_count
+  PetscInt :: i
   PetscInt, parameter :: icolumn = -1
-  character(len=MAXSTRINGLENGTH) :: filename, string, string2
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: filename
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
@@ -248,11 +245,9 @@ subroutine OutputTecplotBlock(realization_base)
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: tempint(0:3)
   Vec :: global_vec
   Vec :: natural_vec
-  PetscInt :: ivar, isubvar, var_type
   PetscErrorCode :: ierr
 
   discretization => realization_base%discretization
@@ -454,10 +449,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   Vec :: global_vec_vx, global_vec_vy, global_vec_vz
   Vec :: natural_vec
   PetscInt :: variable_count
-  type(output_variable_type) :: variable
   PetscErrorCode :: ierr
-
-  PetscReal, pointer :: vec_ptr(:)
 
   patch => realization_base%patch
   grid => patch%grid
@@ -626,7 +618,6 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  type(dm_ptr_type), pointer :: dm_ptr
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
@@ -643,10 +634,6 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   PetscReal, pointer :: array(:)
   PetscInt, allocatable :: indices(:)
   PetscErrorCode :: ierr
-
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  type(coupler_type), pointer :: boundary_condition
 
   nullify(array)
 
@@ -959,10 +946,8 @@ subroutine OutputTecplotPoint(realization_base)
 
   class(realization_base_type) :: realization_base
 
-  PetscInt :: i, comma_count, quote_count
   PetscInt :: icolumn
-  character(len=MAXSTRINGLENGTH) :: filename, string
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: filename
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
@@ -970,14 +955,9 @@ subroutine OutputTecplotPoint(realization_base)
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscReal :: value
-  Vec :: global_vec
-  Vec :: natural_vec
-  PetscInt :: ivar, isubvar, var_type
-  PetscErrorCode :: ierr
 
   discretization => realization_base%discretization
   patch => realization_base%patch
@@ -1598,7 +1578,6 @@ subroutine WriteTecplotExpGridElements(fid,realization_base)
   type(patch_type), pointer :: patch
   PetscInt, pointer :: temp_int(:)
   PetscInt :: icell, num_elems, i, num_vertices
-  PetscErrorCode :: ierr
 
   patch => realization_base%patch
   grid => patch%grid
@@ -1706,7 +1685,6 @@ subroutine WriteTecplotUGridElements(fid,realization_base)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  Vec :: global_cconn_vec
   type(ugdm_type), pointer :: ugdm_element
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
@@ -2217,14 +2195,13 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename,string,filename2
 
-  PetscErrorCode :: ierr
   PetscInt :: count
   PetscReal, pointer :: flowrates(:,:)
   PetscReal, pointer :: darcy(:), area(:)
   PetscInt, pointer :: nat_ids_up(:),nat_ids_dn(:)
   PetscReal, pointer :: density(:)
   Vec :: vec_proc
-  PetscInt :: i, idof, icell, num_cells
+  PetscInt :: i, icell, num_cells
   PetscInt, pointer :: ids(:)
   PetscReal, pointer :: sat(:), por(:), pressure(:)
 
@@ -2343,7 +2320,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
 
   class(realization_base_type) :: realization_base
 
-  PetscInt :: i, comma_count, quote_count
+  PetscInt :: i
   PetscInt :: icolumn
   character(len=MAXSTRINGLENGTH) :: filename, string, string2
   character(len=MAXSTRINGLENGTH) :: string3
@@ -2356,9 +2333,6 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   type(sec_transport_type), pointer :: rt_sec_tranport_vars(:)
   type(sec_heat_type), pointer :: sec_heat_vars(:)
   class(reaction_rt_type), pointer :: reaction
-  PetscReal :: value
-  PetscInt :: ivar, isubvar, var_type
-  PetscErrorCode :: ierr
   PetscInt :: count, icell, sec_id
   PetscInt :: ghosted_id
   PetscInt :: local_id
@@ -2669,7 +2643,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
 
-  PetscInt :: i,j
+  PetscInt :: j
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
@@ -2763,10 +2737,6 @@ subroutine WriteTecplotPolyUGridElements(fid,realization_base)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  Vec :: global_cconn_vec
-  type(ugdm_type), pointer :: ugdm_element
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
 
   patch => realization_base%patch
   grid => patch%grid

@@ -127,7 +127,6 @@ function GeomechRegionCreateWithGeomechRegion(region)
   type(gm_region_type), pointer :: region
 
   type(gm_region_type), pointer :: new_region
-  PetscInt :: icount, temp_int
 
   new_region => GeomechRegionCreateWithNothing()
 
@@ -213,7 +212,7 @@ subroutine GeomechRegionRead(region,input,option)
   type(gm_region_type) :: region
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -311,17 +310,13 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
   type(option_type) :: option
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: word
   character(len=1) :: backslash
-  character(len=MAXSTRINGLENGTH) :: string, string1
 
   PetscInt, pointer :: temp_int_array(:)
   PetscInt, pointer :: vertex_ids(:)
   PetscInt :: max_size
   PetscInt :: count
   PetscInt :: temp_int
-  PetscInt :: input_data_type
-  PetscInt :: ii
   PetscInt :: istart
   PetscInt :: iend
   PetscInt :: remainder

@@ -473,7 +473,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: temp_ave, stpd_ave_over_dist, tempreal
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
 
-  PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
 
   ! Darcy flux
@@ -510,13 +509,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
   PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
-  PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
-
-  !Non darcy
-  PetscReal :: K, I, grad
-
-  ! DELETE
 
   PetscReal :: Jlup(3,3), Jldn(3,3)
   PetscReal :: Jgup(3,3), Jgdn(3,3)
@@ -2503,7 +2496,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: debug_connection
 
   PetscInt :: wat_comp_id, air_comp_id, energy_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
   PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
@@ -2516,7 +2509,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux
   PetscReal :: sat_dn, perm_dn, den_dn
-  PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
+  PetscReal :: temp_ave, stpd_ave_over_dist
   PetscReal :: k_eff_dn, k_eff_ave, heat_flux
   PetscReal :: boundary_pressure
   PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
@@ -2527,13 +2520,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: upwind
 
   ! Darcy flux
-  PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
-  PetscReal :: ddelta_pressure_dpaup, ddelta_pressure_dpadn
-  PetscReal :: ddelta_pressure_dTup, ddelta_pressure_dTdn
+  PetscReal :: ddelta_pressure_dpdn
+  PetscReal :: ddelta_pressure_dpadn
+  PetscReal :: ddelta_pressure_dTdn
   PetscReal :: dv_darcy_ddelta_pressure
   PetscReal :: dv_darcy_dmobility
 
-  PetscReal :: up_scale, dn_scale
+  PetscReal :: dn_scale
   PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
   PetscReal :: dtot_mole_flux_dp, dtot_mole_flux_dT, dtot_mole_flux_dsatg
@@ -2561,8 +2554,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: perm3(3)
 
   ! Conduction
-  PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn, dkeff_dn_dTdn
-  PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
+  PetscReal :: dkeff_dn_dsatldn, dkeff_dn_dTdn
+  PetscReal :: dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
 
   ! DELETE
@@ -2572,12 +2565,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jc(3,3)
 
   !Non darcy
-  PetscReal :: K, I, grad
-
   PetscInt :: idof
-
-  PetscReal :: temp_perm_dn
-  PetscReal :: dummy_dperm_dn
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -3932,7 +3920,6 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: Je(option%nflowdof,option%nflowdof)
   PetscReal :: dden_bool
   PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
-  PetscErrorCode :: ierr
   PetscReal :: mob_tot
   PetscReal :: cell_pressure
   PetscReal :: xxss(THREE_INTEGER)

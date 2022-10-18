@@ -310,8 +310,6 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
-
   error_string = 'ZFLOW Newton Solver'
 
   select case(trim(keyword))
@@ -1133,8 +1131,6 @@ subroutine PMZFlowMaxChange(this)
   PetscReal :: max_change, change
   PetscInt :: i, j
   PetscInt :: ivar
-  character(len=MAXSTRINGLENGTH) :: string
-
   PetscErrorCode :: ierr
 
   realization => this%realization
@@ -1222,7 +1218,6 @@ subroutine PMZFlowInputRecord(this)
 
   class(pm_zflow_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -1296,8 +1291,6 @@ subroutine PMZFlowDestroy(this)
   implicit none
 
   class(pm_zflow_type) :: this
-
-  PetscErrorCode :: ierr
 
   if (associated(this%next)) then
     call this%next%Destroy()

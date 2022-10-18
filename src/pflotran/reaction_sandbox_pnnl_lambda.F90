@@ -97,9 +97,9 @@ subroutine LambdaRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word, internal_units
+  character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: error_string
-  error_string = 'CHEMISTRY,REACTION_SANDBOX,LAMBDA'
+  error_string = 'CHEMISTRY,RXN_SANDBOX,LAMBDA'
 
   call InputPushBlock(input,option)
   do
@@ -177,7 +177,7 @@ subroutine LambdaSetup(this,reaction,option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: word
-  PetscInt :: i, irxn, icomp
+  PetscInt :: i, irxn
   PetscReal, pointer :: stoich(:,:)
   PetscInt, pointer :: species_ids(:,:)
 
@@ -276,11 +276,9 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rkin(this%n_rxn)
   PetscReal :: R(this%n_rxn)
   PetscReal :: Rate(this%n_species)
-  PetscReal :: inhibited_rate(this%n_rxn)
   PetscReal :: u(this%n_rxn)
-  PetscReal :: n_carbon
 
-  PetscInt :: icomp, irxn, i_biomass, i_carbon
+  PetscInt :: icomp, irxn, i_carbon
 
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3 ! m^3 -> L

@@ -470,7 +470,6 @@ subroutine PMAuxiliaryInputRecord(this)
 
   class(pm_auxiliary_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

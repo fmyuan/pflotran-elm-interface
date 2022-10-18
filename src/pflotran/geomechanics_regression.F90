@@ -209,13 +209,12 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
 
   IS :: is_petsc
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: i, upper_bound, lower_bound, count, temp_int
+  PetscInt :: i, count, temp_int
   PetscInt :: local_id
   PetscReal, pointer :: vec_ptr(:)
   Vec :: temp_vec
   VecScatter :: temp_scatter
   IS :: temp_is
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   type(geomech_grid_type), pointer :: grid
@@ -517,9 +516,8 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   type(option_type), pointer :: option
   type(output_variable_type), pointer :: cur_variable
   type(geomechanics_regression_variable_type), pointer :: cur_variable1
-  PetscReal, pointer :: vec_ptr(:), y_ptr(:), z_ptr(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
-  PetscInt :: iphase
   PetscReal :: r_norm, x_norm
   PetscReal :: max, min, mean
   PetscErrorCode :: ierr

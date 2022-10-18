@@ -579,7 +579,7 @@ subroutine LUDecomposition2(A,N,INDX,D)
   implicit none
 
   PetscInt :: N
-  PetscReal :: A(N,N),VV(N)
+  PetscReal :: A(N,N)
   PetscInt :: INDX(N)
   PetscInt :: D
 

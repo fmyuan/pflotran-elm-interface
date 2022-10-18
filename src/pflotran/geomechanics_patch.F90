@@ -151,12 +151,9 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
   type(option_type) :: option
 
   type(geomech_coupler_type), pointer :: coupler
-  type(geomech_coupler_list_type), pointer :: coupler_list
   type(geomech_strata_type), pointer :: strata
  ! type(geomech_observation_type), pointer :: observation, &
  !                                                     next_observation
-
-  PetscInt :: temp_int, isub
 
   ! boundary conditions
   coupler => patch%geomech_boundary_condition_list%first
@@ -377,11 +374,8 @@ subroutine GeomechPatchInitCouplerAuxVars(coupler_list,patch,option)
   type(option_type) :: option
 
   PetscInt :: num_verts
-  PetscBool :: force_update_flag
 
   type(geomech_coupler_type), pointer :: coupler
-  PetscInt :: idof
-  character(len=MAXSTRINGLENGTH) :: string
 
   if (.not.associated(coupler_list)) return
 
@@ -472,13 +466,8 @@ subroutine GeomechPatchUpdateCouplerAuxVars(patch,coupler_list, &
 
   type(geomech_coupler_type), pointer :: coupler
   type(geomech_condition_type), pointer :: geomech_condition
-  PetscBool :: update
-  character(len=MAXSTRINGLENGTH) :: string,string2
-  PetscErrorCode :: ierr
 
-  PetscInt :: idof,num_verts
-  PetscInt :: ivertex,local_id,ghosted_id
-
+  PetscInt :: num_verts
 
   if (.not.associated(coupler_list)) return
 

@@ -498,7 +498,6 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: ddelta_pressure_dpdn
   PetscBool :: derivative_toggle
   PetscReal :: dperm_dK
-  PetscReal :: tempreal
   PetscReal :: delta_conc
   PetscReal :: dq_dpdn
   PetscReal :: dq_dKdn

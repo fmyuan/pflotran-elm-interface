@@ -1133,8 +1133,6 @@ subroutine PMUFDDecayPreSolve(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
 
   grid => this%realization%patch%grid
   global_auxvars => this%realization%patch%aux%Global%auxvars
@@ -1266,34 +1264,13 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
+  PetscInt :: imat
   PetscReal :: dt
   PetscReal :: vol, por, sat, den_w_kg, vps
-  PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
-  PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
-  PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
-  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
-  PetscReal :: mass_iso_tot0(this%num_isotopes)
-  PetscReal :: mass_iso_tot1(this%num_isotopes)
-  PetscReal :: mass_ele_tot1
-  PetscReal :: coeff(this%num_isotopes)
-  PetscReal :: mass_old(this%num_isotopes)
-  PetscReal :: mol_fraction_iso(this%num_isotopes)
-  PetscReal :: kd_kgw_m3b
-  PetscBool :: above_solubility
   PetscReal, pointer :: xx_p(:)
   ! implicit solution:
-  PetscReal :: norm
-  PetscReal :: residual(this%num_isotopes)
-  PetscReal :: solution(this%num_isotopes)
-  PetscReal :: prev_solution(this%num_isotopes)
-  PetscReal :: rhs(this%num_isotopes)
-  PetscInt :: indices(this%num_isotopes)
-  PetscReal :: Jacobian(this%num_isotopes,this%num_isotopes)
-  PetscReal :: rate, rate_constant, stoich, one_over_dt
-  PetscReal, parameter :: tolerance = 1.d-6
-  PetscInt :: idaughter
-  PetscInt :: it, istart, iend, cell
+  PetscReal :: one_over_dt
+  PetscInt :: istart, iend, cell
 ! -----------------------------------------------------------------------
 
   ierr = 0
@@ -1424,7 +1401,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
     PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
   PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
   PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
-  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
+  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1
   PetscReal :: mass_iso_tot0(this%num_isotopes)
   PetscReal :: mass_iso_tot1(this%num_isotopes)
   PetscReal :: mass_ele_tot1
@@ -2074,7 +2051,6 @@ subroutine PMUFDDecayInputRecord(this)
 ! idaughter: [-] daughter integer number
 ! material_property_array(:): pointer to material property array
 ! -----------------------------------------------------------------------
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
   PetscInt :: iele
   PetscInt :: iiso
