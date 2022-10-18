@@ -2617,7 +2617,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case(bc_type)
     ! figure out the direction of flow
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-         HYDROSTATIC_CONDUCTANCE_BC)
+         HYDROSTATIC_CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC)
       if (gen_auxvar_up%mobility(iphase) + &
           gen_auxvar_dn%mobility(iphase) > eps) then
 
@@ -2681,6 +2681,18 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
             endif
           endif
         endif
+
+        if (bc_type == DIRICHLET_SEEPAGE_BC) then
+          if (delta_pressure < 0.d0) then
+            delta_pressure = 0.d0
+            if (analytical_derivatives) then
+              option%io_buffer = 'DIRCHLET_SEEPAGE_BC &
+                &needs to be verified in GeneralBCFlux().'
+              call PrintErrMsg(option)
+            endif
+          endif
+        endif
+
         dn_scale = 0.d0
         upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
                                  .not.analytical_derivatives, &
@@ -2967,7 +2979,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-         HYDROSTATIC_CONDUCTANCE_BC)
+         HYDROSTATIC_CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC)
       if (gen_auxvar_up%mobility(iphase) + &
           gen_auxvar_dn%mobility(iphase) > eps) then
 
