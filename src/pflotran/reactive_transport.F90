@@ -3,6 +3,7 @@ module Reactive_Transport_module
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Transport_module
+  use Transport_np_module
   use Reaction_module
 
   use Reactive_Transport_Aux_module
@@ -146,6 +147,14 @@ subroutine RTSetup(realization)
   patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase)
   rt_parameter => patch%aux%RT%rt_parameter
   ! rt_parameter %naqcomp and %nphase set in RTAuxCreate()
+
+  if (option%use_specific_diffusion_formulation) then
+    allocate(rt_parameter%pri_spec_diff_coef(reaction%naqcomp))
+    allocate(rt_parameter%sec_spec_diff_coef(reaction%neqcplx))
+    rt_parameter%pri_spec_diff_coef = 1.d-9
+    rt_parameter%sec_spec_diff_coef = 1.d-9
+  endif
+
   rt_parameter%ncomp = reaction%ncomp
   rt_parameter%offset_aqueous = reaction%offset_aqueous
   rt_parameter%nimcomp = reaction%immobile%nimmobile
@@ -324,25 +333,42 @@ subroutine RTSetup(realization)
     cur_fluid_property => cur_fluid_property%next
   enddo
 
-  ! overwrite diffusion coefficients with species specific values
-  ! aqueous diffusion
-  iphase = option%liquid_phase
-  cur_generic_parameter => reaction%aq_diffusion_coefficients
-  do
-    if (.not.associated(cur_generic_parameter)) exit
-    rt_parameter%species_dependent_diffusion = PETSC_TRUE
-    i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
-                                    reaction,PETSC_FALSE,option)
-    if (Uninitialized(i)) then
-      option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
-        '" listed in aqueous diffusion coefficient list not found among &
-        &aqueous species.'
-      call PrintErrMsg(option)
-    endif
-    rt_parameter%diffusion_coefficient(i,iphase) = &
-        cur_generic_parameter%rvalue
-    cur_generic_parameter => cur_generic_parameter%next
-  enddo
+  ! Store diffusion coefficients for each species in correspondent structures. 
+  ! Notice that diffusion_coefficient(:,iphase) is not valid because may correspond to
+  ! a bunch of different species. If reused for primary will apply to TDispersion
+  ! function which is not ready for electromigration.
+  if (option%use_specific_diffusion_formulation) then      
+      iphase = option%liquid_phase
+      ! Set diffusion_coefficient to 0 to skip TDispersion and TDispersionBC diffusion influence
+      rt_parameter%diffusion_coefficient(:,iphase) = 1d-40 
+      cur_generic_parameter => reaction%aq_diffusion_coefficients
+      do
+        if (.not.associated(cur_generic_parameter)) exit
+        rt_parameter%species_dependent_diffusion = PETSC_TRUE
+        i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
+                                        reaction,PETSC_FALSE,option)
+        if (Uninitialized(i)) then
+            i = GetSecondarySpeciesIDFromName(cur_generic_parameter%name, &
+                                            reaction,PETSC_FALSE,option)
+            if (Uninitialized(i)) then
+              option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
+                '" listed in aqueous diffusion coefficient list not found among &
+                &aqueous species.'
+              call PrintErrMsg(option)
+            else
+                rt_parameter%sec_spec_diff_coef(i) = &
+                    cur_generic_parameter%rvalue
+            endif
+        else
+            rt_parameter%pri_spec_diff_coef(i) = &
+                cur_generic_parameter%rvalue
+        endif
+        cur_generic_parameter => cur_generic_parameter%next
+      enddo
+  endif
+
+  
+  
   if (associated(reaction%gas_diffusion_coefficients)) then
     if (rt_parameter%nphase <= 1) then
       option%io_buffer = 'GAS_DIFFUSION_COEFFICIENTS may not be set when &
@@ -385,13 +411,13 @@ subroutine RTSetup(realization)
         call PrintErrMsg(option)
       endif
     endif
-    if (reaction%neqcplx > 0) then
-      option%io_buffer = 'Species-dependent diffusion may not be used &
-        &with aqueous speciation since fluxes are currently implemented &
-        &based on the total aqueous component concentration and the &
-        &diffusion of secondary complexes is lumped.'
-      call PrintErrMsg(option)
-    endif
+    ! if (reaction%neqcplx > 0) then
+    !   option%io_buffer = 'Species-dependent diffusion may not be used &
+    !     &with aqueous speciation since fluxes are currently implemented &
+    !     &based on the total aqueous component concentration and the &
+    !     &diffusion of secondary complexes is lumped.'
+    !   call PrintErrMsg(option)
+    ! endif
   endif
 
   list => realization%output_option%output_snap_variable_list
@@ -2381,6 +2407,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
@@ -2406,6 +2433,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   rt_auxvars_bc => patch%aux%RT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
+
+  Res = 0.d0
+  Flux = 0.d0
 
   if (reaction%act_coef_update_frequency == &
       ACT_COEF_FREQUENCY_NEWTON_ITER) then
@@ -2462,6 +2493,21 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars(ghosted_id_dn), &
                   coef_up,coef_dn,option,Flux,Res)
 
+      if (option%use_specific_diffusion_formulation) then
+          call TNPFlux(reaction, &
+              rt_parameter, &
+              rt_auxvars(ghosted_id_up), &
+              material_auxvars(ghosted_id_up), &
+              global_auxvars(ghosted_id_up), &
+              rt_auxvars(ghosted_id_dn), &
+              material_auxvars(ghosted_id_dn), &
+              global_auxvars(ghosted_id_dn), &
+              cur_connection_set%dist(:,iconn), &
+              cur_connection_set%area(iconn), &
+              option, Res)
+        Flux(:,1) = Res(:)
+      end if
+
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
       rt_auxvars(local_id_up)%mass_balance_delta(:,:) = &
         rt_auxvars(local_id_up)%mass_balance_delta(:,:) - Flux(:,:)
@@ -2517,6 +2563,22 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   rt_auxvars(ghosted_id), &
                   global_auxvars(ghosted_id), &
                   coef_up,coef_dn,option,Flux,Res)
+
+      if (option%use_specific_diffusion_formulation) then
+          call TNPFluxBC(boundary_condition%tran_condition%itype, &
+              reaction, &
+              rt_parameter, &
+              rt_auxvars_bc(sum_connection), &
+              global_auxvars_bc(sum_connection), &
+              rt_auxvars(ghosted_id), &
+              material_auxvars(ghosted_id), &
+              global_auxvars(ghosted_id), &
+              cur_connection_set%dist(:,iconn), &
+              cur_connection_set%area(iconn), &
+              option, Res)
+        Flux(:,1) = Res(:)
+      end if
+                        
       iend = local_id*reaction%ncomp
       istart = iend-reaction%ncomp+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:reaction%ncomp)
@@ -3144,6 +3206,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
@@ -3168,6 +3231,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   rt_auxvars_bc => patch%aux%RT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
 
   ! Interior Flux Terms -----------------------------------
   ! must zero out Jacobian blocks
@@ -3205,6 +3269,21 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                            rt_auxvars(ghosted_id_dn), &
                            global_auxvars(ghosted_id_dn), &
                            coef_up,coef_dn,option,Jup,Jdn)
+      
+      if (option%use_specific_diffusion_formulation) then
+          call TNPFluxDerivative(reaction, &
+              rt_parameter, &
+              rt_auxvars(ghosted_id_up), &
+              material_auxvars(ghosted_id_up), &
+              global_auxvars(ghosted_id_up), &
+              rt_auxvars(ghosted_id_dn), &
+              material_auxvars(ghosted_id_dn), &
+              global_auxvars(ghosted_id_dn), &
+              cur_connection_set%dist(:,iconn), &
+              cur_connection_set%area(iconn), &
+              option, Jup, Jdn)
+      end if
+
       if (local_id_up>0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)

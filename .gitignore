@@ -12,6 +12,7 @@
 *.swp
 *.synctex.gz
 *.old
+.vscode
 .DS_Store
 ._.DS_Store
 .hgignore.orig
@@ -99,3 +100,7 @@ src/clm-pflotran/*.F90
 
 build/
 bin/
+<<<<<<< HEAD
+=======
+
+>>>>>>> Add specific diffusion species in the primary continuum taken into account electromigration term (Nernst/Planck)

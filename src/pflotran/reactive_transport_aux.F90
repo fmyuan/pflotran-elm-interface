@@ -86,6 +86,8 @@ module Reactive_Transport_Aux_module
     PetscBool :: millington_quirk_tortuosity
     PetscReal, pointer :: diffusion_coefficient(:,:)
     PetscReal, pointer :: diffusion_activation_energy(:,:)
+    PetscReal, pointer :: pri_spec_diff_coef(:)
+    PetscReal, pointer :: sec_spec_diff_coef(:)
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count

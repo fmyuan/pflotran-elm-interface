@@ -174,6 +174,8 @@ subroutine ReactionReadPass1(reaction,input,option)
   reaction_sandbox_read = PETSC_FALSE
   reaction_clm_read = PETSC_FALSE
 
+  option%use_specific_diffusion_formulation = PETSC_FALSE
+
   srfcplx_count = 0
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -245,6 +247,8 @@ subroutine ReactionReadPass1(reaction,input,option)
           case('GAS_DIFFUSION_COEFFICIENTS')
             error_string = 'CHEMISTRY,GAS_DIFFUSION_COEFFICIENTS'
         end select
+        option%use_specific_diffusion_formulation = PETSC_TRUE
+
         nullify(generic_list)
         do
           call InputReadPflotranString(input,option)

@@ -278,6 +278,7 @@ misc_obj = \
 	${common_src}timestepper_SNES.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
+	${common_src}transport_np.o \
 	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o

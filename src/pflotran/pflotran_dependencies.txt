@@ -2977,6 +2977,7 @@ reactive_transport.o : \
   secondary_continuum_aux.o \
   string.o \
   transport.o \
+  transport_np.o \
   transport_constraint_rt.o
 reactive_transport_aux.o : \
   matrix_block_aux.o \
@@ -3474,6 +3475,14 @@ timestepper_steady.o : \
   timestepper_base.o \
   utility.o
 transport.o : \
+  connection.o \
+  global_aux.o \
+  material_aux.o \
+  matrix_block_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reactive_transport_aux.o
+transport_np.o : \
   connection.o \
   global_aux.o \
   material_aux.o \
