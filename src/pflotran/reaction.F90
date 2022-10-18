@@ -2802,8 +2802,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
   if (reaction%gas%npassive_gas > 0) then
 
-    132 format(/,'  gas        log part. press.  part. press. [bars]      log K')
-    133 format(2x,a10,2x,1pe12.4,6x,1pe12.4,8x,1pe12.4)
+    132 format(/,'  gas              par pres [bars]  conc [mol/m^3]  log K')
+    133 format(2x,a15,2x,1pe10.4,7x,1pe10.4,5x,1pe12.4)
 
     write(option%fid_out,132)
     write(option%fid_out,90)
@@ -2825,13 +2825,16 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       do jcomp = 1, reaction%gas%paseqspecid(0,igas)
         comp_id = reaction%gas%paseqspecid(jcomp,igas)
         lnQKgas(igas) = lnQKgas(igas) + reaction%gas%paseqstoich(jcomp,igas)* &
-                      log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
+                      log(rt_auxvar%pri_molal(comp_id)* &
+                          rt_auxvar%pri_act_coef(comp_id))
       enddo
 
       QKgas(igas) = exp(lnQKgas(igas))
 
-      write(option%fid_out,133) reaction%gas%passive_names(igas),lnQKgas(igas)*LN_TO_LOG, &
-      QKgas(igas),reaction%gas%paseqlogK(igas)
+      write(option%fid_out,133) reaction%gas%passive_names(igas),QKgas(igas), &
+        RGasConcentration(QKgas(igas),global_auxvar%temp), &
+        reaction%gas%paseqlogK(igas)
+
     enddo
   endif
 
@@ -5979,7 +5982,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
       if (reaction%gas%active_print_me(i)) then
         name = 'Active Gas ' // trim(reaction%gas%active_names(i))
         units = trim('Bar')
-        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+        call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
             GAS_PARTIAL_PRESSURE,i)
       endif
     enddo
