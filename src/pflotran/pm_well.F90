@@ -3021,7 +3021,6 @@ subroutine PMWellJacobianFlow(this)
   PetscInt :: local_id
   PetscInt :: iconn
   PetscInt :: local_id_up, local_id_dn
-  Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(this%nphase,this%nphase), &
                Jdn(this%nphase,this%nphase), &
@@ -3502,8 +3501,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
   PetscReal :: ss_check_p(this%well_grid%nsegments,2), &
                ss_check_s(this%well_grid%nsegments,2)
   PetscInt :: ss_step_count, steps_to_declare_ss
-  PetscReal, parameter :: eps_p = 1.d-2
-  PetscReal, parameter :: eps_s = 1.d-5
 
   flow_soln => this%flow_soln
 
@@ -4432,8 +4429,6 @@ subroutine PMWellCalcVelocity(this)
   PetscInt :: iup, idn
   PetscInt :: k
 
-  PetscReal, parameter :: eps = 1.d-8
-
   well_grid => this%well_grid
   well => this%well
 
@@ -4782,7 +4777,6 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
 
-  PetscReal, parameter :: eps = 1.d-8
 
   well_grid => pm_well%well_grid
 
@@ -4985,7 +4979,6 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   PetscInt :: itop
   PetscErrorCode :: ierr
 
-  PetscReal, parameter :: eps = 1.d-8
   option => pm_well%option
 
   well_grid => pm_well%well_grid

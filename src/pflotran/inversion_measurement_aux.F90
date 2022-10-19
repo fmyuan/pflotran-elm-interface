@@ -364,7 +364,6 @@ subroutine InversionMeasurementMeasure(time,measurement,value_,option)
   PetscReal :: value_
   type(option_type) :: option
 
-  PetscReal, parameter :: tol = 1.d0
   PetscBool :: measure
 
   measure = PETSC_FALSE

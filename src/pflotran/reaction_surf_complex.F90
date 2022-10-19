@@ -478,7 +478,6 @@ subroutine RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
 
   PetscInt :: irxn, ieqrxn
   PetscReal, pointer :: colloid_array_ptr(:)
-  PetscInt, parameter :: iphase = 1
   type(matrix_block_auxvar_type), pointer :: colloid_matrix_block_ptr
   type(surface_complexation_type), pointer :: surface_complexation
 
@@ -541,7 +540,6 @@ subroutine RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
 
   PetscInt :: irxn, ikinmrrxn
-  PetscInt, parameter :: iphase = 1
   type(surface_complexation_type), pointer :: surface_complexation
   PetscReal :: total_sorb_eq(reaction%naqcomp)
   PetscReal :: dtotal_sorb_eq(reaction%naqcomp,reaction%naqcomp)
@@ -607,7 +605,6 @@ subroutine RMultiRateSorption(Res,Jac,compute_derivative,rt_auxvar, &
   type(surface_complexation_type), pointer :: surface_complexation
 
   PetscInt :: irate
-  PetscInt, parameter :: iphase = 1
   PetscReal :: kdt, one_plus_kdt, k_over_one_plus_kdt
   PetscReal :: total_sorb_eq(reaction%naqcomp)
   PetscReal :: dtotal_sorb_eq(reaction%naqcomp,reaction%naqcomp)
@@ -711,7 +708,6 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: nui_Si_over_Sx
   PetscReal :: ln_free_site
   PetscReal :: lnQK, tempreal, total
-  PetscInt, parameter :: iphase = 1
   PetscReal, parameter :: tol = 1.d-12
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)

@@ -565,7 +565,6 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscMPIInt, parameter :: ON=1, OFF=0
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id

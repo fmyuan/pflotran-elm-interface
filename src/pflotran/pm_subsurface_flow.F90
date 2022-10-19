@@ -423,8 +423,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Condition_Control_module
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE, &
-                                 POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE
   use String_module, only : StringWrite
   use Utility_module, only : Equal
 
@@ -639,10 +638,9 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   ! Date: 04/21/14
 
   use Global_module
-  use Variables_module, only : POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : POROSITY
   use Material_module
-  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE
 
   implicit none
 
@@ -680,8 +678,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   ! Date: 04/21/14
 
   use Global_module
-  use Variables_module, only : POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : POROSITY
   use Material_module
   use Material_Aux_module, only : POROSITY_CURRENT, POROSITY_BASE
 
@@ -885,7 +882,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   ! Date: 04/21/14
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE
 
   implicit none
 

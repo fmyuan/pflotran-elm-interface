@@ -1733,7 +1733,6 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
   type(option_type) :: option
 
   PetscInt :: i, j, k, count
-  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
 
   if (grid%itype /= STRUCTURED_GRID) then
      option%io_buffer='Region definition using BLOCK is only supported for ' //&
@@ -1866,7 +1865,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
   PetscInt :: i, j, k, count, ghosted_id, local_id
   PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
   PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
-  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
+  PetscReal, parameter :: tol = 1.d-20
   PetscReal :: x_shift, y_shift, z_shift
   PetscReal :: del_x, del_y, del_z
   PetscInt :: iflag

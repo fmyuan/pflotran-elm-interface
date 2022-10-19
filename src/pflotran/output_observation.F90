@@ -2386,7 +2386,6 @@ subroutine OutputMassBalance(realization_base)
   PetscMPIInt :: int_mpi
   PetscBool :: bcs_done
   PetscErrorCode :: ierr
-  PetscBool,parameter :: wecl=PETSC_FALSE
 
   patch => realization_base%patch
   grid => patch%grid

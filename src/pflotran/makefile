@@ -63,6 +63,12 @@ ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
   PFLOTRAN_RXN_FLAG := 1
 endif
 
+ifdef ci
+  gnu_code_coverage = 1
+  gnu_runtime_checks = 1
+  catch_warnings_as_errors = 1
+endif
+
 ifdef match_tough2
   MYFLAGS += ${FC_DEFINE_FLAG}MATCH_TOUGH2
 endif
@@ -194,8 +200,8 @@ ifdef gnu_runtime_checks
   MYFLAGS += -fcheck=all
 endif
 
-ifdef catch_unused_variables
-  MYFLAGS += -Werror=unused-variable
+ifdef catch_warnings_as_errors
+  MYFLAGS += -Werror=unused-variable -Werror=unused-parameter
 endif
 
 ###############################################################################

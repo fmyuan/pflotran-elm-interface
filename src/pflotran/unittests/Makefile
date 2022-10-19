@@ -53,6 +53,14 @@ PFLOTRAN_OBJS = \
 FFLAGS = -g -I. -I$(EXE_DIR) -I$(PFUNIT_DIR)/source -I$(PFUNIT_DIR)/include
 LIBS   =
 
+ifdef ci
+  gnu_code_coverage = 1
+endif
+
+ifdef gnu_code_coverage
+  LIBS += -lgcov
+endif
+
 all : test
 
 test : pfunit unittests

@@ -305,7 +305,6 @@ subroutine PNFUpdateAuxVars(realization)
   use Connection_module
   use Material_module
   use Material_Aux_module
-  use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
 
   implicit none
 

@@ -1789,8 +1789,6 @@ subroutine SFLinearD2SatDP2(this,pc,d2s_dp2,option)
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
 
-  PetscReal, parameter :: dpc_dpres = -1.d0
-
   d2s_dp2 = 0.d0
 
 end subroutine SFLinearD2SatDP2

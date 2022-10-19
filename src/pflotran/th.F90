@@ -1688,7 +1688,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: Dk_eff_up, Dk_eff_dn
   PetscReal :: dk_ds_up, dK_di_up, dk_dT_up
   PetscReal :: dk_ds_dn, dK_di_dn, dk_dT_dn
-  PetscReal, parameter :: epsilon = 1.d-6
   PetscReal :: dKe_dT_up, dKe_dp_up
   PetscReal :: dKe_dT_dn, dKe_dp_dn
   PetscReal :: dDk_dT_up, dDk_dT_dn
@@ -2326,7 +2325,6 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: fluxm,fluxe,q
   PetscReal :: uh,ukvr,DK,Dq
   PetscReal :: upweight,density_ave,cond,gravity,dphi
-  PetscReal, parameter :: epsilon = 1.d-6
 
   PetscReal :: por_up, por_dn
   PetscReal :: tor_up, tor_dn

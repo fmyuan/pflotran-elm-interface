@@ -657,7 +657,6 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   use PFLOTRAN_Constants_module
   use Material_Aux_module
   use Material_module
-  use Variables_module, only : POROSITY
 
   implicit none
 

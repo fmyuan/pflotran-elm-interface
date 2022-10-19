@@ -1627,7 +1627,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
 
-  PetscReal, parameter :: epsilon = 0.d0
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
   PetscReal :: ha_epsilon
   PetscReal :: x(option%nflowdof)
@@ -2425,13 +2424,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
   PetscInt :: lid, gid, hid
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
 !  PetscReal, parameter :: perturbation_tolerance = 1.d-11
-  PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
   PetscReal, parameter :: min_perturbation = 1.d-10
-
-  PetscReal, parameter :: min_pres_pert = 1.d-3
-  PetscReal, parameter :: min_temp_pert = 8.66d-9
-  PetscReal, parameter :: min_xmol_pert = 1.d-14
-  PetscReal, parameter :: min_sat_pert = 3.16d-11
 
   PetscInt :: idof
 
@@ -3688,7 +3681,6 @@ subroutine HenrysConstantMethane(T,K_H)
   PetscReal, intent(out) :: K_H
 
   PetscReal :: T_temp
-  PetscReal, parameter :: R = 8.314 !J/mol-K
 
   T_temp = T + 273.15d0
 
@@ -3784,11 +3776,6 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
   PetscReal, intent(in) :: T, P
   PetscReal :: K_H, dP
 
-  PetscReal, parameter :: C3_0 = 156.36d0 !mM
-  PetscReal, parameter :: T_0 = 292.d0 !K
-  PetscReal, parameter :: P_0 = 20.d0 !MPa
-  PetscReal, parameter :: dC3_dT = 6.34d0 !mM
-  PetscReal, parameter :: dC3_dP = 1.11d0 !mM
   PetscReal, parameter :: alpha = 14.4d0 !C
   PetscReal :: logP
 

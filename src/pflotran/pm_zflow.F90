@@ -917,8 +917,6 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: local_id, ghosted_id
   PetscInt :: converged_flag
 
-  PetscReal, parameter :: zero_accumulation = 1.d-15
-
   PetscReal :: max_abs_res_liq_
   PetscInt :: max_abs_res_liq_cell
   PetscReal :: max_abs_res_sol_
@@ -1240,7 +1238,6 @@ subroutine PMZFlowCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1263,7 +1260,6 @@ subroutine PMZFlowRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

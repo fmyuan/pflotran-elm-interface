@@ -282,10 +282,6 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA
-  use Material_Aux_module, only : POROSITY_BASE
   use Units_module
   use Utility_module
 
@@ -520,16 +516,13 @@ subroutine InversionSubsurfInitialize(this)
   use Discretization_module
   use Grid_module
   use Material_module
-  use Material_Aux_module, only : POROSITY_BASE
   use Option_module
   use Patch_module
   use PM_Base_class
   use PM_ERT_class
   use PM_Subsurface_Flow_class
   use String_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA
+  use Variables_module, only : PERMEABILITY
   use Waypoint_module
 
   class(inversion_subsurface_type) :: this
@@ -2245,7 +2238,6 @@ subroutine InvSubsurfOutputSensitivityASCII(this,JsensitivityT,filename_prefix)
   ! Date: 10/11/21
   !
   use Realization_Subsurface_class
-  use Variables_module, only : PERMEABILITY
 
   class(inversion_subsurface_type) :: this
   Mat :: JsensitivityT

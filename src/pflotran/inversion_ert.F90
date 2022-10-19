@@ -453,7 +453,6 @@ subroutine InversionERTReadBlock(this,input,option)
   use Input_Aux_module
   use String_module
   use Option_module
-  use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
   type(input_type), pointer :: input
@@ -700,7 +699,7 @@ subroutine InversionERTInitialize(this)
   use Material_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
 
