@@ -1353,7 +1353,7 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
 
   if (ncount /= n_inactive_rows) then
     option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
-      StringWrite(ncount) // ' ' // StringWrite(n_inactive_rows)
+      StringWrite(ncount) // ' ' // trim(StringWrite(n_inactive_rows))
     call PrintErrMsgByRank(option)
   endif
 

@@ -985,11 +985,13 @@ subroutine TimestepperSNESPrintInfo(this,aux_string,option)
   allocate(strings(this%ntfac+20))
   strings = ''
   strings(1) = 'acceleration: ' // &
-                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+    trim(StringWrite(String1Or2(this%iaccel>0,'on','off')))
   if (this%iaccel > 0) then
-    strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
+    strings(2) = 'acceleration threshold: ' // &
+      trim(StringWrite(this%iaccel))
   endif
-  strings(3) = 'number of ramp entries: ' // StringWrite(this%iaccel)
+  strings(3) = 'number of ramp entries: ' // &
+    trim(StringWrite(this%iaccel))
   do i = 1, this%ntfac
     strings(i+3) = 'ramp entry #' // trim(StringWrite(i)) // ': ' // &
                    StringWriteF(this%tfac(i))

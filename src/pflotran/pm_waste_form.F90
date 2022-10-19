@@ -2397,7 +2397,7 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
             call InputReadDouble(input,option, &
                                  new_sp_mech%spacer_activation_energy)
             call InputErrorMsg(input,option,'grid spacer degradation model &
-                               activation energy',error_string)
+                               &activation energy',error_string)
             call InputReadAndConvertUnits(input, &
                                           new_sp_mech%spacer_activation_energy,&
                                           'J/mol','Q',option)
@@ -6462,8 +6462,9 @@ subroutine PMWFDestroy(this)
   character(len=MAXWORDLENGTH) :: word
 
   if (OptionPrintToScreen(this%option)) then
-    word = StringWrite('(es12.4)',this%cumulative_time)
-    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+    word = trim(StringWrite('(es12.4)',this%cumulative_time))
+    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // &
+      ' seconds'
   endif
 
   call PMBaseDestroy(this)

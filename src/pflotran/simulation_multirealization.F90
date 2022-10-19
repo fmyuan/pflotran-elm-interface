@@ -227,10 +227,12 @@ subroutine SimulationMRInitializeRun(this)
   endif
   if (this%num_groups > this%num_realizations) then
     write(string,*) this%num_realizations
-    option%io_buffer = 'Number of stochastic realizations (' // adjustl(string)
+    option%io_buffer = 'Number of stochastic realizations (' // &
+      trim(adjustl(string))
     write(string,*) this%num_groups
     option%io_buffer = trim(option%io_buffer) // ') must be equal to &
-         &or greater than number of processor groups (' // adjustl(string)
+         &or greater than number of processor groups (' // &
+         trim(adjustl(string))
     option%io_buffer = trim(option%io_buffer) // ').'
     call PrintErrMsg(option)
   endif

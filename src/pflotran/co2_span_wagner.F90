@@ -32,13 +32,13 @@
       PetscReal,  public :: dt_tab = 2.5d0, dp_tab = 2.5d0
 
       PetscReal, private :: n(42),ti(40),gamma(5),phic(8),c(40),d(40),a(8)
-      PetscReal, private :: alpha(5),beta(8),delta(4),epsilon(5)
+      PetscReal, private :: alpha(5),beta(8),epsilon(5)
       PetscReal, private :: aco2(4),bco2(4),capa(5),capb(5),capc(5),capd(5)
       PetscReal, private :: av(0:4)
 
       PetscReal, private :: denc,tc,rg,pc
       PetscReal ,private, allocatable :: co2_prop_spwag(:,:,:)
-      PetscReal, private :: p,t,rhosav
+      PetscReal, private :: p,t
 
       public initialize_span_wagner, co2_span_wagner, vappr, &
              co2_span_wagner_db_write

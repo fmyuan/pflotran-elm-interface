@@ -1013,7 +1013,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
    case ('PERMEABILITY_XY')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_XY only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1023,7 +1023,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
     case ('PERMEABILITY_XZ')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_XZ only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1033,7 +1033,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
     case ('PERMEABILITY_YZ')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_YZ only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'

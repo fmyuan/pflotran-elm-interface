@@ -621,7 +621,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
           option%io_buffer = 'The zero volume fraction assigned to &
             &mineral "' // trim(mineral_rxn%name) // '" in constraint "' // &
             trim(constraint_name) // '" prevents the use of a mass-based &
-            surface area in the constraint.'
+            &surface area in the constraint.'
           call PrintErrMsg(option)
         endif
       endif

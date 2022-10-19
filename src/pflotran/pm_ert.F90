@@ -80,7 +80,7 @@ function PMERTCreate()
 
   allocate(pm_ert)
   call PMERTInit(pm_ert)
-  pm_ert%name = 'Electrical Resistivity Tomography'
+  pm_ert%name = 'Electrical Resist. Tomography'
   pm_ert%header = 'ERT GEOPHYSICS'
 
   PMERTCreate => pm_ert

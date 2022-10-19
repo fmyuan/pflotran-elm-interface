@@ -291,6 +291,7 @@ function SFBaseGetNeedsToBeExtended(this)
 
   PetscReal :: SFBaseGetNeedsToBeExtended
 
+  SFBaseGetNeedsToBeExtended = UNINITIALIZED_DOUBLE
   print *, 'A SFBaseGetXXX routine needs to be extended'
   stop
 
@@ -503,6 +504,7 @@ function RPFBaseGetNeedsToBeExtended(this)
 
   PetscReal :: RPFBaseGetNeedsToBeExtended
 
+  RPFBaseGetNeedsToBeExtended = UNINITIALIZED_DOUBLE
   print *, 'A RPFBaseGetXXX routine needs to be extended'
   stop
 

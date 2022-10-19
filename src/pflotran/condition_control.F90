@@ -1183,7 +1183,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
                   trim(reaction%mineral%kinmnrl_names(imnrl)) // &
                   '" in constraint "' // trim(constraint%name) // &
                   '" prevents the use of a mass-based surface area in the &
-                  constraint.'
+                  &constraint.'
                 call PrintErrMsg(option)
               endif
             endif
