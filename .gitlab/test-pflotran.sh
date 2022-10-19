@@ -12,7 +12,7 @@ REGRESSION_EXIT_CODE=-999
 
 # Run unit tests
 UTEST_LOG='utest.log'
-make utest 2>&1 | tee $UTEST_LOG
+make gnu_code_coverage=1 utest 2>&1 | tee $UTEST_LOG
 if [ $(grep -c " FAILURES!!!\|failed" "$UTEST_LOG") -ne 0 ]; then
   echo "\n----- Unit tests failed -----\n" >&2
   UNIT_EXIT_CODE=1
