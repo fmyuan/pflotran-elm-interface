@@ -8713,7 +8713,6 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
 
   PetscReal :: current_temp_C
   PetscReal :: decay_time
-  PetscReal, allocatable :: conc(:)
   PetscReal :: burnup
   PetscReal :: sTme
   PetscInt :: nn
@@ -8728,15 +8727,14 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   type(kdtree_result), allocatable :: knnr_results(:)
 
   decay_time = this%decay_time
-  conc = this%concentration
   burnup = this%burnup
   nn = this%num_nearest_neighbor
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
   f(1) = log10(current_temp_C + 273.15d0)
-  f(2) = log10(conc(1)) ! Env_CO3_2n
-  f(3) = log10(conc(4)) ! Env_H2
+  f(2) = log10(this%concentration(1)) ! Env_CO3_2n
+  f(3) = log10(this%concentration(4)) ! Env_H2
   f(4) = log10(dose_rate(yTme,decay_time,burnup))
 
   allocate(knnr_results(nn))

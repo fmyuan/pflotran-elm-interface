@@ -936,6 +936,8 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         hyd_auxvar_ss%pres(air_comp_id) = hyd_auxvar%pres(option%gas_phase)
       endif
 
+      scale = UNINITIALIZED_DOUBLE
+      stop 'scale is uninitialized in hydrate.F90:HydrateUpdateAuxVars'
       select case(flow_src_sink_type)
       case(MASS_RATE_SS)
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/ &

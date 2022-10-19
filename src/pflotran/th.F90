@@ -5279,7 +5279,7 @@ subroutine THResidualToMass(realization)
 
     grid => cur_patch%grid
     auxvars => cur_patch%aux%TH%auxvars
-
+    global_auxvars => cur_patch%aux%Global%auxvars
     call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
                         ierr);CHKERRQ(ierr)
 

@@ -2121,6 +2121,8 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   p_bar = P*Pa_to_bar
 
   x = aux(1) !mass fraction
+  s = UNINITIALIZED_DOUBLE
+  stop 's is unitialized in eos_water.F90:EOSWaterDensityDriesnerExt'
   molal = (1.d3*x/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
   x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
 
@@ -2184,6 +2186,8 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
   E = (0.0202d0  +s*(-0.2432d0 +s*(2.054d0   +s*(-8.211d0  +s*11.43d0))))*1.d-6
   hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
 
+  molal = UNINITIALIZED_DOUBLE
+  stop 'molal is uninitialized in eos_water.F90:EOSWaterEnthalpySparrowExt'
   hw = hw*kJ_to_J/((molal+55.508435d0)*mol_to_kmol) !J/kmol
   if (calculate_derivatives) then
     hwt = (B+T*(C+T*(D+T*E)))*kJ_to_J/((molal+55.508435d0)*mol_to_kmol)
