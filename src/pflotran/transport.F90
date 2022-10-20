@@ -18,6 +18,7 @@ module Transport_module
             TFlux, &
             TFluxDerivative, &
             TFluxCoef, &
+            TFluxCoefBC, &
             TSrcSinkCoef, &
             TFluxTVD
 
@@ -366,7 +367,7 @@ subroutine TDispersionBC(ibndtype, &
         ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
         tran_coefs_over_dist(:,iphase) =  &
           hydrodynamic_dispersion(:)/dist_dn(0)
-      case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC)
+      case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC,MEMBRANE_BC)
     end select
   enddo
 
@@ -549,6 +550,52 @@ subroutine TFluxCoef(rt_parameter, &
   enddo
 
 end subroutine TFluxCoef
+
+! ************************************************************************** !
+
+subroutine TFluxCoefBC(bctype,rt_parameter, &
+                       global_auxvar_up,global_auxvar_dn, &
+                       option,area,velocity, &
+                       tran_coefs_over_dist, &
+                       fraction_upwind,T_up,T_dn)
+  !
+  ! Computes boundary flux coefficients for transport matrix
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/20/22
+  !
+
+  use Option_module
+
+  implicit none
+
+  PetscInt :: bctype
+  type(reactive_transport_param_type) :: rt_parameter
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
+  type(option_type) :: option
+  PetscReal :: area
+  PetscReal :: velocity(*)
+  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                    rt_parameter%nphase)
+  PetscReal :: fraction_upwind
+  PetscReal :: T_up(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: T_dn(rt_parameter%naqcomp,rt_parameter%nphase)
+
+  PetscReal, parameter :: zero_velocity(2) = 0.d0
+
+  select case(bctype)
+    case(MEMBRANE_BC)
+      T_up = 0.d0
+      T_dn = 0.d0
+    case default
+      call TFluxCoef(rt_parameter, &
+                     global_auxvar_up,global_auxvar_dn, &
+                     option,area,velocity, &
+                     tran_coefs_over_dist, &
+                     fraction_upwind,T_up,T_dn)
+  end select
+
+end subroutine TFluxCoefBC
 
 ! ************************************************************************** !
 

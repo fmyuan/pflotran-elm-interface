@@ -1,0 +1,200 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    10
+  /
+/
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER 
+    SOLVER DIRECT
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+    Na+
+    Cl-
+  /
+  MINERALS
+    Halite
+  /
+  MINERAL_KINETICS
+    Halite
+      RATE_CONSTANT 1.d-4 
+    /
+  /
+  LOG_FORMULATION
+  DATABASE ../../../database/hanford.dat
+  OUTPUT
+    ALL
+    TOTAL
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-10
+END
+
+#=========================== equation of state ================================
+EOS WATER
+  DENSITY CONSTANT 1000.d0
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED 
+  NXYZ 10 1 1 
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0 
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+OBSERVATION
+  REGION east
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY aquifer
+  ID 1
+  POROSITY  1.d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+skip
+OUTPUT
+  PRINT_COLUMN_IDS
+  SNAPSHOT_FILE
+    FORMAT TECPLOT POINT
+    PERIODIC TIME 10.d0 y
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+END
+noskip
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-3 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 y
+END
+
+#=========================== flow conditions ==================================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d0 0.d0 0.d0 m/yr
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 halite_constraint
+  /
+END
+
+TRANSPORT_CONDITION evaporative_boundary
+  TYPE MEMBRANE
+  CONSTRAINT_LIST
+    0.d0 halite_constraint
+  /
+END
+
+TRANSPORT_CONDITION tracer
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 tracer
+  /
+END
+
+#=========================== transport constraint =============================
+CONSTRAINT halite_constraint
+  CONCENTRATIONS
+    Tracer 1.d-10 T
+    Na+ 6.2675816446d0  T
+    Cl- 6.2675816446d0  T
+  /
+  MINERALS
+    Halite 0.d0 1.0
+  /
+END
+
+CONSTRAINT tracer
+  CONCENTRATIONS
+    Tracer 1.d-3 T
+    Na+ 6.2675816446d0  T
+    Cl- 6.2675816446d0  T
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION aquifer_ic
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION inlet
+  TRANSPORT_CONDITION tracer
+  REGION west
+END
+
+BOUNDARY_CONDITION outlet
+  TRANSPORT_CONDITION evaporative_boundary
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL aquifer
+  REGION all
+END
+
+END_SUBSURFACE
+
