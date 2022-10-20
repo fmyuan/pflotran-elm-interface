@@ -141,7 +141,7 @@ TRANSPORT_CONDITION initial
 END
 
 TRANSPORT_CONDITION evaporative_boundary
-  TYPE MEMBRANE
+  TYPE MEMBRANE_FILTER
   CONSTRAINT_LIST
     0.d0 halite_constraint
   /

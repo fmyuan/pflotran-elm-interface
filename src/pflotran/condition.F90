@@ -2940,7 +2940,7 @@ subroutine TranConditionRead(condition,constraint_list, &
               condition%itype = EQUILIBRIUM_SS
             case('NEUMANN')
               condition%itype = NEUMANN_BC
-            case('MEMBRANE')
+            case('MEMBRANE_FILTER')
               condition%itype = MEMBRANE_BC
             case('MOLE','MOLE_RATE')
               condition%itype = MASS_RATE_SS
