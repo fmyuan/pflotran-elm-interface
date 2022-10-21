@@ -3487,6 +3487,10 @@ subroutine SubsurfaceReadInput(simulation,input)
               output_option%print_initial_obs = PETSC_FALSE
               output_option%print_initial_snap = PETSC_FALSE
               output_option%print_initial_massbal = PETSC_FALSE
+            case('PRINT_INITIAL')
+              output_option%print_final_obs = PETSC_TRUE
+              output_option%print_final_snap = PETSC_TRUE
+              output_option%print_final_massbal = PETSC_TRUE
             case('PROCESSOR_ID')
               option%io_buffer = 'PROCESSOR_ID output must now be entered &
                                  &under OUTPUT/VARIABLES card as PROCESS_ID.'

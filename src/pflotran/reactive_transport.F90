@@ -448,7 +448,6 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: i, icomp, imnrl, ncomp, irate, irxn, naqcomp, k
-  PetscReal :: pp_to_mol_per_L
   PetscReal :: liquid_saturation, porosity, volume
   PetscReal :: tempreal
 

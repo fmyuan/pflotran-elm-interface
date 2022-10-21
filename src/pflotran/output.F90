@@ -171,6 +171,18 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
+
+!......................................
+      case('PRINT_INITIAL')
+        select case(trim(block_name))
+          case('OBSERVATION_FILE')
+            output_option%print_initial_obs = PETSC_TRUE
+          case('SNAPSHOT_FILE')
+            output_option%print_initial_snap = PETSC_TRUE
+          case('MASS_BALANCE_FILE')
+            output_option%print_initial_massbal = PETSC_TRUE
+        end select
+
 !...............................
       case('NO_PRINT_SOURCE_SINK')
         select case(trim(block_name))

@@ -441,9 +441,9 @@ subroutine SimSubsurfJumpStart(this)
   call OutputInit(option,master_timestepper%steps)
   if (output_option%plot_number == 0 .and. &
       master_timestepper%max_time_step >= 0) then
-    if (output_option%print_initial_snap) snapshot_plot_flag = PETSC_TRUE
-    if (output_option%print_initial_obs) observation_plot_flag = PETSC_TRUE
-    if (output_option%print_initial_massbal) massbal_plot_flag = PETSC_FALSE
+    snapshot_plot_flag = output_option%print_initial_snap
+    observation_plot_flag = output_option%print_initial_obs
+    massbal_plot_flag = output_option%print_initial_massbal
     call Output(this%realization,snapshot_plot_flag,observation_plot_flag, &
                 massbal_plot_flag)
   endif
