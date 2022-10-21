@@ -38,7 +38,6 @@ module Transport_Constraint_RT_module
     type(guess_constraint_type), pointer :: free_ion_guess
     type(mineral_constraint_type), pointer :: minerals
     type(srfcplx_constraint_type), pointer :: surface_complexes
-    type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
   contains
     procedure, public :: Strip => TranConstraintRTStrip
@@ -86,7 +85,6 @@ function TranConstraintRTCreate(option)
   nullify(constraint%free_ion_guess)
   nullify(constraint%minerals)
   nullify(constraint%surface_complexes)
-  nullify(constraint%colloids)
   nullify(constraint%immobile_species)
 
   TranConstraintRTCreate => constraint
@@ -234,7 +232,6 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   type(guess_constraint_type), pointer :: free_ion_guess_constraint
   type(mineral_constraint_type), pointer :: mineral_constraint
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
-  type(colloid_constraint_type), pointer :: colloid_constraint
   type(immobile_constraint_type), pointer :: immobile_constraint
   PetscErrorCode :: ierr
   PetscReal :: tempreal
@@ -646,76 +643,6 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         endif
         constraint%surface_complexes => srfcplx_constraint
 
-      case('COLL','COLLOIDS')
-
-        colloid_constraint => ColloidConstraintCreate(reaction,option)
-
-        block_string = 'CONSTRAINT, COLLOIDS'
-        icomp = 0
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option,block_string)
-
-          if (InputCheckExit(input,option)) exit
-
-          icomp = icomp + 1
-
-          if (icomp > reaction%ncoll) then
-            option%io_buffer = &
-                     'Number of colloid constraints exceeds number of &
-                     &colloids in constraint: ' // &
-                      trim(constraint%name)
-            call PrintErrMsg(option)
-          endif
-
-          call InputReadCard(input,option,colloid_constraint%names(icomp))
-          call InputErrorMsg(input,option,'colloid name',block_string)
-          option%io_buffer = 'Constraint Colloids: ' // &
-                             trim(colloid_constraint%names(icomp))
-          call PrintMsg(option)
-          call InputReadDouble(input,option, &
-                               colloid_constraint%constraint_conc_mob(icomp))
-          call InputErrorMsg(input,option,'mobile concentration',block_string)
-          call InputReadDouble(input,option, &
-                               colloid_constraint%constraint_conc_imb(icomp))
-          call InputErrorMsg(input,option,'immobile concentration', &
-                             block_string)
-
-        enddo
-        call InputPopBlock(input,option)
-
-        if (icomp < reaction%ncoll) then
-          option%io_buffer = &
-                   'Colloid lists in constraints must provide mobile &
-                   &and immobile concentrations for all colloids &
-                   &(listed under the COLLOIDS card in CHEMISTRY), &
-                   &regardless of whether or not they are present (just &
-                   &assign a small value (e.g. 1.d-40) if not present).'
-          call PrintErrMsg(option)
-        endif
-
-        do icomp = 1, reaction%ncoll
-          tempint = 0
-          do jcomp = 1, reaction%ncoll
-            if (StringCompare(colloid_constraint%names(icomp), &
-                              colloid_constraint%names(jcomp), &
-                              MAXWORDLENGTH)) tempint = tempint + 1
-          enddo
-          if (tempint > 1) then
-            option%io_buffer = 'Duplicated colloid in colloid constraint: ' // &
-              trim(colloid_constraint%names(icomp))
-            call PrintErrMsg(option)
-          endif
-        enddo
-
-        if (associated(constraint%colloids)) then
-          call ColloidConstraintDestroy(constraint%colloids)
-        endif
-        constraint%colloids => colloid_constraint
-
-
-
       case('IMMOBILE')
 
         immobile_constraint => &
@@ -857,9 +784,6 @@ subroutine TranConstraintRTStrip(this)
   if (associated(this%surface_complexes)) &
     call SurfaceComplexConstraintDestroy(this%surface_complexes)
   nullify(this%surface_complexes)
-  if (associated(this%colloids)) &
-    call ColloidConstraintDestroy(this%colloids)
-  nullify(this%colloids)
   if (associated(this%immobile_species)) &
     call ImmobileConstraintDestroy(this%immobile_species)
   nullify(this%immobile_species)

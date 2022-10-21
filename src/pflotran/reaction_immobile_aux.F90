@@ -347,7 +347,7 @@ end subroutine ImmobileDecayRxnDestroy
 
 subroutine ImmobileConstraintDestroy(constraint)
   !
-  ! Destroys a colloid constraint object
+  ! Destroys a immobile constraint object
   !
   ! Author: Glenn Hammond
   ! Date: 03/12/10

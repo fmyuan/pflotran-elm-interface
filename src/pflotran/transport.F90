@@ -398,12 +398,7 @@ subroutine TFlux(rt_parameter, &
   PetscReal :: Res(rt_parameter%ncomp)
 
   PetscInt :: iphase
-  PetscInt :: idof
   PetscInt :: ndof
-  PetscInt :: icollcomp
-  PetscInt :: icoll
-  PetscInt :: iaqcomp
-  PetscInt :: neg999
 
   iphase = 1
   ndof = rt_parameter%naqcomp
@@ -415,27 +410,6 @@ subroutine TFlux(rt_parameter, &
   Res(1:ndof) = coef_up(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
                 coef_dn(1:ndof,iphase)*rt_auxvar_dn%total(1:ndof,iphase)
 
-  if (rt_parameter%ncoll > 0) then
-    neg999 = -999
-    do icoll = 1, rt_parameter%ncoll
-      idof = rt_parameter%offset_colloid + icoll
-      Res(idof) = &
-       ! conc_mob = mol/L water
-        !geh: neg999 set to catch use of colloids.
-        coef_up(neg999,iphase)*rt_auxvar_up%colloid%conc_mob(icoll)+ &
-        coef_dn(neg999,iphase)*rt_auxvar_dn%colloid%conc_mob(icoll)
-    enddo
-  endif
-  if (rt_parameter%ncollcomp > 0) then
-    neg999 = -999
-    do icollcomp = 1, rt_parameter%ncollcomp
-      iaqcomp = rt_parameter%coll_spec_to_pri_spec(icollcomp)
-      ! total_eq_mob = mol/L water
-      Res(iaqcomp) = Res(iaqcomp) + &
-        coef_up(neg999,iphase)*rt_auxvar_up%colloid%total_eq_mob(icollcomp) + &
-        coef_dn(neg999,iphase)*rt_auxvar_dn%colloid%total_eq_mob(icollcomp)
-    enddo
-  endif
   if (rt_parameter%ngas > 0) then
     iphase = 2
     Res(1:ndof) = Res(1:ndof) + &
@@ -473,13 +447,10 @@ subroutine TFluxDerivative(rt_parameter, &
 
   PetscInt :: iphase
   PetscInt :: icomp
-  PetscInt :: icoll
-  PetscInt :: idof
   PetscInt :: istart
   PetscInt :: iendaq
   PetscInt :: nphase
   PetscInt :: irow
-  PetscInt :: neg999
 
   nphase = rt_parameter%nphase
 
@@ -510,34 +481,6 @@ subroutine TFluxDerivative(rt_parameter, &
       enddo
     endif
   enddo
-
-  iphase = 1
-  if (rt_parameter%ncoll > 0) then
-    neg999 = -999
-    do icoll = 1, rt_parameter%ncoll
-      idof = rt_parameter%offset_colloid + icoll
-      J_up(idof,idof) = coef_up(neg999,iphase) * &
-        global_auxvar_up%den_kg(iphase)*1.d-3
-      J_dn(idof,idof) = coef_dn(neg999,iphase) * &
-        global_auxvar_dn%den_kg(iphase)*1.d-3
-    enddo
-  endif
-  if (rt_parameter%ncollcomp > 0) then
-    ! dRj_dCj - mobile
-    ! istart & iend same as above
-    do irow = istart, iendaq
-      J_up(irow,istart:iendaq) = J_up(irow,istart:iendaq) + &
-        rt_auxvar_up%colloid%dRj_dCj%dtotal(irow,:,iphase)* &
-        coef_up(irow,iphase)
-      J_dn(irow,istart:iendaq) = J_dn(irow,istart:iendaq) + &
-        rt_auxvar_dn%colloid%dRj_dCj%dtotal(irow,:,iphase)* &
-        coef_dn(irow,iphase)
-    enddo
-    ! need the below
-    ! dRj_dSic
-    ! dRic_dSic
-    ! dRic_dCj
-  endif
 
 end subroutine TFluxDerivative
 

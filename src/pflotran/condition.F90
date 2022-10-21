@@ -4273,22 +4273,6 @@ subroutine TranCondInputRecord(tran_condition_list,option)
             enddo
           endif
 
-          ! colloids constraint
-          if (associated(c%colloids)) then
-            do k = 1,size(c%colloids%names)
-              write(id,'(a29)',advance='no') 'colloid mobile constraint: '
-              write(string,*) trim(c%colloids%names(k))
-              write(word1,*) c%colloids%constraint_conc_mob(k)
-              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                              // ' mol'
-              write(id,'(a29)',advance='no') 'colloid immobile constraint: '
-              write(string,*) trim(c%colloids%names(k))
-              write(word1,*) c%colloids%constraint_conc_imb(k)
-              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                              // ' mol'
-            enddo
-          endif
-
           ! immobile species constraint
           if (associated(c%immobile_species)) then
             do k = 1,size(c%immobile_species%names)
