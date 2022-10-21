@@ -2422,20 +2422,11 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscInt :: sum_connection, iconn
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
 
-#ifdef CENTRAL_DIFFERENCE
-  PetscReal :: T_11(realization%option%transport%nphase)
-  PetscReal :: T_12(realization%option%transport%nphase)
-  PetscReal :: T_21(realization%option%transport%nphase)
-  PetscReal :: T_22(realization%option%transport%nphase)
-  PetscReal :: Res_1(realization%reaction%ncomp)
-  PetscReal :: Res_2(realization%reaction%ncomp)
-#else
   PetscReal :: coef_up(realization%patch%aux%RT%rt_parameter%naqcomp, &
                        realization%option%transport%nphase)
   PetscReal :: coef_dn(realization%patch%aux%RT%rt_parameter%naqcomp, &
                        realization%option%transport%nphase)
   PetscReal :: Res(realization%reaction%ncomp)
-#endif
 
   option => realization%option
   field => realization%field
@@ -2487,7 +2478,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       ! called only once per flux interface at the beginning of a transport
       ! time step.
 
-#ifndef CENTRAL_DIFFERENCE
       call TFluxCoef(rt_parameter, &
                 global_auxvars(ghosted_id_up), &
                 global_auxvars(ghosted_id_dn), &
@@ -2521,34 +2511,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         istart = iend-reaction%ncomp+1
         r_p(istart:iend) = r_p(istart:iend) - Res(1:reaction%ncomp)
       endif
-#else
-      call TFluxCoef_CD(rt_parameter,option, &
-                 global_auxvars(ghosted_id_up), &
-                 global_auxvars(ghosted_id_dn), &
-                 cur_connection_set%area(iconn), &
-                 patch%internal_velocities(:,sum_connection), &
-                 patch%internal_tran_coefs(:,:,sum_connection), &
-                 cur_connection_set%dist(-1,iconn), &
-                 T_11,T_12,T_21,T_22)
-      call TFlux_CD(rt_parameter, &
-                  rt_auxvars(ghosted_id_up), &
-                  global_auxvars(ghosted_id_up), &
-                  rt_auxvars(ghosted_id_dn), &
-                  global_auxvars(ghosted_id_dn), &
-                  T_11,T_12,T_21,T_22,option,Res_1,Res_2)
 
-      if (local_id_up>0) then
-        iend = local_id_up*reaction%ncomp
-        istart = iend-reaction%ncomp+1
-        r_p(istart:iend) = r_p(istart:iend) + Res_1(1:reaction%ncomp)
-      endif
-
-      if (local_id_dn>0) then
-        iend = local_id_dn*reaction%ncomp
-        istart = iend-reaction%ncomp+1
-        r_p(istart:iend) = r_p(istart:iend) + Res_2(1:reaction%ncomp)
-      endif
-#endif
       if (associated(patch%internal_tran_fluxes)) then
         patch%internal_tran_fluxes(1:reaction%ncomp,iconn) = &
             Res(1:reaction%ncomp)
@@ -2573,7 +2536,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
       call TFluxCoef(rt_parameter, &
                   global_auxvars_bc(sum_connection), &
@@ -2601,38 +2563,8 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !        ! contribution to internal
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
-        endif
+      endif
 
-#else
-      call TFluxCoef_CD(rt_parameter, &
-                global_auxvars_bc(sum_connection), &
-                global_auxvars(ghosted_id), &
-                option,cur_connection_set%area(iconn), &
-                patch%boundary_velocities(:,sum_connection), &
-                patch%boundary_tran_coefs(:,:,sum_connection), &
-                0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
-                T_11,T_12,T_21,T_22)
-      call TFlux_CD(rt_parameter, &
-                  rt_auxvars_bc(sum_connection), &
-                  global_auxvars_bc(sum_connection), &
-                  rt_auxvars(ghosted_id), &
-                  global_auxvars(ghosted_id), &
-                  T_11,T_12,T_21,T_22,option,Res_1,Res_2)
-
-      iend = local_id*reaction%ncomp
-      istart = iend-reaction%ncomp+1
-      r_p(istart:iend)= r_p(istart:iend) + Res_2(1:reaction%ncomp)
-
-      if (option%compute_mass_balance_new) then
-      ! contribution to boundary
-        rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
-          rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res_2
-!        ! contribution to internal
-!        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
-!          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
-        endif
-
-#endif
       if (associated(patch%boundary_tran_fluxes)) then
         patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
             Res(1:reaction%ncomp)
@@ -3262,23 +3194,12 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   PetscInt :: sum_connection, iconn
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
 
-#ifdef CENTRAL_DIFFERENCE
-  PetscReal :: T_11(realization%option%transport%nphase)
-  PetscReal :: T_12(realization%option%transport%nphase)
-  PetscReal :: T_21(realization%option%transport%nphase)
-  PetscReal :: T_22(realization%option%transport%nphase)
-  PetscReal :: J_11(realization%reaction%ncomp,realization%reaction%ncomp)
-  PetscReal :: J_12(realization%reaction%ncomp,realization%reaction%ncomp)
-  PetscReal :: J_21(realization%reaction%ncomp,realization%reaction%ncomp)
-  PetscReal :: J_22(realization%reaction%ncomp,realization%reaction%ncomp)
-#else
   PetscReal :: coef_up(realization%patch%aux%RT%rt_parameter%naqcomp, &
                        realization%option%transport%nphase)
   PetscReal :: coef_dn(realization%patch%aux%RT%rt_parameter%naqcomp, &
                        realization%option%transport%nphase)
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscReal :: Jdn(realization%reaction%ncomp,realization%reaction%ncomp)
-#endif
 
   option => realization%option
   field => realization%field
