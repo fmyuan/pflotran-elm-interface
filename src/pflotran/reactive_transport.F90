@@ -419,6 +419,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
   use Patch_module
   use Field_module
   use Grid_module
+  use Reaction_Gas_module
 
 
   class(realization_subsurface_type) :: realization
@@ -489,21 +490,10 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
                rt_auxvars(ghosted_id)%total(:,LIQUID_PHASE) * &
                liquid_saturation*porosity*volume*1.d3
 
-    if (reaction%print_total_mass_kg) then
-      ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
-      sum_mol_aq(1:naqcomp) = sum_mol_aq(1:naqcomp) * &
-        reaction%primary_spec_molar_wt(:) * 1.0d-3
-    endif
-
     ! equilibrium sorption (sum_mol_sb)
     if (reaction%neqsorb > 0) then
       sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) + &
           rt_auxvars(ghosted_id)%total_sorb_eq(:) * volume
-      if (reaction%print_total_mass_kg) then
-        !sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
-        sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) * &
-            reaction%primary_spec_molar_wt(:) * 1.0d-3
-      endif
     endif
 
     ! kinetic multirate sorption (sum_mol_sb)
@@ -512,10 +502,6 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
         sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) + &
           rt_auxvars(ghosted_id)%kinmr_total_sorb(:,irate,irxn) * &
           volume
-        if (reaction%print_total_mass_kg) then
-          sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) * &
-            reaction%primary_spec_molar_wt(:) * 1.0d-3
-        endif
       enddo
     enddo
 
@@ -534,9 +520,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
       sum_mol_by_mnrl(imnrl) = sum_mol_by_mnrl(imnrl) + tempreal
       if (reaction%print_total_mass_kg) then
         sum_mol_by_mnrl(imnrl) = sum_mol_by_mnrl(imnrl) * &
-          reaction%mineral%kinmnrl_molar_wt(imnrl) * 1.0d-3
-        sum_mol_mnrl(1:ncomp) = sum_mol_mnrl(1:ncomp) * &
-          reaction%mineral%kinmnrl_molar_wt(imnrl) * 1.0d-3
+          reaction%mineral%kinmnrl_molar_wt(imnrl) * 1.d-3
       endif
     enddo
 
@@ -545,8 +529,11 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
       sum_mol_by_im(i) = sum_mol_by_im(i) + &
           rt_auxvars(ghosted_id)%immobile(i) * volume
       if (reaction%print_total_mass_kg) then
+        option%io_buffer = 'Conversion of moles to mass must be implemented &
+          &for immobile species in reactive_transport.F90:RTComputeMassBalance'
+        call PrintErrMsg(option)
         sum_mol_by_im(i) = sum_mol_by_im(i) * &
-          reaction%immobile%list%molar_weight * 1.0d-3
+          reaction%immobile%list%molar_weight * 1.d-3
       endif
     enddo
 
@@ -556,28 +543,34 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
       sum_mol_gas(1:naqcomp) = sum_mol_gas(1:naqcomp) + &
            rt_auxvars(ghosted_id)%total(:,GAS_PHASE) * &
            (1.d0-liquid_saturation)*porosity*volume*1.d3
-      ! individual gas pressure is in partial pressure [Bar]
-      ! partial pressure in bars to moles
-      ! mol/L = pp [Bar] * 10^5 Pa/Bar /
-      !                       (R [kPa-L/mol-K] * T [K] * 1000 Pa/kPa)
-      pp_to_mol_per_L = &
-          1.d5 / (IDEAL_GAS_CONSTANT* &
-                  (global_auxvars(ghosted_id)%temp+273.15d0)*1.d3)
       do i = 1, reaction%gas%nactive_gas
         sum_mol_by_gas(i) = sum_mol_by_gas(i) + &
-          ! gas_pp in Bar
-          rt_auxvars(ghosted_id)%gas_pp(i) * pp_to_mol_per_L * &
-          (1.d0-liquid_saturation) * porosity * volume * 1.d3
+          ! RGasConcentration returns mol/m^3 gas
+          RGasConcentration(rt_auxvars(ghosted_id)%gas_pp(i), &
+                            global_auxvars(ghosted_id)%temp) * &
+          ! m^3 gas
+          (1.d0-liquid_saturation) * porosity * volume
       enddo
       if (reaction%print_total_mass_kg) then
-         sum_mol_gas(1:naqcomp) = sum_mol_gas(1:naqcomp) * &
-           reaction%gas%list%molar_weight * 1.0d-3
          sum_mol_by_gas(1:reaction%gas%nactive_gas) = &
            sum_mol_by_gas(1:reaction%gas%nactive_gas) * &
-           reaction%gas%list%molar_weight * 1.0d-3
+                                  ! 1.d-3 to convert g -> kg
+           reaction%gas%actmolarwt * 1.d-3
       endif
     endif
   enddo
+
+  if (reaction%print_total_mass_kg) then
+    ! [mol] * [g/mol] * [kg/g] = [kg]
+    sum_mol_aq(1:naqcomp) = sum_mol_aq(1:naqcomp) * &
+      reaction%primary_spec_molar_wt(:) * 1.d-3
+    sum_mol_sb(1:naqcomp) = sum_mol_sb(1:naqcomp) * &
+      reaction%primary_spec_molar_wt(:) * 1.d-3
+    sum_mol_mnrl(1:naqcomp) = sum_mol_mnrl(1:naqcomp) * &
+      reaction%primary_spec_molar_wt(:) * 1.d-3
+    sum_mol_gas(1:naqcomp) = sum_mol_gas(1:naqcomp) * &
+      reaction%primary_spec_molar_wt(:) * 1.d-3
+  endif
 
   sum_mol_tot = sum_mol_aq + sum_mol_sb + sum_mol_mnrl + sum_mol_gas
 
@@ -2027,7 +2020,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
   class(realization_subsurface_type) :: realization
 
   PetscInt :: local_id, ghosted_id
-  PetscInt, parameter :: iphase = 1
+  PetscInt :: iphase
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -2052,6 +2045,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
 
   PetscReal :: coef_up(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: coef_dn(realization%reaction%naqcomp,realization%reaction%nphase)
+  PetscReal :: Flux(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: coef_in(2), coef_out(2)
   PetscInt :: nphase
 
@@ -2086,25 +2080,26 @@ subroutine RTComputeBCMassBalanceOS(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoefBC(boundary_condition%tran_condition%itype,rt_parameter, &
-                       global_auxvars_bc(sum_connection), &
-                       global_auxvars(ghosted_id), &
-                       option,cur_connection_set%area(iconn), &
-                       patch%boundary_velocities(:,sum_connection), &
-                       patch%boundary_tran_coefs(:,:,sum_connection), &
-                       0.5d0, &
-                       coef_up,coef_dn)
+      ! TFluxCoef accomplishes the same as what TBCCoef would
+      call TFluxCoef(rt_parameter, &
+                     global_auxvars_bc(sum_connection), &
+                     global_auxvars(ghosted_id), &
+                     option,cur_connection_set%area(iconn), &
+                     patch%boundary_velocities(:,sum_connection), &
+                     patch%boundary_tran_coefs(:,:,sum_connection), &
+                     0.5d0, &
+                     coef_up,coef_dn)
       ! TFlux accomplishes the same as what TBCFlux would
       call TFlux(rt_parameter, &
                  rt_auxvars_bc(sum_connection), &
                  global_auxvars_bc(sum_connection), &
                  rt_auxvars(ghosted_id), &
                  global_auxvars(ghosted_id), &
-                 coef_up,coef_dn,option,Res)
+                 coef_up,coef_dn,option,Flux,Res)
 
     ! contribution to boundary
-      rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
-        rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
+      rt_auxvars_bc(sum_connection)%mass_balance_delta(:,:) = &
+        rt_auxvars_bc(sum_connection)%mass_balance_delta(:,:) - Flux(:,:)
 !        ! contribution to internal
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
@@ -2144,12 +2139,15 @@ subroutine RTComputeBCMassBalanceOS(realization)
 
       rt_auxvar_out => TranConstraintRTGetAuxVar(source_sink%tran_condition% &
                                                    cur_constraint_coupler)
-      Res = coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &
-            coef_out*rt_auxvar_out%total(:,iphase)
+      do iphase = 1, rt_parameter%nphase
+        Flux(:,iphase) = &
+          coef_in(iphase)*rt_auxvars(ghosted_id)%total(:,iphase) + &
+          coef_out(iphase)*rt_auxvar_out%total(:,iphase)
+      enddo
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
-          rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
+        rt_auxvars_ss(sum_connection)%mass_balance_delta(:,:) = &
+          rt_auxvars_ss(sum_connection)%mass_balance_delta(:,:) + Flux(:,:)
         ! contribution to internal
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) - Res
@@ -2375,7 +2373,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscInt :: local_id, ghosted_id
-  PetscInt, parameter :: iphase = 1
   PetscInt :: istart, iend
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -2397,6 +2394,8 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscReal :: coef_dn(realization%patch%aux%RT%rt_parameter%naqcomp, &
                        realization%option%transport%nphase)
   PetscReal :: Res(realization%reaction%ncomp)
+  PetscReal :: Flux(realization%patch%aux%RT%rt_parameter%naqcomp, &
+                    realization%option%transport%nphase)
 
   option => realization%option
   field => realization%field
@@ -2462,11 +2461,11 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars(ghosted_id_up), &
                   rt_auxvars(ghosted_id_dn), &
                   global_auxvars(ghosted_id_dn), &
-                  coef_up,coef_dn,option,Res)
+                  coef_up,coef_dn,option,Flux,Res)
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
-      rt_auxvars(local_id_up)%mass_balance_delta(:,iphase) = &
-        rt_auxvars(local_id_up)%mass_balance_delta(:,iphase) - Res
+      rt_auxvars(local_id_up)%mass_balance_delta(:,:) = &
+        rt_auxvars(local_id_up)%mass_balance_delta(:,:) - Flux(:,:)
 #endif
       if (local_id_up>0) then
         iend = local_id_up*reaction%ncomp
@@ -2518,18 +2517,18 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars_bc(sum_connection), &
                   rt_auxvars(ghosted_id), &
                   global_auxvars(ghosted_id), &
-                  coef_up,coef_dn,option,Res)
+                  coef_up,coef_dn,option,Flux,Res)
       iend = local_id*reaction%ncomp
       istart = iend-reaction%ncomp+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:reaction%ncomp)
 
       if (option%compute_mass_balance_new) then
       ! contribution to boundary
-        rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
-          rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
+        rt_auxvars_bc(sum_connection)%mass_balance_delta(:,:) = &
+          rt_auxvars_bc(sum_connection)%mass_balance_delta(:,:) - Flux(:,:)
 !        ! contribution to internal
-!        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
-!          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
+!        rt_auxvars(ghosted_id)%mass_balance_delta(:,:) = &
+!          rt_auxvars(ghosted_id)%mass_balance_delta(:,:) + Res
       endif
 
       if (associated(patch%boundary_tran_fluxes)) then
@@ -2600,11 +2599,12 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: Res(realization%reaction%ncomp)
+  PetscReal :: Qsrc(realization%reaction%ncomp,2)
 
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
-  PetscReal :: qsrc(2)
+  PetscReal :: qsrc_flow(2)
   PetscReal :: coef_in(2), coef_out(2)
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscInt :: sum_connection
@@ -2745,19 +2745,21 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       iendaq = reaction%offset_aqueous + reaction%naqcomp
 
       if (associated(patch%ss_flow_vol_fluxes)) then
-        qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
+        qsrc_flow(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
       call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
-                        qsrc,source_sink%tran_condition%itype, &
+                        qsrc_flow,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
       rt_auxvar_out => TranConstraintRTGetAuxVar(source_sink%tran_condition% &
                                                    cur_constraint_coupler)
       Res = 0.d0
+      Qsrc = 0.d0
       do iphase = 1, nphase
-        Res(istartaq:iendaq) = &
+        Qsrc(istartaq:iendaq,iphase) = &
           coef_in(iphase)*rt_auxvars(ghosted_id)%total(:,iphase) + &
           coef_out(iphase)*rt_auxvar_out%total(:,iphase)
+        Res(:) = Res(:) + Qsrc(:,iphase)
       enddo
       istartall = offset + 1
       iendall = offset + reaction%ncomp
@@ -2767,9 +2769,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        iphase = 1
-        rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
-          rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
+        rt_auxvars_ss(sum_connection)%mass_balance_delta(:,:) = &
+          rt_auxvars_ss(sum_connection)%mass_balance_delta(:,:) + &
+          Qsrc(:,1:nphase)
         ! contribution to internal
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) - Res
@@ -3328,7 +3330,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, sum_connection
-  PetscReal :: qsrc(2)
+  PetscReal :: qsrc_flow(2)
   PetscReal :: coef_in(2), coef_out(2)
 
   ! secondary continuum variables
@@ -3422,10 +3424,10 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       iendaq = reaction%offset_aqueous + reaction%naqcomp
 
       if (associated(patch%ss_flow_vol_fluxes)) then
-        qsrc(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
+        qsrc_flow(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
       endif
       call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
-                        qsrc,source_sink%tran_condition%itype, &
+                        qsrc_flow,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       Jup = 0.d0
       ! coef_in is non-zero
@@ -4572,10 +4574,10 @@ subroutine RTExplicitAdvection(realization)
                     option,flux)
 
       ! contribution upwind
-      sum_flux(:,ghosted_id_up) = sum_flux(:,ghosted_id_up) - flux
+      sum_flux(:,ghosted_id_up) = sum_flux(:,ghosted_id_up) - flux(:)
 
       ! contribution downwind
-      sum_flux(:,ghosted_id_dn) = sum_flux(:,ghosted_id_dn) + flux
+      sum_flux(:,ghosted_id_dn) = sum_flux(:,ghosted_id_dn) + flux(:)
 
     enddo ! iconn
     cur_connection_set => cur_connection_set%next
@@ -4621,7 +4623,7 @@ subroutine RTExplicitAdvection(realization)
                     option,flux)
 
       ! contribution downwind
-      sum_flux(:,ghosted_id) = sum_flux(:,ghosted_id) + flux
+      sum_flux(:,ghosted_id) = sum_flux(:,ghosted_id) + flux(:)
 #if 0
 
       do iphase = 1, nphase
@@ -4637,7 +4639,7 @@ subroutine RTExplicitAdvection(realization)
         endif
 
         ! contribution downwind
-        sum_flux(:,ghosted_id) = sum_flux(:,ghosted_id) + flux
+        sum_flux(:,ghosted_id) = sum_flux(:,ghosted_id) + flux(:)
 
       enddo ! iphase
 #endif
