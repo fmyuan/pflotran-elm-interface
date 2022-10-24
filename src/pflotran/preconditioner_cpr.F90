@@ -165,7 +165,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
   KSP :: ksp
   PC :: amg_pc
   ! misc workers, etc:
-  PetscInt :: b,start,k,its
+  PetscInt :: its
   Vec :: s, z
 
   call PCShellGetContext(p,ctx,ierr);CHKERRQ(ierr)
@@ -222,7 +222,7 @@ subroutine CPRT3Apply(p, x, y,ierr)
   KSP :: ksp
   PC :: amg_pc
   ! misc workers, etc:
-  PetscInt :: b,start,k,its
+  PetscInt :: its
   Vec :: s, z
 
   call PCShellGetContext(p,ctx,ierr);CHKERRQ(ierr)
@@ -955,7 +955,7 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
 
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
-  PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf, &
+  PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, &
                fac0, fac1, fac3, fac4, scaling_factor, scaling_factor2
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &

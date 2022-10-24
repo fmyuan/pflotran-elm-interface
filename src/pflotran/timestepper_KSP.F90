@@ -428,8 +428,6 @@ subroutine TimestepperKSPSetHeader(this,bag,header)
   class(stepper_KSP_header_type) :: header
   PetscBag :: bag
 
-  PetscErrorCode :: ierr
-
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
 
   call TimestepperBaseSetHeader(this,bag,header)

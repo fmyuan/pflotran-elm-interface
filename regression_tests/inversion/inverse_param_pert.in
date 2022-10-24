@@ -5,8 +5,7 @@ SIMULATION
       PERTURBATION_TOLERANCE 1.d-5
     /
     FORWARD_SIMULATION_FILENAME ./3x3x3.in
-    OBSERVATION_FUNCTION LIQUID_PRESSURE
-    EXTERNAL_FILE measurements.txt
+    EXTERNAL_FILE measurements_pres.txt
    # EXTERNAL_FILE parameter_permeability.txt
     PARAMETERS
       PARAMETER

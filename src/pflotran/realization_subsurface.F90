@@ -94,8 +94,7 @@ private
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
             RealizationLimitDTByCFL, &
-            RealizationReadGeopSurveyFile, &
-            RealizationGetObservedVariables
+            RealizationReadGeopSurveyFile
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -117,7 +116,6 @@ function RealizationCreate1()
 
   class(realization_subsurface_type), pointer :: RealizationCreate1
 
-  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
   nullify(option)
@@ -210,7 +208,6 @@ subroutine RealizationCreateDiscretization(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  type(coupler_type), pointer :: boundary_condition
   PetscErrorCode :: ierr
   PetscInt :: ivar
 
@@ -779,7 +776,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscBool :: found
   PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
@@ -1038,19 +1034,19 @@ subroutine RealProcessMatPropAndSatFunc(realization)
             call PrintErrMsg(option)
         end select
       endif
-      if (associated(cur_material_property%multicontinuum%length_dataset)) then
+      if (associated(cur_material_property%multicontinuum%half_matrix_width_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                  '),LENGTH'
         dataset => &
           DatasetBaseGetPointer(realization%datasets, &
                                 cur_material_property% &
-                                  multicontinuum%length_dataset%name, &
+                                  multicontinuum%half_matrix_width_dataset%name, &
                                 string,option)
         call DatasetDestroy(cur_material_property% &
-                              multicontinuum%length_dataset)
+                              multicontinuum%half_matrix_width_dataset)
         select type(dataset)
           class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%length_dataset => dataset
+            cur_material_property%multicontinuum%half_matrix_width_dataset => dataset
           class default
             option%io_buffer = 'Incorrect dataset type for length.'
             call PrintErrMsg(option)
@@ -1211,8 +1207,6 @@ subroutine RealProcessFluidProperties(realization)
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  PetscInt :: icc, ncc, maxsatn
-  PetscBool :: satnum_set, ccset
 
   option => realization%option
 
@@ -1257,7 +1251,6 @@ subroutine RealProcessFlowConditions(realization)
   class(realization_subsurface_type) :: realization
 
   type(flow_condition_type), pointer :: cur_flow_condition
-  type(flow_sub_condition_type), pointer :: cur_flow_sub_condition
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
@@ -1856,7 +1849,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(strata_type), pointer :: cur_strata
   type(time_storage_type), pointer :: time_storage_ptr
   PetscInt :: itime, isub_condition
-  PetscReal :: temp_real, final_time
+  PetscReal :: final_time
   PetscReal, pointer :: times(:)
 
   option => realization%option
@@ -2055,16 +2048,13 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
+  PetscInt :: imnrl, imat
+  PetscReal :: scale
   PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: porosity0_p(:)
   PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscReal, pointer :: perm0_xy_p(:), perm0_xz_p(:), perm0_yz_p(:)
-  PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
   PetscReal :: porosity_base_
@@ -2353,7 +2343,6 @@ subroutine RealizationCalcMineralPorosity(realization)
   PetscInt :: local_id, ghosted_id
   PetscInt :: imnrl
   PetscReal :: sum_volfrac
-  PetscErrorCode :: ierr
 
   option => realization%option
   discretization => realization%discretization
@@ -2523,7 +2512,7 @@ subroutine RealizationPrintGridStatistics(realization)
   type(grid_type), pointer :: grid
 
   PetscInt :: i1, i2, i3
-  PetscReal :: r1, r2, r3
+  PetscReal :: r1
   PetscInt :: global_total_count, global_active_count
   PetscInt :: total_count, active_count
   PetscReal :: total_min, total_max, total_mean, total_variance
@@ -2955,74 +2944,6 @@ subroutine RealizationReadGeopSurveyFile(realization)
   call InputDestroy(input_tmp)
 
 end subroutine RealizationReadGeopSurveyFile
-
-! ************************************************************************** !
-
-subroutine RealizationGetObservedVariables(realization)
-  !
-  ! Stores observation variable to the inversion measurement vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/23/22
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-
-  use Inversion_TS_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: i
-  PetscInt :: iert_measurement
-  PetscErrorCode :: ierr
-
-  inversion_forward_aux => realization%patch%aux%inversion_forward_aux
-  if (associated(inversion_forward_aux)) then
-    select case(inversion_forward_aux%iobsfunc)
-      case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION,OBS_SOLUTE_CONCENTRATION)
-        select case(inversion_forward_aux%iobsfunc)
-          case(OBS_LIQUID_PRESSURE)
-            i = LIQUID_PRESSURE
-          case(OBS_LIQUID_SATURATION)
-            i = LIQUID_SATURATION
-          case(OBS_SOLUTE_CONCENTRATION)
-            i = SOLUTE_CONCENTRATION
-        end select
-        call RealizationGetVariable(realization,realization%field%work, &
-                                    i,ZERO_INTEGER)
-        call VecScatterBegin(inversion_forward_aux% &
-                               scatter_global_to_measurement, &
-                             realization%field%work, &
-                             inversion_forward_aux%measurement_vec, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-        call VecScatterEnd(inversion_forward_aux% &
-                             scatter_global_to_measurement, &
-                           realization%field%work, &
-                           inversion_forward_aux%measurement_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-      case(OBS_ERT_MEASUREMENT)
-        call VecGetArrayF90(inversion_forward_aux%measurement_vec, &
-                            vec_ptr,ierr);CHKERRQ(ierr)
-        do i=1, size(inversion_forward_aux%measurements)
-          iert_measurement = inversion_forward_aux%measurements(i)%cell_id
-          vec_ptr(i) = realization%survey%dsim(iert_measurement)
-        enddo
-        call VecRestoreArrayF90(inversion_forward_aux%measurement_vec, &
-                                vec_ptr,ierr);CHKERRQ(ierr)
-      case default
-        realization%option%io_buffer = 'Unrecognized observation function &
-          &in RealizationGetObservedVariable.'
-        call PrintErrMsg(realization%option)
-    end select
-  endif
-
-end subroutine RealizationGetObservedVariables
 
 ! ************************************************************************** !
 

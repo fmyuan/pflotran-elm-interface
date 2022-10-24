@@ -26,11 +26,6 @@ module Output_module
   PetscInt, parameter :: TECPLOT_FILE = 0
   PetscInt, parameter ::  HDF5_FILE = 1
 
-
-  PetscBool :: observation_first
-  PetscBool :: hdf5_first
-  PetscBool :: mass_balance_first
-
   public :: OutputInit, &
             Output, &
             OutputPrintCouplers, &
@@ -110,16 +105,16 @@ subroutine OutputFileRead(input,realization,output_option, &
   PetscReal, pointer :: temp_real_array(:)
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: units, internal_units
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion,deltat
-  PetscInt :: k,deltas
+  PetscReal :: units_conversion
+  PetscInt :: k
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
 
   option => realization%option
   patch => realization%patch
@@ -511,6 +506,9 @@ subroutine OutputFileRead(input,realization,output_option, &
           case default
             call InputKeywordUnrecognized(input,word,string,option)
         end select
+
+      case ('ACKNOWLEDGE_VTK_FLAW')
+        output_option%vtk_acknowledgment = PETSC_TRUE
 
 !...................................
       case ('HDF5_WRITE_GROUP_SIZE')
@@ -1513,9 +1511,9 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  PetscInt :: iconn, i, direction, iphase, sum_connection
+  PetscInt :: iconn, direction, iphase, sum_connection
   PetscInt :: local_id_up, local_id_dn, local_id
-  PetscInt :: ghosted_id_up, ghosted_id_dn, ghosted_id
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscReal :: flux
   Vec :: global_vec, global_vec2
 
@@ -1523,7 +1521,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   PetscInt :: max_loc, min_loc
   character(len=MAXSTRINGLENGTH) :: string
 
-  PetscReal, pointer :: vec_ptr(:), vec2_ptr(:), den_loc_p(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscReal, allocatable :: sum_area(:)
   PetscErrorCode :: ierr
 
@@ -1675,7 +1673,6 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
 
-  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: iphase
@@ -2232,7 +2229,6 @@ subroutine OutputPrintRegionsH5(realization_base)
   integer(HID_T) :: grp_id
 
   PetscReal, pointer :: one_ptr(:)
-  PetscReal, pointer :: all_ptr(:)
   PetscInt :: i
   PetscErrorCode :: ierr
 

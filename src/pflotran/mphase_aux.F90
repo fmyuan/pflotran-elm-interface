@@ -137,7 +137,6 @@ subroutine MphaseAuxVarInit(auxvar,option)
   type(mphase_auxvar_type) :: auxvar
   type(option_type) :: option
 
-  PetscInt :: var_elem_size, var_node_size
   PetscInt :: nvar
 
   allocate(auxvar%auxvar_elem(0 : option%nflowdof))
@@ -262,9 +261,8 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
   PetscReal :: fg, dfgdp, dfgdt, xphi
   PetscReal :: eng, hg, dhdp, dhdt
   PetscReal :: visg, dvdp, dvdt
-  PetscReal :: h(option%nphase), u(option%nphase), kr(option%nphase)
-  PetscReal :: xm_nacl, y_nacl, vphi
-  PetscReal :: tk, xco2, pw_kg, x1, vphi_a1, vphi_a2
+  PetscReal :: kr(option%nphase)
+  PetscReal :: xm_nacl, y_nacl
   PetscReal :: Qkco2, mco2, xco2eq
   PetscReal :: aux(1)
   PetscInt :: iflag

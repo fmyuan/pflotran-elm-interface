@@ -41,6 +41,8 @@ subroutine DatabaseRead_hpt(reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
+!TODO(geh)
+#if 0
   type(aq_species_type), pointer :: cur_aq_spec, cur_aq_spec2
   type(gas_species_type), pointer :: cur_gas_spec, cur_gas_spec2
   type(mineral_rxn_type), pointer :: cur_mineral, cur_mineral2
@@ -59,8 +61,6 @@ subroutine DatabaseRead_hpt(reaction,option)
   type(input_type), pointer :: input
   PetscInt :: iostat
   PetscInt :: num_nulls
-!TODO(geh)
-#if 0
   ! negate ids for use as flags
   cur_aq_spec => reaction%primary_species_list
   do
@@ -674,6 +674,9 @@ subroutine BasisInit_hpt(reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
+!TODO(geh)
+#if 0
+
   type(aq_species_type), pointer :: cur_aq_spec
   type(aq_species_type), pointer :: cur_pri_aq_spec
   type(aq_species_type), pointer :: cur_sec_aq_spec
@@ -744,9 +747,8 @@ subroutine BasisInit_hpt(reaction,option)
   PetscBool :: compute_new_basis
   PetscBool :: found
   PetscErrorCode :: ierr
-!TODO(geh)
-#if 0
-! get database temperature based on REFERENCE_TEMPERATURE
+
+  ! get database temperature based on REFERENCE_TEMPERATURE
   if (option%reference_temperature <= 0.01d0) then
     reaction%debyeA = 0.4939d0
     reaction%debyeB = 0.3253d0

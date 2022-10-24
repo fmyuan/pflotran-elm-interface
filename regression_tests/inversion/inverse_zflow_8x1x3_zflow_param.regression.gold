@@ -1,0 +1,36 @@
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   9.0864838794225E-01
+     Mean:   9.6967814482099E-01
+        3:   1.0000000000000E+00
+       13:   1.0000000000000E+00
+       19:   9.0914454757151E-01
+-- GENERIC: Solute Concentration --
+      Max:   9.9999997419615E-04
+      Min:   5.3962526120144E-05
+     Mean:   7.1368045391979E-04
+        3:   9.9846075954241E-04
+       13:   9.3338262012216E-04
+       19:   2.5299507603629E-04
+-- GENERIC: Electrical Conductivity --
+      Max:   5.2466291429920E-03
+      Min:   1.9792619853287E-03
+     Mean:   3.0841600596762E-03
+        3:   1.9863705060206E-03
+       13:   2.8985879558087E-03
+       19:   4.4874204310587E-03
+-- DISCRETE: Material ID --
+      Max:         2
+      Min:         1
+     Mean:   1.1250000000000E+00
+        3:         1
+       13:         2
+       19:         1
+-- SOLUTION: Flow --
+   Time (seconds):   1.3663768768311E-02
+   Time Steps:           27
+   Newton Iterations:           29
+   Linear Solver Iterations:           29
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.2203047817867E+05
+   Residual 2-Norm:   1.1666388895200E-13

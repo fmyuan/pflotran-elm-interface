@@ -29,6 +29,7 @@ module ZFlow_Aux_module
   PetscBool, public :: zflow_numerical_derivatives = PETSC_FALSE
   PetscBool, public :: zflow_simult_function_evals = PETSC_TRUE
   PetscBool, public :: zflow_tensorial_rel_perm = PETSC_FALSE
+  PetscBool, public :: zflow_acknowledge_no_compress = PETSC_FALSE
 
   ! debugging
   PetscInt, public :: zflow_ni_count
@@ -279,7 +280,8 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
     zflow_auxvar%conc = 0.d0
   endif
 
-  if (update_porosity .and. soil_compressibility_index > 0) then
+  if (update_porosity .and. soil_compressibility_index > 0 .and. &
+      zflow_auxvar%pres > 0.d0) then
     call MaterialCompressSoil(material_auxvar,zflow_auxvar%pres, &
                               zflow_auxvar%effective_porosity, &
                               zflow_auxvar%dpor_dp)

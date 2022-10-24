@@ -354,7 +354,6 @@ subroutine GaussTriangle(NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: EleType
   PetscInt :: NGPTS
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
@@ -532,7 +531,6 @@ subroutine GaussTetrahedra(NGPTS,r,w)
   ! Date: 7/11/2013
   !
 
-  PetscInt :: EleType
   PetscInt :: NGPTS
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
@@ -668,8 +666,6 @@ subroutine GaussPyramid(NGPTS,r,w)
   ! Author: Satish Karra, LANL
   ! Date: 7/11/2013
   !
-
-  PetscInt :: EleType
   PetscInt :: NGPTS
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
@@ -822,7 +818,7 @@ subroutine GaussWedge(NGPTS,r,w)
   PetscReal, pointer :: w(:)
   PetscReal, pointer :: rT3(:,:),rL2(:,:)
   PetscReal, pointer :: wT3(:),wL2(:)
-  PetscInt :: counter, i, j, k
+  PetscInt :: i, j
 
   allocate(r(NGPTS*NGPTS,3))
   allocate(w(NGPTS*NGPTS))

@@ -357,7 +357,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                     call PrintErrMsg(option)
                   endif
                 endif
-                Kd(i,:) = temp_real_array(1:j)
+                Kd(i,1:j) = temp_real_array(1:j)
                 call DeallocateArray(temp_real_array)
               enddo
               if (i == 0) then
@@ -554,6 +554,7 @@ subroutine PMUFDDecayInit(this)
   use Reactive_Transport_Aux_module
   use Material_module
   use Secondary_Continuum_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
@@ -568,6 +569,7 @@ subroutine PMUFDDecayInit(this)
 ! ================
 ! option: pointer to option object
 ! reaction: pointer to reaction object
+! reaction_nw: pointer to NWT reaction object
 ! rt_auxvars(:): pointer to reactive transport auxvars object, which stores
 !    the total sorbed species concentration [mol-species/m3-bulk], and is
 !    indexed by the ghosted grid cell id
@@ -591,6 +593,7 @@ subroutine PMUFDDecayInit(this)
 ! -----------------------------------------------------------------------
   type(option_type), pointer :: option
   class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(grid_type), pointer :: grid
   type(isotope_type), pointer :: isotope, isotope2
@@ -612,21 +615,36 @@ subroutine PMUFDDecayInit(this)
 
   option => this%realization%option
   grid => this%realization%patch%grid
-  reaction => this%realization%reaction
-  rt_auxvars => this%realization%patch%aux%RT%auxvars
+  if (associated(this%realization%reaction)) then
+    reaction => this%realization%reaction
+    nullify(reaction_nw)
+  elseif (associated(this%realization%reaction_nw)) then
+    reaction_nw => this%realization%reaction_nw
+    nullify(reaction)
+  endif
+  if (associated(this%realization%patch%aux%RT)) then
+    rt_auxvars => this%realization%patch%aux%RT%auxvars
+  else
+    nullify(rt_auxvars)
+  endif
   material_property_array => this%realization%patch%material_property_array
 
-  do ghosted_id = 1, grid%ngmax
-    allocate(rt_auxvars(ghosted_id)%total_sorb_eq(reaction%naqcomp))
-    rt_auxvars(ghosted_id)%total_sorb_eq = 0.d0
-    if (option%use_sc) then
-       rt_sec_transport_vars =>  this%realization%patch%aux%SC_RT%sec_transport_vars
-      do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
-         allocate(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq(reaction%naqcomp))
-         rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq = 0.d0
-      enddo
-    endif
-  enddo
+  if (associated(rt_auxvars) .and. associated(reaction)) then
+    do ghosted_id = 1, grid%ngmax
+      allocate(rt_auxvars(ghosted_id)%total_sorb_eq(reaction%naqcomp))
+      rt_auxvars(ghosted_id)%total_sorb_eq = 0.d0
+      if (option%use_sc) then
+        rt_sec_transport_vars => &
+          this%realization%patch%aux%SC_RT%sec_transport_vars
+        do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
+          allocate(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
+                   total_sorb_eq(reaction%naqcomp))
+          rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
+            total_sorb_eq = 0.d0
+        enddo
+      endif
+    enddo
+  endif
 
   max_daughters_per_isotope = 0
   max_parents_per_isotope = 0
@@ -773,12 +791,19 @@ subroutine PMUFDDecayInit(this)
     if (.not.associated(isotope)) exit
     found = PETSC_FALSE
     this%isotope_name(isotope%iisotope) = isotope%name
-    this%isotope_to_primary_species(isotope%iisotope) = &
-      GetPrimarySpeciesIDFromName(isotope%name,reaction,option)
+    if (associated(reaction)) then
+      this%isotope_to_primary_species(isotope%iisotope) = &
+        GetPrimarySpeciesIDFromName(isotope%name,reaction,option)
+    elseif (associated(reaction_nw)) then
+      this%isotope_to_primary_species(isotope%iisotope) = &
+        NWTGetSpeciesIDFromName(isotope%name,reaction_nw,option)
+    endif
     word = isotope%name
     word = trim(word) // '(s)'
-    this%isotope_to_mineral(isotope%iisotope) = &
-      GetKineticMineralIDFromName(word,reaction%mineral,option)
+    if (associated(reaction)) then
+      this%isotope_to_mineral(isotope%iisotope) = &
+        GetKineticMineralIDFromName(word,reaction%mineral,option)
+    endif
     this%element_isotopes(0,isotope%ielement) = &
       this%element_isotopes(0,isotope%ielement) + 1
     this%element_isotopes(this%element_isotopes(0,isotope%ielement), &
@@ -984,7 +1009,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 
   patch => this%realization%patch
   grid => patch%grid
-  rt_auxvars => patch%aux%RT%auxvars
+  if (associated(patch%aux%RT)) rt_auxvars => patch%aux%RT%auxvars
 
   if (associated(patch%aux%MTransform)) then
     m_transform_auxvars => patch%aux%MTransform%auxvars
@@ -998,15 +1023,17 @@ recursive subroutine PMUFDDecayInitializeRun(this)
     if (imat <= 0) cycle
 
     if (associated(patch%material_transform_array) .and. &
-        Initialized(patch%mtf_id(ghosted_id))) then
-      material_transform => &
-        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-      if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
-          associated(material_transform)) then
-        call material_transform%illitization%illitization_function% &
-               CheckElements(this%element_name, &
-                             this%num_elements, &
-                             this%option)
+        associated(patch%mtf_id)) then
+      if (Initialized(patch%mtf_id(ghosted_id))) then
+        material_transform => &
+          patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
+            associated(material_transform)) then
+          call material_transform%illitization%illitization_function% &
+                 CheckElements(this%element_name, &
+                               this%num_elements, &
+                               this%option)
+        endif
       endif
     endif
 
@@ -1029,16 +1056,21 @@ recursive subroutine PMUFDDecayInitializeRun(this)
       do i = 1, this%element_isotopes(0,iele)
         iiso = this%element_isotopes(i,iele)
         ipri = this%isotope_to_primary_species(iiso)
-        rt_auxvars(ghosted_id)%total_sorb_eq(ipri) = &   ! [mol/m3-bulk]
-            rt_auxvars(ghosted_id)%pri_molal(ipri) * &   ! [mol/kg-water]
-            kd_kgw_m3b                                   ! [kg-water/m3-bulk]
-        if (this%option%use_sc) then
-          rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
-          kd_kgw_m3b = this%element_Kd(iele,imat,2)
-          do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
-             rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%total_sorb_eq(ipri) = &
-                  rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal(ipri) *  kd_kgw_m3b
-          enddo
+        if (associated(patch%aux%RT)) then
+          rt_auxvars(ghosted_id)%total_sorb_eq(ipri) = &   ! [mol/m3-bulk]
+              rt_auxvars(ghosted_id)%pri_molal(ipri) * &   ! [mol/kg-water]
+              kd_kgw_m3b                                   ! [kg-water/m3-bulk]
+
+          if (this%option%use_sc) then
+            rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
+            kd_kgw_m3b = this%element_Kd(iele,imat,2)
+            do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
+               rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
+                 total_sorb_eq(ipri) = rt_sec_transport_vars(ghosted_id)% &
+                                         sec_rt_auxvar(cell)%pri_molal(ipri) * &
+                                         kd_kgw_m3b
+            enddo
+          endif
         endif
       enddo
     enddo
@@ -1101,12 +1133,14 @@ subroutine PMUFDDecayPreSolve(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
 
   grid => this%realization%patch%grid
   global_auxvars => this%realization%patch%aux%Global%auxvars
-  rt_auxvars => this%realization%patch%aux%RT%auxvars
+  if (associated(this%realization%patch%aux%RT)) then
+    rt_auxvars => this%realization%patch%aux%RT%auxvars
+  else
+    nullify(rt_auxvars)
+  endif
 
 end subroutine PMUFDDecayPreSolve
 
@@ -1129,6 +1163,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   use Material_Aux_module
   use Utility_module
   use Secondary_Continuum_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
@@ -1147,6 +1182,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! ================
 ! option: pointer to option object
 ! reaction: pointer to reaction object
+! reaction_nw: pointer to NWT reaction object
 ! patch: pointer to patch object
 ! grid: pointer to grid object
 ! field: pointer to field object
@@ -1155,6 +1191,9 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 !    concentration [mol/m3-bulk], primary species molality [mol/kg-water],
 !    and the mineral volume fraction [m3-mnrl/m3-bulk], and is indexed by
 !    the ghosted grid cell id
+! rt_aux: pointer to reactive transport auxiliary variable on ghosted id
+! sec_rt_aux: pointer to secondary continuum reactive transport auxiliary
+!    variable on ghosted id
 ! global_auxvars(:): pointer to the global auxvars object, which is used to
 !    access liquid density [kg/m3] and liquid saturation, and is indexed by
 !    the ghosted grid cell id
@@ -1214,55 +1253,48 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! -----------------------------------------------------------------------
   type(option_type), pointer :: option
   class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux, sec_rt_aux
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_transport_type) :: rt_sec_transport_vars
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
+  PetscInt :: imat
   PetscReal :: dt
   PetscReal :: vol, por, sat, den_w_kg, vps
-  PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
-  PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
-  PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
-  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
-  PetscReal :: mass_iso_tot0(this%num_isotopes)
-  PetscReal :: mass_iso_tot1(this%num_isotopes)
-  PetscReal :: mass_ele_tot1
-  PetscReal :: coeff(this%num_isotopes)
-  PetscReal :: mass_old(this%num_isotopes)
-  PetscReal :: mol_fraction_iso(this%num_isotopes)
-  PetscReal :: kd_kgw_m3b
-  PetscBool :: above_solubility
   PetscReal, pointer :: xx_p(:)
   ! implicit solution:
-  PetscReal :: norm
-  PetscReal :: residual(this%num_isotopes)
-  PetscReal :: solution(this%num_isotopes)
-  PetscReal :: prev_solution(this%num_isotopes)
-  PetscReal :: rhs(this%num_isotopes)
-  PetscInt :: indices(this%num_isotopes)
-  PetscReal :: Jacobian(this%num_isotopes,this%num_isotopes)
-  PetscReal :: rate, rate_constant, stoich, one_over_dt
-  PetscReal, parameter :: tolerance = 1.d-6
-  PetscInt :: idaughter
-  PetscInt :: it, istart, iend, cell
+  PetscReal :: one_over_dt
+  PetscInt :: istart, iend, cell
 ! -----------------------------------------------------------------------
 
   ierr = 0
 
   option => this%realization%option
-  reaction => this%realization%reaction
+  if (associated(this%realization%reaction)) then
+    reaction => this%realization%reaction
+    nullify(reaction_nw)
+  elseif (associated(this%realization%reaction_nw)) then
+    reaction_nw => this%realization%reaction_nw
+    nullify(reaction)
+  endif
   patch => this%realization%patch
   field => this%realization%field
   grid => patch%grid
-  rt_auxvars => patch%aux%RT%auxvars
+  if (associated(patch%aux%RT)) then
+    rt_auxvars => patch%aux%RT%auxvars
+  else
+    nullify(rt_auxvars)
+  endif
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
+  nullify(rt_aux)
+  nullify(sec_rt_aux)
 
   dt = option%tran_dt
   one_over_dt = 1.d0 / dt
@@ -1284,7 +1316,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       do cell = 1, rt_sec_transport_vars%ncells
         vol = rt_sec_transport_vars%vol(cell)
         vps = vol * por * sat
-        call PMUFDDecaySolveISPDIAtCell(this,rt_sec_transport_vars%sec_rt_auxvar(cell),&
+        sec_rt_aux => rt_sec_transport_vars%sec_rt_auxvar(cell)
+        call PMUFDDecaySolveISPDIAtCell(this,sec_rt_aux,&
                                reaction,vol,den_w_kg,por,sat,vps,dt,&
                                rt_sec_transport_vars%sec_rt_auxvar(cell)%pri_molal(:),&
                                local_id,imat,this%element_Kd(:,:,2))
@@ -1299,19 +1332,32 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     vps = vol * por * sat  ! m^3 water
 
-    istart = (local_id-1) * reaction%ncomp + 1
-    iend = istart + reaction%naqcomp - 1
+    if (associated(reaction)) then
+      istart = (local_id-1) * reaction%ncomp + 1
+      iend = istart + reaction%naqcomp - 1
+    elseif (associated(reaction_nw)) then
+      istart = (local_id-1) * reaction_nw%params%nspecies + 1
+      iend = istart + reaction_nw%params%nspecies - 1
+    endif
 
     ! sum up mass of each isotope across phases and decay
-    call PMUFDDecaySolveISPDIAtCell(this,rt_auxvars(ghosted_id),reaction, &
+    if (associated(patch%aux%RT)) rt_aux => rt_auxvars(ghosted_id)
+    call PMUFDDecaySolveISPDIAtCell(this,rt_aux,reaction, &
                            vol,den_w_kg,por,sat,vps,dt,xx_p(istart:iend), &
                            local_id,imat,this%element_Kd(:,:,1))
   enddo
 
   call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-  if (reaction%use_log_formulation) then
-    call VecCopy(field%tran_xx,field%tran_log_xx,ierr);CHKERRQ(ierr)
-    call VecLog(field%tran_log_xx,ierr);CHKERRQ(ierr)
+  if (associated(reaction)) then
+    if (reaction%use_log_formulation) then
+      call VecCopy(field%tran_xx,field%tran_log_xx,ierr);CHKERRQ(ierr)
+      call VecLog(field%tran_log_xx,ierr);CHKERRQ(ierr)
+    endif
+  elseif (associated(reaction_nw)) then
+    if (reaction_nw%use_log_formulation) then
+      call VecCopy(field%tran_xx,field%tran_log_xx,ierr);CHKERRQ(ierr)
+      call VecLog(field%tran_log_xx,ierr);CHKERRQ(ierr)
+    endif
   endif
 !  call DiscretizationGlobalToLocal(this%realization%discretization, &
 !                                   field%tran_xx,field%tran_xx_loc,NTRANDOF)
@@ -1325,7 +1371,7 @@ end subroutine PMUFDDecaySolve
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por, &
+subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, &
                              sat,vps,dt,xx_p,local_id,imat,element_Kd)
 
 
@@ -1344,7 +1390,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   implicit none
 
   class(pm_ufd_decay_type) :: this
-  type(reactive_transport_auxvar_type) :: rt_auxvars
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   class(reaction_rt_type), pointer :: reaction
 
   PetscReal :: vol, por, sat, den_w_kg, vps
@@ -1355,7 +1401,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
     PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
   PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
   PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
-  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1, mass_cmp_tot1
+  PetscReal :: mass_ele_aq1, mass_ele_sorb1, mass_ele_ppt1
   PetscReal :: mass_iso_tot0(this%num_isotopes)
   PetscReal :: mass_iso_tot1(this%num_isotopes)
   PetscReal :: mass_ele_tot1
@@ -1399,10 +1445,12 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
   nullify(material_transform)
 
   if (associated(patch%material_transform_array) .and. &
-      Initialized(patch%mtf_id(grid%nL2G(local_id)))) then
-    ! pointer to material transform object
-    material_transform => &
-      patch%material_transform_array(patch%mtf_id(grid%nL2G(local_id)))%ptr
+      associated(patch%mtf_id)) then
+    if (Initialized(patch%mtf_id(grid%nL2G(local_id)))) then
+      ! pointer to material transform object
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(grid%nL2G(local_id)))%ptr
+    endif
   endif
 
   do iele = 1, this%num_elements
@@ -1412,13 +1460,17 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
       imnrl = this%isotope_to_mineral(iiso)
       ! # indicated time level (0 = prev time level, 1 = new time level)
       conc_iso_aq0 = xx_p(ipri) * den_w_kg / 1000.d0  ! mol/L
-      !conc_iso_aq0 = rt_auxvars(ghosted_id)%total(ipri,1) ! mol/L
-      conc_iso_sorb0 = rt_auxvars%total_sorb_eq(ipri) ! mol/m^3 bulk
-      conc_iso_ppt0 = rt_auxvars%mnrl_volfrac(imnrl) ! m^3 mnrl/m^3 bulk
+      if (associated(rt_auxvar)) then
+        !conc_iso_aq0 = rt_auxvar(ghosted_id)%total(ipri,1) ! mol/L
+        conc_iso_sorb0 = rt_auxvar%total_sorb_eq(ipri) ! mol/m^3 bulk
+        conc_iso_ppt0 = rt_auxvar%mnrl_volfrac(imnrl) ! m^3 mnrl/m^3 bulk
+      endif
       mass_iso_aq0 = conc_iso_aq0*vps*1.d3 ! mol/L * m^3 water * 1000 L /m^3 = mol
       mass_iso_sorb0 = conc_iso_sorb0 * vol ! mol/m^3 bulk * m^3 bulk = mol
-      mass_iso_ppt0 = conc_iso_ppt0 * vol / &  ! m^3 mnrl/m^3 bulk * m^3 bulk / (m^3 mnrl/mol mnrl) = mol
-                      reaction%mineral%kinmnrl_molar_vol(imnrl)
+      if (associated(reaction)) then
+        mass_iso_ppt0 = conc_iso_ppt0 * vol / &  ! m^3 mnrl/m^3 bulk * m^3 bulk / (m^3 mnrl/mol mnrl) = mol
+                        reaction%mineral%kinmnrl_molar_vol(imnrl)
+      endif
       mass_iso_tot0(iiso) = mass_iso_aq0 + mass_iso_sorb0 + mass_iso_ppt0
     enddo
   enddo
@@ -1602,23 +1654,27 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvars,reaction,vol,den_w_kg,por,
     else
       mass_ele_ppt1 = 0.d0
     endif
-    conc_ele_ppt1 = mass_ele_ppt1 * &
-                    reaction%mineral%kinmnrl_molar_vol(imnrl) / vol
+    if (associated(reaction)) then
+      conc_ele_ppt1 = mass_ele_ppt1 * &
+                      reaction%mineral%kinmnrl_molar_vol(imnrl) / vol
+    endif
     ! store mass in data structures
     do i = 1, this%element_isotopes(0,iele)
       iiso = this%element_isotopes(i,iele)
       ipri = this%isotope_to_primary_species(iiso)
       imnrl = this%isotope_to_mineral(iiso)
-      rt_auxvars%total(ipri,1) = &
-        conc_ele_aq1 * mol_fraction_iso(i)
-      rt_auxvars%pri_molal(ipri) = &
-        conc_ele_aq1 / den_w_kg * 1.d3 * mol_fraction_iso(i)
-      rt_auxvars%total_sorb_eq(ipri) = &
-        conc_ele_sorb1 * mol_fraction_iso(i)
-      rt_auxvars%mnrl_volfrac(imnrl) = &
-        conc_ele_ppt1 * mol_fraction_iso(i)
-      ! need to copy primary molalities back into transport solution Vec
-      xx_p(ipri) = rt_auxvars%pri_molal(ipri)
+      if (associated(rt_auxvar)) then
+        rt_auxvar%total(ipri,1) = &
+          conc_ele_aq1 * mol_fraction_iso(i)
+        rt_auxvar%pri_molal(ipri) = &
+          conc_ele_aq1 / den_w_kg * 1.d3 * mol_fraction_iso(i)
+        rt_auxvar%total_sorb_eq(ipri) = &
+          conc_ele_sorb1 * mol_fraction_iso(i)
+        rt_auxvar%mnrl_volfrac(imnrl) = &
+          conc_ele_ppt1 * mol_fraction_iso(i)
+        ! need to copy primary molalities back into transport solution Vec
+        xx_p(ipri) = rt_auxvar%pri_molal(ipri)
+      endif
     enddo
   enddo
 
@@ -1995,7 +2051,6 @@ subroutine PMUFDDecayInputRecord(this)
 ! idaughter: [-] daughter integer number
 ! material_property_array(:): pointer to material property array
 ! -----------------------------------------------------------------------
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
   PetscInt :: iele
   PetscInt :: iiso
@@ -2028,9 +2083,15 @@ subroutine PMUFDDecayInputRecord(this)
 
   do iiso = 1, this%num_isotopes
     write(id,'(2x,"Isotope: ",a)') this%isotope_name(iiso)
-    write(id,'(4x,"Primary Species: ",a)') &
-      this%realization%reaction%primary_species_names( &
-        this%isotope_to_primary_species(iiso))
+    if (associated(this%realization%reaction)) then
+      write(id,'(4x,"Primary Species: ",a)') &
+        this%realization%reaction%primary_species_names( &
+          this%isotope_to_primary_species(iiso))
+    elseif (associated(this%realization%reaction_nw)) then
+      write(id,'(4x,"Species: ",a)') &
+        this%realization%reaction_nw%species_names( &
+          this%isotope_to_primary_species(iiso))
+    endif
     write(id,'(4x,"Decay Rate:",es13.5)') this%isotope_decay_rate(iiso)
     write(id,'(4x,"Parent(s)")')
     if (this%isotope_parents(0,iiso) > 0) then

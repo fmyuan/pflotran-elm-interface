@@ -101,8 +101,6 @@ recursive subroutine DataMediatorBaseStrip(this)
 
   class(data_mediator_base_type) :: this
 
-  PetscErrorCode :: ierr
-
 end subroutine DataMediatorBaseStrip
 
 end module Data_Mediator_Base_class

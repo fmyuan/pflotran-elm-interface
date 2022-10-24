@@ -166,9 +166,6 @@ subroutine PNFAuxVarCompute(x,pnf_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   PetscInt :: natural_id
 
-  PetscBool :: saturated
-  PetscReal :: dkr_dsat
-
   pnf_auxvar%head = x(PNF_LIQUID_PRESSURE_DOF)
   global_auxvar%temp = option%flow%reference_temperature
 

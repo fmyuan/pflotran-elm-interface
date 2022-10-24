@@ -132,7 +132,6 @@ subroutine PMTHReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
-  PetscReal :: tempreal
 
   option => this%option
 
@@ -566,7 +565,7 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
-  PetscReal :: P0, P1, P_R, delP, delP_old
+  PetscReal :: P0, P1, P_R, delP
   PetscReal :: scale, press_limit, temp_limit
   PetscInt :: iend, istart
 
@@ -1085,7 +1084,6 @@ subroutine PMTHInputRecord(this)
 
   class(pm_th_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

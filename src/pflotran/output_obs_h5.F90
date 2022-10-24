@@ -86,9 +86,6 @@ contains
     class(realization_base_type) :: realization_base
     type(option_type), pointer   :: option
 
-    PetscInt :: i_obs
-
-    PetscMPIInt :: h5_err
     PetscMPIInt :: mpi_err
 
     option => realization_base%option
@@ -236,15 +233,16 @@ contains
 
       tmp_region_id = 0
 
-      if (associated(observation) .and.      &
-          associated(observation%region) ) then
+      if (associated(observation)) then
+        if (associated(observation%region)) then
 
-        tmp_region_id = observation%region%id
+          tmp_region_id = observation%region%id
 
-        ! fill some array elements
-        obs_region_ids(tmp_region_id) = tmp_region_id
-        obs_region_numcells(comm_rank+1, tmp_region_id) =   &
-                            observation%region%num_cells
+          ! fill some array elements
+          obs_region_ids(tmp_region_id) = tmp_region_id
+          obs_region_numcells(comm_rank+1, tmp_region_id) =   &
+                              observation%region%num_cells
+        endif
 
       endif
 
@@ -407,9 +405,7 @@ contains
     type(region_type), pointer           :: region
 
     integer(HID_T)               :: file_id
-    integer(HID_T)               :: fapl_id
     integer(HID_T)               :: group_id
-    integer(HID_T)               :: dset_id
 
     PetscInt   :: icell
     PetscInt   :: local_id, ghosted_id
@@ -517,11 +513,9 @@ contains
     integer(HID_T) :: fapl_id
     integer(HID_T) :: tgroup_id
     integer(HID_T) :: rgroup_id
-    integer(HID_T) :: data_id
 
     PetscMPIInt :: h5_err
     PetscInt    :: icell
-    PetscInt    :: ireg
     PetscInt    :: local_id, ghosted_id
     PetscInt    :: region_id
     PetscReal   :: tmp_real
@@ -659,8 +653,6 @@ contains
 
     implicit none
 
-    type(patch_type), pointer    :: patch
-    type(region_type), pointer   :: region
     type(output_variable_type), pointer :: cur_variable
     type(output_option_type), pointer   :: output_option
 
@@ -751,8 +743,6 @@ contains
     integer(HID_T) :: space_id
     integer(HID_T) :: dset_id
     integer(HSIZE_T) :: dset_size(1)
-
-    character(len=MAXWORDLENGTH) :: v_name
 
     ! create data space entire dataset
     dset_size(1) = obs_region_total_numcells(region_id)

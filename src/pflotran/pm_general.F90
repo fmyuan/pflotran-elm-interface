@@ -964,7 +964,6 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, pointer :: X_p(:),dX_p(:)
 
-  PetscReal, pointer :: r_p(:)
   type(field_type), pointer :: field
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
   PetscInt :: temperature_index
@@ -974,10 +973,7 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal :: air_pressure0, air_pressure1, del_air_pressure
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
-  PetscReal :: xmol0, xmol1, del_xmol
   PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
-  PetscReal :: min_pressure
   PetscReal :: scale, temp_scale
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
@@ -1760,6 +1756,7 @@ subroutine PMGeneralMaxChange(this)
   PetscInt :: local_id, ghosted_id
 
 
+
   PetscErrorCode :: ierr
 
   realization => this%realization
@@ -1889,7 +1886,6 @@ subroutine PMGeneralInputRecord(this)
 
   class(pm_general_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

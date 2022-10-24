@@ -173,7 +173,6 @@ subroutine StrataRead(strata,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: internal_units
 
@@ -349,8 +348,7 @@ subroutine StrataInputRecord(strata_list)
   type(strata_list_type), pointer :: strata_list
 
   type(strata_type), pointer :: cur_strata
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') ' '

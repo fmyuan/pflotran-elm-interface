@@ -1002,7 +1002,6 @@ function KdtreePQReplaceMax(a,dis,idx)
   PetscInt :: parent, child, N
   PetscReal :: prichild, prichildp1
 
-  type(kdtree_result) :: etmp
   PetscReal :: KdtreePQReplaceMax
 
 

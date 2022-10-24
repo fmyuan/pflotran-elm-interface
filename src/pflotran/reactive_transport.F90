@@ -122,8 +122,6 @@ subroutine RTSetup(realization)
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
   class(reaction_rt_type), pointer :: reaction
-  type(coupler_type), pointer :: boundary_condition
-  type(coupler_type), pointer :: source_sink
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(coupler_type), pointer :: initial_condition
@@ -136,7 +134,6 @@ subroutine RTSetup(realization)
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
-  PetscBool :: error_found
   PetscInt :: flag(10)
 
   option => realization%option
@@ -264,7 +261,7 @@ subroutine RTSetup(realization)
                                  multicontinuum,material_auxvars(ghosted_id)% &
                                    soil_properties(epsilon_index), &
                                  material_auxvars(ghosted_id)% &
-                                   soil_properties(matrix_length_index), &
+                                   soil_properties(half_matrix_width_index), &
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
@@ -394,7 +391,7 @@ subroutine RTSetup(realization)
   if (rt_parameter%species_dependent_diffusion) then
     if (reaction%gas%nactive_gas > 0) then
       if (maxval(reaction%gas%acteqspecid(0,:)) > 1) then
-        option%io_buffer = 'Active gas transprot is not supported when &
+        option%io_buffer = 'Active gas transport is not supported when &
           &gas species are not defined as a one to one match with the &
           &primary species [e.g. O2(aq) <-> O2(g)].'
         call PrintErrMsg(option)
@@ -459,7 +456,6 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
   PetscReal :: sum_mol_by_im(max_size)
   PetscReal :: sum_mol_by_gas(max_size)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: i, icomp, imnrl, ncomp, irate, irxn, naqcomp, k
@@ -768,8 +764,6 @@ subroutine RTUpdateEquilibriumState(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscInt :: ghosted_id, local_id
-  PetscReal :: conc, max_conc, min_conc
-  PetscErrorCode :: ierr
   PetscReal :: sec_porosity
 
   option => realization%option
@@ -860,8 +854,6 @@ subroutine RTUpdateKineticState(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscInt :: ghosted_id, local_id
-  PetscReal :: conc, max_conc, min_conc
-  PetscErrorCode :: ierr
   PetscReal :: sec_porosity
 
   option => realization%option
@@ -1064,7 +1056,7 @@ subroutine RTUpdateTransportCoefs(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(reactive_transport_param_type), pointer :: rt_parameter
-  PetscInt :: local_id, ghosted_id, ghosted_face_id, id
+  PetscInt :: local_id, ghosted_id
 
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
@@ -1402,14 +1394,12 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
   PetscInt :: istartaq, iendaq
 
   type(coupler_type), pointer :: boundary_condition
-  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: source_sink
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn
   PetscReal :: qsrc(2)
   PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, iactgas
-  PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
   PetscInt :: nphase
@@ -1644,8 +1634,6 @@ subroutine RTCalculateTransportMatrix(realization,T)
   PetscReal :: coef_up(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: coef_dn(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: qsrc(2)
-  PetscBool :: volumetric
-  PetscInt :: flow_pc
   PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
   PetscViewer :: viewer
@@ -1871,20 +1859,17 @@ subroutine RTReact(realization)
   type(field_type), pointer :: field
   class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
-  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: istart, iend, iendaq
   PetscInt :: iphase
-  PetscInt :: ithread, vector_length
+  PetscInt :: ithread
   PetscReal, pointer :: tran_xx_p(:)
-  PetscReal, pointer :: mask_p(:)
   PetscInt :: num_iterations
   PetscInt :: ierror
 #ifdef OS_STATISTICS
   PetscInt :: sum_iterations
   PetscInt :: max_iterations
 #endif
-  PetscInt :: icount
   PetscErrorCode :: ierr
 
 #ifdef OS_STATISTICS
@@ -2087,11 +2072,8 @@ subroutine RTComputeBCMassBalanceOS(realization)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   PetscReal :: Res(realization%reaction%ncomp)
 
-  PetscReal, pointer :: face_fluxes_p(:)
-
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
-  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
   PetscInt :: flow_src_sink_type
@@ -2101,7 +2083,6 @@ subroutine RTComputeBCMassBalanceOS(realization)
   PetscReal :: coef_dn(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: coef_in(2), coef_out(2)
   PetscInt :: nphase
-  PetscErrorCode :: ierr
 
   option => realization%option
   field => realization%field
@@ -2227,7 +2208,6 @@ subroutine RTNumericalJacobianTest(realization)
 
   implicit none
 
-  Vec :: xx
   class(realization_subsurface_type) :: realization
 
   Vec :: xx_pert
@@ -2417,7 +2397,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
     PetscReal, dimension(:), pointer :: flux_p
   end type
 
-  type (flux_ptrs), dimension(0:2) :: fluxes
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(inout) :: r
@@ -2427,7 +2406,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscReal, pointer :: r_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt, parameter :: iphase = 1
-  PetscInt :: i, istart, iend
+  PetscInt :: istart, iend
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -2437,16 +2416,11 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
 
-  PetscReal, pointer :: face_fluxes_p(:)
-
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
-  PetscReal :: fraction_upwind, distance, dist_up, dist_dn
-  PetscInt :: axis, side, nlx, nly, nlz, ngx, ngxy, pstart, pend, flux_id
-  PetscInt :: direction, max_x_conn, max_y_conn
 
 #ifdef CENTRAL_DIFFERENCE
   PetscReal :: T_11(realization%option%transport%nphase)
@@ -2462,9 +2436,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                        realization%option%transport%nphase)
   PetscReal :: Res(realization%reaction%ncomp)
 #endif
-
-  ! CO2-specific
-  PetscReal :: msrc(1:realization%option%nflowspec)
 
   option => realization%option
   field => realization%field
@@ -2717,7 +2688,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscInt :: istartaq, iendaq
   PetscInt :: istartcoll, iendcoll
   PetscInt :: istartall, iendall
-  PetscInt :: idof
   PetscInt :: offset
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -2736,11 +2706,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
-  PetscReal :: qsrc(2), molality
-  PetscInt :: flow_src_sink_type
-  PetscReal :: scale, coef_in(2), coef_out(2)
+  PetscReal :: qsrc(2)
+  PetscReal :: coef_in(2), coef_out(2)
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
-  PetscBool :: volumetric
   PetscInt :: sum_connection
   PetscInt :: nphase
 
@@ -3166,7 +3134,6 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   Mat :: J
   MatType :: mat_type
   PetscViewer :: viewer
-  type(grid_type),  pointer :: grid
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: rdum
 
@@ -3278,9 +3245,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: r_p(:)
   PetscInt :: local_id, ghosted_id
-  PetscInt :: istart, iend
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -3296,7 +3261,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
-  PetscReal :: fraction_upwind, distance, dist_up, dist_dn
 
 #ifdef CENTRAL_DIFFERENCE
   PetscReal :: T_11(realization%option%transport%nphase)
@@ -3307,7 +3271,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   PetscReal :: J_12(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscReal :: J_21(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscReal :: J_22(realization%reaction%ncomp,realization%reaction%ncomp)
-  PetscReal :: Res(realization%reaction%ncomp)
 #else
   PetscReal :: coef_up(realization%patch%aux%RT%rt_parameter%naqcomp, &
                        realization%option%transport%nphase)
@@ -3315,7 +3278,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                        realization%option%transport%nphase)
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscReal :: Jdn(realization%reaction%ncomp,realization%reaction%ncomp)
-  PetscReal :: Res(realization%reaction%ncomp)
 #endif
 
   option => realization%option
@@ -3524,19 +3486,17 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: work_loc_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: istartaq, iendaq
   PetscInt :: istart, iend
-  PetscInt :: offset, idof
+  PetscInt :: offset
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
-  PetscInt :: tran_pc
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
@@ -3548,15 +3508,11 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, sum_connection
   PetscReal :: qsrc(2)
-  PetscBool :: volumetric
-  PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
-  PetscReal :: scale
 
   ! secondary continuum variables
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: jac_transport(realization%reaction%naqcomp,realization%reaction%naqcomp)
-  PetscInt :: ncomp
   PetscInt :: nphase
   PetscInt :: iphase
 
@@ -3968,7 +3924,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
 
-  PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn
+  PetscInt :: ghosted_id, local_id, sum_connection, iconn
   PetscInt :: istartaq, iendaq
   PetscInt :: istartcoll, iendcoll
   PetscInt :: istartaq_loc, iendaq_loc
@@ -3978,7 +3934,6 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   PetscReal :: xxbc(realization%reaction%ncomp)
   PetscReal, pointer :: basis_molarity_p(:)
   PetscReal, pointer :: basis_coll_conc_p(:)
-  PetscReal :: weight
   PetscInt, parameter :: iphase = 1
   PetscInt :: offset
   PetscErrorCode :: ierr
@@ -4322,7 +4277,6 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  PetscReal, pointer :: dxx_ptr(:), xx_ptr(:), yy_ptr(:)
   PetscInt :: local_id, ghosted_id, imnrl
   PetscReal :: delta_volfrac
   PetscMPIInt :: mpi_int
@@ -4393,7 +4347,6 @@ subroutine RTJumpStartKineticSorption(realization)
   class(reaction_rt_type), pointer :: reaction
 
   PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
 
   option => realization%option
   patch => realization%patch
@@ -4685,7 +4638,7 @@ subroutine RTExplicitAdvection(realization)
   PetscInt :: local_start, local_end, istart, iend
   PetscInt :: ntvddof
   PetscReal :: qsrc(2), coef_in(2), coef_out(2)
-  PetscReal :: velocity, area, psv_t
+  PetscReal :: psv_t
   PetscReal :: flux(realization%reaction%ncomp)
   PetscInt :: nphase
 
@@ -4696,7 +4649,6 @@ subroutine RTExplicitAdvection(realization)
   PetscReal, pointer :: rhs_coef_p(:)
   PetscReal, pointer :: total_up2(:,:), total_dn2(:,:)
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
   procedure (TFluxLimiterDummy), pointer :: TFluxLimitPtr
 

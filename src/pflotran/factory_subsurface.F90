@@ -542,9 +542,9 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   call InputFindStringErrorMsg(input,option,string)
   call pm_waste_form%ReadPMBlock(input)
 
-  if (option%itranmode /= RT_MODE) then
+  if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
      option%io_buffer = 'The Waste Form process model requires &
-          &reactive transport.'
+          &a transport process model (GIRT/OSRT or NWT).'
      call PrintErrMsg(option)
   endif
   cur_mechanism => pm_waste_form%mechanism_list
@@ -618,9 +618,9 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
   call InputFindStringErrorMsg(input,option,string)
   call pm_ufd_decay%ReadPMBlock(input)
 
-  if (option%itranmode /= RT_MODE) then
-     option%io_buffer = 'The UFD_DECAY process model requires reactive &
-          &transport.'
+  if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
+     option%io_buffer = 'The UFD_DECAY process model requires a transport &
+          &process model (GIRT/OSRT or NWT).'
      call PrintErrMsg(option)
   endif
 
@@ -1034,10 +1034,6 @@ subroutine SubsurfInitCommandLineSettings(option)
   implicit none
 
   type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: option_found
-  PetscBool :: bool_flag
 
 end subroutine SubsurfInitCommandLineSettings
 
@@ -1468,7 +1464,6 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found
 
   error_string = 'SIMULATION,PROCESS_MODELS,WASTE_FORM'
 
@@ -1495,6 +1490,20 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
             call PrintErrMsg(option)
         end select
         pm%option => option
+      case('SKIP_RESTART')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        pm%skip_restart = PETSC_TRUE
+      case('STEADY_STATE')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        pm%steady_state = PETSC_TRUE
       case('OPTIONS')
         if (.not.associated(pm)) then
           option%io_buffer = 'TYPE keyword must be read first under ' // &
@@ -1835,7 +1844,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
-  PetscBool, allocatable :: dof_is_active(:)
 
   realization => simulation%realization
   option => realization%option
@@ -1997,7 +2005,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   class(realization_subsurface_type), pointer :: realization
   class(pm_base_type), pointer :: cur_pm
   type(option_type), pointer :: option
-  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option
@@ -2299,7 +2306,6 @@ subroutine FactorySubsurfaceJumpStart(simulation)
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: failure
   PetscErrorCode :: ierr
 
@@ -2357,13 +2363,12 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: card
-  type(patch_type), pointer :: patch, patch2
+  type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   class(realization_subsurface_type), pointer :: realization
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  PetscInt :: ci,cj,ck,ckl,cku,ckll,ckuu
   PetscBool :: found
   PetscBool,parameter::cijk_d_true =PETSC_TRUE
   PetscBool,parameter::cijk_d_false=PETSC_FALSE
@@ -2603,7 +2608,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   class(simulation_subsurface_type) :: simulation
 
-  PetscErrorCode :: ierr
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: string, temp_string
@@ -2614,7 +2618,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: temp_real, temp_real2
   PetscReal, pointer :: temp_real_array(:)
   PetscInt :: temp_int
-  PetscInt :: id
 
   PetscBool :: vel_cent
   PetscBool :: vel_face
@@ -2623,9 +2626,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: energy_flowrate
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
-  PetscBool :: bool_flag,unsupported_output
 
-  PetscInt :: flag1, flag2
+  PetscInt :: flag1
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
@@ -2662,7 +2664,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
   type(waypoint_list_type), pointer :: waypoint_list_time_card
-  type(input_type), pointer :: input, input_parent
+  type(input_type), pointer :: input
   type(survey_type), pointer :: survey
 
   PetscReal :: dt_init
@@ -2671,9 +2673,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   class(timestepper_base_type), pointer :: temp_timestepper
 
-  PetscInt::iwaytime,nwaytime,mwaytime
-  PetscReal,dimension(:),pointer :: waytime
-  PetscReal :: wtime, msfsalt, msfwatr, mlfsalt, mlfwatr
+  PetscReal :: msfsalt, msfwatr, mlfsalt, mlfwatr
 
   class(pm_base_type), pointer :: pm_flow
 
@@ -3846,6 +3846,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                  'Group size')
             case('EXTEND_HDF5_TIME_FORMAT')
               output_option%extend_hdf5_time_format = PETSC_TRUE
+            case ('ACKNOWLEDGE_VTK_FLAW')
+              output_option%vtk_acknowledgment = PETSC_TRUE
             case default
               call InputKeywordUnrecognized(input,word,'OUTPUT',option)
           end select

@@ -70,7 +70,7 @@ subroutine DatabaseRead(reaction,option)
   PetscReal :: stoich
   PetscReal :: temp_real
   type(input_type), pointer :: input
-  PetscInt :: iostat
+
   PetscInt :: num_nulls
   PetscInt :: num_logKs
 
@@ -872,10 +872,6 @@ subroutine BasisInit(reaction,option)
   type(aq_species_type), pointer :: cur_sec_aq_spec
   type(gas_species_type), pointer :: cur_gas_spec
   type(mineral_rxn_type), pointer :: cur_mineral
-  type(aq_species_type), pointer :: cur_sec_aq_spec1
-  type(aq_species_type), pointer :: cur_sec_aq_spec2
-  type(gas_species_type), pointer :: cur_gas_spec1
-  type(gas_species_type), pointer :: cur_gas_spec2
   type(immobile_species_type), pointer :: cur_immobile_spec
   type(surface_complexation_type), pointer :: surface_complexation
   type(surface_complexation_rxn_type), pointer :: cur_srfcplx_rxn
@@ -905,12 +901,11 @@ subroutine BasisInit(reaction,option)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
 
   character(len=MAXWORDLENGTH), parameter :: h2oname = 'H2O'
-  character(len=MAXWORDLENGTH) :: word, word2
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt, parameter :: h2o_id = 1
 
-  PetscReal :: logK(reaction%num_dbase_temperatures)
   PetscReal, allocatable :: transformation(:,:), old_basis(:,:), new_basis(:,:)
   PetscReal, allocatable :: stoich_new(:), stoich_prev(:), logKvector(:,:)
   PetscInt, allocatable :: indices(:)
@@ -929,11 +924,10 @@ subroutine BasisInit(reaction,option)
   PetscInt :: ispec, itemp
   PetscInt :: spec_id
   PetscInt :: ncomp_h2o, ncomp_secondary
-  PetscInt :: icount_old, icount_new, icount, icount2, icount3
-  PetscInt :: i, j, irow, icol
-  PetscInt :: icomp, icplx, irxn, ieqrxn
+  PetscInt :: icount, icount2, icount3
+  PetscInt :: i, j, icol
+  PetscInt :: icomp, icplx, irxn
   PetscInt :: ipri_spec, isec_spec, imnrl, ikinmnrl, icoll
-  PetscInt :: i_old, i_new
   PetscInt :: isrfcplx
   PetscInt :: ication
   PetscInt :: temp_int
@@ -948,9 +942,7 @@ subroutine BasisInit(reaction,option)
   PetscInt :: max_aq_species
   PetscInt :: max_num_prefactors, max_num_prefactor_species
 
-  PetscBool :: compute_new_basis
   PetscBool :: found
-  PetscErrorCode :: ierr
   PetscInt :: num_logKs
 
   surface_complexation => reaction%surface_complexation
@@ -4358,10 +4350,6 @@ subroutine BasisPrint(reaction,title,option)
   type(surface_complex_type), pointer :: cur_srfcplx, cur_srfcplx_in_rxn
   type(ion_exchange_rxn_type), pointer :: cur_ionx_rxn
   type(ion_exchange_cation_type), pointer :: cur_cation
-
-  character(len=MAXSTRINGLENGTH) :: reactant_string, product_string
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: fid
 
   PetscInt :: ispec, itemp
 

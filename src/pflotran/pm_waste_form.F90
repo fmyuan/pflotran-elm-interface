@@ -475,6 +475,8 @@ module PM_Waste_Form_class
     class(lookup_table_general_type), pointer :: lookup
     type(crit_inventory_lookup_type), pointer :: next
     character(len=MAXWORDLENGTH) :: name
+    PetscBool :: use_log10_time
+    PetscReal :: log10_time_zero_sub
   contains
     procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
@@ -1256,6 +1258,17 @@ subroutine PMWFReadPMBlock(this,input)
           &but not both.'
         call PrintErrMsg(option)
       endif
+    endif
+
+    if (cur_waste_form%spacer_degradation_flag .and. &
+        .not. associated(this%spacer_mech_list)) then
+      option%io_buffer = 'SPACER_MECHANISM_NAME "' &
+                       // trim(cur_waste_form%spacer_mech_name) &
+                       //'" was specified for waste form "' &
+                       // trim(cur_waste_form%mechanism%name) &
+                       //'" but no SPACER_DEGRADATION_MECHANISM block was ' &
+                       //'actually provided.'
+      call PrintErrMsg(option)
     endif
 
     cur_waste_form => cur_waste_form%next
@@ -2699,6 +2712,7 @@ subroutine PMWFSetup(this)
   use Grid_Unstructured_module
   use Option_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Utility_module, only : GetRndNumFromNormalDist
   use String_module
 
@@ -2961,10 +2975,22 @@ subroutine PMWFSetup(this)
     allocate(cur_waste_form%inst_release_amount(num_species))
     cur_waste_form%inst_release_amount = 0.d0
     do j = 1, num_species
-      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
-        GetPrimarySpeciesIDFromName( &
-        cur_waste_form%mechanism%rad_species_list(j)%name, &
-        this%realization%reaction,this%option)
+      if (associated(this%realization%reaction_nw)) then
+        cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+          NWTGetSpeciesIDFromName( &
+          cur_waste_form%mechanism%rad_species_list(j)%name, &
+          this%realization%reaction_nw,this%option)
+      elseif (associated(this%realization%reaction)) then
+        cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+          GetPrimarySpeciesIDFromName( &
+          cur_waste_form%mechanism%rad_species_list(j)%name, &
+          this%realization%reaction,this%option)
+      else
+        option%io_buffer = 'Currently, a transport process model (GIRT/OSRT ' &
+                         //'or NWT) is required to use the WASTE_FORM_GENERAL '&
+                         //'process model.'
+        call PrintErrMsg(option)
+      endif
     enddo
     cur_waste_form => cur_waste_form%next
   enddo
@@ -3009,7 +3035,6 @@ end subroutine PMWFSetup
   class(waste_form_base_type), pointer :: cur_waste_form
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: num_waste_form_cells
-  PetscInt :: num_species
   PetscInt :: size_of_vec
   PetscInt :: i, j, k
   PetscInt, allocatable :: species_indices_in_residual(:), &
@@ -3021,17 +3046,19 @@ end subroutine PMWFSetup
 
   ! ensure that waste form is not being used with other reactive transport
   ! capability
-  if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
-      reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
-      reaction%immobile%nimmobile > 0 .or. &
-      GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
-      associated(rxn_sandbox_list)) then
-    this%option%io_buffer = 'The UFD_DECAY process model may not be used &
-      &with other reactive transport capability within PFLOTRAN. &
-      &Minerals (and mineral kinetics) are used because their data &
-      &structures are leveraged by UFD_DECAY, but no "conventional" &
-      &mineral precipitation-dissolution capability is used.'
-    call PrintErrMsg(this%option)
+  if (associated(reaction)) then
+    if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
+        reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
+        reaction%immobile%nimmobile > 0 .or. &
+        GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+        associated(rxn_sandbox_list)) then
+      this%option%io_buffer = 'The UFD_DECAY process model may not be used &
+        &with other reactive transport capability within PFLOTRAN. &
+        &Minerals (and mineral kinetics) are used because their data &
+        &structures are leveraged by UFD_DECAY, but no "conventional" &
+        &mineral precipitation-dissolution capability is used.'
+      call PrintErrMsg(this%option)
+    endif
   endif
 
   if (this%print_mass_balance) then
@@ -4445,16 +4472,13 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   PetscInt :: icomp_fmdm
   PetscInt :: icomp_pflotran
   PetscInt :: ghosted_id
-  PetscReal :: avg_temp_local
 ! --------------------------------------------------------------
 
  ! FMDM model:
  !=======================================================
   integer ( kind = 4) :: success
   logical ( kind = 4) :: initialRun
-  PetscReal :: time
   PetscReal :: Usource
-  PetscReal :: avg_temp_global
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(option_type), pointer :: option
  !========================================================
@@ -4859,6 +4883,12 @@ subroutine PMWFOutput(this)
                                 cur_waste_form%volume, &
                                 cur_waste_form%eff_canister_vit_rate, &
                                 cur_waste_form%canister_vitality*100.d0
+
+    if (associated(cur_waste_form%spacer_mechanism)) then
+      write(fid,100,advance="no") cur_waste_form%spacer_vitality_rate, &
+                                  cur_waste_form%spacer_vitality
+    endif
+
     cur_waste_form => cur_waste_form%next
   enddo
   close(fid)
@@ -5026,6 +5056,18 @@ subroutine PMWFOutputHeader(this)
     units_string = '%'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+
+    if (associated(cur_waste_form%spacer_mechanism)) then
+      variable_string = 'Spacer Vitality Deg. Rate'
+      units_string = '1/yr'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+
+      variable_string = 'Spacer Vitality'
+      units_string = '%'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+    endif
 
     cur_waste_form => cur_waste_form%next
   enddo
@@ -5702,7 +5744,6 @@ subroutine WasteFormInputRecord(this)
   ! ================
   class(waste_form_base_type), pointer :: cur_waste_form
   character(len=MAXWORDLENGTH) :: word
-  PetscInt :: i
   PetscInt :: id = INPUT_RECORD_UNIT
   ! ---------------------------------
 
@@ -6600,6 +6641,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
 
   PetscBool :: found, added
   PetscInt :: num_errors
+  PetscReal :: tempreal
 
   character(len=MAXWORDLENGTH) :: word
   class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
@@ -6608,6 +6650,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
   added = PETSC_FALSE
   found = PETSC_TRUE
   num_errors = 0
+  tempreal = UNINITIALIZED_DOUBLE
   select case(trim(keyword))
   !-------------------------------------
     case('CRITICALITY_MECH')
@@ -6824,6 +6867,37 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           call PrintErrMsg(option)
                         endif
                     !-----------------------------
+                      case('LOG10_TIME_INTERPOLATION')
+                        ! Use log10 basis for time interpolation
+                        if (.not. associated(new_crit_mech% &
+                                             inventory_dataset)) then
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+
+                        ! User can specify substitute value for zero (optional)
+                        internal_units = 's'
+                        call InputReadDouble(input,option,tempreal)
+                        if (Initialized(tempreal)) then
+                          call InputReadAndConvertUnits(input,tempreal, &
+                                 internal_units,trim(error_string) &
+                                 //',EXPANDED_DATASET,OPTION' &
+                                 //',LOG10_TIME_INTERPOLATION,' &
+                                 //' zero substitute (' &
+                                 //trim(new_crit_mech%inventory_dataset% &
+                                 file_name)//')',option)
+                          call CritInventoryCheckZeroSub(tempreal, &
+                                                         new_crit_mech% &
+                                                         inventory_dataset, &
+                                                         option)
+                        endif
+
+                        ! Modify lookup tables
+                        call CritInventoryUseLog10(new_crit_mech% &
+                                                   inventory_dataset,option)
+                    !-----------------------------
                       case default
                         call InputKeywordUnrecognized(input,word,error_string, &
                                                       option)
@@ -6999,16 +7073,9 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscInt :: length, i, icount
-  PetscInt :: icol
-  PetscInt :: ndims
-  PetscInt, pointer :: dims(:)
-  PetscReal, pointer :: real_buffer(:)
+  PetscInt :: length, i
   PetscErrorCode :: ierr
 
-  integer(HID_T) :: file_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: hdf5_err
   ! dataset_base, though of type dataset_base_type, should always be created
   ! as dataset_ascii_type.
   dataset_ascii => DatasetAsciiCast(dataset_base)
@@ -7744,7 +7811,6 @@ subroutine CritInventoryRealTimeSections(this,string,option)
   PetscInt  :: sz
   PetscInt  :: bnd1, bnd2
   PetscReal :: tmp1, tmp2
-  character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
   ! This subroutine only operates upon axis3
@@ -7841,8 +7907,6 @@ subroutine CritInventoryDataSections(this,string,option)
   PetscInt  :: i, j, k, l
   PetscInt  :: szlim, sz
   PetscInt  :: bnd1, bnd2
-  PetscReal :: tmp1, tmp2
-  character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
   ! This subroutine is not needed if axis3 was not partitioned
@@ -8024,6 +8088,216 @@ end subroutine CritInventoryCheckDuplicates
 
 ! ************************************************************************** !
 
+subroutine CritInventoryUseLog10(inventory,option)
+  !
+  ! Transform radionuclide inventory lookup tables to use log10(time) basis
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/17/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  PetscInt :: i, psize
+  PetscBool :: modified
+  ! ----------------------------------
+
+  ! axis3 is modified (rectangular array)
+  modified = PETSC_FALSE
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+    inv%use_log10_time = PETSC_TRUE
+    zero_sub = inv%log10_time_zero_sub
+    if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
+      psize = size(inv%lookup%axis3%partition)
+      do i = 1, psize
+        call CritInventoryLog10Array(inv%lookup%axis3%partition(i)%data, &
+                                     zero_sub,option)
+      enddo
+    else
+      ! time axis is described by the dim(3) value (rectangular)
+      if (.not. modified) then
+        call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
+        modified = PETSC_TRUE
+      endif
+    endif
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryUseLog10
+
+! ************************************************************************** !
+
+subroutine CritInventoryLog10Array(array1,zero_sub,option)
+  !
+  ! Modify array to use log10 of original values
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/16/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  ! ----------------------------------
+  PetscReal, pointer :: array2(:)
+  PetscInt :: i, asize
+  PetscReal :: tval ! values from array to be modified
+  ! ----------------------------------
+
+  ! allocate dummy array for log10 transformation
+  asize = size(array1)
+  allocate(array2(asize))
+
+  ! populate dummy array with log10 values of original array
+  do i = 1, asize
+    tval = array1(i)
+    ! replace zeros in original array with a substitute value
+    if (tval <= 0) tval = zero_sub
+    array2(i) = log10(tval)
+  enddo
+
+  ! replace original array with the log10 array
+  array1(1:asize) = array2(1:asize)
+  deallocate(array2)
+  nullify(array2)
+
+end subroutine CritInventoryLog10Array
+
+! ************************************************************************** !
+
+subroutine CritInventoryCheckZeroSub(zero_sub,inventory,option)
+  !
+  ! For log10 interpolation, make sure zero substitute is below minimum nonzero
+  !   value in the time arrays
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  class(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  PetscInt :: i, psize
+  PetscReal :: min_nonzero ! smallest nonzero number in array
+  character(len=MAXSTRINGLENGTH) :: word1, word2
+  PetscBool :: checked
+  ! ----------------------------------
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  checked = PETSC_FALSE
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+    inv%log10_time_zero_sub = zero_sub
+    if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
+      psize = size(inv%lookup%axis3%partition)
+      do i = 1, psize
+        min_nonzero = &
+          CritInventoryMinNonzeroTime(inv%lookup%axis3%partition(i)%data,option)
+        if (zero_sub >= min_nonzero) then
+          write(word1,'(es11.5)') zero_sub
+          write(word2,'(es11.5)') min_nonzero
+          option%io_buffer = 'For log10 time interpolation, zero substitute (' &
+                           // trim(word1) &
+                           //') must remain below minimum nonzero value (' &
+                           // trim(word2) //') in REAL_TIME array in file "' &
+                           // trim(inventory%file_name) // '."'
+          call PrintErrMsg(option)
+        endif
+      enddo
+    elseif (.not. checked) then
+      ! time axis is described by the dim(3) value (rectangular)
+      min_nonzero = CritInventoryMinNonzeroTime(inv%lookup%axis3%values,option)
+      if (zero_sub >= min_nonzero) then
+        write(word1,'(es11.5)') zero_sub
+        write(word2,'(es11.5)') min_nonzero
+        option%io_buffer = 'For log10 time interpolation, zero substitute (' &
+                         // trim(word1) &
+                         //') must remain below minimum nonzero value (' &
+                         // trim(word2) //') in REAL_TIME array in file "' &
+                         // trim(inventory%file_name) // '."'
+        call PrintErrMsg(option)
+      endif
+      checked = PETSC_TRUE
+    endif
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryCheckZeroSub
+
+! ************************************************************************** !
+
+function CritInventoryMinNonzeroTime(array1,option)
+  !
+  ! Find minimum nonzero time
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal :: CritInventoryMinNonzeroTime
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  ! ----------------------------------
+  PetscReal, allocatable :: array2(:)
+  PetscInt :: i, j, asize1, asize2
+  PetscReal :: val1
+  ! ----------------------------------
+
+  asize1 = size(array1)
+  val1 = 0.0d0
+
+  ! check number of non-zero entries
+  asize2 = 0
+  do i = 1, asize1
+    val1 = array1(i)
+    if (val1 > 0.0d0) asize2 = asize2 + 1
+  enddo
+
+  ! group nonzero values
+  allocate(array2(asize2))
+  j = 1
+  do i = 1, asize1
+    val1 = array1(i)
+    if (val1 > 0.0d0) then
+      array2(j) = val1
+      j = j + 1
+    endif
+  enddo
+
+  ! get smallest nonzero number
+  CritInventoryMinNonzeroTime = minval(array2)
+  deallocate(array2)
+
+end function CritInventoryMinNonzeroTime
+
+! ************************************************************************** !
+
 function CritHeatEvaluate(this,start_time,temperature)
   !
   ! Author: Alex Salazar III
@@ -8046,20 +8320,36 @@ end function CritHeatEvaluate
 
 function CritInventoryEvaluate(this,start_time,power,time)
   !
+  ! Evaluate radionuclide mass fraction from lookup table
+  !
   ! Author: Alex Salazar III
   ! Date: 02/21/2022
   !
-
   implicit none
-
+  ! ----------------------------------
   class(crit_inventory_lookup_type) :: this
   PetscReal :: start_time
   PetscReal :: power
   PetscReal :: time
-
   PetscReal :: CritInventoryEvaluate
+  ! ----------------------------------
+  PetscReal :: t ! time value passed to lookup table
+  PetscReal :: zero_sub ! substitute time for t=0 (log10 interpolation)
+  ! ----------------------------------
 
-  CritInventoryEvaluate = this%lookup%Sample(start_time,power,time)
+  ! time value passed to lookup table
+  if (this%use_log10_time) then
+    if (time <= 0.d0) then
+      zero_sub = this%log10_time_zero_sub
+      t = log10(zero_sub) ! substitute for zero
+    else
+      t = log10(time)
+    endif
+  else
+    t = time
+  endif
+
+  CritInventoryEvaluate = this%lookup%Sample(start_time,power,t)
 
 end function CritInventoryEvaluate
 
@@ -8104,8 +8394,6 @@ function CritInventoryCreate()
   class(crit_inventory_type), pointer :: CritInventoryCreate
   class(crit_inventory_type), pointer :: ci
 
-  PetscInt :: i
-
   allocate(ci)
   nullify(ci%next)
   nullify(ci%radionuclide_table)
@@ -8144,6 +8432,10 @@ function CritInventoryLookupCreate()
   allocate(cl)
   nullify(cl%next)
   nullify(cl%lookup)
+
+  cl%name = ''
+  cl%use_log10_time = PETSC_FALSE
+  cl%log10_time_zero_sub = 1.0d-20
 
   CritInventoryLookupCreate => cl
 
@@ -8253,7 +8545,6 @@ subroutine ANNReadH5File(this, option)
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
@@ -8358,7 +8649,6 @@ subroutine ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id,&
 
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
 
-  PetscInt :: i
   PetscInt :: ndims_h5
 
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -8393,7 +8683,7 @@ subroutine KnnrInit(this,option)
 
   type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
-  PetscInt :: i_n, i_d, d
+  PetscInt :: i_d, d
   PetscInt :: data_array_shape(2)
 
   call KnnrReadH5File(this, option)
@@ -8429,8 +8719,6 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   PetscReal :: burnup
   PetscReal :: sTme
   PetscInt :: nn
-
-  PetscReal :: fuelDisRate
 
   ! features
   PetscReal :: f(4)
@@ -8476,13 +8764,11 @@ subroutine KnnrReadH5File(this, option)
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
   integer(HID_T) :: prop_id
   integer(HID_T) :: file_id
-  integer(HID_T) :: parent_id
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
   integer(HID_T) :: file_space_id
@@ -8570,7 +8856,6 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
-  integer(HID_T) :: file_space_id
 
   integer(HSIZE_T) :: dims_h5(1) = 1
 

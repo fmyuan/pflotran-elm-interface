@@ -650,7 +650,6 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: ndof
 
   PetscErrorCode :: ierr
@@ -698,7 +697,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
     call PetUtilVecSVBL(accum_p,local_id,Res,ndof,PETSC_TRUE)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
-      patch%aux%inversion_forward_aux%current%dRes_du_k(:,:,local_id) = &
+      patch%aux%inversion_forward_aux%last%dRes_du_k(:,:,local_id) = &
         -Jdum(1:ndof,1:ndof)
     endif
   enddo
@@ -818,7 +817,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   call MatZeroEntries(A,ierr);CHKERRQ(ierr)
   if (associated(patch%aux%inversion_forward_aux)) then
     if (patch%aux%inversion_forward_aux%store_adjoint) then
-      MatdResdparam = patch%aux%inversion_forward_aux%current%dResdparam
+      MatdResdparam = patch%aux%inversion_forward_aux%last%dResdparam
       if (MatdResdparam /= PETSC_NULL_MAT) then
         store_adjoint = PETSC_TRUE
         call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)

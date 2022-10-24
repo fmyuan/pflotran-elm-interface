@@ -1186,6 +1186,7 @@ subroutine SFTableCapillaryPressure(this,liquid_saturation, &
   dataset => this%pc_dataset
   times => dataset%time_storage%times
   num_entries = 0
+  ! j is the time level
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
@@ -1205,8 +1206,10 @@ subroutine SFTableCapillaryPressure(this,liquid_saturation, &
     capillary_pressure = dataset%rbuffer(2*j)
     dpc_dsatl = 0.d0
   elseif (liquid_saturation > dataset%rbuffer(2*(j-1+num_entries)-1)) then
-    dpc_dsatl = (capillary_pressure - dataset%rbuffer(2*(j-1+num_entries))) / &
-               (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))
+    dpc_dsatl = (dataset%rbuffer(2*(j-1+num_entries)) - &
+                 dataset%rbuffer(2*(j-1+num_entries)-2)) / &
+                (dataset%rbuffer(2*(j-1+num_entries)-1) - &
+                 dataset%rbuffer(2*(j-1+num_entries)-3))
     capillary_pressure = (liquid_saturation - dataset% &
                          rbuffer(2*(j-1+num_entries)-1)) * dpc_dsatl + &
                          dataset%rbuffer(2*(j-1+num_entries))
@@ -1257,6 +1260,7 @@ subroutine SFTableSaturation(this,capillary_pressure, &
   dataset => this%pc_dataset
   times => dataset%time_storage%times
   num_entries = 0
+  ! j is the time level
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
@@ -1277,8 +1281,10 @@ subroutine SFTableSaturation(this,capillary_pressure, &
     liquid_saturation = dataset%rbuffer(2*j-1) - dsat_dpres * &
                         (capillary_pressure - dataset%rbuffer(2*j))
   elseif (capillary_pressure < dataset%rbuffer(2*(j-1+num_entries))) then
-    dsat_dpres = (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))/ &
-                 (capillary_pressure - dataset%rbuffer(2*(j-1+num_entries)))
+    dsat_dpres = (dataset%rbuffer(2*(j-1+num_entries)-1) - &
+                  dataset%rbuffer(2*(j-1+num_entries)-3))/ &
+                 (dataset%rbuffer(2*(j-1+num_entries)) - &
+                  dataset%rbuffer(2*(j-1+num_entries)-2))
     liquid_saturation = dsat_dpres * (0.d0 - &
                         dataset%rbuffer(2*(j-1+num_entries))) + &
                         dataset%rbuffer(2*(j-1+num_entries))
@@ -1287,8 +1293,8 @@ subroutine SFTableSaturation(this,capillary_pressure, &
       if (capillary_pressure >= dataset%rbuffer(2*i)) then
         dsat_dpres = (dataset%rbuffer(2*i-1) - dataset%rbuffer(2*i-3)) / &
                     (dataset%rbuffer(2*i) - dataset%rbuffer(2*i-2))
-        liquid_saturation = (dataset%rbuffer(2*i) - capillary_pressure) * &
-                            dsat_dpres  + dataset%rbuffer(2*i-1)
+        liquid_saturation = (capillary_pressure- dataset%rbuffer(2*(i-1))) * &
+                            dsat_dpres  + dataset%rbuffer(2*i-3)
         exit
       endif
     enddo
@@ -1296,6 +1302,10 @@ subroutine SFTableSaturation(this,capillary_pressure, &
 
   liquid_saturation = maxval([0.d0,liquid_saturation])
   liquid_saturation = minval([1.d0,liquid_saturation])
+
+  ! Reverse the sign (convention)
+  dsat_dpres = -1.d0 * dsat_dpres
+
 
 end subroutine SFTableSaturation
 
@@ -1466,7 +1476,6 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
   PetscReal :: dSe_dsatl
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
-  PetscReal :: Pcmax_copy
 
   dpc_dsatl = 0.d0
 
@@ -1780,8 +1789,6 @@ subroutine SFLinearD2SatDP2(this,pc,d2s_dp2,option)
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
 
-  PetscReal :: Se
-  PetscReal :: dSe_dpc
   PetscReal, parameter :: dpc_dpres = -1.d0
 
   d2s_dp2 = 0.d0
@@ -2641,6 +2648,7 @@ subroutine RPFTableLiqRelPerm(this,liquid_saturation, &
   dataset => this%rpf_dataset
   times => dataset%time_storage%times
   num_entries = 0
+  ! j is the time level
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
@@ -2657,16 +2665,21 @@ subroutine RPFTableLiqRelPerm(this,liquid_saturation, &
 
   if (liquid_saturation <= this%sr) then
     relative_permeability = 0.d0
-    dkr_sat = 0.d0 !Not exactly true
+    dkr_sat = (dataset%rbuffer(2*j+2) - dataset%rbuffer(2*j)) / &
+                 (dataset%rbuffer(2*j+1) - dataset%rbuffer(2*j-1)) 
+    !dkr_sat = 0.d0 !Not exactly true
     return
   endif
 
   if (liquid_saturation < dataset%rbuffer(2*j-1)) then
     relative_permeability = dataset%rbuffer(2*j)
-    dkr_sat = 0.d0
+    dkr_sat = (dataset%rbuffer(2*j+2) - dataset%rbuffer(2*j)) / &
+                 (dataset%rbuffer(2*j+1) - dataset%rbuffer(2*j-1))
   elseif (liquid_saturation > dataset%rbuffer(2*(j-1+num_entries)-1)) then
-    dkr_sat = (relative_permeability - dataset%rbuffer(2*(j-1+num_entries))) / &
-              (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))
+    dkr_sat = (dataset%rbuffer(2*(j-1+num_entries)) - &
+               dataset%rbuffer(2*(j-1+num_entries)-2)) / &
+              (dataset%rbuffer(2*(j-1+num_entries)-1) - &
+               dataset%rbuffer(2*(j-1+num_entries)-3))
     relative_permeability = (liquid_saturation - dataset% &
                          rbuffer(2*(j-1+num_entries)-1)) * dkr_sat + &
                          dataset%rbuffer(2*(j-1+num_entries))

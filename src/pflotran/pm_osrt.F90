@@ -244,8 +244,6 @@ subroutine PMOSRTFinalizeTimestep(this)
   implicit none
 
   class(pm_osrt_type) :: this
-  PetscReal :: time
-  PetscErrorCode :: ierr
 
 #if 0
   if (this%transient_porosity) then

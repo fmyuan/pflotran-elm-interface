@@ -87,8 +87,7 @@ subroutine FluidPropertyRead(fluid_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXWORDLENGTH) :: internal_units
+  character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
   call InputPushBlock(input,option)

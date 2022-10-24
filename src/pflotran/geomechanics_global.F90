@@ -62,12 +62,9 @@ subroutine GeomechGlobalSetupPatch(geomech_realization)
   type(option_type), pointer :: option
   type(geomech_patch_type),pointer :: patch
   type(geomech_grid_type), pointer :: grid
-  type(geomech_coupler_type), pointer :: boundary_condition
-  type(geomech_coupler_type), pointer :: source_sink
 
   PetscInt :: ghosted_id
   type(geomech_global_auxvar_type), pointer :: aux_vars(:)
-  PetscInt :: ivertex
 
   option => geomech_realization%option
   patch => geomech_realization%geomech_patch

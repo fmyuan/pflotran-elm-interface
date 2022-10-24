@@ -186,7 +186,7 @@ subroutine ObservationRead(observation,input,option)
   type(option_type), pointer :: option
 
   type(observation_aggregate_type), pointer :: aggregate, new_aggregate
-  character(len=MAXWORDLENGTH) :: keyword, word, word2, var_name, units
+  character(len=MAXWORDLENGTH) :: keyword, word, var_name, units
   PetscInt :: id, category, subvar, subsubvar
 
   input%ierr = 0
@@ -543,8 +543,6 @@ subroutine ObservationDestroy(observation)
   implicit none
 
   type(observation_type), pointer :: observation
-
-  PetscInt :: i
 
   if (.not.associated(observation)) return
 

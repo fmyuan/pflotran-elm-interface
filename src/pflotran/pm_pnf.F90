@@ -516,7 +516,6 @@ subroutine PMPNFCalculateVelocities(this)
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
-  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(connection_set_list_type), pointer :: connection_set_list
   PetscReal, pointer :: vec_loc_ptr(:)
@@ -829,7 +828,6 @@ subroutine PMPNFInputRecord(this)
 
   class(pm_pnf_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

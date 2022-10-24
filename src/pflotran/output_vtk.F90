@@ -39,11 +39,8 @@ subroutine OutputVTK(realization_base)
 
   class(realization_base_type) :: realization_base
 
-  PetscInt :: i, comma_count, quote_count
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
@@ -52,7 +49,6 @@ subroutine OutputVTK(realization_base)
   class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec
   Vec :: natural_vec
   PetscErrorCode :: ierr
@@ -90,7 +86,7 @@ subroutine OutputVTK(realization_base)
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
   if (OptionIsIORank(option)) then
-    write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
+    write(OUTPUT_UNIT,'(''CELL_DATA '',i8)') grid%nmax
   endif
 
   cur_variable => output_option%output_snap_variable_list%first
@@ -184,14 +180,11 @@ subroutine OutputVelocitiesVTK(realization_base)
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   Vec :: global_vec
   Vec :: natural_vec
   Vec :: global_vec_vx,global_vec_vy,global_vec_vz
   PetscErrorCode :: ierr
-
-  PetscReal, pointer :: vec_ptr(:)
 
   patch => realization_base%patch
   grid => patch%grid
@@ -232,7 +225,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
   if (OptionIsIORank(option)) then
-    write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
+    write(OUTPUT_UNIT,'(''CELL_DATA '',i8)') grid%nmax
   endif
 
   word = 'Vlx'
@@ -315,6 +308,7 @@ subroutine WriteVTKGrid(fid,realization_base)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
+  type(output_option_type), pointer :: output_option
   PetscInt :: i, j, k, nx, ny, nz
   PetscReal :: x, y, z
   PetscInt :: nxp1Xnyp1, nxp1, nyp1, nzp1
@@ -327,6 +321,7 @@ subroutine WriteVTKGrid(fid,realization_base)
   call PetscLogEventBegin(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
 
   discretization => realization_base%discretization
+  output_option => realization_base%output_option
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
@@ -393,6 +388,16 @@ subroutine WriteVTKGrid(fid,realization_base)
       write(fid,'(a)') ""
 
     endif
+  else
+    option%io_buffer = 'For unstructured grids, VTK formatted output lacks &
+      &cell geometry information.'
+    if (.not.output_option%vtk_acknowledgment) then
+      option%io_buffer = trim(option%io_buffer) // &
+        ' Please add ACKNOWLEDGE_VTK_FLAW to the OUTPUT block &
+        &to acknowledge this defect, and the file will be printed.'
+      call PrintErrMsg(option)
+    endif
+    call PrintWrnMsg(option)
   endif
 
   call PetscLogEventEnd(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)

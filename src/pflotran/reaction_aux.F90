@@ -1532,8 +1532,6 @@ subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
 
   PetscReal :: coefs(17,ONE_INTEGER)
   PetscReal :: temperature, pressure
-  PetscInt :: itemperature
-  PetscInt :: i
 
   ! we always initialize on reference temperature
   temperature = option%flow%reference_temperature
@@ -1616,7 +1614,6 @@ subroutine ReactionInputRecord(rxn)
   type(radioactive_decay_rxn_type), pointer :: cur_rad_decay_rxn
   type(isotherm_link_type), pointer :: cur_isotherm_rxn
   character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') ' '
@@ -1763,7 +1760,7 @@ end subroutine ReactionInputRecord
 ! ************************************************************************** !
 
 subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
- 
+
   ! Reads in a reaction network and parses the stoichiometries and species ids
 
   ! Authors: Glenn Hammond
@@ -1783,7 +1780,7 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
 
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: icomp, irxn, nrxn
+  PetscInt :: irxn, nrxn
   type(database_rxn_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
 
   input => InputCreate(IUNIT_TEMP,filename,option)
@@ -2136,12 +2133,8 @@ subroutine ReactionDestroy(reaction,option)
 
   class(reaction_rt_type), pointer :: reaction
 
-  type(aq_species_type), pointer :: aq_species, prev_aq_species
-  type(gas_species_type), pointer :: gas_species, prev_gas_species
-  type(mineral_rxn_type), pointer :: mineral, prev_mineral
   type(colloid_type), pointer :: colloid, prev_colloid
   type(ion_exchange_rxn_type), pointer :: ionxrxn, prev_ionxrxn
-  type(surface_complexation_rxn_type), pointer :: srfcplxrxn, prev_srfcplxrxn
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn, &
                                                prev_radioactive_decay_rxn

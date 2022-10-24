@@ -82,8 +82,7 @@ subroutine RegressionRead(regression,input,option)
   type(input_type), pointer :: input
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
-  type(output_variable_type), pointer :: cur_variable, new_variable
+  character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: count, max_cells
   PetscInt, pointer :: int_array(:)
   PetscErrorCode :: ierr
@@ -190,14 +189,13 @@ subroutine RegressionCreateMapping(regression,realization)
 
   IS :: is_petsc
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: i, upper_bound, lower_bound, count, temp_int
+  PetscInt :: i, count, temp_int
   PetscInt :: local_id
   PetscReal, pointer :: vec_ptr(:)
   character(len=MAXWORDLENGTH) :: word
   Vec :: temp_vec
   VecScatter :: temp_scatter
   IS :: temp_is
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   type(grid_type), pointer :: grid

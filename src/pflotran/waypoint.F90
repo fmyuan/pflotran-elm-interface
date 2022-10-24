@@ -689,10 +689,8 @@ subroutine WaypointListFindDuplicateTimes(list,option)
 
   type(waypoint_type), pointer :: cur_waypoint
   type(waypoint_type), pointer :: next_waypoint
-  character(len=MAXWORDLENGTH) :: word
   PetscBool :: first_duplicate_found
   PetscBool :: duplicate_removed
-  PetscBool :: catch_duplicate_waypoints
   PetscBool :: fix_duplicate_waypoints
   PetscErrorCode :: ierr
 
@@ -945,7 +943,6 @@ subroutine WaypointInputRecord(output_option,waypoint_list)
 
   type(waypoint_type), pointer :: cur_waypoint
   character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: final_time
   PetscReal :: max_dt
   PetscReal :: prev_time

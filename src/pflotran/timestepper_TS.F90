@@ -197,7 +197,6 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
 
   PetscReal :: time
   PetscReal :: dtime
-  PetscReal :: tmp
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
   Vec :: residual_vec
@@ -408,8 +407,6 @@ subroutine TimestepperTSSetHeader(this,bag,header)
   class(timestepper_TS_header_type) :: header
   PetscBag :: bag
 
-  PetscErrorCode :: ierr
-
   header%dt_max_allowable = this%dt_max_allowable
 
   call TimestepperBaseSetHeader(this,bag,header)
@@ -452,8 +449,6 @@ subroutine TimestepperTSReset(this)
   implicit none
 
   class(timestepper_TS_type) :: this
-
-  PetscErrorCode :: ierr
 
 end subroutine TimestepperTSReset
 

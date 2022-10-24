@@ -51,7 +51,7 @@ PETSC_MAKE_STOP_ON_ERROR=
 # so that PFLOTRAN will be built with the same options as 
 # the petsc configured in $PETSC_DIR/$PETSC_ARCH
 
-MYFLAGS = -I.
+MYFLAGS = -I. 
 
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
@@ -185,9 +185,17 @@ ifdef scorpio
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
-ifdef codecov
+ifdef gnu_code_coverage
   MYFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
+endif
+
+ifdef gnu_runtime_checks
+  MYFLAGS += -fcheck=all
+endif
+
+ifdef catch_unused_variables
+  MYFLAGS += -Werror=unused-variable
 endif
 
 ###############################################################################

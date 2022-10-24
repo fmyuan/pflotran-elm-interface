@@ -211,7 +211,7 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: lnQK
   PetscReal :: QK
   PetscReal :: affinity_factor
-  PetscReal :: dQK_dmj, dQK_dCj
+  PetscReal :: dQK_dmj
   PetscReal :: sign_
 
   PetscInt :: ncomp

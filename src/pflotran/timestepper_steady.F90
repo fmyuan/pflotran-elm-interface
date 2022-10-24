@@ -372,7 +372,6 @@ subroutine TimestepperSteadyInputRecord(this)
   class(timestepper_steady_type) :: this
 
   PetscInt :: id
-  character(len=MAXWORDLENGTH) :: word
 
   id = INPUT_RECORD_UNIT
 

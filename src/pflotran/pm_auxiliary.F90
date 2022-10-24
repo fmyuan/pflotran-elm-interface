@@ -357,6 +357,9 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   ! Date: 02/10/16
 
   use Init_Subsurface_module
+  use Option_module
+  use Strata_module
+  use Utility_module
 
   implicit none
 
@@ -364,10 +367,30 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
+  type(strata_type), pointer :: cur_strata
+  PetscBool :: evolve
+
   ierr = 0
-  call InitSubsurfAssignMatIDsToRegns(this%realization)
-  call InitSubsurfAssignMatProperties(this%realization)
-  call InitSubsurfaceSetupZeroArrays(this%realization)
+  evolve = PETSC_FALSE
+
+  cur_strata => this%realization%patch%strata_list%first
+  do
+    if (.not.associated(cur_strata)) exit
+    if (Equal(cur_strata%start_time,time) .or. &
+        Equal(cur_strata%final_time,time)) then
+      evolve = PETSC_TRUE
+      exit
+    endif
+    cur_strata => cur_strata%next
+  enddo
+  if (evolve) then
+    call PrintMsg(this%option,'  Strata updated.')
+    call InitSubsurfAssignMatIDsToRegns(this%realization)
+    call InitSubsurfAssignMatProperties(this%realization)
+    call InitSubsurfaceSetupZeroArrays(this%realization)
+  else
+    call PrintMsg(this%option,'  No strata update requested at this time.')
+  endif
 
 end subroutine PMAuxiliaryEvolvingStrata
 
@@ -447,7 +470,6 @@ subroutine PMAuxiliaryInputRecord(this)
 
   class(pm_auxiliary_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

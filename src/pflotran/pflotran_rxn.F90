@@ -98,7 +98,6 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
   type(tran_constraint_list_type), pointer :: transport_constraints
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word
   class(tran_constraint_base_type), pointer :: base_constraint
@@ -234,8 +233,6 @@ program pflotran_rxn
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
   type(material_auxvar_type), pointer :: material_auxvars
 
-  character(len=MAXWORDLENGTH) :: card
-  character(len=MAXWORDLENGTH) :: word
   type(tran_constraint_list_type), pointer :: transport_constraints
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
 

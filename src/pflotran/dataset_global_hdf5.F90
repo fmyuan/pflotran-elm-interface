@@ -193,8 +193,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-  PetscViewer :: viewer
-
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
 
   if (this%dm_wrapper%dm /= PETSC_NULL_DM) then

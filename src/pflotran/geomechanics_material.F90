@@ -87,8 +87,7 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: keyword
 
   call InputPushBlock(input,option)
   do
@@ -191,8 +190,6 @@ subroutine GeomechanicsMaterialPropConvertListToArray(list,array,option)
   type(option_type) :: option
 
   type(geomech_material_property_type), pointer :: cur_material_property
-  type(geomech_material_property_type), pointer :: prev_material_property
-  type(geomech_material_property_type), pointer :: next_material_property
   PetscInt :: i, j, length1,length2, max_id
   PetscInt, allocatable :: id_count(:)
   PetscBool :: error_flag

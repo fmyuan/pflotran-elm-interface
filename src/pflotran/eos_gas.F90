@@ -13,7 +13,7 @@ module EOS_Gas_module
 
   ! module variables
   PetscReal :: fmw_gas           !kg/Kmol
-  PetscReal :: constant_density
+  PetscReal :: constant_density  !kmol/m^3
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
@@ -201,7 +201,7 @@ subroutine EOSGasInit()
 
   implicit none
 
-  fmw_gas = UNINITIALIZED_DOUBLE
+  fmw_gas = FMWAIR
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
@@ -316,12 +316,6 @@ subroutine EOSGasVerify(ierr,error_string)
       endif
     endif
   endif
-
-  if (Uninitialized(fmw_gas)) then
-    fmw_gas = FMWAIR
-    !ierr = 6
-    !error_string = trim(error_string) // " FMWAIR"
-  end if
 
 end subroutine EOSGasVerify
 
@@ -450,13 +444,13 @@ end function EOSGasGetSurfaceDensity
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetDensityConstant(density)
+subroutine EOSGasSetDensityConstant(density_kg)
 
   implicit none
 
-  PetscReal, intent(in) :: density
+  PetscReal, intent(in) :: density_kg
 
-  constant_density = density
+  constant_density = density_kg / fmw_gas
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityConstant
 
@@ -562,16 +556,9 @@ subroutine EOSGasViscosityDerive(T, P_comp, P_gas, Rho_comp, &
   !geh: at very low temperatures, the derivative wrt Rhocomp is very sensitive to
   !     the perturbation.  Need a value as large as 1.d-3 at 2C to match analtyical.
   PetscReal, parameter :: pert_tol = 1.d-8
-  PetscReal :: pert
 
-  PetscReal :: T_pert
-  PetscReal :: P_comp_pert
-  PetscReal :: P_gas_pert
-  PetscReal :: Rho_comp_pert
-  PetscReal :: V_mix_pert
   PetscReal :: dV_dRhocomp
   PetscReal :: dV_dT_, dV_dPcomp_, dV_dPgas_, dV_dRhocomp_
-  PetscReal :: dum1, dum2, dum3, dum4
 
   dV_dT = 0.d0
   dV_dPgas = 0.d0
@@ -701,9 +688,9 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscReal :: dz1_dxga, dz1_dxgw, dz1_dvis1, dz1_dvis2, dz1_dvis3, &
                dz1_dT, dz1_dRhocomp, dz1_dPcomp, dz1_dPgas
   PetscReal :: dz2_dard, dz2_de, dz2_dg, dz2_dh, dz2_dvis1, dz2_dvis2, &
-               dz2_dvis3, dz2_dT, dz2_dRhocomp, dz2_dPcomp, dz2_dPgas
+               dz2_dT, dz2_dRhocomp, dz2_dPcomp, dz2_dPgas
   PetscReal :: dz3_dard, dz3_de, dz3_dg, dz3_dh, dz3_dvis1, dz3_dvis2, &
-               dz3_dvis3, dz3_dT, dz3_dRhocomp, dz3_dPcomp, dz3_dPgas, &
+               dz3_dT, dz3_dRhocomp, dz3_dPcomp, dz3_dPgas, &
                dz3_dxga, dz3_dxgw
   PetscReal :: dvisg_dz1, dvisg_dz2, dvisg_dz3
   PetscReal :: ard_0point6, one_over_vis1sq, one_over_vis2sq, z1pz2
@@ -1217,7 +1204,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
 
   ! Newton method approach
   PetscReal :: a_Newton, b_Newton , a_RT, p_RT
-  PetscReal :: b2, V, f, dfdV, dVd
+  PetscReal :: V, f, dfdV, dVd
   PetscInt :: i
   PetscReal :: coef(4)
   PetscInt, parameter :: maxit = 50
@@ -1625,8 +1612,6 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure [J/kmol/Pa]
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal :: NaN
-
   !PO: should do only one lookup here
   ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
@@ -1974,8 +1959,7 @@ subroutine EOSGasInputRecord()
 
   implicit none
 
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a29)',advance='no') '---------------------------: '
@@ -1985,7 +1969,7 @@ subroutine EOSGasInputRecord()
   if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
       associated(EOSGasDensityPtr,EOSGasDensityConstant)) then
     write(id,'(a29)',advance='no') 'gas density: '
-    write(word1,*) constant_density
+    write(word1,*) constant_density * fmw_gas
     write(id,'(a)') 'constant, ' // adjustl(trim(word1)) // ' kg/m^3'
   endif
   if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &

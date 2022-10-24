@@ -301,16 +301,15 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   PetscInt :: natural_id
 
   PetscInt :: gid, lid
-  PetscReal :: cell_pressure, water_vapor_pressure
+  PetscReal :: cell_pressure
   PetscReal :: den_water_vapor, den_kg_water_vapor
   PetscReal :: den_air
   PetscReal :: krl, visl
   PetscReal :: krg, visg
-  PetscReal :: guess, dummy
+  PetscReal :: dummy
   PetscInt :: cpid, spid
   PetscReal :: creep_closure_time
   PetscReal :: aux(1)
-  PetscReal :: tempreal
   PetscReal :: perm_for_cc
   PetscReal :: prev_effective_porosity
   PetscErrorCode :: ierr
@@ -552,7 +551,6 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
                pert(option%nflowdof), x_pert_save(option%nflowdof)
 
-  PetscReal :: tempreal
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
@@ -846,7 +844,7 @@ subroutine WIPPFloOutputAuxVars2(wippflo_auxvars,global_auxvars,option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: cpid, spid
+  PetscInt :: cpid
   PetscInt :: gid, lid
   PetscInt :: i, n, idof
 

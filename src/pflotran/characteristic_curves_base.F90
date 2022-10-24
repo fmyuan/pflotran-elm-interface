@@ -570,8 +570,6 @@ subroutine RPFBaseGasEffectiveSaturation(this,liquid_saturation, &
   PetscReal, intent(out) :: deffsat_dsat
   type(option_type), intent(inout) :: option
 
-  PetscReal :: tempreal
-
   option%io_buffer = 'RPFBaseGasEffectiveSaturation must be extended for the &
                      &current relative permeability function.'
   call PrintErrMsg(option)

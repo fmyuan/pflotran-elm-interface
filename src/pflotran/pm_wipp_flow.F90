@@ -238,7 +238,6 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
-  PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
@@ -541,7 +540,6 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
 
   PetscBool :: found
   character(len=MAXWORDLENGTH) :: word
-  PetscReal :: tempreal
   PetscInt :: lid, gid, eid
 
   option => this%option
@@ -711,8 +709,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
 
   if (this%scale_linear_system .and. option%flow%scale_all_pressure) then
     option%io_buffer = 'cannot be used with SCALE_JACOBIAN, &
-                        Jacobian is already scaled. Please use &
-                        DO_NOT_SCALE_JACOBIAN in NEWTON_SOLVER'
+                        &Jacobian is already scaled. Please use &
+                        &DO_NOT_SCALE_JACOBIAN in NEWTON_SOLVER'
     call PrintErrMsg(option)
   endif
 
@@ -1246,7 +1244,7 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   PetscReal, pointer :: r_p(:)
-  PetscInt :: i, idof
+  PetscInt :: i
 
   grid => this%realization%patch%grid
 
@@ -2458,7 +2456,6 @@ subroutine PMWIPPFloInputRecord(this)
 
   class(pm_wippflo_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
