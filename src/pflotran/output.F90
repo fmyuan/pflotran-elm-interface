@@ -628,7 +628,8 @@ subroutine OutputFileRead(input,realization,output_option, &
       endif
     endif
     option%flow%store_fluxes = PETSC_TRUE
-    if (associated(grid%unstructured_grid%explicit_grid)) then
+    if (realization%discretization%grid%itype == &
+        EXPLICIT_UNSTRUCTURED_GRID) then
       option%flow%store_fluxes = PETSC_TRUE
       output_option%print_explicit_flowrate = mass_flowrate
     endif
@@ -1130,7 +1131,7 @@ subroutine Output(realization_base,snapshot_plot_flag, &
     endif
 
     ! Print secondary continuum variables vs sec. continuum dist.
-    if (option%use_mc) then
+    if (option%use_sc) then
       if (realization_base%output_option%print_tecplot) then
         call PetscTime(tstart,ierr);CHKERRQ(ierr)
         call PetscLogEventBegin(logging%event_output_secondary_tecplot, &

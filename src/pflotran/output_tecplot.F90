@@ -2371,7 +2371,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   grid => patch%grid
   output_option => realization_base%output_option
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     if (option%ntrandof > 0) then
       select case(option%itranmode)
         case(RT_MODE)
