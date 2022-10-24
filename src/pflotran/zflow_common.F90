@@ -153,10 +153,11 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
         tempreal * (zflow_auxvar%dsat_dp * porosity + &
                     saturation * zflow_auxvar%dpor_dp)
       if (zflow_calc_adjoint) then
-        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-          dResdparam(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
-            tempreal * zflow_auxvar%sat
-        endif
+        select case(zflow_adjoint_parameter)
+          case(ZFLOW_ADJOINT_POROSITY)
+            dResdparam(zflow_liq_flow_eq,1) = &
+              tempreal * zflow_auxvar%sat
+        end select
       endif
     endif
   endif
@@ -179,10 +180,11 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
           saturation * zflow_auxvar%dpor_dp)
       endif
       if (zflow_calc_adjoint) then
-        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-          dResdparam(zflow_sol_tran_eq,1) = &
-            zflow_auxvar%conc * tempreal * zflow_auxvar%sat
-        endif
+        select case (zflow_adjoint_parameter)
+          case(ZFLOW_ADJOINT_POROSITY)
+            dResdparam(zflow_sol_tran_eq,1) = &
+              zflow_auxvar%conc * tempreal * zflow_auxvar%sat
+        end select
       endif
     endif
   endif
@@ -333,16 +335,19 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
           Jdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
                                               dq_dpdn * zflow_density_kmol
           if (zflow_calc_adjoint) then
-            if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
-              tempreal = denominator * denominator * zflow_viscosity
-              dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
-              dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
-              tempreal = kr * delta_pressure * area
-              dq_dKup = tempreal * dperm_ave_dKup
-              dq_dKdn = tempreal * dperm_ave_dKdn
-              dResdparamup(zflow_liq_flow_eq,1) = dq_dKup *zflow_density_kmol
-              dResdparamdn(zflow_liq_flow_eq,1) = dq_dKdn *zflow_density_kmol
-            endif
+            select case(zflow_adjoint_parameter)
+              case(ZFLOW_ADJOINT_PERMEABILITY)
+                tempreal = denominator * denominator * zflow_viscosity
+                dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
+                dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
+                tempreal = kr * delta_pressure * area
+                dq_dKup = tempreal * dperm_ave_dKup
+                dq_dKdn = tempreal * dperm_ave_dKdn
+                dResdparamup(zflow_liq_flow_eq,1) = dq_dKup *zflow_density_kmol
+                dResdparamdn(zflow_liq_flow_eq,1) = dq_dKdn *zflow_density_kmol
+              case(ZFLOW_ADJOINT_POROSITY)
+                ! not applicable
+            end select
           endif
         endif
       endif
@@ -423,22 +428,47 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
           L_per_m3
       endif
       if (zflow_calc_adjoint) then
-        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
-          dDeff_over_dist_dKup = 0.d0
-          dDeff_over_dist_dKdn = 0.d0
-          dResdparamup(zflow_sol_tran_eq,1) = &
-            (dq_dKup * conc_upwind + &
-             area * dDeff_over_dist_dKup * delta_conc) * &
-            L_per_m3
-          dResdparamdn(zflow_sol_tran_eq,1) = &
-            (dq_dKdn * conc_upwind + &
-             area * dDeff_over_dist_dKdn * delta_conc) * &
-            L_per_m3
-        else if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-          print *, 'adjoint derivatives for solute concentration wrt &
-                   &porosity have not been implemented.'
-          stop
-        endif
+        select case(zflow_adjoint_parameter)
+          case(ZFLOW_ADJOINT_PERMEABILITY)
+            dDeff_over_dist_dKup = 0.d0 ! for effect of dispersivity on Deff
+            dDeff_over_dist_dKdn = 0.d0
+            dResdparamup(zflow_sol_tran_eq,1) = &
+              (dq_dKup * conc_upwind + &
+              area * dDeff_over_dist_dKup * delta_conc) * &
+              L_per_m3
+            dResdparamdn(zflow_sol_tran_eq,1) = &
+              (dq_dKdn * conc_upwind + &
+              area * dDeff_over_dist_dKdn * delta_conc) * &
+              L_per_m3
+          case(ZFLOW_ADJOINT_POROSITY)
+            tempreal = D_mech_up + &
+                       zflow_auxvar_up%sat * material_auxvar_up%tortuosity * &
+                       D_molecular
+            numerator = tempreal * D_hyd_dn
+            denominator = dist_up*D_hyd_dn + dist_dn*tempreal
+            if (denominator == 0.d0) then
+              ! turn off diffusion
+              numerator = 0.d0
+              denominator = 1.d0
+            endif
+            Deff_over_dist = numerator / denominator
+            dResdparamup(zflow_sol_tran_eq,1) = area * Deff_over_dist * &
+                                                delta_conc * L_per_m3
+
+            tempreal = D_mech_dn + &
+                       zflow_auxvar_dn%sat * material_auxvar_dn%tortuosity * &
+                       D_molecular
+            numerator = D_hyd_up * tempreal
+            denominator = dist_up*tempreal + dist_dn*D_hyd_up
+            if (denominator == 0.d0) then
+              ! turn off diffusion
+              numerator = 0.d0
+              denominator = 1.d0
+            endif
+            Deff_over_dist = numerator / denominator
+            dResdparamdn(zflow_sol_tran_eq,1) = area * Deff_over_dist * &
+                                                delta_conc * L_per_m3
+        end select
       endif
     endif
   endif
@@ -512,7 +542,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dDeff_over_dist_dpdn
   PetscReal :: dDeff_over_dist_dKdn
   PetscReal :: dD_hyd_dn_dpdn
-
+  PetscReal :: tempreal
 
   Res = 0.d0
   Jdn = 0.d0
@@ -617,10 +647,13 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                   (dkr_dp * delta_pressure + ddelta_pressure_dpdn * kr)
         Jdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = dq_dpdn * zflow_density_kmol
         if (zflow_calc_adjoint) then
-          if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
-            dq_dKdn = area * kr * delta_pressure * dperm_dK
-            dResdparamdn(zflow_liq_flow_eq,1) = dq_dKdn * zflow_density_kmol
-          endif
+          select case(zflow_adjoint_parameter)
+            case(ZFLOW_ADJOINT_PERMEABILITY)
+              dq_dKdn = area * kr * delta_pressure * dperm_dK
+              dResdparamdn(zflow_liq_flow_eq,1) = dq_dKdn * zflow_density_kmol
+            case(ZFLOW_ADJOINT_POROSITY)
+              ! not applicable
+          end select
         endif
       endif
     endif
@@ -667,13 +700,21 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
           L_per_m3
       endif
       if (zflow_calc_adjoint) then
-        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
-          dDeff_over_dist_dKdn = 0.d0
-          dResdparamdn(zflow_sol_tran_eq,1) = &
-            (dq_dKdn * conc_upwind + &
-             area * dDeff_over_dist_dKdn * delta_conc) * &
-            L_per_m3
-        endif
+        select case (zflow_adjoint_parameter)
+          case(ZFLOW_ADJOINT_PERMEABILITY)
+            dDeff_over_dist_dKdn = 0.d0
+            dResdparamdn(zflow_sol_tran_eq,1) = &
+              (dq_dKdn * conc_upwind + &
+              area * dDeff_over_dist_dKdn * delta_conc) * &
+              L_per_m3
+          case(ZFLOW_ADJOINT_POROSITY)
+            tempreal = D_mech_dn + &
+                       zflow_auxvar_dn%sat * &
+                       material_auxvar_dn%tortuosity * D_molecular
+            Deff_over_dist = dispersion_scale * tempreal / dist(0)
+            dResdparamdn(zflow_sol_tran_eq,1) = &
+              area * Deff_over_dist * delta_conc * L_per_m3
+        end select
       endif
 
     endif

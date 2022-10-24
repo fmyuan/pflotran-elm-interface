@@ -5065,6 +5065,21 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                     patch%aux%ZFlow%auxvars(ZERO_INTEGER, &
                                             grid%nL2G(local_id))%dsat_dp
                 enddo
+              case(ZFLOW_LIQ_PRES_WRT_POROS)
+                do local_id=1,grid%nlmax
+                  ghosted_id = grid%nL2G(local_id)
+                  tempreal = &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
+                  if (tempreal < 1.d0) then
+                    vec_ptr(local_id) = &
+                      -tempreal / &
+                      patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        effective_porosity / &
+                      patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+                  else
+                    vec_ptr(local_id) = 0.d0
+                  endif
+                enddo
               case default
                 call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
                                               isubvar,option)
@@ -6364,6 +6379,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   PetscInt :: irate, irxn
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -6501,6 +6517,17 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
               case(ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
                 value = &
                   patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+              case(ZFLOW_LIQ_PRES_WRT_POROS)
+                tempreal = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
+                if (tempreal < 1.d0) then
+                  value = &
+                    -tempreal / &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      effective_porosity / &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+                else
+                  value = 0.d0
+                endif
               case default
                 call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
                                               isubvar,option)
