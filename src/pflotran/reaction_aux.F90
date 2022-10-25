@@ -639,7 +639,7 @@ function IonExchangeRxnCreate()
   allocate(ionxrxn)
   ionxrxn%id = 0
   ionxrxn%mineral_name = ''
-  ionxrxn%CEC = 0.d0
+  ionxrxn%CEC = UNINITIALIZED_DOUBLE
   nullify(ionxrxn%cation_list)
   nullify(ionxrxn%next)
 
