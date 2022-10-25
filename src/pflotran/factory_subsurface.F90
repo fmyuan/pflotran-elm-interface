@@ -3393,9 +3393,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputErrorMsg(input,option,'filename', &
                            'INITIALIZE_TRANSPORT_FROM_FILE')
 
-      case ('CENTRAL_DIFFERENCE')
-        option%use_upwinding = PETSC_FALSE
-
 !....................
       case ('OBSERVATION')
         observation => ObservationCreate()

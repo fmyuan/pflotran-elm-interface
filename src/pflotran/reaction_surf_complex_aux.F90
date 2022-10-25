@@ -18,9 +18,8 @@ module Reaction_Surface_Complexation_Aux_module
 
   ! surface complexation surface types
   PetscInt, parameter, public :: NULL_SURFACE = 0
-  PetscInt, parameter, public :: COLLOID_SURFACE = 1
-  PetscInt, parameter, public :: MINERAL_SURFACE = 2
-  PetscInt, parameter, public :: ROCK_SURFACE = 3
+  PetscInt, parameter, public :: MINERAL_SURFACE = 1
+  PetscInt, parameter, public :: ROCK_SURFACE = 2
 
   type, public :: surface_complex_type
     PetscInt :: id

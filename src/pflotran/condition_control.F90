@@ -1345,17 +1345,6 @@ subroutine CondControlAssignRTTranInitCond(realization)
           rt_auxvars(ghosted_id)%srfcplxrxn_free_site_conc = &
             constraint_coupler%rt_auxvar%srfcplxrxn_free_site_conc
         endif
-        ! colloids fractions
-        if (associated(constraint%colloids)) then
-          offset = ibegin + reaction%offset_colloid - 1
-          do idof = 1, reaction%ncoll ! primary aqueous concentrations
-            xx_p(offset+idof) = &
-              constraint%colloids%basis_conc_mob(idof) / &
-              global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 ! convert molarity -> molality
-            rt_auxvars(ghosted_id)%colloid%conc_imb(idof) = &
-              constraint%colloids%basis_conc_imb(idof)
-          enddo
-        endif
         ! immobile
         if (associated(constraint%immobile_species)) then
           offset = ibegin + reaction%offset_immobile - 1
