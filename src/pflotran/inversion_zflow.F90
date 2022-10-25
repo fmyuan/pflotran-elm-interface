@@ -1329,7 +1329,7 @@ subroutine InversionZFlowCGLSSolve(this)
     ! PJ: for coupled flow, transport, and ert we need following condition --> ?
     if (this%check_gamma_divergence .or. &
         this%inversion_option%coupled_flow_ert) then
-     if (gamma > gamma1) exit_info = PETSC_TRUE
+      if (gamma > gamma1) exit_info = PETSC_TRUE
     endif
 
   enddo
