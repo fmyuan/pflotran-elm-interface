@@ -581,8 +581,6 @@ subroutine TFluxCoefBC(bctype,rt_parameter, &
   PetscReal :: T_up(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: T_dn(rt_parameter%naqcomp,rt_parameter%nphase)
 
-  PetscReal, parameter :: zero_velocity(2) = 0.d0
-
   select case(bctype)
     case(MEMBRANE_BC)
       T_up = 0.d0
