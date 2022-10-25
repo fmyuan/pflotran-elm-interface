@@ -464,7 +464,6 @@ subroutine RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
 
   PetscInt :: irxn, ieqrxn
-  PetscInt, parameter :: iphase = 1
   type(surface_complexation_type), pointer :: surface_complexation
 
   surface_complexation => reaction%surface_complexation
