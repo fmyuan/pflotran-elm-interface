@@ -3270,7 +3270,6 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, allocatable :: Coeff(:)
   PetscReal, allocatable :: concentration_old(:)
   PetscReal :: inst_release_molality
-  PetscReal, parameter :: conversion = 1.d0/(24.d0*3600.d0)
   PetscReal, pointer :: xx_p(:)
   ! implicit solution parameters
   PetscReal :: norm
@@ -4231,7 +4230,6 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  PetscReal, parameter :: time_conversion = 1.d0/(24.d0*3600.d0)
   PetscReal :: avg_temp_local, avg_temp_global
   PetscReal :: ph_local, ph_global
   PetscReal :: Q_local, Q_global

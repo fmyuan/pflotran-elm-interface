@@ -500,7 +500,6 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
 
-  PetscInt, parameter :: iphase = 1
   PetscInt :: ipool_up, ipool_down
   PetscInt :: ispec_pool_down
   PetscInt :: ispecC_pool_up, ispecN_pool_up
@@ -518,7 +517,6 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal, parameter :: one_over_71_02 = 1.408054069d-2
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
-  PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
 
   PetscReal :: CN_ratio_up, CN_ratio_down
   PetscBool :: constant_CN_ratio_up

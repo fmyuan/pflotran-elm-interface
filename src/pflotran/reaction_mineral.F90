@@ -696,8 +696,6 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
 
   type(mineral_type), pointer :: mineral
 
-  PetscInt, parameter :: needs_to_be_fixed = 1
-
   PetscReal :: arrhenius_factor
 
   iphase = 1
@@ -1109,7 +1107,6 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
 
   PetscReal :: arrhenius_factor
-  PetscInt, parameter :: iphase = 1
 
   cycle_ = PETSC_FALSE
 

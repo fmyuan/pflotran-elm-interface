@@ -2369,8 +2369,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   type(option_type), pointer :: option
   type(input_type), pointer :: input
   PetscBool :: found
-  PetscBool,parameter::cijk_d_true =PETSC_TRUE
-  PetscBool,parameter::cijk_d_false=PETSC_FALSE
   PetscBool :: qerr
 
   character(len = MAXSTRINGLENGTH) :: wname

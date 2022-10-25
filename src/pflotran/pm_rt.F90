@@ -422,7 +422,6 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
                                         RTJumpStartKineticSorption
   use Condition_Control_module
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
@@ -872,7 +871,6 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_rt_type), pointer :: reaction
   PetscReal :: ratio, min_ratio
-  PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, n
 
@@ -1955,7 +1953,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5, &
                                         RTUpdateAuxVars
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &

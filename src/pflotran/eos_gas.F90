@@ -553,9 +553,11 @@ subroutine EOSGasViscosityDerive(T, P_comp, P_gas, Rho_comp, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
+#if defined(NUMERICAL_DERIVATIVE_VISCOSITY)
   !geh: at very low temperatures, the derivative wrt Rhocomp is very sensitive to
   !     the perturbation.  Need a value as large as 1.d-3 at 2C to match analtyical.
   PetscReal, parameter :: pert_tol = 1.d-8
+#endif
 
   PetscReal :: dV_dRhocomp
   PetscReal :: dV_dT_, dV_dPcomp_, dV_dPgas_, dV_dRhocomp_

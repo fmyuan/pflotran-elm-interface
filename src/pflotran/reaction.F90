@@ -4430,8 +4430,6 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dtotal_sorb_dcref
   PetscReal :: tempreal
 
-  PetscInt, parameter :: iphase = 1
-
 !geh  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
   ! to make compatible with constant KD
   Lwater_m3bulk = 250.d0

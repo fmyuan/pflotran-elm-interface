@@ -1518,9 +1518,6 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
-  PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
   data aa/ &
@@ -1752,11 +1749,8 @@ subroutine EOSWaterEnthalpyIFC67(t,p,calculate_derivatives,hw, &
   PetscReal, parameter :: one = 1.d0
   PetscReal, parameter :: two = 2.d0
   PetscReal, parameter :: three = 3.d0
-  PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
   PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
@@ -2114,7 +2108,6 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   PetscReal, intent(out) :: dwt ! kmol/m^3-C
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter :: g_cm3_to_kg_m3 = 1.d3
   PetscReal, parameter :: Pa_to_bar = 1.d-5
 
   PetscReal :: T_v ! Scaled temperature for volumetric correlation
@@ -2179,7 +2172,6 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
 
   PetscReal :: A, B, C, D, E
   PetscReal :: s, molal
-  PetscReal, parameter :: g_to_kg = 1.d-3
   PetscReal, parameter :: mol_to_kmol = 1.d-3
   PetscReal, parameter :: kJ_to_J = 1.d3
 
@@ -2749,9 +2741,6 @@ subroutine EOSWaterSteamDensityEnthalpyIFC67(t,pv,calculate_derivatives, &
   PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
-  PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
   data delt,delp/1.d-6,1.d-6/

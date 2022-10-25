@@ -740,7 +740,7 @@ subroutine PMPNFMaxChange(this)
   use Field_module
   use Grid_module
   use PNF_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION
+  use Variables_module, only : LIQUID_PRESSURE
 
   implicit none
 
@@ -850,7 +850,6 @@ subroutine PMPNFCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -873,7 +872,6 @@ subroutine PMPNFRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

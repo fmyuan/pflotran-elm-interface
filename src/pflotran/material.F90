@@ -2115,7 +2115,6 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
 
   use Option_module
   use Communicator_Base_class
-  use Variables_module, only : POROSITY
 
   implicit none
 

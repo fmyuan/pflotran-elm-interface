@@ -196,7 +196,6 @@ subroutine RealizationCreateDiscretization(realization)
   use Discretization_module
   use Grid_Unstructured_Cell_module
   use DM_Kludge_module
-  use Variables_module, only : VOLUME
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
 
@@ -2256,56 +2255,9 @@ subroutine RealizationUpdatePropertiesNI(realization)
   ! Date: 08/05/09
   !
 
-  use Discretization_module
-  use Field_module
-  use Grid_module
-  use Reaction_Aux_module
-  use Reactive_Transport_Aux_module
-  use Material_Aux_module
-  use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z, &
-                               PERMEABILITY_XY, PERMEABILITY_XZ, &
-                               PERMEABILITY_YZ
-
   implicit none
 
   class(realization_subsurface_type) :: realization
-
-#if 0
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(field_type), pointer :: field
-  class(reaction_rt_type), pointer :: reaction
-  type(grid_type), pointer :: grid
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(discretization_type), pointer :: discretization
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
-  PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
-  PetscReal, pointer :: porosity0_p(:)
-  PetscReal, pointer :: porosity_mnrl_loc_p(:)
-  PetscReal, pointer :: tortuosity0_p(:)
-  PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
-  PetscReal :: min_value
-  PetscInt :: ivalue
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  discretization => realization%discretization
-  patch => realization%patch
-  field => realization%field
-  reaction => realization%reaction
-  grid => patch%grid
-  material_property_array => patch%material_property_array
-  rt_auxvars => patch%aux%RT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-#endif
 
 end subroutine RealizationUpdatePropertiesNI
 

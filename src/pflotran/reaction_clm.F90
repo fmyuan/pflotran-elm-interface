@@ -3326,7 +3326,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: Jacobian_nh4_to_no3(reaction%ncomp)
   PetscReal :: volume, porosity
 
-  PetscInt, parameter :: iphase = 1
   PetscInt :: ires_nh4, ires_no3, ires_plantn
   PetscInt :: ires_nh4in, ires_no3in
   PetscInt :: ires_plantndemand

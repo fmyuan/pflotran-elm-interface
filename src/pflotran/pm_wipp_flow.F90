@@ -126,9 +126,7 @@ function PMWIPPFloCreate()
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   !
-  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_wippflo_type), pointer :: PMWIPPFloCreate
@@ -151,8 +149,7 @@ subroutine PMWIPPFloInitObject(this)
   ! Author: Glenn Hammond
   ! Date: 10/26/17
   !
-  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
+  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, &
                                GAS_SATURATION
   implicit none
 
@@ -1018,7 +1015,6 @@ subroutine PMWIPPFloInitializeTimestep(this)
   use WIPP_Flow_module, only : WIPPFloInitializeTimestep
   use WIPP_Flow_Aux_module
   use Global_module
-  use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
   use Option_module
 
@@ -2349,9 +2345,7 @@ subroutine PMWIPPFloMaxChange(this)
   use Field_module
   use Grid_module
   use WIPP_Flow_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
-                               TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_wippflo_type) :: this
@@ -2478,7 +2472,6 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -2530,7 +2523,6 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

@@ -1916,7 +1916,6 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
   PetscReal, parameter :: T_0 = 273.15         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
-  PetscReal, parameter :: k = 1.d6
 
   T_star_th = 5.d-1 ! [K]
 

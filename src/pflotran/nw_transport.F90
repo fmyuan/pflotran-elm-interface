@@ -337,7 +337,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
   PetscInt :: istart, iend
   PetscReal, pointer :: xx_loc_p(:)
-  PetscInt, parameter :: iphase = 1
   PetscInt :: offset
   PetscErrorCode :: ierr
   type(global_auxvar_type), pointer :: global_auxvars(:)

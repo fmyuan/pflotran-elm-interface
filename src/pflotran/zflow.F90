@@ -488,7 +488,6 @@ subroutine ZFlowUpdateAuxVars(realization)
   use Connection_module
   use Material_module
   use Material_Aux_module
-  use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
 
   implicit none
 
@@ -741,7 +740,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
-  Mat, parameter :: null_mat = tMat(0)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
