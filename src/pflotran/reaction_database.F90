@@ -1785,7 +1785,8 @@ subroutine BasisInit(reaction,option)
                                   reaction%gas%paseqh2oid, &
                                   reaction%gas%paseqh2ostoich, &
                                   reaction%gas%paseqlogK, &
-                                  reaction%gas%paseqlogKcoef)
+                                  reaction%gas%paseqlogKcoef, &
+                                  reaction%gas%pasmolarwt)
   ! active
   call ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
                                   temp_high,temp_low,itemp_high,itemp_low, &
@@ -1798,7 +1799,8 @@ subroutine BasisInit(reaction,option)
                                   reaction%gas%acteqh2oid, &
                                   reaction%gas%acteqh2ostoich, &
                                   reaction%gas%acteqlogK, &
-                                  reaction%gas%acteqlogKcoef)
+                                  reaction%gas%acteqlogKcoef, &
+                                  reaction%gas%actmolarwt)
   if (option%nphase > 1 .and. reaction%gas%nactive_gas == 0 .and. &
       (option%iflowmode == MPH_MODE)) then
     option%io_buffer = 'An ACTIVE_GAS_SPECIES block must be specified in &
@@ -4044,7 +4046,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
                                       gas,gas_itype, &
                                       ngas,gas_names,gas_print, &
                                       eqspecid,eqstoich,eqh2oid,eqh2ostoich, &
-                                      eqlogK,eqlogKcoef)
+                                      eqlogK,eqlogKcoef,molar_weight)
   !
   ! Sets up gas reactions (both active and passive).  Placing setup of both
   ! active and passive gases in a single subroutine removes redundancy
@@ -4075,6 +4077,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   PetscReal, pointer :: eqh2ostoich(:)
   PetscReal, pointer :: eqlogK(:)
   PetscReal, pointer :: eqlogKcoef(:,:)
+  PetscReal, pointer :: molar_weight(:)
 
   type(gas_species_type), pointer :: cur_gas_spec
   PetscInt :: max_aq_species
@@ -4112,6 +4115,8 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
     eqh2ostoich = 0.d0
     allocate(eqlogK(ngas))
     eqlogK = 0.d0
+    allocate(molar_weight(ngas))
+    molar_weight = 0.d0
     if (.not.reaction%use_geothermal_hpt) then
       if (option%use_isothermal) then
         allocate(eqlogKcoef(reaction%num_dbase_temperatures, &
@@ -4157,6 +4162,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
           endif
         enddo
         eqspecid(0,igas_spec) = ispec
+        molar_weight(igas_spec) = cur_gas_spec%molar_weight
 
         if (.not.reaction%use_geothermal_hpt) then
           if (option%use_isothermal) then

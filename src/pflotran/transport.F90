@@ -378,7 +378,7 @@ end subroutine TDispersionBC
 subroutine TFlux(rt_parameter, &
                  rt_auxvar_up,global_auxvar_up, &
                  rt_auxvar_dn,global_auxvar_dn, &
-                 coef_up,coef_dn,option,Res)
+                 coef_up,coef_dn,option,Flux,Res)
   !
   ! Computes flux term in residual function
   !
@@ -397,6 +397,7 @@ subroutine TFlux(rt_parameter, &
   PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: Res(rt_parameter%ncomp)
+  PetscReal :: Flux(rt_parameter%naqcomp,rt_parameter%nphase)
 
   PetscInt :: iphase
   PetscInt :: ndof
@@ -404,18 +405,22 @@ subroutine TFlux(rt_parameter, &
   iphase = 1
   ndof = rt_parameter%naqcomp
 
+  Flux = 0.d0
   Res = 0.d0
 
   ! units = (L water/sec)*(mol/L) = mol/s
   ! total = mol/L water
-  Res(1:ndof) = coef_up(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
-                coef_dn(1:ndof,iphase)*rt_auxvar_dn%total(1:ndof,iphase)
+  Flux(1:ndof,iphase) = &
+    coef_up(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
+    coef_dn(1:ndof,iphase)*rt_auxvar_dn%total(1:ndof,iphase)
+  Res(1:ndof) = Flux(1:ndof,iphase)
 
   if (rt_parameter%ngas > 0) then
     iphase = 2
-    Res(1:ndof) = Res(1:ndof) + &
+    Flux(1:ndof,iphase) = Flux(1:ndof,iphase) + &
                   coef_up(1:ndof,iphase)*rt_auxvar_up%total(1:ndof,iphase) + &
                   coef_dn(1:ndof,iphase)*rt_auxvar_dn%total(1:ndof,iphase)
+    Res(1:ndof) = Res(1:ndof) + Flux(1:ndof,iphase)
   endif
 
 end subroutine TFlux

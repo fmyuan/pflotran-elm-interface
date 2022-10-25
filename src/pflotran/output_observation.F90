@@ -2610,6 +2610,18 @@ subroutine OutputMassBalance(realization_base)
                 endif
               enddo
 
+              ! header for gas contributions to cumulative flux
+              if (reaction%gas%nactive_gas > 0) then
+                do i=1,reaction%naqcomp
+                  if (reaction%primary_species_print(i)) then
+                    string = trim(coupler%name) // ' ' // &
+                             trim(reaction%primary_species_names(i)) // &
+                             ' (gas phase)'
+                    call OutputWriteToHeader(fid,string,'mol','',icol)
+                  endif
+                enddo
+              endif
+
               units = 'mol/' // trim(output_option%tunit) // ''
               do i=1,reaction%naqcomp
                 if (reaction%primary_species_print(i)) then
@@ -2618,6 +2630,19 @@ subroutine OutputMassBalance(realization_base)
                   call OutputWriteToHeader(fid,string,units,'',icol)
                 endif
               enddo
+
+              ! header for gas contributions to flux
+              if (reaction%gas%nactive_gas > 0) then
+                do i=1,reaction%naqcomp
+                  if (reaction%primary_species_print(i)) then
+                    string = trim(coupler%name) // ' ' // &
+                             trim(reaction%primary_species_names(i)) // &
+                             ' (gas phase)'
+                    call OutputWriteToHeader(fid,string,units,'',icol)
+                  endif
+                enddo
+              endif
+
             case(NWT_MODE)
               do i=1,reaction_nw%params%nspecies
                 string = trim(coupler%name) // ' ' // &
@@ -2830,6 +2855,7 @@ subroutine OutputMassBalance(realization_base)
                         ierr);CHKERRQ(ierr)
 
         if (OptionIsIORank(option)) then
+          ! total across all phases
           do icomp = 1, reaction%naqcomp
             if (reaction%primary_species_print(icomp)) then
               write(fid,110,advance="no") sum_mol_global(icomp,1)
@@ -3177,7 +3203,7 @@ subroutine OutputMassBalance(realization_base)
               rt_auxvars_bc_or_ss(offset+iconn)%mass_balance(1:nmobilecomp,:)
           enddo
 
-          int_mpi = nmobilecomp
+          int_mpi = nmobilecomp * option%transport%nphase
           call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
                           MPI_SUM,option%driver%io_rank,option%mycomm, &
                           ierr);CHKERRQ(ierr)
@@ -3189,6 +3215,16 @@ subroutine OutputMassBalance(realization_base)
                 write(fid,110,advance="no") -sum_mol_global(icomp,1)
               endif
             enddo
+            ! this block prints out the contribution to the total
+            ! component flux in the gas phase. it must be aligned with
+            ! the aqueous components, not gases
+            if (reaction%gas%nactive_gas > 0) then
+              do icomp = 1, reaction%naqcomp
+                if (reaction%primary_species_print(icomp)) then
+                  write(fid,110,advance="no") -sum_mol_global(icomp,2)
+                endif
+              enddo
+            endif
           endif
 
           ! print out boundary flux
@@ -3198,7 +3234,7 @@ subroutine OutputMassBalance(realization_base)
                                   mass_balance_delta(1:nmobilecomp,:)
           enddo
 
-          int_mpi = nmobilecomp
+          int_mpi = nmobilecomp * option%transport%nphase
           call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
                           MPI_SUM,option%driver%io_rank,option%mycomm, &
                           ierr);CHKERRQ(ierr)
@@ -3211,7 +3247,19 @@ subroutine OutputMassBalance(realization_base)
                                               output_option%tconv
               endif
             enddo
+            ! this block prints out the contribution to the total
+            ! component flux in the gas phase. it must be aligned with
+            ! the aqueous components, not gases
+            if (reaction%gas%nactive_gas > 0) then
+              do icomp = 1, reaction%naqcomp
+                if (reaction%primary_species_print(icomp)) then
+                  write(fid,110,advance="no") -sum_mol_global(icomp,2)* &
+                                                output_option%tconv
+                endif
+              enddo
+            endif
           endif
+
         case(NWT_MODE)
           nspecies = reaction_nw%params%nspecies
           allocate(sum_mol(nspecies,option%transport%nphase))
