@@ -203,6 +203,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 29
   PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 30
   PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 31
+  PetscInt, parameter, public :: MEMBRANE_BC = 32
 
   PetscInt, parameter, public :: WELL_SS = 100
 

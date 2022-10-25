@@ -1430,15 +1430,15 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoef(rt_parameter, &
-                     global_auxvars_bc(sum_connection), &
-                     global_auxvars(ghosted_id), &
-                     option,cur_connection_set%area(iconn), &
-                     patch%boundary_velocities(:,sum_connection), &
-                     patch%boundary_tran_coefs(:,:,sum_connection), &
-                     ! this 0.5 only applies to the non-upwinded conditional
-                     0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
-                     coef_up,coef_dn)
+      call TFluxCoefBC(boundary_condition%tran_condition%itype,rt_parameter, &
+                       global_auxvars_bc(sum_connection), &
+                       global_auxvars(ghosted_id), &
+                       option,cur_connection_set%area(iconn), &
+                       patch%boundary_velocities(:,sum_connection), &
+                       patch%boundary_tran_coefs(:,:,sum_connection), &
+                       ! this 0.5 only applies to the non-upwinded conditional
+                       0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
+                       coef_up,coef_dn)
 
       ! coef_dn not needed
       offset = (local_id-1)*reaction%ncomp
@@ -1691,14 +1691,14 @@ subroutine RTCalculateTransportMatrix(realization,T)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      call TFluxCoef(rt_parameter, &
-                     global_auxvars_bc(sum_connection), &
-                     global_auxvars(ghosted_id), &
-                     option,cur_connection_set%area(iconn), &
-                     patch%boundary_velocities(:,sum_connection), &
-                     patch%boundary_tran_coefs(:,:,sum_connection), &
-                     0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
-                     coef_up,coef_dn)
+      call TFluxCoefBC(boundary_condition%tran_condition%itype,rt_parameter, &
+                       global_auxvars_bc(sum_connection), &
+                       global_auxvars(ghosted_id), &
+                       option,cur_connection_set%area(iconn), &
+                       patch%boundary_velocities(:,sum_connection), &
+                       patch%boundary_tran_coefs(:,:,sum_connection), &
+                       0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
+                       coef_up,coef_dn)
 
  !     coef_dn = coef_dn*global_auxvars(ghosted_id)%den_kg*1.d-3
 
@@ -2086,15 +2086,14 @@ subroutine RTComputeBCMassBalanceOS(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(rt_parameter, &
-                     global_auxvars_bc(sum_connection), &
-                     global_auxvars(ghosted_id), &
-                     option,cur_connection_set%area(iconn), &
-                     patch%boundary_velocities(:,sum_connection), &
-                     patch%boundary_tran_coefs(:,:,sum_connection), &
-                     0.5d0, &
-                     coef_up,coef_dn)
+      call TFluxCoefBC(boundary_condition%tran_condition%itype,rt_parameter, &
+                       global_auxvars_bc(sum_connection), &
+                       global_auxvars(ghosted_id), &
+                       option,cur_connection_set%area(iconn), &
+                       patch%boundary_velocities(:,sum_connection), &
+                       patch%boundary_tran_coefs(:,:,sum_connection), &
+                       0.5d0, &
+                       coef_up,coef_dn)
       ! TFlux accomplishes the same as what TBCFlux would
       call TFlux(rt_parameter, &
                  rt_auxvars_bc(sum_connection), &
@@ -2465,8 +2464,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars(ghosted_id_dn), &
                   coef_up,coef_dn,option,Res)
 
-
-
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
       rt_auxvars(local_id_up)%mass_balance_delta(:,iphase) = &
         rt_auxvars(local_id_up)%mass_balance_delta(:,iphase) - Res
@@ -2507,16 +2504,15 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(rt_parameter, &
-                  global_auxvars_bc(sum_connection), &
-                  global_auxvars(ghosted_id), &
-                  option,cur_connection_set%area(iconn), &
-                  patch%boundary_velocities(:,sum_connection), &
-                  patch%boundary_tran_coefs(:,:,sum_connection), &
-                  0.5d0, &
-                  coef_up,coef_dn)
-      ! TFlux accomplishes the same as what TBCFlux would
+      call TFluxCoefBC(boundary_condition%tran_condition%itype, &
+                       rt_parameter, &
+                       global_auxvars_bc(sum_connection), &
+                       global_auxvars(ghosted_id), &
+                       option,cur_connection_set%area(iconn), &
+                       patch%boundary_velocities(:,sum_connection), &
+                       patch%boundary_tran_coefs(:,:,sum_connection), &
+                       0.5d0, &
+                       coef_up,coef_dn)
       call TFlux(rt_parameter, &
                   rt_auxvars_bc(sum_connection), &
                   global_auxvars_bc(sum_connection), &
@@ -3194,7 +3190,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
 
-#ifndef CENTRAL_DIFFERENCE
       call TFluxCoef(rt_parameter, &
                 global_auxvars(ghosted_id_up), &
                 global_auxvars(ghosted_id_dn), &
@@ -3224,39 +3219,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
-
-#else
-      call TFluxCoef_CD(rt_parameter, &
-                global_auxvars(ghosted_id_up), &
-                global_auxvars(ghosted_id_dn), &
-                option,cur_connection_set%area(iconn), &
-                patch%internal_velocities(:,sum_connection), &
-                patch%internal_tran_coefs(:,:,sum_connection), &
-                cur_connection_set%dist(-1,iconn), &
-                T_11,T_12,T_21,T_22)
-      call TFluxDerivative_CD(rt_parameter, &
-                           rt_auxvars(ghosted_id_up), &
-                           global_auxvars(ghosted_id_up), &
-                           rt_auxvars(ghosted_id_dn), &
-                           global_auxvars(ghosted_id_dn), &
-                           T_11,T_12,T_21,T_22,option, &
-                           J_11,J_12,J_21,J_22)
-      if (local_id_up>0) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                      J_11,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                                      J_12,ADD_VALUES,ierr);CHKERRQ(ierr)
-      endif
-
-      if (local_id_dn>0) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                      J_22,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                                      J_21,ADD_VALUES,ierr);CHKERRQ(ierr)
-      endif
-#endif
-
-
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -3284,17 +3246,15 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifndef CENTRAL_DIFFERENCE
-      ! TFluxCoef accomplishes the same as what TBCCoef would
-      call TFluxCoef(rt_parameter, &
-                global_auxvars_bc(sum_connection), &
-                global_auxvars(ghosted_id), &
-                option,cur_connection_set%area(iconn), &
-                patch%boundary_velocities(:,sum_connection), &
-                patch%boundary_tran_coefs(:,:,sum_connection), &
-                0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
-                coef_up,coef_dn)
-      ! TFluxDerivative accomplishes the same as what TBCFluxDerivative would
+      call TFluxCoefBC(boundary_condition%tran_condition%itype, &
+                       rt_parameter, &
+                       global_auxvars_bc(sum_connection), &
+                       global_auxvars(ghosted_id), &
+                       option,cur_connection_set%area(iconn), &
+                       patch%boundary_velocities(:,sum_connection), &
+                       patch%boundary_tran_coefs(:,:,sum_connection), &
+                       0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
+                       coef_up,coef_dn)
       call TFluxDerivative(rt_parameter, &
                            rt_auxvars_bc(sum_connection), &
                            global_auxvars_bc(sum_connection), &
@@ -3307,26 +3267,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-
-#else
-      call TFluxCoef_CD(rt_parameter, &
-                 global_auxvars_bc(sum_connection), &
-                 global_auxvars(ghosted_id), &
-                 option,cur_connection_set%area(iconn), &
-                 patch%boundary_velocities(:,sum_connection), &
-                 patch%boundary_tran_coefs(:,:,sum_connection), &
-                 0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
-                 T_11,T_12,T_21,T_22)
-      call TFluxDerivative_CD(rt_parameter, &
-                           rt_auxvars_bc(sum_connection), &
-                           global_auxvars_bc(sum_connection), &
-                           rt_auxvars(ghosted_id), &
-                           global_auxvars(ghosted_id), &
-                           T_11,T_12,T_21,T_22,option, &
-                           J_11,J_12,J_21,J_22)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_22, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
-#endif
 
     enddo
     boundary_condition => boundary_condition%next
