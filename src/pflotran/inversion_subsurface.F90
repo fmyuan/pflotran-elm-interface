@@ -2001,9 +2001,6 @@ subroutine InvSubsurfPertCalcSensitivity(this)
                           MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(this%inversion_aux%JsensitivityT, &
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    ! DBG: PJ
-    call MatView(this%inversion_aux%JsensitivityT, &
-                 PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
 
   ! must reset dof back to zero
