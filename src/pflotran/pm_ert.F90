@@ -1093,8 +1093,6 @@ subroutine PMERTBuildJacobian(this)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
-  type(inversion_coupled_soln_type), pointer :: solutions(:)
-  type(inversion_parameter_type), pointer :: parameters(:)
 
   PetscInt, pointer :: cell_neighbors(:,:)
   PetscReal, allocatable :: phi_sor(:), phi_rec(:)
@@ -1253,15 +1251,9 @@ subroutine PMERTBuildCoupledJacobian(this)
   PetscReal, pointer :: dsat_dparam_ptr(:),dconc_dparam_ptr(:)
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal :: jacob,coupled_jacob
-  PetscReal :: cond,wd,wd_cull
   PetscInt :: idata,ndata,imeasurement
-  PetscInt :: ielec
   PetscInt :: ia,ib,im,in,isurvey,iparam
   PetscInt :: local_id,ghosted_id
-  PetscInt :: local_id_a,local_id_b
-  PetscInt :: ghosted_id_a,ghosted_id_b
-  PetscInt :: local_id_m,local_id_n
-  PetscInt :: ghosted_id_m,ghosted_id_n
   PetscInt :: inbr,num_neighbors
   PetscBool :: iflag
   character(len=MAXWORDLENGTH) :: word

@@ -2130,8 +2130,6 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
   PetscInt :: iteration
 
   PetscInt :: i
-  PetscInt :: iparam
-  PetscErrorCode :: ierr
 
   if (this%perturbation%idof_pert < 0) then
     call this%driver%PrintErrMsg('InvSubsurfFVCalcPartialJs() called  &
