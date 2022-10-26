@@ -1222,7 +1222,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: ratio, min_ratio
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, n, k
+  PetscInt :: i, k
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
@@ -1263,7 +1263,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 #else
       min_ratio = MAX_DOUBLE ! large number
       k = 0
-      do i = 1, n
+      do i = 1, size(C_p)
         if (C_p(i) <= dC_p(i)) then
           !WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
           ratio = abs(C_p(i)/dC_p(i))
