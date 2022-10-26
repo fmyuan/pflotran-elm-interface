@@ -231,7 +231,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                     case default
                       option%io_buffer = 'Unrecognized observed variable in &
                         &PMInversionInversionMeasurement: ' // &
-                        StringWrite(measurements(imeasurement)%iobs_var)
+                        trim(StringWrite(measurements(imeasurement)%iobs_var))
                       call PrintErrMsgByRank(option)
                   end select
                   if (Initialized(inversion_forward_aux% &

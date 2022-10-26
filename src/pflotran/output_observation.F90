@@ -1100,7 +1100,7 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
                          ierr);CHKERRQ(ierr)
   end select
 
-  agg_rank = global_metric(2)
+  agg_rank = int(global_metric(2)+1.d-5)
 
   if (option%myrank == agg_rank) then
 

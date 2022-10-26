@@ -19,7 +19,6 @@ module HDF5_module
 #error "PETSc must be configured with HDF5 to run PFLOTRAN"
 #endif
   PetscMPIInt :: hdf5_err
-  PetscMPIInt :: io_rank
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -444,7 +443,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > grid%nmax) then
     option%io_buffer = 'One or more "Cell Ids" in HDF5 dataset &
       &are outside the range of valid cell IDs: 1-' // &
-      adjustl(StringWrite(grid%nmax))
+      trim(adjustl(StringWrite(grid%nmax)))
     call PrintErrMsg(option)
   endif
 

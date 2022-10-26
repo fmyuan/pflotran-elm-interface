@@ -1158,7 +1158,7 @@ function StringWriteBracketString(s)
 
   character(len=*) :: s
 
-  StringWriteBracketString = '[' // StringWrite(s) // ']'
+  StringWriteBracketString = '[' // trim(StringWrite(s)) // ']'
 
 end function StringWriteBracketString
 

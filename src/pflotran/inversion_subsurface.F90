@@ -793,7 +793,7 @@ subroutine InversionSubsurfInitialize(this)
           if (Initialized(this%measurements(i)%local_id) .and. &
               this%measurements(i)%local_id /= local_id) then
             this%realization%option%io_buffer = 'Error mapping local id &
-              &for measurement ' // StringWrite(i)
+              &for measurement ' // trim(StringWrite(i))
             call PrintErrMsgByRank(this%realization%option)
           endif
           this%measurements(i)%local_id = local_id
@@ -1566,7 +1566,7 @@ subroutine InvSubsurfPostProcMeasurements(this)
                                           'PostProcess',option)
     if (.not.this%measurements(imeasurement)%measured) then
       option%io_buffer = 'Measurement at cell ' // &
-        StringWrite(this%measurements(imeasurement)%cell_id)
+        trim(StringWrite(this%measurements(imeasurement)%cell_id))
       if (Initialized(this%measurements(imeasurement)%time)) then
         word = 'sec'
         option%io_buffer = trim(option%io_buffer) // &
@@ -2335,7 +2335,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
     call MatMult(JsensitivityT,row_vec,this%realization%field%work, &
                  ierr);CHKERRQ(ierr)
     string = 'Measurement ' // &
-             StringWrite(this%measurements(imeasurement)%cell_id)
+      trim(StringWrite(this%measurements(imeasurement)%cell_id))
     call HDF5WriteStructDataSetFromVec(string,this%realization, &
                                        this%realization%field%work,grp_id, &
                                        H5T_NATIVE_DOUBLE)

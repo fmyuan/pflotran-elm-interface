@@ -239,6 +239,7 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
   PetscInt :: icount
+  PetscInt :: i
   PetscInt :: temp_int
   ! temp_int_array has a natural_id and 1,2, or 3 that indicates
   ! pressure, satruation, or both to be zerod in the residual
@@ -354,7 +355,9 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
       case('DIP_ROTATION_REGIONS')
         strings => StringSplit(adjustl(input%buf),' ')
         allocate(this%rotation_region_names(size(strings)))
-        this%rotation_region_names(:) = strings(:)
+        do i = 1, size(strings)
+          this%rotation_region_names(i) = trim(strings(i))
+        enddo
         deallocate(strings)
         nullify(strings)
       case('AUTO_PRESSURE_MATERIAL_IDS')
@@ -998,7 +1001,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       Initialized(this%temperature_change_governor) .or. &
       Initialized(this%saturation_change_governor)) then
     option%io_buffer = 'PRESSURE_CHANGE_GOVERNOR, TEMPERATURE_CHANGE_GOVERNOR, &
-      or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
+      &or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
     call PrintErrMsg(option)
   endif
 

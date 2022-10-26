@@ -340,7 +340,7 @@ function InvMeasAuxObsVarIDToString(id,option)
       InvMeasAuxObsVarIDToString = OBS_ERT_MEASUREMENT_STRING
     case default
       option%io_buffer = 'Unknown measurement variable integer ID in &
-        &InvMeasAuxObsVarIDToString: ' // StringWrite(id)
+        &InvMeasAuxObsVarIDToString: ' // trim(StringWrite(id))
       call PrintErrMsg(option)
   end select
 

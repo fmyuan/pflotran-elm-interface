@@ -58,6 +58,7 @@ ifdef ci
 endif
 
 ifdef gnu_code_coverage
+  FFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
 endif
 

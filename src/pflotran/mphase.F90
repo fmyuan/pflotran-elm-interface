@@ -578,6 +578,7 @@ function MphaseInitGuessCheck(realization)
   PetscInt :: ipass, ipass0
   PetscErrorCode :: ierr
 
+  MphaseInitGuessCheck = UNINITIALIZED_INTEGER
   option => realization%option
   ipass = 1
   cur_patch => realization%patch_list%first
@@ -594,7 +595,8 @@ function MphaseInitGuessCheck(realization)
                        option%mycomm,ierr);CHKERRQ(ierr)
     if (ipass0 < option%comm%mycommsize) ipass=-1
   endif
-  MphaseInitGuessCheck =ipass
+  MphaseInitGuessCheck = ipass
+
 end function MphaseInitGuessCheck
 
 ! ************************************************************************** !
@@ -789,6 +791,7 @@ end subroutine MPhaseUpdateReason
     PetscReal, pointer :: xx_p(:)
     PetscErrorCode :: ierr
 
+    MphaseInitGuessCheckPatch = UNINITIALIZED_INTEGER
 
     patch => realization%patch
     grid => patch%grid
@@ -824,7 +827,7 @@ end subroutine MPhaseUpdateReason
 
     MphaseInitGuessCheckPatch = ipass
 
-  end function MphaseInitGuessCheckPatch
+end function MphaseInitGuessCheckPatch
 
 ! ************************************************************************** !
 

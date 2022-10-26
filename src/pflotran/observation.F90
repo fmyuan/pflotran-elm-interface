@@ -305,7 +305,7 @@ subroutine ObservationRead(observation,input,option)
               if (trim(word) == 'TOTAL') then
                 call InputReadWord(input,option,word, &
                                    PETSC_TRUE)
-                new_aggregate%var_name = 'Total ' // word
+                new_aggregate%var_name = 'Total ' // trim(word)
               else
                 call OutputVariableToID(word,var_name,units,category,id, &
                                         subvar,subsubvar,option)

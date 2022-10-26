@@ -1467,7 +1467,7 @@ subroutine ILTBaseTest(this, name, option)
   string = trim(name) // '_ilt_vs_time_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"initial smectite [-]", "temperature [C]", &
-               "time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
+              &"time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
   do i = 1,ns
     do j = 1,nt
       do k = 2,np

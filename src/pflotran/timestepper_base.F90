@@ -764,7 +764,7 @@ subroutine TimestepperBaseCutDT(this,process_model,icut,stop_flag, &
         ', dtmin= ' // &
         StringWrite('(es15.7)', &
                     this%dt_min/process_model%output_option%tconv) // &
-        ' ' // StringWriteBracket(process_model%output_option%tunit)
+        ' ' // trim(StringWriteBracket(process_model%output_option%tunit))
       call PrintMsg(option)
     endif
 
@@ -823,15 +823,16 @@ subroutine TimestepperBasePrintInfo(this,aux_string,option)
   option%io_buffer = trim(this%name) // ' Time Stepper ' // trim(aux_string)
   call PrintMsg(option)
   strings(:) = ''
-  strings(1) = 'maximum number of steps: ' // StringWrite(this%max_time_step)
+  strings(1) = 'maximum number of steps: ' // &
+    trim(StringWrite(this%max_time_step))
   strings(2) = 'constant time steps threshold: ' // &
-                              StringWrite(this%constant_time_step_threshold)
+    trim(StringWrite(this%constant_time_step_threshold))
   strings(3) = 'maximum number of cuts: ' // &
-                                        StringWrite(this%max_time_step_cuts)
+    trim( StringWrite(this%max_time_step_cuts))
   strings(4) = 'reduction factor: ' // &
-                                StringWrite(this%time_step_reduction_factor)
+    trim(StringWrite(this%time_step_reduction_factor))
   strings(5) = 'maximum growth factor: ' // &
-                               StringWrite(this%time_step_max_growth_factor)
+    trim(StringWrite(this%time_step_max_growth_factor))
   call StringsCenter(strings,30,':')
   do i = 1, size(strings)
     if (len_trim(strings(i)) > 0) call PrintMsg(option,strings(i))

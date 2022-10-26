@@ -201,7 +201,7 @@ ifdef gnu_runtime_checks
 endif
 
 ifdef catch_warnings_as_errors
-  MYFLAGS += -Werror=unused-variable -Werror=unused-parameter -Werror=maybe-uninitialized
+  MYFLAGS += -Werror=all -Wno-unused-dummy-argument 
 endif
 
 ###############################################################################

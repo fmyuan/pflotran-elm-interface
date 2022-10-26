@@ -708,8 +708,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
                                       region%cell_ids)
             if (region%iface == 0) then
               option%io_buffer = 'REGIONs defined with POLYGON and &
-                BOUNDARY_FACES_IN_VOLUME on STRUCTURED grids must &
-                define a FACE.'
+                &BOUNDARY_FACES_IN_VOLUME on STRUCTURED grids must &
+                &define a FACE.'
               call PrintErrMsg(option)
             endif
             allocate(region%faces(size(region%cell_ids)))
@@ -1694,6 +1694,7 @@ function GridIndexToCellID(vec,index,grid,vec_type)
   PetscInt :: cell_id
   PetscErrorCode :: ierr
 
+  GridIndexToCellID = UNINITIALIZED_INTEGER
 
   cell_id = -1
   call VecGetOwnershipRange(vec,low,high,ierr);CHKERRQ(ierr)
