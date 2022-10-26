@@ -1,7 +1,7 @@
 ! This module handles specific calls from reactive_transport.f90 to
 ! take into account electromigration and specific
 ! diffusion terms (Nernst-Plank transport formulation)
-module Transport_np_module
+module Transport_NP_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
@@ -667,5 +667,5 @@ subroutine ComputeElectricPotentialTotalComponent(reaction, &
 
 end subroutine ComputeElectricPotentialTotalComponent
 
-end module Transport_np_module
+end module Transport_NP_module
 

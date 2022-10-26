@@ -2975,6 +2975,7 @@ reactive_transport.o : \
   region.o \
   secondary_continuum.o \
   secondary_continuum_aux.o \
+  secondary_continuum_np.o \
   string.o \
   transport.o \
   transport_np.o \
@@ -3162,6 +3163,32 @@ secondary_continuum_aux.o : \
   pflotran_constants.o \
   reactive_transport_aux.o \
   utility.o
+secondary_continuum_np.o : \
+  block_solve.o \
+  block_tridiag.o \
+  condition.o \
+  coupler.o \
+  eos_water.o \
+  global_aux.o \
+  grid.o \
+  material.o \
+  material_aux.o \
+  mphase_aux.o \
+  option.o \
+  patch.o \
+  pflotran_constants.o \
+  reaction.o \
+  reaction_aux.o \
+  reaction_gas.o \
+  reactive_transport_aux.o \
+  realization_subsurface.o \
+  secondary_continuum.o \
+  secondary_continuum_aux.o \
+  string.o \
+  transport_constraint.o \
+  transport_constraint_rt.o \
+  utility.o \
+  variables.o  
 shape_function.o : \
   gauss.o \
   grid_unstructured_cell.o \

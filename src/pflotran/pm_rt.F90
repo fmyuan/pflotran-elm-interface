@@ -198,6 +198,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_sc = PETSC_TRUE
+      case('NERNST_PLANCK')
+        option%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
@@ -966,6 +968,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Patch_module
   use Option_module
   use Secondary_Continuum_module, only : SecondaryRTUpdateIterate
+  use Secondary_Continuum_NP_module, only : SecondaryRTUpdateIterate_NP
   use Output_EKG_module
   use Reactive_Transport_Aux_module
 
@@ -1041,8 +1044,13 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
 
   if (option%use_sc) then
-    call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
+    if (option%use_np) then
+      call SecondaryRTUpdateIterate_NP(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
+    else
+       call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
+                                     X1_changed,this%realization,ierr)
+    endif
   endif
 
   if (this%print_ekg) then
