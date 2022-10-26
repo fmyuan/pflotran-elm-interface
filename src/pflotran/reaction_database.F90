@@ -2825,6 +2825,11 @@ subroutine BasisInit(reaction,option)
       if (.not.associated(cur_ionx_rxn)) exit
       irxn = irxn + 1
       ication = 0
+      if (Uninitialized(cur_ionx_rxn%CEC)) then
+        option%io_buffer = 'A CEC must be defined for all ion exchange &
+          &reactions.'
+        call PrintErrMsg(option)
+      endif
       reaction%eqionx_rxn_CEC(irxn) = cur_ionx_rxn%CEC
         ! compute the offset to the first cation in rxn
       reaction%eqionx_rxn_cation_X_offset(irxn) = icount
