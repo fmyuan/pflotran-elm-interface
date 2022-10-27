@@ -95,14 +95,14 @@ subroutine ERTAuxVarInit(auxvar,survey,num_neighbors,option)
       allocate(auxvar%delM(num_neighbors+1))
       auxvar%delM = 0.d0
     endif
-    ! return if coupled FLOW-ERT inversion
     if (associated(option%inversion)) then
-      if (option%inversion%coupled_flow_ert) then
-        return
+      if (.not.option%inversion%coupled_flow_ert) then
+        allocate(auxvar%jacobian(survey%num_measurement))
       endif
+    else
+      allocate(auxvar%jacobian(survey%num_measurement))
     endif
-    allocate(auxvar%jacobian(survey%num_measurement))
-    auxvar%jacobian = 0.d0
+    if (associated(auxvar%jacobian)) auxvar%jacobian = 0.d0
   endif
 
 end subroutine ERTAuxVarInit

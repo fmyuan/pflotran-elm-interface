@@ -459,9 +459,9 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
       ! do nothing
     case(WAXMAN_SMITS)
       ! Waxmax-Smits equations/Dual-Water model
-      cond_ws = cond_c * Vc * (1-por) * sat**(n-1)
+      cond_ws = cond_c * Vc * (1.d0-por) * sat**(n-1.d0)
       cond = cond + cond_ws
-      dcond_dsat = dcond_dsat + (n-1) * cond_ws / sat
+      dcond_dsat = dcond_dsat + (n-1.d0) * cond_ws / sat
   end select
 
 end subroutine ERTConductivityFromEmpiricalEqs
