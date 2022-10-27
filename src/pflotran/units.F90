@@ -605,9 +605,9 @@ end subroutine UnitsCategoryCheck
 
 ! ************************************************************************** !
 
-function UnitsConvertToExternal(units,units_category,option)
+function UnitsConvertToExternal(units,internal_units,option)
   !
-  ! UnitsConvert: Converts units to pflotran internal units
+  ! UnitsConvert: Converts from internal units to (external units)
   !
   ! Author: Glenn Hammond
   ! Date: 01/21/09
@@ -617,14 +617,14 @@ function UnitsConvertToExternal(units,units_category,option)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: units
-  character(len=*) :: units_category
+  character(len=*) :: units
+  character(len=MAXWORDLENGTH) :: internal_units
   type(option_type) :: option
 
   PetscReal :: UnitsConvertToExternal
 
   UnitsConvertToExternal = 1.d0/UnitsConvertToInternal(units, &
-                                                       units_category,option)
+                                                       internal_units,option)
 
 end function UnitsConvertToExternal
 

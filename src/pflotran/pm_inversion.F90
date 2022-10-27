@@ -202,7 +202,9 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   ierr = 0
   no_measurement_flag = PETSC_TRUE
   if (associated(inversion_forward_aux)) then
-    if (option%inversion%record_measurements) then
+    if (option%inversion%record_measurements .and. &
+        inversion_forward_aux%isync_time <= &
+        size(inversion_forward_aux%sync_times)) then
       measurements => inversion_forward_aux%measurements
       if (Equal(inversion_forward_aux%sync_times( &
                   inversion_forward_aux%isync_time),time)) then
@@ -292,13 +294,13 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                                           perturbed_solute_solution, &
                                         SOLUTE_CONCENTRATION,ZERO_INTEGER)
           endif
-          option%io_buffer = 'Full saturation '
+          option%io_buffer = 'Full saturation'
           if (iflag) then
             option%io_buffer = trim(option%io_buffer) // &
-              'and solute concentration '
+              ' and solute concentration'
           endif
           option%io_buffer = trim(option%io_buffer) // &
-              'solutions measured.'
+              ' solutions measured.'
           call PrintMsg(option)
         endif
       enddo

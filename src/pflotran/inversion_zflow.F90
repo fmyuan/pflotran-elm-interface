@@ -33,6 +33,9 @@ module Inversion_ZFlow_class
     PetscReal :: phi_data_0,phi_data
     PetscReal :: phi_model_0,phi_model
 
+    ! to check divergence of gamma in CGLS
+    PetscBool :: check_gamma_divergence
+
     ! arrays for CGLS algorithm
     PetscReal, pointer :: b(:)           ! vector for CGLS RHS
     PetscReal, pointer :: p(:)           ! vector of dim -> num of inv cells
@@ -173,6 +176,8 @@ subroutine InversionZFlowInit(this,driver)
   this%phi_total = UNINITIALIZED_DOUBLE
   this%phi_data = UNINITIALIZED_DOUBLE
   this%phi_model = UNINITIALIZED_DOUBLE
+
+  this%check_gamma_divergence = PETSC_FALSE
 
   this%parameter_tmp_vec = PETSC_NULL_VEC
   this%dist_parameter_tmp_vec = PETSC_NULL_VEC
@@ -492,6 +497,8 @@ subroutine InversionZFlowReadBlock(this,input,option)
       case('MAX_CGLS_ITERATION')
         call InputReadInt(input,option,this%maxiter)
         call InputErrorMsg(input,option,'MAX_CGLS_ITERATION',error_string)
+      case('CHECK_CGLS_GAMMA_DIVERGENCE')
+        this%check_gamma_divergence = PETSC_TRUE
       case('BETA')
         call InputReadDouble(input,option,this%beta)
         call InputErrorMsg(input,option,'BETA',error_string)
@@ -1318,6 +1325,12 @@ subroutine InversionZFlowCGLSSolve(this)
 
     if ( abs((resNE_old - resNe) /resNE_old) < delta_initer .and. &
         i > this%miniter) exit_info = PETSC_TRUE
+
+    ! PJ: for coupled flow, transport, and ert we need following condition --> ?
+    if (this%check_gamma_divergence .or. &
+        this%inversion_option%coupled_flow_ert) then
+      if (gamma > gamma1) exit_info = PETSC_TRUE
+    endif
 
   enddo
 

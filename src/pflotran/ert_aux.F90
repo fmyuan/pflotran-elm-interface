@@ -66,7 +66,7 @@ end function ERTAuxCreate
 
 ! ************************************************************************** !
 
-subroutine ERTAuxVarInit(auxvar,survey,option)
+subroutine ERTAuxVarInit(auxvar,survey,num_neighbors,option)
   !
   ! Initialize auxiliary object
   !
@@ -82,16 +82,28 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
   type(ert_auxvar_type) :: auxvar
   type(survey_type) :: survey
   type(option_type) :: option
+  PetscInt :: num_neighbors
 
   allocate(auxvar%potential(survey%num_electrode))
   auxvar%potential = 0.d0
 
   nullify(auxvar%jacobian)
-  if (option%geophysics%compute_jacobian) then
-    allocate(auxvar%jacobian(survey%num_measurement))
-    auxvar%jacobian = 0.d0
-  endif
   nullify(auxvar%delM)
+
+  if (option%geophysics%compute_jacobian) then
+    if (num_neighbors >= 0) then
+      allocate(auxvar%delM(num_neighbors+1))
+      auxvar%delM = 0.d0
+    endif
+    if (associated(option%inversion)) then
+      if (.not.option%inversion%coupled_flow_ert) then
+        allocate(auxvar%jacobian(survey%num_measurement))
+      endif
+    else
+      allocate(auxvar%jacobian(survey%num_measurement))
+    endif
+    if (associated(auxvar%jacobian)) auxvar%jacobian = 0.d0
+  endif
 
 end subroutine ERTAuxVarInit
 

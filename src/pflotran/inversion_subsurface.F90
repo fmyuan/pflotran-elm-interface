@@ -1984,6 +1984,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call this%DestroyForwardRun()
   enddo
 
+  ! Build coupled J once partial Js are calculated
   if (this%inversion_option%coupled_flow_ert) then
     ! destroy last from loop above (we are not calculating Jsense)
     call this%DestroyForwardRun()
@@ -1995,6 +1996,11 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call this%ExecuteForwardRun()
     ! the last forward run will be destroyed after any output of
     ! sensitivity matrices
+    ! Finalize assembly of coupled sensitivity matrix
+    call MatAssemblyBegin(this%inversion_aux%JsensitivityT, &
+                          MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%inversion_aux%JsensitivityT, &
+                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   endif
 
   ! must reset dof back to zero
@@ -2124,8 +2130,6 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
   PetscInt :: iteration
 
   PetscInt :: i
-  PetscInt :: iparam
-  PetscErrorCode :: ierr
 
   if (this%perturbation%idof_pert < 0) then
     call this%driver%PrintErrMsg('InvSubsurfFVCalcPartialJs() called  &
@@ -2149,22 +2153,23 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
   enddo
   call InversionCoupledAuxReset(this%inversion_coupled_aux)
 
-  if (iteration == this%perturbation%ndof) then
-    do i = 1, size(this%inversion_coupled_aux%solutions)
-      do iparam = 1, size(this%parameters)
-        print *, i, iparam, 'saturation '
-        call VecView(this%inversion_coupled_aux%solutions(i)% &
-                       dsaturation_dparameter(iparam), &
-                     PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-        print *, i, iparam, 'solute '
-        call VecView(this%inversion_coupled_aux%solutions(i)% &
-                       dsolute_dparameter(iparam), &
-                     PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      enddo
-    enddo
-  endif
+  !if (iteration == this%perturbation%ndof) then
+  !  do i = 1, size(this%inversion_coupled_aux%solutions)
+  !    do iparam = 1, size(this%parameters)
+  !      print *, i, iparam, 'saturation '
+  !      call VecView(this%inversion_coupled_aux%solutions(i)% &
+  !                     dsaturation_dparameter(iparam), &
+  !                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+  !      print *, i, iparam, 'solute '
+  !      call VecView(this%inversion_coupled_aux%solutions(i)% &
+  !                     dsolute_dparameter(iparam), &
+  !                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+  !    enddo
+  !  enddo
+  !endif
 
-  if (.not.this%qoi_is_full_vector) then
+  if (.not.this%qoi_is_full_vector .and. &
+      this%perturbation%idof_pert > 0) then
     ! revert back to base value
     this%parameters(this%perturbation%idof_pert)%value = &
       this%perturbation%base_value
