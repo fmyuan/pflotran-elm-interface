@@ -1564,7 +1564,7 @@ subroutine PMERTStrip(this)
     call VecDestroy(this%dconductivity_dsaturation,ierr);CHKERRQ(ierr)
   endif
   if (this%dconductivity_dconcentration /= PETSC_NULL_VEC) then
-   call VecDestroy(this%dconductivity_dconcentration,ierr);CHKERRQ(ierr)
+    call VecDestroy(this%dconductivity_dconcentration,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine PMERTStrip
