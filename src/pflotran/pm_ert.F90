@@ -726,7 +726,7 @@ subroutine PMERTPreSolve(this)
   if (option%itranmode == RT_MODE) then
     rt_auxvars => patch%aux%RT%auxvars
   endif
-  if (zflow_sol_tran_eq > 0) then
+  if (option%iflowmode == ZFLOW_MODE) then
     zflow_auxvars => patch%aux%ZFlow%auxvars
   endif
   if (Initialized(this%max_tracer_conc)) then
@@ -748,7 +748,12 @@ subroutine PMERTPreSolve(this)
     dcond_dsat = 0.d0
     dcond_dconc = 0.d0
     if (patch%imat(ghosted_id) <= 0) cycle
-    por = material_auxvars(ghosted_id)%porosity
+    if (option%iflowmode == ZFLOW_MODE) then
+      por = zflow_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
+    else
+      por = material_auxvars(ghosted_id)%porosity
+    endif
+
     sat = global_auxvars(ghosted_id)%sat(1)
     if (associated(rt_auxvars)) then
       if (associated(this%species_conductivity_coef)) then
