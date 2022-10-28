@@ -427,8 +427,8 @@ subroutine CPRSetupT2(ctx, ierr)
   ! if BJACOBI, this is the best place to try
   ! modifying sub-ksps
   if (ctx%firstT2Call) then
-
-  T2 = ctx%T2_PC
+    !if Jacobi set operators and that's it
+    T2 = ctx%T2_PC
 
     if (StringCompare(ctx%T2_type, 'PCASM')) then
       call PCASMSetOverlap(T2,ctx%asmoverlap,ierr);CHKERRQ(ierr)

@@ -84,6 +84,8 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case('ILU')
             ! this will cause crash if using more than 1 proc
             stash%T2_type = 'ILU'
+          case('JACOBI')
+            stash%T2_type = 'JACOBI'
           case default
             option%io_buffer  = 'CPR T2 Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
