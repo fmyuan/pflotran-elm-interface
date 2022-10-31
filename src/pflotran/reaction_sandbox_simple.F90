@@ -139,11 +139,11 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: Aaq, Baq, Caq, Daq, Eaq, Faq  ! mol/L water
   PetscReal :: Xim, Yim  ! mol/m^3 bulk volume
-  PetscReal :: Rate,Rate1,Rate2
+  PetscReal :: Rate
   PetscReal :: RateA, RateB, RateC, RateD, RateE, RateF, RateX, RateY  ! mol/sec
   PetscReal :: stoichA, stoichB, stoichC, stoichD, stoichE, stoichF
   PetscReal :: stoichX, stoichY
-  PetscReal :: k, kr, k1, k2  ! units are problem specific
+  PetscReal :: k, kr        ! units are problem specific
   PetscReal :: K_Aaq, K_Baq ! [mol/L water]
 
   porosity = material_auxvar%porosity               ! [m^3 pore/m^3 bulk volume]

@@ -962,9 +962,7 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   PetscInt :: local_stride_tmp
   PetscInt :: i
   PetscInt :: stride
-  PetscInt, allocatable :: indices(:)
   PetscInt, allocatable :: int_array(:)
-  PetscReal, allocatable :: check_vars(:)
   PetscReal, pointer :: local_mt_array(:)
   class(material_transform_type), pointer :: cur_m_transform
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1053,7 +1051,7 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   do
     if (.not. associated(cur_m_transform)) exit
 
-    cur_m_transform%num_aux = local_mt_array(i) ! checkpoint #1
+    cur_m_transform%num_aux = int(local_mt_array(i)+1.d-5) ! checkpoint #1
 
     cur_m_transform => cur_m_transform%next
     i = i + stride
@@ -1179,7 +1177,6 @@ subroutine PMMTransformCheckpointBinary(this, viewer)
   class(material_transform_type), pointer :: cur_m_transform
   character(len=MAXSTRINGLENGTH) :: dataset_name
   Vec :: global_vec
-  Vec :: natural_vec
   PetscBool :: check_il
   PetscBool :: check_be
   type(option_type), pointer :: option
@@ -1383,14 +1380,10 @@ subroutine PMMTransformRestartBinary(this, viewer)
   PetscInt :: local_stride_tmp
   PetscInt :: i
   PetscInt :: stride
-  PetscInt, allocatable :: indices(:)
   PetscInt, allocatable :: int_array(:)
-  PetscReal, allocatable :: check_vars(:)
   PetscReal, pointer :: local_mt_array(:)
   class(material_transform_type), pointer :: cur_m_transform
-  character(len=MAXSTRINGLENGTH) :: dataset_name
   Vec :: global_vec
-  Vec :: natural_vec
   PetscBool :: check_il
   PetscBool :: check_be
   type(option_type), pointer :: option
@@ -1472,7 +1465,7 @@ subroutine PMMTransformRestartBinary(this, viewer)
   do
     if (.not. associated(cur_m_transform)) exit
 
-    cur_m_transform%num_aux = local_mt_array(i) ! checkpoint #1
+    cur_m_transform%num_aux = int(local_mt_array(i)+1.d-5) ! checkpoint #1
 
     cur_m_transform => cur_m_transform%next
     i = i + stride
@@ -1575,7 +1568,6 @@ subroutine PMMaterialTransformStrip(this)
   ! cur_m_transform: pointer to current material transform object
   ! prev_m_transform: pointer to previous material transform object
   ! --------------------------------
-  type(material_transform_type), pointer :: cur_m_transform, prev_m_transform
   ! --------------------------------
 
   nullify(this%realization)

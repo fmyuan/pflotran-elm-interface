@@ -135,7 +135,6 @@ subroutine GeomechanicsSimInputRecord(this)
 
   class(simulation_geomechanics_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a29)',advance='no') 'simulation type: '
@@ -166,7 +165,6 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   PetscReal :: time
   PetscReal :: final_time
   PetscReal :: dt
-  PetscViewer :: viewer
 
   time = this%option%time
 

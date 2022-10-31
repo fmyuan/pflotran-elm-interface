@@ -84,25 +84,15 @@ function PMHydrateCreate()
 
   class(pm_hydrate_type), pointer :: this
 
-  PetscReal, parameter :: ref_temp = 20.d0 !degrees C
-  PetscReal, parameter :: ref_pres = 101325.d0 !Pa
-  PetscReal, parameter :: ref_sat = 0.5
-  PetscReal, parameter :: ref_xmol = 1.d-6
-
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
-  PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
   PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
 
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
   PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
   PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
-
-  PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
-  PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
-  PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
 
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
@@ -116,38 +106,68 @@ function PMHydrateCreate()
   PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-5 !1.d-10
   !For convergence using hydrate and ice formation capability
   PetscReal, parameter :: abs_update_inf_tol(3,15) = &
+             !L_STATE
     reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+             !G_STATE
              pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol,  &
+             !H_STATE
+             pres_abs_inf_tol,999.d0,temp_abs_inf_tol,  &
+             !I_STATE
              pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
-             pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
+             !GA_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HG_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HA_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HI_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !GI_STATE
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !AI_STATE
              pres_abs_inf_tol,xmol_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             !HGA_STATE
              hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !HAI_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             !HGI_STATE
              hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             !GAI_STATE
              pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             !HGAI_STATE
              hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol], &
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
   PetscReal, parameter :: rel_update_inf_tol(3,15) = &
+             !L_STATE
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+             !G_STATE
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !H_STATE
              pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             !I_STATE
              pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             !GA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HG_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !GI_STATE
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !AI_STATE
              pres_rel_inf_tol,xmol_rel_inf_tol,sat_rel_inf_tol, &
+             !HGA_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !HAI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             !HGI_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             !GAI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             !HGAI_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
@@ -494,7 +514,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         hydrate_diffuse_xmol = PETSC_FALSE
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
+        call InputReadDouble(input,option,hydrate_fmw_comp(2))
         call InputErrorMsg(input,option,keyword,error_string)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         hydrate_harmonic_diff_density = PETSC_TRUE
@@ -502,7 +522,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         hydrate_immiscible = PETSC_TRUE
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
         !heeho: assuming liquid component is index 1
-        call InputReadDouble(input,option,fmw_comp(1))
+        call InputReadDouble(input,option,hydrate_fmw_comp(1))
         call InputErrorMsg(input,option,keyword,error_string)
       case('NO_STATE_TRANSITION_OUTPUT')
         hydrate_print_state_transition = PETSC_FALSE
@@ -595,8 +615,6 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         this%abs_update_inf_tol(1:2,13) = tempreal
         this%abs_update_inf_tol(2:3,14) = tempreal
         this%abs_update_inf_tol(:,15) = tempreal
-
-      !man: phase change
       case('MAX_NEWTON_ITERATIONS')
         call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                     'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
@@ -656,16 +674,13 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
       case('PRES_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        this%abs_update_inf_tol(1,:) = tempreal
-        this%abs_update_inf_tol(2,2) = tempreal
         this%abs_update_inf_tol(1,1:10) = tempreal
+        this%abs_update_inf_tol(2,2) = tempreal
         this%abs_update_inf_tol(1,12) = tempreal
         this%abs_update_inf_tol(1,14) = tempreal
-        this%abs_update_inf_tol(2,2) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        this%abs_update_inf_tol(3,:) = tempreal
         this%abs_update_inf_tol(3,1:9) = tempreal
         this%abs_update_inf_tol(3,11) = tempreal
         this%abs_update_inf_tol(3,13) = tempreal
@@ -673,10 +688,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,6:9) = tempreal
-        this%abs_update_inf_tol(3,10) = tempreal
+        this%abs_update_inf_tol(2,5:9) = tempreal
         this%abs_update_inf_tol(2,11:15) = tempreal
+        this%abs_update_inf_tol(3,10) = tempreal
         this%abs_update_inf_tol(3,12) = tempreal
         this%abs_update_inf_tol(3,14:15) = tempreal
         this%abs_update_inf_tol(1,11) = tempreal
@@ -1088,22 +1102,17 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal, pointer :: X_p(:),dX_p(:)
 
   ! MAN: OLD
-  PetscReal, pointer :: r_p(:)
   type(field_type), pointer :: field
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
   PetscInt :: temperature_index
-  PetscInt :: lid, gid, apid, cpid, vpid, spid
+  PetscInt :: apid, spid
   PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
   PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
   PetscReal :: air_pressure0, air_pressure1, del_air_pressure
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
-  PetscReal :: xmol0, xmol1, del_xmol
   PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
-  PetscReal :: min_pressure
   PetscReal :: scale, temp_scale
-  PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
   PetscInt :: newton_iteration
   ! MAN: END OLD
@@ -1793,9 +1802,7 @@ subroutine PMHydrateMaxChange(this)
   use Grid_module
   use Global_Aux_module
   use Hydrate_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
-                               TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_hydrate_type) :: this
@@ -1810,7 +1817,7 @@ subroutine PMHydrateMaxChange(this)
   PetscReal :: max_change_global(9)
   PetscReal :: max_change
   PetscInt :: i, j
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: ghosted_id
 
 
   PetscErrorCode :: ierr
@@ -1917,7 +1924,6 @@ subroutine PMHydrateInputRecord(this)
 
   class(pm_hydrate_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -1946,7 +1952,6 @@ subroutine PMHydrateCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1969,7 +1974,6 @@ subroutine PMHydrateRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

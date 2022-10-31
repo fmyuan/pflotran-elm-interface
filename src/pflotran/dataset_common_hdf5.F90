@@ -268,7 +268,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   PetscInt :: temp_int, num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
   PetscBool :: attribute_exists, group_exists
-  PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
@@ -413,8 +412,6 @@ function DatasetCommonHDF5Load(this,option)
   ! Author: Glenn Hammond
   ! Date: 05/03/13
   !
-
-  use hdf5, only : H5T_NATIVE_DOUBLE
   use Option_module
   use Time_Storage_module
 

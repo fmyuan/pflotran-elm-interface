@@ -167,8 +167,6 @@ subroutine InversionTaoUpdateParameters(this)
   PetscInt :: num_measurements
   PetscInt :: num_constraints
   PetscInt :: num_rows
-  PetscInt, allocatable :: d_nnz(:)
-  PetscInt, allocatable :: o_nnz(:)
   PetscErrorCode :: ierr
 
   num_measurements = 5

@@ -200,14 +200,11 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
 
   implicit none
 
-  PetscInt ierr
-
   type(grid_type) :: grid
   type(option_type) :: option
   type(ugdm_type), optional :: ugdm
 
   type(connection_set_type), pointer :: connection_set, connection_bound_set
-  type(connection_set_type), pointer :: connection_set_2
   nullify(connection_set); nullify(connection_bound_set)
 
   select case(grid%itype)
@@ -413,10 +410,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   PetscEnum :: sgrid_stencil_type
   type(option_type) :: option
 
-  PetscInt, allocatable :: int_tmp(:)
 ! PetscInt, pointer :: int_tmp(:)
-  PetscInt :: n
-  PetscOffset :: i_da
 
   select case(grid%itype)
     case(STRUCTURED_GRID)
@@ -478,7 +472,6 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
   PetscReal :: origin_global(3)
   type(option_type) :: option
   type(ugdm_type), optional :: ugdm ! sp
-  PetscInt :: icell
 
   PetscErrorCode :: ierr
 
@@ -627,16 +620,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
   type(option_type) :: option
 
   type(region_type), pointer :: region
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
-  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
-  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
-  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
-  PetscReal :: x_shift, y_shift, z_shift
-  PetscReal :: del_x, del_y, del_z
+  PetscInt :: i
   PetscInt :: iflag, global_cell_count
-  PetscBool :: same_point
   type(point3d_type), pointer :: face_centroids(:)
   PetscBool :: update_grid_bounds
   PetscErrorCode :: ierr
@@ -723,8 +708,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
                                       region%cell_ids)
             if (region%iface == 0) then
               option%io_buffer = 'REGIONs defined with POLYGON and &
-                BOUNDARY_FACES_IN_VOLUME on STRUCTURED grids must &
-                define a FACE.'
+                &BOUNDARY_FACES_IN_VOLUME on STRUCTURED grids must &
+                &define a FACE.'
               call PrintErrMsg(option)
             endif
             allocate(region%faces(size(region%cell_ids)))
@@ -999,12 +984,10 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   type(grid_unstructured_type) :: ugrid
   type(region_type) :: region
   type(option_type) :: option
-  Vec :: volume
 
   type(unstructured_explicit_type), pointer :: explicit_grid
   type(region_explicit_face_type), pointer :: faceset
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icell, count
   PetscInt, allocatable :: int_array(:)
   PetscReal, allocatable :: real_array_2d(:,:)
@@ -1240,7 +1223,6 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   type(grid_type) :: grid
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_ghosted_id, natural_id
   PetscInt :: num_in_hash, num_ids_per_hash, hash_id, id, ierr, hash_id_2
   PetscInt :: max_num_ids_per_hash
@@ -1660,8 +1642,6 @@ subroutine GridDestroy(grid)
   implicit none
 
   type(grid_type), pointer :: grid
-  PetscErrorCode :: ierr
-  PetscInt :: ghosted_id
 
   if (.not.associated(grid)) return
 
@@ -1714,6 +1694,7 @@ function GridIndexToCellID(vec,index,grid,vec_type)
   PetscInt :: cell_id
   PetscErrorCode :: ierr
 
+  GridIndexToCellID = UNINITIALIZED_INTEGER
 
   cell_id = -1
   call VecGetOwnershipRange(vec,low,high,ierr);CHKERRQ(ierr)
@@ -1752,17 +1733,7 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
-  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
-  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
-  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
-  PetscReal :: x_shift, y_shift, z_shift
-  PetscReal :: del_x, del_y, del_z
-  PetscInt :: iflag
-  PetscBool :: same_point
-  PetscErrorCode :: ierr
+  PetscInt :: i, j, k, count
 
   if (grid%itype /= STRUCTURED_GRID) then
      option%io_buffer='Region definition using BLOCK is only supported for ' //&
@@ -1809,11 +1780,6 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
         enddo
       enddo
     enddo
-!   if (region%num_cells > 0) then
-!     region%coordinates(1)%x = grid%x(region%cell_ids(ONE_INTEGER))
-!     region%coordinates(1)%y = grid%y(region%cell_ids(ONE_INTEGER))
-!     region%coordinates(1)%z = grid%z(region%cell_ids(ONE_INTEGER))
-!   endif
   else
     region%num_cells = 0
   endif
@@ -1844,18 +1810,6 @@ subroutine GridLocalizeRegionFromCartBound(grid,region,option)
   type(region_type), pointer :: region
   type(grid_type), pointer :: grid
   type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
-  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
-  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
-  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
-  PetscReal :: x_shift, y_shift, z_shift
-  PetscReal :: del_x, del_y, del_z
-  PetscInt :: iflag
-  PetscBool :: same_point
-  PetscErrorCode :: ierr
 
   if (grid%itype /= STRUCTURED_GRID) then
     option%io_buffer='Region definition using CARTESIAN_BOUNDARY is ' // &
@@ -1909,12 +1863,10 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, allocatable :: temp_int_array(:)
-  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
+  PetscInt :: i, j, k, count, ghosted_id, local_id
   PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
   PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
-  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
+  PetscReal, parameter :: tol = 1.d-20
   PetscReal :: x_shift, y_shift, z_shift
   PetscReal :: del_x, del_y, del_z
   PetscInt :: iflag

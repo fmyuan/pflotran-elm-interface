@@ -95,7 +95,6 @@ subroutine DownregRead(this,input,option)
   type(option_type) :: option
   class(dataset_ascii_type), pointer :: dataset_ascii
 
-  PetscInt :: i
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: units, internal_units
@@ -194,7 +193,6 @@ subroutine DownregSetup(this,grid,option)
 
   use Option_module
   use Grid_module
-  use General_Aux_module, only : general_fmw_com => fmw_comp
 
   implicit none
 
@@ -251,7 +249,6 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: pressure_lower, pressure_upper, x
   PetscReal :: rate_regulator
   PetscReal :: drate_regulator
-  PetscReal :: temp_real
   PetscReal :: rate
 
   PetscInt :: idof

@@ -16,7 +16,6 @@ module HDF5_Aux_module
   PetscErrorCode :: ierr
 
   integer :: hdf5_err
-  PetscMPIInt :: io_rank_mpi
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -88,10 +87,8 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
-  PetscInt :: index_count
   integer(HSIZE_T) :: num_reals_in_dataset
-  PetscInt :: temp_int, i, index
-  PetscMPIInt :: int_mpi
+  PetscInt :: temp_int, i
   integer :: ndims_hdf5
 
   call PetscLogEventBegin(logging%event_read_ndim_real_array_hdf5, &
@@ -452,7 +449,6 @@ subroutine HDF5ReadDbase(filename,option)
   ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, allocatable :: ibuffer(:)
-  PetscInt :: dummy_int
   PetscInt :: value_index
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: object_name
@@ -466,11 +462,8 @@ subroutine HDF5ReadDbase(filename,option)
   integer(HID_T) :: memory_space_id
   integer(HSIZE_T) :: num_values_in_dataset
   integer(SIZE_T) size_t_int
-!  integer(HSIZE_T) :: dims(1)
-  integer(SIZE_T) :: type_size
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
-  PetscMPIInt :: int_mpi
   integer :: num_objects
   integer :: i_object
   integer :: object_type

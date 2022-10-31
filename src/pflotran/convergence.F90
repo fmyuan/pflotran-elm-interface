@@ -86,7 +86,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   PetscReal :: inorm_update
   PetscReal :: inorm_residual
 
-  PetscInt :: i, ndof, max_index, min_index
+  PetscInt :: i, ndof
   PetscInt :: icount
   PetscReal, allocatable :: fnorm_solution_stride(:)
   PetscReal, allocatable :: fnorm_update_stride(:)
@@ -117,9 +117,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   PetscReal, allocatable :: min_solution_val(:)
   PetscReal, allocatable :: min_update_val(:)
   PetscReal, allocatable :: min_residual_val(:)
-  PetscReal, pointer :: vec_ptr(:)
 
-  character(len=MAXSTRINGLENGTH) :: string, string2, string3, sec_string
+  character(len=MAXSTRINGLENGTH) :: string, sec_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscBool :: print_sol_norm_info = PETSC_FALSE

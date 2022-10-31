@@ -1080,8 +1080,6 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: porosity
   PetscReal :: volume
   PetscReal :: saturation
-  PetscErrorCode :: ierr
-  PetscInt :: local_id
 
   PetscReal :: theta
   PetscReal :: psi
@@ -1100,9 +1098,6 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: temp_real
 
   PetscInt :: irxn
-  PetscInt :: ipool_up, ipool_down
-  PetscReal :: CN_ratio_up, CN_ratio_down
-  PetscBool :: constant_CN_ratio_up
   PetscReal :: resp_frac
 
   PetscReal :: c_uc, c_un         ! upstream c pool, n pool concentration
@@ -1141,12 +1136,12 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: dnet_n_mineralization_rate_dnh4
   PetscReal :: dnet_n_mineralization_rate_dno3
   PetscReal :: dnet_n_mineralization_rate_duc(this%nrxn)
-  PetscReal :: ph, f_ph
+  PetscReal :: f_ph
   PetscReal :: rate_n2o, drate_n2o_dnh4, drate_n2o_dno3, drate_n2o_duc
   PetscReal :: f_rate_n2o, df_rate_n2o
 
   PetscInt :: ires_b, ires_f
-  PetscReal :: xxx, delta, regulator, dregulator
+  PetscReal :: xxx, delta
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -3116,9 +3111,7 @@ subroutine PlantNRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word, internal_units
-
+  character(len=MAXWORDLENGTH) :: word
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -3332,12 +3325,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: Rate_nh4_to_no3
   PetscReal :: Jacobian_nh4_to_no3(reaction%ncomp)
   PetscReal :: volume, porosity
-  PetscErrorCode :: ierr
-  PetscInt :: local_id
 
-  character(len=MAXWORDLENGTH) :: word
-
-  PetscInt, parameter :: iphase = 1
   PetscInt :: ires_nh4, ires_no3, ires_plantn
   PetscInt :: ires_nh4in, ires_no3in
   PetscInt :: ires_plantndemand
@@ -3360,8 +3348,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: drate_nh4_dnh4
   PetscReal :: drate_no3_dno3
   PetscReal :: drate_no3_dnh4
-  PetscReal :: c_plantn, c_plantno3, c_plantnh4, c_plantndemand
-  PetscReal :: xxx, delta, regulator, dregulator
+  PetscReal :: c_plantn
   PetscReal :: rate_nh4_clm_input, rate_no3_clm_input
 
   porosity = material_auxvar%porosity
@@ -3714,8 +3701,7 @@ subroutine NitrRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word, internal_units
+  character(len=MAXWORDLENGTH) :: word
 
   call InputPushBlock(input,option)
   do
@@ -3944,7 +3930,6 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: porosity
   PetscReal :: volume
   PetscInt :: local_id
-  PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1
   PetscReal, parameter :: rpi = 3.14159265358979323846
@@ -3954,7 +3939,6 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt :: ires_nh4, ires_no3, ires_n2o
 
-  PetscScalar, pointer :: bulkdensity(:)
   PetscReal :: rho_b
   PetscReal :: theta
   PetscReal :: c_nh4      ! mole/L
@@ -3965,13 +3949,12 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate_n2o, drate_n2o
   PetscReal :: rate_nitri, drate_nitri
   PetscReal :: f_t, f_w, f_ph
-  PetscReal :: dfw_dnh4
   PetscReal :: saturation
   PetscReal :: tc
   PetscReal :: kg_water
   PetscReal :: h2osoi
   PetscInt :: ires_ngasnit
-  PetscReal :: xxx, delta, regulator, dregulator
+  PetscReal :: xxx, delta
   PetscReal :: f_nh4, d_nh4     ! for monod substrate limitation
   PetscReal :: f_n2o, d_n2o     ! for smoothing N2O production
   PetscReal :: c_nh4_0, c_nh4_1
@@ -4419,8 +4402,7 @@ subroutine DeniRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word, internal_units
+  character(len=MAXWORDLENGTH) :: word
 
   call InputPushBlock(input,option)
   do
@@ -4597,16 +4579,11 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: porosity
   PetscReal :: volume
   PetscReal :: kg_water
-  PetscInt :: local_id
-  PetscErrorCode :: ierr
 
   PetscReal :: temp_real
 
-  PetscInt :: ires_no3, ires_n2o, ires_n2
+  PetscInt :: ires_no3, ires_n2
   PetscInt :: ires_ngasdeni
-
-  PetscScalar, pointer :: bsw(:)
-  PetscScalar, pointer :: bulkdensity(:)
 
   PetscReal :: s_min
   PetscReal :: tc
@@ -4839,8 +4816,6 @@ subroutine RCLMRxnSetup(reaction,option)
 
   class(clm_rxn_base_type), pointer :: cur_clmrxn
 
-  character(len=MAXWORDLENGTH) :: word
-
   ! clmrxn reactions
   cur_clmrxn => clmrxn_list
   do
@@ -4890,7 +4865,6 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   class(clm_rxn_base_type), pointer :: new_clmrxn, cur_clmrxn
 

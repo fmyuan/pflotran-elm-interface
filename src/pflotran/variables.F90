@@ -57,8 +57,8 @@ module Variables_module
   PetscInt, parameter, public :: PRIMARY_KD =              47
   PetscInt, parameter, public :: TOTAL_SORBED =            48
   PetscInt, parameter, public :: TOTAL_SORBED_MOBILE =     49
-  PetscInt, parameter, public :: COLLOID_MOBILE =          50
-  PetscInt, parameter, public :: COLLOID_IMMOBILE =        51
+!  PetscInt, parameter, public :: COLLOID_MOBILE =          50
+!  PetscInt, parameter, public :: COLLOID_IMMOBILE =        51
   PetscInt, parameter, public :: AGE =                     52
   PetscInt, parameter, public :: STATE =                   53
   PetscInt, parameter, public :: PROCESS_ID =              54
@@ -163,7 +163,7 @@ module Variables_module
   PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 133
 
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
-  PetscInt, parameter, public :: MATRIX_LENGTH           = 135
+  PetscInt, parameter, public :: HALF_MATRIX_WIDTH    = 135
 
   PetscInt, parameter, public :: VG_ALPHA                = 136
   PetscInt, parameter, public :: VG_M                    = 137

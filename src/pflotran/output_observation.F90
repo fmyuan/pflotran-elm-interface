@@ -129,22 +129,18 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
 
   PetscInt :: fid, icell
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
-  type(observation_aggregate_type), pointer :: aggregate
-  type(output_variable_type), pointer :: cur_variable
   PetscBool, save :: open_file = PETSC_FALSE
   PetscReal, allocatable :: velocities(:,:,:)
   PetscInt :: local_id
   PetscInt :: icolumn
   PetscInt :: nphase
-  PetscInt :: i
-  PetscReal :: temp_real_comp, temp_real
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_output_observation, &
@@ -636,7 +632,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
 
   PetscInt :: fid, icell
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -1104,7 +1100,7 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
                          ierr);CHKERRQ(ierr)
   end select
 
-  agg_rank = global_metric(2)
+  agg_rank = int(global_metric(2)+1.d-5)
 
   if (option%myrank == agg_rank) then
 
@@ -1148,7 +1144,7 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
 
   implicit none
 
-  PetscInt :: fid, i
+  PetscInt :: fid
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
   PetscReal :: temp_real
@@ -1515,7 +1511,6 @@ function GetVelocityAtCell(fid,realization_base,local_id,iphase)
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
 
-  PetscInt :: ghosted_id
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -1617,9 +1612,7 @@ subroutine WriteVelocityAtCoord(fid,realization_base,region)
   class(realization_base_type) :: realization_base
   type(region_type) :: region
   type(option_type), pointer :: option
-  PetscInt :: local_id
   PetscInt :: iphase
-  PetscReal :: coordinate(3)
 
   PetscReal :: velocity(1:3)
 
@@ -1684,7 +1677,7 @@ function GetVelocityAtCoord(fid,realization_base,local_id,x,y,z,iphase)
   PetscReal :: cell_coord(3), face_coord
   PetscReal :: coordinate(3)
   PetscInt :: direction, iphase
-  PetscReal :: area, weight, distance
+  PetscReal :: weight, distance
   PetscReal :: sum_velocity(1:3), velocity(1:3)
   PetscReal :: sum_weight(1:3)
 
@@ -2041,7 +2034,7 @@ subroutine OutputIntegralFlux(realization_base)
   class(reaction_nw_type), pointer :: reaction_nw
 
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXWORDLENGTH) :: word, units
+  character(len=MAXWORDLENGTH) :: units
   character(len=MAXSTRINGLENGTH) :: string
   type(integral_flux_type), pointer :: integral_flux
   PetscReal :: flow_dof_scale(10)
@@ -2370,21 +2363,15 @@ subroutine OutputMassBalance(realization_base)
   class(reaction_nw_type), pointer :: reaction_nw
 
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXWORDLENGTH) :: word, units
+  character(len=MAXWORDLENGTH) :: units
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: fid = 86
-  PetscInt :: ios
   PetscInt :: i,icol
-  PetscInt :: k, j
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
   PetscInt :: iconn
   PetscInt :: offset
   PetscInt :: iphase, ispec
   PetscInt :: icomp, nmobilecomp, nspecies
   PetscInt :: max_tran_size
-  PetscReal :: sum_area(4)
-  PetscReal :: sum_area_global(4)
   PetscReal :: sum_kg(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
@@ -2395,13 +2382,10 @@ subroutine OutputMassBalance(realization_base)
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
   PetscReal :: sum_trapped_global(realization_base%option%nphase)
-  PetscReal :: sum_mol_ye(3), sum_mol_global_ye(3)
 
   PetscMPIInt :: int_mpi
   PetscBool :: bcs_done
   PetscErrorCode :: ierr
-  PetscBool,parameter :: wecl=PETSC_FALSE
-  PetscInt, pointer :: cell_ids(:)
 
   patch => realization_base%patch
   grid => patch%grid
@@ -2626,6 +2610,18 @@ subroutine OutputMassBalance(realization_base)
                 endif
               enddo
 
+              ! header for gas contributions to cumulative flux
+              if (reaction%gas%nactive_gas > 0) then
+                do i=1,reaction%naqcomp
+                  if (reaction%primary_species_print(i)) then
+                    string = trim(coupler%name) // ' ' // &
+                             trim(reaction%primary_species_names(i)) // &
+                             ' (gas phase)'
+                    call OutputWriteToHeader(fid,string,'mol','',icol)
+                  endif
+                enddo
+              endif
+
               units = 'mol/' // trim(output_option%tunit) // ''
               do i=1,reaction%naqcomp
                 if (reaction%primary_species_print(i)) then
@@ -2634,6 +2630,19 @@ subroutine OutputMassBalance(realization_base)
                   call OutputWriteToHeader(fid,string,units,'',icol)
                 endif
               enddo
+
+              ! header for gas contributions to flux
+              if (reaction%gas%nactive_gas > 0) then
+                do i=1,reaction%naqcomp
+                  if (reaction%primary_species_print(i)) then
+                    string = trim(coupler%name) // ' ' // &
+                             trim(reaction%primary_species_names(i)) // &
+                             ' (gas phase)'
+                    call OutputWriteToHeader(fid,string,units,'',icol)
+                  endif
+                enddo
+              endif
+
             case(NWT_MODE)
               do i=1,reaction_nw%params%nspecies
                 string = trim(coupler%name) // ' ' // &
@@ -2846,6 +2855,7 @@ subroutine OutputMassBalance(realization_base)
                         ierr);CHKERRQ(ierr)
 
         if (OptionIsIORank(option)) then
+          ! total across all phases
           do icomp = 1, reaction%naqcomp
             if (reaction%primary_species_print(icomp)) then
               write(fid,110,advance="no") sum_mol_global(icomp,1)
@@ -3193,7 +3203,7 @@ subroutine OutputMassBalance(realization_base)
               rt_auxvars_bc_or_ss(offset+iconn)%mass_balance(1:nmobilecomp,:)
           enddo
 
-          int_mpi = nmobilecomp
+          int_mpi = nmobilecomp * option%transport%nphase
           call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
                           MPI_SUM,option%driver%io_rank,option%mycomm, &
                           ierr);CHKERRQ(ierr)
@@ -3205,6 +3215,16 @@ subroutine OutputMassBalance(realization_base)
                 write(fid,110,advance="no") -sum_mol_global(icomp,1)
               endif
             enddo
+            ! this block prints out the contribution to the total
+            ! component flux in the gas phase. it must be aligned with
+            ! the aqueous components, not gases
+            if (reaction%gas%nactive_gas > 0) then
+              do icomp = 1, reaction%naqcomp
+                if (reaction%primary_species_print(icomp)) then
+                  write(fid,110,advance="no") -sum_mol_global(icomp,2)
+                endif
+              enddo
+            endif
           endif
 
           ! print out boundary flux
@@ -3214,7 +3234,7 @@ subroutine OutputMassBalance(realization_base)
                                   mass_balance_delta(1:nmobilecomp,:)
           enddo
 
-          int_mpi = nmobilecomp
+          int_mpi = nmobilecomp * option%transport%nphase
           call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
                           MPI_SUM,option%driver%io_rank,option%mycomm, &
                           ierr);CHKERRQ(ierr)
@@ -3227,7 +3247,19 @@ subroutine OutputMassBalance(realization_base)
                                               output_option%tconv
               endif
             enddo
+            ! this block prints out the contribution to the total
+            ! component flux in the gas phase. it must be aligned with
+            ! the aqueous components, not gases
+            if (reaction%gas%nactive_gas > 0) then
+              do icomp = 1, reaction%naqcomp
+                if (reaction%primary_species_print(icomp)) then
+                  write(fid,110,advance="no") -sum_mol_global(icomp,2)* &
+                                                output_option%tconv
+                endif
+              enddo
+            endif
           endif
+
         case(NWT_MODE)
           nspecies = reaction_nw%params%nspecies
           allocate(sum_mol(nspecies,option%transport%nphase))

@@ -1112,6 +1112,7 @@ inversion_aux.o : \
   inversion_measurement_aux.o \
   inversion_parameter.o \
   inversion_ts_aux.o \
+  option_inversion.o \
   pflotran_constants.o \
   utility.o
 inversion_base.o : \
@@ -1122,6 +1123,10 @@ inversion_base.o : \
   pflotran_constants.o \
   string.o \
   timer.o
+inversion_coupled_aux.o : \
+  inversion_parameter.o \
+  pflotran_constants.o \
+  zflow_aux.o
 inversion_ert.o : \
   dataset.o \
   dataset_base.o \
@@ -1150,6 +1155,7 @@ inversion_measurement_aux.o : \
   geometry.o \
   input_aux.o \
   option.o \
+  option_inversion.o \
   pflotran_constants.o \
   string.o \
   units.o \
@@ -1178,15 +1184,20 @@ inversion_subsurface.o : \
   input_aux.o \
   inversion_aux.o \
   inversion_base.o \
+  inversion_coupled_aux.o \
   inversion_measurement_aux.o \
   inversion_parameter.o \
   inversion_ts_aux.o \
   material.o \
   material_aux.o \
   option.o \
+  option_inversion.o \
   output_hdf5.o \
   patch.o \
   pflotran_constants.o \
+  pm_base.o \
+  pm_ert.o \
+  pm_subsurface_flow.o \
   realization_base.o \
   realization_subsurface.o \
   simulation_subsurface.o \
@@ -1208,7 +1219,9 @@ inversion_tao.o : \
   pflotran_constants.o \
   string.o
 inversion_ts_aux.o : \
+  inversion_coupled_aux.o \
   inversion_measurement_aux.o \
+  inversion_parameter.o \
   pflotran_constants.o \
   utility.o
 inversion_zflow.o : \
@@ -1219,6 +1232,7 @@ inversion_zflow.o : \
   input_aux.o \
   inversion_aux.o \
   inversion_base.o \
+  inversion_measurement_aux.o \
   inversion_parameter.o \
   inversion_subsurface.o \
   inversion_ts_aux.o \
@@ -1689,7 +1703,9 @@ pm_auxiliary.o : \
   reaction_aux.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
-  string.o
+  strata.o \
+  string.o \
+  utility.o
 pm_base.o : \
   input_aux.o \
   option.o \
@@ -1714,6 +1730,9 @@ pm_ert.o : \
   global_aux.o \
   grid.o \
   input_aux.o \
+  inversion_coupled_aux.o \
+  inversion_parameter.o \
+  inversion_ts_aux.o \
   material_aux.o \
   option.o \
   patch.o \
@@ -1801,16 +1820,19 @@ pm_inversion.o : \
   communicator_base.o \
   condition.o \
   coupler.o \
+  inversion_coupled_aux.o \
   inversion_measurement_aux.o \
   inversion_ts_aux.o \
   option.o \
+  option_inversion.o \
   pflotran_constants.o \
   pm_base.o \
   realization_base.o \
   realization_subsurface.o \
   string.o \
   utility.o \
-  variables.o
+  variables.o \
+  zflow_aux.o
 pm_material_transform.o : \
   discretization.o \
   field.o \
@@ -2079,6 +2101,7 @@ pm_ufd_decay.o : \
   material.o \
   material_aux.o \
   material_transform.o \
+  nw_transport_aux.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -2112,6 +2135,7 @@ pm_waste_form.o : \
   logging.o \
   lookup_table.o \
   material_aux.o \
+  nw_transport_aux.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -2280,7 +2304,9 @@ pmc_geomechanics.o : \
   timestepper_base.o \
   timestepper_steady.o
 pmc_geophysics.o : \
+  hdf5_aux.o \
   option.o \
+  option_inversion.o \
   output_aux.o \
   pflotran_constants.o \
   pm_base.o \

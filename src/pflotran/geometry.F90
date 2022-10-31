@@ -215,7 +215,6 @@ function GeometryPointInPolygonalVolume(x,y,z,polygonal_volume,option)
   type(polygonal_volume_type) :: polygonal_volume
   type(option_type) :: option
 
-  PetscBool :: xy, xz, yz
   PetscBool :: GeometryPointInPolygonalVolume
 
   GeometryPointInPolygonalVolume = PETSC_FALSE

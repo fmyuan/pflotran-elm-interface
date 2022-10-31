@@ -516,7 +516,6 @@ subroutine PMPNFCalculateVelocities(this)
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
-  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(connection_set_list_type), pointer :: connection_set_list
   PetscReal, pointer :: vec_loc_ptr(:)
@@ -741,7 +740,7 @@ subroutine PMPNFMaxChange(this)
   use Field_module
   use Grid_module
   use PNF_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION
+  use Variables_module, only : LIQUID_PRESSURE
 
   implicit none
 
@@ -829,7 +828,6 @@ subroutine PMPNFInputRecord(this)
 
   class(pm_pnf_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -852,7 +850,6 @@ subroutine PMPNFCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -875,7 +872,6 @@ subroutine PMPNFRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

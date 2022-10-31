@@ -78,11 +78,6 @@ function PMGeneralCreate()
 
   class(pm_general_type), pointer :: this
 
-  PetscReal, parameter :: ref_temp = 20.d0 !degrees C
-  PetscReal, parameter :: ref_pres = 101325.d0 !Pa
-  PetscReal, parameter :: ref_sat = 0.5
-  PetscReal, parameter :: ref_xmol = 1.d-6
-
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
@@ -106,10 +101,6 @@ function PMGeneralCreate()
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
-
-  PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
-  PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
-  PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
 
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
@@ -804,22 +795,17 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, pointer :: X_p(:),dX_p(:)
 
-  PetscReal, pointer :: r_p(:)
   type(field_type), pointer :: field
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
   PetscInt :: temperature_index
-  PetscInt :: lid, gid, apid, cpid, vpid, spid
+  PetscInt :: apid, spid
   PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
   PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
   PetscReal :: air_pressure0, air_pressure1, del_air_pressure
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
-  PetscReal :: xmol0, xmol1, del_xmol
   PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
-  PetscReal :: min_pressure
   PetscReal :: scale, temp_scale
-  PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
   PetscInt :: newton_iteration
 
@@ -1521,9 +1507,7 @@ subroutine PMGeneralMaxChange(this)
   use Grid_module
   use Global_Aux_module
   use General_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
-                               TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_general_type) :: this
@@ -1538,7 +1522,7 @@ subroutine PMGeneralMaxChange(this)
   PetscReal :: max_change_global(6)
   PetscReal :: max_change
   PetscInt :: i, j
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: ghosted_id
 
 
   PetscErrorCode :: ierr
@@ -1640,7 +1624,6 @@ subroutine PMGeneralInputRecord(this)
 
   class(pm_general_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -1669,7 +1652,6 @@ subroutine PMGeneralCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1692,7 +1674,6 @@ subroutine PMGeneralRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

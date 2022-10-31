@@ -100,7 +100,7 @@ subroutine CalciteReadInput(this,input,option)
   if (Uninitialized(this%rate_constant1) .or. &
       Uninitialized(this%rate_constant2)) then
     option%io_buffer = 'RATE_CONSTANT1 and RATE_CONSTANT2 must be set for &
-      REACTION_SANDBOX,CALCITE.'
+      &REACTION_SANDBOX,CALCITE.'
     call PrintErrMsg(option)
   endif
 
@@ -211,7 +211,7 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: lnQK
   PetscReal :: QK
   PetscReal :: affinity_factor
-  PetscReal :: dQK_dmj, dQK_dCj
+  PetscReal :: dQK_dmj
   PetscReal :: sign_
 
   PetscInt :: ncomp

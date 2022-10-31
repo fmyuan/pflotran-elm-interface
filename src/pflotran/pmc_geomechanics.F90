@@ -339,7 +339,6 @@ subroutine PMCGeomechanicsSetAuxData(this)
 
   class(pmc_geomechanics_type) :: this
 
-  type(grid_type), pointer :: subsurf_grid
   type(grid_type), pointer :: grid
   PetscInt :: local_id
   PetscScalar, pointer :: por0_p(:)
@@ -351,14 +350,11 @@ subroutine PMCGeomechanicsSetAuxData(this)
   PetscScalar, pointer :: press_p(:)
   PetscReal :: local_stress(6), local_strain(6), local_pressure
   PetscErrorCode :: ierr
-  PetscReal :: trace_epsilon
   PetscReal :: por_new
   PetscReal :: perm_new
   PetscInt :: i
   Vec :: geomech_vec
   Vec :: subsurf_vec
-  PetscScalar, pointer :: subsurf_vec_p(:)
-  PetscViewer :: viewer
 
 #if GEOMECH_DEBUG
 print *, 'PMCGeomechSetAuxData'

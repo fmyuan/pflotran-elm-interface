@@ -116,7 +116,6 @@ function RealizationCreate1()
 
   class(realization_subsurface_type), pointer :: RealizationCreate1
 
-  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
   nullify(option)
@@ -197,7 +196,6 @@ subroutine RealizationCreateDiscretization(realization)
   use Discretization_module
   use Grid_Unstructured_Cell_module
   use DM_Kludge_module
-  use Variables_module, only : VOLUME
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
 
@@ -209,7 +207,6 @@ subroutine RealizationCreateDiscretization(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  type(coupler_type), pointer :: boundary_condition
   PetscErrorCode :: ierr
   PetscInt :: ivar
 
@@ -778,7 +775,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscBool :: found
   PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
@@ -1037,19 +1033,19 @@ subroutine RealProcessMatPropAndSatFunc(realization)
             call PrintErrMsg(option)
         end select
       endif
-      if (associated(cur_material_property%multicontinuum%length_dataset)) then
+      if (associated(cur_material_property%multicontinuum%half_matrix_width_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                  '),LENGTH'
         dataset => &
           DatasetBaseGetPointer(realization%datasets, &
                                 cur_material_property% &
-                                  multicontinuum%length_dataset%name, &
+                                  multicontinuum%half_matrix_width_dataset%name, &
                                 string,option)
         call DatasetDestroy(cur_material_property% &
-                              multicontinuum%length_dataset)
+                              multicontinuum%half_matrix_width_dataset)
         select type(dataset)
           class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%length_dataset => dataset
+            cur_material_property%multicontinuum%half_matrix_width_dataset => dataset
           class default
             option%io_buffer = 'Incorrect dataset type for length.'
             call PrintErrMsg(option)
@@ -1210,8 +1206,6 @@ subroutine RealProcessFluidProperties(realization)
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  PetscInt :: icc, ncc, maxsatn
-  PetscBool :: satnum_set, ccset
 
   option => realization%option
 
@@ -1256,7 +1250,6 @@ subroutine RealProcessFlowConditions(realization)
   class(realization_subsurface_type) :: realization
 
   type(flow_condition_type), pointer :: cur_flow_condition
-  type(flow_sub_condition_type), pointer :: cur_flow_sub_condition
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
@@ -1855,7 +1848,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(strata_type), pointer :: cur_strata
   type(time_storage_type), pointer :: time_storage_ptr
   PetscInt :: itime, isub_condition
-  PetscReal :: temp_real, final_time
+  PetscReal :: final_time
   PetscReal, pointer :: times(:)
 
   option => realization%option
@@ -2054,16 +2047,13 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
+  PetscInt :: imnrl, imat
+  PetscReal :: scale
   PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: porosity0_p(:)
   PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscReal, pointer :: perm0_xy_p(:), perm0_xz_p(:), perm0_yz_p(:)
-  PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
   PetscReal :: porosity_base_
@@ -2265,56 +2255,9 @@ subroutine RealizationUpdatePropertiesNI(realization)
   ! Date: 08/05/09
   !
 
-  use Discretization_module
-  use Field_module
-  use Grid_module
-  use Reaction_Aux_module
-  use Reactive_Transport_Aux_module
-  use Material_Aux_module
-  use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z, &
-                               PERMEABILITY_XY, PERMEABILITY_XZ, &
-                               PERMEABILITY_YZ
-
   implicit none
 
   class(realization_subsurface_type) :: realization
-
-#if 0
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(field_type), pointer :: field
-  class(reaction_rt_type), pointer :: reaction
-  type(grid_type), pointer :: grid
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(discretization_type), pointer :: discretization
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
-  PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
-  PetscReal, pointer :: porosity0_p(:)
-  PetscReal, pointer :: porosity_mnrl_loc_p(:)
-  PetscReal, pointer :: tortuosity0_p(:)
-  PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
-  PetscReal :: min_value
-  PetscInt :: ivalue
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  discretization => realization%discretization
-  patch => realization%patch
-  field => realization%field
-  reaction => realization%reaction
-  grid => patch%grid
-  material_property_array => patch%material_property_array
-  rt_auxvars => patch%aux%RT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-#endif
 
 end subroutine RealizationUpdatePropertiesNI
 
@@ -2352,7 +2295,6 @@ subroutine RealizationCalcMineralPorosity(realization)
   PetscInt :: local_id, ghosted_id
   PetscInt :: imnrl
   PetscReal :: sum_volfrac
-  PetscErrorCode :: ierr
 
   option => realization%option
   discretization => realization%discretization
@@ -2522,7 +2464,7 @@ subroutine RealizationPrintGridStatistics(realization)
   type(grid_type), pointer :: grid
 
   PetscInt :: i1, i2, i3
-  PetscReal :: r1, r2, r3
+  PetscReal :: r1
   PetscInt :: global_total_count, global_active_count
   PetscInt :: total_count, active_count
   PetscReal :: total_min, total_max, total_mean, total_variance

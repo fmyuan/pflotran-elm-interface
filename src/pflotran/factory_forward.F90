@@ -98,7 +98,6 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
   type(option_type), pointer :: option
 
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: simulation_type
@@ -506,7 +505,6 @@ subroutine FactoryForwardFinalize(option)
   implicit none
 
   type(option_type) :: option
-  PetscErrorCode :: ierr
 
 end subroutine FactoryForwardFinalize
 
@@ -528,14 +526,8 @@ subroutine FactoryForwardReadCommandLine(option)
 
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: option_found
-  PetscBool :: bool_flag
-  PetscBool :: pflotranin_option_found
-  PetscBool :: input_prefix_option_found
-  PetscBool :: output_dir_found
-  PetscBool :: output_file_prefix_found
-  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
   PetscErrorCode :: ierr
 

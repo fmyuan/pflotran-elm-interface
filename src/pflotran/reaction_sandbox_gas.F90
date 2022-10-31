@@ -243,7 +243,6 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: i
   PetscInt, parameter :: iphase = 2
 
-  PetscReal :: L_water
   PetscReal :: im_rate  ! specified rate (mol/sec)
   PetscReal :: g_rate  ! specified rate (mol/sec)
   PetscReal :: Q  ! computed/observed Cs/Cg ratio

@@ -21,11 +21,20 @@ module Inversion_ZFlow_class
     PetscReal :: target_chi2             ! target CHI^2 norm
     PetscReal :: current_chi2
 
+    ! For joint inversion
+    PetscReal :: alpha_liquid_pressure      ! weight to liquid pressure cost
+    PetscReal :: alpha_liquid_saturation    ! weight to saturation cost
+    PetscReal :: alpha_solute_concentration ! weight to concentration cost
+    PetscReal :: alpha_ert_measurement      ! weight to ERT cost
+
     ! Cost/objective functions
     PetscReal :: min_phi_red             ! min change in cost function
     PetscReal :: phi_total_0,phi_total
     PetscReal :: phi_data_0,phi_data
     PetscReal :: phi_model_0,phi_model
+
+    ! to check divergence of gamma in CGLS
+    PetscBool :: check_gamma_divergence
 
     ! arrays for CGLS algorithm
     PetscReal, pointer :: b(:)           ! vector for CGLS RHS
@@ -151,6 +160,11 @@ subroutine InversionZFlowInit(this,driver)
   this%target_chi2 = 1.d0
   this%min_phi_red = 0.2d0
 
+  this%alpha_liquid_pressure = 1.d0
+  this%alpha_liquid_saturation = 1.d0
+  this%alpha_solute_concentration = 1.d0
+  this%alpha_ert_measurement = 1.d0
+
   this%start_iteration = 1
   this%maximum_iteration = 20
   this%num_constraints_local = 0
@@ -162,6 +176,8 @@ subroutine InversionZFlowInit(this,driver)
   this%phi_total = UNINITIALIZED_DOUBLE
   this%phi_data = UNINITIALIZED_DOUBLE
   this%phi_model = UNINITIALIZED_DOUBLE
+
+  this%check_gamma_divergence = PETSC_FALSE
 
   this%parameter_tmp_vec = PETSC_NULL_VEC
   this%dist_parameter_tmp_vec = PETSC_NULL_VEC
@@ -481,12 +497,27 @@ subroutine InversionZFlowReadBlock(this,input,option)
       case('MAX_CGLS_ITERATION')
         call InputReadInt(input,option,this%maxiter)
         call InputErrorMsg(input,option,'MAX_CGLS_ITERATION',error_string)
+      case('CHECK_CGLS_GAMMA_DIVERGENCE')
+        this%check_gamma_divergence = PETSC_TRUE
       case('BETA')
         call InputReadDouble(input,option,this%beta)
         call InputErrorMsg(input,option,'BETA',error_string)
       case('BETA_REDUCTION_FACTOR')
         call InputReadDouble(input,option,this%beta_red_factor)
         call InputErrorMsg(input,option,'BETA_REDUCTION_FACTOR',error_string)
+      case('ALPHA_LIQUID_PRESSURE')
+        call InputReadDouble(input,option,this%alpha_liquid_pressure)
+        call InputErrorMsg(input,option,'ALPHA_LIQUID_PRESSURE',error_string)
+      case('ALPHA_LIQUID_SATURATION')
+        call InputReadDouble(input,option,this%alpha_liquid_saturation)
+        call InputErrorMsg(input,option,'ALPHA_LIQUID_SATURATION',error_string)
+      case('ALPHA_SOLUTE_CONCENTRATION')
+        call InputReadDouble(input,option,this%alpha_solute_concentration)
+        call InputErrorMsg(input,option,'ALPHA_SOLUTE_CONCENTRATION', &
+                           error_string)
+      case('ALPHA_ERT_MEASUREMENT')
+        call InputReadDouble(input,option,this%alpha_ert_measurement)
+        call InputErrorMsg(input,option,'ALPHA_ERT_MEASUREMENT',error_string)
       case('TARGET_CHI2')
         call InputReadDouble(input,option,this%target_chi2)
         call InputErrorMsg(input,option,'TARGET_CHI2',error_string)
@@ -701,6 +732,7 @@ subroutine InversionZFlowInitialize(this)
   !
   use Discretization_module
   use Inversion_TS_Aux_module
+  use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Option_module
   use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
@@ -712,6 +744,7 @@ subroutine InversionZFlowInitialize(this)
   PetscBool :: exists
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: iqoi(2)
+  PetscInt :: i,num_measurements
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
@@ -738,6 +771,26 @@ subroutine InversionZFlowInitialize(this)
   endif
 
   call InversionZFlowConstrainedArraysFromList(this)
+
+  ! scale data weight by a scalar weight for joint inversion
+  if (this%iteration==1) then
+    num_measurements = size(this%measurements)
+    do i=1,num_measurements
+      if (this%measurements(i)%iobs_var == OBS_LIQUID_PRESSURE) then
+        this%measurements(i)%weight = this%alpha_liquid_pressure * &
+                                      this%measurements(i)%weight
+      elseif (this%measurements(i)%iobs_var == OBS_LIQUID_SATURATION) then
+        this%measurements(i)%weight = this%alpha_liquid_saturation * &
+                                      this%measurements(i)%weight
+      elseif (this%measurements(i)%iobs_var == OBS_SOLUTE_CONCENTRATION) then
+        this%measurements(i)%weight = this%alpha_solute_concentration * &
+                                      this%measurements(i)%weight
+      elseif (this%measurements(i)%iobs_var == OBS_ERT_MEASUREMENT) then
+        this%measurements(i)%weight = this%alpha_ert_measurement * &
+                                      this%measurements(i)%weight
+      endif
+    enddo
+  endif
 
   ! Build Wm matrix
   call InversionZFlowBuildWm(this)
@@ -819,10 +872,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   ! Data part
   this%phi_data = 0.d0
   do idata=1,num_measurement
-
-    wd = 0.05 * this%measurements(idata)%value
-    wd = 1/wd
-
+    wd = this%measurements(idata)%weight
     tempreal = wd * (this%measurements(idata)%value - &
                      this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
@@ -1276,6 +1326,12 @@ subroutine InversionZFlowCGLSSolve(this)
     if ( abs((resNE_old - resNe) /resNE_old) < delta_initer .and. &
         i > this%miniter) exit_info = PETSC_TRUE
 
+    ! PJ: for coupled flow, transport, and ert we need following condition --> ?
+    if (this%check_gamma_divergence .or. &
+        this%inversion_option%coupled_flow_ert) then
+      if (gamma > gamma1) exit_info = PETSC_TRUE
+    endif
+
   enddo
 
   call timer%Stop()
@@ -1337,10 +1393,7 @@ subroutine InversionZFlowCGLSRhs(this)
 
   ! Data part
   do idata=1,num_measurement
-
-    wd = 0.05 * this%measurements(idata)%value
-    wd = 1/wd
-
+    wd = this%measurements(idata)%weight
     this%b(idata) = wd * (this%measurements(idata)%value - &
                           this%measurements(idata)%simulated_value)
   enddo
@@ -2359,7 +2412,6 @@ subroutine InversionZFlowScaleSensitivity(this)
 
   Vec :: wd_vec
   PetscInt :: idata,num_measurement
-  PetscReal :: wd
   PetscReal, pointer :: wdvec_ptr(:)
   PetscErrorCode :: ierr
 
@@ -2368,9 +2420,7 @@ subroutine InversionZFlowScaleSensitivity(this)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
-    wd = 0.05 * this%measurements(idata)%value
-    wd = 1/wd
-    wdvec_ptr(idata) = wd
+    wdvec_ptr(idata) = this%measurements(idata)%weight
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   call InvSubsurfScatMeasToDistMeas(this, &

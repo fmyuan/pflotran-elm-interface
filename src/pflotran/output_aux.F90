@@ -58,6 +58,7 @@ module Output_Aux_module
 
     PetscBool :: print_vtk
     PetscBool :: print_vtk_vel_cent
+    PetscBool :: vtk_acknowledgment
 
     PetscBool :: print_observation
     PetscBool :: print_column_ids
@@ -220,6 +221,7 @@ function OutputOptionCreate()
   output_option%print_tecplot_vel_face = PETSC_FALSE
   output_option%print_vtk = PETSC_FALSE
   output_option%print_vtk_vel_cent = PETSC_FALSE
+  output_option%vtk_acknowledgment = PETSC_FALSE
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
   output_option%print_explicit_primal_grid = PETSC_FALSE
@@ -328,6 +330,7 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_tecplot_vel_face = output_option%print_tecplot_vel_face
   output_option2%print_vtk = output_option%print_vtk
   output_option2%print_vtk_vel_cent = output_option%print_vtk_vel_cent
+  output_option2%vtk_acknowledgment = output_option%vtk_acknowledgment
   output_option2%print_observation = output_option%print_observation
   output_option2%print_column_ids = output_option%print_column_ids
   output_option2%print_initial_obs = output_option%print_initial_obs
@@ -1010,7 +1013,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
    case ('PERMEABILITY_XY')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_XY only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1020,7 +1023,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
     case ('PERMEABILITY_XZ')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_XZ only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1030,7 +1033,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
     case ('PERMEABILITY_YZ')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_YZ only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1351,7 +1354,6 @@ subroutine OutputVariableAppendDefaults(output_variable_list,option)
   type(output_variable_list_type), pointer :: output_variable_list
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
 

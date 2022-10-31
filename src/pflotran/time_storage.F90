@@ -124,7 +124,7 @@ subroutine TimeStorageVerify(default_time, time_storage, &
   else
     if (time_storage%times(1) > 1.d-40) then
       option%io_buffer = 'The first time in transient datasets must be zero. &
-        See ' // trim(header) // '.'
+        &See ' // trim(header) // '.'
       call PrintErrMsg(option)
     endif
   endif
@@ -256,7 +256,6 @@ subroutine TimeStorageUpdate(time_storage)
 
   type(time_storage_type) :: time_storage
 
-  PetscInt :: irank
   PetscInt :: cur_time_index
   PetscInt :: next_time_index
 

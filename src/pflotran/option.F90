@@ -153,7 +153,6 @@ module Option_module
 
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
-    PetscBool :: use_upwinding
     PetscBool :: out_of_table
 
     ! Specify secondary continuum solver
@@ -376,8 +375,6 @@ subroutine OptionInitAll(option)
 
   option%input_filename = ''
 
-  option%use_upwinding = PETSC_TRUE
-
   option%out_of_table = PETSC_FALSE
 
   call OptionInitRealization(option)
@@ -551,9 +548,7 @@ subroutine OptionCheckCommandLine(option)
   type(option_type) :: option
 
   PetscBool :: option_found
-  PetscInt :: temp_int
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                            "-buffer_matrix",option%use_matrix_buffer, &

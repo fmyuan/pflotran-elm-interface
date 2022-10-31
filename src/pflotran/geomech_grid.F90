@@ -62,17 +62,12 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   PetscInt, allocatable :: int_array3(:)
   PetscInt, allocatable :: int_array4(:)
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string, string1
   PetscInt :: global_offset_old
-  PetscInt :: global_offset
   Mat :: Rank_Mat
   PetscReal :: rank
-  PetscViewer :: viewer
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: istart,iend
   PetscBool :: vertex_found
   PetscInt :: int_rank
-  PetscInt :: vertex_count2
   IS :: is_rank
   IS :: is_rank_new
   IS :: is_natural
@@ -758,10 +753,6 @@ subroutine GeomechGridLocalizeRegions(grid,region_list,option)
   type(option_type) :: option
 
   type(gm_region_type), pointer :: region
-  character(len=MAXSTRINGLENGTH) :: string
-
-
-
 
   region => region_list%first
   do
@@ -816,17 +807,13 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   IS :: is_from, is_to
   VecScatter :: vec_scat
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
-  PetscInt :: ii,jj,kk,count
+  PetscInt :: ii,count
   PetscInt :: istart,iend
   PetscInt :: ghosted_id,local_id
   PetscInt :: natural_id
   PetscInt, pointer :: tmp_int_array(:)
   PetscScalar, pointer :: v_loc_p(:)
   PetscScalar, pointer :: tmp_scl_array(:)
-  character(len=MAXSTRINGLENGTH) :: string,string1
-
-
 
   if (associated(geomech_region%vertex_ids)) then
     call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
@@ -1108,9 +1095,7 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   type(option_type) :: option
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: word
   character(len=1) :: backslash
-  character(len=MAXSTRINGLENGTH) :: string, string1
 
   PetscInt, pointer :: temp_int_array(:)
   PetscInt, pointer :: vertex_ids_geomech(:)
@@ -1118,8 +1103,6 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   PetscInt :: max_size, max_size_old
   PetscInt :: count
   PetscInt :: temp_int
-  PetscInt :: input_data_type
-  PetscInt :: ii
   PetscInt :: istart
   PetscInt :: iend
   PetscInt :: remainder

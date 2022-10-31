@@ -350,7 +350,6 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
   PetscInt :: sum_wasted_newton_iterations
 
   PetscReal :: fnorm, inorm, scaled_fnorm
-  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
@@ -595,8 +594,6 @@ subroutine TimestepperSNESSetHeader(this,bag,header)
   class(timestepper_SNES_type) :: this
   class(stepper_SNES_header_type) :: header
   PetscBag :: bag
-
-  PetscErrorCode :: ierr
 
   header%cumulative_newton_iterations = this%cumulative_newton_iterations
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
@@ -988,11 +985,13 @@ subroutine TimestepperSNESPrintInfo(this,aux_string,option)
   allocate(strings(this%ntfac+20))
   strings = ''
   strings(1) = 'acceleration: ' // &
-                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+    trim(StringWrite(String1Or2(this%iaccel>0,'on','off')))
   if (this%iaccel > 0) then
-    strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
+    strings(2) = 'acceleration threshold: ' // &
+      trim(StringWrite(this%iaccel))
   endif
-  strings(3) = 'number of ramp entries: ' // StringWrite(this%iaccel)
+  strings(3) = 'number of ramp entries: ' // &
+    trim(StringWrite(this%iaccel))
   do i = 1, this%ntfac
     strings(i+3) = 'ramp entry #' // trim(StringWrite(i)) // ': ' // &
                    StringWriteF(this%tfac(i))

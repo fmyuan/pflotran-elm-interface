@@ -310,8 +310,6 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
-
   error_string = 'ZFLOW Newton Solver'
 
   select case(trim(keyword))
@@ -368,6 +366,7 @@ recursive subroutine PMZFlowInitializeRun(this)
   use Realization_Base_class
   use Patch_module
   use Field_module
+  use Material_Aux_module
   use Option_module
   use Variables_module
 
@@ -424,6 +423,12 @@ recursive subroutine PMZFlowInitializeRun(this)
   if (Initialized(this%temperature_change_governor)) then
     option%io_buffer = 'TEMPERATURE_CHANGE_GOVERNOR &
       &may not be used with ZFLOW.'
+    call PrintErrMsg(option)
+  endif
+
+  if (soil_compressibility_index == 0 .and. associated(option%inversion)) then
+    option%io_buffer = 'Soil compressibility must be employed for ZFlow &
+      &when used for inversion.'
     call PrintErrMsg(option)
   endif
 
@@ -912,8 +917,6 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: local_id, ghosted_id
   PetscInt :: converged_flag
 
-  PetscReal, parameter :: zero_accumulation = 1.d-15
-
   PetscReal :: max_abs_res_liq_
   PetscInt :: max_abs_res_liq_cell
   PetscReal :: max_abs_res_sol_
@@ -1126,8 +1129,6 @@ subroutine PMZFlowMaxChange(this)
   PetscReal :: max_change, change
   PetscInt :: i, j
   PetscInt :: ivar
-  character(len=MAXSTRINGLENGTH) :: string
-
   PetscErrorCode :: ierr
 
   realization => this%realization
@@ -1215,7 +1216,6 @@ subroutine PMZFlowInputRecord(this)
 
   class(pm_zflow_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -1238,7 +1238,6 @@ subroutine PMZFlowCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1261,7 +1260,6 @@ subroutine PMZFlowRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1289,8 +1287,6 @@ subroutine PMZFlowDestroy(this)
   implicit none
 
   class(pm_zflow_type) :: this
-
-  PetscErrorCode :: ierr
 
   if (associated(this%next)) then
     call this%next%Destroy()

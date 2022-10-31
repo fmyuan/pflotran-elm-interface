@@ -49,7 +49,7 @@ subroutine ERTSetup(realization)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscInt :: flag(1)
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id, ghosted_id,num_neighbors
   PetscBool :: error_found
   PetscReal :: tempreal
   PetscErrorCode :: ierr
@@ -92,7 +92,12 @@ subroutine ERTSetup(realization)
  ! allocate auxvars data structures for all grid cells
   allocate(ert_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call ERTAuxVarInit(ert_auxvars(ghosted_id),survey,option)
+    local_id = grid%nG2L(ghosted_id)
+    num_neighbors = -1
+    if (local_id>0) then
+      num_neighbors = grid%cell_neighbors_local_ghosted(0,local_id)
+    endif
+    call ERTAuxVarInit(ert_auxvars(ghosted_id),survey,num_neighbors,option)
   enddo
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax
@@ -163,6 +168,12 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 
   ! Pre-set Matrix to zeros
   call MatZeroEntries(M,ierr);CHKERRQ(ierr)
+
+  if (compute_delM) then
+    do local_id=1,grid%nlmax
+      ert_auxvars(grid%nL2G(local_id))%delM = 0.d0
+    enddo
+  endif
 
   ! Setting matrix enteries for Internal Flux terms/connections
   connection_set_list => grid%internal_connection_set_list
@@ -236,11 +247,6 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
                                       (1:num_neighbors_up,local_id_up),      &
                                       num_neighbors_up,ghosted_id_dn)
 
-          if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
-            allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
-            ert_auxvars(ghosted_id_up)%delM = 0.d0
-          endif
-
           ! Fill values to dM/dcond_up matrix for up cell
           call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up,          &
                                 ineighbor,ert_auxvars(ghosted_id_up)%delM)
@@ -268,11 +274,6 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
           ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
                                       (1:num_neighbors_dn,local_id_dn),      &
                                       num_neighbors_dn,ghosted_id_up)
-
-          if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
-            allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
-            ert_auxvars(ghosted_id_dn)%delM = 0.d0
-          endif
 
           ! Fill values to dM/dcond_dn matrix for up cell
           call FillValuesToDelM(dcoef_dn,dcoef_up,num_neighbors_dn,          &
@@ -405,7 +406,8 @@ end subroutine ERTCalculateMatrix
 ! ************************************************************************** !
 
 subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
-                                           cond_c,empirical_law,cond)
+                                           cond_c,empirical_law,cond, &
+                                           tracer_scale,dcond_dsat,dcond_dconc)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -434,17 +436,32 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   ! calculated bulk conductivity
   PetscReal :: cond
 
+  ! to get dconductivty/dsaturation
+  PetscReal :: tracer_scale
+  PetscReal :: dcond_dsat
+  PetscReal :: dcond_dconc
+  PetscReal :: cond_ws
+
   ! Archie's law
   cond = cond_w * (por**m) * (sat**n) / a
+
+  ! dcond/dsat
+  dcond_dsat = n * cond / sat
+
   ! Modify by adding surface conductivity
   cond = cond + cond_s
+
+  !dcond/dconc
+  dcond_dconc = tracer_scale * (por**m) * (sat**n) / a
 
   select case(empirical_law)
     case(ARCHIE)
       ! do nothing
     case(WAXMAN_SMITS)
       ! Waxmax-Smits equations/Dual-Water model
-      cond = cond + cond_c * Vc * (1-por) * sat**(n-1)
+      cond_ws = cond_c * Vc * (1.d0-por) * sat**(n-1.d0)
+      cond = cond + cond_ws
+      dcond_dsat = dcond_dsat + (n-1.d0) * cond_ws / sat
   end select
 
 end subroutine ERTConductivityFromEmpiricalEqs

@@ -198,7 +198,6 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: sum_linear_iterations_temp
   PetscInt :: sum_wasted_linear_iterations
   PetscInt :: icut
-  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   PetscInt :: rreact_error
   PetscInt :: tempint
   PetscReal :: tconv

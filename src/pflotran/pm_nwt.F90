@@ -318,7 +318,7 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
   PetscReal, pointer :: temp_itol_rel_update(:)
   PetscReal, pointer :: temp_itol_scaled_res(:)
   PetscReal, pointer :: temp_itol_abs_res(:)
-  PetscInt :: k, j
+  PetscInt :: k
   character(len=MAXSTRINGLENGTH) :: error_string_ex
   character(len=MAXWORDLENGTH) :: word
 
@@ -643,7 +643,6 @@ subroutine PMNWTInitializeRun(this)
   PetscInt :: p
   type(material_property_type), pointer :: material_property
   type(region_type), pointer :: region
-  type(coupler_type), pointer :: init_condition
   character(len=MAXSTRINGLENGTH) :: hack_region_name
 
   ! check for uninitialized flow variables
@@ -910,7 +909,6 @@ subroutine PMNWTFinalizeTimestep(this)
   implicit none
 
   class(pm_nwt_type) :: this
-  PetscReal :: time
   PetscErrorCode :: ierr
 
   if (this%params%transient_porosity) then
@@ -1223,9 +1221,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: ratio, min_ratio
-  PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, n, k
+  PetscInt :: i, k
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
@@ -1266,7 +1263,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 #else
       min_ratio = MAX_DOUBLE ! large number
       k = 0
-      do i = 1, n
+      do i = 1, size(C_p)
         if (C_p(i) <= dC_p(i)) then
           !WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
           ratio = abs(C_p(i)/dC_p(i))
@@ -1360,7 +1357,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: max_scaled_residual
   PetscReal :: max_absolute_change
   PetscReal :: max_absolute_residual
-  PetscReal :: min_C0, min_C_prev
+  PetscReal :: min_C0
   PetscInt :: loc_max_scaled_residual
   PetscInt :: loc_max_abs_residual
   PetscInt :: loc_max_rel_update
@@ -1376,7 +1373,6 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: temp_int, i
   PetscInt :: newton_iter_number
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
-  PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
   PetscMPIInt :: mpi_int
   PetscInt :: local_id, offset, idof, index
   PetscReal :: tempreal
@@ -2148,7 +2144,6 @@ subroutine PMNWTInputRecord(this)
 
   class(pm_nwt_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
