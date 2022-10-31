@@ -662,6 +662,7 @@ subroutine PMWellSetup(this)
   class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscInt, pointer :: h_global_id_unique(:)
+  PetscInt, pointer :: h_rank_id(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -741,6 +742,7 @@ subroutine PMWellSetup(this)
   endif
 
   if (nsegments == UNINITIALIZED_INTEGER) then
+
   ! Use reservoir grid info: 1 well cell per reservoir cell
     dz_list = UNINITIALIZED_DOUBLE
     res_dz_list = UNINITIALIZED_DOUBLE
@@ -868,6 +870,7 @@ subroutine PMWellSetup(this)
 
     ! Get the local_id for each well segment center from the reservoir grid
     well_grid%h_local_id(:) = -1
+
     do k = 1,well_grid%nsegments
       call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
                                         option,local_id)
@@ -875,6 +878,9 @@ subroutine PMWellSetup(this)
       well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
     enddo
+    !write(*,*) 'well_grid%h_local_id', well_grid%h_local_id
+    !write(*,*) 'well_grid%h_ghosted_id', well_grid%h_ghosted_id
+    !write(*,*) 'well_grid%h_global_id', well_grid%h_global_id
 
   endif
 
@@ -920,30 +926,49 @@ subroutine PMWellSetup(this)
   !   well passes through.
   option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution.... '
   call PrintMsg(option)
-  k = 0
+
   allocate(h_global_id_unique(nsegments))
-  h_global_id_unique(:) = -999
+  h_global_id_unique(:) = 0
+  allocate(h_rank_id(nsegments))
+  h_rank_id(:) = -999
+  do k = 1,nsegments
+    if (well_grid%h_local_id(k) > -999) then
+      h_rank_id(k) = option%myrank
+    endif
+  enddo
+  !write(*,*) 'h_rank_id(k)', h_rank_id
+
   min_val = minval(well_grid%h_global_id)-1
   max_val = maxval(well_grid%h_global_id)
+  k = 0
   do while (min_val < max_val)
     k = k + 1
     min_val = minval(well_grid%h_global_id, &
                      mask=well_grid%h_global_id > min_val)
     h_global_id_unique(k) = min_val
   enddo
+
+  !write(*,*) 'h_global_id_unique', h_global_id_unique
+
   count1_local = 0
   count1_global = 0
   do k = 1,nsegments
-    if (h_global_id_unique(k) > -999) then
+    if (h_global_id_unique(k) > 0) then
       count1_local = count1_local + 1
     endif
   enddo
+
+  !write(*,*) '---> count1_local =', count1_local
+
   ! count1_local is the number of unique reservoir grid cells that the well has
   ! a connection to per MPI process. Next, all of the MPI processes need to
   ! sum up their counts and place the total in count1_global.
   call MPI_Allreduce(count1_local,count1_global,ONE_INTEGER_MPI,MPI_INTEGER, &
                      MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+  !write(*,*) '---> count1_global =', count1_global
   write(string,'(I0.5)') count1_global
+
+  !write(*,*) '---> Passed 9'
 
   ! Next, sum up how many grid cells the well passes thru.
   ! Note: This count assumes that the well is vertical and the top and
@@ -989,6 +1014,7 @@ subroutine PMWellSetup(this)
       endif
     endif
   enddo
+
   ! All of the MPI processes need to sum up their counts and place the
   ! total in count2_global.
   call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
@@ -1000,6 +1026,7 @@ subroutine PMWellSetup(this)
   ! is connected to (count1) matches the number of reservoir grid cells that
   ! the well occupies (count2):
   if (count1_global == count2_global) well_grid_res_is_OK = PETSC_TRUE
+
 
   if (.not.well_grid_res_is_OK) then
     option%io_buffer = 'ERROR:  &
