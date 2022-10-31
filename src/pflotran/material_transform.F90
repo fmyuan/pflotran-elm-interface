@@ -1409,16 +1409,21 @@ subroutine ILTBaseTest(this, name, option)
   PetscReal :: smec_vec(ns)
   PetscReal :: temp_vec(nt)
   PetscReal :: time_vec(np)
-  PetscReal :: fi(ns,nt,np)
-  PetscReal :: dfi_dtemp_numerical(ns,nt,np)
+  PetscReal, allocatable :: fi(:,:,:)
+  PetscReal, allocatable :: dfi_dtemp_numerical(:,:,:)
+  PetscReal, allocatable :: sc(:,:,:)
   PetscReal :: perturbed_temp
   PetscReal :: fi_temp_pert
   PetscReal :: smec_min, smec_max
   PetscReal :: temp_min, temp_max
-  PetscReal :: sc(ns,nt,np), sc_temp_pert
+  PetscReal :: sc_temp_pert
   PetscReal :: dt,fs0_original
   PetscReal :: fs, fsp
   PetscInt :: i, j, k
+
+  allocate(fi(ns,nt,np))
+  allocate(sc(ns,nt,np))
+  allocate(dfi_dtemp_numerical(ns,nt,np))
 
   ! thermal conductivity as a function of temp. and liq. sat.
   smec_min = 1.0d-1 ! Minimum fraction smectite
@@ -1477,6 +1482,10 @@ subroutine ILTBaseTest(this, name, option)
     enddo
   enddo
   close(86)
+
+  deallocate(fi)
+  deallocate(sc)
+  deallocate(dfi_dtemp_numerical)
 
   ! reset to original values
   this%fs0 = fs0_original
