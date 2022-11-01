@@ -5243,7 +5243,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,PRECIPITATE_SATURATION,&
          DERIVATIVE,MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION,&
-	 SOLUTE_CONCENTRATION)
+         SOLUTE_CONCENTRATION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)

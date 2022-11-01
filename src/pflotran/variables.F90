@@ -175,7 +175,7 @@ module Variables_module
   PetscInt, parameter, public :: SMECTITE                = 140
   PetscInt, parameter, public :: GAS_PARTIAL_PRESSURE    = 141
 
-  PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 141
-  PetscInt, parameter, public :: SOLUBLE_MATRIX  = 142
+  PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 142
+  PetscInt, parameter, public :: SOLUBLE_MATRIX  = 143
 
 end module Variables_module
