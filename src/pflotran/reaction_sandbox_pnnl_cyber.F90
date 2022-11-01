@@ -659,7 +659,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   nh4_inhibition = 1.d0
   dnh4_inhibition_dnh4 = 0.d0
   if (this%inhibit_by_nh4) then
-    tempreal = (Cnh4 - 1.d6)*threshold_f
+    tempreal = (Cnh4 - 1.d-6)*threshold_f
     nh4_inhibition = 0.5d0 + atan(tempreal)/PI
     ! derivative of atan(X) = 1 / (1 + X^2) dX
     dnh4_inhibition_dnh4 = threshold_f * &
