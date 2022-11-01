@@ -70,7 +70,7 @@ module Reaction_Sandbox_Cyber_class
     PetscInt :: offset_auxiliary
     PetscBool :: store_cumulative_mass
     PetscBool :: mobile_biomass
-    PetscBool :: inhibit_by_nh4
+    PetscReal :: inhibit_by_nh4
     PetscInt, pointer :: nrow(:)
     PetscInt, pointer :: ncol(:)
     PetscInt, pointer :: irow(:,:)
@@ -150,7 +150,7 @@ function CyberCreate()
   CyberCreate%carbon_consumption_species = ''
   CyberCreate%store_cumulative_mass = PETSC_FALSE
   CyberCreate%mobile_biomass = PETSC_FALSE
-  CyberCreate%inhibit_by_nh4 = PETSC_FALSE
+  CyberCreate%inhibit_by_nh4 = UNINITIALIZED_DOUBLE
   nullify(CyberCreate%nrow)
   nullify(CyberCreate%ncol)
   nullify(CyberCreate%irow)
@@ -278,7 +278,9 @@ subroutine CyberRead(this,input,option)
       case('MOBILE_BIOMASS')
         this%mobile_biomass = PETSC_TRUE
       case('INHIBIT_BY_NH4')
-        this%inhibit_by_nh4 = PETSC_TRUE
+        call InputReadDouble(input,option,this%inhibit_by_nh4)
+        call InputErrorMsg(input,option,'NH4 inhibition concentration', &
+                           error_string)
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
@@ -658,8 +660,8 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
 
   nh4_inhibition = 1.d0
   dnh4_inhibition_dnh4 = 0.d0
-  if (this%inhibit_by_nh4) then
-    tempreal = (Cnh4 - 1.d-6)*threshold_f
+  if (Initialized(this%inhibit_by_nh4)) then
+    tempreal = (Cnh4 - this%inhibit_by_nh4)*threshold_f
     nh4_inhibition = 0.5d0 + atan(tempreal)/PI
     ! derivative of atan(X) = 1 / (1 + X^2) dX
     dnh4_inhibition_dnh4 = threshold_f * &
