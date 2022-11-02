@@ -1643,7 +1643,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
   class(creep_closure_type), pointer :: creep_closure
   PetscInt :: natural_id
 
@@ -1652,7 +1651,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: den_water_vapor, den_kg_water_vapor
   PetscReal :: u_water_vapor, h_water_vapor
   PetscReal :: den_air, h_air, u_air
-  PetscReal :: den_precip, h_precip, u_precip
+  PetscReal :: u_precip
   PetscReal :: xmol_air_in_gas, xmol_water_in_gas
   PetscReal :: krl, visl, dvis_dp, dvis_dT, dvis_dpa
   PetscReal :: dkrl_dsatl, dkrl_dsatg
@@ -1662,19 +1661,14 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: NaClSolubility
   PetscReal :: guess, dummy
   PetscInt  :: apid, cpid, vpid, spid
-  PetscReal :: NaN
   PetscReal :: creep_closure_time
-  PetscReal :: xmass_air_in_gas
-  PetscReal :: Ugas_J_kg, Hgas_J_kg
-  PetscReal :: Uair_J_kg, Hair_J_kg
-  PetscReal :: Uvapor_J_kg, Hvapor_J_kg
+  PetscReal :: Uvapor_J_kg
   PetscReal :: Hg_mixture_fractioned
   PetscReal :: aux(1)
   PetscReal :: liq_comp(4) ! slice of gen_auxvar%xmol(:,lid) for EOS aux(*)
   PetscReal :: hw, hw_dp, hw_dT
   PetscReal :: dpor_dp
   PetscReal :: one_over_dw
-  PetscReal :: tempreal, tempreal2, tempreal3
   PetscReal :: dpair_dT, dpair_dpgas
   PetscReal :: dden_air_dT, dden_air_dpa, dden_air_dpg
   PetscReal :: du_air_dT, dh_air_dT
@@ -1683,7 +1677,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dh_water_vapor_dpv, dh_water_vapor_dT
   PetscReal :: du_water_vapor_dpv, du_water_vapor_dT
   PetscReal :: dpc_dsatl
-  character(len=8) :: state_char
   PetscErrorCode :: ierr
   PetscErrorCode :: eos_henry_ierr
 
@@ -3199,7 +3192,6 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, pid, acid, wid, eid, sid
   PetscBool :: istatechng, gas_flag
-  PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
 
@@ -3229,6 +3221,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
 
   call GeneralAuxNaClSolubility(gen_auxvar%Temp,NaClSolubility,&
                                 solubility_function)
+  NaClSolubility = 9.d-1                        
   ! Change state
   select case(global_auxvar%istate)
 
@@ -4791,13 +4784,8 @@ subroutine EOSPrecipitateEnergy(T,U)
   PetscReal, intent(in) :: T
   PetscReal, intent(out) :: U
 
-  PetscInt :: wid = 1
-  PetscInt :: acid = 2
-  PetscInt :: sid = 3
-
   PetscReal :: wsw = 0.d0 ! Brine inclusion mass fraction (assumed 0)
   PetscReal :: wsh = 1.d0 ! Halite mass fraction
-  PetscReal :: avg_molar_mass
 
   U = (3144.0*T)*wsw + (800*T)*wsh !J/kg
   U = U * fmw_comp(THREE_INTEGER) !J/kmol
