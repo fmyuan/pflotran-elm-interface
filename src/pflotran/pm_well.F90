@@ -80,6 +80,8 @@ module PM_Well_class
     PetscReal :: min_dz
     ! ratio for # well cells per reservoir cell
     PetscInt :: well_res_ratio
+    ! list of segment center z values [m]
+    PetscReal, pointer :: z_list(:)
   end type well_grid_type
 
   type :: well_reservoir_type
@@ -399,6 +401,7 @@ function PMWellCreate()
   PMWellCreate%well_grid%dz_peck = 1.0d-2
   PMWellCreate%well_grid%min_dz = UNINITIALIZED_DOUBLE
   PMWellCreate%well_grid%well_res_ratio = 1
+  nullify(PMWellCreate%well_grid%z_list)
 
   ! create the well object:
   allocate(PMWellCreate%well)
@@ -680,6 +683,7 @@ subroutine PMWellSetup(this)
   PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real
   PetscReal :: cum_z
+  PetscReal :: face_dn, face_up
   PetscReal, allocatable :: temp_z_list(:)
   PetscReal, allocatable :: temp_repeated_list(:) 
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
@@ -755,6 +759,7 @@ subroutine PMWellSetup(this)
   endif
 
   if (well_grid%match_reservoir) then
+  !---------------------------------------------------------------------------
 
     allocate(temp_z_list(10000))
     allocate(temp_repeated_list(10000))
@@ -810,6 +815,7 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
+    well_grid%h_local_id(:) = -1
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -841,7 +847,56 @@ subroutine PMWellSetup(this)
     deallocate(temp_repeated_list)
     deallocate(temp_z_list)
 
+  elseif (Associated(well_grid%z_list)) then
+  !---------------------------------------------------------------------------
+  ! Use the provided z list to build the grid
+
+    nsegments = well_grid%nsegments
+
+    allocate(well_grid%dh(nsegments))
+    allocate(well_grid%h(nsegments))
+    allocate(well_grid%h_local_id(nsegments))
+    allocate(well_grid%h_ghosted_id(nsegments))
+    allocate(well_grid%h_global_id(nsegments))
+    allocate(well_grid%strata_id(nsegments))
+    well_grid%h_local_id(:) = -1
+
+    ! TODO:
+    ! sort the z-list in ascending order, in case it was not 
+    ! check if the user provided repeated z values (only take unique ones)
+
+    dh_x = diff_x/nsegments
+    dh_y = diff_y/nsegments
+
+    do k = 1,well_grid%nsegments
+      well_grid%h(k)%id = k
+      well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
+      well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
+      well_grid%h(k)%z = well_grid%z_list(k)
+
+      call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
+                                        option,local_id)
+      well_grid%h_local_id(k) = local_id
+      well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+      well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+    enddo
+
+    do k = 1,well_grid%nsegments
+      if (k == 1) then
+        face_up = (well_grid%h(k)%z + well_grid%h(k+1)%z)/2.d0
+        face_dn = well_grid%bottomhole(3)
+      elseif (k == nsegments) then
+        face_up = well_grid%tophole(3)
+        face_dn = (well_grid%h(k)%z + well_grid%h(k-1)%z)/2.d0
+      else
+        face_up = (well_grid%h(k)%z + well_grid%h(k+1)%z)/2.d0
+        face_dn = (well_grid%h(k)%z + well_grid%h(k-1)%z)/2.d0
+      endif
+      well_grid%dh(k) = face_up - face_dn
+    enddo
+
   else 
+  !---------------------------------------------------------------------------
   ! Build an equally-spaced grid based on nsegments:
 
     nsegments = well_grid%nsegments
@@ -852,6 +907,7 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
+    well_grid%h_local_id(:) = -1
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -871,9 +927,6 @@ subroutine PMWellSetup(this)
     enddo
 
     well_grid%dh(:) = total_length/nsegments
-
-    ! Get the local_id for each well segment center from the reservoir grid
-    well_grid%h_local_id(:) = -1
 
     do k = 1,well_grid%nsegments
       call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
@@ -1405,12 +1458,15 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
-  PetscInt :: num_errors
+  PetscInt :: num_errors, num_read
+  PetscInt :: read_max = 10000
+  PetscInt :: k
   character(len=MAXWORDLENGTH) :: word
+  PetscReal, pointer :: temp_z_list(:)
 
   error_string = trim(error_string) // ',WELL_GRID'
   found = PETSC_TRUE
-  num_errors = 0
+  num_errors = 0; num_read = 0
 
   select case(trim(keyword))
   !-------------------------------------
@@ -1446,6 +1502,25 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
           case('NUMBER_OF_SEGMENTS')
             call InputReadInt(input,option,pm_well%well_grid%nsegments)
             call InputErrorMsg(input,option,'NUMBER_OF_SEGMENTS',error_string)
+        !-----------------------------
+          case('SEGMENT_CENTER_Z_VALUES')
+            allocate(temp_z_list(read_max))
+            temp_z_list(:) = UNINITIALIZED_DOUBLE
+            do k = 1,read_max
+              call InputReadDouble(input,option,temp_z_list(k))
+              if (InputError(input)) exit
+              num_read = num_read + 1
+            enddo
+            if (num_read == 0) then
+              option%io_buffer = 'At least one value for &
+                &SEGMENT_CENTER_Z_VALUES must be &
+                &provided in the ' // trim(error_string) // ' block.'
+              call PrintErrMsg(option)
+            endif
+            allocate(pm_well%well_grid%z_list(num_read))
+            pm_well%well_grid%z_list(1:num_read) = temp_z_list(1:num_read)
+            pm_well%well_grid%nsegments = num_read
+            deallocate(temp_z_list)
         !-----------------------------
           case('TOP_OF_HOLE')
             call InputReadDouble(input,option,pm_well%well_grid%tophole(1))
@@ -1484,7 +1559,8 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
       if (pm_well%well_grid%match_reservoir .eqv. PETSC_FALSE) then
         if (Uninitialized(pm_well%well_grid%nsegments)) then
           option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
-                             &in the ' // trim(error_string) // ' block.'
+                             &in the ' // trim(error_string) // ' block, or &
+                             &SEGMENT_CENTER_Z_VALUES must be provided.'
           call PrintMsg(option)
           num_errors = num_errors + 1
         endif
