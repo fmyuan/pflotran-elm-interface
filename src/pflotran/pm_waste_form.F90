@@ -6950,10 +6950,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
       endif
 
       if (.not. associated(new_crit_mech%heat_dataset)) then
-        option%io_buffer = 'Decay heat dataset must be provided for ' &
+        option%io_buffer = 'ERROR: Decay heat dataset must be provided for ' &
                          //'CRITICALITY_MECH "'//trim(new_crit_mech%mech_name) &
                          //'".'
-        call PrintErrMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
 
