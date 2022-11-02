@@ -1643,6 +1643,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(creep_closure_type), pointer :: creep_closure
   PetscInt :: natural_id
 
@@ -1659,6 +1660,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: krg, visg
   PetscReal :: K_H_tilde
   PetscReal :: NaClSolubility
+  PetscReal :: tempreal
   PetscReal :: guess, dummy
   PetscInt  :: apid, cpid, vpid, spid
   PetscReal :: creep_closure_time
