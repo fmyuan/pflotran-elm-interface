@@ -920,6 +920,10 @@ subroutine InvZFlowEvaluateCostFunction(this)
           param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
                                          permeability(perm_xx_index)
+        case(POROSITY)
+          param_ce = material_auxvars(ghosted_id)%porosity_base
+          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
+                                         porosity_base
         case default
           string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1438,6 +1442,10 @@ subroutine InversionZFlowCGLSRhs(this)
           param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
                                          permeability(perm_xx_index)
+        case(POROSITY)
+          param_ce = material_auxvars(ghosted_id)%porosity_base
+          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
+                                         porosity_base
         case default
           string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1662,6 +1670,10 @@ contains
           param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
                                          permeability(perm_xx_index)
+        case(POROSITY)
+          param_ce = material_auxvars(ghosted_id)%porosity_base
+          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
+                                         porosity_base
         case default
           string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
             trim(StringWrite(this%parameters(1)%iparameter))
