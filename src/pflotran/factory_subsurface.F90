@@ -3429,6 +3429,12 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('OUTPUT')
+        if (output_option%output_read) then
+          option%io_buffer = 'Only one OUTPUT block may be included in a &
+            &PFLOTRAN input deck.'
+          call PrintErrMsg(option)
+        endif
+        output_option%output_read = PETSC_TRUE
         vel_cent = PETSC_FALSE
         vel_face = PETSC_FALSE
         fluxes = PETSC_FALSE
