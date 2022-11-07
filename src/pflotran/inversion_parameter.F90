@@ -191,7 +191,7 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA
+                               VG_SR, VG_ALPHA, VG_M
 
   type(inversion_parameter_type) :: inversion_parameter
   type(driver_type) :: driver
@@ -209,6 +209,8 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
       i = VG_ALPHA
     case('RESIDUAL_SATURATION')
       i = VG_SR
+    case('M')
+      i = VG_M
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParameterMap: ' // &

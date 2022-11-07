@@ -1269,7 +1269,7 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
   ! Date: 03/30/22
 
   use String_module
-  use Variables_module, only : PERMEABILITY, POROSITY
+  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, VG_SR
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
@@ -1290,10 +1290,14 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
     case(POROSITY)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
+    case(VG_ALPHA,VG_M,VG_SR)
+      string = 'van Genuchten parameters are unsupported for adjoint-based &
+        &inversion.'
+      call this%driver%PrintErrMsg(string)
     case default
       string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &
                trim(StringWrite(iparameter))
-    call this%driver%PrintErrMsg(string)
+      call this%driver%PrintErrMsg(string)
   end select
 
 end subroutine InvSubsurfSetAdjointVariable
@@ -1312,7 +1316,7 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
   use String_module
   use Utility_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
-                               POROSITY, VG_ALPHA, VG_SR
+                               POROSITY, VG_ALPHA, VG_SR, VG_M
 
   class(inversion_subsurface_type) :: this
   PetscInt :: iparam
@@ -1363,7 +1367,7 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
       else
         material_property%porosity = tempreal
       endif
-    case(VG_ALPHA,VG_SR)
+    case(VG_ALPHA,VG_SR,VG_M)
       cc => this%realization%patch%characteristic_curves_array( &
               material_property%saturation_function_id)%ptr
     select case(this%parameters(iparam)%iparameter)
@@ -1372,6 +1376,20 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
           tempreal = cc%saturation_function%GetAlpha_()
         else
           call cc%saturation_function%SetAlpha_(tempreal)
+        endif
+      case(VG_M)
+        if (iflag == GET_MATERIAL_VALUE) then
+          tempreal = cc%saturation_function%GetM_()
+          tempreal2 = cc%liq_rel_perm_function%GetM_()
+          if (.not.Equal(tempreal,tempreal2)) then
+            string = 'Saturation and relative permeability function &
+              &van Genuchten "m" values match in characteristic &
+              &curve "' // trim(cc%name)
+            call this%driver%PrintErrMsg(string)
+          endif
+        else
+          call cc%saturation_function%SetM_(tempreal)
+          call cc%liq_rel_perm_function%SetM_(tempreal)
         endif
       case(VG_SR)
         if (iflag == GET_MATERIAL_VALUE) then
