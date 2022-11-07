@@ -23,11 +23,4 @@ END
 SUBSURFACE
   EXTERNAL_FILE general_material_revised.txt
   EXTERNAL_FILE general_subsurface_block.txt
-  OUTPUT
-    VARIABLES
-      POROSITY
-      TORTUOSITY
-      PERMEABILITY
-    /
-  /
 END_SUBSURFACE

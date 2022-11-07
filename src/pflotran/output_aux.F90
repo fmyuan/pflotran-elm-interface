@@ -28,6 +28,7 @@ module Output_Aux_module
 
     character(len=MAXWORDLENGTH) :: tunit
     PetscReal :: tconv
+    PetscBool :: output_read
 
     PetscBool :: print_initial_obs
     PetscBool :: print_final_obs
@@ -202,6 +203,7 @@ function OutputOptionCreate()
   type(output_option_type), pointer :: output_option
 
   allocate(output_option)
+  output_option%output_read = PETSC_FALSE
   output_option%print_hdf5 = PETSC_FALSE
   output_option%print_obs_hdf5 = PETSC_FALSE
   output_option%extend_hdf5_time_format = PETSC_FALSE
