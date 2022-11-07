@@ -735,7 +735,7 @@ subroutine InversionZFlowInitialize(this)
   use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -759,6 +759,9 @@ subroutine InversionZFlowInitialize(this)
     case(PERMEABILITY)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'PERMEABILITY'
+    case(POROSITY)
+      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'POROSITY'
     case(ELECTRICAL_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'ELECTRICAL_CONDUCTIVITY'
@@ -836,7 +839,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   use Patch_module
   use Material_Aux_module
   use String_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -917,6 +920,10 @@ subroutine InvZFlowEvaluateCostFunction(this)
           param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
                                          permeability(perm_xx_index)
+        case(POROSITY)
+          param_ce = material_auxvars(ghosted_id)%porosity_base
+          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
+                                         porosity_base
         case default
           string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1006,6 +1013,12 @@ subroutine InvZFlowEvaluateCostFunction(this)
           if (use_neighbor) param_nb = this%realization%patch% &
                                          material_property_array(imat_id_nb)% &
                                          ptr%permeability(1,1)
+        case(POROSITY)
+          param_ce = this%realization%patch%material_property_array(imat_id)% &
+                       ptr%porosity
+          if (use_neighbor) param_nb = this%realization%patch% &
+                                         material_property_array(imat_id_nb)% &
+                                         ptr%porosity
         case default
           string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1359,7 +1372,7 @@ subroutine InversionZFlowCGLSRhs(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1429,6 +1442,10 @@ subroutine InversionZFlowCGLSRhs(this)
           param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
                                          permeability(perm_xx_index)
+        case(POROSITY)
+          param_ce = material_auxvars(ghosted_id)%porosity_base
+          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
+                                         porosity_base
         case default
           string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1509,6 +1526,12 @@ subroutine InversionZFlowCGLSRhs(this)
           if (use_neighbor) param_nb = this%realization%patch% &
                                          material_property_array(imat_id_nb)% &
                                          ptr%permeability(1,1)
+        case(POROSITY)
+          param_ce = this%realization%patch%material_property_array(imat_id)% &
+                       ptr%porosity
+          if (use_neighbor) param_nb = this%realization%patch% &
+                                         material_property_array(imat_id_nb)% &
+                                         ptr%porosity
         case default
           string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1571,7 +1594,7 @@ subroutine InversionZFlowBuildWm(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1647,6 +1670,10 @@ contains
           param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
                                          permeability(perm_xx_index)
+        case(POROSITY)
+          param_ce = material_auxvars(ghosted_id)%porosity_base
+          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
+                                         porosity_base
         case default
           string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
             trim(StringWrite(this%parameters(1)%iparameter))
@@ -1684,6 +1711,12 @@ contains
           if (use_neighbor) param_nb = this%realization%patch% &
                                          material_property_array(imat_id_nb)% &
                                          ptr%permeability(1,1)
+        case(POROSITY)
+          param_ce = this%realization%patch%material_property_array(imat_id)% &
+                       ptr%porosity
+          if (use_neighbor) param_nb = this%realization%patch% &
+                                         material_property_array(imat_id_nb)% &
+                                         ptr%porosity
         case default
           string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
             trim(StringWrite(this%parameters(1)%iparameter))
