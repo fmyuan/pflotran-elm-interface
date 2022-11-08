@@ -9,12 +9,12 @@ module Transport_NP_module
   use Reaction_Aux_module
   use Global_Aux_module
   use Material_Aux_module
-  use Matrix_Block_Aux_module  
+  use Matrix_Block_Aux_module
 
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
 
   public :: TNPFlux, &
@@ -57,7 +57,6 @@ subroutine TNPFlux(reaction, &
   PetscReal :: Res(rt_parameter%ncomp)
   PetscReal :: res_cont(rt_parameter%ncomp) ! local contribution to residual
   PetscReal :: factor_up, factor_dn
-  PetscReal :: factor_up_em(rt_parameter%naqcomp), factor_dn_em(rt_parameter%naqcomp)
   PetscReal :: factor_avg_em(rt_parameter%naqcomp)
   PetscReal :: tort_up, tort_dn
   PetscReal :: sat_up, sat_dn
@@ -65,17 +64,14 @@ subroutine TNPFlux(reaction, &
   PetscReal :: cur_diff, curStoich
   PetscReal :: dist_up, dist_dn
   PetscReal :: potent_avg(rt_parameter%naqcomp)
-  PetscReal :: cur_potent_dn(rt_parameter%naqcomp), cur_potent_up(rt_parameter%naqcomp)
   PetscReal :: sum_denom_avg, sum_transp
   PetscReal :: curcharge
   PetscReal :: curConc_up, curConc_dn
 
-  PetscInt :: iphase, i, j
+  PetscInt :: iphase, i
   PetscInt :: icplx, icomp, jcomp, lcomp, kcomp
   PetscInt :: ndof, ncomp
-  PetscInt :: istart
-  PetscInt :: iend
-  
+
   iphase = option%liquid_phase
   ndof = rt_parameter%naqcomp
 
@@ -210,25 +206,21 @@ subroutine TNPFluxBC( &
 
   PetscReal :: Res(rt_parameter%ncomp)
   PetscReal :: res_cont(rt_parameter%ncomp) ! local contribution to residual
-  PetscReal :: factor_up, factor_dn
-  PetscReal :: factor_up_em(rt_parameter%naqcomp), factor_dn_em(rt_parameter%naqcomp)
+  PetscReal :: factor_dn
   PetscReal :: factor_avg_em(rt_parameter%naqcomp)
-  PetscReal :: tort_up, tort_dn
-  PetscReal :: sat_up, sat_dn
+  PetscReal :: tort_dn
+  PetscReal :: sat_dn
   PetscReal :: harm_factor, cur_factor
   PetscReal :: cur_diff, curStoich
   PetscReal :: potent_avg(rt_parameter%naqcomp)
-  PetscReal :: cur_potent_dn(rt_parameter%naqcomp), cur_potent_up(rt_parameter%naqcomp)
   PetscReal :: sum_denom_avg, sum_transp
   PetscReal :: curcharge
   PetscReal :: curConc_up, curConc_dn
 
-  PetscInt :: iphase, i, j
+  PetscInt :: iphase, i
   PetscInt :: icplx, icomp, jcomp, lcomp, kcomp
   PetscInt :: ndof, ncomp
-  PetscInt :: istart
-  PetscInt :: iend
-  
+
   iphase = option%liquid_phase
   ndof = rt_parameter%naqcomp
 
@@ -318,7 +310,7 @@ subroutine TNPFluxBC( &
           Res(1:ndof) = Res(1:ndof) + res_cont(1:ndof)
 
       case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC)
-          
+
     end select
 
 
@@ -357,7 +349,6 @@ subroutine TNPFluxDerivative(reaction, &
 
   PetscReal :: J_up(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_dn(rt_parameter%ncomp,rt_parameter%ncomp)
-  PetscReal :: coef_up(rt_parameter%ncomp), coef_dn(rt_parameter%ncomp)
   PetscReal :: factor_up, factor_dn
   PetscReal :: tort_up, tort_dn
   PetscReal :: sat_up, sat_dn
@@ -374,7 +365,7 @@ subroutine TNPFluxDerivative(reaction, &
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal_up, tempreal_dn
   PetscReal :: den_kg_per_L, xmass
-    
+
   iphase = option%liquid_phase
   ndof = rt_parameter%naqcomp
 
@@ -393,7 +384,7 @@ subroutine TNPFluxDerivative(reaction, &
   sat_dn = global_auxvar_dn%sat(iphase)
 
   tort_up =  material_auxvar_up%tortuosity
-  tort_dn =  material_auxvar_dn%tortuosity  
+  tort_dn =  material_auxvar_dn%tortuosity
 
   factor_up = max(sat_up * material_auxvar_up%porosity * &
           tort_up * global_auxvar_up%den_kg(iphase)*1.d-3 * &
@@ -497,10 +488,9 @@ subroutine TNPFluxDerivativeBC(&
 
   PetscReal :: J_up(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_dn(rt_parameter%ncomp,rt_parameter%ncomp)
-  PetscReal :: coef_up(rt_parameter%ncomp), coef_dn(rt_parameter%ncomp)
-  PetscReal :: factor_up, factor_dn
-  PetscReal :: tort_up, tort_dn
-  PetscReal :: sat_up, sat_dn
+  PetscReal :: factor_dn
+  PetscReal :: tort_dn
+  PetscReal :: sat_dn
   PetscReal :: harm_factor, cur_factor
   PetscReal :: dist_up, dist_dn
 
@@ -550,6 +540,7 @@ subroutine TNPFluxDerivativeBC(&
           dist_dn = dist(0)-dist_up ! should avoid truncation error
 
           sat_dn = global_auxvar_dn%sat(iphase)
+          tort_dn =  material_auxvar_dn%tortuosity
 
           factor_dn = max(sat_dn * material_auxvar_dn%porosity * &
             tort_dn * global_auxvar_dn%den_kg(iphase)*1.d-3 * &
@@ -627,7 +618,7 @@ subroutine ComputeElectricPotentialTotalComponent(reaction, &
   PetscReal :: potential_avg(reaction%naqcomp)
   PetscReal :: curCoef, curCharge, curStoich
   PetscReal :: curConc_up, curConc_dn, curConc_avg
-  PetscInt :: icplx, i, j, ncomp
+  PetscInt :: icplx, i, ncomp
 
   ! Primary species contribution
   do icomp = 1, reaction%naqcomp
