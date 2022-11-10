@@ -539,6 +539,7 @@ subroutine InversionSubsurfInitialize(this)
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters
   PetscInt, allocatable :: int_array(:), int_array2(:)
+  PetscReal :: tempreal
   PetscReal, pointer :: vec_ptr(:)
   Vec :: v, v2
   IS :: is_petsc
@@ -874,7 +875,7 @@ subroutine InversionSubsurfInitialize(this)
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
 
     ! if permeability is the parameter of interest, ensure that it is
-    ! isotropic
+    ! isotropic or specified with a vertical anisotropy ratio
     iflag = PETSC_FALSE
     if (this%qoi_is_full_vector) then
       if (MaterialAnisotropyExists(patch%material_properties)) then
@@ -886,7 +887,15 @@ subroutine InversionSubsurfInitialize(this)
           material_property => &
             MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
                                         patch%material_property_array)
-          if (.not.material_property%isotropic_permeability) then
+          ! if PERM_HORIZONTAL and VERTICAL_ANISOTROPY_RATIO are used,
+          ! isotropic permeabilithy will be false, but tempreal will be 1.
+          ! this only works with perturbation
+          tempreal = material_property%permeability(3,3) / &
+                     material_property%permeability(1,1) / &
+                     material_property%vertical_anisotropy_ratio
+          if (.not.material_property%isotropic_permeability .and. &
+              (.not.associated(this%perturbation) .or. &
+               .not.(tempreal > 0.999d0 .and. tempreal < 1.001d0))) then
             iflag = PETSC_TRUE
             exit
           endif
@@ -1343,6 +1352,9 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
       else
         material_property%permeability(1,1) = tempreal
         material_property%permeability(2,2) = tempreal
+        if (Initialized(material_property%vertical_anisotropy_ratio)) then
+          tempreal = tempreal * material_property%vertical_anisotropy_ratio
+        endif
         material_property%permeability(3,3) = tempreal
       endif
     case(POROSITY)

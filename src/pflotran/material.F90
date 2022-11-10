@@ -300,6 +300,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
   PetscBool :: perm_iso_read
+  PetscBool :: perm_horizontal_read
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
@@ -491,6 +492,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('PERMEABILITY')
         ! if PERM_ISO is read, we cannot assign anisotropy
         perm_iso_read = PETSC_FALSE
+        ! if PERM_HORIZTONAL is read, we can assign vertical anisotropy
+        perm_horizontal_read = PETSC_FALSE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -614,6 +617,15 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                    MAXWORDLENGTH,PETSC_TRUE)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
+            case('PERM_HORIZONTAL')
+              perm_horizontal_read = PETSC_TRUE
+              call InputReadDouble(input,option, &
+                                   material_property%permeability(1,1))
+              call InputErrorMsg(input,option,'horizontal permeability', &
+                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              material_property%permeability(2,2) = &
+                material_property%permeability(1,1)
+              material_property%permeability(3,3) = UNINITIALIZED_DOUBLE
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
@@ -626,6 +638,18 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &anisotropic permeability options in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '".'
           call PrintErrMsg(option)
+        endif
+        if (perm_horizontal_read) then
+          if (Uninitialized(material_property%vertical_anisotropy_ratio)) then
+            option%io_buffer = 'VERTICAL_ANISOTROPY_RATIO must be specified &
+              &when PERM_HORIZONTAL is specified in  MATERIAL_PROPERTY "' // &
+              trim(material_property%name) // '".'
+            call PrintErrMsg(option)
+          else
+            material_property%permeability(3,3) = &
+              material_property%permeability(1,1) * &
+              material_property%vertical_anisotropy_ratio
+          endif
         endif
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
