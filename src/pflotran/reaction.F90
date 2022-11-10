@@ -3368,6 +3368,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: ierror
 
   PetscReal :: residual(reaction%ncomp)
+  PetscReal :: initial_total(reaction%ncomp)
   PetscReal :: dummy_res(reaction%ncomp)
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   PetscReal :: dummy_J(reaction%ncomp,reaction%ncomp)
@@ -3424,12 +3425,12 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
                            option,fixed_accum)
   endif
 
-!TODO(geh): activity coefficient will be updated earlier. otherwise, they
-!           will be repeatedly updated due to time step cut
-!  ! now update activity coefficients
-!  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-!    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-!  endif
+  ! store initial concentrations for error reporting
+  initial_total(1:naqcomp) = rt_auxvar%total(:,1)
+  if (nimmobile > 0) then
+    initial_total(immobile_start:immobile_end) = &
+      tran_xx(immobile_start:immobile_end)
+  endif
 
   ! initialize guesses to stored solution
   rt_auxvar%pri_molal(:) = tran_xx(1:naqcomp)
@@ -3542,13 +3543,13 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
         if (verbose_output) then
           print *, 'Maximum iterations in RReact: stop: ' // &
                    trim(StringWrite(num_iterations))
-          print *, 'Maximum iterations in RReact: residual: ' // &
-                   trim(StringWrite(residual))
-          print *, 'Maximum iterations in RReact: new solution: ' // &
-                   trim(StringWrite(new_solution))
-          print *, 'Grid cell: ' // trim(StringWrite(natural_id))
+          print *, '  initial total: ' // trim(StringWrite(initial_total))
+          print *, '  initial primary: ' // trim(StringWrite(tran_xx))
+          print *, '  residual: ' // trim(StringWrite(residual))
+          print *, '  new solution: ' // trim(StringWrite(new_solution))
+          print *, '  Grid cell: ' // trim(StringWrite(natural_id))
           if (option%comm%mycommsize > 1) then
-            print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+            print *, '  Process rank: ' // trim(StringWrite(option%myrank))
           endif
         endif
         num_iterations_ = num_iterations

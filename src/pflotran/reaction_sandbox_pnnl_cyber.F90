@@ -71,6 +71,7 @@ module Reaction_Sandbox_Cyber_class
     PetscBool :: store_cumulative_mass
     PetscBool :: mobile_biomass
     PetscReal :: inhibit_by_nh4
+    PetscReal :: inhibition_threshold_f
     PetscInt, pointer :: nrow(:)
     PetscInt, pointer :: ncol(:)
     PetscInt, pointer :: irow(:,:)
@@ -151,6 +152,7 @@ function CyberCreate()
   CyberCreate%store_cumulative_mass = PETSC_FALSE
   CyberCreate%mobile_biomass = PETSC_FALSE
   CyberCreate%inhibit_by_nh4 = UNINITIALIZED_DOUBLE
+  CyberCreate%inhibition_threshold_f = UNINITIALIZED_DOUBLE
   nullify(CyberCreate%nrow)
   nullify(CyberCreate%ncol)
   nullify(CyberCreate%irow)
@@ -281,6 +283,10 @@ subroutine CyberRead(this,input,option)
         call InputReadDouble(input,option,this%inhibit_by_nh4)
         call InputErrorMsg(input,option,'NH4 inhibition concentration', &
                            error_string)
+      case('INHIBITION_SCALING_FACTOR')
+        call InputReadDouble(input,option,this%inhibition_threshold_f)
+        call InputErrorMsg(input,option,'NH4 inhibition threshold &
+                           &scaling factor',error_string)
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
@@ -483,6 +489,11 @@ subroutine CyberSetup(this,reaction,option)
   this%icol(4,irxn) = this%o2_id
   endif
 
+  if (Initialized(this%inhibit_by_nh4) .and. &
+      Uninitialized(this%inhibition_threshold_f)) then
+    this%inhibition_threshold_f = this%inhibit_by_nh4*1.d16
+  endif
+
 end subroutine CyberSetup
 
 ! ************************************************************************** !
@@ -609,7 +620,6 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: nh4_inhibition, dnh4_inhibition_dnh4
   PetscReal :: tempreal
   PetscReal :: inhibited_rate(3)
-  PetscReal, parameter :: threshold_f = 1.d8
 
   PetscReal :: rate(3), derivative_col(6,3)
 
@@ -661,10 +671,10 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   nh4_inhibition = 1.d0
   dnh4_inhibition_dnh4 = 0.d0
   if (Initialized(this%inhibit_by_nh4)) then
-    tempreal = (Cnh4 - this%inhibit_by_nh4)*threshold_f
+    tempreal = (Cnh4 - this%inhibit_by_nh4)*this%inhibition_threshold_f
     nh4_inhibition = 0.5d0 + atan(tempreal)/PI
     ! derivative of atan(X) = 1 / (1 + X^2) dX
-    dnh4_inhibition_dnh4 = threshold_f * &
+    dnh4_inhibition_dnh4 = this%inhibition_threshold_f * &
                            rt_auxvar%pri_act_coef(this%nh4_id) * &
                            molality_to_molarity / &
                            (1.d0 + tempreal*tempreal) / PI
