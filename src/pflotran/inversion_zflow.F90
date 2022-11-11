@@ -7,6 +7,9 @@ module Inversion_ZFlow_class
   use Inversion_Base_class
   use Inversion_Subsurface_class
 
+#undef REFACTORED_GET_PARAMETER
+#define REFACTORED_GET_PARAMETER
+
   implicit none
 
   private
@@ -850,11 +853,14 @@ subroutine InvZFlowEvaluateCostFunction(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
+#if !defined(REFACTORED_GET_PARAMETER)
   character(len=MAXSTRINGLENGTH) :: string
+#endif
   PetscInt :: idata,num_measurement
   PetscInt :: iconst,num_constraints
   PetscInt :: irb,ghosted_id,ghosted_id_nb
   PetscInt :: imat_id,imat_id_nb
+  PetscInt :: iparameter
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: wd,tempreal
   PetscReal :: param_ce,param_nb              ! cell's and neighbor's
@@ -911,7 +917,18 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
+      iparameter = this%parameters(1)%iparameter
+#if defined(REFACTORED_GET_PARAMETER)
+      call InvSubsurfGetParamValueByCell(this,param_ce,iparameter, &
+                                         patch%imat(ghosted_id), &
+                                         material_auxvars(ghosted_id))
+      if (use_neighbor) then
+        call InvSubsurfGetParamValueByCell(this,param_nb,iparameter, &
+                                           patch%imat(ghosted_id_nb), &
+                                           material_auxvars(ghosted_id_nb))
+      endif
+#else
+      select case(iparameter)
         case(ELECTRICAL_CONDUCTIVITY)
           param_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
@@ -926,9 +943,10 @@ subroutine InvZFlowEvaluateCostFunction(this)
                                          porosity_base
         case default
           string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
-            trim(StringWrite(this%parameters(1)%iparameter))
+            trim(StringWrite(iparameter))
           call this%driver%PrintErrMsg(string)
       end select
+#endif
 
       x = 0.d0
 
@@ -1000,7 +1018,16 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
+      iparameter = this%parameters(1)%iparameter
+#if defined(REFACTORED_GET_PARAMETER)
+      call InvSubsurfGetSetParamValueByMat(this,param_ce,iparameter, &
+                                           imat_id,GET_MATERIAL_VALUE)
+      if (use_neighbor) then
+        call InvSubsurfGetSetParamValueByMat(this,param_nb,iparameter, &
+                                             imat_id_nb,GET_MATERIAL_VALUE)
+      endif
+#else
+      select case(iparameter)
         case(ELECTRICAL_CONDUCTIVITY)
           param_ce = this%realization%patch%material_property_array(imat_id)% &
                        ptr%electrical_conductivity
@@ -1021,9 +1048,10 @@ subroutine InvZFlowEvaluateCostFunction(this)
                                          ptr%porosity
         case default
           string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
-            trim(StringWrite(this%parameters(1)%iparameter))
+            trim(StringWrite(iparameter))
           call this%driver%PrintErrMsg(string)
       end select
+#endif
 
       x = 0.d0
 
@@ -1383,10 +1411,13 @@ subroutine InversionZFlowCGLSRhs(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
+#if !defined(REFACTORED_GET_PARAMETER)
   character(len=MAXSTRINGLENGTH) :: string
+#endif
   PetscInt :: idata,iconst,irb,num_measurement
   PetscInt :: ghosted_id,ghosted_id_nb
   PetscInt :: imat_id,imat_id_nb
+  PetscInt :: iparameter
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: param_ce,param_nb,x     ! cell's and neighbor's
   PetscReal :: wm,beta
@@ -1433,7 +1464,18 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
+      iparameter = this%parameters(1)%iparameter
+#if defined(REFACTORED_GET_PARAMETER)
+      call InvSubsurfGetParamValueByCell(this,param_ce,iparameter, &
+                                         patch%imat(ghosted_id), &
+                                         material_auxvars(ghosted_id))
+      if (use_neighbor) then
+        call InvSubsurfGetParamValueByCell(this,param_nb,iparameter, &
+                                           patch%imat(ghosted_id_nb), &
+                                           material_auxvars(ghosted_id_nb))
+      endif
+#else
+      select case(iparameter)
         case(ELECTRICAL_CONDUCTIVITY)
           param_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
@@ -1448,9 +1490,10 @@ subroutine InversionZFlowCGLSRhs(this)
                                          porosity_base
         case default
           string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
+            trim(StringWrite(iparameter))
           call this%driver%PrintErrMsg(string)
       end select
+#endif
 
       x = 0.0d0
 
@@ -1513,7 +1556,16 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
+      iparameter = this%parameters(1)%iparameter
+#if defined(REFACTORED_GET_PARAMETER)
+      call InvSubsurfGetSetParamValueByMat(this,param_ce,iparameter, &
+                                           imat_id,GET_MATERIAL_VALUE)
+      if (use_neighbor) then
+        call InvSubsurfGetSetParamValueByMat(this,param_nb,iparameter, &
+                                             imat_id_nb,GET_MATERIAL_VALUE)
+      endif
+#else
+      select case(iparameter)
         case(ELECTRICAL_CONDUCTIVITY)
           param_ce = this%realization%patch%material_property_array(imat_id)% &
                        ptr%electrical_conductivity
@@ -1534,9 +1586,10 @@ subroutine InversionZFlowCGLSRhs(this)
                                          ptr%porosity
         case default
           string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
+            trim(StringWrite(iparameter))
           call this%driver%PrintErrMsg(string)
       end select
+#endif
 
       x = 0.0d0
 
@@ -1635,9 +1688,12 @@ contains
     PetscInt :: iconst
     PetscReal :: wm
 
+#if !defined(REFACTORED_GET_PARAMETER)
     character(len=MAXSTRINGLENGTH) :: string
+#endif
     PetscInt :: irb,ghosted_id,ghosted_id_nb
     PetscInt :: imat_id,imat_id_nb
+    PetscInt :: iparameter
     PetscReal :: x,awx,awy,awz
     PetscReal :: param_ce,param_nb     ! cell's and neighbor's
     PetscReal :: mn,sd
@@ -1661,7 +1717,18 @@ contains
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
+      iparameter = this%parameters(1)%iparameter
+#if defined(REFACTORED_GET_PARAMETER)
+      call InvSubsurfGetParamValueByCell(this,param_ce,iparameter, &
+                                         patch%imat(ghosted_id), &
+                                         material_auxvars(ghosted_id))
+      if (use_neighbor) then
+        call InvSubsurfGetParamValueByCell(this,param_nb,iparameter, &
+                                           patch%imat(ghosted_id_nb), &
+                                           material_auxvars(ghosted_id_nb))
+      endif
+#else
+      select case(iparameter)
         case(ELECTRICAL_CONDUCTIVITY)
           param_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
           if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
@@ -1676,9 +1743,10 @@ contains
                                          porosity_base
         case default
           string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
+            trim(StringWrite(iparameter))
           call this%driver%PrintErrMsg(string)
       end select
+#endif
     else
       ! get material param & block of the ith constrained eq.
       use_neighbor = PETSC_FALSE
@@ -1698,7 +1766,16 @@ contains
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
+      iparameter = this%parameters(1)%iparameter
+#if defined(REFACTORED_GET_PARAMETER)
+      call InvSubsurfGetSetParamValueByMat(this,param_ce,iparameter, &
+                                           imat_id,GET_MATERIAL_VALUE)
+      if (use_neighbor) then
+        call InvSubsurfGetSetParamValueByMat(this,param_nb,iparameter, &
+                                             imat_id_nb,GET_MATERIAL_VALUE)
+      endif
+#else
+      select case(iparameter)
         case(ELECTRICAL_CONDUCTIVITY)
           param_ce = this%realization%patch%material_property_array(imat_id)% &
                        ptr%electrical_conductivity
@@ -1719,9 +1796,10 @@ contains
                                          ptr%porosity
         case default
           string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
+            trim(StringWrite(iparameter))
           call this%driver%PrintErrMsg(string)
       end select
+#endif
     endif
 
     x = 0.d0

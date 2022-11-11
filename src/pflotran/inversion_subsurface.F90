@@ -18,7 +18,7 @@ module Inversion_Subsurface_class
 
   private
 
-  PetscInt, parameter :: GET_MATERIAL_VALUE = 0
+  PetscInt, parameter, public :: GET_MATERIAL_VALUE = 0
   PetscInt, parameter :: OVERWRITE_MATERIAL_VALUE = 1
   PetscInt, parameter :: COPY_TO_VEC = 3
   PetscInt, parameter :: COPY_FROM_VEC = 4
@@ -102,7 +102,9 @@ module Inversion_Subsurface_class
 
   public :: InvSubsurfScatMeasToDistMeas, &
             InvSubsurfScatParamToDistParam, &
-            InvSubsurfScatGlobalToDistParam
+            InvSubsurfScatGlobalToDistParam, &
+            InvSubsurfGetParamValueByCell, &
+            InvSubsurfGetSetParamValueByMat
 
 contains
 
@@ -1311,22 +1313,14 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
   ! Author: Glenn Hammond
   ! Date: 03/30/22
 
-  use Characteristic_Curves_module
   use Material_module
-  use String_module
-  use Utility_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
-                               POROSITY, VG_ALPHA, VG_SR, VG_M
 
   class(inversion_subsurface_type) :: this
   PetscInt :: iparam
   PetscInt :: iflag
 
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscReal :: tempreal
-  PetscReal :: tempreal2
   type(material_property_type), pointer :: material_property
-  type(characteristic_curves_type), pointer :: cc
+  PetscReal :: tempreal
 
   material_property => &
     MaterialPropGetPtrFromArray(this%parameters(iparam)%material_name, &
@@ -1343,80 +1337,116 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
     tempreal = this%parameters(iparam)%value
   endif
 
-  select case(this%parameters(iparam)%iparameter)
-    case(ELECTRICAL_CONDUCTIVITY)
-      if (iflag == GET_MATERIAL_VALUE) then
-        tempreal = material_property%electrical_conductivity
-      else
-        material_property%electrical_conductivity = tempreal
-      endif
-    case(PERMEABILITY)
-      if (iflag == GET_MATERIAL_VALUE) then
-        tempreal = material_property%permeability(1,1)
-      else
-        material_property%permeability(1,1) = tempreal
-        material_property%permeability(2,2) = tempreal
-        if (Initialized(material_property%vertical_anisotropy_ratio)) then
-          tempreal = tempreal * material_property%vertical_anisotropy_ratio
-        endif
-        material_property%permeability(3,3) = tempreal
-      endif
-    case(POROSITY)
-      if (iflag == GET_MATERIAL_VALUE) then
-        tempreal = material_property%porosity
-      else
-        material_property%porosity = tempreal
-      endif
-    case(VG_ALPHA,VG_SR,VG_M)
-      cc => this%realization%patch%characteristic_curves_array( &
-              material_property%saturation_function_id)%ptr
-    select case(this%parameters(iparam)%iparameter)
-      case(VG_ALPHA)
-        if (iflag == GET_MATERIAL_VALUE) then
-          tempreal = cc%saturation_function%GetAlpha_()
-        else
-          call cc%saturation_function%SetAlpha_(tempreal)
-        endif
-      case(VG_M)
-        if (iflag == GET_MATERIAL_VALUE) then
-          tempreal = cc%saturation_function%GetM_()
-          tempreal2 = cc%liq_rel_perm_function%GetM_()
-          if (.not.Equal(tempreal,tempreal2)) then
-            string = 'Saturation and relative permeability function &
-              &van Genuchten "m" values match in characteristic &
-              &curve "' // trim(cc%name)
-            call this%driver%PrintErrMsg(string)
-          endif
-        else
-          call cc%saturation_function%SetM_(tempreal)
-          call cc%liq_rel_perm_function%SetM_(tempreal)
-        endif
-      case(VG_SR)
-        if (iflag == GET_MATERIAL_VALUE) then
-          tempreal = cc%saturation_function%GetResidualSaturation()
-          tempreal2 = cc%liq_rel_perm_function%GetResidualSaturation()
-          if (.not.Equal(tempreal,tempreal2)) then
-            string = 'Saturation and relative permeability function &
-              &residual saturations must match in characteristic &
-              &curve "' // trim(cc%name)
-            call this%driver%PrintErrMsg(string)
-          endif
-        else
-          call cc%saturation_function%SetResidualSaturation(tempreal)
-          call cc%liq_rel_perm_function%SetResidualSaturation(tempreal)
-        endif
-      end select
-    case default
-      string = 'Unrecognized variable in &
-        &InvSubsurfCopyParameterValue: ' // &
-        trim(StringWrite(this%parameters(iparam)%iparameter))
-      call this%driver%PrintErrMsg(string)
-  end select
+  call InvSubsurfGetSetParamValueByMat(this,tempreal, &
+                                       this%parameters(iparam)%iparameter, &
+                                       this%parameters(iparam)%imat,iflag)
+
   if (iflag == GET_MATERIAL_VALUE) then
     this%parameters(iparam)%value = tempreal
   endif
 
 end subroutine InvSubsurfCopyParameterValue
+
+! ************************************************************************** !
+
+subroutine InvSubsurfGetSetParamValueByMat(this,value,iparameter,imat,iflag)
+  !
+  ! Copies parameter values back and forth
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/30/22
+
+  use Characteristic_Curves_module
+  use Material_module
+  use String_module
+  use Utility_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
+                               POROSITY, VG_ALPHA, VG_SR, VG_M
+
+  class(inversion_subsurface_type) :: this
+  PetscReal :: value
+  PetscInt :: iparameter
+  PetscInt :: imat
+  PetscInt :: iflag
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: tempreal
+  type(material_property_type), pointer :: material_property
+  type(characteristic_curves_type), pointer :: cc
+
+  material_property => &
+    this%realization%patch%material_property_array(imat)%ptr
+  select case(iparameter)
+    case(ELECTRICAL_CONDUCTIVITY)
+      if (iflag == GET_MATERIAL_VALUE) then
+        value = material_property%electrical_conductivity
+      else
+        material_property%electrical_conductivity = value
+      endif
+    case(PERMEABILITY)
+      if (iflag == GET_MATERIAL_VALUE) then
+        value = material_property%permeability(1,1)
+      else
+        material_property%permeability(1,1) = value
+        material_property%permeability(2,2) = value
+        if (Initialized(material_property%vertical_anisotropy_ratio)) then
+          value = value * material_property%vertical_anisotropy_ratio
+        endif
+        material_property%permeability(3,3) = value
+      endif
+    case(POROSITY)
+      if (iflag == GET_MATERIAL_VALUE) then
+        value = material_property%porosity
+      else
+        material_property%porosity = value
+      endif
+    case(VG_ALPHA,VG_SR,VG_M)
+      cc => this%realization%patch%characteristic_curves_array( &
+              material_property%saturation_function_id)%ptr
+      select case(iparameter)
+        case(VG_ALPHA)
+          if (iflag == GET_MATERIAL_VALUE) then
+            value = cc%saturation_function%GetAlpha_()
+          else
+            call cc%saturation_function%SetAlpha_(value)
+          endif
+        case(VG_M)
+          if (iflag == GET_MATERIAL_VALUE) then
+            value = cc%saturation_function%GetM_()
+            tempreal = cc%liq_rel_perm_function%GetM_()
+            if (.not.Equal(value,tempreal)) then
+              string = 'For inversion, saturation and relative permeability &
+                &function van Genuchten "m" values match in characteristic &
+                &curve "' // trim(cc%name)
+              call this%driver%PrintErrMsg(string)
+            endif
+          else
+            call cc%saturation_function%SetM_(value)
+            call cc%liq_rel_perm_function%SetM_(value)
+          endif
+        case(VG_SR)
+          if (iflag == GET_MATERIAL_VALUE) then
+            value = cc%saturation_function%GetResidualSaturation()
+            tempreal = cc%liq_rel_perm_function%GetResidualSaturation()
+            if (.not.Equal(value,tempreal)) then
+              string = 'For inversion, saturation and relative permeability &
+                &function  saturations must match in characteristic &
+                &curve "' // trim(cc%name)
+              call this%driver%PrintErrMsg(string)
+            endif
+          else
+            call cc%saturation_function%SetResidualSaturation(value)
+            call cc%liq_rel_perm_function%SetResidualSaturation(value)
+          endif
+      end select
+    case default
+      string = 'Unrecognized variable in &
+        &InvSubsurfCopyParamValueByMat: ' // &
+        trim(StringWrite(iparameter))
+      call this%driver%PrintErrMsg(string)
+  end select
+
+end subroutine InvSubsurfGetSetParamValueByMat
 
 ! ************************************************************************** !
 
@@ -1450,6 +1480,63 @@ subroutine InvSubsurfCopyParameterToFromVec(this,iflag)
   call VecRestoreArrayF90(this%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InvSubsurfCopyParameterToFromVec
+
+! ************************************************************************** !
+
+subroutine InvSubsurfGetParamValueByCell(this,value,iparameter,imat, &
+                                         material_auxvar)
+  !
+  ! Returns the parameter value at the cell
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/11/22
+
+  use Characteristic_Curves_module
+  use Material_module
+  use Material_Aux_module, only : material_auxvar_type, &
+                                  MaterialAuxVarGetValue
+  use String_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, PERMEABILITY_X, &
+                               POROSITY, BASE_POROSITY, &
+                               VG_ALPHA, VG_SR, VG_M
+
+  class(inversion_subsurface_type) :: this
+  PetscReal :: value
+  PetscInt :: iparameter
+  PetscInt :: imat
+  type(material_auxvar_type) :: material_auxvar
+
+  type(material_property_type), pointer :: material_property
+  type(characteristic_curves_type), pointer :: cc
+
+  select case(iparameter)
+    case(ELECTRICAL_CONDUCTIVITY)
+      value = MaterialAuxVarGetValue(material_auxvar,ELECTRICAL_CONDUCTIVITY)
+    case(PERMEABILITY)
+      value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)
+    case(POROSITY)
+      value = MaterialAuxVarGetValue(material_auxvar,BASE_POROSITY)
+    case(VG_ALPHA,VG_SR,VG_M)
+      material_property => &
+        this%realization%patch%material_property_array(imat)%ptr
+      cc => this%realization%patch%characteristic_curves_array( &
+              material_property%saturation_function_id)%ptr
+      select case(iparameter)
+        case(VG_ALPHA)
+          value = cc%saturation_function%GetAlpha_()
+        case(VG_M)
+          value = cc%saturation_function%GetM_()
+        case(VG_SR)
+          value = cc%saturation_function%GetResidualSaturation()
+      end select
+    case default
+      call this%driver%PrintErrMsg('Unrecognized variable in &
+                                   &InvSubsurfGetParamValueByCell: ' // &
+                                   trim(StringWrite(iparameter)))
+  end select
+
+end subroutine InvSubsurfGetParamValueByCell
 
 ! ************************************************************************** !
 
