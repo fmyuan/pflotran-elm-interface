@@ -594,6 +594,15 @@ subroutine InversionSubsurfInitialize(this)
       do i = 1, size(this%parameters)
         call InversionParameterMapNameToInt(this%parameters(i),this%driver)
         if (len_trim(this%parameters(i)%material_name) > 0) then
+          material_property => &
+            MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
+                              this%realization%patch%material_property_array)
+          if (.not.associated(material_property)) then
+            call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
+                trim(this%parameters(i)%material_name) // '" not found among &
+            &MATERIAL_PROPERTIES.')
+          endif
+          this%parameters(i)%imat = abs(material_property%internal_id)
           num_parameters = num_parameters + 1
         else
           num_parameters = num_parameters + patch%grid%nmax
@@ -930,8 +939,7 @@ subroutine InversionSubsurfInitialize(this)
       do i = 1, size(this%parameters)
         if (this%parameters(i)%iparameter == PERMEABILITY) then
           material_property => &
-            MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
-                                        patch%material_property_array)
+            patch%material_property_array(this%parameters(i)%imat)%ptr
           ! if PERM_HORIZONTAL and VERTICAL_ANISOTROPY_RATIO are used,
           ! isotropic permeabilithy will be false, but tempreal will be 1.
           ! this only works with perturbation
@@ -1364,21 +1372,10 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
   PetscInt :: iparam
   PetscInt :: iflag
 
-  type(material_property_type), pointer :: material_property
   PetscReal :: tempreal
 
-  material_property => &
-    MaterialPropGetPtrFromArray(this%parameters(iparam)%material_name, &
-                        this%realization%patch%material_property_array)
-  if (.not.associated(material_property)) then
-    call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
-      trim(this%parameters(iparam)%material_name) // '" not found among &
-      &MATERIAL_PROPERTIES.')
-  endif
-
-  if (iflag == GET_MATERIAL_VALUE) then
-    this%parameters(iparam)%imat = abs(material_property%internal_id)
-  else ! the else statements are implicit OVERWRITE_MATERIAL_VALUE
+  if (iflag /= GET_MATERIAL_VALUE) then
+    ! everything else is implicit OVERWRITE_MATERIAL_VALUE
     tempreal = this%parameters(iparam)%value
   endif
 

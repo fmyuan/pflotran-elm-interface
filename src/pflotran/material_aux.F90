@@ -669,7 +669,7 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(ELECTRICAL_CONDUCTIVITY)
       MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)
     case default
-      print *, 'Unrecognzied variable in MaterialAuxVarGetValue: ', ivar
+      print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
       stop
   end select
 
@@ -727,7 +727,7 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
     case(ELECTRICAL_CONDUCTIVITY)
       material_auxvar%electrical_conductivity(1) = value
     case default
-      print *, 'Unrecognzied variable in MaterialAuxVarSetValue: ', ivar
+      print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
       stop
   end select
 
