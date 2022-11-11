@@ -459,8 +459,6 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('PRINT_SENSITIVITY_JACOBIAN')
       this%print_sensitivity_jacobian = PETSC_TRUE
-    case('ANNOTATE_PERTURBATION_OUTPUT')
-      this%annotate_output = PETSC_TRUE
     case('DEBUG_ADJOINT')
       this%debug_adjoint = PETSC_TRUE
       call InputReadInt(input,option,i)
@@ -491,6 +489,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
                                   ZERO_INTEGER,error_string,input,option)
           case('ACKNOWLEDGE_RISK_OF_PERTURBATION')
             this%perturbation_risk_acknowledged = PETSC_TRUE
+          case('ANNOTATE_PERTURBATION_OUTPUT')
+            this%annotate_output = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
