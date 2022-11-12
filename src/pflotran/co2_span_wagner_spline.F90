@@ -173,7 +173,7 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
 !             print *,ipx,jpx,t_tab(ipx,ncrit(ipx)),r_tab(ipx,ncrit(ipx)),rtab(jpx)
             endif
           enddo
-          !call locate(p_tab,jpx,px,ipx)
+          !call BisectionSearch(p_tab,jpx,px,ipx)
           !ipx = min(max(1,ipx),jpx-1)
 
 #if 0
@@ -192,7 +192,7 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
 #endif
 
 ! ************** linear interpolation in pressure *******************
-          call locate(p_tab,jpx,px,ipx)
+          call BisectionSearch(p_tab,jpx,px,ipx)
           ipx = min(max(1,ipx),jpx-1)
           rho = (rtab(ipx+1)-rtab(ipx))*(px-p_tab(ipx))/(p_tab(ipx+1)-p_tab(ipx)) + rtab(ipx)
           h   = (htab(ipx+1)-htab(ipx))*(px-p_tab(ipx))/(p_tab(ipx+1)-p_tab(ipx)) + htab(ipx)
