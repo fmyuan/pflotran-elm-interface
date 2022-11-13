@@ -672,7 +672,7 @@ function ElementCheckKdDataset(element, material)
       new_material = new_element_Kd%Kd_material
     endif
     if (associated(new_element_Kd%Kd_dataset)) then
-      if (len(trim(material)) > 0) then
+      if (present(material)) then
         ! Check material name
         if (StringCompare(new_material, material)) then
           ! Kd dataset found for specific material of the element
