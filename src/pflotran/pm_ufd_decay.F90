@@ -321,7 +321,6 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   j = UNINITIALIZED_INTEGER
   nullify(prev_isotope)
   nullify(prev_element)
-  nullify(prev_element_Kd)
   call InputPushBlock(input,option)
   do
 
@@ -335,6 +334,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
 
     select case(trim(word))
       case('ELEMENT')
+        nullify(prev_element_Kd)
         error_string = 'UFD Decay, Element'
         element => ElementCreate()
         call InputReadWord(input,option,element%name,PETSC_TRUE)
@@ -353,12 +353,13 @@ subroutine PMUFDDecayReadPMBlock(this,input)
               call InputReadDouble(input,option,element%solubility)
               call InputErrorMsg(input,option,'solubility',error_string)
             case('KD')
-              element_Kd => ElementKdCreate()
               i = 0
               Kd(:,:) = UNINITIALIZED_DOUBLE
               Kd_material_name(:) = ''
               kd_string = 'Kd'
+              call InputPushBlock(input,option)
               do
+                element_Kd => ElementKdCreate()
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
@@ -391,6 +392,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                     call InputErrorMsg(input,option,'Kd dataset material name',&
                                        error_string)
                     element_Kd%Kd_material = word
+                    Kd_material_name(i) = word
                   case default
                     ! Original Kd read
                     Kd_material_name(i) = word
@@ -411,14 +413,15 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                     element_Kd%Kd_fixed = Kd(i,1:j)
                     call DeallocateArray(temp_real_array)
                 end select
+                if (associated(prev_element_Kd)) then
+                  prev_element_Kd%next => element_Kd
+                else
+                  element%Kd_object => element_Kd
+                endif
+                prev_element_Kd => element_Kd
+                nullify(element_Kd)
               enddo
-              if (associated(prev_element_Kd)) then
-                prev_element_Kd%next => element_Kd
-              else
-                element%Kd_object => element_Kd
-              endif
-              prev_element_Kd => element_Kd
-              nullify(element_Kd)
+              call InputPopBlock(input,option)
 
               if (i == 0) then
                 option%io_buffer = 'No KD/material combinations specified &
