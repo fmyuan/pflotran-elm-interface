@@ -630,6 +630,68 @@ end function IsotopeDaughterCreate
 
 ! ************************************************************************** !
 
+function ElementCheckKdDataset(element, material)
+  !
+  ! Checks linked list for Kd datasets
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/13/2022
+
+  use String_module
+
+  implicit none
+
+! INPUT ARGUMENTS:
+! ================
+! ElementCheckKdDataset: check for existence of Kd dataset
+! element: element object under examination
+! material (optional): material to check
+! --------------------------------------------
+  logical :: ElementCheckKdDataset
+  type(element_type), pointer :: element
+  character(len=MAXWORDLENGTH), optional :: material
+! --------------------------------------------
+! LOCAL VARIABLES:
+! ================
+! new_element_Kd: pointer to element Kd object being compared
+! new_material: material name of Kd dataset being compared
+! --------------------------------------------
+  type(element_Kd_type), pointer :: new_element_Kd
+  character(len=MAXWORDLENGTH) :: new_material
+! --------------------------------------------
+
+  ElementCheckKdDataset = PETSC_FALSE ! no dataset found
+  new_material = '' ! no material name to check
+
+  if (.not. associated(element%Kd_object)) return
+
+  new_element_Kd => element%Kd_object
+  do
+    if (.not. associated(new_element_Kd)) exit
+    if (len(trim(new_element_Kd%Kd_material)) > 0) then
+      new_material = new_element_Kd%Kd_material
+    endif
+    if (associated(new_element_Kd%Kd_dataset)) then
+      if (len(trim(material)) > 0) then
+        ! Check material name
+        if (StringCompare(new_material, material)) then
+          ! Kd dataset found for specific material of the element
+          ElementCheckKdDataset = PETSC_TRUE
+          exit
+        endif
+      else
+        ! Kd dataset found in general for the element
+        ElementCheckKdDataset = PETSC_TRUE
+        exit
+      endif
+    endif
+    new_element_Kd => new_element_Kd%next
+  enddo
+
+end function ElementCheckKdDataset
+
+! ************************************************************************** !
+
 subroutine PMUFDDecayInit(this)
   !
   ! Initializes variables associated with the UFD decay process model
@@ -809,10 +871,24 @@ subroutine PMUFDDecayInit(this)
     do icount = 1, size(material_property_array)
       do jcount = 1, num_continuum
         if (UnInitialized(this%element_Kd(element%ielement,icount,jcount))) then
-          option%io_buffer = 'Uninitialized KD in UFD Decay element "' // &
-          trim(element%name) // '" for material "' // &
-          trim(material_property_array(icount)%ptr%name) // '".'
-          call PrintErrMsg(option)
+          if (.not. associated(element%Kd_object)) then
+            ! No Kd datasets were defined in the input deck
+            option%io_buffer = 'Uninitialized KD in UFD Decay element "' // &
+            trim(element%name) // '" for material "' // &
+            trim(material_property_array(icount)%ptr%name) // '".'
+            call PrintErrMsg(option)
+          else
+            ! Check to see if material has a Kd dataset
+            if (.not. ElementCheckKdDataset(element,&
+                        material_property_array(icount)%ptr%name)) then
+              option%io_buffer = 'No Kd dataset in UFD Decay element "' &
+                              // trim(element%name) &
+                              // '" for material "' &
+                              // trim(material_property_array(icount)%ptr%name)&
+                              // '".'
+              call PrintErrMsg(option)
+            endif
+          endif
         endif
       enddo
     enddo
