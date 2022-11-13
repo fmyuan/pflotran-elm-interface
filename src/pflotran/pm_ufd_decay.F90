@@ -20,6 +20,7 @@ module PM_UFD_Decay_class
   use PM_Base_class
   use Realization_Subsurface_class
   use Option_module
+  use Dataset_Ascii_class
 
   use PFLOTRAN_Constants_module
 
@@ -150,6 +151,27 @@ module PM_UFD_Decay_class
   end type
 ! --------------------------------------
 
+! OBJECT element_Kd_type:
+! =======================
+! ---------------------------------------------------------------------------
+! Description: This object stores the information for each element's
+!   sorption distribution coefficient (Kd).
+! ---------------------------------------------------------------------------
+! Kd_fixed(:): [kg-water/m^3-bulk] array of fixed Kd values for each continuum
+! Kd_material: material name
+! Kd_dataset(:): [kg-water/m^3-bulk] time-dependent dataset used to define Kd in
+!                  a single continuum problem
+! Kd_dataset_name: name of file containing the Kd dataset
+! next: pointer to next element Kd object in a linked list (the next material)
+! --------------------------------------------------------------
+  type :: element_Kd_type
+    PetscReal, pointer :: Kd_fixed(:)
+    character(len=MAXWORDLENGTH) :: Kd_material
+    class(dataset_ascii_type), pointer :: Kd_dataset
+    character(len=MAXSTRINGLENGTH) :: Kd_dataset_name
+    type(element_Kd_type), pointer :: next
+  end type element_Kd_type
+
 ! OBJECT element_type:
 ! ====================
 ! ---------------------------------------------------------------------------
@@ -168,6 +190,7 @@ module PM_UFD_Decay_class
     PetscInt :: ielement
     PetscReal :: solubility
     PetscReal, pointer :: Kd(:,:)
+    class(element_Kd_type), pointer :: Kd_object
     character(len=MAXWORDLENGTH), pointer :: Kd_material_name(:)
     type(element_type), pointer :: next
   end type
@@ -273,11 +296,12 @@ subroutine PMUFDDecayReadPMBlock(this,input)
 ! found: flag indicating keyword has been found
 ! -------------------------------------------------------------
   type(option_type), pointer :: option
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string
   type(isotope_type), pointer :: isotope, prev_isotope
   type(daughter_type), pointer :: daughter, prev_daughter
   type(element_type), pointer :: element, prev_element
+  type(element_Kd_type), pointer :: element_Kd, prev_element_Kd
   PetscInt :: i,j
   PetscInt, parameter :: MAX_KD_SIZE = 100
   PetscInt, parameter :: MAX_CONTINUUM_SIZE = 3
@@ -285,7 +309,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   PetscReal :: Kd(MAX_KD_SIZE,MAX_CONTINUUM_SIZE)
   PetscReal :: tempreal
   PetscReal, pointer :: temp_real_array(:)
-  character(len=MAXSTRINGLENGTH) :: kd_string
+  character(len=MAXSTRINGLENGTH) :: kd_string, temp_string
 ! -------------------------------------------------------------
 
   option => this%option
@@ -294,8 +318,10 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   call PrintMsg(option)
 
   input%ierr = 0
+  j = UNINITIALIZED_INTEGER
   nullify(prev_isotope)
   nullify(prev_element)
+  nullify(prev_element_Kd)
   call InputPushBlock(input,option)
   do
 
@@ -327,6 +353,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
               call InputReadDouble(input,option,element%solubility)
               call InputErrorMsg(input,option,'solubility',error_string)
             case('KD')
+              element_Kd => ElementKdCreate()
               i = 0
               Kd(:,:) = UNINITIALIZED_DOUBLE
               Kd_material_name(:) = ''
@@ -343,23 +370,56 @@ subroutine PMUFDDecayReadPMBlock(this,input)
                   call PrintErrMsg(option)
                 endif
                 call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'Kd material name', &
+                call InputErrorMsg(input,option,'Kd input line', &
                                    error_string)
-                Kd_material_name(i) = word
-                nullify(temp_real_array)
 
-                call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER,kd_string,input,option)
-                if (i == 1) then
-                  j = size(temp_real_array)
-                else
-                  if (j /= size(temp_real_array)) then
-                    option%io_buffer = 'must be same size'
-                    call PrintErrMsg(option)
-                  endif
-                endif
-                Kd(i,1:j) = temp_real_array(1:j)
-                call DeallocateArray(temp_real_array)
+                keyword = word
+                call StringToUpper(keyword)
+                select case(trim(keyword))
+                  case('DATASET')
+                    ! Dataset Kd read
+                    internal_units = 'kg/m^3'
+                    element_Kd%Kd_dataset => DatasetAsciiCreate()
+                    call InputReadFilename(input,option,element_Kd% &
+                                           Kd_dataset_name)
+                    call DatasetAsciiReadFile(element_Kd%Kd_dataset, &
+                           element_Kd%Kd_dataset_name,temp_string, &
+                           internal_units,error_string,option)
+                    element_Kd%Kd_dataset%time_storage% &
+                      time_interpolation_method = 2
+                    call InputReadWord(input,option,word,PETSC_TRUE)
+                    call InputErrorMsg(input,option,'Kd dataset material name',&
+                                       error_string)
+                    element_Kd%Kd_material = word
+                  case default
+                    ! Original Kd read
+                    Kd_material_name(i) = word
+                    element_Kd%Kd_material = word
+                    nullify(temp_real_array)
+                    call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER, &
+                                          kd_string,input,option)
+                    if (UnInitialized(j)) then
+                      j = size(temp_real_array)
+                    else
+                      if (j /= size(temp_real_array)) then
+                        option%io_buffer = 'must be same size'
+                        call PrintErrMsg(option)
+                      endif
+                    endif
+                    Kd(i,1:j) = temp_real_array(1:j)
+                    allocate(element_Kd%Kd_fixed(j))
+                    element_Kd%Kd_fixed = Kd(i,1:j)
+                    call DeallocateArray(temp_real_array)
+                end select
               enddo
+              if (associated(prev_element_Kd)) then
+                prev_element_Kd%next => element_Kd
+              else
+                element%Kd_object => element_Kd
+              endif
+              prev_element_Kd => element_Kd
+              nullify(element_Kd)
+
               if (i == 0) then
                 option%io_buffer = 'No KD/material combinations specified &
                   &under ' // trim(error_string) // '.'
@@ -459,7 +519,7 @@ end subroutine PMUFDDecayReadPMBlock
 
 function ElementCreate()
   !
-  ! Creates isotope object
+  ! Creates element object
   !
   ! Author: Glenn Hammond
   ! Date: 11/20/15
@@ -478,10 +538,38 @@ function ElementCreate()
   ElementCreate%ielement = UNINITIALIZED_INTEGER
   ElementCreate%solubility = UNINITIALIZED_DOUBLE
   nullify(ElementCreate%Kd)
+  nullify(ElementCreate%Kd_object)
   nullify(ElementCreate%Kd_material_name)
   nullify(ElementCreate%next)
 
 end function ElementCreate
+
+! ************************************************************************** !
+
+function ElementKdCreate()
+  !
+  ! Creates Kd object for element
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/11/2022
+
+  implicit none
+
+! LOCAL VARIABLES:
+! ================
+! ElementKdCreate (output): new Kd object for element
+! --------------------------------------------
+  type(element_Kd_type), pointer :: ElementKdCreate
+! --------------------------------------------
+
+  allocate(ElementKdCreate)
+  ElementKdCreate%Kd_material = ''
+  ElementKdCreate%Kd_dataset_name = ''
+  nullify(ElementKdCreate%Kd_fixed)
+  nullify(ElementKdCreate%Kd_dataset)
+  nullify(ElementKdCreate%next)
+
+end function ElementKdCreate
 
 ! ************************************************************************** !
 
