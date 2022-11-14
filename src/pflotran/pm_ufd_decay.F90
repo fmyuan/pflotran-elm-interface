@@ -2223,7 +2223,10 @@ subroutine PMUFDDecayInputRecord(this)
   PetscInt :: iiso
   PetscInt :: i
   PetscInt :: iparent, idaughter
+  PetscBool :: Kd_dataset_write
   type(material_property_ptr_type), pointer :: material_property_array(:)
+  type(element_type), pointer :: element
+  type(element_Kd_type), pointer :: element_Kd
 ! -----------------------------------------------------------------------
 
   id = INPUT_RECORD_UNIT
@@ -2248,6 +2251,26 @@ subroutine PMUFDDecayInputRecord(this)
     enddo
   enddo
 
+  element => this%element_list
+  do
+    if (.not. associated(element)) exit
+    Kd_dataset_write = PETSC_TRUE
+    element_Kd => element%Kd_object
+    do
+      if (.not. associated (element_Kd)) exit
+      if (associated(element_Kd%Kd_dataset)) then
+        if (Kd_dataset_write) then
+          write(id,'(2x,"KD DATASETS: ",A)') element%name
+          Kd_dataset_write = PETSC_FALSE
+        endif
+        write(id,'(6x,A)') trim(element_Kd%Kd_material)//': ' &
+                         //trim(element_Kd%Kd_dataset_name)
+      endif
+      element_Kd => element_Kd%next
+    enddo
+    element => element%next
+  enddo
+    
   do iiso = 1, this%num_isotopes
     write(id,'(2x,"Isotope: ",a)') this%isotope_name(iiso)
     if (associated(this%realization%reaction)) then
