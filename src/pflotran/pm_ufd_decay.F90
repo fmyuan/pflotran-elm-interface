@@ -1366,7 +1366,6 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   class(material_transform_type), pointer :: material_transform
   class(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  type(element_type), pointer :: element
   type(element_Kd_type), pointer :: element_Kd
   PetscReal :: kd_kgw_m3b
   PetscInt :: local_id, ghosted_id
@@ -1802,7 +1801,6 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
   type(grid_type), pointer :: grid
   class(material_transform_type), pointer :: material_transform
   type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
-  type(element_type), pointer :: element
   type(element_Kd_type), pointer :: element_Kd_obj
   ! implicit solution:
   PetscReal :: norm
