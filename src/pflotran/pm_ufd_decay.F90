@@ -857,7 +857,7 @@ function GetElementKdFromIndices(element, iele, imat, icon)
     ie = ie + 1
     if (.not. associated(new_element)) exit
     if (ie == iele) then
-      new_element_Kd => element%Kd_object
+      new_element_Kd => new_element%Kd_object
       do
         if (.not. associated(new_element_Kd)) exit
         if (new_element_Kd%Kd_material_id == imat) then
@@ -1447,7 +1447,6 @@ recursive subroutine PMUFDDecayInitializeRun(this)
             else
               kd_kgw_m3b = this%element_Kd(iele,imat,2)
             endif
-            ! AS3: Dataset option not yet available for multicontiuum
             do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
                rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
                  total_sorb_eq(ipri) = rt_sec_transport_vars(ghosted_id)% &
