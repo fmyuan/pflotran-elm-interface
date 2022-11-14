@@ -158,18 +158,25 @@ module PM_UFD_Decay_class
 !   sorption distribution coefficient (Kd).
 ! ---------------------------------------------------------------------------
 ! Kd_fixed(:): [kg-water/m^3-bulk] array of fixed Kd values for each continuum
+! Kd_eval: [kg-water/m^3-bulk] Kd value evaluated from the dataset
 ! Kd_material: material name
+! Kd_material_id: ID of material in the material property array
 ! Kd_dataset(:): [kg-water/m^3-bulk] time-dependent dataset used to define Kd in
 !                  a single continuum problem
 ! Kd_dataset_name: name of file containing the Kd dataset
 ! next: pointer to next element Kd object in a linked list (the next material)
+! Evaluate: derived-type procedure for evaluating the Kd dataset
 ! --------------------------------------------------------------
   type :: element_Kd_type
     PetscReal, pointer :: Kd_fixed(:)
+    PetscReal :: Kd_eval
     character(len=MAXWORDLENGTH) :: Kd_material
+    PetscInt :: Kd_material_id
     class(dataset_ascii_type), pointer :: Kd_dataset
     character(len=MAXSTRINGLENGTH) :: Kd_dataset_name
     type(element_Kd_type), pointer :: next
+  contains
+    procedure, public :: Evaluate => EvaluateElementKdDataset
   end type element_Kd_type
 
 ! OBJECT element_type:
@@ -566,7 +573,9 @@ function ElementKdCreate()
 ! --------------------------------------------
 
   allocate(ElementKdCreate)
+  ElementKdCreate%Kd_eval = UNINITIALIZED_DOUBLE
   ElementKdCreate%Kd_material = ''
+  ElementKdCreate%Kd_material_id = UNINITIALIZED_INTEGER
   ElementKdCreate%Kd_dataset_name = ''
   nullify(ElementKdCreate%Kd_fixed)
   nullify(ElementKdCreate%Kd_dataset)
@@ -692,6 +701,180 @@ end function ElementCheckKdDataset
 
 ! ************************************************************************** !
 
+subroutine EvaluateElementKdDataset(this,time,ierr)
+
+  ! Calculate Kd as a function of time using the ASCII dataset
+  ! Author: Alex Salazar III
+  ! Based on code by Michael Nole
+  ! Date: 11/13/2022
+
+  implicit none
+
+! INPUT ARGUMENTS:
+! ================
+! this: element Kd object
+! time: time of evaluation
+! ierr: error code
+! --------------------------------------------
+  class(element_Kd_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+! --------------------------------------------
+! LOCAL VARIABLES:
+! ================
+! t_low: lower time boundary
+! t_high: upper time boundary
+! times: array of tabulated time values from the dataset
+! dataset: pointer to dataset object
+! j: iterator
+! --------------------------------------------
+  PetscReal :: t_low, t_high
+  PetscReal, pointer :: times(:)
+  class(dataset_ascii_type), pointer :: dataset
+  PetscInt :: j
+! --------------------------------------------
+
+  dataset => this%Kd_dataset
+  if (associated(dataset%time_storage)) then
+    times => dataset%time_storage%times
+    j = 1
+    t_low = times(j)
+    t_high = t_low
+    do
+      if (time < times(j)) exit
+      if (j == size(times)) exit
+      t_low = times(j)
+      j = j + 1
+      t_high = times(j)
+    enddo
+
+    if (j == size(times) .and. time >= times(j)) then
+      ! upper bound extrapolation of Kd is last value in the dataset
+      this%Kd_eval = dataset%rbuffer(j)
+    elseif (j == 1) then
+      ! lower bound extrapolation of Kd is zero
+      this%Kd_eval = 0.0d0
+    else
+      ! interpolation
+      this%Kd_eval = dataset%rbuffer(j-1) + (time - t_low)/(t_high - t_low)* &
+                       (dataset%rbuffer(j) - dataset%rbuffer(j-1))
+    endif
+  else
+    this%Kd_eval = 0.d0
+  endif
+
+end subroutine EvaluateElementKdDataset
+
+! ************************************************************************** !
+
+function GetElementFromIndices(element_list, iele)
+  !
+  ! Returns element pointer based on indices
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/13/2022
+
+  use String_module
+
+  implicit none
+
+! INPUT ARGUMENTS:
+! ================
+! GetElementFromIndices: element object implied by indices
+! element_list: pointer to linked list of elements
+! iele: index for element
+! --------------------------------------------
+  class(element_type), pointer :: GetElementFromIndices
+  type(element_type), pointer :: element_list
+  PetscInt :: iele
+! --------------------------------------------
+! LOCAL VARIABLES:
+! ================
+! new_element: pointer to element object for inspection
+! ie: counter for element
+! --------------------------------------------
+  type(element_type), pointer :: new_element
+  PetscInt :: ie
+! --------------------------------------------
+
+  GetElementFromIndices => NULL()
+
+  ie = 0
+  new_element => element_list
+  do
+    ie = ie + 1
+    if (.not. associated(new_element)) exit
+    if (ie == iele) then
+      GetElementFromIndices => new_element
+      exit
+    endif
+    new_element => new_element%next
+  enddo
+
+end function GetElementFromIndices
+
+! ************************************************************************** !
+
+function GetElementKdFromIndices(element, iele, imat, icon)
+  !
+  ! Returns element Kd pointer based on indices
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/13/2022
+
+  use String_module
+
+  implicit none
+
+! INPUT ARGUMENTS:
+! ================
+! GetElementKdFromIndices: element Kd object implied by indices
+! element: pointer to element
+! iele: index for element
+! imat: index for material
+! icon: index for continuum (not yet employed)
+! --------------------------------------------
+  class(element_Kd_type), pointer :: GetElementKdFromIndices
+  type(element_type), pointer :: element
+  PetscInt :: iele, imat, icon
+! --------------------------------------------
+! LOCAL VARIABLES:
+! ================
+! new_element: pointer to element object for inspection
+! new_element_Kd: pointer to element Kd object for inspection
+! ie: counter for element
+! --------------------------------------------
+  type(element_type), pointer :: new_element
+  type(element_Kd_type), pointer :: new_element_Kd
+  PetscInt :: ie
+! --------------------------------------------
+
+  GetElementKdFromIndices => NULL()
+
+  ie = 0
+  new_element => element
+  do
+    ie = ie + 1
+    if (.not. associated(new_element)) exit
+    if (ie == iele) then
+      new_element_Kd => element%Kd_object
+      do
+        if (.not. associated(new_element_Kd)) exit
+        if (new_element_Kd%Kd_material_id == imat) then
+          GetElementKdFromIndices => new_element_Kd
+          exit
+        endif
+        new_element_Kd => new_element_Kd%next
+      enddo
+      exit
+    endif
+    new_element => new_element%next
+  enddo
+
+end function GetElementKdFromIndices
+
+! ************************************************************************** !
+
 subroutine PMUFDDecayInit(this)
   !
   ! Initializes variables associated with the UFD decay process model
@@ -752,6 +935,7 @@ subroutine PMUFDDecayInit(this)
   type(isotope_type), pointer :: isotope, isotope2
   type(daughter_type), pointer :: daughter
   type(element_type), pointer :: element
+  type(element_Kd_type), pointer :: element_Kd
   PetscInt, allocatable :: num_isotopes_per_element(:)
   character(len=MAXWORDLENGTH) :: word
   type(material_property_ptr_type), pointer :: material_property_array(:)
@@ -868,6 +1052,17 @@ subroutine PMUFDDecayInit(this)
            element%Kd(icount,jcount)
       enddo
     enddo
+
+    element_Kd => element%Kd_object
+    do
+      if (.not. associated(element_Kd)) exit
+      material_property => &
+        MaterialPropGetPtrFromArray(element_Kd%Kd_material, &
+                                    material_property_array)
+      element_Kd%Kd_material_id = material_property%internal_id
+      element_Kd => element_Kd%next
+    enddo
+
     do icount = 1, size(material_property_array)
       do jcount = 1, num_continuum
         if (UnInitialized(this%element_Kd(element%ielement,icount,jcount))) then
@@ -1133,6 +1328,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   use Material_Aux_module
   use Material_Transform_module
   use Secondary_Continuum_Aux_module
+  use Option_module
   implicit none
 
 ! INPUT ARGUMENTS:
@@ -1165,10 +1361,13 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 ! --------------------------------------------------------------
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   class(material_transform_type), pointer :: material_transform
   class(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
+  type(element_type), pointer :: element
+  type(element_Kd_type), pointer :: element_Kd
   PetscReal :: kd_kgw_m3b
   PetscInt :: local_id, ghosted_id
   PetscInt :: iele, iiso, ipri, i, imat, cell
@@ -1176,6 +1375,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 
   patch => this%realization%patch
   grid => patch%grid
+  option => this%option
   if (associated(patch%aux%RT)) rt_auxvars => patch%aux%RT%auxvars
 
   if (associated(patch%aux%MTransform)) then
@@ -1205,7 +1405,16 @@ recursive subroutine PMUFDDecayInitializeRun(this)
     endif
 
     do iele = 1, this%num_elements
-      kd_kgw_m3b = this%element_Kd(iele,imat,1)
+      if (UnInitialized(this%element_Kd(iele,imat,1))) then
+        ! element => GetElementFromIndices(this%element_list,iele)
+        element_Kd => GetElementKdFromIndices(this%element_list,iele,imat,1)
+        if (associated(element_Kd%Kd_dataset)) then
+          call element_Kd%Evaluate(option%time,0)
+          kd_kgw_m3b = element_Kd%Kd_eval
+        endif
+      else
+        kd_kgw_m3b = this%element_Kd(iele,imat,1)
+      endif
 
       ! modify kd if needed
       if (associated(patch%aux%MTransform)) then
@@ -1231,6 +1440,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
           if (this%option%use_sc) then
             rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
             kd_kgw_m3b = this%element_Kd(iele,imat,2)
+            ! AS3: Dataset option not yet available for multicontiuum
             do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
                rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
                  total_sorb_eq(ipri) = rt_sec_transport_vars(ghosted_id)% &
@@ -1584,6 +1794,8 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
   type(grid_type), pointer :: grid
   class(material_transform_type), pointer :: material_transform
   type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
+  type(element_type), pointer :: element
+  type(element_Kd_type), pointer :: element_Kd_obj
   ! implicit solution:
   PetscReal :: norm
   PetscReal :: residual(this%num_isotopes)
@@ -1788,7 +2000,16 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
     enddo
 
     ! split mass between phases
-    kd_kgw_m3b = element_Kd(iele,imat)
+    if (UnInitialized(element_Kd(iele,imat))) then
+      ! element => GetElementFromIndices(this%element_list,iele)
+      element_Kd_obj => GetElementKdFromIndices(this%element_list,iele,imat,1)
+      if (associated(element_Kd_obj%Kd_dataset)) then
+        call element_Kd_obj%Evaluate(option%time,0)
+        kd_kgw_m3b = element_Kd_obj%Kd_eval
+      endif
+    else
+      kd_kgw_m3b = element_Kd(iele,imat)
+    endif
 
     ! modify kd if needed
     if (associated(patch%aux%MTransform)) then
