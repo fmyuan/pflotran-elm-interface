@@ -53,7 +53,7 @@ module PM_UFD_Decay_class
 ! isotope_parents(:,:): [-] matrix that stores the isotope parents, sized by
 !    the maximum number of parents per isotope X number of isotopes
 ! element_solubility(:): [mol/L] elemental solubility limit array
-! element_Kd(:,:): [kg-water/m3-bulk] matrix that stores the elemental Kd
+! element_Kd(:,:,:): [kg-water/m3-bulk] matrix that stores the elemental Kd
 !    values, sized by the number of elements X number of materials
 ! num_elements: [-] number of elements
 ! num_isotopes: [-] number of isotopes
@@ -1406,7 +1406,6 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 
     do iele = 1, this%num_elements
       if (UnInitialized(this%element_Kd(iele,imat,1))) then
-        ! element => GetElementFromIndices(this%element_list,iele)
         element_Kd => GetElementKdFromIndices(this%element_list,iele,imat,1)
         if (associated(element_Kd%Kd_dataset)) then
           call element_Kd%Evaluate(option%time,0)
@@ -1439,7 +1438,16 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 
           if (this%option%use_sc) then
             rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
-            kd_kgw_m3b = this%element_Kd(iele,imat,2)
+            if (UnInitialized(this%element_Kd(iele,imat,2))) then
+              element_Kd => &
+                GetElementKdFromIndices(this%element_list,iele,imat,2)
+              if (associated(element_Kd%Kd_dataset)) then
+                call element_Kd%Evaluate(option%time,0)
+                kd_kgw_m3b = element_Kd%Kd_eval
+              endif
+            else
+              kd_kgw_m3b = this%element_Kd(iele,imat,2)
+            endif
             ! AS3: Dataset option not yet available for multicontiuum
             do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
                rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)% &
@@ -1697,7 +1705,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
         call PMUFDDecaySolveISPDIAtCell(this,sec_rt_aux,&
                                reaction,vol,den_w_kg,por,sat,vps,dt,&
                                rt_sec_transport_vars%sec_rt_auxvar(cell)%pri_molal(:),&
-                               local_id,imat,this%element_Kd(:,:,2))
+                               local_id,imat,this%element_Kd,2)
       enddo
       vol = material_auxvars(ghosted_id)%volume * material_auxvars(ghosted_id)% &
               soil_properties(epsilon_index)
@@ -1721,7 +1729,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     if (associated(patch%aux%RT)) rt_aux => rt_auxvars(ghosted_id)
     call PMUFDDecaySolveISPDIAtCell(this,rt_aux,reaction, &
                            vol,den_w_kg,por,sat,vps,dt,xx_p(istart:iend), &
-                           local_id,imat,this%element_Kd(:,:,1))
+                           local_id,imat,this%element_Kd,1)
   enddo
 
   call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -1749,7 +1757,7 @@ end subroutine PMUFDDecaySolve
 ! ************************************************************************** !
 
 subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, &
-                             sat,vps,dt,xx_p,local_id,imat,element_Kd)
+                             sat,vps,dt,xx_p,local_id,imat,element_Kd,icon)
 
 
   use petscvec
@@ -1774,7 +1782,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
   PetscReal :: dt
   PetscInt :: local_id
 
-  PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
+  PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat, icon
     PetscReal :: conc_iso_aq0, conc_iso_sorb0, conc_iso_ppt0
   PetscReal :: conc_ele_aq1, conc_ele_sorb1, conc_ele_ppt1
   PetscReal :: mass_iso_aq0, mass_iso_sorb0, mass_iso_ppt0
@@ -1788,7 +1796,7 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
   PetscReal :: kd_kgw_m3b
   PetscBool :: above_solubility
   PetscReal :: xx_p(:)
-  PetscReal :: element_Kd(:,:)
+  PetscReal :: element_Kd(:,:,:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -2000,15 +2008,15 @@ subroutine PMUFDDecaySolveISPDIAtCell(this,rt_auxvar,reaction,vol,den_w_kg,por, 
     enddo
 
     ! split mass between phases
-    if (UnInitialized(element_Kd(iele,imat))) then
-      ! element => GetElementFromIndices(this%element_list,iele)
-      element_Kd_obj => GetElementKdFromIndices(this%element_list,iele,imat,1)
+    if (UnInitialized(element_Kd(iele,imat,icon))) then
+      element_Kd_obj => &
+        GetElementKdFromIndices(this%element_list,iele,imat,icon)
       if (associated(element_Kd_obj%Kd_dataset)) then
         call element_Kd_obj%Evaluate(option%time,0)
         kd_kgw_m3b = element_Kd_obj%Kd_eval
       endif
     else
-      kd_kgw_m3b = element_Kd(iele,imat)
+      kd_kgw_m3b = element_Kd(iele,imat,icon)
     endif
 
     ! modify kd if needed
