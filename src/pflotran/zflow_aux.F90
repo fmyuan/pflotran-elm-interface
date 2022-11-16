@@ -54,6 +54,7 @@ module ZFlow_Aux_module
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_BOUNDARY = 2
 
   PetscInt, parameter, public :: ZFLOW_LIQ_SAT_WRT_LIQ_PRES = 1
+  PetscInt, parameter, public :: ZFLOW_LIQ_PRES_WRT_POROS = 2
 
   PetscInt, parameter, public :: ZFLOW_ADJOINT_PERMEABILITY = 1
   PetscInt, parameter, public :: ZFLOW_ADJOINT_POROSITY = 2
@@ -279,18 +280,19 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
     zflow_auxvar%conc = 0.d0
   endif
 
+  ! %porosity should never be used. set to bogus value to catch misuse
+  material_auxvar%porosity = -888.d0
+
   if (update_porosity .and. soil_compressibility_index > 0 .and. &
       zflow_auxvar%pres > 0.d0) then
     call MaterialCompressSoil(material_auxvar,zflow_auxvar%pres, &
                               zflow_auxvar%effective_porosity, &
                               zflow_auxvar%dpor_dp)
   else
-    zflow_auxvar%effective_porosity = material_auxvar%porosity
+    zflow_auxvar%effective_porosity = material_auxvar%porosity_base
     zflow_auxvar%dpor_dp = 0.d0
   endif
-!  if (option%iflag /= ZFLOW_UPDATE_FOR_DERIVATIVE) then
-!    material_auxvar%porosity = zflow_auxvar%effective_porosity
-!  endif
+  material_auxvar%porosity = zflow_auxvar%effective_porosity
 
   ! For a very large negative liquid pressure (e.g. -1.d18), the capillary
   ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below

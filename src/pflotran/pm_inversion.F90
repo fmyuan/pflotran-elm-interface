@@ -170,7 +170,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   use Realization_Subsurface_class
   use String_module
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION, DERIVATIVE
+                               SOLUTE_CONCENTRATION, DERIVATIVE, POROSITY
   use ZFlow_Aux_module
   use Utility_module
 
@@ -254,24 +254,45 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                 InvMeasAnnounceToString(measurements(imeasurement), &
                                         tempreal,option)
               call PrintMsgByRank(option)
-              ! store partial derivatives
-              if (associated(inversion_forward_aux% &
-                              local_derivative_values_ptr)) then
-                isubvar = UNINITIALIZED_INTEGER
-                select case(measurements(imeasurement)%iobs_var)
-                  case(OBS_LIQUID_SATURATION)
-                    isubvar = ZFLOW_LIQ_SAT_WRT_LIQ_PRES
-                end select
-                if (Initialized(isubvar)) then
-                  tempreal = &
-                    RealizGetVariableValueAtCell(this%realization, &
-                          ghosted_id,DERIVATIVE,isubvar)
-                  inversion_forward_aux% &
-                    local_derivative_values_ptr(icount) = tempreal
+              if (inversion_forward_aux%store_adjoint) then
+                ! store derivative of observation wrt unknown
+                if (associated(inversion_forward_aux% &
+                                local_dobs_dunknown_values_ptr)) then
+                  isubvar = UNINITIALIZED_INTEGER
+                  select case(measurements(imeasurement)%iobs_var)
+                    case(OBS_LIQUID_SATURATION)
+                      isubvar = ZFLOW_LIQ_SAT_WRT_LIQ_PRES
+                  end select
+                  if (Initialized(isubvar)) then
+                    tempreal = &
+                      RealizGetVariableValueAtCell(this%realization, &
+                            ghosted_id,DERIVATIVE,isubvar)
+                    inversion_forward_aux% &
+                      local_dobs_dunknown_values_ptr(icount) = tempreal
+                  endif
                 endif
-              endif
-            endif
-          endif
+                ! store derivative of observation wrt parameter
+                if (associated(inversion_forward_aux% &
+                                local_dobs_dparam_values_ptr)) then
+                  isubvar = UNINITIALIZED_INTEGER
+                  select case(measurements(imeasurement)%iobs_var)
+                    case(OBS_LIQUID_PRESSURE)
+                      select case(inversion_forward_aux%iparameter)
+                        case(POROSITY)
+!                          isubvar = ZFLOW_LIQ_PRES_WRT_POROS
+                      end select
+                  end select
+                  if (Initialized(isubvar)) then
+                    tempreal = &
+                      RealizGetVariableValueAtCell(this%realization, &
+                            ghosted_id,DERIVATIVE,isubvar)
+                    inversion_forward_aux% &
+                      local_dobs_dparam_values_ptr(icount) = tempreal
+                  endif
+                endif
+              endif ! store adjoint
+            endif ! not measured
+          endif ! initialized
         enddo
       endif
     endif
