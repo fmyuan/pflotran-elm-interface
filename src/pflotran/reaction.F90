@@ -788,6 +788,8 @@ subroutine ReactionReadPass1(reaction,input,option)
         enddo
       case('NO_BDOT')
         reaction%act_coef_use_bdot = PETSC_FALSE
+      case('CALCULATE_INITIAL_POROSITY')
+        reaction%calculate_initial_porosity = PETSC_TRUE
       case('UPDATE_POROSITY')
         reaction%update_porosity = PETSC_TRUE
         option%flow%transient_porosity = PETSC_TRUE
