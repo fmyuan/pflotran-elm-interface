@@ -26,7 +26,7 @@ module PMC_Base_class
   ! process model coupler type
   type, public :: pmc_base_type
     character(len=MAXWORDLENGTH) :: name
-    PetscInt :: stage
+    PetscLogStage :: stage
     PetscBool :: is_master
     PetscLogDouble :: cumulative_time
     type(option_type), pointer :: option

@@ -355,7 +355,7 @@ subroutine LoggingCreateStage(stage_name,stage_id)
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: stage_name
-  PetscInt :: stage_id
+  PetscLogStage :: stage_id
 
   character(len=MAXSTRINGLENGTH) :: full_stage_name
   character(len=MAXSTRINGLENGTH) :: temp_stage_name
