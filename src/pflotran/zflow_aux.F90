@@ -35,6 +35,7 @@ module ZFlow_Aux_module
   PetscInt, public :: zflow_ni_count
   PetscInt, public :: zflow_ts_cut_count
   PetscInt, public :: zflow_ts_count
+  PetscInt, public :: zflow_debug_cell_id
 
   ! process models
   PetscInt, public :: zflow_liq_flow_eq = UNINITIALIZED_INTEGER

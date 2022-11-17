@@ -255,6 +255,11 @@ subroutine ZFlowSetup(realization)
   zflow_ts_count = 0
   zflow_ts_cut_count = 0
   zflow_ni_count = 0
+  if (Initialized(zflow_debug_cell_id) .and. &
+      option%comm%mycommsize > 1) then
+    option%io_buffer = 'Cannot debug cells in parallel.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine ZFlowSetup
 
@@ -925,7 +930,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(:,iconn), &
                               zflow_parameter,option,v_darcy, &
-                              Res,Jup,Jdn,dResdparamup,dResdparamdn)
+                              Res,Jup,Jdn,dResdparamup,dResdparamdn, &
+                              (local_id_up == zflow_debug_cell_id .or. &
+                               local_id_dn == zflow_debug_cell_id))
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
           patch%internal_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)
@@ -998,7 +1005,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
                                 zflow_parameter,option, &
-                                v_darcy,Res,Jdn,dResdparamdn)
+                                v_darcy,Res,Jdn,dResdparamdn, &
+                                local_id == zflow_debug_cell_id)
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
           patch%boundary_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)
