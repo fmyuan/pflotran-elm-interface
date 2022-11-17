@@ -1,4 +1,4 @@
-#Description: 1D test problem for tracer transport
+#Description: Simplifaction for regression test purpose 1D Rasouli Nernst-Planck benchmark (see Rasouli et al., 2015Rasouli P., Steefel C.I., Mayer K.U., Rolle M., Benchmarks for multicomponent diffusion and electrochemical migration, Comput. Geosci. 19 (3) (2015) 523–533)
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -39,7 +39,7 @@ CHEMISTRY
 
 
     ACTIVITY_COEFFICIENTS TIMESTEP
-    DATABASE hanford_reduced.dat
+    DATABASE hanford_rasouli.dat
     LOG_FORMULATION
     OUTPUT
         PH
@@ -53,10 +53,10 @@ END
 GRID
     TYPE structured
     ORIGIN 0.d0 0.d0 0.d0
-    NXYZ 100 1 1
+    NXYZ 10 1 1
     BOUNDS
         0.d0 0.d0 0.d0
-        1.d-2 1.0 1.0
+        5.d-3 1.0 1.0
     /
 END
 
@@ -70,11 +70,23 @@ NUMERICAL_METHODS TRANSPORT
   NEWTON_SOLVER
 	MATRIX_TYPE AIJ
 	PRECONDITIONER_MATRIX_TYPE AIJ
+    RTOL 1.d-12
+    ATOL 1.d-12
+    STOL 1.d-30	
   /
   LINEAR_SOLVER
     SOLVER DIRECT
   /
 END
+
+REGRESSION
+  CELL_IDS
+    1
+	5
+	9
+  /
+END
+
 
 
 #=========================== flow velocity ===================================
@@ -113,25 +125,13 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-
-  SNAPSHOT_FILE
-    FORMAT HDF5
-    FORMAT TECPLOT POINT
-    PERIODIC TIME 1 h
-    VARIABLES
-    /
-    VELOCITY_AT_CENTER
-  /
-  OBSERVATION_FILE
-  PERIODIC TIME 0.000416 day
-  VARIABLES
-        /
-  /
-/
+#  TIMES y 5. 10. 15. 20.
+  FORMAT TECPLOT POINT
+END
 
 #=========================== times ============================================
 TIME
-    FINAL_TIME 1 h
+    FINAL_TIME 0.1 h
     INITIAL_TIMESTEP_SIZE 0.01 h
     MAXIMUM_TIMESTEP_SIZE 0.001 h
 /
@@ -141,7 +141,7 @@ TIME
 REGION horizontalBottom
     COORDINATES
     1.d-4 0.d0 0.d0
-    1.d-2 1.0  1.0
+    5.d-3 1.0  1.0
     /
 END
 
@@ -155,8 +155,8 @@ END
 REGION east
     FACE EAST
     COORDINATES
-    1.d-2 0.d0 0.d0
-    1.d-2 1.0 1.0
+    5.d-3 0.d0 0.d0
+    5.d-3 1.0 1.0
     /
 END
 
