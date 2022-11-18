@@ -1310,6 +1310,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
     call InvSubsurfSetAdjointVariable(this,this%parameters(1)%iparameter)
   endif
 
+  iflag = PETSC_TRUE
+  if (associated(this%perturbation)) then
+    iflag = this%perturbation%idof_pert == 0
+  endif
+  if (iflag) then
+    call InvSubsurfPrintCurParamValues(this)
+  endif
+
   this%first_inversion_interation = PETSC_FALSE
 
 end subroutine InvSubsurfConnectToForwardRun
@@ -1657,6 +1665,7 @@ subroutine InvSubsurfPostProcMeasurements(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscInt :: icount
+  PetscBool :: iflag
   PetscErrorCode :: ierr
 
   option => this%realization%option
@@ -1767,6 +1776,14 @@ subroutine InvSubsurfPostProcMeasurements(this)
       call PrintErrMsg(option)
     endif
   enddo
+
+  iflag = PETSC_TRUE
+  if (associated(this%perturbation)) then
+    iflag = this%perturbation%idof_pert == 0
+  endif
+  if (iflag) then
+    call InvSubsurfPrintCurMeasValues(this)
+  endif
 
 end subroutine InvSubsurfPostProcMeasurements
 
@@ -2660,6 +2677,82 @@ subroutine InvSubsurfScatMeasToDistMeas(this,measurement_vec, &
   endif
 
 end subroutine InvSubsurfScatMeasToDistMeas
+
+! ************************************************************************** !
+
+subroutine InvSubsurfPrintCurMeasValues(this)
+  !
+  ! Prints the current values of parameters in the list of parameters
+  ! Doesn't work for full vector parameter sets
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/17/22
+  !
+  use Driver_module
+
+  class(inversion_subsurface_type) :: this
+
+  PetscInt :: i
+  PetscInt :: num_measurements
+
+  num_measurements = size(this%measurements)
+  if (this%driver%PrintToScreen()) then
+    do i = 1, num_measurements
+      call InvMeasurePrintComparison(STDOUT_UNIT, &
+                                     this%measurements(i),i==1, &
+                                     i==num_measurements, &
+                                     this%realization%option)
+    enddo
+  endif
+  if (this%driver%PrintToFile()) then
+    do i = 1, num_measurements
+      call InvMeasurePrintComparison(this%driver%fid_out, &
+                                     this%measurements(i),i==1, &
+                                     i==num_measurements, &
+                                     this%realization%option)
+    enddo
+  endif
+
+end subroutine InvSubsurfPrintCurMeasValues
+
+! ************************************************************************** !
+
+subroutine InvSubsurfPrintCurParamValues(this)
+  !
+  ! Prints the current values of parameters in the list of parameters
+  ! Doesn't work for full vector parameter sets
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/17/22
+  !
+  use Driver_module
+
+  class(inversion_subsurface_type) :: this
+
+  PetscInt :: i
+  PetscInt :: num_parameters
+
+  if (this%qoi_is_full_vector) return
+
+  num_parameters = size(this%parameters)
+  if (this%driver%PrintToScreen()) then
+    do i = 1, num_parameters
+      call InversionParameterPrint(STDOUT_UNIT, &
+                                   this%parameters(i),i==1, &
+                                   i==num_parameters, &
+                                   this%realization%option)
+    enddo
+  endif
+  if (this%driver%PrintToFile()) then
+    do i = 1, num_parameters
+      call InversionParameterPrint(this%driver%fid_out, &
+                                   this%parameters(i),i==1, &
+                                   i==num_parameters, &
+                                   this%realization%option)
+    enddo
+  endif
+
+end subroutine InvSubsurfPrintCurParamValues
 
 ! ************************************************************************** !
 

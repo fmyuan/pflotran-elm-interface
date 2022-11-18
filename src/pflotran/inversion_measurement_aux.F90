@@ -50,6 +50,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
             InversionMeasurementPrintConcise, &
+            InvMeasurePrintComparison, &
             InvMeasAnnounceToString, &
             InvMeasAuxObsVarIDToString, &
             InversionMeasurementMeasure, &
@@ -481,6 +482,53 @@ subroutine InversionMeasurementPrint(measurement,option)
   endif
 
 end subroutine InversionMeasurementPrint
+
+! ************************************************************************** !
+
+subroutine InvMeasurePrintComparison(fid,measurement, &
+                                     print_header,print_footer,option)
+  !
+  ! Print contents of measurement object for debugging
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  PetscInt :: fid
+  type(inversion_measurement_aux_type) :: measurement
+  PetscBool :: print_header
+  PetscBool :: print_footer
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (print_header) then
+!                12345678901234567890123456789012345678901234567890
+    write(fid,'(40("=+"),//, &
+              &" Current values of inversion measurements:",//, &
+              &"    # &
+              &Measured Variable           &
+              &Current Value       &
+              &Measured Value",/, &
+              &"    - &
+              &-----------------           &
+              &-------------       &
+              &--------------")')
+  endif
+  write(string,'(i4," ",a28,es13.6,8x,es13.6)') &
+    measurement%id, &
+    InvMeasAuxObsVarIDToString(measurement%iobs_var,option), &
+    measurement%simulated_value, &
+    measurement%value
+  write(fid,*) trim(string)
+  if (print_footer) then
+    write(fid,'(/,40("=+"))')
+  endif
+
+end subroutine InvMeasurePrintComparison
 
 ! ************************************************************************** !
 
