@@ -1,0 +1,46 @@
+EXTERNAL_FILE 3x1x3_transient.txt
+
+#=========================== material properties ==============================
+
+MATERIAL_PROPERTY soil3
+  ID 3
+  POROSITY 0.2d0
+  SOIL_COMPRESSIBILITY_FUNCTION LEIJNSE
+  SOIL_COMPRESSIBILITY 2.d-9
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  PERMEABILITY
+    PERM_ISO 5.d-12
+  /
+  CHARACTERISTIC_CURVES cc3
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc3
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.6d0
+    ALPHA 2.d-4
+    LIQUID_RESIDUAL_SATURATION 0.15d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.6
+    LIQUID_RESIDUAL_SATURATION 0.15d0
+  /
+END
+
+#=========================== regions ==========================================
+REGION top_of_barrier
+  COORDINATES
+    1.d0 -1.d20 2.d0
+    2.d0 1.d20 3.d0
+  /
+END
+
+#=========================== strata ===========================================
+
+# this will overwrite the soil2 being assigned to the barrier in 
+# 3x1x3_transient.txt
+STRATA
+  REGION top_of_barrier
+  MATERIAL soil3
+END
+

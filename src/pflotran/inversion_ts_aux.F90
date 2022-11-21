@@ -16,6 +16,7 @@ module Inversion_TS_Aux_module
     PetscInt :: num_timesteps
     PetscInt :: isync_time              ! current index of sync_times
     PetscReal, pointer :: sync_times(:) ! an array with all measurement times
+    PetscInt :: iparameter
     Mat :: M_ptr
     Mat :: JsensitivityT_ptr
     type(inversion_forward_ts_aux_type), pointer :: first
@@ -24,7 +25,8 @@ module Inversion_TS_Aux_module
     type(inversion_coupled_aux_type), pointer :: inversion_coupled_aux
     Vec :: measurement_vec
     PetscReal, pointer :: local_measurement_values_ptr(:)
-    PetscReal, pointer :: local_derivative_values_ptr(:)
+    PetscReal, pointer :: local_dobs_dunknown_values_ptr(:)
+    PetscReal, pointer :: local_dobs_dparam_values_ptr(:)
   end type inversion_forward_aux_type
 
   type, public :: inversion_forward_ts_aux_type
@@ -72,6 +74,7 @@ function InversionForwardAuxCreate()
   aux%num_timesteps = 0
   aux%isync_time = 1
   nullify(aux%sync_times)
+  aux%iparameter = UNINITIALIZED_INTEGER
   aux%M_ptr = PETSC_NULL_MAT
   aux%JsensitivityT_ptr = PETSC_NULL_MAT
   nullify(aux%first)
@@ -80,7 +83,8 @@ function InversionForwardAuxCreate()
   nullify(aux%inversion_coupled_aux)
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
-  nullify(aux%local_derivative_values_ptr)
+  nullify(aux%local_dobs_dunknown_values_ptr)
+  nullify(aux%local_dobs_dparam_values_ptr)
 
   InversionForwardAuxCreate => aux
 
@@ -239,7 +243,8 @@ subroutine InversionForwardAuxDestroy(aux)
   nullify(aux%measurements)
   aux%measurement_vec = PETSC_NULL_VEC
   nullify(aux%local_measurement_values_ptr)
-  nullify(aux%local_derivative_values_ptr)
+  nullify(aux%local_dobs_dunknown_values_ptr)
+  nullify(aux%local_dobs_dparam_values_ptr)
   nullify(aux%inversion_coupled_aux)
 
   deallocate(aux)

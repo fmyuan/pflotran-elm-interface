@@ -520,7 +520,6 @@ subroutine GlobalWeightAuxVars(realization,weight)
 
   use Realization_Subsurface_class
   use Option_module
-  use Material_module, only : MaterialWeightAuxVars
 
   implicit none
 

@@ -18,7 +18,7 @@ module Inversion_Subsurface_class
 
   private
 
-  PetscInt, parameter :: GET_MATERIAL_VALUE = 0
+  PetscInt, parameter, public :: GET_MATERIAL_VALUE = 0
   PetscInt, parameter :: OVERWRITE_MATERIAL_VALUE = 1
   PetscInt, parameter :: COPY_TO_VEC = 3
   PetscInt, parameter :: COPY_FROM_VEC = 4
@@ -60,7 +60,8 @@ module Inversion_Subsurface_class
     VecScatter :: scatter_param_to_dist_param
     VecScatter :: scatter_global_to_dist_param
     PetscReal, pointer :: local_measurement_values(:)
-    PetscReal, pointer :: local_derivative_values(:)
+    PetscReal, pointer :: local_dobs_dunknown_values(:)
+    PetscReal, pointer :: local_dobs_dparam_values(:)
     PetscInt, pointer :: local_measurement_map(:)
   contains
     procedure, public :: Init => InversionSubsurfaceInit
@@ -102,7 +103,9 @@ module Inversion_Subsurface_class
 
   public :: InvSubsurfScatMeasToDistMeas, &
             InvSubsurfScatParamToDistParam, &
-            InvSubsurfScatGlobalToDistParam
+            InvSubsurfScatGlobalToDistParam, &
+            InvSubsurfGetParamValueByCell, &
+            InvSubsurfGetSetParamValueByMat
 
 contains
 
@@ -167,7 +170,8 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%perturbation_risk_acknowledged = PETSC_FALSE
 
   nullify(this%local_measurement_values)
-  nullify(this%local_derivative_values)
+  nullify(this%local_dobs_dunknown_values)
+  nullify(this%local_dobs_dparam_values)
   nullify(this%local_measurement_map)
 
   nullify(this%measurements)
@@ -459,8 +463,6 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('PRINT_SENSITIVITY_JACOBIAN')
       this%print_sensitivity_jacobian = PETSC_TRUE
-    case('ANNOTATE_PERTURBATION_OUTPUT')
-      this%annotate_output = PETSC_TRUE
     case('DEBUG_ADJOINT')
       this%debug_adjoint = PETSC_TRUE
       call InputReadInt(input,option,i)
@@ -491,6 +493,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
                                   ZERO_INTEGER,error_string,input,option)
           case('ACKNOWLEDGE_RISK_OF_PERTURBATION')
             this%perturbation_risk_acknowledged = PETSC_TRUE
+          case('ANNOTATE_PERTURBATION_OUTPUT')
+            this%annotate_output = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
@@ -524,6 +528,7 @@ subroutine InversionSubsurfInitialize(this)
   use String_module
   use Variables_module, only : PERMEABILITY
   use Waypoint_module
+  use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
 
@@ -589,6 +594,15 @@ subroutine InversionSubsurfInitialize(this)
       do i = 1, size(this%parameters)
         call InversionParameterMapNameToInt(this%parameters(i),this%driver)
         if (len_trim(this%parameters(i)%material_name) > 0) then
+          material_property => &
+            MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
+                              this%realization%patch%material_property_array)
+          if (.not.associated(material_property)) then
+            call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
+                trim(this%parameters(i)%material_name) // '" not found among &
+            &MATERIAL_PROPERTIES.')
+          endif
+          this%parameters(i)%imat = abs(material_property%internal_id)
           num_parameters = num_parameters + 1
         else
           num_parameters = num_parameters + patch%grid%nmax
@@ -600,7 +614,7 @@ subroutine InversionSubsurfInitialize(this)
             temp_int = this%parameters(i)%iparameter
           else
             if (temp_int /= this%parameters(i)%iparameter) then
-              call this%driver%PrintErrMsg('Inversion by mulitiple &
+              call this%driver%PrintErrMsg('Inversion by multiple &
                 &parameters of differing type (e.g. permeability, &
                 &porosity) only supported for perturbation.')
             endif
@@ -698,6 +712,41 @@ subroutine InversionSubsurfInitialize(this)
                             ierr);CHKERRQ(ierr)
       call ISDestroy(is_parameter,ierr)
     endif
+
+    do i = 1, num_measurements
+      iflag = PETSC_FALSE
+      ! ensure that all observed variables are being simulated
+      select case(this%measurements(i)%iobs_var)
+        case(OBS_LIQUID_PRESSURE)
+          if (Uninitialized(zflow_liq_flow_eq)) then
+            string = 'Liquid pressure'
+            iflag = PETSC_TRUE
+          endif
+        case(OBS_LIQUID_SATURATION)
+          if (Uninitialized(zflow_liq_flow_eq)) then
+            string = 'Liquid saturation'
+            iflag = PETSC_TRUE
+          endif
+        case(OBS_SOLUTE_CONCENTRATION)
+          if (Uninitialized(zflow_sol_tran_eq)) then
+            string = 'Solute concentration'
+            iflag = PETSC_TRUE
+          endif
+        case(OBS_ERT_MEASUREMENT)
+          if (this%realization%option%ngeopdof == 0) then
+            string = 'ERT measurement'
+            iflag = PETSC_TRUE
+          endif
+        case default
+          call this%driver%PrintErrMsg('Unknown observation type in &
+            &InversionSubsurfInitialize: ' // &
+            trim(StringWrite(this%measurements(i)%iobs_var)))
+      end select
+      if (iflag) then
+        call this%driver%PrintErrMsg(trim(string) // ' is specified as a &
+          &measurement for inversion, but it is not being simulated.')
+      endif
+    enddo
 
     max_int = UNINITIALIZED_INTEGER
     allocate(int_array(num_measurements))
@@ -808,7 +857,8 @@ subroutine InversionSubsurfInitialize(this)
     allocate(this%local_measurement_map(icount))
     if (.not.associated(this%perturbation)) then
       ! if adjoint, need to allocate array for potential partial derivatives
-      allocate(this%local_derivative_values(icount))
+      allocate(this%local_dobs_dunknown_values(icount))
+      allocate(this%local_dobs_dparam_values(icount))
     endif
 
     this%local_measurement_map = UNINITIALIZED_INTEGER
@@ -869,9 +919,13 @@ subroutine InversionSubsurfInitialize(this)
     inversion_forward_aux%inversion_coupled_aux => this%inversion_coupled_aux
     inversion_forward_aux%local_measurement_values_ptr => &
       this%local_measurement_values
-    inversion_forward_aux%local_derivative_values_ptr => &
-      this%local_derivative_values
-    ! set up pointer to M matrix
+    if (.not.associated(this%perturbation)) then
+      inversion_forward_aux%iparameter = this%parameters(1)%iparameter
+      inversion_forward_aux%local_dobs_dunknown_values_ptr => &
+        this%local_dobs_dunknown_values
+      inversion_forward_aux%local_dobs_dparam_values_ptr => &
+        this%local_dobs_dparam_values
+    endif
     this%inversion_aux%inversion_forward_aux => inversion_forward_aux
 
     ! if permeability is the parameter of interest, ensure that it is
@@ -885,8 +939,7 @@ subroutine InversionSubsurfInitialize(this)
       do i = 1, size(this%parameters)
         if (this%parameters(i)%iparameter == PERMEABILITY) then
           material_property => &
-            MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
-                                        patch%material_property_array)
+            patch%material_property_array(this%parameters(i)%imat)%ptr
           ! if PERM_HORIZONTAL and VERTICAL_ANISOTROPY_RATIO are used,
           ! isotropic permeabilithy will be false, but tempreal will be 1.
           ! this only works with perturbation
@@ -914,19 +967,21 @@ subroutine InversionSubsurfInitialize(this)
   this%local_measurement_values = UNINITIALIZED_DOUBLE
 
   if (.not.associated(this%perturbation)) then
+    ! set up pointer to M matrix
     inversion_forward_aux%M_ptr = &
         this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
     ! create inversion_ts_aux for first time step
     nullify(inversion_forward_aux%first) ! must pass in null object
     inversion_forward_aux%first => &
       InversionTSAuxCreate(inversion_forward_aux%first, &
-                          inversion_forward_aux%M_ptr)
+                           inversion_forward_aux%M_ptr)
     inversion_forward_aux%last => inversion_forward_aux%first
     call InvTSAuxAllocate(inversion_forward_aux%first, &
                           inversion_forward_aux%M_ptr, &
                           this%realization%option%nflowdof, &
                           patch%grid%nlmax)
-    this%local_derivative_values = UNINITIALIZED_DOUBLE
+    this%local_dobs_dunknown_values = UNINITIALIZED_DOUBLE
+    this%local_dobs_dparam_values = UNINITIALIZED_DOUBLE
 
   else ! this%perturbation is associated
 
@@ -1255,6 +1310,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
     call InvSubsurfSetAdjointVariable(this,this%parameters(1)%iparameter)
   endif
 
+  iflag = PETSC_TRUE
+  if (associated(this%perturbation)) then
+    iflag = this%perturbation%idof_pert == 0
+  endif
+  if (iflag) then
+    call InvSubsurfPrintCurParamValues(this)
+  endif
+
   this%first_inversion_interation = PETSC_FALSE
 
 end subroutine InvSubsurfConnectToForwardRun
@@ -1269,7 +1332,7 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
   ! Date: 03/30/22
 
   use String_module
-  use Variables_module, only : PERMEABILITY, POROSITY
+  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, VG_SR
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
@@ -1290,10 +1353,14 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
     case(POROSITY)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
+    case(VG_ALPHA,VG_M,VG_SR)
+      string = 'van Genuchten parameters are unsupported for adjoint-based &
+        &inversion.'
+      call this%driver%PrintErrMsg(string)
     case default
       string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &
                trim(StringWrite(iparameter))
-    call this%driver%PrintErrMsg(string)
+      call this%driver%PrintErrMsg(string)
   end select
 
 end subroutine InvSubsurfSetAdjointVariable
@@ -1307,98 +1374,129 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
   ! Author: Glenn Hammond
   ! Date: 03/30/22
 
-  use Characteristic_Curves_module
   use Material_module
-  use String_module
-  use Utility_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
-                               POROSITY, VG_ALPHA, VG_SR
 
   class(inversion_subsurface_type) :: this
   PetscInt :: iparam
   PetscInt :: iflag
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: tempreal
-  PetscReal :: tempreal2
-  type(material_property_type), pointer :: material_property
-  type(characteristic_curves_type), pointer :: cc
 
-  material_property => &
-    MaterialPropGetPtrFromArray(this%parameters(iparam)%material_name, &
-                        this%realization%patch%material_property_array)
-  if (.not.associated(material_property)) then
-    call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
-      trim(this%parameters(iparam)%material_name) // '" not found among &
-      &MATERIAL_PROPERTIES.')
-  endif
-
-  if (iflag == GET_MATERIAL_VALUE) then
-    this%parameters(iparam)%imat = abs(material_property%internal_id)
-  else ! the else statements are implicit OVERWRITE_MATERIAL_VALUE
+  if (iflag /= GET_MATERIAL_VALUE) then
+    ! everything else is implicit OVERWRITE_MATERIAL_VALUE
     tempreal = this%parameters(iparam)%value
   endif
 
-  select case(this%parameters(iparam)%iparameter)
-    case(ELECTRICAL_CONDUCTIVITY)
-      if (iflag == GET_MATERIAL_VALUE) then
-        tempreal = material_property%electrical_conductivity
-      else
-        material_property%electrical_conductivity = tempreal
-      endif
-    case(PERMEABILITY)
-      if (iflag == GET_MATERIAL_VALUE) then
-        tempreal = material_property%permeability(1,1)
-      else
-        material_property%permeability(1,1) = tempreal
-        material_property%permeability(2,2) = tempreal
-        if (Initialized(material_property%vertical_anisotropy_ratio)) then
-          tempreal = tempreal * material_property%vertical_anisotropy_ratio
-        endif
-        material_property%permeability(3,3) = tempreal
-      endif
-    case(POROSITY)
-      if (iflag == GET_MATERIAL_VALUE) then
-        tempreal = material_property%porosity
-      else
-        material_property%porosity = tempreal
-      endif
-    case(VG_ALPHA,VG_SR)
-      cc => this%realization%patch%characteristic_curves_array( &
-              material_property%saturation_function_id)%ptr
-    select case(this%parameters(iparam)%iparameter)
-      case(VG_ALPHA)
-        if (iflag == GET_MATERIAL_VALUE) then
-          tempreal = cc%saturation_function%GetAlpha_()
-        else
-          call cc%saturation_function%SetAlpha_(tempreal)
-        endif
-      case(VG_SR)
-        if (iflag == GET_MATERIAL_VALUE) then
-          tempreal = cc%saturation_function%GetResidualSaturation()
-          tempreal2 = cc%liq_rel_perm_function%GetResidualSaturation()
-          if (.not.Equal(tempreal,tempreal2)) then
-            string = 'Saturation and relative permeability function &
-              &residual saturations must match in characteristic &
-              &curve "' // trim(cc%name)
-            call this%driver%PrintErrMsg(string)
-          endif
-        else
-          call cc%saturation_function%SetResidualSaturation(tempreal)
-          call cc%liq_rel_perm_function%SetResidualSaturation(tempreal)
-        endif
-      end select
-    case default
-      string = 'Unrecognized variable in &
-        &InvSubsurfCopyParameterValue: ' // &
-        trim(StringWrite(this%parameters(iparam)%iparameter))
-      call this%driver%PrintErrMsg(string)
-  end select
+  call InvSubsurfGetSetParamValueByMat(this,tempreal, &
+                                       this%parameters(iparam)%iparameter, &
+                                       this%parameters(iparam)%imat,iflag)
+
   if (iflag == GET_MATERIAL_VALUE) then
     this%parameters(iparam)%value = tempreal
   endif
 
 end subroutine InvSubsurfCopyParameterValue
+
+! ************************************************************************** !
+
+subroutine InvSubsurfGetSetParamValueByMat(this,value,iparameter,imat,iflag)
+  !
+  ! Copies parameter values back and forth
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/30/22
+
+  use Characteristic_Curves_module
+  use Material_module
+  use String_module
+  use Utility_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
+                               POROSITY, VG_ALPHA, VG_SR, VG_M
+
+  class(inversion_subsurface_type) :: this
+  PetscReal :: value
+  PetscInt :: iparameter
+  PetscInt :: imat
+  PetscInt :: iflag
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: tempreal
+  type(material_property_type), pointer :: material_property
+  type(characteristic_curves_type), pointer :: cc
+
+  material_property => &
+    this%realization%patch%material_property_array(imat)%ptr
+  select case(iparameter)
+    case(ELECTRICAL_CONDUCTIVITY)
+      if (iflag == GET_MATERIAL_VALUE) then
+        value = material_property%electrical_conductivity
+      else
+        material_property%electrical_conductivity = value
+      endif
+    case(PERMEABILITY)
+      if (iflag == GET_MATERIAL_VALUE) then
+        value = material_property%permeability(1,1)
+      else
+        material_property%permeability(1,1) = value
+        material_property%permeability(2,2) = value
+        if (Initialized(material_property%vertical_anisotropy_ratio)) then
+          value = value * material_property%vertical_anisotropy_ratio
+        endif
+        material_property%permeability(3,3) = value
+      endif
+    case(POROSITY)
+      if (iflag == GET_MATERIAL_VALUE) then
+        value = material_property%porosity
+      else
+        material_property%porosity = value
+      endif
+    case(VG_ALPHA,VG_SR,VG_M)
+      cc => this%realization%patch%characteristic_curves_array( &
+              material_property%saturation_function_id)%ptr
+      select case(iparameter)
+        case(VG_ALPHA)
+          if (iflag == GET_MATERIAL_VALUE) then
+            value = cc%saturation_function%GetAlpha_()
+          else
+            call cc%saturation_function%SetAlpha_(value)
+          endif
+        case(VG_M)
+          if (iflag == GET_MATERIAL_VALUE) then
+            value = cc%saturation_function%GetM_()
+            tempreal = cc%liq_rel_perm_function%GetM_()
+            if (.not.Equal(value,tempreal)) then
+              string = 'For inversion, saturation and relative permeability &
+                &function van Genuchten "m" values match in characteristic &
+                &curve "' // trim(cc%name)
+              call this%driver%PrintErrMsg(string)
+            endif
+          else
+            call cc%saturation_function%SetM_(value)
+            call cc%liq_rel_perm_function%SetM_(value)
+          endif
+        case(VG_SR)
+          if (iflag == GET_MATERIAL_VALUE) then
+            value = cc%saturation_function%GetResidualSaturation()
+            tempreal = cc%liq_rel_perm_function%GetResidualSaturation()
+            if (.not.Equal(value,tempreal)) then
+              string = 'For inversion, saturation and relative permeability &
+                &function  saturations must match in characteristic &
+                &curve "' // trim(cc%name)
+              call this%driver%PrintErrMsg(string)
+            endif
+          else
+            call cc%saturation_function%SetResidualSaturation(value)
+            call cc%liq_rel_perm_function%SetResidualSaturation(value)
+          endif
+      end select
+    case default
+      string = 'Unrecognized variable in &
+        &InvSubsurfCopyParamValueByMat: ' // &
+        trim(StringWrite(iparameter))
+      call this%driver%PrintErrMsg(string)
+  end select
+
+end subroutine InvSubsurfGetSetParamValueByMat
 
 ! ************************************************************************** !
 
@@ -1432,6 +1530,63 @@ subroutine InvSubsurfCopyParameterToFromVec(this,iflag)
   call VecRestoreArrayF90(this%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InvSubsurfCopyParameterToFromVec
+
+! ************************************************************************** !
+
+subroutine InvSubsurfGetParamValueByCell(this,value,iparameter,imat, &
+                                         material_auxvar)
+  !
+  ! Returns the parameter value at the cell
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/11/22
+
+  use Characteristic_Curves_module
+  use Material_module
+  use Material_Aux_module, only : material_auxvar_type, &
+                                  MaterialAuxVarGetValue
+  use String_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, PERMEABILITY_X, &
+                               POROSITY, BASE_POROSITY, &
+                               VG_ALPHA, VG_SR, VG_M
+
+  class(inversion_subsurface_type) :: this
+  PetscReal :: value
+  PetscInt :: iparameter
+  PetscInt :: imat
+  type(material_auxvar_type) :: material_auxvar
+
+  type(material_property_type), pointer :: material_property
+  type(characteristic_curves_type), pointer :: cc
+
+  select case(iparameter)
+    case(ELECTRICAL_CONDUCTIVITY)
+      value = MaterialAuxVarGetValue(material_auxvar,ELECTRICAL_CONDUCTIVITY)
+    case(PERMEABILITY)
+      value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)
+    case(POROSITY)
+      value = MaterialAuxVarGetValue(material_auxvar,BASE_POROSITY)
+    case(VG_ALPHA,VG_SR,VG_M)
+      material_property => &
+        this%realization%patch%material_property_array(imat)%ptr
+      cc => this%realization%patch%characteristic_curves_array( &
+              material_property%saturation_function_id)%ptr
+      select case(iparameter)
+        case(VG_ALPHA)
+          value = cc%saturation_function%GetAlpha_()
+        case(VG_M)
+          value = cc%saturation_function%GetM_()
+        case(VG_SR)
+          value = cc%saturation_function%GetResidualSaturation()
+      end select
+    case default
+      call this%driver%PrintErrMsg('Unrecognized variable in &
+                                   &InvSubsurfGetParamValueByCell: ' // &
+                                   trim(StringWrite(iparameter)))
+  end select
+
+end subroutine InvSubsurfGetParamValueByCell
 
 ! ************************************************************************** !
 
@@ -1503,10 +1658,14 @@ subroutine InvSubsurfPostProcMeasurements(this)
   type(option_type), pointer :: option
   PetscInt :: imeasurement
   character(len=MAXWORDLENGTH) :: word
-  Vec :: derivative_vec
-  Vec :: dist_derivative_vec
+  Vec :: dobs_dunknown_vec
+  Vec :: dist_dobs_dunknown_vec
+  Vec :: dobs_dparam_vec
+  Vec :: dist_dobs_dparam_vec
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
   PetscInt :: icount
+  PetscBool :: iflag
   PetscErrorCode :: ierr
 
   option => this%realization%option
@@ -1535,14 +1694,21 @@ subroutine InvSubsurfPostProcMeasurements(this)
     this%measurements(imeasurement)%measured = PETSC_TRUE
   enddo
   call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  if (associated(this%local_derivative_values)) then
+  if (associated(this%local_dobs_dunknown_values)) then
     ! distribute derivatives to measurement objects
     ! temporary vecs for derivatives (if they exist)
-    call VecDuplicate(this%measurement_vec,derivative_vec,ierr);CHKERRQ(ierr)
-    call VecDuplicate(this%dist_measurement_vec,dist_derivative_vec,&
+    call VecDuplicate(this%measurement_vec,dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%dist_measurement_vec,dist_dobs_dunknown_vec,&
                       ierr);CHKERRQ(ierr)
-    call VecSet(derivative_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
-    call VecSet(dist_derivative_vec,-888.d0,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%measurement_vec,dobs_dparam_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%dist_measurement_vec,dist_dobs_dparam_vec,&
+                      ierr);CHKERRQ(ierr)
+    call VecSet(dobs_dunknown_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
+    call VecSet(dist_dobs_dunknown_vec,-888.d0,ierr);CHKERRQ(ierr)
+    call VecSet(dobs_dparam_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
+    ! dist_dobs_dparam_vec has to be UNINITIALIZED_DOUBLE, otherwise -888 will
+    ! be set for all uninitialized values
+    call VecSet(dist_dobs_dparam_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
     icount = 0
     do imeasurement = 1, size(this%measurements)
       if (Initialized(this%measurements(imeasurement)%local_id)) then
@@ -1550,26 +1716,42 @@ subroutine InvSubsurfPostProcMeasurements(this)
         ! set the partial derivative
         select case(this%measurements(imeasurement)%iobs_var)
           case(OBS_LIQUID_SATURATION)
-            call VecSetValue(dist_derivative_vec, &
+            call VecSetValue(dist_dobs_dunknown_vec, &
                              this%local_measurement_map(icount)-1, &
-                             this%local_derivative_values(icount),&
+                             this%local_dobs_dunknown_values(icount),&
+                             INSERT_VALUES,ierr);CHKERRQ(ierr)
+          case(OBS_LIQUID_PRESSURE)
+            call VecSetValue(dist_dobs_dparam_vec, &
+                             this%local_measurement_map(icount)-1, &
+                             this%local_dobs_dparam_values(icount),&
                              INSERT_VALUES,ierr);CHKERRQ(ierr)
         end select
       endif
     enddo
-    call VecAssemblyBegin(dist_derivative_vec,ierr);CHKERRQ(ierr)
-    call VecAssemblyEnd(dist_derivative_vec,ierr);CHKERRQ(ierr)
-    call InvSubsurfScatMeasToDistMeas(this,derivative_vec, &
-                                      dist_derivative_vec, &
+    call VecAssemblyBegin(dist_dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(dist_dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyBegin(dist_dobs_dparam_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(dist_dobs_dparam_vec,ierr);CHKERRQ(ierr)
+    call InvSubsurfScatMeasToDistMeas(this,dobs_dunknown_vec, &
+                                      dist_dobs_dunknown_vec, &
                                       INVSUBSCATREVERSE)
-    call VecGetArrayF90(derivative_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call InvSubsurfScatMeasToDistMeas(this,dobs_dparam_vec, &
+                                      dist_dobs_dparam_vec, &
+                                      INVSUBSCATREVERSE)
+    call VecGetArrayF90(dobs_dunknown_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(dobs_dparam_vec,vec_ptr2,ierr);CHKERRQ(ierr)
     do imeasurement = 1, size(this%measurements)
-      this%measurements(imeasurement)%simulated_derivative = &
+      this%measurements(imeasurement)%dobs_dunknown = &
         vec_ptr(imeasurement)
+      this%measurements(imeasurement)%dobs_dparam = &
+        vec_ptr2(imeasurement)
     enddo
-    call VecRestoreArrayF90(derivative_vec,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecDestroy(dist_derivative_vec,ierr);CHKERRQ(ierr)
-    call VecDestroy(derivative_vec,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(dobs_dunknown_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(dobs_dparam_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecDestroy(dist_dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(dist_dobs_dparam_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(dobs_dparam_vec,ierr);CHKERRQ(ierr)
   endif
 
     ! ensure that all measurement have been recorded
@@ -1594,6 +1776,14 @@ subroutine InvSubsurfPostProcMeasurements(this)
       call PrintErrMsg(option)
     endif
   enddo
+
+  iflag = PETSC_TRUE
+  if (associated(this%perturbation)) then
+    iflag = this%perturbation%idof_pert == 0
+  endif
+  if (iflag) then
+    call InvSubsurfPrintCurMeasValues(this)
+  endif
 
 end subroutine InvSubsurfPostProcMeasurements
 
@@ -1801,6 +1991,24 @@ subroutine InvSubsurfAdjAddSensitivities(this)
       ! backward loop contribution (calculating lambda for the ts)
       if (.not.this%measurements(imeasurement)%first_lambda) then
         this%measurements(imeasurement)%first_lambda = PETSC_TRUE
+
+        ! if we have a dobs_dparam, add that value into Jsens
+        if (Initialized(this%measurements(imeasurement)%dobs_dparam)) then
+          if (this%qoi_is_full_vector .or. size(this%parameters) > 0) then
+            option%io_buffer = 'Need to refactor dobs_dparam for more than &
+              &one parameter.'
+            call PrintErrMsg(option)
+          endif
+          if (option%comm%myrank == option%driver%io_rank) then
+            tempreal = -this%measurements(imeasurement)%dobs_dparam
+            iparameter = 1
+            call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
+                            imeasurement-1,tempreal,ADD_VALUES, &
+                            ierr);CHKERRQ(ierr)
+          endif
+        endif
+
+        ! begin lambda calculations
         call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
         if (option%myrank == 0) then
           icell_measurement = this%measurements(imeasurement)%cell_id
@@ -1810,7 +2018,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
           select case(this%measurements(imeasurement)%iobs_var)
             case(OBS_LIQUID_SATURATION)
               tempreal = tempreal * &
-                        this%measurements(imeasurement)%simulated_derivative
+                        this%measurements(imeasurement)%dobs_dunknown
           end select
           call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                           INSERT_VALUES,ierr);CHKERRQ(ierr)
@@ -2472,6 +2680,82 @@ end subroutine InvSubsurfScatMeasToDistMeas
 
 ! ************************************************************************** !
 
+subroutine InvSubsurfPrintCurMeasValues(this)
+  !
+  ! Prints the current values of parameters in the list of parameters
+  ! Doesn't work for full vector parameter sets
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/17/22
+  !
+  use Driver_module
+
+  class(inversion_subsurface_type) :: this
+
+  PetscInt :: i
+  PetscInt :: num_measurements
+
+  num_measurements = size(this%measurements)
+  if (this%driver%PrintToScreen()) then
+    do i = 1, num_measurements
+      call InvMeasurePrintComparison(STDOUT_UNIT, &
+                                     this%measurements(i),i==1, &
+                                     i==num_measurements, &
+                                     this%realization%option)
+    enddo
+  endif
+  if (this%driver%PrintToFile()) then
+    do i = 1, num_measurements
+      call InvMeasurePrintComparison(this%driver%fid_out, &
+                                     this%measurements(i),i==1, &
+                                     i==num_measurements, &
+                                     this%realization%option)
+    enddo
+  endif
+
+end subroutine InvSubsurfPrintCurMeasValues
+
+! ************************************************************************** !
+
+subroutine InvSubsurfPrintCurParamValues(this)
+  !
+  ! Prints the current values of parameters in the list of parameters
+  ! Doesn't work for full vector parameter sets
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/17/22
+  !
+  use Driver_module
+
+  class(inversion_subsurface_type) :: this
+
+  PetscInt :: i
+  PetscInt :: num_parameters
+
+  if (this%qoi_is_full_vector) return
+
+  num_parameters = size(this%parameters)
+  if (this%driver%PrintToScreen()) then
+    do i = 1, num_parameters
+      call InversionParameterPrint(STDOUT_UNIT, &
+                                   this%parameters(i),i==1, &
+                                   i==num_parameters, &
+                                   this%realization%option)
+    enddo
+  endif
+  if (this%driver%PrintToFile()) then
+    do i = 1, num_parameters
+      call InversionParameterPrint(this%driver%fid_out, &
+                                   this%parameters(i),i==1, &
+                                   i==num_parameters, &
+                                   this%realization%option)
+    enddo
+  endif
+
+end subroutine InvSubsurfPrintCurParamValues
+
+! ************************************************************************** !
+
 subroutine InvSubsurfDestroyForwardRun(this)
   !
   ! Destroys the forward simulation
@@ -2547,7 +2831,7 @@ subroutine InversionSubsurfaceStrip(this)
   nullify(this%forward_simulation)
 
   call DeallocateArray(this%local_measurement_values)
-  call DeallocateArray(this%local_derivative_values)
+  call DeallocateArray(this%local_dobs_dunknown_values)
   call DeallocateArray(this%local_measurement_map)
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
