@@ -80,9 +80,9 @@ subroutine SplineInterp(arr1,arr2,s_dp,n,t,s_int)
   lower = 1
   upper = n
   
-  do while (upper-lower.gt.1)
+  do while (upper-lower > 1)
     k = (upper+lower)/2
-    if (arr1(k).gt.t) then
+    if (arr1(k) > t) then
       upper = k
     else
       lower = k
@@ -124,9 +124,9 @@ subroutine BisectionSearch(arr,n,val,ind)
 
   lower = 0
   upper = n+1
-  do while (upper-lower.gt.1)
+  do while (upper-lower > 1)
     mid = (upper+lower)/2
-    if ((arr(n).gt.arr(1)).eqv.(val.gt.arr(mid))) then
+    if ((arr(n) > arr(1)).eqv.(val > arr(mid))) then
       lower = mid
     else
       upper = mid
