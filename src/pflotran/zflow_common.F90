@@ -30,7 +30,8 @@ module ZFlow_Common_module
                          zflow_parameter, &
                          option,v_darcy,Res,Jup,Jdn, &
                          dResdparamup,dResdparamdn, &
-                         calculate_derivatives)
+                         calculate_derivatives, &
+                         debug_connection)
       use ZFlow_Aux_module
       use Global_Aux_module
       use Option_module
@@ -50,6 +51,7 @@ module ZFlow_Common_module
       PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscBool :: calculate_derivatives
+      PetscBool :: debug_connection
     end subroutine FluxDummy
     subroutine BCFluxDummy(ibndtype,auxvar_mapping,auxvars, &
                            zflow_auxvar_up,global_auxvar_up, &
@@ -59,7 +61,8 @@ module ZFlow_Common_module
                            zflow_parameter, &
                            option,v_darcy,Res,Jdn, &
                            dResdparamdn, &
-                           calculate_derivatives)
+                           calculate_derivatives, &
+                           debug_connection)
       use ZFlow_Aux_module
       use Global_Aux_module
       use Option_module
@@ -80,6 +83,7 @@ module ZFlow_Common_module
       PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscBool :: calculate_derivatives
+      PetscBool :: debug_connection
     end subroutine BCFluxDummy
   end interface
 
@@ -206,7 +210,8 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
                                      option,v_darcy,Res, &
                                      Jup,Jdn, &
                                      dResdparamup,dResdparamdn, &
-                                     calculate_derivatives)
+                                     calculate_derivatives, &
+                                     debug_connection)
   !
   ! Computes the internal flux terms for the residual based on harmonic
   ! intrinsic permeability
@@ -234,6 +239,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
+  PetscBool :: debug_connection
 
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: dist_up, dist_dn
@@ -273,6 +279,8 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   dq_dKdn = 0.d0
   dResdparamup = 0.d0
   dResdparamdn = 0.d0
+  delta_pressure = 0.d0
+  delta_conc = 0.d0
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
@@ -351,6 +359,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
           endif
         endif
       endif
+    endif
+    if (debug_connection) then
+      write(*,'(9x,"IFF(res,kr,dp): ",8es12.4)') Res(zflow_liq_flow_eq), &
+                                                 kr, delta_pressure
     endif
   endif
 
@@ -471,6 +483,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         end select
       endif
     endif
+    if (debug_connection) then
+      write(*,'(9x,"IFS(res,q,dc): ",8es12.4)') Res(zflow_sol_tran_eq), q, &
+                                                delta_conc
+    endif
   endif
 #endif
 
@@ -486,7 +502,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                                        zflow_parameter, &
                                        option,v_darcy,Res,Jdn, &
                                        dResdparamdn, &
-                                       calculate_derivatives)
+                                       calculate_derivatives, &
+                                       debug_connection)
   !
   ! Computes the boundary flux terms for the residual
   !
@@ -514,6 +531,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
+  PetscBool :: debug_connection
 
   PetscInt :: bc_type
   PetscInt :: idof
@@ -552,6 +570,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   dq_dKdn = 0.d0
   dperm_dK = 0.d0
   dResdparamdn = 0.d0
+  delta_pressure = 0.d0
+  delta_conc = 0.d0
 
   if (zflow_liq_flow_eq > 0) then
     call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
@@ -657,6 +677,10 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         endif
       endif
     endif
+    if (debug_connection) then
+      write(*,'(9x,"BFF(res,kr,dp): ",8es12.4)') Res(zflow_liq_flow_eq), &
+                                                 kr, delta_pressure
+    endif
   endif
 
 #if defined(SOLUTE_TRANSPORT)
@@ -716,7 +740,10 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
               area * Deff_over_dist * delta_conc * L_per_m3
         end select
       endif
-
+    endif
+    if (debug_connection) then
+      write(*,'(9x,"BFS(res,q,dc): ",8es12.4)') Res(zflow_sol_tran_eq), q, &
+                                                delta_conc
     endif
   endif
 #endif
@@ -881,7 +908,8 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                             material_auxvar_dn, &
                             material_auxvar_pert_dn, &
                             area, dist,zflow_parameter,option,v_darcy, &
-                            Res,Jup,Jdn,dResdparamup,dResdparamdn)
+                            Res,Jup,Jdn,dResdparamup,dResdparamdn, &
+                            debug_connection)
   !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
@@ -909,6 +937,7 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscBool :: debug_connection
 
   PetscReal :: res_pert(ZFLOW_MAX_DOF)
   PetscReal :: v_darcy_dum
@@ -925,7 +954,8 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
               material_auxvar_dn, &
               area,dist,zflow_parameter,option,v_darcy, &
               Res,Jup,Jdn,dResdparamup,dResdparamdn, &
-              .not.zflow_numerical_derivatives)
+              .not.zflow_numerical_derivatives, &
+              debug_connection)
 
   if (zflow_numerical_derivatives) then
     ! upgradient derivatives
@@ -935,7 +965,7 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                   zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                   material_auxvar_dn, &
                   area,dist,zflow_parameter,option,v_darcy_dum, &
-                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         Jup(ieq,idof) = (res_pert(ieq)-Res(ieq)) / &
                         zflow_auxvar_up(idof)%pert
@@ -948,7 +978,7 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                   zflow_auxvar_dn(idof),global_auxvar_dn, &
                   material_auxvar_dn, &
                   area,dist,zflow_parameter,option,v_darcy_dum, &
-                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         Jdn(ieq,idof) = (res_pert(ieq)-Res(ieq)) / &
                         zflow_auxvar_dn(idof)%pert
@@ -961,7 +991,7 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                   zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                   material_auxvar_dn, &
                   area,dist,zflow_parameter,option,v_darcy_dum, &
-                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         dResdparamup(ieq,idof) = &
           (res_pert(ieq)-Res(ieq))/ &
@@ -972,7 +1002,7 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                   zflow_auxvar_dn(option%nflowdof+1),global_auxvar_dn, &
                   material_auxvar_pert_dn(ONE_INTEGER), &
                   area,dist,zflow_parameter,option,v_darcy_dum, &
-                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         dResdparamdn(ieq,idof) = &
           (res_pert(ieq)-Res(ieq))/ &
@@ -992,7 +1022,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                               material_auxvar_dn, &
                               material_auxvar_pert_dn, &
                               area,dist,zflow_parameter,option,v_darcy, &
-                              Res,Jdn,dResdparamdn)
+                              Res,Jdn,dResdparamdn,debug_connection)
   !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
@@ -1021,6 +1051,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscBool :: debug_connection
 
   PetscReal :: res_pert(ZFLOW_MAX_DOF)
   PetscReal :: v_darcy_dum
@@ -1035,7 +1066,8 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                 zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                 material_auxvar_dn, &
                 area,dist,zflow_parameter,option,v_darcy, &
-                Res,Jdn,dResdparamdn,.not.zflow_numerical_derivatives)
+                Res,Jdn,dResdparamdn,.not.zflow_numerical_derivatives, &
+                debug_connection)
 
   if (zflow_numerical_derivatives) then
     ! downgradient derivatives
@@ -1045,7 +1077,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                     zflow_auxvar_dn(idof),global_auxvar_dn, &
                     material_auxvar_dn, &
                     area,dist,zflow_parameter,option,v_darcy_dum, &
-                    res_pert,Jdum,dJdum,PETSC_FALSE)
+                    res_pert,Jdum,dJdum,PETSC_FALSE,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         Jdn(ieq,idof) = (res_pert(ieq)-Res(ieq)) / &
                         zflow_auxvar_dn(idof)%pert
@@ -1058,7 +1090,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                     zflow_auxvar_dn(option%nflowdof+1),global_auxvar_dn, &
                     material_auxvar_pert_dn(ONE_INTEGER), &
                     area,dist,zflow_parameter,option,v_darcy_dum, &
-                    res_pert,Jdum,dJdum,PETSC_FALSE)
+                    res_pert,Jdum,dJdum,PETSC_FALSE,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         dResdparamdn(ieq,idof) = &
           (res_pert(ieq)-Res(ieq))/ &
