@@ -3907,7 +3907,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                 basis_molarity_p(1:reaction%naqcomp) / &
                 global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                 1000.d0
-            case(DIRICHLET_ZERO_GRADIENT_BC,ZERO_GRADIENT_BC)
+            case(DIRICHLET_ZERO_GRADIENT_BC,ZERO_GRADIENT_BC,MEMBRANE_BC)
               if (patch%boundary_velocities(iphase,sum_connection) < 0.d0) then
                 ! with outflow, these boundary concentrations are ignored,
                 ! for zero-gradient, but we still have to set them as other
@@ -3978,7 +3978,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                 rt_auxvars_bc(sum_connection)%pri_molal = &
                   xx_loc_p(istartaq:iendaq)
               endif
-            case(ZERO_GRADIENT_BC)
+            case(ZERO_GRADIENT_BC,MEMBRANE_BC)
               equilibrate_constraint = PETSC_FALSE
               rt_auxvars_bc(sum_connection)%pri_molal = &
                 xx_loc_p(istartaq:iendaq)
