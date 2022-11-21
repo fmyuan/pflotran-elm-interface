@@ -24,6 +24,7 @@ module Inversion_Parameter_module
             InversionParameterCopy, &
             InversionParameterMapNameToInt, &
             InversionParameterIntToQOIArray, &
+            InversionParameterPrint, &
             InversionParameterStrip, &
             InversionParameterDestroy
 
@@ -97,9 +98,10 @@ end subroutine InversionParameterCopy
 
 ! ************************************************************************** !
 
-subroutine InversionParameterPrint(inversion_parameter,option)
+subroutine InversionParameterPrint(fid,inversion_parameter, &
+                                   print_header,print_footer,option)
   !
-  ! Print contents of inversion parameter object for debugging
+  ! Print contents of inversion parameter object
   !
   ! Author: Glenn Hammond
   ! Date: 03/18/22
@@ -108,8 +110,36 @@ subroutine InversionParameterPrint(inversion_parameter,option)
   use String_module
   use Units_module
 
+  PetscInt :: fid
   type(inversion_parameter_type) :: inversion_parameter
+  PetscBool :: print_header
+  PetscBool :: print_footer
   type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (print_header) then
+!                12345678901234567890123456789012345678901234567890
+    write(fid,'(40("=+"),//, &
+              &" Current values of inversion parameters:",//, &
+              &"    # &
+              &Parameter Name      &
+              &Material Name       &
+              & Value",/,&
+              &"    - &
+              &--------------      &
+              &-------------       &
+              & -----")')
+  endif
+  write(string,'(i4," ",2a20,es13.6)') &
+    inversion_parameter%id, &
+    inversion_parameter%parameter_name, &
+    inversion_parameter%material_name, &
+    inversion_parameter%value
+  write(fid,*) trim(string)
+  if (print_footer) then
+    write(fid,'(/,40("=+"))')
+  endif
 
 end subroutine InversionParameterPrint
 
