@@ -518,7 +518,7 @@ subroutine InvMeasurePrintComparison(fid,measurement, &
               &-------------       &
               &--------------")')
   endif
-  write(string,'(i4," ",a28,es13.6,8x,es13.6)') &
+  write(string,'(i6," ",a28,es13.6,8x,es13.6)') &
     measurement%id, &
     InvMeasAuxObsVarIDToString(measurement%iobs_var,option), &
     measurement%simulated_value, &
