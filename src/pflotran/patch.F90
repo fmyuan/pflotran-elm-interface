@@ -2875,7 +2875,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                         liq_sat)
               coupler%flow_aux_real_var(THREE_INTEGER,iconn) = liq_sat
               dof3 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
             case default
               string = GetSubConditionType(hydrate%liquid_saturation%itype)
               option%io_buffer = &
