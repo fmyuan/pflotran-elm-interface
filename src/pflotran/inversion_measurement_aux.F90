@@ -508,11 +508,11 @@ subroutine InvMeasurePrintComparison(fid,measurement, &
   if (print_header) then
     write(fid,'(40("=+"),//, &
               &" Current values of inversion measurements:",//, &
-              &"    # &
+              &"      # &
               &Measured Variable           &
               &Current Value       &
               &Measured Value",/, &
-              &"    - &
+              &"      - &
               &-----------------           &
               &-------------       &
               &--------------")')
