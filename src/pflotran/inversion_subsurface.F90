@@ -1466,8 +1466,8 @@ subroutine InvSubsurfGetSetParamValueByMat(this,value,iparameter,imat,iflag)
             tempreal = cc%liq_rel_perm_function%GetM_()
             if (.not.Equal(value,tempreal)) then
               string = 'For inversion, saturation and relative permeability &
-                &function van Genuchten "m" values match in characteristic &
-                &curve "' // trim(cc%name)
+                &function van Genuchten "m" values must match in &
+                &characteristic curve "' // trim(cc%name)
               call this%driver%PrintErrMsg(string)
             endif
           else

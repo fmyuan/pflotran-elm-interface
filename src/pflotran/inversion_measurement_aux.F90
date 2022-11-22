@@ -506,19 +506,18 @@ subroutine InvMeasurePrintComparison(fid,measurement, &
   character(len=MAXSTRINGLENGTH) :: string
 
   if (print_header) then
-!                12345678901234567890123456789012345678901234567890
     write(fid,'(40("=+"),//, &
               &" Current values of inversion measurements:",//, &
-              &"    # &
+              &"      # &
               &Measured Variable           &
               &Current Value       &
               &Measured Value",/, &
-              &"    - &
+              &"      - &
               &-----------------           &
               &-------------       &
               &--------------")')
   endif
-  write(string,'(i4," ",a28,es13.6,8x,es13.6)') &
+  write(string,'(i6," ",a28,es13.6,8x,es13.6)') &
     measurement%id, &
     InvMeasAuxObsVarIDToString(measurement%iobs_var,option), &
     measurement%simulated_value, &
