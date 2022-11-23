@@ -676,6 +676,14 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     endif
 
     if (this%inversion_option%coupled_flow_ert) then
+      do i = 1, size(this%parameters)
+        if (InversionParameterGetIDFromName(this%parameters(i)% &
+                                              parameter_name,this%driver) /= &
+            PERMEABILITY) then
+          call this%driver%PrintErrMsg('COUPLED_ZFLOW_ERT currently only &
+                                        &supported for permeability.')
+        endif
+      enddo
       if (.not.(associated(this%forward_simulation% &
                             flow_process_model_coupler) .and. &
                 associated(this%forward_simulation% &
