@@ -84,7 +84,6 @@ subroutine SimulationInverseRead(this,option)
   use Utility_module
   use Inversion_ERT_class
   use Inversion_Subsurface_class
-  use Inversion_Tao_class
   use Inversion_ZFlow_class
 
   class(simulation_inverse_type) :: this
@@ -122,8 +121,6 @@ subroutine SimulationInverseRead(this,option)
         select case(word)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
-          case('TAO')
-            this%inversion => InversionTaoCreate(this%driver)
           case('TEST_SENSITIVITY_JACOBIAN')
             this%inversion => InversionSubsurfaceCreate(this%driver)
           case('ZFLOW')

@@ -21,10 +21,10 @@ module Inversion_Base_class
     PetscBool :: converged               ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
-    procedure, public :: Initialize => InversionBaseThisOnly
     procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: Step => InversionBaseStep
     procedure, public :: InitializeForwardRun => InversionBaseThisAndOption
+    procedure, public :: SetupForwardRunLinkage => InversionBaseThisOnly
     procedure, public :: ConnectToForwardRun => InversionBaseThisOnly
     procedure, public :: ExecuteForwardRun => InversionBaseThisOnly
     procedure, public :: DestroyForwardRun => InversionBaseThisOnly
@@ -135,7 +135,7 @@ subroutine InversionBaseStep(this)
   type(option_type), pointer :: option
 
   call this%InitializeForwardRun(option)
-  call this%Initialize()
+  call this%SetupForwardRunLinkage()
   call this%ConnectToForwardRun()
   call this%ExecuteForwardRun()
   call this%CheckConvergence()

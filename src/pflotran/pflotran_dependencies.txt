@@ -1288,15 +1288,6 @@ inversion_subsurface.o : \
   variables.o \
   waypoint.o \
   zflow_aux.o
-inversion_tao.o : \
-  driver.o \
-  factory_forward.o \
-  input_aux.o \
-  inversion_base.o \
-  inversion_subsurface.o \
-  option.o \
-  pflotran_constants.o \
-  string.o
 inversion_ts_aux.o : \
   inversion_coupled_aux.o \
   inversion_measurement_aux.o \
@@ -3173,7 +3164,6 @@ simulation_inverse.o : \
   inversion_base.o \
   inversion_ert.o \
   inversion_subsurface.o \
-  inversion_tao.o \
   inversion_zflow.o \
   option.o \
   pflotran_constants.o \

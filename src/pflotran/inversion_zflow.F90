@@ -57,7 +57,8 @@ module Inversion_ZFlow_class
   contains
     procedure, public :: Init => InversionZFlowInit
     procedure, public :: ReadBlock => InversionZFlowReadBlock
-    procedure, public :: Initialize => InversionZFlowInitialize
+    procedure, public :: SetupForwardRunLinkage => &
+                           InvZFlowSetupForwardRunLinkage
     procedure, public :: EvaluateCostFunction => InvZFlowEvaluateCostFunction
     procedure, public :: CheckConvergence => InversionZFlowCheckConvergence
     procedure, public :: WriteIterationInfo => InversionZFlowWriteIterationInfo
@@ -723,7 +724,7 @@ end function ConstrainedBlockGetBlockIDFromMatID
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowInitialize(this)
+subroutine InvZFlowSetupForwardRunLinkage(this)
   !
   ! Initializes inversion
   !
@@ -748,7 +749,7 @@ subroutine InversionZFlowInitialize(this)
   PetscInt :: i,num_measurements
   PetscErrorCode :: ierr
 
-  call InversionSubsurfInitialize(this)
+  call InvSubsurfSetupForwardRunLinkage(this)
 
   call VecDuplicate(this%dist_parameter_vec,this%dist_parameter_tmp_vec, &
                     ierr);CHKERRQ(ierr)
@@ -814,7 +815,7 @@ subroutine InversionZFlowInitialize(this)
                       ierr);CHKERRQ(ierr)
   endif
 
-end subroutine InversionZFlowInitialize
+end subroutine InvZFlowSetupForwardRunLinkage
 
 ! ************************************************************************** !
 

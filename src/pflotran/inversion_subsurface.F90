@@ -66,8 +66,9 @@ module Inversion_Subsurface_class
   contains
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
-    procedure, public :: Initialize => InversionSubsurfInitialize
     procedure, public :: InitializeForwardRun => InvSubsurfInitForwardRun
+    procedure, public :: SetupForwardRunLinkage => &
+                           InvSubsurfSetupForwardRunLinkage
     procedure, public :: ConnectToForwardRun => InvSubsurfConnectToForwardRun
     procedure, public :: ExecuteForwardRun => InvSubsurfExecuteForwardRun
     procedure, public :: DestroyForwardRun => InvSubsurfDestroyForwardRun
@@ -96,7 +97,7 @@ module Inversion_Subsurface_class
   public :: InversionSubsurfaceCreate, &
             InversionSubsurfaceInit, &
             InversionSubsurfReadSelectCase, &
-            InversionSubsurfInitialize, &
+            InvSubsurfSetupForwardRunLinkage, &
             InvSubsurfConnectToForwardRun, &
             InvSubsurfOutputSensitivity, &
             InversionSubsurfaceStrip
@@ -508,7 +509,46 @@ end subroutine InversionSubsurfReadSelectCase
 
 ! ************************************************************************** !
 
-subroutine InversionSubsurfInitialize(this)
+subroutine InvSubsurfInitForwardRun(this,option)
+  !
+  ! Initializes the forward simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/21/22
+  !
+  use Factory_Forward_module
+  use Option_module
+  use String_module
+
+  class(inversion_subsurface_type) :: this
+  type(option_type), pointer :: option
+
+  option => OptionCreate()
+  write(option%group_prefix,'(i6)') this%iteration
+  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
+  if (associated(this%perturbation)) then
+    if (this%annotate_output) then
+      if (this%perturbation%idof_pert > 0) then
+        option%group_prefix = trim(option%group_prefix) // 'P' // &
+          StringWrite(this%perturbation%idof_pert)
+      else if (this%perturbation%idof_pert == 0) then
+        option%group_prefix = trim(option%group_prefix) // 'Base'
+      else
+        option%group_prefix = trim(option%group_prefix) // 'Final'
+      endif
+    endif
+  endif
+  call OptionSetDriver(option,this%driver)
+  call OptionSetInversionOption(option,this%inversion_option)
+  call FactoryForwardInitialize(this%forward_simulation, &
+                                this%forward_simulation_filename,option)
+  this%realization => this%forward_simulation%realization
+
+end subroutine InvSubsurfInitForwardRun
+
+! ************************************************************************** !
+
+subroutine InvSubsurfSetupForwardRunLinkage(this)
   !
   ! Initializes inversion
   !
@@ -670,7 +710,7 @@ subroutine InversionSubsurfInitialize(this)
       call this%driver%PrintErrMsg('Misalignment in MatGetLocalSize ('//&
                  trim(StringWrite(temp_int))//','//&
                  trim(StringWrite(this%num_parameters_local))//') in &
-                 &InversionSubsurfInitialize.')
+                 &InvSubsurfSetupForwardRunLinkage.')
     endif
     allocate(int_array(2),int_array2(2))
     int_array(1) = this%num_parameters_local
@@ -739,7 +779,7 @@ subroutine InversionSubsurfInitialize(this)
           endif
         case default
           call this%driver%PrintErrMsg('Unknown observation type in &
-            &InversionSubsurfInitialize: ' // &
+            &InvSubsurfSetupForwardRunLinkage: ' // &
             trim(StringWrite(this%measurements(i)%iobs_var)))
       end select
       if (iflag) then
@@ -1013,50 +1053,11 @@ subroutine InversionSubsurfInitialize(this)
     if (Uninitialized(this%parameters(1)%iparameter) .and. &
         this%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('Quantity of interest not specified in &
-        &InversionSubsurfInitialize.')
+        &InvSubsurfSetupForwardRunLinkage.')
     endif
   endif
 
-end subroutine InversionSubsurfInitialize
-
-! ************************************************************************** !
-
-subroutine InvSubsurfInitForwardRun(this,option)
-  !
-  ! Initializes the forward simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/21/22
-  !
-  use Factory_Forward_module
-  use Option_module
-  use String_module
-
-  class(inversion_subsurface_type) :: this
-  type(option_type), pointer :: option
-
-  option => OptionCreate()
-  write(option%group_prefix,'(i6)') this%iteration
-  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
-  if (associated(this%perturbation)) then
-    if (this%annotate_output) then
-      if (this%perturbation%idof_pert > 0) then
-        option%group_prefix = trim(option%group_prefix) // 'P' // &
-          StringWrite(this%perturbation%idof_pert)
-      else if (this%perturbation%idof_pert == 0) then
-        option%group_prefix = trim(option%group_prefix) // 'Base'
-      else
-        option%group_prefix = trim(option%group_prefix) // 'Final'
-      endif
-    endif
-  endif
-  call OptionSetDriver(option,this%driver)
-  call OptionSetInversionOption(option,this%inversion_option)
-  call FactoryForwardInitialize(this%forward_simulation, &
-                                this%forward_simulation_filename,option)
-  this%realization => this%forward_simulation%realization
-
-end subroutine InvSubsurfInitForwardRun
+end subroutine InvSubsurfSetupForwardRunLinkage
 
 ! ************************************************************************** !
 
@@ -2189,7 +2190,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
       this%perturbation%idof_pert = iteration
     endif
     call this%InitializeForwardRun(option)
-    call InversionSubsurfInitialize(this) ! do not call mapped version
+    call InvSubsurfSetupForwardRunLinkage(this) ! do not call mapped version
     call this%ConnectToForwardRun()
     call this%ExecuteForwardRun()
     if (this%inversion_option%coupled_flow_ert) then
@@ -2211,7 +2212,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     ! -1 is a non-perturbed forward run after perturbation is complete
     this%perturbation%idof_pert = -1
     call this%InitializeForwardRun(option)
-    call InversionSubsurfInitialize(this) ! do not call mapped version
+    call InvSubsurfSetupForwardRunLinkage(this) ! do not call mapped version
     call this%ConnectToForwardRun()
     call this%ExecuteForwardRun()
     ! the last forward run will be destroyed after any output of

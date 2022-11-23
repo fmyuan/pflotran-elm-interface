@@ -50,9 +50,10 @@ module Inversion_ERT_class
 
   contains
     procedure, public :: Init => InversionERTInit
-    procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
     procedure, public :: Step => InversionERTStep
+    procedure, public :: SetupForwardRunLinkage => &
+                           InvERTSetupForwardRunLinkage
     procedure, public :: ExecuteForwardRun => InversionERTExecuteForwardRun
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
@@ -685,7 +686,7 @@ end subroutine ConstrainedBlockParRead
 
 ! ************************************************************************** !
 
-subroutine InversionERTInitialize(this)
+subroutine InvERTSetupForwardRunLinkage(this)
   !
   ! Initializes inversion
   !
@@ -770,7 +771,7 @@ subroutine InversionERTInitialize(this)
     endif
   endif
 
-end subroutine InversionERTInitialize
+end subroutine InvERTSetupForwardRunLinkage
 
 ! ************************************************************************** !
 
@@ -789,7 +790,7 @@ subroutine InversionERTStep(this)
   type(option_type), pointer :: option
 
   call this%InitializeForwardRun(option)
-  call this%Initialize()
+  call this%SetupForwardRunLinkage()
   call this%UpdateParameters()
   call this%forward_simulation%InitializeRun()
   call this%ExecuteForwardRun()
