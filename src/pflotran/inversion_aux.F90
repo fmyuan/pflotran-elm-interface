@@ -17,8 +17,6 @@ module Inversion_Aux_module
     Mat :: JsensitivityT
     Mat :: M ! solely a pointer
     Vec :: solution ! solely a pointer
-    PetscInt, pointer :: cell_to_internal_connection(:,:)
-    PetscInt, pointer :: cell_to_bc_connection(:,:)
     type(inversion_forward_aux_type), pointer :: inversion_forward_aux
     type(inversion_measurement_aux_type), pointer :: measurements(:)
     VecScatter :: scatter_global_to_measurement
@@ -44,8 +42,6 @@ function InversionAuxCreate()
   type(inversion_aux_type), pointer :: aux
 
   allocate(aux)
-  nullify(aux%cell_to_internal_connection)
-  nullify(aux%cell_to_bc_connection)
   nullify(aux%inversion_forward_aux)
 
   aux%max_ts = UNINITIALIZED_INTEGER
@@ -77,9 +73,6 @@ subroutine InversionAuxDestroy(aux)
   PetscErrorCode :: ierr
 
   if (.not.associated(aux)) return
-
-  call DeallocateArray(aux%cell_to_internal_connection)
-  call DeallocateArray(aux%cell_to_bc_connection)
 
   call InversionForwardAuxDestroy(aux%inversion_forward_aux)
 
