@@ -65,6 +65,9 @@ module PM_Well_class
     ! the global id of the reservoir grid cell within which each segment
     ! center resides
     PetscInt, pointer :: h_global_id(:)
+    ! the rank id of the reservoir grid cell within which each segment
+    ! center resides
+    PetscInt, pointer :: h_rank_id(:)
     ! the strata id number associated with each well segment
     PetscInt, pointer :: strata_id(:)
     ! coordinate of the top/bottom of the well [m]
@@ -393,6 +396,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well_grid%h_local_id)
   nullify(PMWellCreate%well_grid%h_ghosted_id)
   nullify(PMWellCreate%well_grid%h_global_id)
+  nullify(PMWellCreate%well_grid%h_rank_id)
   nullify(PMWellCreate%well_grid%strata_id)
   PMWellCreate%well_grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%well_grid%bottomhole(:) = UNINITIALIZED_DOUBLE
@@ -674,7 +678,8 @@ subroutine PMWellSetup(this)
   class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscInt, pointer :: h_global_id_unique(:)
-  PetscInt, pointer :: h_rank_id(:)
+  PetscInt, pointer :: h_all_rank_id(:)
+  PetscInt, pointer :: h_all_global_id(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -696,8 +701,7 @@ subroutine PMWellSetup(this)
   PetscInt :: nsegments, nsegments_save
   PetscInt :: max_val, min_val
   PetscInt :: k, i, j
-  PetscInt :: count1_local, count2_local
-  PetscInt :: count1_global, count2_global
+  PetscInt :: count1, count2_local, count2_global
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
   PetscBool :: res_grid_cell_within_well_z
   PetscBool :: res_grid_cell_within_well_y
@@ -760,6 +764,14 @@ subroutine PMWellSetup(this)
 
   if (well_grid%match_reservoir) then
   !---------------------------------------------------------------------------
+    if (option%comm%global_commsize > 1) then
+      option%io_buffer = 'WELLBORE_MODEL WELL_GRID,MATCH_RESERVOIR option &
+                        &is not supported yet for parallel simulations. &
+                        &Use WELL_GRID,NUMBER_OF_SEGMENTS option or &
+                        &WELL_GRID,SEGMENT_CENTER_Z_VALUES option to define &
+                        &the wellbore model grid.'
+      call PrintErrMsg(option)
+    endif
 
     allocate(temp_z_list(10000))
     allocate(temp_repeated_list(10000))
@@ -814,8 +826,12 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_local_id(nsegments))
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
+    allocate(well_grid%h_rank_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
-    well_grid%h_local_id(:) = -1
+    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_rank_id(:) = 0
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -858,8 +874,12 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_local_id(nsegments))
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
+    allocate(well_grid%h_rank_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
-    well_grid%h_local_id(:) = -1
+    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
 
     ! TODO:
     ! sort the z-list in ascending order, in case it was not 
@@ -876,9 +896,12 @@ subroutine PMWellSetup(this)
 
       call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
                                         option,local_id)
-      well_grid%h_local_id(k) = local_id
-      well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
-      well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+      if (Initialized(local_id)) then
+        well_grid%h_local_id(k) = local_id
+        well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+        well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+        well_grid%h_rank_id(k) = option%myrank
+      endif
     enddo
 
     do k = 1,well_grid%nsegments
@@ -906,8 +929,12 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_local_id(nsegments))
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
+    allocate(well_grid%h_rank_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
-    well_grid%h_local_id(:) = -1
+    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -931,13 +958,13 @@ subroutine PMWellSetup(this)
     do k = 1,well_grid%nsegments
       call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
                                         option,local_id)
-      well_grid%h_local_id(k) = local_id
-      well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
-      well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+      if (Initialized(local_id)) then
+        well_grid%h_local_id(k) = local_id
+        well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+        well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+        well_grid%h_rank_id(k) = option%myrank
+      endif
     enddo
-    !write(*,*) 'well_grid%h_local_id', well_grid%h_local_id
-    !write(*,*) 'well_grid%h_ghosted_id', well_grid%h_ghosted_id
-    !write(*,*) 'well_grid%h_global_id', well_grid%h_global_id
 
   endif
 
@@ -946,7 +973,15 @@ subroutine PMWellSetup(this)
                      ' segments. '
   call PrintMsg(option)
 
-
+  allocate(h_all_rank_id(nsegments))
+  allocate(h_all_global_id(nsegments))
+  call MPI_Allreduce(well_grid%h_rank_id,h_all_rank_id,nsegments, &
+                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(well_grid%h_global_id,h_all_global_id,nsegments, &
+                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  well_grid%h_rank_id = h_all_rank_id
+  well_grid%h_global_id = h_all_global_id
+  
   well_grid%strata_id(:) = UNINITIALIZED_INTEGER
   well_grid%nconnections = well_grid%nsegments - 1
 
@@ -1097,49 +1132,29 @@ subroutine PMWellSetup(this)
   ! Count how many of the h_global_id's are unique.
   ! This sum must be = to the number of reservoir cells that the
   !   well passes through.
-  option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution.... '
+  option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution against &
+                     &reservoir grid.... '
   call PrintMsg(option)
 
   allocate(h_global_id_unique(nsegments))
   h_global_id_unique(:) = 0
-  allocate(h_rank_id(nsegments))
-  h_rank_id(:) = -999
-  do k = 1,nsegments
-    if (well_grid%h_local_id(k) > -999) then
-      h_rank_id(k) = option%myrank
-    endif
-  enddo
-  !write(*,*) 'h_rank_id(k)', h_rank_id
 
-  min_val = minval(well_grid%h_global_id)-1
-  max_val = maxval(well_grid%h_global_id)
+  min_val = minval(h_all_global_id)-1
+  max_val = maxval(h_all_global_id)
   k = 0
   do while (min_val < max_val)
     k = k + 1
-    min_val = minval(well_grid%h_global_id, &
-                     mask=well_grid%h_global_id > min_val)
+    min_val = minval(h_all_global_id, mask=h_all_global_id > min_val)
     h_global_id_unique(k) = min_val
   enddo
 
-  !write(*,*) 'h_global_id_unique', h_global_id_unique
-
-  count1_local = 0
-  count1_global = 0
+  count1 = 0
   do k = 1,nsegments
     if (h_global_id_unique(k) > 0) then
-      count1_local = count1_local + 1
+      count1 = count1 + 1
     endif
   enddo
-
-  !write(*,*) '---> count1_local =', count1_local
-
-  ! count1_local is the number of unique reservoir grid cells that the well has
-  ! a connection to per MPI process. Next, all of the MPI processes need to
-  ! sum up their counts and place the total in count1_global.
-  call MPI_Allreduce(count1_local,count1_global,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-  !write(*,*) '---> count1_global =', count1_global
-  write(string,'(I0.5)') count1_global
+  write(string,'(I0.5)') count1
 
   ! Next, sum up how many grid cells the well passes thru.
   ! Note: This count assumes that the well is vertical and the top and
@@ -1164,6 +1179,7 @@ subroutine PMWellSetup(this)
     endif
     if (res_grid_cell_within_well_z .and. res_grid_cell_within_well_y &
         .and. res_grid_cell_within_well_x) then
+
       ! What should the local_id of the reservoir cell at this z-level
       ! along the well be?
       dummy_h%z = res_grid%z(k)
@@ -1180,9 +1196,10 @@ subroutine PMWellSetup(this)
       ! Does the well occupy this grid cell? If a reservoir cell was skipped
       ! by the well, then the count will never be incremented, and count2
       ! will not equal count1. count2 will be larger than count1.
-      if (local_id_res == local_id_well) then
+      if ((local_id_res == local_id_well) .and. Initialized(local_id_res)) then
         count2_local = count2_local + 1
       endif
+
     endif
   enddo
 
@@ -1196,7 +1213,7 @@ subroutine PMWellSetup(this)
   ! reservoir cell, is if the number of unique global_id's that the well
   ! is connected to (count1) matches the number of reservoir grid cells that
   ! the well occupies (count2):
-  if (count1_global == count2_global) well_grid_res_is_OK = PETSC_TRUE
+  if (count1 == count2_global) well_grid_res_is_OK = PETSC_TRUE
 
 
   if (.not.well_grid_res_is_OK) then
@@ -2445,8 +2462,10 @@ recursive subroutine PMWellInitializeRun(this)
   type(tran_condition_type), pointer :: tran_condition
   class(tran_constraint_base_type), pointer :: cur_constraint
   type(output_variable_list_type), pointer :: output_var_list
+  PetscInt, pointer :: all_strata_id(:)
   PetscInt :: nsegments, k, i, j
   PetscReal :: curr_time
+  PetscErrorCode :: ierr
 
   curr_time = this%option%time
   nsegments = this%well_grid%nsegments
@@ -2486,19 +2505,23 @@ recursive subroutine PMWellInitializeRun(this)
     do
       if (.not.associated(well_strata)) exit
       if ((any(well_strata%region%cell_ids == &
-               this%well_grid%h_ghosted_id(k))) .and. &
+               this%well_grid%h_local_id(k))) .and. &
           (well_strata%active)) then
         this%well_grid%strata_id(k) = well_strata%id
       endif
       well_strata => well_strata%next
     enddo
-    if (Uninitialized(this%well_grid%strata_id(k))) then
-      this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
+  enddo
+  allocate(all_strata_id(nsegments))
+  call MPI_Allreduce(this%well_grid%strata_id,all_strata_id,nsegments, &
+                     MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr);CHKERRQ(ierr)
+  this%well_grid%strata_id = all_strata_id
+  if (any(this%well_grid%strata_id == -999)) then
+    this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
         &not been assigned with a REGION and MATERIAL_PROPERTY with the use &
         &of the STRATA block.'
-      call PrintErrMsg(this%option)
-    endif
-  enddo
+    call PrintErrMsg(this%option)
+  endif
 
   allocate(this%flow_soln%residual(nsegments*this%flow_soln%ndof))
   allocate(this%flow_soln%update(nsegments*this%flow_soln%ndof))
