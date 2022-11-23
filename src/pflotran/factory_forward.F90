@@ -223,7 +223,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
 
-  use Factory_Subsurface_module
+  use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
 
   implicit none
