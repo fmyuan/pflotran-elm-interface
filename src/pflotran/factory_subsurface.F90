@@ -367,7 +367,6 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
 
   call pmc_subsurface%SetName(pmc_name)
   call pmc_subsurface%SetOption(option)
-  call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
 
   pmc_subsurface%pm_list => pm_flow
@@ -456,7 +455,6 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   end select
   call pmc_subsurface%SetName(pmc_name)
   call pmc_subsurface%SetOption(option)
-  call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_subsurface%pm_list => pm_base
   pmc_subsurface%pm_ptr%pm => pm_base
@@ -564,7 +562,6 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   pmc_waste_form => PMCThirdPartyCreate()
   call pmc_waste_form%SetName(pmc_name)
   call pmc_waste_form%SetOption(option)
-  call pmc_waste_form%SetCheckpointOption(simulation%checkpoint_option)
   pmc_waste_form%pm_list => pm_waste_form
   pmc_waste_form%pm_ptr%pm => pm_waste_form
   pmc_waste_form%realization => realization
@@ -627,7 +624,6 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
   pmc_ufd_decay => PMCThirdPartyCreate()
   call pmc_ufd_decay%SetName(pmc_name)
   call pmc_ufd_decay%SetOption(option)
-  call pmc_ufd_decay%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_ufd_decay%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_ufd_decay%pm_list => pm_ufd_decay
   pmc_ufd_decay%pm_ptr%pm => pm_ufd_decay
@@ -696,7 +692,6 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
   pmc_ufd_biosphere => PMCThirdPartyCreate()
   call pmc_ufd_biosphere%SetName(pmc_name)
   call pmc_ufd_biosphere%SetOption(option)
-  call pmc_ufd_biosphere%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_ufd_biosphere%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_ufd_biosphere%pm_list => pm_ufd_biosphere
   pmc_ufd_biosphere%pm_ptr%pm => pm_ufd_biosphere
@@ -746,7 +741,6 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
 
   call pmc_geophysics%SetName(pmc_name)
   call pmc_geophysics%SetOption(option)
-  call pmc_geophysics%SetCheckpointOption(simulation%checkpoint_option)
 
   pmc_geophysics%pm_list => pm_base
   pmc_geophysics%pm_ptr%pm => pm_base
@@ -879,7 +873,6 @@ subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
   pmc_material_transform => PMCThirdPartyCreate()
   call pmc_material_transform%SetName(pmc_name)
   call pmc_material_transform%SetOption(option)
-  call pmc_material_transform%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_material_transform%SetWaypointList(simulation&
                                                 %waypoint_list_subsurface)
   pmc_material_transform%pm_list => pm_material_transform
@@ -963,7 +956,6 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
   pmc_well => PMCThirdPartyCreate()
   call pmc_well%SetName(pmc_name)
   call pmc_well%SetOption(option)
-  call pmc_well%SetCheckpointOption(simulation%checkpoint_option)
   call pmc_well%SetWaypointList(simulation%waypoint_list_subsurface)
   pmc_well%pm_list => pm_well
   pmc_well%pm_ptr%pm => pm_well
@@ -2240,8 +2232,7 @@ subroutine SetupWaypointList(simulation)
 
   ! add in periodic time waypoints for checkpointing. these will not appear
   ! in the outer list
-  call CheckpointPeriodicTimeWaypoints(simulation%checkpoint_option, &
-                                       simulation%waypoint_list_subsurface, &
+  call CheckpointPeriodicTimeWaypoints(simulation%waypoint_list_subsurface, &
                                        option)
  ! fill in holes in waypoint data
   call WaypointListFillIn(simulation%waypoint_list_subsurface,option)

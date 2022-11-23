@@ -30,7 +30,6 @@ module PMC_Base_class
     PetscBool :: is_master
     PetscLogDouble :: cumulative_time
     type(option_type), pointer :: option
-    type(checkpoint_option_type), pointer :: checkpoint_option
     class(timestepper_base_type), pointer :: timestepper
     class(pm_base_type), pointer :: pm_list
     type(waypoint_list_type), pointer :: waypoint_list
@@ -66,7 +65,6 @@ module PMC_Base_class
     procedure, public :: CheckNullPM => PMCBaseCheckNullPM
     procedure, public :: SetName
     procedure, public :: SetOption
-    procedure, public :: SetCheckpointOption
     procedure, public :: SetWaypointList
     !procedure, public :: SetChildPeerPtr => PMCBaseSetChildPeerPtr
   end type pmc_base_type
@@ -156,7 +154,6 @@ subroutine PMCBaseInit(this)
   this%is_master = PETSC_FALSE
   this%cumulative_time = 0.d0
   nullify(this%option)
-  nullify(this%checkpoint_option)
   nullify(this%timestepper)
   nullify(this%pm_list)
   nullify(this%waypoint_list)
@@ -666,10 +663,10 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
 
     ! checkpoint at time step flags
-    if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0) then
+    if (this%is_master .and. associated(this%option%checkpoint)) then
+      if (this%option%checkpoint%periodic_ts_incr > 0) then
         if (mod(this%timestepper%steps, &
-                this%checkpoint_option%periodic_ts_incr) == 0) then
+                this%option%checkpoint%periodic_ts_incr) == 0) then
           checkpoint_at_this_timestep_flag = PETSC_TRUE
         endif
       endif
@@ -720,15 +717,12 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       ! one at the time and another at the time step, but this is fine.
       if (checkpoint_at_this_time_flag) then
         filename_append = &
-          CheckpointAppendNameAtTime(this%checkpoint_option, &
-                                      this%option%time,this%option)
+          CheckpointAppendNameAtTime(this%option%time,this%option)
         call this%Checkpoint(filename_append)
       endif
       if (checkpoint_at_this_timestep_flag) then
         filename_append = &
-          CheckpointAppendNameAtTimestep(this%checkpoint_option, &
-                                          this%timestepper%steps, &
-                                          this%option)
+          CheckpointAppendNameAtTimestep(this%timestepper%steps,this%option)
         call this%Checkpoint(filename_append)
       endif
 
@@ -956,6 +950,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   !
   use hdf5
   use Option_module
+  use Option_Checkpoint_module
 
   implicit none
 
@@ -965,12 +960,12 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   integer(HID_T) :: h5_chk_grp_id
   PetscViewer :: viewer
 
-  if (this%checkpoint_option%format == CHECKPOINT_BINARY .or. &
-      this%checkpoint_option%format == CHECKPOINT_BOTH) then
+  if (this%option%checkpoint%format == CHECKPOINT_BINARY .or. &
+      this%option%checkpoint%format == CHECKPOINT_BOTH) then
     call this%CheckpointBinary(viewer,filename_append)
   endif
-  if (this%checkpoint_option%format == CHECKPOINT_HDF5 .or. &
-      this%checkpoint_option%format == CHECKPOINT_BOTH) then
+  if (this%option%checkpoint%format == CHECKPOINT_HDF5 .or. &
+      this%option%checkpoint%format == CHECKPOINT_BOTH) then
     call this%CheckpointHDF5(h5_chk_grp_id,filename_append)
   endif
 
@@ -1758,7 +1753,6 @@ subroutine PMCBaseStrip(this)
 
   ! these are destoyed elsewhere
   nullify(this%option)
-  nullify(this%checkpoint_option)
   nullify(this%waypoint_list)
 
   if (associated(this%timestepper)) then
@@ -1817,24 +1811,6 @@ subroutine SetOption(this, option)
   if (associated(option)) this%option => option
 
 end subroutine SetOption
-
-! ************************************************************************** !
-
-subroutine SetCheckpointOption(this, checkpoint_option)
-  !
-  ! Sets checkpoint option
-  !
-  ! Author: Gautam Bisht
-  ! Date: 06/11/18
-  !
-  implicit none
-
-  class(pmc_base_type) :: this
-  type(checkpoint_option_type), pointer :: checkpoint_option
-
-  if (associated(checkpoint_option)) this%checkpoint_option => checkpoint_option
-
-end subroutine SetCheckpointOption
 
 ! ************************************************************************** !
 

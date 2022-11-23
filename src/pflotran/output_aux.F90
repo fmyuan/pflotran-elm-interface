@@ -12,18 +12,6 @@ module Output_Aux_module
   PetscInt, parameter, public :: INSTANTANEOUS_VARS = 1
   PetscInt, parameter, public :: AVERAGED_VARS = 2
 
-  PetscInt, parameter, public :: CHECKPOINT_BINARY = 1
-  PetscInt, parameter, public :: CHECKPOINT_HDF5 = 2
-  PetscInt, parameter, public :: CHECKPOINT_BOTH = 3
-
-  type, public :: checkpoint_option_type
-    character(len=MAXWORDLENGTH) :: tunit
-    PetscReal :: tconv
-    PetscReal :: periodic_time_incr
-    PetscInt :: periodic_ts_incr
-    PetscInt :: format
-  end type checkpoint_option_type
-
   type, public :: output_option_type
 
     character(len=MAXWORDLENGTH) :: tunit
@@ -179,8 +167,6 @@ module Output_Aux_module
             OpenAndWriteInputRecord, &
             OutputOptionDestroy, &
             OutputVariableListDestroy, &
-            CheckpointOptionCreate, &
-            CheckpointOptionDestroy, &
             OutputH5Create, &
             OutputH5Destroy
 
@@ -394,34 +380,6 @@ function OutputOptionDuplicate(output_option)
   OutputOptionDuplicate => output_option2
 
 end function OutputOptionDuplicate
-
-! ************************************************************************** !
-
-function CheckpointOptionCreate()
-  !
-  ! Creates output options object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/07/07
-  !
-
-  implicit none
-
-  type(checkpoint_option_type), pointer :: CheckpointOptionCreate
-
-  type(checkpoint_option_type), pointer :: checkpoint_option
-
-  allocate(checkpoint_option)
-  checkpoint_option%tunit = ''
-  checkpoint_option%tconv = 0.d0
-  checkpoint_option%periodic_time_incr = UNINITIALIZED_DOUBLE
-  checkpoint_option%periodic_ts_incr = 0
-  !checkpoint_option%periodic_ts_incr = huge(checkpoint_option%periodic_ts_incr)
-  checkpoint_option%format = CHECKPOINT_BINARY
-
-  CheckpointOptionCreate => checkpoint_option
-
-end function CheckpointOptionCreate
 
 ! ************************************************************************** !
 
@@ -1473,27 +1431,6 @@ recursive subroutine OutputVariableDestroy(output_variable)
   nullify(output_variable)
 
 end subroutine OutputVariableDestroy
-
-! ************************************************************************** !
-
-subroutine CheckpointOptionDestroy(checkpoint_option)
-  !
-  ! Deallocates an output option
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/07/07
-  !
-
-  implicit none
-
-  type(checkpoint_option_type), pointer :: checkpoint_option
-
-  if (.not.associated(checkpoint_option)) return
-
-  deallocate(checkpoint_option)
-  nullify(checkpoint_option)
-
-end subroutine CheckpointOptionDestroy
 
 ! ************************************************************************** !
 

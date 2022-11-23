@@ -5,6 +5,7 @@ module Option_module
   use PFLOTRAN_Constants_module
   use Communicator_Aux_module
   use Driver_module
+  use Option_Checkpoint_module
   use Option_Flow_module
   use Option_Transport_module
   use Option_Geophysics_module
@@ -19,7 +20,7 @@ module Option_module
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
-
+    type(checkpoint_option_type), pointer :: checkpoint
     type(inversion_option_type), pointer :: inversion
     type(comm_type), pointer :: comm
     class(driver_type), pointer :: driver
@@ -261,6 +262,7 @@ function OptionCreate()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  nullify(option%checkpoint)
   nullify(option%inversion)
   nullify(option%driver)
   nullify(option%comm)
@@ -1360,6 +1362,7 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
+  call OptionCheckpointDestroy(option%checkpoint)
   ! never destroy the driver as it was created elsewhere
   nullify(option%inversion)
   nullify(option%driver)

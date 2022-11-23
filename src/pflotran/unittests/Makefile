@@ -40,6 +40,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/lookup_table.o \
 	$(EXE_DIR)/material_aux.o \
 	$(EXE_DIR)/option.o \
+	$(EXE_DIR)/option_checkpoint.o \
 	$(EXE_DIR)/option_flow.o \
 	$(EXE_DIR)/option_transport.o \
 	$(EXE_DIR)/option_geophysics.o \
