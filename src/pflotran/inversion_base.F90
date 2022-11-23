@@ -4,7 +4,7 @@ module Inversion_Base_class
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use Driver_module
+  use Driver_class
   use Timer_class
   use Option_Inversion_module
 

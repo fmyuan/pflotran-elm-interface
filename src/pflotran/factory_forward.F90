@@ -22,7 +22,7 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
 ! Author: Glenn Hammond
 ! Date: 06/17/13
 !
-  use Driver_module
+  use Driver_class
   use Option_module
   use Logging_module
   use Input_Aux_module
@@ -74,7 +74,7 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
 ! Author: Glenn Hammond
 ! Date: 06/17/13
 !
-  use Driver_module
+  use Driver_class
   use Option_module
   use Input_Aux_module
   use String_module

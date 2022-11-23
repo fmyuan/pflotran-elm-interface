@@ -120,7 +120,7 @@ function InversionZFlowCreate(driver)
   ! Date: 01/05/22
   !
 
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -140,7 +140,7 @@ subroutine InversionZFlowInit(this,driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/05/22
   !
-  use Driver_module
+  use Driver_class
 
   implicit none
 

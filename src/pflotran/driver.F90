@@ -1,4 +1,4 @@
-module Driver_module
+module Driver_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -27,10 +27,19 @@ module Driver_module
 
   contains
     procedure, public :: PrintErrMsg => DriverPrintErrorMessage
+    procedure, public :: PrintMsg => DriverPrintMessage1
     procedure, public :: PrintToScreen => DriverPrintToScreen
     procedure, public :: PrintToFile => DriverPrintToFile
     procedure, public :: IsIORank => DriverIsIORank
   end type driver_type
+
+  interface DriverPrintMessage
+    module procedure :: DriverPrintMessage1
+    module procedure :: DriverPrintMessage2
+    module procedure :: DriverPrintMessage3
+  end interface
+
+  public :: DriverPrintMessage
 
   public :: DriverCreate, &
             DriverSetComm, &
@@ -120,6 +129,72 @@ end subroutine DriverPrintErrorMessage
 
 ! ************************************************************************** !
 
+subroutine DriverPrintMessage1(driver,string)
+  !
+  ! Prints a message to the screen and/or file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/22
+
+  class(driver_type) :: driver
+  character(len=*) :: string
+
+  PetscBool, parameter :: advance_ = PETSC_TRUE
+
+  call DriverPrintMessage3(driver,driver%fid_out,string,advance_)
+
+end subroutine DriverPrintMessage1
+
+! ************************************************************************** !
+
+subroutine DriverPrintMessage2(driver,string,advance_)
+  !
+  ! Prints a message to the screen and/or file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/22
+
+  class(driver_type) :: driver
+  character(len=*) :: string
+  PetscBool :: advance_
+
+  call DriverPrintMessage3(driver,driver%fid_out,string,advance_)
+
+end subroutine DriverPrintMessage2
+
+! ************************************************************************** !
+
+subroutine DriverPrintMessage3(driver,fid,string,advance_)
+  !
+  ! Prints a message to the screen and/or file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/22
+
+  class(driver_type) :: driver
+  PetscInt :: fid
+  character(len=*) :: string
+  PetscBool :: advance_
+
+  if (driver%PrintToScreen()) then
+    if (.not.advance_) then
+      write(STDOUT_UNIT,'(a)',advance='no') trim(string)
+    else
+      write(STDOUT_UNIT,'(a)') trim(string)
+    endif
+  endif
+  if (driver%PrintToFile() .and. fid > 0) then
+    if (.not.advance_) then
+      write(fid,'(a)',advance='no') trim(string)
+    else
+      write(fid,'(a)') trim(string)
+    endif
+  endif
+
+end subroutine DriverPrintMessage3
+
+! ************************************************************************** !
+
 function DriverPrintToScreen(driver)
   !
   ! Returns boolean indicating whether to print to screen
@@ -196,4 +271,4 @@ subroutine DriverDestroy(driver)
 
 end subroutine DriverDestroy
 
-end module Driver_module
+end module Driver_class

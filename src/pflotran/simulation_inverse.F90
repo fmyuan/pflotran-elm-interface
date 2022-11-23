@@ -40,7 +40,7 @@ function SimulationInverseCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-   use Driver_module
+   use Driver_class
 
   class(simulation_inverse_type), pointer :: SimulationInverseCreate
   class(driver_type), pointer :: driver
@@ -59,7 +59,7 @@ subroutine SimulationInverseInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Driver_module
+  use Driver_class
 
   class(simulation_inverse_type) :: this
   class(driver_type), pointer :: driver

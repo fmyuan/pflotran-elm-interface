@@ -216,14 +216,14 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
   ! Author: Glenn Hammond
   ! Date: 03/25/22
   !
-  use Driver_module
+  use Driver_class
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                VG_SR, VG_ALPHA, VG_M
 
   type(inversion_parameter_type) :: inversion_parameter
-  type(driver_type) :: driver
+  class(driver_type) :: driver
 
   PetscInt :: i
 

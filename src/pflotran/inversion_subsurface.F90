@@ -118,7 +118,7 @@ function InversionSubsurfaceCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 10/25/21
   !
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -138,7 +138,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
-  use Driver_module
+  use Driver_class
 
   class(inversion_subsurface_type) :: this
   class(driver_type), pointer :: driver
@@ -2688,7 +2688,7 @@ subroutine InvSubsurfPrintCurMeasValues(this)
   ! Author: Glenn Hammond
   ! Date: 11/17/22
   !
-  use Driver_module
+  use Driver_class
 
   class(inversion_subsurface_type) :: this
 
@@ -2725,7 +2725,7 @@ subroutine InvSubsurfPrintCurParamValues(this)
   ! Author: Glenn Hammond
   ! Date: 11/17/22
   !
-  use Driver_module
+  use Driver_class
 
   class(inversion_subsurface_type) :: this
 

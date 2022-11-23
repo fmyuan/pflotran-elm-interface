@@ -205,7 +205,7 @@ program pflotran_rxn
   use Reaction_Database_module
   use Communicator_Aux_module
   use Option_module
-  use Driver_module
+  use Driver_class
   use Input_Aux_module
   use String_module
 

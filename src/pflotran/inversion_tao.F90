@@ -38,7 +38,7 @@ function InversionTaoCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 09/17/21
   !
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -58,7 +58,7 @@ subroutine InversionTaoInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 09/17/21
   !
-  use Driver_module
+  use Driver_class
 
   class(inversion_tao_type) :: this
   class(driver_type), pointer :: driver

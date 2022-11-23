@@ -114,7 +114,7 @@ function InversionERTCreate(driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -136,7 +136,7 @@ subroutine InversionERTInit(this,driver)
   !
   use Inversion_Parameter_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY
-  use Driver_module
+  use Driver_class
 
   class(inversion_ert_type) :: this
   class(driver_type), pointer :: driver
