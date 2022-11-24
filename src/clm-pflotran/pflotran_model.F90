@@ -128,7 +128,7 @@ contains
     use Factory_Subsurface_module, only : FactorySubsurfaceInitialize
     use Factory_Geomechanics_module
     use Factory_Forward_module
-    use Driver_module
+    use Driver_class
 
     implicit none
 
@@ -2447,7 +2447,7 @@ end subroutine pflotranModelSetICs
     use Mapping_module, only : MappingDestroy
     use Communicator_Aux_module
     use Factory_Forward_module
-    use Driver_module
+    use Driver_class
 
     implicit none
 
