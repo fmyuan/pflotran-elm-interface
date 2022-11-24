@@ -96,27 +96,30 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_well)
 
   ! process command line arguments specific to subsurface
-  call SubsurfInitCommandLineSettings(option)
+  call FactSubInitCommandLineSettings(option)
 
-  call ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form, &
-                            pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
-                            pm_auxiliary,pm_well,pm_material_transform)
+  call FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
+                                       pm_waste_form,pm_ufd_decay, &
+                                       pm_ufd_biosphere,pm_geop, &
+                                       pm_auxiliary,pm_well, &
+                                       pm_material_transform)
 
-  call SubsurfaceSetFlowMode(pm_flow,option)
-  call SubsurfaceSetGeopMode(pm_geop,option)
+  call FactorySubsurfaceSetFlowMode(pm_flow,option)
+  call FactorySubsurfaceSetGeopMode(pm_geop,option)
 
   realization => RealizationCreate(option)
   simulation%realization => realization
   realization%output_option => simulation%output_option
 
   ! Setup linkages between PMCs
-  call SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
-                        pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
-                        pm_auxiliary,pm_well,pm_material_transform,&
-                        realization)
+  call FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
+                                       pm_waste_form,pm_ufd_decay, &
+                                       pm_ufd_biosphere,pm_geop, &
+                                       pm_auxiliary,pm_well, &
+                                       pm_material_transform)
 
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
-  call SubsurfaceInitSimulation(simulation)
+  call FactorySubsurfaceInitSimulation(simulation)
 
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
@@ -125,7 +128,7 @@ end subroutine FactorySubsurfaceInitPostPetsc
 
 ! ************************************************************************** !
 
-subroutine SubsurfInitCommandLineSettings(option)
+subroutine FactSubInitCommandLineSettings(option)
   !
   ! Initializes PFLTORAN subsurface output
   ! filenames, etc.
@@ -141,11 +144,11 @@ subroutine SubsurfInitCommandLineSettings(option)
 
   type(option_type) :: option
 
-end subroutine SubsurfInitCommandLineSettings
+end subroutine FactSubInitCommandLineSettings
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSetFlowMode(pm_flow,option)
+subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
   !
   ! Sets the flow mode (richards, vadose, mph, etc.)
   !
@@ -293,11 +296,11 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine SubsurfaceSetFlowMode
+end subroutine FactorySubsurfaceSetFlowMode
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSetGeopMode(pm_geop,option)
+subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
   !
   ! Sets the geophysics mode (ert, sip, etc.)
   !
@@ -329,17 +332,15 @@ subroutine SubsurfaceSetGeopMode(pm_geop,option)
       call PrintErrMsg(option)
   end select
 
-end subroutine SubsurfaceSetGeopMode
+end subroutine FactorySubsurfaceSetGeopMode
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceInitSimulation(simulation)
+subroutine FactorySubsurfaceInitSimulation(simulation)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Realization_Subsurface_class
   use Realization_Base_class
   use Discretization_module
@@ -359,8 +360,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   use PMC_Subsurface_class
   use PMC_General_class
   use PMC_Base_class
-  use PM_Auxiliary_class
-  use PM_Base_class
   use PM_Base_Pointer_module
   use PM_Inversion_class
   use PM_Subsurface_Flow_class
@@ -371,21 +370,16 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_general_type), pointer :: pmc_general
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
-  class(pmc_base_type), pointer :: pmc_dummy
-  class(pm_auxiliary_type), pointer :: pm_aux
-  class(pm_inversion_type), pointer :: pm_inv
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
-  character(len=MAXSTRINGLENGTH) :: string
 
   realization => simulation%realization
   option => realization%option
 
 ! begin from old Init()
-  call SubsurfaceSetupRealization(simulation)
+  call FactorySubsurfSetupRealization(simulation)
 
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
                                     simulation%waypoint_list_subsurface)
@@ -417,60 +411,8 @@ subroutine SubsurfaceInitSimulation(simulation)
   !----------------------------------------------------------------------------!
   ! This section for setting up new process model approach
   !----------------------------------------------------------------------------!
-
-  if (StrataEvolves(realization%patch%strata_list)) then
-    allocate(pm_aux)
-    call PMAuxiliaryInit(pm_aux)
-    string = 'EVOLVING_STRATA'
-    call PMAuxiliarySetFunctionPointer(pm_aux,string)
-    pm_aux%realization => realization
-    pm_aux%option => option
-
-    pmc_general => PMCGeneralCreate('',pm_aux%CastToBase())
-    pmc_general%evaluate_at_end_of_simulation = PETSC_FALSE
-    ! place the material process model as %peer for the top pmc
-    call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
-           simulation%process_model_coupler_list%CastToBase(), &
-           pmc_dummy,PM_APPEND)
-    nullify(pm_aux)
-    nullify(pmc_general)
-  endif
-
-  if (associated(option%inversion)) then
-    allocate(pm_inv)
-    call PMInversionInit(pm_inv)
-    string = 'INVERSION_MEASUREMENT'
-    call PMInversionSetFunctionPointer(pm_inv,string)
-    pm_inv%realization => realization
-    pm_inv%option => option
-
-    pmc_general => PMCGeneralCreate('',pm_inv%CastToBase())
-    ! place the material process model as %peer for the top pmc
-    call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
-           simulation%process_model_coupler_list%CastToBase(), &
-           pmc_dummy,PM_APPEND)
-    nullify(pm_inv)
-    nullify(pmc_general)
-  endif
-
-  if (associated(option%inversion)) then
-    if (.not.option%inversion%use_perturbation) then
-      allocate(pm_inv)
-      call PMInversionInit(pm_inv)
-      string = 'INVERSION_ADJOINT'
-      call PMInversionSetFunctionPointer(pm_inv,string)
-      pm_inv%realization => realization
-      pm_inv%option => option
-
-      pmc_general => PMCGeneralCreate('',pm_inv%CastToBase())
-      ! place the material process model as %peer for the top pmc
-      call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_CHILD, &
-            simulation%process_model_coupler_list%CastToBase(), &
-            pmc_dummy,PM_APPEND)
-      nullify(pm_inv)
-      nullify(pmc_general)
-    endif
-  endif
+  call FactSubLinkAddPMCEvolvingStrata(simulation)
+  call FactSubLinkAddPMCInversion(simulation)
 
   ! For each ProcessModel, set:
   ! - realization (subsurface or surface),
@@ -483,15 +425,16 @@ subroutine SubsurfaceInitSimulation(simulation)
   ! the following recursive subroutine will also call each pmc child
   ! and each pms's peers
   if (associated(cur_process_model_coupler_top)) then
-    call SetupPMApproach(cur_process_model_coupler_top,simulation)
+    call FactSubLinkSetupPMApproach(cur_process_model_coupler_top, &
+                                    simulation)
   endif
 
   ! point the top process model coupler to Output
   simulation%process_model_coupler_list%Output => Output
 
   ! setup the outer waypoint lists
-  call SetupWaypointList(simulation)
-  call FactorySubsurfSetPMCWaypointPtrs(simulation)
+  call FactorySubsurfSetupWaypointList(simulation)
+  call FactSubLinkSetPMCWaypointPtrs(simulation)
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)
@@ -499,11 +442,11 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   call FactorySubsurfaceJumpStart(simulation)
 
-end subroutine SubsurfaceInitSimulation
+end subroutine FactorySubsurfaceInitSimulation
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSetupRealization(simulation)
+subroutine FactorySubsurfSetupRealization(simulation)
   !
   ! Initializes material property data structres and assign them to the domain.
   !
@@ -619,11 +562,11 @@ subroutine SubsurfaceSetupRealization(simulation)
   call PrintMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
 #endif
 
-end subroutine SubsurfaceSetupRealization
+end subroutine FactorySubsurfSetupRealization
 
 ! ************************************************************************** !
 
-subroutine SetupWaypointList(simulation)
+subroutine FactorySubsurfSetupWaypointList(simulation)
   !
   ! Sets up waypoint list
   !
@@ -676,7 +619,7 @@ subroutine SetupWaypointList(simulation)
                            realization%output_option)
   endif
 
-end subroutine SetupWaypointList
+end subroutine FactorySubsurfSetupWaypointList
 
 ! ************************************************************************** !
 

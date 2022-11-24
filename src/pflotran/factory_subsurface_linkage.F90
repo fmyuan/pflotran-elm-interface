@@ -10,16 +10,18 @@ module Factory_Subsurface_Linkage_module
   private
 
   public :: &
-            SetupPMApproach, &
-            ExtractPMsFromPMList, &
-            SetupPMCLinkages, &
-            FactorySubsurfSetPMCWaypointPtrs
+            FactSubLinkSetupPMApproach, &
+            FactSubLinkExtractPMsFromPMList, &
+            FactSubLinkSetupPMCLinkages, &
+            FactSubLinkAddPMCEvolvingStrata, &
+            FactSubLinkAddPMCInversion, &
+            FactSubLinkSetPMCWaypointPtrs
 
 contains
 
 ! ************************************************************************** !
 
-recursive subroutine SetupPMApproach(pmc,simulation)
+recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
 !
 ! Loops through all of the PMC's recursively and sets their realization,
 ! timestepper, and solver.
@@ -122,22 +124,24 @@ recursive subroutine SetupPMApproach(pmc,simulation)
 
   ! call this function for this pmc's child
   if (associated(pmc%child)) then
-    call SetupPMApproach(pmc%child,simulation)
+    call FactSubLinkSetupPMApproach(pmc%child,simulation)
   endif
 
   ! call this function for this pmc's peer
   if (associated(pmc%peer)) then
-    call SetupPMApproach(pmc%peer,simulation)
+    call FactSubLinkSetupPMApproach(pmc%peer,simulation)
   endif
 
 
-end subroutine SetupPMApproach
+end subroutine FactSubLinkSetupPMApproach
 
 ! ************************************************************************** !
 
-subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form, &
-                                pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
-                                pm_auxiliary,pm_well,pm_material_transform)
+subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
+                                           pm_waste_form,pm_ufd_decay, &
+                                           pm_ufd_biosphere,pm_geop, &
+                                           pm_auxiliary,pm_well, &
+                                           pm_material_transform)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -225,14 +229,15 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form, &
 
   enddo
 
-end subroutine ExtractPMsFromPMList
+end subroutine FactSubLinkExtractPMsFromPMList
 
 ! ************************************************************************** !
 
-subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
-                            pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
-                            pm_auxiliary,pm_well,pm_material_transform, &
-                            realization)
+subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
+                                           pm_waste_form,pm_ufd_decay, &
+                                           pm_ufd_biosphere,pm_geop, &
+                                           pm_auxiliary,pm_well, &
+                                           pm_material_transform)
   !
   ! Sets up all PMC linkages
   !
@@ -266,68 +271,68 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_well_type), pointer :: pm_well
   class(pm_material_transform_type), pointer :: pm_material_transform
-  class(realization_subsurface_type), pointer :: realization
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+  class(realization_subsurface_type), pointer :: realization
 
-  option => simulation%option
+  realization => simulation%realization
+  option => realization%option
 
-  if (associated(pm_flow)) &
-    call AddPMCSubsurfaceFlow(simulation,pm_flow,'PMCSubsurfaceFlow', &
-                              realization,option)
-
-  if (associated(pm_tran))   &
-    call AddPMCSubsurfaceTransport(simulation,pm_tran, &
-                                   'PMCSubsurfaceTransport', &
-                                   realization,option)
-
-  if (associated(pm_geop)) &
-    call AddPMCSubsurfaceGeophysics(simulation,pm_geop, &
-                                    'PMCSubsurfaceGeophysics', &
-                                    realization,option)
+  if (associated(pm_flow)) then
+    call FactSubLinkAddPMCSubsurfFlow(simulation,pm_flow,'PMCSubsurfaceFlow')
+  endif
+  if (associated(pm_tran)) then
+    call FactSubLinkAddPMCSubsurfTran(simulation,pm_tran, &
+                                      'PMCSubsurfaceTransport')
+  endif
+  if (associated(pm_geop)) then
+    call FactSubLinkAddPMCSubsurfGeophys(simulation,pm_geop, &
+                                         'PMCSubsurfaceGeophysics')
+  endif
 
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  call SubsurfaceReadRequiredCards(simulation,input)
-  call SubsurfaceReadInput(simulation,input)
+  call FactorySubsurfReadRequiredCards(simulation,input)
+  call FactorySubsurfReadInput(simulation,input)
 
   if (associated(pm_waste_form)) &
-    call AddPMCWasteForm(simulation,pm_waste_form,'PMC3PWasteForm',&
-                         associated(pm_ufd_decay),realization,input,option)
+    call FactSubLinkAddPMCWasteForm(simulation,pm_waste_form, &
+                                    'PMC3PWasteForm',&
+                                    associated(pm_ufd_decay),input)
 
-  if (associated(pm_ufd_decay)) &
-    call AddPMCUFDDecay(simulation,pm_ufd_decay,'PMC3PUFDDecay',realization, &
-                        input,option)
-
-  if (associated(pm_ufd_biosphere)) &
-    call AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,'PMC3PUFDBiosphere',&
-                            associated(pm_ufd_decay),realization,input,option)
-
-  if (associated(pm_auxiliary)) &
-    call AddPMCGeneral(simulation,pm_auxiliary,'SALINITY',realization,option)
-
-  if (associated(pm_well)) &
-    call AddPMCWell(simulation,pm_well,'PMCWell',realization,input,option)
-  if (associated(pm_material_transform)) &
-    call AddPMCMaterialTransform(simulation,pm_material_transform, &
-                                 'PMC3MaterialTransform',realization,input, &
-                                 option)
-
+  if (associated(pm_ufd_decay)) then
+    call FactSubLinkAddPMCUFDDecay(simulation,pm_ufd_decay, &
+                                   'PMC3PUFDDecay',input)
+  endif
+  if (associated(pm_ufd_biosphere)) then
+    call FactSubLinkAddPMCUFDBiosphere(simulation,pm_ufd_biosphere, &
+                                       'PMC3PUFDBiosphere',&
+                                       associated(pm_ufd_decay),input)
+  endif
+  if (associated(pm_auxiliary)) then
+    call FactSubLinkAddPMCGeneral(simulation,pm_auxiliary,'SALINITY')
+  endif
+  if (associated(pm_well)) then
+    call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
+  endif
+  if (associated(pm_material_transform)) then
+    call FactSubLinkAddPMCMaterialTrans(simulation,pm_material_transform, &
+                                        'PMC3MaterialTransform',input)
+  endif
   if (associated(pm_flow)) then
     select type(pm_flow)
       class is (pm_wippflo_type)
-        call AddPMWippSrcSink(realization,pm_flow,input)
+        call FactSubLinkAddPMWippSrcSink(realization,pm_flow,input)
     end select
   endif
 
   call InputDestroy(input)
 
-end subroutine SetupPMCLinkages
+end subroutine FactSubLinkSetupPMCLinkages
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
-
+subroutine FactSubLinkAddPMCSubsurfFlow(simulation,pm_flow,pmc_name)
   !
   ! Adds a subsurface flow PMC
   !
@@ -354,11 +359,14 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   class(simulation_subsurface_type) :: simulation
   class(pm_subsurface_flow_type), pointer :: pm_flow
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
 
   class(pmc_subsurface_type), pointer :: pmc_subsurface
   character(len=MAXSTRINGLENGTH) :: string
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  realization => simulation%realization
+  option => realization%option
 
   select type(pm_flow)
     class is(pm_pnf_type)
@@ -405,12 +413,11 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   simulation%process_model_coupler_list => &
     simulation%flow_process_model_coupler
 
-end subroutine AddPMCSubsurfaceFlow
+end subroutine FactSubLinkAddPMCSubsurfFlow
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
-                                     realization,option)
+subroutine FactSubLinkAddPMCSubsurfTran(simulation,pm_base,pmc_name)
   !
   ! Adds a subsurface transport PMC
   !
@@ -436,12 +443,15 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   class(simulation_subsurface_type) :: simulation
   class(pm_base_type), pointer :: pm_base
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
 
   class(pmc_subsurface_type), pointer :: pmc_subsurface
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  realization => simulation%realization
+  option => realization%option
 
   nullify(pmc_dummy)
 
@@ -498,12 +508,12 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
                       pmc_dummy,PM_INSERT)
   endif
 
-end subroutine AddPMCSubsurfaceTransport
+end subroutine FactSubLinkAddPMCSubsurfTran
 
 ! ************************************************************************** !
 
-subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
-                           pm_ufd_decay_present,realization,input,option)
+subroutine FactSubLinkAddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
+                                      pm_ufd_decay_present,input)
 
   !
   ! Adds a waste form PMC
@@ -526,14 +536,17 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   class(pm_waste_form_type), pointer :: pm_waste_form
   character(len=*) :: pmc_name
   logical :: pm_ufd_decay_present
-  class(realization_subsurface_type), pointer :: realization
   type(input_type), pointer :: input
-  type(option_type), pointer :: option
 
   class(pmc_third_party_type), pointer :: pmc_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  realization => simulation%realization
+  option => realization%option
 
   nullify(pmc_dummy)
 
@@ -575,12 +588,11 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
          simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
 
-end subroutine AddPMCWasteForm
+end subroutine FactSubLinkAddPMCWasteForm
 
 ! ************************************************************************** !
 
-subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
-                          realization,input,option)
+subroutine FactSubLinkAddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,input)
 
   !
   ! Adds a UFD decay PMC
@@ -602,15 +614,18 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
   class(simulation_subsurface_type) :: simulation
   class(pm_ufd_decay_type), pointer :: pm_ufd_decay
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
   type(input_type), pointer :: input
-  type(option_type), pointer :: option
 
   class(pmc_third_party_type), pointer :: pmc_ufd_decay
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
 
   nullify(pmc_dummy)
+
+  realization => simulation%realization
+  option => realization%option
 
   string = 'UFD_DECAY'
   call InputFindStringInFile(input,option,string)
@@ -638,13 +653,13 @@ subroutine AddPMCUFDDecay(simulation,pm_ufd_decay,pmc_name,&
          simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
 
-end subroutine AddPMCUFDDecay
+end subroutine FactSubLinkAddPMCUFDDecay
 
 ! ************************************************************************** !
 
-subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
-                              pm_ufd_decay_present,realization,input,option)
-
+subroutine FactSubLinkAddPMCUFDBiosphere(simulation,pm_ufd_biosphere, &
+                                         pmc_name,pm_ufd_decay_present, &
+                                         input)
   !
   ! Adds a UFD biosphere PMC
   !
@@ -666,15 +681,18 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   character(len=*) :: pmc_name
   logical :: pm_ufd_decay_present
-  class(realization_subsurface_type), pointer :: realization
   type(input_type), pointer :: input
-  type(option_type), pointer :: option
 
   class(pmc_third_party_type), pointer :: pmc_ufd_biosphere
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
 
   nullify(pmc_dummy)
+
+  realization => simulation%realization
+  option => realization%option
 
   string = 'UFD_BIOSPHERE'
   call InputFindStringInFile(input,option,string)
@@ -706,12 +724,11 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
          simulation%tran_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
 
-end subroutine AddPMCUDFBiosphere
+end subroutine FactSubLinkAddPMCUFDBiosphere
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
-                                      realization,option)
+subroutine FactSubLinkAddPMCSubsurfGeophys(simulation,pm_base,pmc_name)
   ! Adds a Geophysics PMC
   !
   ! Author: Piyoosh Jaysaval
@@ -733,11 +750,14 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
   class(simulation_subsurface_type) :: simulation
   class(pm_base_type), pointer :: pm_base
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
 
   class(pmc_geophysics_type), pointer :: pmc_geophysics
   character(len=MAXSTRINGLENGTH) :: string
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  realization => simulation%realization
+  option => realization%option
 
   pmc_geophysics => PMCGeophysicsCreate()
 
@@ -775,13 +795,11 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
     simulation%process_model_coupler_list => pmc_geophysics
   endif
 
-end subroutine AddPMCSubsurfaceGeophysics
+end subroutine FactSubLinkAddPMCSubsurfGeophys
 
 ! ************************************************************************** !
 
-subroutine AddPMCGeneral(simulation,pm_auxiliary,pmc_name, &
-                         realization,option)
-
+subroutine FactSubLinkAddPMCGeneral(simulation,pm_auxiliary,pmc_name)
   !
   ! Adds an auxiliary PMC
   !
@@ -804,14 +822,17 @@ subroutine AddPMCGeneral(simulation,pm_auxiliary,pmc_name, &
   class(simulation_subsurface_type) :: simulation
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
 
   class(pmc_general_type), pointer :: pmc_general
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
 
   nullify(pmc_dummy)
+
+  realization => simulation%realization
+  option => realization%option
 
   pm_auxiliary%realization => realization
 
@@ -831,12 +852,12 @@ subroutine AddPMCGeneral(simulation,pm_auxiliary,pmc_name, &
 
   call LoggingCreateStage(string,pmc_general%stage)
 
-end subroutine AddPMCGeneral
+end subroutine FactSubLinkAddPMCGeneral
 
 ! ************************************************************************** !
 
-subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
-                                   realization, input, option)
+subroutine FactSubLinkAddPMCMaterialTrans(simulation, pm_material_transform, &
+                                          pmc_name, input)
   !
   ! Adds a material transform PMC
   !
@@ -857,15 +878,18 @@ subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
   class(simulation_subsurface_type) :: simulation
   class(pm_material_transform_type), pointer :: pm_material_transform
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
   type(input_type), pointer :: input
-  type(option_type), pointer :: option
 
   class(pmc_third_party_type), pointer :: pmc_material_transform
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
 
   nullify(pmc_dummy)
+
+  realization => simulation%realization
+  option => realization%option
 
   string = 'MATERIAL_TRANSFORM_GENERAL'
   call InputFindStringInFile(input,option,string)
@@ -901,13 +925,11 @@ subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
            pmc_dummy,PM_APPEND)
   endif
 
-end subroutine AddPMCMaterialTransform
+end subroutine FactSubLinkAddPMCMaterialTrans
 
 ! ************************************************************************** !
 
-subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
-                      option)
-
+subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   !
   ! Adds a well PMC
   !
@@ -928,13 +950,16 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
   class(simulation_subsurface_type) :: simulation
   class(pm_well_type), pointer :: pm_well
   character(len=*) :: pmc_name
-  class(realization_subsurface_type), pointer :: realization
   type(input_type), pointer :: input
-  type(option_type), pointer :: option
 
   class(pmc_third_party_type), pointer :: pmc_well
   character(len=MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  realization => simulation%realization
+  option => realization%option
 
   nullify(pmc_dummy)
 
@@ -978,11 +1003,11 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
          pmc_dummy,PM_APPEND)
   endif
 
-end subroutine AddPMCWell
+end subroutine FactSubLinkAddPMCWell
 
 ! ************************************************************************** !
 
-subroutine AddPMWippSrcSink(realization,pm_wippflo,input)
+subroutine FactSubLinkAddPMWippSrcSink(realization,pm_wippflo,input)
 
   use Input_Aux_module
   use Option_module
@@ -1010,11 +1035,116 @@ subroutine AddPMWippSrcSink(realization,pm_wippflo,input)
     call PMWSSSetRealization(pm_wippflo%pmwss_ptr,realization)
   endif
 
-end subroutine AddPMWippSrcSink
+end subroutine FactSubLinkAddPMWippSrcSink
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfSetPMCWaypointPtrs(simulation)
+subroutine FactSubLinkAddPMCEvolvingStrata(simulation)
+!
+! Adds the evolving strata process model, if applicable
+!
+! Author: Glenn Hammond
+! Date: 11/23/22
+!
+  use PM_Auxiliary_class
+  use PMC_General_class
+  use PMC_Base_class
+  use Simulation_Subsurface_class
+  use Strata_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+
+  class(pm_auxiliary_type), pointer :: pm_aux
+  class(pmc_general_type), pointer :: pmc_general
+  class(pmc_base_type), pointer :: pmc_dummy
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (StrataEvolves(simulation%realization%patch%strata_list)) then
+    allocate(pm_aux)
+    call PMAuxiliaryInit(pm_aux)
+    string = 'EVOLVING_STRATA'
+    call PMAuxiliarySetFunctionPointer(pm_aux,string)
+    pm_aux%realization => simulation%realization
+    pm_aux%option => simulation%option
+
+    pmc_general => PMCGeneralCreate('',pm_aux%CastToBase())
+    pmc_general%evaluate_at_end_of_simulation = PETSC_FALSE
+    ! place the material process model as %peer for the top pmc
+    call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
+           simulation%process_model_coupler_list%CastToBase(), &
+           pmc_dummy,PM_APPEND)
+    nullify(pm_aux)
+    nullify(pmc_general)
+  endif
+
+end subroutine FactSubLinkAddPMCEvolvingStrata
+
+! ************************************************************************** !
+
+subroutine FactSubLinkAddPMCInversion(simulation)
+!
+! Adds the evolving strata process model, if applicable
+!
+! Author: Glenn Hammond
+! Date: 11/23/22
+!
+  use PM_Inversion_class
+  use PMC_General_class
+  use PMC_Base_class
+  use Simulation_Subsurface_class
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+
+  class(pm_inversion_type), pointer :: pm_inv
+  class(pmc_general_type), pointer :: pmc_general
+  class(pmc_base_type), pointer :: pmc_dummy
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (associated(simulation%option%inversion)) then
+    allocate(pm_inv)
+    call PMInversionInit(pm_inv)
+    string = 'INVERSION_MEASUREMENT'
+    call PMInversionSetFunctionPointer(pm_inv,string)
+    pm_inv%realization => simulation%realization
+    pm_inv%option => simulation%option
+
+    pmc_general => PMCGeneralCreate('',pm_inv%CastToBase())
+    ! place the material process model as %peer for the top pmc
+    call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
+           simulation%process_model_coupler_list%CastToBase(), &
+           pmc_dummy,PM_APPEND)
+    nullify(pm_inv)
+    nullify(pmc_general)
+  endif
+
+  if (associated(simulation%option%inversion)) then
+    if (.not.simulation%option%inversion%use_perturbation) then
+      allocate(pm_inv)
+      call PMInversionInit(pm_inv)
+      string = 'INVERSION_ADJOINT'
+      call PMInversionSetFunctionPointer(pm_inv,string)
+      pm_inv%realization => simulation%realization
+      pm_inv%option => simulation%option
+
+      pmc_general => PMCGeneralCreate('',pm_inv%CastToBase())
+      ! place the material process model as %peer for the top pmc
+      call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_CHILD, &
+            simulation%process_model_coupler_list%CastToBase(), &
+            pmc_dummy,PM_APPEND)
+      nullify(pm_inv)
+      nullify(pmc_general)
+    endif
+  endif
+
+end subroutine FactSubLinkAddPMCInversion
+
+! ************************************************************************** !
+
+subroutine FactSubLinkSetPMCWaypointPtrs(simulation)
   !
   ! Sets the process model coupler waypoint pointers to the first waypoint
   !
@@ -1038,6 +1168,6 @@ subroutine FactorySubsurfSetPMCWaypointPtrs(simulation)
            SetWaypointPtr(simulation%waypoint_list_subsurface)
   endif
 
-end subroutine FactorySubsurfSetPMCWaypointPtrs
+end subroutine FactSubLinkSetPMCWaypointPtrs
 
 end module Factory_Subsurface_Linkage_module

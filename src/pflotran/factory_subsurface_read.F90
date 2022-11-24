@@ -10,22 +10,22 @@ module Factory_Subsurface_Read_module
   private
 
   public :: &
-            FactorySubsurfaceReadFlowPM, &
-            FactorySubsurfaceReadTransportPM, &
-            FactorySubsurfaceReadWasteFormPM, &
-            FactorySubsurfaceReadUFDDecayPM, &
+            FactorySubsurfReadFlowPM, &
+            FactorySubsurfReadTransportPM, &
+            FactorySubsurfReadWasteFormPM, &
+            FactorySubsurfReadUFDDecayPM, &
             FactorySubsurfReadUFDBiospherePM, &
             FactorySubsurfReadWellPM, &
-            FactorySubsurfaceReadMTPM, &
+            FactorySubsurfReadMTPM, &
             FactorySubsurfReadGeophysicsPM, &
-            SubsurfaceReadRequiredCards, &
-            SubsurfaceReadInput
+            FactorySubsurfReadRequiredCards, &
+            FactorySubsurfReadInput
 
 contains
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
+subroutine FactorySubsurfReadFlowPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -130,11 +130,11 @@ subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine FactorySubsurfaceReadFlowPM
+end subroutine FactorySubsurfReadFlowPM
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceReadTransportPM(input,option,pm)
+subroutine FactorySubsurfReadTransportPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
@@ -237,11 +237,11 @@ subroutine FactorySubsurfaceReadTransportPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine FactorySubsurfaceReadTransportPM
+end subroutine FactorySubsurfReadTransportPM
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
+subroutine FactorySubsurfReadWasteFormPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -323,11 +323,11 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
 
   pm%option => option
 
-end subroutine FactorySubsurfaceReadWasteFormPM
+end subroutine FactorySubsurfReadWasteFormPM
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceReadUFDDecayPM(input,option,pm)
+subroutine FactorySubsurfReadUFDDecayPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -376,7 +376,7 @@ subroutine FactorySubsurfaceReadUFDDecayPM(input,option,pm)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine FactorySubsurfaceReadUFDDecayPM
+end subroutine FactorySubsurfReadUFDDecayPM
 
 ! ************************************************************************** !
 
@@ -542,7 +542,7 @@ end subroutine FactorySubsurfReadWellPM
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceReadMTPM(input, option, pm)
+subroutine FactorySubsurfReadMTPM(input, option, pm)
   !
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
@@ -591,11 +591,11 @@ subroutine FactorySubsurfaceReadMTPM(input, option, pm)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine FactorySubsurfaceReadMTPM
+end subroutine FactorySubsurfReadMTPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadRequiredCards(simulation,input)
+subroutine FactorySubsurfReadRequiredCards(simulation,input)
   !
   ! Reads required cards from input file
   !
@@ -777,11 +777,11 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   call InputPopBlock(input,option) ! REQUIRED_CARDS
   call InputPopBlock(input,option) ! SUBSURFACE
 
-end subroutine SubsurfaceReadRequiredCards
+end subroutine FactorySubsurfReadRequiredCards
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadInput(simulation,input)
+subroutine FactorySubsurfReadInput(simulation,input)
   !
   ! Reads pflow input file
   !
@@ -2527,6 +2527,6 @@ endif
                            master_pmc%timestepper%local_waypoint_list,option)
   endif
 
-end subroutine SubsurfaceReadInput
+end subroutine FactorySubsurfReadInput
 
 end module Factory_Subsurface_Read_module
