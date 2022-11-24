@@ -2515,7 +2515,6 @@ recursive subroutine PMWellInitializeRun(this)
   type(tran_condition_type), pointer :: tran_condition
   class(tran_constraint_base_type), pointer :: cur_constraint
   type(output_variable_list_type), pointer :: output_var_list
-  PetscInt, pointer :: all_strata_id(:)
   PetscInt :: nsegments, k, i, j
   PetscReal :: curr_time
   PetscErrorCode :: ierr
@@ -2535,47 +2534,7 @@ recursive subroutine PMWellInitializeRun(this)
     patch_strata => patch_strata%next
   enddo
 
-  ! loop thru well stratas and mark them as active or inactive
-  well_strata => this%strata_list%first
-  do
-    if (.not.associated(well_strata)) exit
-    if (Initialized(well_strata%start_time) .and. &
-        Initialized(well_strata%final_time)) then
-      if ((curr_time >= well_strata%start_time) .and. &
-          (curr_time <= well_strata%final_time))  then
-        well_strata%active = PETSC_TRUE
-      else
-        well_strata%active = PETSC_FALSE
-      endif
-    else
-      well_strata%active = PETSC_TRUE
-    endif
-    well_strata => well_strata%next
-  enddo
-
-  do k = 1,nsegments
-    if (this%well_grid%h_rank_id(k) /= this%option%myrank) cycle
-    well_strata => this%strata_list%first
-    do
-      if (.not.associated(well_strata)) exit
-      if ((any(well_strata%region%cell_ids == &
-               this%well_grid%h_local_id(k))) .and. &
-          (well_strata%active)) then
-        this%well_grid%strata_id(k) = well_strata%id
-      endif
-      well_strata => well_strata%next
-    enddo
-  enddo
-  allocate(all_strata_id(nsegments))
-  call MPI_Allreduce(this%well_grid%strata_id,all_strata_id,nsegments, &
-                     MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr);CHKERRQ(ierr)
-  this%well_grid%strata_id = all_strata_id
-  if (any(this%well_grid%strata_id == UNINITIALIZED_INTEGER)) then
-    this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
-        &not been assigned with a REGION and MATERIAL_PROPERTY with the use &
-        &of the STRATA block.'
-    call PrintErrMsg(this%option)
-  endif
+  call PMWellUpdateStrata(this,curr_time)
 
   allocate(this%flow_soln%residual(nsegments*this%flow_soln%ndof))
   allocate(this%flow_soln%update(nsegments*this%flow_soln%ndof))
@@ -2831,14 +2790,10 @@ subroutine PMWellInitializeTimestep(this)
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
 
-  use Strata_module
-
   implicit none
 
   class(pm_well_type) :: this
 
-  type(strata_type), pointer :: strata
-  PetscInt, pointer :: all_strata_id(:)
   PetscInt :: k
   PetscReal :: curr_time
   PetscErrorCode :: ierr
@@ -2852,49 +2807,7 @@ subroutine PMWellInitializeTimestep(this)
   call PMWellUpdateReservoir(this)
   call PMWellComputeWellIndex(this)
 
-  ! loop thru strata and mark them as active or inactive
-  strata => this%strata_list%first
-  do
-    if (.not.associated(strata)) exit
-    if (Initialized(strata%start_time) .and. &
-        Initialized(strata%final_time)) then
-      if ((curr_time >= strata%start_time) .and. &
-          (curr_time <= strata%final_time))  then
-        strata%active = PETSC_TRUE
-      else
-        strata%active = PETSC_FALSE
-      endif
-    else
-      strata%active = PETSC_TRUE
-    endif
-    strata => strata%next
-  enddo
-
-  ! update the well_grid%strata_id assignment for active strata
-  this%well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-  do k = 1,this%well_grid%nsegments
-    strata => this%strata_list%first
-    do
-      if (.not.associated(strata)) exit
-      if ((any(strata%region%cell_ids == &
-               this%well_grid%h_local_id(k))) .and. &
-          (strata%active)) then
-        this%well_grid%strata_id(k) = strata%id
-      endif
-      strata => strata%next
-    enddo
-  enddo
-  allocate(all_strata_id(this%well_grid%nsegments))
-  call MPI_Allreduce(this%well_grid%strata_id,all_strata_id, &
-                     this%well_grid%nsegments,MPI_INTEGER,MPI_MAX, &
-                     this%option%mycomm,ierr);CHKERRQ(ierr)
-  this%well_grid%strata_id = all_strata_id
-  if (any(this%well_grid%strata_id == UNINITIALIZED_INTEGER)) then
-    this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
-          &not been assigned with a REGION and MATERIAL_PROPERTY with the use &
-          &of the STRATA block.'
-    call PrintErrMsg(this%option)
-  endif
+  call PMWellUpdateStrata(this,curr_time)
 
   if (initialize_well) then
     ! enter here if its the very first timestep
@@ -3021,12 +2934,82 @@ end subroutine PMWellInitializeWell
 
 ! ************************************************************************** !
 
+subroutine PMWellUpdateStrata(this,curr_time)
+!
+! Updates the strata at current time for the well process model.
+!
+! Author: Jennifer M. Frederick
+! Date: 11/23/2022
+
+  use Strata_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal :: curr_time
+
+  type(strata_type), pointer :: well_strata
+  PetscInt, pointer :: all_strata_id(:)
+  PetscInt :: nsegments
+  PetscInt :: k
+  PetscErrorCode :: ierr
+
+  nsegments = this%well_grid%nsegments
+
+  ! loop thru well stratas and mark them as active or inactive
+  well_strata => this%strata_list%first
+  do
+    if (.not.associated(well_strata)) exit
+    if (Initialized(well_strata%start_time) .and. &
+        Initialized(well_strata%final_time)) then
+      if ((curr_time >= well_strata%start_time) .and. &
+          (curr_time <= well_strata%final_time))  then
+        well_strata%active = PETSC_TRUE
+      else
+        well_strata%active = PETSC_FALSE
+      endif
+    else
+      well_strata%active = PETSC_TRUE
+    endif
+    well_strata => well_strata%next
+  enddo
+
+  ! update the well_grid%strata_id assignment for active strata
+  do k = 1,nsegments
+    if (this%well_grid%h_rank_id(k) /= this%option%myrank) cycle
+    well_strata => this%strata_list%first
+    do
+      if (.not.associated(well_strata)) exit
+      if ((any(well_strata%region%cell_ids == &
+               this%well_grid%h_local_id(k))) .and. &
+          (well_strata%active)) then
+        this%well_grid%strata_id(k) = well_strata%id
+      endif
+      well_strata => well_strata%next
+    enddo
+  enddo
+  allocate(all_strata_id(nsegments))
+  call MPI_Allreduce(this%well_grid%strata_id,all_strata_id,nsegments, &
+                     MPI_INTEGER,MPI_MAX,this%well_comm%comm,ierr);CHKERRQ(ierr)
+  this%well_grid%strata_id = all_strata_id
+  if (any(this%well_grid%strata_id == UNINITIALIZED_INTEGER) .and. &
+      any(this%well_comm%petsc_rank_list == this%option%myrank)) then
+    this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
+        &not been assigned with a REGION and MATERIAL_PROPERTY with the use &
+        &of the STRATA block.'
+    call PrintErrMsg(this%option)
+  endif
+
+end subroutine PMWellUpdateStrata
+
+! ************************************************************************** !
+
 subroutine PMWellUpdateReservoir(this)
-  !
-  ! Updates the reservoir properties for the well process model.
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 12/01/2021
+!
+! Updates the reservoir properties for the well process model.
+!
+! Author: Jennifer M. Frederick
+! Date: 12/01/2021
 
   use WIPP_Flow_Aux_module
   use Material_Aux_module
@@ -3111,11 +3094,11 @@ subroutine PMWellUpdateTimestep(this,update_dt, &
                                 dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
                                 time_step_max_growth_factor)
-  !
-  ! Updates the time step for the well process model.
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 08/04/2021
+!
+! Updates the time step for the well process model.
+!
+! Author: Jennifer M. Frederick
+! Date: 08/04/2021
 
   implicit none
 
@@ -3135,9 +3118,9 @@ end subroutine PMWellUpdateTimestep
 ! ************************************************************************** !
 
 subroutine PMWellFinalizeTimestep(this)
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 08/04/2021
+!
+! Author: Jennifer M. Frederick
+! Date: 08/04/2021
 
   implicit none
 
@@ -3165,9 +3148,9 @@ end subroutine PMWellFinalizeTimestep
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSink(this)
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 12/21/2021
+!
+! Author: Jennifer M. Frederick
+! Date: 12/21/2021
 
   use Coupler_module
   use NW_Transport_Aux_module
@@ -3255,9 +3238,9 @@ end subroutine PMWellUpdateReservoirSrcSink
 ! ************************************************************************** !
 
 subroutine PMWellResidualFlow(this)
-  !
-  ! Author: Michael Nole
-  ! Date: 08/04/2021
+!
+! Author: Michael Nole
+! Date: 08/04/2021
 
   implicit none
 
