@@ -118,7 +118,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     pmc_geomech%name = 'PMCGeomech'
     simulation%geomech_process_model_coupler => pmc_geomech
     pmc_geomech%option => option
-    pmc_geomech%checkpoint_option => simulation%checkpoint_option
     pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
     pmc_geomech%pm_list => pm_geomech
     pmc_geomech%pm_ptr%pm => pm_geomech

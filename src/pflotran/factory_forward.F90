@@ -24,7 +24,6 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
 !
   use Driver_module
   use Option_module
-  use Output_Aux_module
   use Logging_module
   use Input_Aux_module
   use String_module
@@ -85,6 +84,7 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
   use PMC_Base_class
   use Checkpoint_module
   use Output_Aux_module
+  use Option_Checkpoint_module
   use Waypoint_module
   use Units_module
 
@@ -146,10 +146,9 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
       case('PRINT_EKG')
         option%print_ekg = PETSC_TRUE
       case('CHECKPOINT')
-        checkpoint_option => CheckpointOptionCreate()
+        option%checkpoint => OptionCheckpointCreate()
         checkpoint_waypoint_list => WaypointListCreate()
-        call CheckpointRead(input,option,checkpoint_option, &
-                            checkpoint_waypoint_list)
+        call CheckpointRead(input,option,checkpoint_waypoint_list)
       case ('RESTART')
         call FactoryForwardReadRestart(input,option)
       case('INPUT_RECORD_FILE')
@@ -197,7 +196,6 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
   call WaypointListMerge(simulation%waypoint_list_outer, &
                          checkpoint_waypoint_list,option)
   simulation%process_model_list => pm_master
-  simulation%checkpoint_option => checkpoint_option
 
   select type(simulation)
     class is(simulation_geomechanics_type)

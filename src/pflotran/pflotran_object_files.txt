@@ -10,6 +10,7 @@ util_obj = \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
 	${common_src}option.o \
+	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
 	${common_src}option_inversion.o \
 	${common_src}option_transport.o \
