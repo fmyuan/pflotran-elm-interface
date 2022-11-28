@@ -4,7 +4,7 @@ auxiliary.o : \
   global_aux.o \
   hydrate_aux.o \
   inlinesurface_aux.o \
-  inversion_ts_aux.o \
+  inversion_aux.o \
   material_aux.o \
   material_transform.o \
   mphase_aux.o \
@@ -518,6 +518,7 @@ factory_subsurface_linkage.o : \
   pm_base.o \
   pm_base_pointer.o \
   pm_ert.o \
+  pm_inversion.o \
   pm_material_transform.o \
   pm_nwt.o \
   pm_pnf.o \
@@ -540,6 +541,7 @@ factory_subsurface_linkage.o : \
   pmc_third_party.o \
   realization_subsurface.o \
   simulation_subsurface.o \
+  strata.o \
   string.o \
   timestepper_KSP.o \
   timestepper_SNES.o \
@@ -1188,6 +1190,7 @@ integral_flux.o : \
   string.o \
   utility.o
 inversion_aux.o : \
+  inversion_coupled_aux.o \
   inversion_measurement_aux.o \
   inversion_parameter.o \
   inversion_ts_aux.o \

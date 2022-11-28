@@ -31,9 +31,7 @@ module Inversion_Subsurface_class
     class(simulation_subsurface_type), pointer :: forward_simulation
     class(realization_subsurface_type), pointer :: realization
     type(inversion_aux_type), pointer :: inversion_aux
-    type(inversion_measurement_aux_type), pointer :: measurements(:)
-    type(inversion_coupled_aux_type), pointer :: inversion_coupled_aux
-    type(inversion_parameter_type), pointer :: parameters(:)
+!    type(inversion_parameter_type), pointer :: parameters(:)
     type(perturbation_type), pointer :: perturbation
     PetscInt :: dist_measurement_offset
     PetscInt :: parameter_offset  ! needed?
@@ -41,11 +39,10 @@ module Inversion_Subsurface_class
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest       ! reserved for inversion_ert
     Vec :: ref_quantity_of_interest   ! reserved for inversion_ert
-    Vec :: measurement_vec
-    Vec :: dist_measurement_vec
-    Vec :: parameter_vec
-    Vec :: dist_parameter_vec
-    Vec :: ref_parameter_vec    ! needed?
+!    Vec :: measurement_vec
+!    Vec :: dist_measurement_vec
+!    Vec :: parameter_vec
+!    Vec :: dist_parameter_vec
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     ! flags reference in objects below the inversion objects should be
     ! stored in option_inversion_type
@@ -56,9 +53,9 @@ module Inversion_Subsurface_class
     PetscBool :: perturbation_risk_acknowledged
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
-    VecScatter :: scatter_measure_to_dist_measure
-    VecScatter :: scatter_param_to_dist_param
-    VecScatter :: scatter_global_to_dist_param
+!    VecScatter :: scatter_measure_to_dist_measure
+!    VecScatter :: scatter_param_to_dist_param
+!    VecScatter :: scatter_global_to_dist_param
     PetscReal, pointer :: local_measurement_values(:)
     PetscReal, pointer :: local_dobs_dunknown_values(:)
     PetscReal, pointer :: local_dobs_dparam_values(:)
@@ -145,23 +142,16 @@ subroutine InversionSubsurfaceInit(this,driver)
   class(driver_type), pointer :: driver
 
   call InversionBaseInit(this,driver)
+  this%inversion_aux => InversionAuxCreate()
 
   this%quantity_of_interest = PETSC_NULL_VEC
   this%n_qoi_per_cell = UNINITIALIZED_INTEGER
-  this%measurement_vec = PETSC_NULL_VEC
-  this%dist_measurement_vec = PETSC_NULL_VEC
-  this%parameter_vec = PETSC_NULL_VEC
-  this%dist_parameter_vec = PETSC_NULL_VEC
-  this%ref_parameter_vec = PETSC_NULL_VEC
   this%ref_quantity_of_interest = PETSC_NULL_VEC
   this%ref_qoi_dataset_name = ''
   this%forward_simulation_filename = ''
   this%print_sensitivity_jacobian = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
   this%debug_verbosity = UNINITIALIZED_INTEGER
-  this%scatter_measure_to_dist_measure = PETSC_NULL_VECSCATTER
-  this%scatter_param_to_dist_param = PETSC_NULL_VECSCATTER
-  this%scatter_global_to_dist_param = PETSC_NULL_VECSCATTER
   this%dist_measurement_offset = UNINITIALIZED_INTEGER
   this%parameter_offset = UNINITIALIZED_INTEGER
   this%num_parameters_local = UNINITIALIZED_INTEGER
@@ -175,14 +165,10 @@ subroutine InversionSubsurfaceInit(this,driver)
   nullify(this%local_dobs_dparam_values)
   nullify(this%local_measurement_map)
 
-  nullify(this%measurements)
-  nullify(this%parameters)
   nullify(this%perturbation)
-  nullify(this%inversion_coupled_aux)
 
   nullify(this%forward_simulation)
   nullify(this%realization)
-  nullify(this%inversion_aux)
 
   ! initialize measurement reporting verbosity
   inv_meas_reporting_verbosity = 1
@@ -381,8 +367,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             if (input%ierr /= 0) word = 'sec'
             measurement_time_units = trim(word)
             internal_units = 'sec'
-            measurement_time = measurement_time* &
-                               UnitsConvertToInternal(word,internal_units,option)
+            measurement_time = measurement_time * &
+                           UnitsConvertToInternal(word,internal_units,option)
           case('OBSERVED_VARIABLE')
             observed_variable = &
               InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
@@ -397,19 +383,19 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       if (.not.associated(last_measurement)) then
         option%io_buffer = 'No measurement found in inversion measurement block.'
         call PrintErrMsg(option)
-      else if (associated(this%measurements)) then
+      else if (associated(this%inversion_aux%measurements)) then
         option%io_buffer = 'Measurements may only be defined in a single block.'
         call PrintErrMsg(option)
       else
-        allocate(this%measurements(last_measurement%id))
+        allocate(this%inversion_aux%measurements(last_measurement%id))
         do i = 1, last_measurement%id
-          call InversionMeasurementAuxInit(this%measurements(i))
+          call InversionMeasurementAuxInit(this%inversion_aux%measurements(i))
         enddo
         last_measurement => first_measurement
         do
           if (.not.associated(last_measurement)) exit
           call InversionMeasurementAuxCopy(last_measurement, &
-                                         this%measurements(last_measurement%id))
+                         this%inversion_aux%measurements(last_measurement%id))
           last_measurement => last_measurement%next
         enddo
         call InversionMeasureAuxListDestroy(first_measurement)
@@ -445,19 +431,19 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       if (.not.associated(last_parameter)) then
         option%io_buffer = 'No parameter found in inversion parameter block.'
         call PrintErrMsg(option)
-      else if (associated(this%parameters)) then
+      else if (associated(this%inversion_aux%parameters)) then
         option%io_buffer = 'Parameters may only be defined in a single block.'
         call PrintErrMsg(option)
       else
-        allocate(this%parameters(last_parameter%id))
+        allocate(this%inversion_aux%parameters(last_parameter%id))
         do i = 1, last_parameter%id
-          call InversionParameterInit(this%parameters(i))
+          call InversionParameterInit(this%inversion_aux%parameters(i))
         enddo
         last_parameter => first_parameter
         do
           if (.not.associated(last_parameter)) exit
           call InversionParameterCopy(last_parameter, &
-                                           this%parameters(last_parameter%id))
+                             this%inversion_aux%parameters(last_parameter%id))
           last_parameter => last_parameter%next
         enddo
         call InversionParameterDestroy(first_parameter)
@@ -573,7 +559,6 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   class(inversion_subsurface_type) :: this
 
   type(patch_type), pointer :: patch
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
   type(material_property_type), pointer :: material_property
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: iflag
@@ -597,7 +582,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   nullify(vec_ptr)
 
   patch => this%realization%patch
-  if (.not.associated(this%inversion_aux)) then
+  if (this%inversion_aux%measurement_vec == PETSC_NULL_VEC) then
     ! perturbation can be problematic with certain flow/transport configurations
     ! check for these situations here
     if (associated(this%perturbation) .and. &
@@ -622,38 +607,40 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     endif
     this%n_qoi_per_cell = 1 ! 1 perm per cell
 
-    this%inversion_aux => InversionAuxCreate()
     num_measurements = 0
-    if (associated(this%measurements)) then
-      num_measurements = size(this%measurements)
+    if (associated(this%inversion_aux%measurements)) then
+      num_measurements = size(this%inversion_aux%measurements)
     else
       call this%driver%PrintErrMsg('No inversion measurements defined.')
     endif
-    if (associated(this%parameters)) then
+    if (associated(this%inversion_aux%parameters)) then
       num_parameters = 0
-      do i = 1, size(this%parameters)
-        call InversionParameterMapNameToInt(this%parameters(i),this%driver)
-        if (len_trim(this%parameters(i)%material_name) > 0) then
+      do i = 1, size(this%inversion_aux%parameters)
+        call InversionParameterMapNameToInt(this%inversion_aux%parameters(i), &
+                                            this%driver)
+        if (len_trim(this%inversion_aux%parameters(i)%material_name) > 0) then
           material_property => &
-            MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
+            MaterialPropGetPtrFromArray(this%inversion_aux% &
+                                          parameters(i)%material_name, &
                               this%realization%patch%material_property_array)
           if (.not.associated(material_property)) then
             call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
-                trim(this%parameters(i)%material_name) // '" not found among &
-            &MATERIAL_PROPERTIES.')
+                trim(this%inversion_aux%parameters(i)%material_name) // &
+                '" not found among MATERIAL_PROPERTIES.')
           endif
-          this%parameters(i)%imat = abs(material_property%internal_id)
+          this%inversion_aux%parameters(i)%imat = &
+            abs(material_property%internal_id)
           num_parameters = num_parameters + 1
         else
           num_parameters = num_parameters + patch%grid%nmax
         endif
       enddo
       if (.not.associated(this%perturbation)) then
-        do i = 1, size(this%parameters)
+        do i = 1, size(this%inversion_aux%parameters)
           if (i == 1) then
-            temp_int = this%parameters(i)%iparameter
+            temp_int = this%inversion_aux%parameters(i)%iparameter
           else
-            if (temp_int /= this%parameters(i)%iparameter) then
+            if (temp_int /= this%inversion_aux%parameters(i)%iparameter) then
               call this%driver%PrintErrMsg('Inversion by multiple &
                 &parameters of differing type (e.g. permeability, &
                 &porosity) only supported for perturbation.')
@@ -670,14 +657,15 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     else
       call this%driver%PrintErrMsg('No inversion parameters defined.')
     endif
-    if (size(this%parameters) > 1 .and. this%qoi_is_full_vector) then
+    if (size(this%inversion_aux%parameters) > 1 .and. &
+        this%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('More than one parameter not currently &
                                    &supported for full vector inversion.')
     endif
 
     if (this%inversion_option%coupled_flow_ert) then
-      do i = 1, size(this%parameters)
-        if (InversionParameterGetIDFromName(this%parameters(i)% &
+      do i = 1, size(this%inversion_aux%parameters)
+        if (InversionParameterGetIDFromName(this%inversion_aux%parameters(i)% &
                                               parameter_name,this%driver) /= &
             PERMEABILITY) then
           call this%driver%PrintErrMsg('COUPLED_ZFLOW_ERT currently only &
@@ -691,8 +679,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
         call this%driver%PrintErrMsg('Coupled ZFLOW and ERT inversion &
           &requires that both ZFLOW and ERT process models are employed.')
       endif
-      this%inversion_coupled_aux => InversionCoupledAuxCreate()
-      this%inversion_coupled_aux%parameters => this%parameters
+      this%inversion_aux%coupled_aux => InversionCoupledAuxCreate()
+      this%inversion_aux%coupled_aux%parameters => this%inversion_aux%parameters
     endif
 
     ! JsensitivityT is the transpose of the sensitivity Jacobian
@@ -703,12 +691,12 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                         PETSC_NULL_SCALAR,this%inversion_aux%JsensitivityT, &
                         ierr);CHKERRQ(ierr)
     call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-    ! cannot pass in this%measurement_vec as it is initialized to
+    ! cannot pass in this%inversion_aux%measurement_vec as it is initialized to
     ! PETSC_NULL_VEC and MatCreateVecs keys off that input
     call MatCreateVecs(this%inversion_aux%JsensitivityT,v,v2, &
                        ierr);CHKERRQ(ierr)
-    this%dist_measurement_vec = v
-    this%dist_parameter_vec = v2
+    this%inversion_aux%dist_measurement_vec = v
+    this%inversion_aux%dist_parameter_vec = v2
     call MatGetLocalSize(this%inversion_aux%JsensitivityT,temp_int, &
                          num_measurements_local,ierr);CHKERRQ(ierr)
     if (this%num_parameters_local == PETSC_DECIDE) then
@@ -729,7 +717,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     this%parameter_offset = int_array2(1)
     this%dist_measurement_offset = int_array2(2)
     deallocate(int_array,int_array2)
-    call VecCreateSeq(PETSC_COMM_SELF,num_measurements,this%measurement_vec, &
+    call VecCreateSeq(PETSC_COMM_SELF,num_measurements, &
+                      this%inversion_aux%measurement_vec, &
                       ierr);CHKERRQ(ierr)
 
     if (this%qoi_is_full_vector) then
@@ -745,18 +734,21 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                            PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
       deallocate(int_array)
       call VecScatterCreate(this%realization%field%work,is_petsc, &
-                            this%dist_parameter_vec,PETSC_NULL_IS, &
-                            this%scatter_global_to_dist_param, &
+                            this%inversion_aux%dist_parameter_vec, &
+                            PETSC_NULL_IS, &
+                            this%inversion_aux%scatter_global_to_dist_param, &
                             ierr);CHKERRQ(ierr)
       call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
     else
-      call VecCreateSeq(PETSC_COMM_SELF,num_parameters,this%parameter_vec, &
+      call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
+                        this%inversion_aux%parameter_vec, &
                         ierr);CHKERRQ(ierr)
       call ISCreateStride(this%driver%comm%mycomm,num_parameters,ZERO_INTEGER, &
                           ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
-      call VecScatterCreate(this%parameter_vec,is_parameter, &
-                            this%dist_parameter_vec,PETSC_NULL_IS, &
-                            this%scatter_param_to_dist_param, &
+      call VecScatterCreate(this%inversion_aux%parameter_vec,is_parameter, &
+                            this%inversion_aux%dist_parameter_vec, &
+                            PETSC_NULL_IS, &
+                            this%inversion_aux%scatter_param_to_dist_param, &
                             ierr);CHKERRQ(ierr)
       call ISDestroy(is_parameter,ierr)
     endif
@@ -764,7 +756,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     do i = 1, num_measurements
       iflag = PETSC_FALSE
       ! ensure that all observed variables are being simulated
-      select case(this%measurements(i)%iobs_var)
+      select case(this%inversion_aux%measurements(i)%iobs_var)
         case(OBS_LIQUID_PRESSURE)
           if (Uninitialized(zflow_liq_flow_eq)) then
             string = 'Liquid pressure'
@@ -788,7 +780,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
         case default
           call this%driver%PrintErrMsg('Unknown observation type in &
             &InvSubsurfSetupForwardRunLinkage: ' // &
-            trim(StringWrite(this%measurements(i)%iobs_var)))
+            trim(StringWrite(this%inversion_aux%measurements(i)%iobs_var)))
       end select
       if (iflag) then
         call this%driver%PrintErrMsg(trim(string) // ' is specified as a &
@@ -800,21 +792,22 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     allocate(int_array(num_measurements))
     int_array = -1
     do i = 1, num_measurements
-      if (this%measurements(i)%iobs_var == OBS_ERT_MEASUREMENT) then
-        max_int(1) = max(max_int(1),this%measurements(i)%cell_id)
+      if (this%inversion_aux%measurements(i)%iobs_var == &
+          OBS_ERT_MEASUREMENT) then
+        max_int(1) = max(max_int(1),this%inversion_aux%measurements(i)%cell_id)
       else
-        if (Initialized(this%measurements(i)%coordinate%x)) then
+        if (Initialized(this%inversion_aux%measurements(i)%coordinate%x)) then
           call GridGetLocalIDFromCoordinate(patch%grid, &
-                                            this%measurements(i)%coordinate, &
-                                            this%realization%option,local_id)
+                                this%inversion_aux%measurements(i)%coordinate, &
+                                this%realization%option,local_id)
           if (Initialized(local_id)) then
-            this%measurements(i)%cell_id = &
+            this%inversion_aux%measurements(i)%cell_id = &
               patch%grid%nG2A(patch%grid%nL2G(local_id))
-            this%measurements(i)%local_id = local_id
+            this%inversion_aux%measurements(i)%local_id = local_id
           endif
         endif
-        max_int(2) = max(max_int(2),this%measurements(i)%cell_id)
-        int_array(i) = this%measurements(i)%cell_id
+        max_int(2) = max(max_int(2),this%inversion_aux%measurements(i)%cell_id)
+        int_array(i) = this%inversion_aux%measurements(i)%cell_id
       endif
     enddo
     ! ensure that cell and ert measurement ids are within bounds
@@ -841,14 +834,17 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     i = maxval(int_array)
     do i = 1, num_measurements
       if (int_array(i) > 0) then
-        this%measurements(i)%cell_id = int_array(i)
+        this%inversion_aux%measurements(i)%cell_id = int_array(i)
       endif
-      if (Uninitialized(this%measurements(i)%cell_id)) then
+      if (Uninitialized(this%inversion_aux%measurements(i)%cell_id)) then
         string = 'Measurement ' // trim(StringWrite(i)) // &
           ' at coordinate (' // &
-          trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
-          trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
-          trim(StringWrite(this%measurements(i)%coordinate%z)) // &
+          trim(StringWrite(this%inversion_aux% &
+                             measurements(i)%coordinate%x)) // ',' // &
+          trim(StringWrite(this%inversion_aux% &
+                             measurements(i)%coordinate%y)) // ',' // &
+          trim(StringWrite(this%inversion_aux% &
+                             measurements(i)%coordinate%z)) // &
           ') not mapped properly.'
         call this%driver%PrintErrMsg(string)
       endif
@@ -857,8 +853,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     int_array = -1
     iflag = PETSC_FALSE ! no ERT measurements
     do i = 1, num_measurements
-      if (this%measurements(i)%iobs_var /= OBS_ERT_MEASUREMENT) then
-        int_array(i) = this%measurements(i)%cell_id
+      if (this%inversion_aux%measurements(i)%iobs_var /= &
+          OBS_ERT_MEASUREMENT) then
+        int_array(i) = this%inversion_aux%measurements(i)%cell_id
       else
         iflag = PETSC_TRUE
       endif
@@ -882,23 +879,25 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! (0 < id <= grid%nlmax on process 0; it is zero-based)
     icount = 0
     do i = 1, num_measurements
-      if (this%measurements(i)%iobs_var /= OBS_ERT_MEASUREMENT) then
+      if (this%inversion_aux%measurements(i)%iobs_var /= &
+          OBS_ERT_MEASUREMENT) then
         if (int_array(i) >= temp_int .and. &
             int_array(i) < temp_int+patch%grid%nlmax) then
           ! it is local
           icount = icount + 1
           local_id = int_array(i) - temp_int + 1
-          if (Initialized(this%measurements(i)%local_id) .and. &
-              this%measurements(i)%local_id /= local_id) then
+          if (Initialized(this%inversion_aux%measurements(i)%local_id) .and. &
+              this%inversion_aux%measurements(i)%local_id /= local_id) then
             this%realization%option%io_buffer = 'Error mapping local id &
               &for measurement ' // trim(StringWrite(i))
             call PrintErrMsgByRank(this%realization%option)
           endif
-          this%measurements(i)%local_id = local_id
+          this%inversion_aux%measurements(i)%local_id = local_id
         endif
       else if (OptionIsIORank(this%realization%option)) then
         icount = icount + 1
-        this%measurements(i)%local_id = this%measurements(i)%cell_id
+        this%inversion_aux%measurements(i)%local_id = &
+          this%inversion_aux%measurements(i)%cell_id
       endif
     enddo
     allocate(this%local_measurement_values(icount))
@@ -912,7 +911,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     this%local_measurement_map = UNINITIALIZED_INTEGER
     icount = 0
     do i = 1, num_measurements
-      if (this%measurements(i)%iobs_var /= OBS_ERT_MEASUREMENT) then
+      if (this%inversion_aux%measurements(i)%iobs_var /= &
+          OBS_ERT_MEASUREMENT) then
         if (int_array(i) >= temp_int .and. &
             int_array(i) < temp_int+patch%grid%nlmax) then
           ! it is local
@@ -928,14 +928,15 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! map measurement vec to distributed measurement vec
     call ISCreateStride(this%driver%comm%mycomm,num_measurements,ZERO_INTEGER, &
                         ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
-    call VecScatterCreate(this%measurement_vec,is_measure, &
-                          this%dist_measurement_vec,PETSC_NULL_IS, &
-                          this%scatter_measure_to_dist_measure, &
+    call VecScatterCreate(this%inversion_aux%measurement_vec,is_measure, &
+                          this%inversion_aux%dist_measurement_vec, &
+                          PETSC_NULL_IS, &
+                          this%inversion_aux%scatter_measure_to_dist_measure, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_measure,ierr)
 
-    this%inversion_aux%measurements => this%measurements
-    this%inversion_aux%measurement_vec = this%measurement_vec
+    this%inversion_aux%measurements => this%inversion_aux%measurements
+    this%inversion_aux%measurement_vec = this%inversion_aux%measurement_vec
 
     if (associated(this%perturbation)) then
       if (this%qoi_is_full_vector) then
@@ -951,30 +952,23 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
           this%perturbation%ndof = this%realization%patch%grid%nmax
         endif
       else
-        this%perturbation%ndof = size(this%parameters)
+        this%perturbation%ndof = size(this%inversion_aux%parameters)
       endif
       if (.not.this%inversion_option%coupled_flow_ert) then
-        call VecDuplicate(this%measurement_vec, &
+        call VecDuplicate(this%inversion_aux%measurement_vec, &
                           this%perturbation%base_measurement_vec, &
                           ierr);CHKERRQ(ierr)
       endif
     endif
 
-    inversion_forward_aux => InversionForwardAuxCreate()
-    inversion_forward_aux%JsensitivityT_ptr = this%inversion_aux%JsensitivityT
-    inversion_forward_aux%measurements => this%measurements
-    inversion_forward_aux%measurement_vec = this%measurement_vec
-    inversion_forward_aux%inversion_coupled_aux => this%inversion_coupled_aux
-    inversion_forward_aux%local_measurement_values_ptr => &
+    this%inversion_aux%local_measurement_values_ptr => &
       this%local_measurement_values
     if (.not.associated(this%perturbation)) then
-      inversion_forward_aux%iparameter = this%parameters(1)%iparameter
-      inversion_forward_aux%local_dobs_dunknown_values_ptr => &
+      this%inversion_aux%local_dobs_dunknown_values_ptr => &
         this%local_dobs_dunknown_values
-      inversion_forward_aux%local_dobs_dparam_values_ptr => &
+      this%inversion_aux%local_dobs_dparam_values_ptr => &
         this%local_dobs_dparam_values
     endif
-    this%inversion_aux%inversion_forward_aux => inversion_forward_aux
 
     ! if permeability is the parameter of interest, ensure that it is
     ! isotropic or specified with a vertical anisotropy ratio
@@ -984,10 +978,11 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
         iflag = PETSC_TRUE
       endif
     else
-      do i = 1, size(this%parameters)
-        if (this%parameters(i)%iparameter == PERMEABILITY) then
+      do i = 1, size(this%inversion_aux%parameters)
+        if (this%inversion_aux%parameters(i)%iparameter == PERMEABILITY) then
           material_property => &
-            patch%material_property_array(this%parameters(i)%imat)%ptr
+            patch%material_property_array(this%inversion_aux% &
+                                            parameters(i)%imat)%ptr
           ! if PERM_HORIZONTAL and VERTICAL_ANISOTROPY_RATIO are used,
           ! isotropic permeabilithy will be false, but tempreal will be 1.
           ! this only works with perturbation
@@ -1011,36 +1006,33 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
   endif
 
-  inversion_forward_aux => this%inversion_aux%inversion_forward_aux
   this%local_measurement_values = UNINITIALIZED_DOUBLE
+  if (.not.associated(this%perturbation)) then
+    this%local_dobs_dunknown_values = UNINITIALIZED_DOUBLE
+    this%local_dobs_dparam_values = UNINITIALIZED_DOUBLE
+  endif
 
   if (.not.associated(this%perturbation)) then
     ! set up pointer to M matrix
-    inversion_forward_aux%M_ptr = &
+    this%inversion_aux%M_ptr = &
         this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
     ! create inversion_ts_aux for first time step
-    nullify(inversion_forward_aux%first) ! must pass in null object
-    inversion_forward_aux%first => &
-      InversionTSAuxCreate(inversion_forward_aux%first, &
-                           inversion_forward_aux%M_ptr)
-    inversion_forward_aux%last => inversion_forward_aux%first
-    call InvTSAuxAllocate(inversion_forward_aux%first, &
-                          inversion_forward_aux%M_ptr, &
-                          this%realization%option%nflowdof, &
-                          patch%grid%nlmax)
+    this%inversion_aux%first_forward_ts_aux => &
+      InversionForwardTSAuxCreate(this%inversion_aux%M_ptr, &
+                                  this%realization%option%nflowdof, &
+                                  patch%grid%nlmax)
+    this%inversion_aux%last_forward_ts_aux => &
+      this%inversion_aux%first_forward_ts_aux
     this%local_dobs_dunknown_values = UNINITIALIZED_DOUBLE
     this%local_dobs_dparam_values = UNINITIALIZED_DOUBLE
 
   else ! this%perturbation is associated
 
-    ! destroy all flow adjoint data structures
-    call InvForwardAuxDestroyList(this%inversion_aux%inversion_forward_aux, &
-                                  PETSC_FALSE)
-    this%inversion_aux%inversion_forward_aux%store_adjoint = PETSC_FALSE
+    this%inversion_aux%store_adjoint = PETSC_FALSE
 
     if (this%inversion_option%coupled_flow_ert) then
       ! ndof is always the number of parameters
-      this%perturbation%ndof = size(this%parameters)
+      this%perturbation%ndof = size(this%inversion_aux%parameters)
       this%realization%option%inversion%calculate_ert = &
         this%perturbation%idof_pert <= 0
       this%realization%option%inversion%record_measurements = &
@@ -1058,7 +1050,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       endif
     endif
 
-    if (Uninitialized(this%parameters(1)%iparameter) .and. &
+    if (Uninitialized(this%inversion_aux%parameters(1)%iparameter) .and. &
         this%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('Quantity of interest not specified in &
         &InvSubsurfSetupForwardRunLinkage.')
@@ -1099,20 +1091,19 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   ! insert measurement times into waypoint list. this must come after the
   ! simulation is initialized to obtain the final time.
-  if (.not.associated(this%inversion_aux% &
-                        inversion_forward_aux%sync_times)) then
-    allocate(real_array(size(this%measurements)))
+  if (.not.associated(this%inversion_aux%sync_times)) then
+    allocate(real_array(size(this%inversion_aux%measurements)))
     final_time = &
       WaypointListGetFinalTime(this%forward_simulation%waypoint_list_subsurface)
     iflag = PETSC_FALSE
-    do i = 1, size(this%measurements)
-      if (Uninitialized(this%measurements(i)%time)) then
-        this%measurements(i)%time = final_time
+    do i = 1, size(this%inversion_aux%measurements)
+      if (Uninitialized(this%inversion_aux%measurements(i)%time)) then
+        this%inversion_aux%measurements(i)%time = final_time
       endif
-      if (this%measurements(i)%time > final_time) then
+      if (this%inversion_aux%measurements(i)%time > final_time) then
         iflag = PETSC_TRUE
       endif
-      real_array(i) = this%measurements(i)%time
+      real_array(i) = this%inversion_aux%measurements(i)%time
     enddo
     if (iflag) then
       call this%driver%PrintErrMsg( &
@@ -1133,29 +1124,28 @@ subroutine InvSubsurfConnectToForwardRun(this)
         real_array(sync_count) = real_array(i)
       endif
     enddo
-    allocate(this%inversion_aux%inversion_forward_aux%sync_times(sync_count))
-    this%inversion_aux%inversion_forward_aux%sync_times(:) = &
-      real_array(1:sync_count)
+    allocate(this%inversion_aux%sync_times(sync_count))
+    this%inversion_aux%sync_times(:) = real_array(1:sync_count)
     deallocate(real_array)
     nullify(real_array)
 
-    if (associated(this%inversion_coupled_aux)) then
-      allocate(this%inversion_coupled_aux%solutions(sync_count))
+    if (associated(this%inversion_aux%coupled_aux)) then
+      allocate(this%inversion_aux%coupled_aux%solutions(sync_count))
       do i = 1, sync_count
-        call InversionCoupledSolutionInit(this%inversion_coupled_aux% &
+        call InversionCoupledSolutionInit(this%inversion_aux%coupled_aux% &
                                             solutions(i))
-        this%inversion_coupled_aux%solutions(i)%time = &
-          this%inversion_aux%inversion_forward_aux%sync_times(i)
+        this%inversion_aux%coupled_aux%solutions(i)%time = &
+          this%inversion_aux%sync_times(i)
       enddo
 
       ! allocate any full vector measurements
-      call InvCoupledAllocateSolnVecs(this%inversion_coupled_aux, &
+      call InvCoupledAllocateSolnVecs(this%inversion_aux%coupled_aux, &
                                       this%realization%field%work)
     endif
 
   endif
 
-  real_array => this%inversion_aux%inversion_forward_aux%sync_times
+  real_array => this%inversion_aux%sync_times
   do i = 1, size(real_array)
     waypoint => WaypointCreate()
     waypoint%time = real_array(i)
@@ -1184,12 +1174,11 @@ subroutine InvSubsurfConnectToForwardRun(this)
   ! waypoint, instead of the one just after time 0, which is incorrect.
   call this%forward_simulation%InitializeRun()
 
-  this%realization%patch%aux%inversion_forward_aux => &
-    this%inversion_aux%inversion_forward_aux
-  call InvForwardAuxResetMeasurements(this%inversion_aux%inversion_forward_aux)
+  this%realization%patch%aux%inversion_aux => this%inversion_aux
+  call InversionAuxResetMeasurements(this%inversion_aux)
 
   if (this%qoi_is_full_vector) then
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     if (this%first_inversion_interation) then
       ! on first iteration of inversion, store the values
       call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
@@ -1199,16 +1188,16 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                       this%realization%field%work_loc, &
                                       this%realization%field%work,ONEDOF)
       call InvSubsurfScatGlobalToDistParam(this, &
-                                           this%realization%field%work, &
-                                           this%dist_parameter_vec, &
-                                           INVSUBSCATFORWARD)
+                                      this%realization%field%work, &
+                                      this%inversion_aux%dist_parameter_vec, &
+                                      INVSUBSCATFORWARD)
     else
       ! on subsequent iterations, overwrite what was read from input file
       ! with latest inverted values
       call InvSubsurfScatGlobalToDistParam(this, &
-                                           this%realization%field%work, &
-                                           this%dist_parameter_vec, &
-                                           INVSUBSCATREVERSE)
+                                      this%realization%field%work, &
+                                      this%inversion_aux%dist_parameter_vec, &
+                                      INVSUBSCATREVERSE)
       call DiscretizationGlobalToLocal(this%realization%discretization, &
                                        this%realization%field%work, &
                                        this%realization%field%work_loc,ONEDOF)
@@ -1219,13 +1208,13 @@ subroutine InvSubsurfConnectToForwardRun(this)
   else
     if (this%first_inversion_interation) then
       ! load the original parameter values
-      do i = 1, size(this%parameters)
+      do i = 1, size(this%inversion_aux%parameters)
         call InvSubsurfCopyParameterValue(this,i,GET_MATERIAL_VALUE)
       enddo
       call InvSubsurfCopyParameterToFromVec(this,COPY_TO_VEC)
     else
       call InvSubsurfCopyParameterToFromVec(this,COPY_FROM_VEC)
-      do i = 1, size(this%parameters)
+      do i = 1, size(this%inversion_aux%parameters)
         call InvSubsurfCopyParameterValue(this,i,OVERWRITE_MATERIAL_VALUE)
       enddo
       ! update material auxvars
@@ -1239,72 +1228,72 @@ subroutine InvSubsurfConnectToForwardRun(this)
     if (this%perturbation%idof_pert <= 0) then
       if (this%perturbation%base_parameter_vec == PETSC_NULL_VEC) then
         if (this%qoi_is_full_vector) then
-          call VecDuplicate(this%dist_parameter_vec, &
+          call VecDuplicate(this%inversion_aux%dist_parameter_vec, &
                             this%perturbation%base_parameter_vec, &
                             ierr);CHKERRQ(ierr)
         else
-          call VecDuplicate(this%parameter_vec, &
+          call VecDuplicate(this%inversion_aux%parameter_vec, &
                             this%perturbation%base_parameter_vec, &
                             ierr);CHKERRQ(ierr)
         endif
       endif
       if (this%qoi_is_full_vector) then
-        call VecCopy(this%dist_parameter_vec, &
+        call VecCopy(this%inversion_aux%dist_parameter_vec, &
                      this%perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
       else
         if (this%perturbation%idof_pert == 0) then
-          call VecCopy(this%parameter_vec,this%perturbation%base_parameter_vec, &
-                      ierr);CHKERRQ(ierr)
-        else
-        !geh: try with and without
-          call VecCopy(this%perturbation%base_parameter_vec,this%parameter_vec, &
-                      ierr);CHKERRQ(ierr)
+          call VecCopy(this%inversion_aux%parameter_vec, &
+                       this%perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
         endif
       endif
     else
       ! on subsequent passes, we have to overwrite the entire
       if (this%qoi_is_full_vector) then
-        call VecZeroEntries(this%dist_parameter_vec,ierr);CHKERRQ(ierr)
+        call VecZeroEntries(this%inversion_aux%dist_parameter_vec, &
+                            ierr);CHKERRQ(ierr)
         if (this%driver%comm%myrank == 0) then
-          call VecSetValue(this%dist_parameter_vec, &
+          call VecSetValue(this%inversion_aux%dist_parameter_vec, &
                            this%perturbation%idof_pert-1, &
                            this%perturbation%tolerance,INSERT_VALUES, &
                            ierr);CHKERRQ(ierr)
         endif
-        call VecAssemblyBegin(this%dist_parameter_vec,ierr);CHKERRQ(ierr)
-        call VecAssemblyEnd(this%dist_parameter_vec,ierr);CHKERRQ(ierr)
-        call VecPointwiseMult(this%dist_parameter_vec,this%dist_parameter_vec, &
+        call VecAssemblyBegin(this%inversion_aux%dist_parameter_vec, &
+                              ierr);CHKERRQ(ierr)
+        call VecAssemblyEnd(this%inversion_aux%dist_parameter_vec, &
+                            ierr);CHKERRQ(ierr)
+        call VecPointwiseMult(this%inversion_aux%dist_parameter_vec, &
+                              this%inversion_aux%dist_parameter_vec, &
                               this%perturbation%base_parameter_vec, &
                               ierr);CHKERRQ(ierr)
-        call VecMax(this%dist_parameter_vec,PETSC_NULL_INTEGER,rmax, &
-                    ierr);CHKERRQ(ierr)
-        call VecMin(this%dist_parameter_vec,PETSC_NULL_INTEGER,rmin, &
-                    ierr);CHKERRQ(ierr)
+        call VecMax(this%inversion_aux%dist_parameter_vec, &
+                    PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
+        call VecMin(this%inversion_aux%dist_parameter_vec, &
+                    PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
         if (rmax > 0.d0) then
           this%perturbation%pert = rmax
         else
           this%perturbation%pert = rmin
         endif
-        call VecAXPY(this%dist_parameter_vec,1.d0, &
+        call VecAXPY(this%inversion_aux%dist_parameter_vec,1.d0, &
                      this%perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
         call InvSubsurfScatGlobalToDistParam(this, &
-                                             this%realization%field%work, &
-                                             this%dist_parameter_vec, &
-                                             INVSUBSCATREVERSE)
+                                      this%realization%field%work, &
+                                      this%inversion_aux%dist_parameter_vec, &
+                                      INVSUBSCATREVERSE)
 
         call DiscretizationGlobalToLocal(this%realization%discretization, &
                                         this%realization%field%work, &
                                         this%realization%field%work_loc,ONEDOF)
-        iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+        iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
         call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                    this%realization%field%work_loc, &
-                                    iqoi(1),iqoi(2))
+                                     this%realization%field%work_loc, &
+                                     iqoi(1),iqoi(2))
       else
         this%perturbation%base_value = &
-          this%parameters(this%perturbation%idof_pert)%value
+          this%inversion_aux%parameters(this%perturbation%idof_pert)%value
         this%perturbation%pert = this%perturbation%base_value* &
                                  this%perturbation%tolerance
-        this%parameters(this%perturbation%idof_pert)%value = &
+        this%inversion_aux%parameters(this%perturbation%idof_pert)%value = &
           this%perturbation%base_value + this%perturbation%pert
         ! overwrite material property value
         call InvSubsurfCopyParameterValue(this,this%perturbation%idof_pert, &
@@ -1316,7 +1305,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
   else ! set adjoint variable
     ! pass in first parameter as an earlier check prevents adjoint-based
     ! inversion for more than one parameter type
-    call InvSubsurfSetAdjointVariable(this,this%parameters(1)%iparameter)
+    call InvSubsurfSetAdjointVariable(this,this%inversion_aux% &
+                                             parameters(1)%iparameter)
   endif
 
   iflag = PETSC_TRUE
@@ -1393,15 +1383,15 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
 
   if (iflag /= GET_MATERIAL_VALUE) then
     ! everything else is implicit OVERWRITE_MATERIAL_VALUE
-    tempreal = this%parameters(iparam)%value
+    tempreal = this%inversion_aux%parameters(iparam)%value
   endif
 
   call InvSubsurfGetSetParamValueByMat(this,tempreal, &
-                                       this%parameters(iparam)%iparameter, &
-                                       this%parameters(iparam)%imat,iflag)
+                        this%inversion_aux%parameters(iparam)%iparameter, &
+                        this%inversion_aux%parameters(iparam)%imat,iflag)
 
   if (iflag == GET_MATERIAL_VALUE) then
-    this%parameters(iparam)%value = tempreal
+    this%inversion_aux%parameters(iparam)%value = tempreal
   endif
 
 end subroutine InvSubsurfCopyParameterValue
@@ -1523,20 +1513,22 @@ subroutine InvSubsurfCopyParameterToFromVec(this,iflag)
   PetscInt :: i
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(this%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%inversion_aux%parameter_vec, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
   if (iflag == COPY_FROM_VEC) then
-    do i = 1, size(this%parameters)
-      this%parameters(i)%value = vec_ptr(i)
+    do i = 1, size(this%inversion_aux%parameters)
+      this%inversion_aux%parameters(i)%value = vec_ptr(i)
     enddo
   elseif (iflag == COPY_TO_VEC) then
-    do i = 1, size(this%parameters)
-      vec_ptr(i) = this%parameters(i)%value
+    do i = 1, size(this%inversion_aux%parameters)
+      vec_ptr(i) = this%inversion_aux%parameters(i)%value
     enddo
   else
     call this%driver%PrintErrMsg('Unrecogized flag in &
                                  &InvSubsurfCopyParameterToFromVec')
   endif
-  call VecRestoreArrayF90(this%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%inversion_aux%parameter_vec, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InvSubsurfCopyParameterToFromVec
 
@@ -1641,8 +1633,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
   if (.not.this%qoi_is_full_vector) then
     call InvSubsurfScatParamToDistParam(this, &
-                                        this%parameter_vec, &
-                                        this%dist_parameter_vec, &
+                                        this%inversion_aux%parameter_vec, &
+                                        this%inversion_aux%dist_parameter_vec, &
                                         INVSUBSCATFORWARD)
   endif
 
@@ -1680,38 +1672,48 @@ subroutine InvSubsurfPostProcMeasurements(this)
   option => this%realization%option
 
   ! distribute measurements to measurement objects
-  call VecSet(this%measurement_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
-  call VecSet(this%dist_measurement_vec,-888.d0,ierr);CHKERRQ(ierr)
+  call VecSet(this%inversion_aux%measurement_vec,UNINITIALIZED_DOUBLE, &
+              ierr);CHKERRQ(ierr)
+  call VecSet(this%inversion_aux%dist_measurement_vec,-888.d0, &
+              ierr);CHKERRQ(ierr)
   icount = 0
-  do imeasurement = 1, size(this%measurements)
-    if (Initialized(this%measurements(imeasurement)%local_id)) then
+  do imeasurement = 1, size(this%inversion_aux%measurements)
+    if (Initialized(this%inversion_aux%measurements(imeasurement)% &
+                      local_id)) then
       icount = icount + 1
-      call VecSetValue(this%dist_measurement_vec, &
+      call VecSetValue(this%inversion_aux%dist_measurement_vec, &
                        this%local_measurement_map(icount)-1, &
                        this%local_measurement_values(icount),&
                        INSERT_VALUES,ierr);CHKERRQ(ierr)
     endif
   enddo
-  call VecAssemblyBegin(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
-  call VecAssemblyEnd(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
-  call InvSubsurfScatMeasToDistMeas(this,this%measurement_vec, &
-                                    this%dist_measurement_vec, &
+  call VecAssemblyBegin(this%inversion_aux%dist_measurement_vec, &
+                        ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(this%inversion_aux%dist_measurement_vec, &
+                      ierr);CHKERRQ(ierr)
+  call InvSubsurfScatMeasToDistMeas(this,this%inversion_aux%measurement_vec, &
+                                    this%inversion_aux%dist_measurement_vec, &
                                     INVSUBSCATREVERSE)
-  call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  do imeasurement = 1, size(this%measurements)
-    this%measurements(imeasurement)%simulated_value = vec_ptr(imeasurement)
-    this%measurements(imeasurement)%measured = PETSC_TRUE
+  call VecGetArrayF90(this%inversion_aux%measurement_vec,vec_ptr, &
+                      ierr);CHKERRQ(ierr)
+  do imeasurement = 1, size(this%inversion_aux%measurements)
+    this%inversion_aux%measurements(imeasurement)%simulated_value = &
+      vec_ptr(imeasurement)
+    this%inversion_aux%measurements(imeasurement)%measured = PETSC_TRUE
   enddo
-  call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%inversion_aux%measurement_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
   if (associated(this%local_dobs_dunknown_values)) then
     ! distribute derivatives to measurement objects
     ! temporary vecs for derivatives (if they exist)
-    call VecDuplicate(this%measurement_vec,dobs_dunknown_vec,ierr);CHKERRQ(ierr)
-    call VecDuplicate(this%dist_measurement_vec,dist_dobs_dunknown_vec,&
-                      ierr);CHKERRQ(ierr)
-    call VecDuplicate(this%measurement_vec,dobs_dparam_vec,ierr);CHKERRQ(ierr)
-    call VecDuplicate(this%dist_measurement_vec,dist_dobs_dparam_vec,&
-                      ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%inversion_aux%measurement_vec, &
+                      dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%inversion_aux%dist_measurement_vec, &
+                      dist_dobs_dunknown_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%inversion_aux%measurement_vec, &
+                      dobs_dparam_vec,ierr);CHKERRQ(ierr)
+    call VecDuplicate(this%inversion_aux%dist_measurement_vec, &
+                      dist_dobs_dparam_vec,ierr);CHKERRQ(ierr)
     call VecSet(dobs_dunknown_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
     call VecSet(dist_dobs_dunknown_vec,-888.d0,ierr);CHKERRQ(ierr)
     call VecSet(dobs_dparam_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
@@ -1719,11 +1721,12 @@ subroutine InvSubsurfPostProcMeasurements(this)
     ! be set for all uninitialized values
     call VecSet(dist_dobs_dparam_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
     icount = 0
-    do imeasurement = 1, size(this%measurements)
-      if (Initialized(this%measurements(imeasurement)%local_id)) then
+    do imeasurement = 1, size(this%inversion_aux%measurements)
+      if (Initialized(this%inversion_aux%measurements(imeasurement)% &
+                        local_id)) then
         icount = icount + 1
         ! set the partial derivative
-        select case(this%measurements(imeasurement)%iobs_var)
+        select case(this%inversion_aux%measurements(imeasurement)%iobs_var)
           case(OBS_LIQUID_SATURATION)
             call VecSetValue(dist_dobs_dunknown_vec, &
                              this%local_measurement_map(icount)-1, &
@@ -1749,10 +1752,10 @@ subroutine InvSubsurfPostProcMeasurements(this)
                                       INVSUBSCATREVERSE)
     call VecGetArrayF90(dobs_dunknown_vec,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(dobs_dparam_vec,vec_ptr2,ierr);CHKERRQ(ierr)
-    do imeasurement = 1, size(this%measurements)
-      this%measurements(imeasurement)%dobs_dunknown = &
+    do imeasurement = 1, size(this%inversion_aux%measurements)
+      this%inversion_aux%measurements(imeasurement)%dobs_dunknown = &
         vec_ptr(imeasurement)
-      this%measurements(imeasurement)%dobs_dparam = &
+      this%inversion_aux%measurements(imeasurement)%dobs_dparam = &
         vec_ptr2(imeasurement)
     enddo
     call VecRestoreArrayF90(dobs_dunknown_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1764,23 +1767,29 @@ subroutine InvSubsurfPostProcMeasurements(this)
   endif
 
     ! ensure that all measurement have been recorded
-  do imeasurement = 1, size(this%measurements)
-    call InversionMeasurementPrintConcise(this%measurements(imeasurement), &
+  do imeasurement = 1, size(this%inversion_aux%measurements)
+    call InversionMeasurementPrintConcise(this%inversion_aux% &
+                                            measurements(imeasurement), &
                                           'PostProcess',option)
-    if (.not.this%measurements(imeasurement)%measured) then
+    if (.not.this%inversion_aux%measurements(imeasurement)%measured) then
       option%io_buffer = 'Measurement at cell ' // &
-        trim(StringWrite(this%measurements(imeasurement)%cell_id))
-      if (Initialized(this%measurements(imeasurement)%time)) then
+        trim(StringWrite(this%inversion_aux%measurements(imeasurement)% &
+                           cell_id))
+      if (Initialized(this%inversion_aux%measurements(imeasurement)%time)) then
         word = 'sec'
         option%io_buffer = trim(option%io_buffer) // &
-          ' at ' // trim(StringWrite(this%measurements(imeasurement)%time/ &
-          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
+          ' at ' // &
+          trim(StringWrite(this%inversion_aux% &
+                             measurements(imeasurement)%time/ &
+          UnitsConvertToInternal(this%inversion_aux% &
+                                   measurements(imeasurement)%time_units, &
                                  word,option,ierr))) // &
-          ' ' // trim(this%measurements(imeasurement)%time_units)
+          ' ' // trim(this%inversion_aux%measurements(imeasurement)%time_units)
       endif
       option%io_buffer = trim(option%io_buffer) // &
         ' with a measured value from the measurement file of ' // &
-        trim(StringWrite(this%measurements(imeasurement)%value)) // &
+        trim(StringWrite(this%inversion_aux% &
+                           measurements(imeasurement)%value)) // &
         ' was not measured during the simulation.'
       call PrintErrMsg(option)
     endif
@@ -1829,12 +1838,12 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   call PrintHeader('SENSITIVITY JACOBIAN',option)
 
   ! initialize first_lambda flag
-  do imeasurement = 1, size(this%measurements)
-    this%measurements(imeasurement)%first_lambda = PETSC_FALSE
+  do imeasurement = 1, size(this%inversion_aux%measurements)
+    this%inversion_aux%measurements(imeasurement)%first_lambda = PETSC_FALSE
   enddo
 
   ! go to end of list
-  cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%last
+  cur_inversion_ts_aux => inversion_aux%last_forward_ts_aux
   if (.not.associated(cur_inversion_ts_aux)) then
     option%io_buffer = 'Inversion timestep auxiliary list is NULL.'
     call PrintErrMsg(option)
@@ -1854,16 +1863,14 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
       call PrintErrMsg(option)
     endif
     nullify(prev_inversion_ts_aux%next)
-    call InversionTSAuxDestroy(cur_inversion_ts_aux)
+    call InvForwardTSAuxDestroyMatrices(cur_inversion_ts_aux)
     ! point cur_inversion_ts_aux to the end of the list
-    inversion_aux%inversion_forward_aux%last => prev_inversion_ts_aux
-    this%inversion_aux%max_ts = prev_inversion_ts_aux%timestep
+    inversion_aux%last_forward_ts_aux => prev_inversion_ts_aux
   endif
 
   call InvSubsurfAdjAddSensitivities(this)
 
-  call InvForwardAuxDestroyList(inversion_aux%inversion_forward_aux, &
-                                PETSC_TRUE)
+  call InvAuxAdjCleanupAfterForwardRun(inversion_aux)
 
   call timer%Stop()
   option%io_buffer = '    ' // &
@@ -1932,6 +1939,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
   PetscInt :: iparameter
   PetscInt :: natural_id_
   Vec, pointer :: lambda(:)
+  type(inversion_measurement_aux_type), pointer :: measurements(:)
 
   class(timer_type), pointer :: timer
   PetscReal, parameter :: tol = 1.d-6
@@ -1948,6 +1956,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
   patch => this%realization%patch
   grid => patch%grid
   ndof = option%nflowdof
+  measurements => this%inversion_aux%measurements
 
   timer => TimerCreate()
 
@@ -1974,42 +1983,43 @@ subroutine InvSubsurfAdjAddSensitivities(this)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
-  call VecDuplicateVecsF90(ndof_vec,size(this%measurements),lambda, &
-                          ierr);CHKERRQ(ierr)
+  call VecDuplicateVecsF90(ndof_vec,size(measurements),lambda, &
+                           ierr);CHKERRQ(ierr)
   do i = 1, size(lambda)
     call VecZeroEntries(lambda(i),ierr);CHKERRQ(ierr)
   enddo
 
   call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
 
-  inversion_forward_ts_aux => this%inversion_aux%inversion_forward_aux%last
+  inversion_forward_ts_aux => this%inversion_aux%last_forward_ts_aux
   do
     if (.not.associated(inversion_forward_ts_aux)) exit
 
     call KSPSetOperators(solver%ksp,inversion_forward_ts_aux%dResdu, &
                         inversion_forward_ts_aux%dResdu,ierr);CHKERRQ(ierr)
-    do imeasurement = 1, size(this%measurements)
+    do imeasurement = 1, size(measurements)
 
       ! skip lambdas after the measurement time
-      if (Initialized(this%measurements(imeasurement)%time) .and. &
+      if (Initialized(measurements(imeasurement)%time) .and. &
           inversion_forward_ts_aux%time > &
-            this%measurements(imeasurement)%time + tol) then
+            measurements(imeasurement)%time + tol) then
         cycle
       endif
 
       ! backward loop contribution (calculating lambda for the ts)
-      if (.not.this%measurements(imeasurement)%first_lambda) then
-        this%measurements(imeasurement)%first_lambda = PETSC_TRUE
+      if (.not.measurements(imeasurement)%first_lambda) then
+        measurements(imeasurement)%first_lambda = PETSC_TRUE
 
         ! if we have a dobs_dparam, add that value into Jsens
-        if (Initialized(this%measurements(imeasurement)%dobs_dparam)) then
-          if (this%qoi_is_full_vector .or. size(this%parameters) > 0) then
+        if (Initialized(measurements(imeasurement)%dobs_dparam)) then
+          if (this%qoi_is_full_vector .or. &
+              size(this%inversion_aux%parameters) > 0) then
             option%io_buffer = 'Need to refactor dobs_dparam for more than &
               &one parameter.'
             call PrintErrMsg(option)
           endif
           if (option%comm%myrank == option%driver%io_rank) then
-            tempreal = -this%measurements(imeasurement)%dobs_dparam
+            tempreal = -measurements(imeasurement)%dobs_dparam
             iparameter = 1
             call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
                             imeasurement-1,tempreal,ADD_VALUES, &
@@ -2020,25 +2030,25 @@ subroutine InvSubsurfAdjAddSensitivities(this)
         ! begin lambda calculations
         call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
         if (option%myrank == 0) then
-          icell_measurement = this%measurements(imeasurement)%cell_id
+          icell_measurement = measurements(imeasurement)%cell_id
           tempreal = -1.d0
           ! scale by partial derivative if measurement is not the
           ! primary dependent variable
-          select case(this%measurements(imeasurement)%iobs_var)
+          select case(measurements(imeasurement)%iobs_var)
             case(OBS_LIQUID_SATURATION)
               tempreal = tempreal * &
-                        this%measurements(imeasurement)%dobs_dunknown
+                        measurements(imeasurement)%dobs_dunknown
           end select
           call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                           INSERT_VALUES,ierr);CHKERRQ(ierr)
         endif
         call InversionMeasurementPrintConcise( &
-               this%measurements(imeasurement),'',option)
+               measurements(imeasurement),'',option)
         call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
         call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
         call DiscretizationNaturalToGlobal(discretization,natural_vec, &
                                           onedof_vec,ONEDOF)
-        select case(this%measurements(imeasurement)%iobs_var)
+        select case(measurements(imeasurement)%iobs_var)
           case(OBS_LIQUID_PRESSURE,OBS_LIQUID_SATURATION)
             tempint = zflow_liq_flow_eq
           case(OBS_SOLUTE_CONCENTRATION)
@@ -2102,12 +2112,12 @@ subroutine InvSubsurfAdjAddSensitivities(this)
         enddo
         call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
       else
-        do iparameter = 1, size(this%parameters)
+        do iparameter = 1, size(this%inversion_aux%parameters)
           call VecZeroEntries(ndof_vec1,ierr);CHKERRQ(ierr)
           call VecGetArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
           do local_id = 1, grid%nlmax
             if (patch%imat(grid%nL2G(local_id)) == &
-                this%parameters(iparameter)%imat) then
+                this%inversion_aux%parameters(iparameter)%imat) then
               offset = (local_id-1)*option%nflowdof
               vec_ptr(offset+1:offset+option%nflowdof) = 1.d0
             endif
@@ -2238,22 +2248,23 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   ! reset measurement vectors to the base model
   if (this%perturbation%base_measurement_vec /= PETSC_NULL_VEC) then
     call VecCopy(this%perturbation%base_measurement_vec, &
-                 this%measurement_vec,ierr);CHKERRQ(ierr)
+                 this%inversion_aux%measurement_vec,ierr);CHKERRQ(ierr)
   endif
   call InvSubsurfScatMeasToDistMeas(this, &
-                                    this%measurement_vec, &
-                                    this%dist_measurement_vec, &
+                                    this%inversion_aux%measurement_vec, &
+                                    this%inversion_aux%dist_measurement_vec, &
                                     INVSUBSCATFORWARD)
 
   ! reset parameters to base copy
   if (this%qoi_is_full_vector) then
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
-    call VecCopy(this%perturbation%base_parameter_vec,this%dist_parameter_vec, &
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
+    call VecCopy(this%perturbation%base_parameter_vec, &
+                 this%inversion_aux%dist_parameter_vec, &
                  ierr);CHKERRQ(ierr)
     call InvSubsurfScatGlobalToDistParam(this, &
-                                         this%realization%field%work, &
-                                         this%dist_parameter_vec, &
-                                         INVSUBSCATREVERSE)
+                                   this%realization%field%work, &
+                                   this%inversion_aux%dist_parameter_vec, &
+                                   INVSUBSCATREVERSE)
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      this%realization%field%work, &
                                      this%realization%field%work_loc,ONEDOF)
@@ -2262,7 +2273,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
                                  iqoi(1),iqoi(2))
   else
     call InvSubsurfCopyParameterToFromVec(this,COPY_FROM_VEC)
-    do i = 1, size(this%parameters)
+    do i = 1, size(this%inversion_aux%parameters)
       call InvSubsurfCopyParameterValue(this,i,OVERWRITE_MATERIAL_VALUE)
     enddo
   endif
@@ -2295,20 +2306,24 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
       &with an idof_pert < 0')
   endif
 
-  call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  do i = 1, size(this%measurements)
-    vec_ptr(i) = this%measurements(i)%simulated_value
+  call VecGetArrayF90(this%inversion_aux%measurement_vec, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
+  do i = 1, size(this%inversion_aux%measurements)
+    vec_ptr(i) = this%inversion_aux%measurements(i)%simulated_value
   enddo
-  call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
 
   if (this%perturbation%idof_pert == 0) then
-    call VecCopy(this%measurement_vec,this%perturbation%base_measurement_vec, &
+    call VecCopy(this%inversion_aux%measurement_vec, &
+                 this%perturbation%base_measurement_vec, &
                  ierr);CHKERRQ(ierr)
     call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   else
-    call VecAXPY(this%measurement_vec,-1.d0, &
+    call VecAXPY(this%inversion_aux%measurement_vec,-1.d0, &
                  this%perturbation%base_measurement_vec,ierr);CHKERRQ(ierr)
-    call VecScale(this%measurement_vec,1.d0/this%perturbation%pert, &
+    call VecScale(this%inversion_aux%measurement_vec, &
+                  1.d0/this%perturbation%pert, &
                   ierr);CHKERRQ(ierr)
   endif
 
@@ -2316,29 +2331,30 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
 
   ! don't need to use the distributed vec, but why not
   call InvSubsurfScatMeasToDistMeas(this, &
-                                    this%measurement_vec, &
-                                    this%dist_measurement_vec, &
+                                    this%inversion_aux%measurement_vec, &
+                                    this%inversion_aux%dist_measurement_vec, &
                                     INVSUBSCATFORWARD)
-  call VecGetArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%inversion_aux%dist_measurement_vec,vec_ptr, &
+                      ierr);CHKERRQ(ierr)
   do i = 1, size(vec_ptr)
     call MatSetValue(this%inversion_aux%JsensitivityT, &
                      this%perturbation%idof_pert-1, &
                      this%dist_measurement_offset+i-1,vec_ptr(i), &
                      INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
-  call VecRestoreArrayF90(this%dist_measurement_vec,vec_ptr, &
+  call VecRestoreArrayF90(this%inversion_aux%dist_measurement_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
 
   if (iteration == this%perturbation%ndof) then
-    call MatAssemblyBegin(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
-                          ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
-                        ierr);CHKERRQ(ierr)
+    call MatAssemblyBegin(this%inversion_aux%JsensitivityT, &
+                          MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%inversion_aux%JsensitivityT, &
+                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   endif
 
   if (.not.this%qoi_is_full_vector) then
     ! revert back to base value
-    this%parameters(this%perturbation%idof_pert)%value = &
+    this%inversion_aux%parameters(this%perturbation%idof_pert)%value = &
       this%perturbation%base_value
   endif
 
@@ -2358,6 +2374,7 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
   class(inversion_subsurface_type) :: this
   PetscInt :: iteration
 
+  type(inversion_coupled_soln_type), pointer :: solutions(:)
   PetscInt :: i
 
   if (this%perturbation%idof_pert < 0) then
@@ -2365,32 +2382,33 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
       &with an idof_pert < 0')
   endif
 
-  do i = 1, size(this%inversion_coupled_aux%solutions)
+  solutions => this%inversion_aux%coupled_aux%solutions
+  do i = 1, size(solutions)
     call InvCoupledUpdateSolnVecs(this%perturbation%idof_pert, &
-      this%inversion_coupled_aux%solutions(i)%perturbed_saturation_solution, &
-      this%inversion_coupled_aux%solutions(i)%original_saturation_solution, &
-      this%inversion_coupled_aux%solutions(i)%dsaturation_dparameter, &
+      solutions(i)%perturbed_saturation_solution, &
+      solutions(i)%original_saturation_solution, &
+      solutions(i)%dsaturation_dparameter, &
       this%perturbation%pert)
-    if (this%inversion_coupled_aux%solutions(i)%perturbed_solute_solution /= &
+    if (solutions(i)%perturbed_solute_solution /= &
         PETSC_NULL_VEC) then
       call InvCoupledUpdateSolnVecs(this%perturbation%idof_pert, &
-        this%inversion_coupled_aux%solutions(i)%perturbed_solute_solution, &
-        this%inversion_coupled_aux%solutions(i)%original_solute_solution, &
-        this%inversion_coupled_aux%solutions(i)%dsolute_dparameter, &
+        solutions(i)%perturbed_solute_solution, &
+        solutions(i)%original_solute_solution, &
+        solutions(i)%dsolute_dparameter, &
         this%perturbation%pert)
     endif
   enddo
-  call InversionCoupledAuxReset(this%inversion_coupled_aux)
+  call InversionCoupledAuxReset(this%inversion_aux%coupled_aux)
 
   !if (iteration == this%perturbation%ndof) then
-  !  do i = 1, size(this%inversion_coupled_aux%solutions)
-  !    do iparam = 1, size(this%parameters)
+  !  do i = 1, size(solutions)
+  !    do iparam = 1, size(this%inversion_aux%parameters)
   !      print *, i, iparam, 'saturation '
-  !      call VecView(this%inversion_coupled_aux%solutions(i)% &
+  !      call VecView(solutions(i)% &
   !                     dsaturation_dparameter(iparam), &
   !                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   !      print *, i, iparam, 'solute '
-  !      call VecView(this%inversion_coupled_aux%solutions(i)% &
+  !      call VecView(solutions(i)% &
   !                     dsolute_dparameter(iparam), &
   !                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   !    enddo
@@ -2400,7 +2418,7 @@ subroutine InvSubsurfFVCalcPartialJs(this,iteration)
   if (.not.this%qoi_is_full_vector .and. &
       this%perturbation%idof_pert > 0) then
     ! revert back to base value
-    this%parameters(this%perturbation%idof_pert)%value = &
+    this%inversion_aux%parameters(this%perturbation%idof_pert)%value = &
       this%perturbation%base_value
   endif
 
@@ -2556,8 +2574,9 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   endif
   call h5eset_auto_f(ON,hdf5_err)
 
-  num_measurement = size(this%measurements)
-  call VecDuplicate(this%dist_measurement_vec,row_vec,ierr);CHKERRQ(ierr)
+  num_measurement = size(this%inversion_aux%measurements)
+  call VecDuplicate(this%inversion_aux%dist_measurement_vec, &
+                    row_vec,ierr);CHKERRQ(ierr)
   do imeasurement = 1, num_measurement
     call VecZeroEntries(row_vec,ierr);CHKERRQ(ierr)
     if (this%realization%option%myrank == 0) then
@@ -2569,7 +2588,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
     call MatMult(JsensitivityT,row_vec,this%realization%field%work, &
                  ierr);CHKERRQ(ierr)
     string = 'Measurement ' // &
-      trim(StringWrite(this%measurements(imeasurement)%cell_id))
+      trim(StringWrite(this%inversion_aux%measurements(imeasurement)%cell_id))
     call HDF5WriteStructDataSetFromVec(string,this%realization, &
                                        this%realization%field%work,grp_id, &
                                        H5T_NATIVE_DOUBLE)
@@ -2598,19 +2617,19 @@ subroutine InvSubsurfScatGlobalToDistParam(this,global_,dist_parameter_vec, &
   PetscErrorCode :: ierr
 
   if (direction == INVSUBSCATFORWARD) then
-    call VecScatterBegin(this%scatter_global_to_dist_param,global_, &
-                         dist_parameter_vec,INSERT_VALUES,SCATTER_FORWARD, &
-                         ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_global_to_dist_param,global_, &
-                       dist_parameter_vec,INSERT_VALUES,SCATTER_FORWARD, &
-                       ierr);CHKERRQ(ierr)
+    call VecScatterBegin(this%inversion_aux%scatter_global_to_dist_param, &
+                         global_,dist_parameter_vec,INSERT_VALUES, &
+                         SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%inversion_aux%scatter_global_to_dist_param, &
+                       global_,dist_parameter_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   else ! INVSUBSCATREVERSE
-    call VecScatterBegin(this%scatter_global_to_dist_param,dist_parameter_vec, &
-                         global_,INSERT_VALUES,SCATTER_REVERSE, &
-                         ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_global_to_dist_param,dist_parameter_vec, &
-                       global_,INSERT_VALUES,SCATTER_REVERSE, &
-                       ierr);CHKERRQ(ierr)
+    call VecScatterBegin(this%inversion_aux%scatter_global_to_dist_param, &
+                         dist_parameter_vec,global_,INSERT_VALUES, &
+                         SCATTER_REVERSE,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%inversion_aux%scatter_global_to_dist_param, &
+                       dist_parameter_vec,global_,INSERT_VALUES, &
+                       SCATTER_REVERSE,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InvSubsurfScatGlobalToDistParam
@@ -2634,19 +2653,19 @@ subroutine InvSubsurfScatParamToDistParam(this,parameter_vec, &
 
   if (direction == INVSUBSCATFORWARD) then
     ! the parameter_vec is full on each process
-    call VecScatterBegin(this%scatter_param_to_dist_param,parameter_vec, &
-                         dist_parameter_vec,INSERT_VALUES, &
+    call VecScatterBegin(this%inversion_aux%scatter_param_to_dist_param, &
+                         parameter_vec,dist_parameter_vec,INSERT_VALUES, &
                          SCATTER_FORWARD_LOCAL,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_param_to_dist_param,parameter_vec, &
-                       dist_parameter_vec,INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                       ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%inversion_aux%scatter_param_to_dist_param, &
+                       parameter_vec,dist_parameter_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD_LOCAL,ierr);CHKERRQ(ierr)
   else ! INVSUBSCATREVERSE
-    call VecScatterBegin(this%scatter_param_to_dist_param,dist_parameter_vec, &
-                         parameter_vec,INSERT_VALUES,SCATTER_REVERSE, &
-                         ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_param_to_dist_param,dist_parameter_vec, &
-                       parameter_vec,INSERT_VALUES,SCATTER_REVERSE, &
-                       ierr);CHKERRQ(ierr)
+    call VecScatterBegin(this%inversion_aux%scatter_param_to_dist_param, &
+                         dist_parameter_vec,parameter_vec,INSERT_VALUES, &
+                         SCATTER_REVERSE,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%inversion_aux%scatter_param_to_dist_param, &
+                       dist_parameter_vec,parameter_vec,INSERT_VALUES, &
+                       SCATTER_REVERSE,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InvSubsurfScatParamToDistParam
@@ -2670,17 +2689,17 @@ subroutine InvSubsurfScatMeasToDistMeas(this,measurement_vec, &
 
   if (direction == INVSUBSCATFORWARD) then
     ! the measurement_vec is full on each process
-    call VecScatterBegin(this%scatter_measure_to_dist_measure,measurement_vec, &
-                         dist_measurement_vec,INSERT_VALUES, &
+    call VecScatterBegin(this%inversion_aux%scatter_measure_to_dist_measure, &
+                         measurement_vec,dist_measurement_vec,INSERT_VALUES, &
                          SCATTER_FORWARD_LOCAL,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_measure_to_dist_measure,measurement_vec, &
-                       dist_measurement_vec,INSERT_VALUES, &
+    call VecScatterEnd(this%inversion_aux%scatter_measure_to_dist_measure, &
+                       measurement_vec,dist_measurement_vec,INSERT_VALUES, &
                        SCATTER_FORWARD_LOCAL,ierr);CHKERRQ(ierr)
   else ! INVSUBSCATREVERSE
-    call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+    call VecScatterBegin(this%inversion_aux%scatter_measure_to_dist_measure, &
                          dist_measurement_vec,measurement_vec,INSERT_VALUES, &
                          SCATTER_REVERSE,ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+    call VecScatterEnd(this%inversion_aux%scatter_measure_to_dist_measure, &
                        dist_measurement_vec,measurement_vec,INSERT_VALUES, &
                        SCATTER_REVERSE,ierr);CHKERRQ(ierr)
   endif
@@ -2704,11 +2723,11 @@ subroutine InvSubsurfPrintCurMeasValues(this)
   PetscInt :: i
   PetscInt :: num_measurements
 
-  num_measurements = size(this%measurements)
+  num_measurements = size(this%inversion_aux%measurements)
   if (this%driver%PrintToScreen()) then
     do i = 1, num_measurements
       call InvMeasurePrintComparison(STDOUT_UNIT, &
-                                     this%measurements(i),i==1, &
+                                     this%inversion_aux%measurements(i),i==1, &
                                      i==num_measurements, &
                                      this%realization%option)
     enddo
@@ -2716,7 +2735,7 @@ subroutine InvSubsurfPrintCurMeasValues(this)
   if (this%driver%PrintToFile()) then
     do i = 1, num_measurements
       call InvMeasurePrintComparison(this%driver%fid_out, &
-                                     this%measurements(i),i==1, &
+                                     this%inversion_aux%measurements(i),i==1, &
                                      i==num_measurements, &
                                      this%realization%option)
     enddo
@@ -2743,11 +2762,11 @@ subroutine InvSubsurfPrintCurParamValues(this)
 
   if (this%qoi_is_full_vector) return
 
-  num_parameters = size(this%parameters)
+  num_parameters = size(this%inversion_aux%parameters)
   if (this%driver%PrintToScreen()) then
     do i = 1, num_parameters
       call InversionParameterPrint(STDOUT_UNIT, &
-                                   this%parameters(i),i==1, &
+                                   this%inversion_aux%parameters(i),i==1, &
                                    i==num_parameters, &
                                    this%realization%option)
     enddo
@@ -2755,7 +2774,7 @@ subroutine InvSubsurfPrintCurParamValues(this)
   if (this%driver%PrintToFile()) then
     do i = 1, num_parameters
       call InversionParameterPrint(this%driver%fid_out, &
-                                   this%parameters(i),i==1, &
+                                   this%inversion_aux%parameters(i),i==1, &
                                    i==num_parameters, &
                                    this%realization%option)
     enddo
@@ -2824,7 +2843,6 @@ subroutine InversionSubsurfaceStrip(this)
 
   class(inversion_subsurface_type) :: this
 
-  PetscInt :: i
   PetscErrorCode :: ierr
 
   call InversionBaseStrip(this)
@@ -2848,52 +2866,6 @@ subroutine InversionSubsurfaceStrip(this)
   endif
   if (this%ref_quantity_of_interest /= PETSC_NULL_VEC) then
     call VecDestroy(this%ref_quantity_of_interest,ierr);CHKERRQ(ierr)
-  endif
-  if (this%parameter_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(this%parameter_vec,ierr);CHKERRQ(ierr)
-  endif
-  if (this%dist_parameter_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(this%dist_parameter_vec,ierr);CHKERRQ(ierr)
-  endif
-  if (this%ref_parameter_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(this%ref_parameter_vec,ierr);CHKERRQ(ierr)
-  endif
-  if (this%measurement_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(this%measurement_vec,ierr);CHKERRQ(ierr)
-  endif
-  if (this%dist_measurement_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
-  endif
-  if (this%scatter_measure_to_dist_measure /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(this%scatter_measure_to_dist_measure, &
-                           ierr);CHKERRQ(ierr)
-  endif
-  if (this%scatter_param_to_dist_param /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(this%scatter_measure_to_dist_measure, &
-                           ierr);CHKERRQ(ierr)
-  endif
-  if (this%scatter_global_to_dist_param /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(this%scatter_measure_to_dist_measure, &
-                           ierr);CHKERRQ(ierr)
-  endif
-
-  if (associated(this%measurements)) then
-    do i = 1, size(this%measurements)
-      call InversionMeasurementAuxStrip(this%measurements(i))
-    enddo
-    deallocate(this%measurements)
-  endif
-  nullify(this%measurements)
-  if (associated(this%parameters)) then
-    do i = 1, size(this%parameters)
-      call InversionParameterStrip(this%parameters(i))
-    enddo
-    deallocate(this%parameters)
-  endif
-  nullify(this%parameters)
-
-  if (associated(this%inversion_coupled_aux)) then
-    call InversionCoupledAuxDestroy(this%inversion_coupled_aux)
   endif
 
 end subroutine InversionSubsurfaceStrip

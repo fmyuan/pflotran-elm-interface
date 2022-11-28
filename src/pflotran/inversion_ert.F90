@@ -144,9 +144,9 @@ subroutine InversionERTInit(this,driver)
 
   call InversionSubsurfaceInit(this,driver)
   ! override default set in InversionSubsurfaceInit
-  allocate(this%parameters(1))
-  call InversionParameterInit(this%parameters(1))
-  this%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
+  allocate(this%inversion_aux%parameters(1))
+  call InversionParameterInit(this%inversion_aux%parameters(1))
+  this%inversion_aux%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -714,7 +714,7 @@ subroutine InvERTSetupForwardRunLinkage(this)
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
     ! theck to ensure that quantity of interest exists
     exists = PETSC_FALSE
-    select case(this%parameters(1)%iparameter)
+    select case(this%inversion_aux%parameters(1)%iparameter)
       case(ELECTRICAL_CONDUCTIVITY)
         if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
         word = 'ELECTRICAL_CONDUCTIVITY'
@@ -726,7 +726,7 @@ subroutine InvERTSetupForwardRunLinkage(this)
       call PrintErrMsg(this%realization%option)
     endif
 
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     if (this%app_cond_start_model) then
       ! non-ghosted Vec
       call VecDuplicate(this%realization%field%work,this%quantity_of_interest, &
@@ -1050,7 +1050,7 @@ subroutine InversionERTUpdateParameters(this)
   discretization => this%realization%discretization
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     call DiscretizationGlobalToLocal(discretization, &
                                      this%quantity_of_interest, &
                                      field%work_loc,ONEDOF)

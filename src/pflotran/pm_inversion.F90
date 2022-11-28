@@ -162,7 +162,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   ! Author: Glenn Hammond
   ! Date: 06/10/22
 
-  use Inversion_TS_Aux_module
+  use Inversion_Aux_module
   use Inversion_Coupled_Aux_module
   use Inversion_Measurement_Aux_module
   use Option_module
@@ -181,7 +181,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscErrorCode :: ierr
 
   type(option_type), pointer :: option
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  type(inversion_aux_type), pointer :: inversion_aux
   type(inversion_measurement_aux_type), pointer :: measurements(:)
   type(inversion_coupled_soln_type), pointer :: solutions(:)
   PetscInt :: imeasurement
@@ -196,19 +196,19 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
   PetscBool :: no_measurement_flag
 
   option => this%option
-  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
+  inversion_aux => this%realization%patch%aux%inversion_aux
   nullify(measurements)
 
   ierr = 0
   no_measurement_flag = PETSC_TRUE
-  if (associated(inversion_forward_aux)) then
+  if (associated(inversion_aux)) then
     if (option%inversion%record_measurements .and. &
-        inversion_forward_aux%isync_time <= &
-        size(inversion_forward_aux%sync_times)) then
-      measurements => inversion_forward_aux%measurements
-      if (Equal(inversion_forward_aux%sync_times( &
-                  inversion_forward_aux%isync_time),time)) then
-        inversion_forward_aux%isync_time = inversion_forward_aux%isync_time + 1
+        inversion_aux%isync_time <= &
+        size(inversion_aux%sync_times)) then
+      measurements => inversion_aux%measurements
+      if (Equal(inversion_aux%sync_times( &
+                  inversion_aux%isync_time),time)) then
+        inversion_aux%isync_time = inversion_aux%isync_time + 1
         icount = 0
         do imeasurement = 1, size(measurements)
           local_id = measurements(imeasurement)%local_id
@@ -236,7 +236,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                         trim(StringWrite(measurements(imeasurement)%iobs_var))
                       call PrintErrMsgByRank(option)
                   end select
-                  if (Initialized(inversion_forward_aux% &
+                  if (Initialized(inversion_aux% &
                                     local_measurement_values_ptr(icount))) then
                     option%io_buffer = 'Duplicate measurement in &
                       &PMInversionInversionMeasurement for measurement: ' // &
@@ -248,15 +248,15 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                                                 ivar,ZERO_INTEGER)
               end select
               no_measurement_flag = PETSC_FALSE
-              inversion_forward_aux%local_measurement_values_ptr(icount) = &
+              inversion_aux%local_measurement_values_ptr(icount) = &
                 tempreal
               option%io_buffer = &
                 InvMeasAnnounceToString(measurements(imeasurement), &
                                         tempreal,option)
               call PrintMsgByRank(option)
-              if (inversion_forward_aux%store_adjoint) then
+              if (inversion_aux%store_adjoint) then
                 ! store derivative of observation wrt unknown
-                if (associated(inversion_forward_aux% &
+                if (associated(inversion_aux% &
                                 local_dobs_dunknown_values_ptr)) then
                   isubvar = UNINITIALIZED_INTEGER
                   select case(measurements(imeasurement)%iobs_var)
@@ -267,17 +267,18 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                     tempreal = &
                       RealizGetVariableValueAtCell(this%realization, &
                             ghosted_id,DERIVATIVE,isubvar)
-                    inversion_forward_aux% &
+                    inversion_aux% &
                       local_dobs_dunknown_values_ptr(icount) = tempreal
                   endif
                 endif
                 ! store derivative of observation wrt parameter
-                if (associated(inversion_forward_aux% &
+                if (associated(inversion_aux% &
                                 local_dobs_dparam_values_ptr)) then
                   isubvar = UNINITIALIZED_INTEGER
                   select case(measurements(imeasurement)%iobs_var)
                     case(OBS_LIQUID_PRESSURE)
-                      select case(inversion_forward_aux%iparameter)
+                      select case(inversion_aux%parameters(1)% &
+                                    iparameter)
                         case(POROSITY)
 !                          isubvar = ZFLOW_LIQ_PRES_WRT_POROS
                       end select
@@ -286,7 +287,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                     tempreal = &
                       RealizGetVariableValueAtCell(this%realization, &
                             ghosted_id,DERIVATIVE,isubvar)
-                    inversion_forward_aux% &
+                    inversion_aux% &
                       local_dobs_dparam_values_ptr(icount) = tempreal
                   endif
                 endif
@@ -297,7 +298,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
       endif
     endif
     if (option%inversion%coupled_flow_ert) then
-      solutions => inversion_forward_aux%inversion_coupled_aux%solutions
+      solutions => inversion_aux%coupled_aux%solutions
       do icount = 1, size(solutions)
         if (.not.solutions(icount)%measured .and. &
             Equal(solutions(icount)%time,time)) then
@@ -342,7 +343,7 @@ subroutine PMInversionInversionAdjoint(this,time,ierr)
   ! Author: Glenn Hammond
   ! Date: 06/10/22
 
-  use Inversion_TS_Aux_module
+  use Inversion_Aux_module
   use Realization_Subsurface_class
 
   implicit none
@@ -352,9 +353,9 @@ subroutine PMInversionInversionAdjoint(this,time,ierr)
   PetscErrorCode :: ierr
 
   ierr = 0
-  if (associated(this%realization%patch%aux%inversion_forward_aux)) then
-    call InversionForwardAuxStep(this%realization%patch%aux% &
-                                   inversion_forward_aux,time)
+  if (associated(this%realization%patch%aux%inversion_aux)) then
+    call InversionAuxAdjointRecordTS(this%realization%patch%aux% &
+                                       inversion_aux,time)
   endif
 
 end subroutine PMInversionInversionAdjoint
