@@ -223,7 +223,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
 
-  use Factory_Subsurface_module
+  use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
 
   implicit none
@@ -256,9 +256,9 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
     call StringToUpper(word)
     select case(trim(word))
       case('SUBSURFACE_FLOW')
-        call FactorySubsurfaceReadFlowPM(input,option,new_pm)
+        call FactorySubsurfReadFlowPM(input,option,new_pm)
       case('SUBSURFACE_TRANSPORT')
-        call FactorySubsurfaceReadTransportPM(input,option,new_pm)
+        call FactorySubsurfReadTransportPM(input,option,new_pm)
       case('NUCLEAR_WASTE_TRANSPORT')
         if (OptionPrintToScreen(option)) then
           print *
@@ -282,13 +282,13 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
           &SIMULATION block."
         call PrintErrMsg(option)
       case('WASTE_FORM')
-        call FactorySubsurfaceReadWasteFormPM(input,option,new_pm)
+        call FactorySubsurfReadWasteFormPM(input,option,new_pm)
       case('UFD_DECAY')
-        call FactorySubsurfaceReadUFDDecayPM(input,option,new_pm)
+        call FactorySubsurfReadUFDDecayPM(input,option,new_pm)
       case('UFD_BIOSPHERE')
         call FactorySubsurfReadUFDBiospherePM(input,option,new_pm)
       case('MATERIAL_TRANSFORM')
-        call FactorySubsurfaceReadMTPM(input,option,new_pm)
+        call FactorySubsurfReadMTPM(input,option,new_pm)
       case('WIPP_SOURCE_SINK')
         option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
           &unless you are running in WIPP_FLOW mode and intend to &

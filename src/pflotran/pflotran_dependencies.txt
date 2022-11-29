@@ -374,6 +374,7 @@ factory_forward.o : \
   driver.o \
   factory_geomechanics.o \
   factory_subsurface.o \
+  factory_subsurface_read.o \
   input_aux.o \
   logging.o \
   option.o \
@@ -451,6 +452,102 @@ factory_pflotran.o : \
   simulation_subsurface.o \
   string.o
 factory_subsurface.o : \
+  checkpoint.o \
+  dataset.o \
+  discretization.o \
+  eos.o \
+  factory_subsurface_linkage.o \
+  general_aux.o \
+  global.o \
+  init_common.o \
+  init_subsurface.o \
+  init_subsurface_flow.o \
+  init_subsurface_geophysics.o \
+  init_subsurface_transport.o \
+  input_aux.o \
+  logging.o \
+  option.o \
+  output.o \
+  output_aux.o \
+  patch.o \
+  pflotran_constants.o \
+  pm_auxiliary.o \
+  pm_base.o \
+  pm_base_pointer.o \
+  pm_ert.o \
+  pm_general.o \
+  pm_hydrate.o \
+  pm_inversion.o \
+  pm_material_transform.o \
+  pm_mphase.o \
+  pm_pnf.o \
+  pm_richards.o \
+  pm_richards_ts.o \
+  pm_subsurface_flow.o \
+  pm_th.o \
+  pm_th_ts.o \
+  pm_ufd_biosphere.o \
+  pm_ufd_decay.o \
+  pm_waste_form.o \
+  pm_well.o \
+  pm_wipp_flow.o \
+  pm_zflow.o \
+  pmc_base.o \
+  pmc_general.o \
+  pmc_subsurface.o \
+  reaction_aux.o \
+  reaction_database.o \
+  reactive_transport.o \
+  realization_base.o \
+  realization_subsurface.o \
+  regression.o \
+  simulation_subsurface.o \
+  strata.o \
+  timestepper_SNES.o \
+  utility.o \
+  waypoint.o \
+  wipp.o \
+  zflow_aux.o
+factory_subsurface_linkage.o : \
+  factory_subsurface_read.o \
+  input_aux.o \
+  logging.o \
+  option.o \
+  pflotran_constants.o \
+  pm_auxiliary.o \
+  pm_base.o \
+  pm_base_pointer.o \
+  pm_ert.o \
+  pm_material_transform.o \
+  pm_nwt.o \
+  pm_pnf.o \
+  pm_richards_ts.o \
+  pm_rt.o \
+  pm_subsurface_flow.o \
+  pm_th_ts.o \
+  pm_ufd_biosphere.o \
+  pm_ufd_decay.o \
+  pm_waste_form.o \
+  pm_well.o \
+  pm_wipp_flow.o \
+  pm_wipp_srcsink.o \
+  pmc_base.o \
+  pmc_general.o \
+  pmc_geophysics.o \
+  pmc_linear.o \
+  pmc_subsurface.o \
+  pmc_subsurface_osrt.o \
+  pmc_third_party.o \
+  realization_subsurface.o \
+  simulation_subsurface.o \
+  string.o \
+  timestepper_KSP.o \
+  timestepper_SNES.o \
+  timestepper_TS.o \
+  timestepper_steady.o \
+  waypoint.o \
+  wipp_flow_aux.o
+factory_subsurface_read.o : \
   characteristic_curves.o \
   characteristic_curves_thermal.o \
   checkpoint.o \
@@ -468,20 +565,13 @@ factory_subsurface.o : \
   field.o \
   fluid.o \
   general.o \
-  general_aux.o \
-  global.o \
   grid.o \
   grid_structured.o \
   grid_unstructured_aux.o \
   hdf5_aux.o \
   init_common.o \
-  init_subsurface.o \
-  init_subsurface_flow.o \
-  init_subsurface_geophysics.o \
-  init_subsurface_transport.o \
   input_aux.o \
   integral_flux.o \
-  logging.o \
   material.o \
   nw_transport.o \
   nw_transport_aux.o \
@@ -492,13 +582,10 @@ factory_subsurface.o : \
   output_tecplot.o \
   patch.o \
   pflotran_constants.o \
-  pm_auxiliary.o \
   pm_base.o \
-  pm_base_pointer.o \
   pm_ert.o \
   pm_general.o \
   pm_hydrate.o \
-  pm_inversion.o \
   pm_material_transform.o \
   pm_mphase.o \
   pm_nwt.o \
@@ -507,7 +594,6 @@ factory_subsurface.o : \
   pm_richards.o \
   pm_richards_ts.o \
   pm_rt.o \
-  pm_subsurface_flow.o \
   pm_th.o \
   pm_th_ts.o \
   pm_ufd_biosphere.o \
@@ -515,21 +601,15 @@ factory_subsurface.o : \
   pm_waste_form.o \
   pm_well.o \
   pm_wipp_flow.o \
-  pm_wipp_srcsink.o \
   pm_zflow.o \
   pmc_base.o \
-  pmc_general.o \
   pmc_geophysics.o \
-  pmc_linear.o \
   pmc_subsurface.o \
   pmc_subsurface_osrt.o \
-  pmc_third_party.o \
   reaction.o \
   reaction_aux.o \
-  reaction_database.o \
   reaction_mineral.o \
   reaction_solid_solution.o \
-  reactive_transport.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
@@ -555,9 +635,7 @@ factory_subsurface.o : \
   units.o \
   utility.o \
   waypoint.o \
-  wipp.o \
-  wipp_flow_aux.o \
-  zflow_aux.o
+  wipp.o
 field.o : \
   pflotran_constants.o
 fluid.o : \
