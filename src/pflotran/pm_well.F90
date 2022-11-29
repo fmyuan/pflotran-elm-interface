@@ -319,11 +319,13 @@ module PM_Well_class
   type :: well_comm_type
     ! rank in PETSC_COMM_WORLD (from option%myrank)
     PetscMPIInt :: petsc_rank 
-    PetscInt, pointer :: petsc_rank_list(:) 
+    PetscMPIInt, pointer :: petsc_rank_list(:) 
     ! WELL_COMM_WORLD
     PetscMPIInt :: comm      
+    ! group in WELL_COMM_WORLD
+    PetscMPIInt :: group      
     ! rank in WELL_COMM_WORLD
-    PetscMPIInt :: rank           
+    PetscMPIInt :: rank        
     ! size of WELL_COMM_WORLD
     PetscMPIInt :: commsize
   end type well_comm_type
@@ -654,10 +656,11 @@ function PMWellCreate()
 
   allocate(PMWellCreate%well_comm)
   nullify(PMWellCreate%well_comm%petsc_rank_list)
-  PMWellCreate%well_comm%petsc_rank = 0
-  PMWellCreate%well_comm%comm = 0
-  PMWellCreate%well_comm%rank = 0
-  PMWellCreate%well_comm%commsize = 0
+  PMWellCreate%well_comm%petsc_rank = UNINITIALIZED_INTEGER
+  PMWellCreate%well_comm%rank = UNINITIALIZED_INTEGER
+  PMWellCreate%well_comm%comm = UNINITIALIZED_INTEGER
+  PMWellCreate%well_comm%group = UNINITIALIZED_INTEGER
+  PMWellCreate%well_comm%commsize = UNINITIALIZED_INTEGER
 
 end function PMWellCreate
 
@@ -1017,21 +1020,23 @@ subroutine PMWellSetup(this)
     min_val = minval(h_all_rank_id, mask=h_all_rank_id > min_val)
     h_rank_id_unique(k) = min_val
   enddo
+
   allocate(this%well_comm%petsc_rank_list(k)) 
+  this%well_comm%petsc_rank_list = UNINITIALIZED_INTEGER
+
   this%well_comm%petsc_rank_list = h_rank_id_unique(1:k)
   this%well_comm%commsize = k 
+  call MPI_Group_incl(option%comm%global_group,this%well_comm%commsize, &
+                      this%well_comm%petsc_rank_list,this%well_comm%group, &
+                      ierr);CHKERRQ(ierr)
+  call MPI_Comm_create(option%comm%global_comm,this%well_comm%group, &
+                       this%well_comm%comm,ierr);CHKERRQ(ierr)
 
-  if (any(option%myrank == this%well_comm%petsc_rank_list)) then
-    mycolor_mpi = 99
-    mykey_mpi = option%myrank
-  else 
-    mycolor_mpi = MPI_UNDEFINED
-    mykey_mpi = option%myrank
+  if (this%well_comm%comm /= MPI_COMM_NULL) then
+    call MPI_Comm_rank(this%well_comm%comm,this%well_comm%rank, &
+                       ierr);CHKERRQ(ierr)
   endif
-  call MPI_Comm_split(option%comm%global_comm,mycolor_mpi,mykey_mpi, &
-                      this%well_comm%comm,ierr);CHKERRQ(ierr)  
-  call MPI_Comm_rank(this%well_comm%comm,this%well_comm%rank,ierr);CHKERRQ(ierr)  
-
+    
 
 
 
@@ -1254,8 +1259,13 @@ subroutine PMWellSetup(this)
 
   ! All of the MPI processes need to sum up their counts and place the
   ! total in count2_global.
-  call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_SUM,this%well_comm%comm,ierr);CHKERRQ(ierr)
+  if (this%well_comm%comm /= MPI_COMM_NULL) then
+    call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                       MPI_SUM,this%well_comm%comm,ierr);CHKERRQ(ierr)
+  endif
+  call MPI_Bcast(count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
+                 this%well_comm%petsc_rank_list(1),option%mycomm, &
+                 ierr);CHKERRQ(ierr)
   write(string2,'(I0.5)') count2_global
 
   ! The only way we can ensure that the well discretization did not skip a
@@ -2784,11 +2794,11 @@ end subroutine PMWellFinalizeRun
 ! ************************************************************************** !
 
 subroutine PMWellInitializeTimestep(this)
-  !
-  ! Initializes and takes the time step for the well process model.
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 08/04/2021
+!
+! Initializes and takes the time step for the well process model.
+!
+! Author: Jennifer M. Frederick
+! Date: 08/04/2021
 
   implicit none
 
@@ -2796,7 +2806,6 @@ subroutine PMWellInitializeTimestep(this)
 
   PetscInt :: k
   PetscReal :: curr_time
-  PetscErrorCode :: ierr
 
   curr_time = this%option%time - this%option%flow_dt
 
@@ -2836,11 +2845,11 @@ end subroutine PMWellInitializeTimestep
 ! ************************************************************************** !
 
 subroutine PMWellInitializeWell(this)
-  !
-  ! Initializes the well for the first time step.
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 02/23/2022
+!
+! Initializes the well for the first time step.
+!
+! Author: Jennifer M. Frederick
+! Date: 02/23/2022
 
   implicit none
 
@@ -3025,10 +3034,14 @@ subroutine PMWellUpdateReservoir(this)
   type(material_auxvar_type), pointer :: material_auxvar
   type(grid_type), pointer :: res_grid
   type(option_type), pointer :: option
+  type(well_comm_type), pointer :: well_comm
+  PetscInt :: TAG, peer, root_rank
   PetscInt :: k
   PetscInt :: ghosted_id
+  PetscErrorCode :: ierr
 
   option => this%option
+  well_comm => this%well_comm 
 
   res_grid => this%realization%patch%grid
 
@@ -3085,6 +3098,170 @@ subroutine PMWellUpdateReservoir(this)
     endif
 
   enddo
+
+  if (option%myrank == this%well_grid%h_rank_id(1)) then
+      root_rank = this%well_comm%rank
+  endif 
+  call MPI_Bcast(root_rank,1,MPI_INTEGER,this%well_grid%h_rank_id(1), &
+                 option%mycomm,ierr);CHKERRQ(ierr)
+
+  if (well_comm%commsize > 1) then
+    do k = 1,this%well_grid%nsegments
+      TAG = k
+      if (this%well_grid%h_rank_id(k) /= this%well_grid%h_rank_id(1)) then
+        if (option%myrank == this%well_grid%h_rank_id(k)) then
+          peer = this%well_grid%h_rank_id(1)
+        endif
+        if (option%myrank == this%well_grid%h_rank_id(1)) then
+          peer = this%well_grid%h_rank_id(k)
+        endif
+        if ((option%myrank == this%well_grid%h_rank_id(k)) .or. &
+            (option%myrank == this%well_grid%h_rank_id(1))) then
+          call MPI_Sendrecv_replace(this%reservoir%p_l(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%p_g(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%s_l(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%s_g(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%mobility_l(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%mobility_g(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%kr_l(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%kr_g(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%rho_l(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%rho_g(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%visc_l(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%visc_g(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%e_por(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%kx(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%ky(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%kz(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%volume(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%dx(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%dy(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          call MPI_Sendrecv_replace(this%reservoir%dz(k),1, &
+                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                 MPI_STATUS_IGNORE,ierr)
+          if (this%transport) then
+            call MPI_Sendrecv_replace(this%reservoir%aqueous_conc(:,k), &
+                   this%nspecies,MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG, &
+                   option%mycomm,MPI_STATUS_IGNORE,ierr)
+            call MPI_Sendrecv_replace(this%reservoir%aqueous_mass(:,k), &
+                   this%nspecies,MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG, &
+                   option%mycomm,MPI_STATUS_IGNORE,ierr)
+          endif
+        endif
+      endif
+    enddo
+    
+    if (this%well_comm%comm /= MPI_COMM_NULL) then
+      call MPI_Bcast(this%reservoir%p_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%p_g,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%s_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%s_g,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%mobility_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%mobility_g,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%kr_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%kr_g,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%rho_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%rho_g,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%visc_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%visc_g,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%e_por,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%kx,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%ky,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%kz,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%volume,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%dx,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%dy,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      call MPI_Bcast(this%reservoir%dz,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+      if (this%transport) then
+        do k = 1,this%well_grid%nsegments
+          call MPI_Bcast(this%reservoir%aqueous_conc(:,k),this%nspecies, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+          call MPI_Bcast(this%reservoir%aqueous_mass(:,k),this%nspecies, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+                     ierr);CHKERRQ(ierr)
+        enddo
+      endif
+    endif
+  endif
 
 end subroutine PMWellUpdateReservoir
 
@@ -5490,16 +5667,19 @@ subroutine PMWellComputeWellIndex(this)
   PetscInt :: k
   character(len=8) :: diameter_string
 
+  if (this%well_comm%comm == MPI_COMM_NULL) then
+    this%well%WI = UNINITIALIZED_DOUBLE
+    this%well%r0 = UNINITIALIZED_DOUBLE
+    return
+  endif
+
   option => this%option
 
   ! Peaceman Model: default = anisotropic
   ! This assumes z is vertical (not true for WIPP)
   select case(this%well%WI_model)
     case(PEACEMAN_ISO)
-
       do k = 1,this%well_grid%nsegments
-        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
-
         write(diameter_string,'(F7.4)') this%well%diameter(k)
         temp_real = log(2.079d-1*this%reservoir%dx(k)/ &
                         (this%well%diameter(k)/2.d0))
@@ -5518,8 +5698,6 @@ subroutine PMWellComputeWellIndex(this)
 
     case(PEACEMAN_ANISOTROPIC)
       do k = 1,this%well_grid%nsegments
-        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
-
         write(diameter_string,'(F7.4)') this%well%diameter(k)
         r0 = 2.8d-1*(sqrt(sqrt(this%reservoir%ky(k)/this%reservoir%kx(k))* &
              this%reservoir%dx(k)**2 + sqrt(this%reservoir%kx(k)/ &
