@@ -36,9 +36,22 @@ module Inversion_Aux_module
     PetscReal, pointer :: local_measurement_values_ptr(:)
     PetscReal, pointer :: local_dobs_dunknown_values_ptr(:)
     PetscReal, pointer :: local_dobs_dparam_values_ptr(:)
+    type(inversion_perturbation_type), pointer :: perturbation
   end type inversion_aux_type
 
+  type, public :: inversion_perturbation_type
+    Vec :: base_parameter_vec
+    Vec :: base_measurement_vec
+    PetscInt :: ndof
+    PetscInt :: idof_pert
+    PetscReal :: pert
+    PetscReal :: base_value
+    PetscReal :: tolerance
+    PetscInt, pointer :: select_cells(:)
+  end type inversion_perturbation_type
+
   public :: InversionAuxCreate, &
+            InversionAuxPerturbationCreate, &
             InversionAuxResetMeasurements, &
             InversionAuxAdjointRecordTS, &
             InvAuxAdjCleanupAfterForwardRun, &
@@ -81,6 +94,8 @@ function InversionAuxCreate()
   nullify(aux%local_dobs_dparam_values_ptr)
   ! adjoint
   call InversionAuxInitAdjoint(aux)
+  ! perturbation
+  nullify(aux%perturbation)
 
   InversionAuxCreate => aux
 
@@ -103,6 +118,30 @@ subroutine InversionAuxInitAdjoint(aux)
   nullify(aux%last_forward_ts_aux)
 
 end subroutine InversionAuxInitAdjoint
+
+! ************************************************************************** !
+
+function InversionAuxPerturbationCreate()
+  !
+  ! Allocates and initializes a new perturbation object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/24/21
+  !
+  type(inversion_perturbation_type), pointer :: InversionAuxPerturbationCreate
+
+  allocate(InversionAuxPerturbationCreate)
+  InversionAuxPerturbationCreate%base_parameter_vec = PETSC_NULL_VEC
+  InversionAuxPerturbationCreate%base_measurement_vec = PETSC_NULL_VEC
+
+  InversionAuxPerturbationCreate%ndof = 0
+  InversionAuxPerturbationCreate%idof_pert = 0
+  InversionAuxPerturbationCreate%pert = 0.d0
+  InversionAuxPerturbationCreate%base_value = 0.d0
+  InversionAuxPerturbationCreate%tolerance = 1.d-6
+  nullify(InversionAuxPerturbationCreate%select_cells)
+
+end function InversionAuxPerturbationCreate
 
 ! ************************************************************************** !
 
@@ -170,6 +209,35 @@ subroutine InvAuxAdjCleanupAfterForwardRun(aux)
   call InversionAuxInitAdjoint(aux)
 
 end subroutine InvAuxAdjCleanupAfterForwardRun
+
+! ************************************************************************** !
+
+subroutine InversionAuxPerturbationStrip(perturbation)
+  !
+  ! Deallocates members of inversion perturbation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/24/21
+  !
+  use Utility_module
+
+  type(inversion_perturbation_type), pointer :: perturbation
+
+  PetscErrorCode :: ierr
+
+  if (.not.associated(perturbation)) return
+
+  call DeallocateArray(perturbation%select_cells)
+  if (perturbation%base_parameter_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
+  endif
+  if (perturbation%base_measurement_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(perturbation%base_measurement_vec,ierr);CHKERRQ(ierr)
+  endif
+  deallocate(perturbation)
+  nullify(perturbation)
+
+end subroutine InversionAuxPerturbationStrip
 
 ! ************************************************************************** !
 
@@ -244,6 +312,8 @@ subroutine InversionAuxDestroy(aux)
   nullify(aux%local_dobs_dparam_values_ptr)
   ! adjoints
   call InvAuxAdjCleanupAfterForwardRun(aux)
+  ! perturbation
+  call InversionAuxPerturbationStrip(aux%perturbation)
 
   deallocate(aux)
   nullify(aux)
