@@ -150,11 +150,11 @@ subroutine InvCoupledAllocateSolnVecs(aux,onedof_vec)
                               ierr);CHKERRQ(ierr)
     endif
     do j = 1, num_parameters
-      call VecSet(aux%solutions(i)%dsaturation_dparameter(j),UNINITIALIZED_DOUBLE, &
-                  ierr);CHKERRQ(ierr)
+      call VecSet(aux%solutions(i)%dsaturation_dparameter(j), &
+                  UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
       if (Initialized(zflow_sol_tran_eq)) then
-        call VecSet(aux%solutions(i)%dsolute_dparameter(j),UNINITIALIZED_DOUBLE, &
-                    ierr);CHKERRQ(ierr)
+        call VecSet(aux%solutions(i)%dsolute_dparameter(j), &
+                    UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
       endif
     enddo
   enddo

@@ -44,7 +44,7 @@ function SimulationMRCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-   use Driver_module
+   use Driver_class
 
   class(simulation_multirealization_type), pointer :: SimulationMRCreate
   class(driver_type), pointer :: driver
@@ -63,7 +63,7 @@ subroutine SimulationMRInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Driver_module
+  use Driver_class
 
   class(simulation_multirealization_type) :: this
   class(driver_type), pointer :: driver

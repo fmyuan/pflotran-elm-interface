@@ -49,7 +49,7 @@ function GeomechanicsSimulationCreate(driver,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -77,7 +77,7 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   ! Modified: Satish Karra, 06/01/2016
   !
   use Waypoint_module
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none

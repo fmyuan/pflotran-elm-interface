@@ -2,7 +2,7 @@ module Simulation_Base_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use Driver_module
+  use Driver_class
   use Output_Aux_module
   use Output_module
   use Simulation_Aux_module

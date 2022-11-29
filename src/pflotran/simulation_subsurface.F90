@@ -70,7 +70,7 @@ function SimSubsurfCreate(driver,option)
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -101,7 +101,7 @@ subroutine SimSubsurfInit(this,driver,option)
   use Timestepper_Base_class, only : TS_CONTINUE
   use Output_Aux_module
   use Waypoint_module
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
