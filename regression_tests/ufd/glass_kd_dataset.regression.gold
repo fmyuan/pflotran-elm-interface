@@ -1,0 +1,64 @@
+-- GENERIC: Temperature --
+      Max:   2.5921920100774E+02
+      Min:   4.1840557439030E+01
+     Mean:   1.5425902967149E+02
+        1:   2.5921920100774E+02
+        5:   1.0844283972917E+02
+-- CONCENTRATION: Total Cs137 --
+      Max:   1.7929042032150E-13
+      Min:   1.0243421107777E-13
+     Mean:   1.2593119029417E-13
+        1:   1.0243421107777E-13
+        5:   1.7929042032150E-13
+-- CONCENTRATION: Total Sr90 --
+      Max:   9.4785998496381E-14
+      Min:   6.3000919368748E-14
+     Mean:   7.1767155855163E-14
+        1:   6.6232152287262E-14
+        5:   9.4785998496381E-14
+-- VOLUME_FRACTION: Cs137(s) VF --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- VOLUME_FRACTION: Sr90(s) VF --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- RATE: Cs137(s) Rate --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- RATE: Sr90(s) Rate --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         5
+      Min:         1
+     Mean:   2.2500000000000E+00
+        1:         2
+        5:         1
+-- SOLUTION: Flow --
+   Time (seconds):   8.6086750030518E-02
+   Time Steps:          110
+   Newton Iterations:          381
+   Linear Solver Iterations:          381
+   Time Step Cuts:            0
+   Solution 2-Norm:   7.4777561578398E+06
+   Residual 2-Norm:   2.5416957042688E-15
+-- SOLUTION: Transport --
+   Time (seconds):   1.9621372222900E-02
+   Time Steps:          110
+   Newton Iterations:          110
+   Linear Solver Iterations:          110
+   Time Step Cuts:            0
+   Solution 2-Norm:   4.5974855026858E-13
+   Residual 2-Norm:   3.6507101798757E-32
