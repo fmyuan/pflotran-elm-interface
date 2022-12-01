@@ -328,38 +328,40 @@ subroutine CPRSetupT1(ctx,  ierr)
   call MatZeroEntries(ctx%Ap,ierr);CHKERRQ(ierr)
   call MatZeroEntries(ctx%As,ierr);CHKERRQ(ierr)
 
+  if (b == 1) then
+    ctx%option%io_buffer = 'CPR cannot apply to RICHARDS mode'
+    call PrintErrMsg(ctx%option)
+  end if 
+
   select case(ctx%extract_type)
     case('ABF')
       if (b == 2) then
         call MatGetSubABFImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
                                     ctx%factors3vec, ierr, ctx)
+      else if (b == 3) then
+        call MatGetSubABFMiscible(A, ctx%Ap, ctx%factors1vec, ierr, ctx)
       else
-        ctx%option%io_buffer = 'ABF not available for more than 3 unknowns per cell'
+        call MatGetSubABFGeneric(A, ctx%Ap, ctx%factors1vec, ierr, b, ctx)
+      end if
+    case('QIMPES')
+      if (b == 2) then
+        call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                       ctx%factors3vec, ierr, ctx)
+      else
+        ctx%option%io_buffer = 'QIMPES only available for 2 unknowns per cell'
         call PrintErrMsg(ctx%option)
       end if
     case('QIMPES_TWO_UNKNOWNS')
       call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
                                      ctx%factors3vec, ierr, ctx)
-    case('QIMPES_THREE_UNKNOWNS')
-      ! we have a more efficient version for 3x3 blocks so do that if we can instead
-      if (b == 3) then
-        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
-      else  ! talk to Daniel or Paolo to remove this statement - Heeho
-        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
-      end if
-    case('QIMPES')
-      if (b == 2) then
-        ! more efficient for 2x2 blocks
-        call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
-                                       ctx%factors3vec, ierr, ctx)
-      else if (b == 3) then
-        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
-      else
-        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
-      end if
-    case('QIMPES_VARIABLE_FORCE')
+    case('ABF_TWO_UNKNOWNS')
+      call MatGetSubABFImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                  ctx%factors3vec, ierr, ctx)
+    case('ABF_THREE_UNKNOWNS')
+      call MatGetSubABFMiscible(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
+    case('ABF_GENERIC')
       ! force to use the variables block size implementation even for 3x3 blocks
-      call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
+      call MatGetSubABFGeneric(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
     case default
       ctx%option%io_buffer = 'CPRSetupT1, extraction type not defined'
       call PrintErrMsg(ctx%option)
@@ -1303,7 +1305,7 @@ end subroutine MatGetSubQIMPESImmiscible
 ! ************************************************************************** !
 !        pressure system extraction routines
 
-subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
+subroutine MatGetSubABFMiscible(a, ap, factors1Vec,  ierr, ctx)
   !
   ! extraction of the pressure system matrix of for the
   ! CPR preconditioner, and store the pivoting factors
@@ -1346,7 +1348,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
   call MatGetBlockSize(a,b,ierr);CHKERRQ(ierr)
   call MatGetSize(A,rws,cls,ierr);CHKERRQ(ierr)
   if (rws /= cls) then
-    ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
+    ctx%option%io_buffer = 'MatGetSubABFMiscible, given a nonsquare matrix'
     call PrintErrMsg(ctx%option)
   endif
   nblks = rws/b
@@ -1375,7 +1377,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
       endif
     enddo
     if (firstrowdex == -1) then
-      ctx%option%io_buffer = 'MatGetSubQIMPES, cannot find diagonal entry, check matrix'
+      ctx%option%io_buffer = 'MatGetSubABFMiscible, cannot find diagonal entry, check matrix'
       call PrintErrMsg(ctx%option)
     endif
     aa = ctx%vals(firstrowdex)
@@ -1452,12 +1454,12 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
   call VecAssemblyBegin(factors1Vec,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec,ierr);CHKERRQ(ierr)
 
-end subroutine MatGetSubQIMPES
+end subroutine MatGetSubABFMiscible
 
 ! ************************************************************************** !
 
-subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
-                              b, ctx                       )
+subroutine MatGetSubABFGeneric(a, ap, factors1Vec,  ierr, &
+                               b, ctx)
   !
   ! extraction of the pressure system matrix of for the
   ! CPR preconditioner, and store the pivoting factors
@@ -1530,7 +1532,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
       endif
     enddo
     if (firstrowdex == -1) then
-      ctx%option%io_buffer = 'MatGetSubQIMPES_var, cannot find diagonal entry, check matrix'
+      ctx%option%io_buffer = 'MatGetSubABFGeneric, cannot find diagonal entry, check matrix'
       call PrintErrMsg(ctx%option)
     endif
     numcols_keep = numcols
@@ -1558,7 +1560,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
     call DGETRI(b,   diag_block,       b,   IPIV,   WORK,     LWORK, invinfo)
 
     if (invinfo > 0) then
-      ctx%option%io_buffer = 'MatGetSubQIMPES_var, singular diagonal block'
+      ctx%option%io_buffer = 'MatGetSubABFGeneric, singular diagonal block'
       call PrintErrMsg(ctx%option)
     endif
     ! scaling factor: the sum of abs of the first column of
@@ -1620,7 +1622,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
   call VecAssemblyBegin(factors1Vec,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec,ierr);CHKERRQ(ierr)
 
-end subroutine MatGetSubQIMPES_var
+end subroutine MatGetSubABFGeneric
 
 ! ************************************************************************** !
 
