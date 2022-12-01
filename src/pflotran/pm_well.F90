@@ -653,6 +653,7 @@ function PMWellCreate()
   nullify(PMWellCreate%strata_list%first)
   nullify(PMWellCreate%strata_list%last)
   nullify(PMWellCreate%strata_list%array)
+  PMWellCreate%strata_list%num_strata = 0 
 
   allocate(PMWellCreate%well_comm)
   nullify(PMWellCreate%well_comm%petsc_rank_list)
@@ -1325,9 +1326,9 @@ subroutine PMWellSetup(this)
 
   this%flow_soln%ndof = this%nphase
 
-  if (this%option%itranmode /= NULL_MODE) then
+  if (option%itranmode /= NULL_MODE) then
     this%transport = PETSC_TRUE
-    if (this%option%itranmode /= NWT_MODE) then
+    if (option%itranmode /= NWT_MODE) then
       option%io_buffer ='The only transport mode allowed with the &
       &WELLBORE_MODEL is NWT_MODE.'
       call PrintErrMsg(option)
@@ -1338,6 +1339,8 @@ subroutine PMWellSetup(this)
 
   ! add a reservoir src/sink coupler for each well segment
   do k = 1,well_grid%nsegments
+    if (well_grid%h_rank_id(k) /= option%myrank) cycle
+    
     write(string,'(I0.6)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
     source_sink%name = 'well_segment_' // trim(string)
@@ -2891,19 +2894,21 @@ subroutine PMWellInitializeWell(this)
   this%flow_soln%prev_soln%sg = this%well%gas%s
 
   ! Link well material properties
-  do k = 1,this%well_grid%nsegments
-    strata => this%strata_list%first
-    do
-      if (.not.associated(strata)) exit
-      if (strata%id == this%well_grid%strata_id(k)) then
-        this%well%ccid(k) = strata%material_property%saturation_function_id
-        this%well%permeability(k) = strata%material_property%permeability(3,3)
-        this%well%phi(k) = strata%material_property%porosity
-        exit
-      endif
-      strata => strata%next
+  if (this%well_comm%comm /= MPI_COMM_NULL) then
+    do k = 1,this%well_grid%nsegments
+      strata => this%strata_list%first
+      do
+        if (.not.associated(strata)) exit
+        if (strata%id == this%well_grid%strata_id(k)) then
+          this%well%ccid(k) = strata%material_property%saturation_function_id
+          this%well%permeability(k) = strata%material_property%permeability(3,3)
+          this%well%phi(k) = strata%material_property%porosity
+          exit
+        endif
+        strata => strata%next
+      enddo
     enddo
-  enddo
+  endif
 
   call PMWellComputeWellIndex(this)
 
@@ -2998,8 +3003,11 @@ subroutine PMWellUpdateStrata(this,curr_time)
     enddo
   enddo
   allocate(all_strata_id(nsegments))
-  call MPI_Allreduce(this%well_grid%strata_id,all_strata_id,nsegments, &
-                     MPI_INTEGER,MPI_MAX,this%well_comm%comm,ierr);CHKERRQ(ierr)
+  all_strata_id = UNINITIALIZED_INTEGER
+  if (this%well_comm%comm /= MPI_COMM_NULL) then
+    call MPI_Allreduce(this%well_grid%strata_id,all_strata_id,nsegments, &
+                MPI_INTEGER,MPI_MAX,this%well_comm%comm,ierr);CHKERRQ(ierr)
+  endif
   this%well_grid%strata_id = all_strata_id
   if (any(this%well_grid%strata_id == UNINITIALIZED_INTEGER) .and. &
       any(this%well_comm%petsc_rank_list == this%option%myrank)) then
@@ -3345,7 +3353,11 @@ subroutine PMWellUpdateReservoirSrcSink(this)
   PetscReal :: well_delta_liq, well_delta_gas
   PetscReal :: density_avg
 
+  if (this%well_comm%comm == MPI_COMM_NULL) return
+
   do k = 1,this%well_grid%nsegments
+    if (this%well_grid%h_rank_id(k) /= this%option%myrank) cycle
+
     write(string,'(I0.6)') k
     srcsink_name = 'well_segment_' // trim(string)
 
@@ -4435,11 +4447,14 @@ subroutine PMWellSolve(this,time,ierr)
 
   curr_time = this%option%time - this%option%flow_dt
 
+  ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs if the solve
+           ! routines are not entered, either due to an inactive well or due
+           ! to being on a process that doesn't contain a well segment.
+
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
     write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
     call PrintMsg(this%option,out_string)
-    ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs!
     return
   endif
 
@@ -4482,6 +4497,8 @@ subroutine PMWellSolveFlow(this,time,ierr)
   PetscReal :: gravity_term, area, mass_conserved_liq, mass_conserved_gas
   PetscInt :: i, j, k
   PetscInt :: ss_step_count, steps_to_declare_ss
+
+  if (this%well_comm%comm == MPI_COMM_NULL) return
 
   flow_soln => this%flow_soln
 
@@ -4845,6 +4862,8 @@ subroutine PMWellSolveTran(this,time,ierr)
   PetscInt :: n_iter, ts_cut
   PetscInt :: istart, iend
   PetscInt :: k
+
+  if (this%well_comm%comm == MPI_COMM_NULL) return
 
   soln => this%tran_soln
 
@@ -6575,6 +6594,8 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
   PetscReal :: Pc,dpc_dsatl,krl,dkrl_dsatl,krg,dkrg_dsatl
   PetscErrorCode :: ierr
 
+  if (this%well_comm%comm == MPI_COMM_NULL) return
+
   nsegments =this%well_grid%nsegments
 
   do i = 1,nsegments
@@ -7042,6 +7063,11 @@ subroutine PMWellMassBalance(this)
   well => this%well
   nsegments = this%well_grid%nsegments
 
+  if (this%well_comm%comm == MPI_COMM_NULL) then 
+    well%mass_balance_liq = UNINITIALIZED_DOUBLE
+    return
+  endif
+
   n_dn = +1
   n_up = -1
 
@@ -7116,6 +7142,12 @@ subroutine PMWellUpdateMass(this)
 
   well => this%well
   nsegments = this%well_grid%nsegments
+
+  if (this%well_comm%comm == MPI_COMM_NULL) then
+    well%liq_mass = UNINITIALIZED_DOUBLE
+    well%liq_cum_mass = UNINITIALIZED_DOUBLE
+    return
+  endif
 
   do isegment = 1,nsegments
 

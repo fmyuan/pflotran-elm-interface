@@ -1225,7 +1225,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
         else
           ! jmfrede 09/14/2022 Getting rid of this scale factor because it
           ! changes wildly within Newton iterations, which seems to make
-          ! WIPP_FLOW have a harder time converging. Then it does converge,
+          ! WIPP_FLOW have a harder time converging. When it does converge,
           ! the scale seems to be ~ 1 anyways. Uncomment the WRITE statement
           ! to quickly see the value of scale printed to screen.
           scale = dabs(wippflo_auxvars(ZERO_INTEGER,ghosted_id)% &
