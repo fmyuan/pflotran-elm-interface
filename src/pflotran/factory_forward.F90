@@ -22,9 +22,8 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
 ! Author: Glenn Hammond
 ! Date: 06/17/13
 !
-  use Driver_module
+  use Driver_class
   use Option_module
-  use Output_Aux_module
   use Logging_module
   use Input_Aux_module
   use String_module
@@ -75,7 +74,7 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
 ! Author: Glenn Hammond
 ! Date: 06/17/13
 !
-  use Driver_module
+  use Driver_class
   use Option_module
   use Input_Aux_module
   use String_module
@@ -85,6 +84,7 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
   use PMC_Base_class
   use Checkpoint_module
   use Output_Aux_module
+  use Option_Checkpoint_module
   use Waypoint_module
   use Units_module
 
@@ -146,10 +146,9 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
       case('PRINT_EKG')
         option%print_ekg = PETSC_TRUE
       case('CHECKPOINT')
-        checkpoint_option => CheckpointOptionCreate()
+        option%checkpoint => OptionCheckpointCreate()
         checkpoint_waypoint_list => WaypointListCreate()
-        call CheckpointRead(input,option,checkpoint_option, &
-                            checkpoint_waypoint_list)
+        call CheckpointRead(input,option,checkpoint_waypoint_list)
       case ('RESTART')
         call FactoryForwardReadRestart(input,option)
       case('INPUT_RECORD_FILE')
@@ -197,7 +196,6 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
   call WaypointListMerge(simulation%waypoint_list_outer, &
                          checkpoint_waypoint_list,option)
   simulation%process_model_list => pm_master
-  simulation%checkpoint_option => checkpoint_option
 
   select type(simulation)
     class is(simulation_geomechanics_type)
@@ -225,7 +223,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
 
-  use Factory_Subsurface_module
+  use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
 
   implicit none
@@ -258,9 +256,9 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
     call StringToUpper(word)
     select case(trim(word))
       case('SUBSURFACE_FLOW')
-        call FactorySubsurfaceReadFlowPM(input,option,new_pm)
+        call FactorySubsurfReadFlowPM(input,option,new_pm)
       case('SUBSURFACE_TRANSPORT')
-        call FactorySubsurfaceReadTransportPM(input,option,new_pm)
+        call FactorySubsurfReadTransportPM(input,option,new_pm)
       case('NUCLEAR_WASTE_TRANSPORT')
         if (OptionPrintToScreen(option)) then
           print *
@@ -284,13 +282,13 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
           &SIMULATION block."
         call PrintErrMsg(option)
       case('WASTE_FORM')
-        call FactorySubsurfaceReadWasteFormPM(input,option,new_pm)
+        call FactorySubsurfReadWasteFormPM(input,option,new_pm)
       case('UFD_DECAY')
-        call FactorySubsurfaceReadUFDDecayPM(input,option,new_pm)
+        call FactorySubsurfReadUFDDecayPM(input,option,new_pm)
       case('UFD_BIOSPHERE')
         call FactorySubsurfReadUFDBiospherePM(input,option,new_pm)
       case('MATERIAL_TRANSFORM')
-        call FactorySubsurfaceReadMTPM(input,option,new_pm)
+        call FactorySubsurfReadMTPM(input,option,new_pm)
       case('WIPP_SOURCE_SINK')
         option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
           &unless you are running in WIPP_FLOW mode and intend to &

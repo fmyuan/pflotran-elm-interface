@@ -10,6 +10,7 @@ util_obj = \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
 	${common_src}option.o \
+	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
 	${common_src}option_inversion.o \
 	${common_src}option_transport.o \
@@ -230,6 +231,8 @@ misc_obj = \
 	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
+	${common_src}factory_subsurface_linkage.o \
+	${common_src}factory_subsurface_read.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
 	${common_src}init_common.o \
@@ -244,7 +247,6 @@ misc_obj = \
 	${common_src}inversion_measurement_aux.o \
 	${common_src}inversion_parameter.o \
 	${common_src}inversion_subsurface.o \
-	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
 	${common_src}inversion_zflow.o \
 	${common_src}matrix_buffer.o \

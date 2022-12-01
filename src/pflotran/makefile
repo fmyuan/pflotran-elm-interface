@@ -69,6 +69,10 @@ ifdef ci
   catch_warnings_as_errors = 1
 endif
 
+ifdef cw
+  catch_warnings_as_errors = 1
+endif
+
 ifdef match_tough2
   MYFLAGS += ${FC_DEFINE_FLAG}MATCH_TOUGH2
 endif

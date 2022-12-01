@@ -1,0 +1,290 @@
+#Description:
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        ARITHMETIC_GAS_DIFFUSIVE_DENSITY
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+    MAXIMUM_NUMBER_OF_ITERATIONS 15
+    ANALYTICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== flow mode ========================================
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    5
+    14
+    50
+    86
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 9 1 10
+  BOUNDS
+    0.d0 0.d0 0.d0
+    9.d0 1.d0 10.d0
+  /
+/
+
+#=========================== solver options ===================================
+
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY  soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.d0 kg/m^3
+  THERMAL_CONDUCTIVITY_DRY 0.6d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.9d0 W/m-C
+  HEAT_CAPACITY 830.d0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.1d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+/
+
+MATERIAL_PROPERTY  impermeable
+  ID 2
+  CHARACTERISTIC_CURVES cc2
+  POROSITY 0.15
+  TORTUOSITY 0.25
+  ROCK_DENSITY 2850.d0
+  THERMAL_CONDUCTIVITY_DRY 0.5d0
+  THERMAL_CONDUCTIVITY_WET 2.d0
+  HEAT_CAPACITY 850.d0
+  PERMEABILITY
+    PERM_X 1.d-15
+    PERM_Y 1.1d-15
+    PERM_Z 1.1d-15
+  /
+/
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+#  TEST
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+
+  /
+  PERMEABILITY_FUNCTION MODIFIED_BROOKS_COREY
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.153d0
+    GAS_RESIDUAL_SATURATION 0.05d0
+    KR_MAX 0.888d0
+    N 3.2d0
+  /
+  PERMEABILITY_FUNCTION MODIFIED_BROOKS_COREY_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.143d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+    KR_MAX 0.777d0
+    N 2.2d0
+  /
+/
+
+CHARACTERISTIC_CURVES cc2
+#  TEST
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.01d0
+    ALPHA 2.d-4
+    M 0.55d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.01d0
+    M 0.55d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.01d0
+    GAS_RESIDUAL_SATURATION 0.01d0
+    M 0.55d0
+  /
+/
+
+#=========================== output options ===================================
+OUTPUT
+skip
+  PERIODIC TIME 20 h
+  TIMES y 1.d-6 1.d-5 1.d-4 1.d-3 1.d-2
+  PERIODIC TIME 0.05 y
+  PERIODIC_OBSERVATION TIMESTEP 1
+  FORMAT TECPLOT POINT
+  FORMAT HDF5
+  VELOCITY_AT_CENTER
+  VARIABLES
+    LIQUID_PRESSURE
+    GAS_PRESSURE
+    GAS_SATURATION
+  /
+noskip
+/
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.01 y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 0.01d0 y
+/
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    9.d0 1.d0 10.d0
+  /
+/
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 10.d0
+    9.d0 1.d0 10.d0
+  /
+/
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    9.d0 1.d0 0.d0
+  /
+/
+
+REGION impermeable_zone
+  COORDINATES
+    3.d0 0.d0 5.d0
+    6.d0 1.d0 6.d0
+  /
+/
+
+REGION top_pt
+  COORDINATE 4.5d0 0.5d0 10.d0
+/
+
+REGION bottom_pt
+  COORDINATE 4.5d0 0.5d0 0.d0
+/
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION bottom_pt
+/
+
+OBSERVATION
+  REGION top_pt
+/
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION bottom_pressure
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 200159.412d0
+  MOLE_FRACTION 1.d-6
+  TEMPERATURE 25.d0
+/
+
+FLOW_CONDITION atmosphere
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 101325.d0
+  ! psat at 25 C is 3165.9896022949661
+  ! at 100% humidity, p_a = p_g - p_sat
+  ! mole fraction = p_a / p_g = (p_g - p_sat) / p_g
+  !               = (101325. - 3165.9896022949661) / 101325.
+  MOLE_FRACTION 0.978754d0
+  TEMPERATURE 25.d0
+/
+
+FLOW_CONDITION injection
+  TYPE
+    RATE mass_rate
+  /
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/s kg/s MW
+              ! 10 kg/yr
+    0.d0 0.d0 3.170979198d-6 0.d0
+    0.5d0 0.d0 0.d0 0.d0
+  /
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION bottom_pressure
+  REGION all
+/
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION atmosphere
+  REGION top
+/
+
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION bottom_pressure
+  REGION bottom
+/
+
+SOURCE_SINK well
+  FLOW_CONDITION injection
+  REGION bottom_pt
+/
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+STRATA
+  MATERIAL impermeable
+  REGION impermeable_zone
+/
+
+END_SUBSURFACE

@@ -85,6 +85,8 @@ CHEMISTRY
       ACTIVATION_ENERGY 89.d0 kJ/mol
       STORE_CONSUMPTION_PRODUCTION
       CARBON_CONSUMPTION_SPECIES C_consumption
+      INHIBIT_BY_NH4 1.d-2
+      INHIBITION_SCALING_FACTOR 1.d8
     /
   /
   DATABASE ../../../database/cybernetic.dat

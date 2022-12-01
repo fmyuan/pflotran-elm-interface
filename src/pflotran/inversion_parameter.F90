@@ -23,7 +23,9 @@ module Inversion_Parameter_module
             InversionParameterRead, &
             InversionParameterCopy, &
             InversionParameterMapNameToInt, &
+            InversionParameterGetIDFromName, &
             InversionParameterIntToQOIArray, &
+            InversionParameterPrint, &
             InversionParameterStrip, &
             InversionParameterDestroy
 
@@ -97,9 +99,10 @@ end subroutine InversionParameterCopy
 
 ! ************************************************************************** !
 
-subroutine InversionParameterPrint(inversion_parameter,option)
+subroutine InversionParameterPrint(fid,inversion_parameter, &
+                                   print_header,print_footer,option)
   !
-  ! Print contents of inversion parameter object for debugging
+  ! Print contents of inversion parameter object
   !
   ! Author: Glenn Hammond
   ! Date: 03/18/22
@@ -108,8 +111,35 @@ subroutine InversionParameterPrint(inversion_parameter,option)
   use String_module
   use Units_module
 
+  PetscInt :: fid
   type(inversion_parameter_type) :: inversion_parameter
+  PetscBool :: print_header
+  PetscBool :: print_footer
   type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (print_header) then
+    write(fid,'(40("=+"),//, &
+              &" Current values of inversion parameters:",//, &
+              &"    # &
+              &Parameter Name      &
+              &Material Name       &
+              & Value",/,&
+              &"    - &
+              &--------------      &
+              &-------------       &
+              & -----")')
+  endif
+  write(string,'(i4," ",2a20,es13.6)') &
+    inversion_parameter%id, &
+    inversion_parameter%parameter_name, &
+    inversion_parameter%material_name, &
+    inversion_parameter%value
+  write(fid,*) trim(string)
+  if (print_footer) then
+    write(fid,'(/,40("=+"))')
+  endif
 
 end subroutine InversionParameterPrint
 
@@ -182,23 +212,43 @@ end function InversionParameterRead
 
 subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
   !
-  ! Maps an inverion parameter to subsurface model parameter id
+  ! Maps an inversion parameter to subsurface model parameter id
   !
   ! Author: Glenn Hammond
   ! Date: 03/25/22
   !
-  use Driver_module
-  use String_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA
+  use Driver_class
 
   type(inversion_parameter_type) :: inversion_parameter
-  type(driver_type) :: driver
+  class(driver_type) :: driver
+
+  inversion_parameter%iparameter = &
+    InversionParameterGetIDFromName(inversion_parameter%parameter_name,driver)
+
+end subroutine InversionParameterMapNametoInt
+
+! ************************************************************************** !
+
+function InversionParameterGetIDFromName(name_,driver)
+  !
+  ! Maps an inversion parameter_name to subsurface model parameter id
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/23/22
+  !
+  use Driver_class
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, POROSITY, &
+                               VG_SR, VG_ALPHA, VG_M
+
+  character(len=MAXWORDLENGTH) :: name_
+  class(driver_type) :: driver
+
+  PetscInt :: InversionParameterGetIDFromName
 
   PetscInt :: i
 
-  select case(inversion_parameter%parameter_name)
+  select case(name_)
     case('ELECTRICAL_CONDUCTIVITY')
       i = ELECTRICAL_CONDUCTIVITY
     case('PERMEABILITY')
@@ -209,14 +259,17 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
       i = VG_ALPHA
     case('RESIDUAL_SATURATION')
       i = VG_SR
+    case('M')
+      i = VG_M
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
-                              &InversionParameterMap: ' // &
-                              StringWrite(inversion_parameter%parameter_name))
+                              &InversionParameterGetIDFromName: ' // &
+                              trim(name_))
   end select
-  inversion_parameter%iparameter = i
 
-end subroutine InversionParameterMapNametoInt
+  InversionParameterGetIDFromName = i
+
+end function InversionParameterGetIDFromName
 
 ! ************************************************************************** !
 

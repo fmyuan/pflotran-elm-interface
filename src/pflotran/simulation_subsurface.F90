@@ -21,7 +21,6 @@ module Simulation_Subsurface_class
 
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
     type(option_type), pointer :: option
-    type(checkpoint_option_type), pointer :: checkpoint_option
     type(output_option_type), pointer :: output_option
     PetscInt :: stop_flag
     class(pmc_base_type), pointer :: process_model_coupler_list
@@ -71,7 +70,7 @@ function SimSubsurfCreate(driver,option)
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -102,7 +101,7 @@ subroutine SimSubsurfInit(this,driver,option)
   use Timestepper_Base_class, only : TS_CONTINUE
   use Output_Aux_module
   use Waypoint_module
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -118,7 +117,6 @@ subroutine SimSubsurfInit(this,driver,option)
   call SimulationBaseInit(this,driver)
   this%option => option
   this%output_option => OutputOptionCreate()
-  nullify(this%checkpoint_option)
   nullify(this%process_model_coupler_list)
   nullify(this%process_model_list)
   this%sim_aux => SimAuxCreate()
@@ -168,6 +166,7 @@ subroutine SimSubsurfInitializeRun(this)
 
   use Logging_module
   use Option_module
+  use Option_Checkpoint_module
   use Output_module
   use hdf5
 
@@ -189,8 +188,8 @@ subroutine SimSubsurfInitializeRun(this)
   ! print error message if binary checkpoint/restart is used in
   ! combination with unstructured gridding
   flag = PETSC_FALSE
-  if (associated(this%checkpoint_option)) then
-    if (this%checkpoint_option%format == CHECKPOINT_BINARY) then
+  if (associated(this%option%checkpoint)) then
+    if (this%option%checkpoint%format == CHECKPOINT_BINARY) then
       flag = PETSC_TRUE
     endif
   endif
@@ -289,7 +288,7 @@ subroutine SimSubsurfInputRecord(this)
   PetscInt :: id = INPUT_RECORD_UNIT
 
   ! print checkpoint information
-  call CheckpointInputRecord(this%checkpoint_option,this%waypoint_list_outer)
+  call CheckpointInputRecord(this%option%checkpoint,this%waypoint_list_outer)
 
   write(id,'(a)') ' '
   ! print process model coupler and process model information
@@ -551,10 +550,8 @@ subroutine SimSubsurfExecuteRun(this)
   if (cur_waypoint%print_checkpoint) then
     append_name = &
          CheckpointAppendNameAtTime(this%process_model_coupler_list% &
-                                        checkpoint_option, &
-                                        this%process_model_coupler_list% &
                                         option%time, &
-                                        this%process_model_coupler_list%option)
+                                    this%process_model_coupler_list%option)
     call this%process_model_coupler_list%Checkpoint(append_name)
   endif
   call WaypointSkipToTime(cur_waypoint,this%option%time)
@@ -565,7 +562,7 @@ subroutine SimSubsurfExecuteRun(this)
     cur_waypoint => cur_waypoint%next
   enddo
   append_name = '-restart'
-  if (associated(this%process_model_coupler_list%checkpoint_option)) then
+  if (associated(this%option%checkpoint)) then
     call this%process_model_coupler_list%Checkpoint(append_name)
   endif
 
@@ -777,7 +774,6 @@ subroutine SimSubsurfStrip(this)
   call SimulationBaseStrip(this)
 
   call SimAuxDestroy(this%sim_aux)
-  call CheckpointOptionDestroy(this%checkpoint_option)
   call OutputOptionDestroy(this%output_option)
   if (associated(this%process_model_coupler_list)) then
 call this%process_model_coupler_list%Destroy()

@@ -136,17 +136,17 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 0.1d0
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION top
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX 0.5 m/y
+  LIQUID_FLUX 0.5 m/y
 END
 
 #=========================== condition couplers ===============================

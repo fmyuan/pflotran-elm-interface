@@ -632,6 +632,13 @@ class RegressionTest(object):
                 else:
                     with open(current_name, 'r') as current_file:
                         current_output = current_file.readlines()
+                        if len(current_output) == 0:
+                            message = self._txtwrap.fill(
+                                "ERROR: ASCII output test file '{0}' is "
+                                "empty.".format(current_name))
+                            print("".join(['\n', message, '\n']), file=testlog)
+                            status.error = _MISSING_INFO_ERROR
+                            return
 
                 if current_name.endswith('tec'):
                     tec = True
@@ -649,6 +656,13 @@ class RegressionTest(object):
                 else:
                     with open(gold_name, 'r') as gold_file:
                         gold_output = gold_file.readlines()
+                        if len(current_output) == 0:
+                            message = self._txtwrap.fill(
+                                "ERROR: ASCII output gold file '{0}' is "
+                                "empty.".format(gold_name))
+                            print("".join(['\n', message, '\n']), file=testlog)
+                            status.error = _MISSING_INFO_ERROR
+                            return
 
                 if diff:
                     print("    diff {0} {1}".format(current_name, gold_name),
