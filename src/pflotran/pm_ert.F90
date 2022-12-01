@@ -1282,7 +1282,7 @@ subroutine PMERTBuildCoupledJacobian(this)
 
   if (this%coupled_ert_flow_jacobian) then
     solutions => patch%aux%inversion_aux%coupled_aux%solutions
-    parameters => patch%aux%inversion_aux%coupled_aux%parameters
+    parameters => patch%aux%inversion_aux%parameters
 
     call VecGetArrayReadF90(this%dconductivity_dsaturation, &
                             dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)

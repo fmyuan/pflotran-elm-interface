@@ -16,6 +16,13 @@ module Option_Inversion_module
     PetscBool :: record_measurements
     PetscBool :: calculate_ert
     PetscBool :: calculate_ert_jacobian
+    ! parameter flags
+    PetscBool :: invert_for_elec_cond
+    PetscBool :: invert_for_permeability
+    PetscBool :: invert_for_porosity
+    PetscBool :: invert_for_vg_alpha
+    PetscBool :: invert_for_vg_m
+    PetscBool :: invert_for_vg_sr
   end type inversion_option_type
 
   public :: OptionInversionCreate, &
@@ -66,6 +73,13 @@ subroutine OptionInversionInit(option)
   option%record_measurements = PETSC_TRUE
   option%calculate_ert = PETSC_FALSE
   option%calculate_ert_jacobian = PETSC_FALSE
+
+  option%invert_for_elec_cond = PETSC_FALSE
+  option%invert_for_permeability = PETSC_FALSE
+  option%invert_for_porosity = PETSC_FALSE
+  option%invert_for_vg_alpha = PETSC_FALSE
+  option%invert_for_vg_m = PETSC_FALSE
+  option%invert_for_vg_sr = PETSC_FALSE
 
 end subroutine OptionInversionInit
 

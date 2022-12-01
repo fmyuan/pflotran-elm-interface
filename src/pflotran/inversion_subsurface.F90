@@ -577,50 +577,51 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     else
       call this%driver%PrintErrMsg('No inversion measurements defined.')
     endif
-    if (associated(this%inversion_aux%parameters)) then
-      num_parameters = 0
-      do i = 1, size(this%inversion_aux%parameters)
-        call InversionParameterMapNameToInt(this%inversion_aux%parameters(i), &
-                                            this%driver)
-        if (len_trim(this%inversion_aux%parameters(i)%material_name) > 0) then
-          material_property => &
-            MaterialPropGetPtrFromArray(this%inversion_aux% &
-                                          parameters(i)%material_name, &
-                              this%realization%patch%material_property_array)
-          if (.not.associated(material_property)) then
-            call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
-                trim(this%inversion_aux%parameters(i)%material_name) // &
-                '" not found among MATERIAL_PROPERTIES.')
-          endif
-          this%inversion_aux%parameters(i)%imat = &
-            abs(material_property%internal_id)
-          num_parameters = num_parameters + 1
-        else
-          num_parameters = num_parameters + patch%grid%nmax
-        endif
-      enddo
-      if (.not.associated(this%inversion_aux%perturbation)) then
-        do i = 1, size(this%inversion_aux%parameters)
-          if (i == 1) then
-            temp_int = this%inversion_aux%parameters(i)%iparameter
-          else
-            if (temp_int /= this%inversion_aux%parameters(i)%iparameter) then
-              call this%driver%PrintErrMsg('Inversion by multiple &
-                &parameters of differing type (e.g. permeability, &
-                &porosity) only supported for perturbation.')
-            endif
-          endif
-        enddo
-      endif
-      if (num_parameters == patch%grid%nmax) then
-        this%qoi_is_full_vector = PETSC_TRUE
-        this%num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
-      else
-        this%num_parameters_local = PETSC_DECIDE
-      endif
-    else
+    if (.not.associated(this%inversion_aux%parameters)) then
       call this%driver%PrintErrMsg('No inversion parameters defined.')
     endif
+
+    num_parameters = 0
+    do i = 1, size(this%inversion_aux%parameters)
+      call InversionParameterMapNameToInt(this%inversion_aux%parameters(i), &
+                                          this%driver,this%inversion_option)
+      if (len_trim(this%inversion_aux%parameters(i)%material_name) > 0) then
+        material_property => &
+          MaterialPropGetPtrFromArray(this%inversion_aux% &
+                                        parameters(i)%material_name, &
+                            this%realization%patch%material_property_array)
+        if (.not.associated(material_property)) then
+          call this%driver%PrintErrMsg('Inversion MATERIAL "' // &
+              trim(this%inversion_aux%parameters(i)%material_name) // &
+              '" not found among MATERIAL_PROPERTIES.')
+        endif
+        this%inversion_aux%parameters(i)%imat = &
+          abs(material_property%internal_id)
+        num_parameters = num_parameters + 1
+      else
+        num_parameters = num_parameters + patch%grid%nmax
+      endif
+    enddo
+    if (.not.associated(this%inversion_aux%perturbation)) then
+      do i = 1, size(this%inversion_aux%parameters)
+        if (i == 1) then
+          temp_int = this%inversion_aux%parameters(i)%iparameter
+        else
+          if (temp_int /= this%inversion_aux%parameters(i)%iparameter) then
+            call this%driver%PrintErrMsg('Inversion by multiple &
+              &parameters of differing type (e.g. permeability, &
+              &porosity) only supported for perturbation.')
+          endif
+        endif
+      enddo
+    endif
+    if (num_parameters == patch%grid%nmax) then
+      this%qoi_is_full_vector = PETSC_TRUE
+      this%num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
+    else
+      this%num_parameters_local = PETSC_DECIDE
+    endif
+
     if (size(this%inversion_aux%parameters) > 1 .and. &
         this%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('More than one parameter not currently &
@@ -630,7 +631,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     if (this%inversion_option%coupled_flow_ert) then
       do i = 1, size(this%inversion_aux%parameters)
         if (InversionParameterGetIDFromName(this%inversion_aux%parameters(i)% &
-                                              parameter_name,this%driver) /= &
+                                              parameter_name,this%driver, &
+                                            this%inversion_option) /= &
             PERMEABILITY) then
           call this%driver%PrintErrMsg('COUPLED_ZFLOW_ERT currently only &
                                         &supported for permeability.')
@@ -644,7 +646,6 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
           &requires that both ZFLOW and ERT process models are employed.')
       endif
       this%inversion_aux%coupled_aux => InversionCoupledAuxCreate()
-      this%inversion_aux%coupled_aux%parameters => this%inversion_aux%parameters
     endif
 
     ! JsensitivityT is the transpose of the sensitivity Jacobian
@@ -1113,7 +1114,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
       ! allocate any full vector measurements
       call InvCoupledAllocateSolnVecs(this%inversion_aux%coupled_aux, &
-                                      this%realization%field%work)
+                                      this%realization%field%work, &
+                                      size(this%inversion_aux%parameters))
     endif
 
   endif
