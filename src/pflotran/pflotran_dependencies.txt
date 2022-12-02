@@ -1807,9 +1807,9 @@ pm_ert.o : \
   global_aux.o \
   grid.o \
   input_aux.o \
+  inversion_aux.o \
   inversion_coupled_aux.o \
   inversion_parameter.o \
-  inversion_ts_aux.o \
   material_aux.o \
   option.o \
   patch.o \
@@ -1897,9 +1897,9 @@ pm_inversion.o : \
   communicator_base.o \
   condition.o \
   coupler.o \
+  inversion_aux.o \
   inversion_coupled_aux.o \
   inversion_measurement_aux.o \
-  inversion_ts_aux.o \
   option.o \
   option_inversion.o \
   pflotran_constants.o \
@@ -2168,6 +2168,7 @@ pm_ufd_biosphere.o : \
   string.o \
   utility.o
 pm_ufd_decay.o : \
+  dataset_ascii.o \
   field.o \
   global.o \
   global_aux.o \
@@ -2723,6 +2724,7 @@ reaction_sandbox.o : \
   reaction_sandbox_bioTH.o \
   reaction_sandbox_biohill.o \
   reaction_sandbox_calcite.o \
+  reaction_sandbox_chromium.o \
   reaction_sandbox_clm_cn.o \
   reaction_sandbox_example.o \
   reaction_sandbox_flexbiohill.o \
@@ -2778,6 +2780,18 @@ reaction_sandbox_calcite.o : \
   reactive_transport_aux.o \
   string.o \
   variables.o
+reaction_sandbox_chromium.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_mineral_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o
 reaction_sandbox_clm_cn.o : \
   global_aux.o \
   input_aux.o \

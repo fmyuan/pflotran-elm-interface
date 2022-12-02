@@ -1,0 +1,106 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   9.7888610646241E+06
+      Min:   9.7863941909240E+06
+     Mean:   9.7876277978609E+06
+       34:   9.7880390934086E+06
+       78:   9.7869425485891E+06
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+       34:   1.0000000000000E+00
+       78:   1.0000000000000E+00
+-- CONCENTRATION: Total molasses --
+      Max:   4.4959116509632E-04
+      Min:   2.5183471819360E-23
+     Mean:   4.7079095997730E-06
+       34:   2.0901865373535E-08
+       78:   2.5265069952116E-23
+-- CONCENTRATION: Total Cr(VI) --
+      Max:   1.9229977865231E-05
+      Min:   5.5825280260273E-15
+     Mean:   1.6076117312655E-05
+       34:   1.5144997043852E-06
+       78:   1.9227555248345E-05
+-- CONCENTRATION: Total ethanol --
+      Max:   8.6684935956000E-01
+      Min:   6.8520610143546E-09
+     Mean:   6.5644216936807E-02
+       34:   2.5032729872069E-01
+       78:   4.3442300006690E-05
+-- CONCENTRATION: Total biocide --
+      Max:   9.9999991029001E-21
+      Min:   9.9998322535582E-21
+     Mean:   9.9999833008941E-21
+       34:   9.9999550606373E-21
+       78:   9.9999909813278E-21
+-- CONCENTRATION: Free molasses --
+      Max:   4.4959116509632E-04
+      Min:   2.5183471819360E-23
+     Mean:   4.7079095997730E-06
+       34:   2.0901865373535E-08
+       78:   2.5265069952116E-23
+-- CONCENTRATION: Free Cr(VI) --
+      Max:   1.9229977865231E-05
+      Min:   5.5825280260273E-15
+     Mean:   1.6076117312655E-05
+       34:   1.5144997043852E-06
+       78:   1.9227555248345E-05
+-- CONCENTRATION: Free ethanol --
+      Max:   8.6684935956000E-01
+      Min:   6.8520610143546E-09
+     Mean:   6.5644216936807E-02
+       34:   2.5032729872069E-01
+       78:   4.3442300006690E-05
+-- CONCENTRATION: Free biocide --
+      Max:   9.9999991029001E-21
+      Min:   9.9998322535582E-21
+     Mean:   9.9999833008941E-21
+       34:   9.9999550606373E-21
+       78:   9.9999909813278E-21
+-- VOLUME_FRACTION: chubbite VF --
+      Max:   8.5000000000000E-01
+      Min:   8.5000000000000E-01
+     Mean:   8.5000000000000E-01
+       34:   8.5000000000000E-01
+       78:   8.5000000000000E-01
+-- RATE: chubbite Rate --
+      Max:  -0.0000000000000E+00
+      Min:  -0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+       34:  -0.0000000000000E+00
+       78:  -0.0000000000000E+00
+-- CONCENTRATION: biomass --
+      Max:   2.5678687815101E-09
+      Min:   1.0000000000000E-10
+     Mean:   1.3439895815163E-10
+       34:   1.0027377399862E-10
+       78:   1.0000000000000E-10
+-- CONCENTRATION: molasses_im --
+      Max:   1.0115801350475E+01
+      Min:   5.6662811593605E-19
+     Mean:   1.0592796599489E-01
+       34:   4.7029041732378E-04
+       78:   5.6846404942582E-19
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+       34:         1
+       78:         1
+-- SOLUTION: Flow --
+   Time (seconds):   1.2120008468628E-02
+   Time Steps:            6
+   Newton Iterations:           11
+   Linear Solver Iterations:           81
+   Time Step Cuts:            0
+   Solution 2-Norm:   9.7876278295247E+07
+   Residual 2-Norm:   1.0022057433757E-12
+-- SOLUTION: Transport --
+   Time (seconds):   9.7100496292114E-02
+   Time Steps:            8
+   Newton Iterations:           37
+   Linear Solver Iterations:           59
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.0248371966603E+01
+   Residual 2-Norm:   2.8060209103634E-10
