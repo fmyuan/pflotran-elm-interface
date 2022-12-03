@@ -12,6 +12,7 @@ module Option_Inversion_module
 
   type, public :: inversion_option_type
     PetscBool :: use_perturbation
+    PetscBool :: perturbation_run
     PetscBool :: coupled_flow_ert
     PetscBool :: record_measurements
     PetscBool :: calculate_ert
@@ -23,6 +24,8 @@ module Option_Inversion_module
     PetscBool :: invert_for_vg_alpha
     PetscBool :: invert_for_vg_m
     PetscBool :: invert_for_vg_sr
+    character(len=MAXWORDLENGTH) :: iteration_prefix
+    character(len=MAXSTRINGLENGTH) :: restart_filename
   end type inversion_option_type
 
   public :: OptionInversionCreate, &
@@ -69,10 +72,13 @@ subroutine OptionInversionInit(option)
   type(inversion_option_type) :: option
 
   option%use_perturbation = PETSC_FALSE
+  option%perturbation_run = PETSC_FALSE
   option%coupled_flow_ert = PETSC_FALSE
   option%record_measurements = PETSC_TRUE
   option%calculate_ert = PETSC_FALSE
   option%calculate_ert_jacobian = PETSC_FALSE
+  option%iteration_prefix = ''
+  option%restart_filename = ''
 
   option%invert_for_elec_cond = PETSC_FALSE
   option%invert_for_permeability = PETSC_FALSE

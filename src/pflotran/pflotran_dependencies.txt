@@ -1190,13 +1190,19 @@ integral_flux.o : \
   string.o \
   utility.o
 inversion_aux.o : \
+  characteristic_curves.o \
+  driver.o \
   inversion_coupled_aux.o \
   inversion_measurement_aux.o \
   inversion_parameter.o \
   inversion_ts_aux.o \
+  material.o \
+  material_aux.o \
   option_inversion.o \
   pflotran_constants.o \
-  utility.o
+  string.o \
+  utility.o \
+  variables.o
 inversion_base.o : \
   driver.o \
   input_aux.o \
@@ -1247,12 +1253,12 @@ inversion_parameter.o : \
   input_aux.o \
   material_aux.o \
   option.o \
+  option_inversion.o \
   pflotran_constants.o \
   string.o \
   units.o \
   variables.o
 inversion_subsurface.o : \
-  characteristic_curves.o \
   connection.o \
   coupler.o \
   debug.o \
@@ -1271,7 +1277,6 @@ inversion_subsurface.o : \
   inversion_parameter.o \
   inversion_ts_aux.o \
   material.o \
-  material_aux.o \
   option.o \
   option_inversion.o \
   output_hdf5.o \
@@ -3206,7 +3211,10 @@ simulation_subsurface.o : \
   discretization.o \
   driver.o \
   eos.o \
+  init_subsurface.o \
   input_aux.o \
+  inversion_aux.o \
+  inversion_parameter.o \
   logging.o \
   material.o \
   option.o \

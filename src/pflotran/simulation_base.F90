@@ -18,6 +18,8 @@ module Simulation_Base_class
   type, public :: simulation_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
+    ! filename of simulation that must be run before this one is executed
+    character(len=MAXSTRINGLENGTH) :: prerequisite
   contains
     procedure, public :: InitializeRun => SimulationBaseInitializeRun
     procedure, public :: InputRecord => SimulationBaseInputRecord
@@ -79,6 +81,7 @@ subroutine SimulationBaseInit(this,driver)
 
   this%driver => driver
   this%timer => TimerCreate()
+  this%prerequisite = ''
 
 end subroutine SimulationBaseInit
 
