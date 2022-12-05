@@ -222,28 +222,26 @@ subroutine SimSubsurfInitializeRun(this)
   call OutputEnsureVariablesExist(this%output_option,this%option)
   call SimSubsurfForbiddenCombinations(this)
 
-  if (associated(this%process_model_coupler_list)) then
-    if (this%option%restart_flag) then
-      if (index(this%option%restart_filename,'.chk') > 0) then
-        call this%process_model_coupler_list%RestartBinary(viewer)
-      elseif (index(this%option%restart_filename,'.h5') > 0) then
-        call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
-      else
-        this%option%io_buffer = 'Unknown restart filename format (' // &
-          trim(this%option%restart_filename) // &
-          '). Only *.chk and *.h5 supported.'
-        call PrintErrMsg(this%option)
-      endif
+  if (this%option%restart_flag) then
+    if (index(this%option%restart_filename,'.chk') > 0) then
+      call this%process_model_coupler_list%RestartBinary(viewer)
+    elseif (index(this%option%restart_filename,'.h5') > 0) then
+      call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
+    else
+      this%option%io_buffer = 'Unknown restart filename format (' // &
+        trim(this%option%restart_filename) // &
+        '). Only *.chk and *.h5 supported.'
+      call PrintErrMsg(this%option)
     endif
-
-    ! initialize performs overwrite of restart, if applicable
-    call this%process_model_coupler_list%InitializeRun()
-    call this%JumpStart()
   endif
 
   if (associated(this%realization%patch%aux%inversion_aux)) then
     call SimSubsurfOverwriteInvParameters(this)
   endif
+
+  ! initialize performs overwrite of restart, if applicable
+  call this%process_model_coupler_list%InitializeRun()
+  call this%JumpStart()
 
   call SimulationBaseInputRecordPrint(this,this%option)
   call PrintMsg(this%option,'')
@@ -575,7 +573,6 @@ subroutine SimSubsurfOverwriteInvParameters(this)
                                     INVAUX_OVERWRITE_MATERIAL_VALUE)
     enddo
     ! update material auxvars
-    call InitSubsurfAssignMatIDsToRegns(realization)
     call InitSubsurfAssignMatProperties(realization)
   endif
 
@@ -653,7 +650,6 @@ subroutine SimSubsurfOverwriteInvParameters(this)
         ! overwrite material property value
         call InvAuxCopyParameterValue(inversion_aux,perturbation%idof_pert, &
                                       INVAUX_OVERWRITE_MATERIAL_VALUE)
-        call InitSubsurfAssignMatIDsToRegns(realization)
         call InitSubsurfAssignMatProperties(realization)
       endif
     endif

@@ -1033,6 +1033,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   ! Date: 10/18/21
   !
   use Discretization_module
+  use Factory_Forward_module
   use Factory_Subsurface_module
   use Init_Subsurface_module
   use Material_module
@@ -1161,7 +1162,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
     endif
   endif
 
-!  call FactoryForwardPrerequisite(this%forward_simulation)
+  call FactoryForwardPrerequisite(this%forward_simulation)
 
   ! must come after insertion of waypoints and setting of pointers; otherwise,
   ! the pmc timestepper cur_waypoint pointers are pointing at the time 0
