@@ -87,6 +87,7 @@ function PMHydrateCreate()
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
   PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
 
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
@@ -103,7 +104,6 @@ function PMHydrateCreate()
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
-  PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-5 !1.d-10
   !For convergence using hydrate and ice formation capability
   PetscReal, parameter :: abs_update_inf_tol(3,15) = &
              !L_STATE
@@ -115,27 +115,27 @@ function PMHydrateCreate()
              !I_STATE
              pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
              !GA_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HG_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HA_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !GI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !AI_STATE
-             pres_abs_inf_tol,xmol_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             pres_abs_inf_tol,xmol_abs_inf_tol,sat_abs_inf_tol, &
              !HGA_STATE
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             sat_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HAI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol, &
              !HGI_STATE
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             sat_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !GAI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol, &
              !HGAI_STATE
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol], &
+             sat_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol], &
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
   PetscReal, parameter :: rel_update_inf_tol(3,15) = &
@@ -518,6 +518,10 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         hydrate_harmonic_diff_density = PETSC_TRUE
+      case('NEWTONTRDC_HOLD_INNER_ITERATIONS',&
+           'HOLD_INNER_ITERATIONS','NEWTONTRDC_HOLD_INNER')
+        !heeho: only used when using newtontrd-c
+        hydrate_newtontrdc_hold_inner = PETSC_TRUE
       case('IMMISCIBLE')
         hydrate_immiscible = PETSC_TRUE
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
@@ -1505,6 +1509,10 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool :: flags(181)
   character(len=MAXSTRINGLENGTH) :: string
+
+  PetscBool :: rho_flag
+
+
   character(len=14), parameter :: state_string(15) = &
     ['Liquid State  ','Gas State     ','Hydrate State ','Ice State     ', &
      'GA State      ','HG State      ','HA State      ','HI State      ', &
@@ -1535,6 +1543,15 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
+
+  call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
+
+  if (this%option%flow%using_newtontrdc) then
+    if (hydrate_newtontrdc_prev_iter_num == it) then
+      hydrate_sub_newton_iter_num = hydrate_sub_newton_iter_num + 1
+    endif
+    hydrate_newtontrdc_prev_iter_num = it
+  endif
 
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
@@ -1659,6 +1676,42 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         enddo
       enddo
     enddo
+
+    if (option%flow%using_newtontrdc .and. &
+        hydrate_state_changed .and. &
+        .not.rho_flag) then
+      if (hydrate_newtontrdc_hold_inner) then
+        ! if we hold inner iterations, we must not change state in
+        ! the inner iteration. If we reach convergence in an inner
+        ! newtontrdc iteration, then we must force an outer iteration
+        ! to allow state change in case the solutions are
+        ! out-of-bounds of the states -hdp
+        hydrate_force_iteration = PETSC_TRUE
+        hydrate_state_changed = PETSC_FALSE
+      else
+        ! if we have state changes, we exit out of inner iteration
+        ! and go to the next newton iteration. the tr inner iteration
+        !  should only be used when there is no state changes
+        ! if rho is satisfied in inner iteration, the algorithm already
+        ! exited the inner iteration. -heeho
+        hydrate_force_iteration = PETSC_TRUE
+        hydrate_state_changed = PETSC_FALSE
+      endif
+    endif
+
+    call MPI_Allreduce(MPI_IN_PLACE,hydrate_force_iteration,ONE_INTEGER, &
+                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+    if (hydrate_force_iteration) then
+      if (.not.hydrate_newtontrdc_hold_inner) then
+        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+        hydrate_force_iteration = PETSC_FALSE
+      elseif (hydrate_newtontrdc_hold_inner .and. &
+               option%convergence == CONVERGENCE_CONVERGED) then
+        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+        hydrate_force_iteration = PETSC_FALSE
+      endif
+    endif
+
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
@@ -1691,29 +1744,6 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call PrintMsg(option,string)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
-
-    ! MAN: Add Newton TR compatibility
-    !if (hydrate_using_newtontr .and. hydrate_state_changed) then
-    !    ! if we reach convergence in an inner newton iteration of TR
-    !    ! then we must force an outer iteration to allow state change
-    !    ! in case the solutions are out-of-bounds of the states -hdp
-    !    hydrate_force_iteration = PETSC_TRUE
-    !endif
-    !
-    !if (hydrate_using_newtontr .and. &
-    !    hydrate_sub_newton_iter_num > 1 .and. &
-    !    hydrate_force_iteration .and. &
-    !    option%convergence == CONVERGENCE_CONVERGED) then
-    !    ! This is a complicated case but necessary.
-    !    ! right now PFLOTRAN declares convergence with a negative rho in tr.c
-    !    ! this should not be happening thus cutting timestep.
-    !    option%convergence = CONVERGENCE_CUT_TIMESTEP
-    !endif
-
-
-    !call MPI_Allreduce(MPI_IN_PLACE,hydrate_force_iteration,ONE_INTEGER, &
-    !                   MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
-    !option%force_newton_iteration = hydrate_force_iteration
 
   endif
 
