@@ -1863,7 +1863,7 @@ subroutine EOSGasHenry_methane(T,Psat,Hc,calculate_derivative, &
   T_temp = T + 273.15d0
 
   ! [Hc] = [Pa/mol frac]
-  Hc = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
+  Hc = exp(5.1345d0 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
             (T_temp**3)) *1.d3
 
   if (calculate_derivative) then
