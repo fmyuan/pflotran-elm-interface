@@ -934,10 +934,10 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     ! if permeability is the parameter of interest, ensure that it is
     ! isotropic or specified with a vertical anisotropy ratio
-    iflag = PETSC_FALSE
     if (this%inversion_aux%qoi_is_full_vector) then
       if (MaterialAnisotropyExists(patch%material_properties)) then
-        iflag = PETSC_TRUE
+        call this%driver%PrintErrMsg('Anisotropic permeability is not &
+                      &supported for full vector inversion.')
       endif
     else
       do i = 1, size(this%inversion_aux%parameters)
@@ -951,19 +951,21 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
           tempreal = material_property%permeability(3,3) / &
                      material_property%permeability(1,1) / &
                      material_property%vertical_anisotropy_ratio
-          if (.not.material_property%isotropic_permeability .and. &
-              (.not.associated(this%inversion_aux%perturbation) .or. &
-               .not.(tempreal > 0.999d0 .and. tempreal < 1.001d0))) then
-            iflag = PETSC_TRUE
-            exit
+          if (.not.material_property%isotropic_permeability) then
+            if (associated(this%inversion_aux%perturbation)) then
+              if (.not.(tempreal > 0.999d0 .and. tempreal < 1.001d0)) then
+                call this%driver%PrintErrMsg('Anisotropic permeability is &
+                  &only allowed for perturbation-based inversion when &
+                  &specified with a PERM_HORIZONTAL and &
+                  &VERTICAL_ANISOTROPY_RATIO.')
+              endif
+            else
+              call this%driver%PrintErrMsg('Anisotropic permeability is not &
+                &supported for adjoint-based inversion.')
+            endif
           endif
         endif
       enddo
-    endif
-    if (iflag) then
-      call this%driver%PrintErrMsg('Anisotropic permeability is a parameter &
-                      &of interest in the forward simulation and is not &
-                      &supported for inversion.')
     endif
 
   endif
