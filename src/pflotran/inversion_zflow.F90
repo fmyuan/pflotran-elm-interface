@@ -4,6 +4,7 @@ module Inversion_ZFlow_class
   use petscksp
 
   use PFLOTRAN_Constants_module
+  use Inversion_Aux_module
   use Inversion_Base_class
   use Inversion_Subsurface_class
 
@@ -814,7 +815,7 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
   ! Build Wm matrix
   call InversionZFlowBuildWm(this)
 
-  if (.not.this%qoi_is_full_vector) then
+  if (.not.this%inversion_aux%qoi_is_full_vector) then
     call VecDuplicate(this%inversion_aux%parameter_vec, &
                       this%parameter_tmp_vec, &
                       ierr);CHKERRQ(ierr)
@@ -904,7 +905,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   ! model cost function
   this%phi_model = 0.d0
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
 
     num_constraints = this%num_constraints_local
     ! allocate to at least size 1 to allow for inner product
@@ -930,13 +931,15 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
       iparameter = this%inversion_aux%parameters(1)%iparameter
 
-      call InvSubsurfGetParamValueByCell(this,param_ce,iparameter, &
-                                         patch%imat(ghosted_id), &
-                                         material_auxvars(ghosted_id))
+      call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
+                                     iparameter, &
+                                     patch%imat(ghosted_id), &
+                                     material_auxvars(ghosted_id))
       if (use_neighbor) then
-        call InvSubsurfGetParamValueByCell(this,param_nb,iparameter, &
-                                           patch%imat(ghosted_id_nb), &
-                                           material_auxvars(ghosted_id_nb))
+        call InvAuxGetParamValueByCell(this%inversion_aux,param_nb, &
+                                       iparameter, &
+                                       patch%imat(ghosted_id_nb), &
+                                       material_auxvars(ghosted_id_nb))
       endif
 
       x = 0.d0
@@ -1011,11 +1014,14 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
       iparameter = this%inversion_aux%parameters(1)%iparameter
 
-      call InvSubsurfGetSetParamValueByMat(this,param_ce,iparameter, &
-                                           imat_id,GET_MATERIAL_VALUE)
+      call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
+                                       iparameter, &
+                                       imat_id,INVAUX_GET_MATERIAL_VALUE)
       if (use_neighbor) then
-        call InvSubsurfGetSetParamValueByMat(this,param_nb,iparameter, &
-                                             imat_id_nb,GET_MATERIAL_VALUE)
+        call InvAuxGetSetParamValueByMat(this%inversion_aux,param_nb, &
+                                         iparameter, &
+                                         imat_id_nb, &
+                                         INVAUX_GET_MATERIAL_VALUE)
       endif
 
       x = 0.d0
@@ -1139,29 +1145,29 @@ subroutine InversionZFlowCalculateUpdate(this)
   vec_ptr(:) = this%del_param(:)
   call VecRestoreArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
     ! have to copy values to global work vecs in order to loop over
     ! ghosted ids
 
     ! del_param_vec holds the update
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        this%realization%field%work, &
-                                        del_param_vec, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     del_param_vec, &
+                                     INVAUX_SCATREVERSE)
     call VecDuplicate(this%realization%field%work,work_dup, &
                       ierr);CHKERRQ(ierr)
     ! dist_parameter_vec holds the original value
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        work_dup, &
-                                        this%inversion_aux%dist_parameter_vec, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     work_dup, &
+                                     this%inversion_aux%dist_parameter_vec, &
+                                     INVAUX_SCATREVERSE)
 
     ! Get updated parameter as m_new = m_old + del_m (where m = log(param))
     call VecGetArrayF90(work_dup,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%realization%field%work,vec2_ptr, &
                         ierr);CHKERRQ(ierr)
     do iparameter = 1, this%num_parameters_local
-      if (this%qoi_is_full_vector) then
+      if (this%inversion_aux%qoi_is_full_vector) then
         ghosted_id = grid%nL2G(iparameter)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
@@ -1177,10 +1183,10 @@ subroutine InversionZFlowCalculateUpdate(this)
     call InversionZFlowDeallocateWorkArrays(this)
 
     ! copy back to dist_parameter_vec
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        work_dup, &
-                                        this%inversion_aux%dist_parameter_vec, &
-                                        INVSUBSCATFORWARD)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     work_dup, &
+                                     this%inversion_aux%dist_parameter_vec, &
+                                     INVAUX_SCATFORWARD)
     call VecDestroy(work_dup,ierr);CHKERRQ(ierr)
   else
     call VecGetArrayF90(this%inversion_aux%dist_parameter_vec, &
@@ -1197,10 +1203,10 @@ subroutine InversionZFlowCalculateUpdate(this)
                             ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
 
-    call InvSubsurfScatParamToDistParam(this, &
-                                        this%inversion_aux%parameter_vec, &
-                                        this%inversion_aux%dist_parameter_vec, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%inversion_aux%parameter_vec, &
+                                    this%inversion_aux%dist_parameter_vec, &
+                                    INVAUX_SCATREVERSE)
 
   endif
 
@@ -1291,7 +1297,7 @@ subroutine InversionZFlowCGLSSolve(this)
     if (ncons > 0) &
       delta2 = dot_product(this%q(nm+1:nm+ncons),this%q(nm+1:nm+ncons))
 
-    if (this%qoi_is_full_vector) &
+    if (this%inversion_aux%qoi_is_full_vector) &
       call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
                          MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
                          ierr);CHKERRQ(ierr)
@@ -1408,7 +1414,7 @@ subroutine InversionZFlowCGLSRhs(this)
   ! Model part
   beta = this%beta
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
 
     do iconst=1,this%num_constraints_local
       if (this%Wm(iconst) == 0) cycle
@@ -1429,13 +1435,15 @@ subroutine InversionZFlowCGLSRhs(this)
 
       iparameter = this%inversion_aux%parameters(1)%iparameter
 
-      call InvSubsurfGetParamValueByCell(this,param_ce,iparameter, &
-                                         patch%imat(ghosted_id), &
-                                         material_auxvars(ghosted_id))
+      call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
+                                     iparameter, &
+                                     patch%imat(ghosted_id), &
+                                     material_auxvars(ghosted_id))
       if (use_neighbor) then
-        call InvSubsurfGetParamValueByCell(this,param_nb,iparameter, &
-                                           patch%imat(ghosted_id_nb), &
-                                           material_auxvars(ghosted_id_nb))
+        call InvAuxGetParamValueByCell(this%inversion_aux,param_nb, &
+                                       iparameter, &
+                                       patch%imat(ghosted_id_nb), &
+                                       material_auxvars(ghosted_id_nb))
       endif
 
       x = 0.0d0
@@ -1501,11 +1509,13 @@ subroutine InversionZFlowCGLSRhs(this)
 
       iparameter = this%inversion_aux%parameters(1)%iparameter
 
-      call InvSubsurfGetSetParamValueByMat(this,param_ce,iparameter, &
-                                           imat_id,GET_MATERIAL_VALUE)
+      call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
+                                       iparameter, &
+                                       imat_id,INVAUX_GET_MATERIAL_VALUE)
       if (use_neighbor) then
-        call InvSubsurfGetSetParamValueByMat(this,param_nb,iparameter, &
-                                             imat_id_nb,GET_MATERIAL_VALUE)
+        call InvAuxGetSetParamValueByMat(this%inversion_aux,param_nb, &
+                                         iparameter,imat_id_nb, &
+                                         INVAUX_GET_MATERIAL_VALUE)
       endif
 
       x = 0.0d0
@@ -1617,7 +1627,7 @@ contains
 
     rblock => this%rblock
 
-    if (this%qoi_is_full_vector) then
+    if (this%inversion_aux%qoi_is_full_vector) then
       ! get param & block of the ith constrained eq.
       use_neighbor = PETSC_FALSE
       ghosted_id = rblock(iconst,1)
@@ -1633,13 +1643,15 @@ contains
 
       iparameter = this%inversion_aux%parameters(1)%iparameter
 
-      call InvSubsurfGetParamValueByCell(this,param_ce,iparameter, &
-                                         patch%imat(ghosted_id), &
-                                         material_auxvars(ghosted_id))
+      call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
+                                     iparameter, &
+                                     patch%imat(ghosted_id), &
+                                     material_auxvars(ghosted_id))
       if (use_neighbor) then
-        call InvSubsurfGetParamValueByCell(this,param_nb,iparameter, &
-                                           patch%imat(ghosted_id_nb), &
-                                           material_auxvars(ghosted_id_nb))
+        call InvAuxGetParamValueByCell(this%inversion_aux,param_nb, &
+                                       iparameter, &
+                                       patch%imat(ghosted_id_nb), &
+                                       material_auxvars(ghosted_id_nb))
       endif
 
     else
@@ -1663,11 +1675,14 @@ contains
 
       iparameter = this%inversion_aux%parameters(1)%iparameter
 
-      call InvSubsurfGetSetParamValueByMat(this,param_ce,iparameter, &
-                                           imat_id,GET_MATERIAL_VALUE)
+      call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
+                                       iparameter, &
+                                       imat_id,INVAUX_GET_MATERIAL_VALUE)
       if (use_neighbor) then
-        call InvSubsurfGetSetParamValueByMat(this,param_nb,iparameter, &
-                                             imat_id_nb,GET_MATERIAL_VALUE)
+        call InvAuxGetSetParamValueByMat(this%inversion_aux,param_nb, &
+                                         iparameter, &
+                                         imat_id_nb, &
+                                         INVAUX_GET_MATERIAL_VALUE)
       endif
 
     endif
@@ -1802,7 +1817,7 @@ subroutine InversionZFlowAllocateWm(this)
 
   constrained_block => this%constrained_block
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
     num_constraints = 0
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1960,7 +1975,6 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   use Field_module
   use Discretization_module
   use Option_module
-  use Inversion_Aux_module
 
   implicit none
 
@@ -2016,10 +2030,10 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   call MatMultTranspose(inversion_aux%JsensitivityT,p1,q1_dist, &
                         ierr);CHKERRQ(ierr)
 
-  call InvSubsurfScatMeasToDistMeas(this, &
-                                    q1, &
-                                    q1_dist, &
-                                    INVSUBSCATREVERSE)
+  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                q1, &
+                                q1_dist, &
+                                INVAUX_SCATREVERSE)
 
   call VecGetArrayF90(q1,q1vec_ptr,ierr);CHKERRQ(ierr)
   this%q(1:num_measurement) = q1vec_ptr
@@ -2028,12 +2042,12 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   ! Model part -> q2
   beta = this%beta
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
     ! Get local this%p to ghosted in pvec_ptr
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        this%realization%field%work, &
-                                        p1, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     p1, &
+                                     INVAUX_SCATREVERSE)
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                     field%work_loc,ONEDOF)
     call VecGetArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
@@ -2063,10 +2077,10 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   else
 
     call VecZeroEntries(this%parameter_tmp_vec,ierr);CHKERRQ(ierr)
-    call InvSubsurfScatParamToDistParam(this, &
-                                        this%parameter_tmp_vec, &
-                                        p1, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%parameter_tmp_vec, &
+                                    p1, &
+                                    INVAUX_SCATREVERSE)
 
     call VecGetArrayF90(this%parameter_tmp_vec,pvec_ptr,ierr);CHKERRQ(ierr)
 
@@ -2117,7 +2131,6 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   use Grid_module
   use Field_module
   use Discretization_module
-  use Inversion_Aux_module
 
   implicit none
 
@@ -2163,7 +2176,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   beta = this%beta
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
 
     call VecGetArrayF90(field%work_loc,s2vec_ptr,ierr);CHKERRQ(ierr)
     s2vec_ptr = 0.d0
@@ -2196,10 +2209,10 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
     call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
     call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
                                         field%work,ONEDOF)
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                         this%realization%field%work, &
-                                         this%dist_parameter_tmp_vec, &
-                                         INVSUBSCATFORWARD)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     this%dist_parameter_tmp_vec, &
+                                     INVAUX_SCATFORWARD)
 
   else
 
@@ -2234,10 +2247,10 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
     call VecRestoreArrayF90(this%parameter_tmp_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
 
-    call InvSubsurfScatParamToDistParam(this, &
-                                        this%parameter_tmp_vec, &
-                                        this%dist_parameter_tmp_vec, &
-                                        INVSUBSCATFORWARD)
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%parameter_tmp_vec, &
+                                    this%dist_parameter_tmp_vec, &
+                                    INVAUX_SCATFORWARD)
   endif
 
   ! Data part
@@ -2247,10 +2260,10 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   call VecGetArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
   r1vec_ptr = this%r(1:num_measurement)
   call VecRestoreArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
-  call InvSubsurfScatMeasToDistMeas(this, &
-                                    r1, &
-                                    this%inversion_aux%dist_measurement_vec, &
-                                    INVSUBSCATFORWARD)
+  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                r1, &
+                                this%inversion_aux%dist_measurement_vec, &
+                                INVAUX_SCATFORWARD)
   call VecGetArrayF90(this%inversion_aux%dist_measurement_vec,r1vec_ptr, &
                       ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%inversion_aux%dist_measurement_vec,r1vec_ptr, &
@@ -2407,10 +2420,10 @@ subroutine InversionZFlowScaleSensitivity(this)
     wdvec_ptr(idata) = this%inversion_aux%measurements(idata)%weight
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
-  call InvSubsurfScatMeasToDistMeas(this, &
-                                    wd_vec, &
-                                    this%inversion_aux%dist_measurement_vec, &
-                                    INVSUBSCATFORWARD)
+  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                wd_vec, &
+                                this%inversion_aux%dist_measurement_vec, &
+                                INVAUX_SCATFORWARD)
 
   ! Column Scale with wd
   call MatDiagonalScale(this%inversion_aux%JsensitivityT,PETSC_NULL_VEC, &

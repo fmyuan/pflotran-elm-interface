@@ -305,7 +305,7 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    pflotran_constants.o realization_base.o \
                    realization_subsurface.o richards.o \
                    richards_aux.o saturation_function.o simulation_base.o \
-                   simulation_subsurface.o \
+                   simulation_subsurface.o simulation_inverse.o \
                    string.o \
                    th.o th_aux.o timestepper_base.o units.o utility.o \
                    variables.o waypoint.o

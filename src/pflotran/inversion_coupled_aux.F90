@@ -11,7 +11,6 @@ module Inversion_Coupled_Aux_module
 
   type, public :: inversion_coupled_aux_type
     type(inversion_coupled_soln_type), pointer :: solutions(:)
-    type(inversion_parameter_type), pointer :: parameters(:)
   end type inversion_coupled_aux_type
 
   type, public :: inversion_coupled_soln_type
@@ -53,7 +52,6 @@ function InversionCoupledAuxCreate()
   allocate(aux)
 
   nullify(aux%solutions)
-  nullify(aux%parameters)
 
   InversionCoupledAuxCreate => aux
 
@@ -107,7 +105,7 @@ end subroutine InversionCoupledSolutionInit
 
 ! ************************************************************************** !
 
-subroutine InvCoupledAllocateSolnVecs(aux,onedof_vec)
+subroutine InvCoupledAllocateSolnVecs(aux,onedof_vec,num_parameters)
   !
   ! Allocate and initialize solution object for coupled flow and ert
   !
@@ -120,9 +118,9 @@ subroutine InvCoupledAllocateSolnVecs(aux,onedof_vec)
 
   type(inversion_coupled_aux_type) :: aux
   Vec :: onedof_vec
+  PetscInt :: num_parameters
 
   PetscInt :: i, j
-  PetscInt :: num_parameters
   PetscErrorCode :: ierr
 
   do i = 1, size(aux%solutions)
@@ -136,7 +134,6 @@ subroutine InvCoupledAllocateSolnVecs(aux,onedof_vec)
       call VecDuplicate(onedof_vec,aux%solutions(i)%perturbed_solute_solution, &
                         ierr);CHKERRQ(ierr)
     endif
-    num_parameters = size(aux%parameters)
     allocate(aux%solutions(i)%dsaturation_dparameter(num_parameters))
     aux%solutions(i)%dsaturation_dparameter(:) = PETSC_NULL_VEC
     call VecDuplicateVecsF90(onedof_vec,num_parameters, &
@@ -228,6 +225,8 @@ subroutine InversionCoupledAuxDestroy(aux)
 
   PetscInt :: i
 
+  if (.not.associated(aux)) return
+
   if (associated(aux%solutions)) then
     do i = 1, size(aux%solutions)
       call InversionCoupledSolutionDestroy(aux%solutions(i))
@@ -236,9 +235,6 @@ subroutine InversionCoupledAuxDestroy(aux)
     nullify(aux%solutions)
   endif
 
-
-!  nullify(aux%cur_solution)
-  nullify(aux%parameters)
 
   deallocate(aux)
   nullify(aux)
