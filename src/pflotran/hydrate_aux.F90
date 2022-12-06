@@ -306,7 +306,6 @@ module Hydrate_Aux_module
             HydrateCompositeThermalCond,&
             HydratePE, &
             HydrateMethanogenesis, &
-            HenrysConstantMethane, &
             HydrateGHSZSolubilityCorrection, &
             CalcFreezingTempDepression, &
             EOSIceEnergy, &
@@ -749,8 +748,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                         hyd_auxvar%pres(spid),ierr)
       call HydratePE(hyd_auxvar%temp, 0.d0, PE_hyd, dP, characteristic_curves, &
                      material_auxvar,option)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-
       call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
                        ierr)
 
@@ -798,8 +795,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-
       call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
                        ierr)
 
@@ -838,7 +833,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydratePE(hyd_auxvar%temp,hyd_auxvar%sat(hid),PE_hyd,dP, &
               characteristic_curves, material_auxvar, option)
       hyd_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(apid)
 
@@ -892,8 +888,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(spid)
       hyd_auxvar%pres(apid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(vpid)
-
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
                        ierr)
@@ -951,7 +945,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                      characteristic_curves, material_auxvar, option)
 
       hyd_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       hyd_auxvar%xmol(acid,gid) = hyd_auxvar%pres(apid) / &
                                    hyd_auxvar%pres(gid)
@@ -960,8 +953,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       hyd_auxvar%xmol(acid,lid) = hyd_auxvar%pres(apid) / K_H_tilde
       hyd_auxvar%xmol(wid,lid) = 0.d0
 
@@ -999,15 +992,16 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydratePE(hyd_auxvar%temp, hyd_auxvar%sat(hid), PE_hyd, dP, &
                      characteristic_curves, material_auxvar,option)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
+      call EOSWaterSaturationPressure(hyd_auxvar%temp, &
+                                          hyd_auxvar%pres(spid),ierr)
+
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       if (hydrate_adjust_ghsz_solubility) then
         call HydrateGHSZSolubilityCorrection(hyd_auxvar%temp,hyd_auxvar% &
                                            pres(gid),dP,K_H_tilde)
       endif
-
-      call EOSWaterSaturationPressure(hyd_auxvar%temp, &
-                                          hyd_auxvar%pres(spid),ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
       hyd_auxvar%pres(cpid) = 0.d0
@@ -1043,7 +1037,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                 dP, characteristic_curves, material_auxvar,option)
 
       hyd_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       hyd_auxvar%pres(cpid) = 0.d0
       hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(cpid)
@@ -1107,7 +1102,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
       hyd_auxvar%pres(gid) = max(hyd_auxvar%pres(lid),hyd_auxvar%pres(spid))
@@ -1164,7 +1160,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
 
@@ -1209,12 +1206,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                      characteristic_curves,dTf,option)
 
       hyd_auxvar%temp = TQD-dTf
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-      call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
-          characteristic_curves, material_auxvar,option)
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
-
+      call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
+           characteristic_curves, material_auxvar,option)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       hyd_auxvar%pres(cpid) = 0.d0
 
       !hyd_auxvar%pres(spid) = 1.d-6
@@ -1287,7 +1284,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
                        ierr)
@@ -1350,8 +1346,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       !hyd_auxvar%pres(spid) = 1.d-6
 
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(spid)
@@ -1615,6 +1611,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   use Option_module
   use Global_Aux_module
   use EOS_Water_module
+  use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_module
 
@@ -1638,6 +1635,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscInt :: gid, lid, hid, iid, acid
   PetscInt :: old_state,new_state
   PetscBool :: istatechng
+  PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string, append
 
   if (hydrate_immiscible .or. hyd_auxvar%istatechng) return
@@ -1687,12 +1685,14 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
           characteristic_curves, material_auxvar, option)
 
-  call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+  call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                   ierr)
   K_H_tilde_hyd = K_H_tilde
   if (hydrate_adjust_ghsz_solubility) then
         call HydrateGHSZSolubilityCorrection(hyd_auxvar%temp,hyd_auxvar% &
                                            pres(lid),dP,K_H_tilde_hyd)
   endif
+  dTf = 0.d0
   call CalcFreezingTempDepression(1.d0-i_sat_eff,characteristic_curves,dTf, &
                                   option)
 
@@ -1733,6 +1733,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             istatechng = PETSC_TRUE
             global_auxvar%istate = HA_STATE
         elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
+            !K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+            !pres(lid)*(1.d0-window_epsilon)) then
             hyd_auxvar%pres(vpid) <= hyd_auxvar% &
              pres(spid)*(1.d0-window_epsilon)) then
             istatechng = PETSC_TRUE
@@ -2251,10 +2253,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pl, Xma, T
 !
 
-        x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(lid) * (1.d0 - epsilon)
-        x(HYDRATE_L_STATE_X_MOLE_DOF) = max(0.d0,hyd_auxvar%xmol(acid,lid))* &
-                                        (1.d0 + epsilon)
-        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp*(1.d0-epsilon)
+        x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(lid) !* (1.d0 - epsilon)
+        x(HYDRATE_L_STATE_X_MOLE_DOF) = max(0.d0,hyd_auxvar%xmol(acid,lid)) !* &
+                                    !    (1.d0 + epsilon)
+        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp !*(1.d0-epsilon)
 
       case(G_STATE)
 !     ********* Gas State (G) ********************************
@@ -2286,10 +2288,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !
 
         x(HYDRATE_GAS_PRESSURE_DOF) = max(hyd_auxvar%pres(gid),hyd_auxvar% &
-                                 pres(spid))*(1.d0+epsilon)
-        x(HYDRATE_GAS_SATURATION_DOF) = liq_epsilon
-        x(HYDRATE_ENERGY_DOF) = x(HYDRATE_ENERGY_DOF) * &
-                                   (1.d0 + epsilon - epsilon)
+                                 pres(spid)) !*(1.d0+epsilon)
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid) !liq_epsilon
+        x(HYDRATE_ENERGY_DOF) = x(HYDRATE_ENERGY_DOF) !* &
+                                   !(1.d0 + epsilon - epsilon)
 
       case(HG_STATE)
 !     ********* Hydrate & Gas State (HG) ********************************
@@ -3667,40 +3669,6 @@ subroutine HydrateMethanogenesis(z,offset,hydrate_parameter,q_meth)
   q_meth = q_meth / MW_CH4
 
 end subroutine HydrateMethanogenesis
-! ************************************************************************** !
-
-subroutine HenrysConstantMethane(T,K_H)
-
-  !Calculates the Henry's constant of methane as a function of temperature
-  !(Carroll and Mather, 1997)
-  !
-  !Author: Michael Nole
-  !Date: 01/22/19
-  !
-  implicit none
-
-  PetscReal, intent(in) :: T
-  PetscReal, intent(out) :: K_H
-
-  PetscReal :: T_temp
-
-  T_temp = T + 273.15d0
-
-  select case(hydrate_henrys_constant)
-    case(1)
-      !Carroll & Mather  Units: Pa/mol frac
-      K_H = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
-            (T_temp**3)) *1.d3
-    case(2)
-      !Cramer, 1982
-      K_H = 1.d5*(24582.4d0 + 6.71091d2*T + 6.87067d0*T**2 - &
-                  1.773079d-1*T**3 + 1.09652d-03*T**4 - &
-                  3.19599d-6*T**5 + 4.46172d-9*T**6 - &
-                  2.40294d-12*T**7)
-  end select
-
-end subroutine HenrysConstantMethane
-
 ! ************************************************************************** !
 
 subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&

@@ -185,6 +185,7 @@ module EOS_Gas_module
             EOSGasSetEnergyConstant, &
             EOSGasSetViscosityConstant, &
             EOSGasSetHenry, &
+            EOSGasSetHenryMethane, &
             EOSGasSetHenryConstant, &
             EOSGasSetEOSDBase, &
             EOSGasSetSurfaceDensity, &
@@ -492,6 +493,16 @@ subroutine EOSGasSetHenry()
   EOSGasHenryPtr => EOSGasHenry_air
 
 end subroutine EOSGasSetHenry
+
+! ************************************************************************** !
+
+subroutine EOSGasSetHenryMethane()
+
+  implicit none
+
+  EOSGasHenryPtr => EOSGasHenry_methane
+
+end subroutine EOSGasSetHenryMethane
 
 ! ************************************************************************** !
 
@@ -1821,6 +1832,47 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     endif
 
 end subroutine EOSGasHenry_air
+
+! ************************************************************************** !
+
+subroutine EOSGasHenry_methane(T,Psat,Hc,calculate_derivative, &
+                           Psat_P,Psat_T,Hc_P,Hc_T,ierr)
+!
+!   Calculates Henry's constant as a function of temperature [C]
+!
+!   Carroll, J. J., & Mather, A. E. (1997). A model for the solubility of 
+!   light hydrocarbons in water and aqueous solutions of alkanolamines. 
+!   Chemical Engineering Science, 52(4), 545-552. Table 2
+!
+!
+
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: Psat     ! saturation pressure
+  PetscReal, intent(out) :: Hc      ! Henry's constant
+  PetscBool, intent(in) :: calculate_derivative
+  PetscReal, intent(in) :: Psat_P   ! derivative Psat wrt pressure
+  PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
+  PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
+  PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temp
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: T_temp
+
+  T_temp = T + 273.15d0
+
+  ! [Hc] = [Pa/mol frac]
+  Hc = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
+            (T_temp**3)) *1.d3
+
+  if (calculate_derivative) then
+    Hc_P = 0.d0
+    Hc_T = -7.837d3/(T**2) + 2*1.509d6/(T**3) - 3*2.06d7/(T**4)
+    Hc_T = Hc_T * Hc
+  endif
+  
+end subroutine EOSGasHenry_methane 
 
 ! ************************************************************************** !
 
