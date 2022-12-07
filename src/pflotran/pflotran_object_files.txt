@@ -137,6 +137,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_chromium.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
+	${common_src}reaction_sandbox_equilibrate.o \
 	${common_src}reaction_sandbox_biohill.o \
 	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
