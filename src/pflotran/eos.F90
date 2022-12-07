@@ -478,6 +478,8 @@ subroutine EOSRead(input,option)
                 call EOSGasSetHenryConstant(tempreal)
               case('DEFAULT')
                 call EOSGasSetHenry()
+              case('METHANE')
+                call EOSGasSetHenryMethane()
               case default
                 call InputKeywordUnrecognized(input,word, &
                                               'EOS,GAS,HENRYS_CONSTANT', &
