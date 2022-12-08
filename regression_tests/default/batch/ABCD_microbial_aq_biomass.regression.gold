@@ -1,0 +1,33 @@
+-- CONCENTRATION: Total A(aq) --
+      Max:   9.9999969822980E-05
+      Min:   9.9999969822980E-05
+     Mean:   9.9999969822980E-05
+        1:   9.9999969822980E-05
+-- CONCENTRATION: Total B(aq) --
+      Max:   9.9999993964596E-04
+      Min:   9.9999993964596E-04
+     Mean:   9.9999993964596E-04
+        1:   9.9999993964596E-04
+-- CONCENTRATION: Total C(aq) --
+      Max:   1.0004526552857E-07
+      Min:   1.0004526552857E-07
+     Mean:   1.0004526552857E-07
+        1:   1.0004526552857E-07
+-- CONCENTRATION: Total D(aq) --
+      Max:   1.8258490459648E-10
+      Min:   1.8258490459648E-10
+     Mean:   1.8258490459648E-10
+        1:   1.8258490459648E-10
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   5.5996417999268E-02
+   Time Steps:          111
+   Newton Iterations:          325
+   Linear Solver Iterations:          325
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.0078493868370E-03
+   Residual 2-Norm:   5.6533991157027E-23
