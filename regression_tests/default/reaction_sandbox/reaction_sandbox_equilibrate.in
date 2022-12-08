@@ -1,69 +1,20 @@
-#Description: Reaction Sandbox Biodegradation Hill
-
-#==============================================================================
-# DO NOT MODIFY
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
+      OPTIONS
+      /
     /
   /
 END
-# END DO NOT MODIFY
+
 #==============================================================================
 
 SUBSURFACE
 
-REGRESSION
-  CELL_IDS
-    1
-  /
-END
-
-#=========================== constraints ======================================
-# modify these initial concentration
-CONSTRAINT initial
-  CONCENTRATIONS # [mol/L]
-    Aaq  1.d-3   F
-    Baq  5.d-4   F
-    Caq  1.d-10  F
-    Daq  1.d-10  F
-  /
-  IMMOBILE     # [mol/m^3 bulk]
-    Xim  1.d-4
-  /
-END
-
-#=========================== chemistry ========================================
-CHEMISTRY
-  PRIMARY_SPECIES
-    Aaq
-    Baq
-    Caq
-    Daq
-  /
-  IMMOBILE_SPECIES
-    Xim
-  /
-  REACTION_SANDBOX
-    BIODEGRADATION_HILL
-  /
-  DATABASE ../../../database/simple_rxn_database.dat
-  LOG_FORMULATION
-  ACTIVITY_COEFFICIENTS OFF
-  OUTPUT
-    FREE_ION
-    ALL
-  /
-END
-
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
-
-  NEWTON_SOLVER
-    NUMERICAL_JACOBIAN
-  /
 
   LINEAR_SOLVER
     SOLVER DIRECT
@@ -71,34 +22,67 @@ NUMERICAL_METHODS TRANSPORT
 
 END
 
-#=========================== discretization ===================================
-GRID
-  TYPE STRUCTURED
-  NXYZ 1 1 1
-  BOUNDS
-    0.d0 0.d0 0.d0
-    1.d0 1.d0 1.d0
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    2
   /
 END
 
-#=========================== fluid properties =================================
+#=========================== uniform flow =====================================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 m/yr
+END
 REFERENCE_LIQUID_DENSITY 1000.d0
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Aaq
+  /
+  REACTION_SANDBOX
+    EQUILIBRATE
+      SPECIES_NAME Aaq
+      EQUILIBRIUM_CONCENTRATION 1.d-4
+      HALF_LIFE 0.01 h
+    /
+  /
+  DATABASE ../../../database/simple_rxn_database.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    TOTAL
+    ALL
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 2 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2.d0 1.d0 1.d0
+  /
+END
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 1.d0
+  TORTUOSITY 1.d0
 END
 
 #=========================== output options ===================================
 OUTPUT
   PERIODIC_OBSERVATION TIMESTEP 1
-  TIME_UNITS d
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1.d0 w
+  FINAL_TIME 2.d0 h
   INITIAL_TIMESTEP_SIZE 1.d0 h
   MAXIMUM_TIMESTEP_SIZE 1.d0 h
 END
@@ -111,28 +95,54 @@ REGION all
   /
 END
 
-REGION middle
-  COORDINATE 0.5d0 0.5d0 0.5d0
+REGION cell1
+  COORDINATES
+    0.0 0.0 0.0
+    1.0 1.0 1.0
+  /
+END
+
+REGION cell2
+  COORDINATES
+    1.0 0.0 0.0
+    2.0 1.0 1.0
+  /
 END
 
 #=========================== observation points ===============================
 OBSERVATION
-  REGION middle
+  REGION all
 END
 
 #=========================== transport conditions =============================
-TRANSPORT_CONDITION initial
+TRANSPORT_CONDITION cell1
   TYPE ZERO_GRADIENT
-  CONSTRAINT_LIST
-    0.d0 initial
+  CONSTRAINT initial1
+    CONCENTRATIONS
+      Aaq  1.d-1   T
+    /
+  /
+END
+
+TRANSPORT_CONDITION cell2
+  TYPE ZERO_GRADIENT
+  CONSTRAINT initial2
+    CONCENTRATIONS
+      Aaq  1.d-10   T
+    /
   /
 END
 
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION
-  TRANSPORT_CONDITION initial
-  REGION all
+  TRANSPORT_CONDITION cell1
+  REGION cell1
+END
+
+INITIAL_CONDITION
+  TRANSPORT_CONDITION cell2
+  REGION cell2
 END
 
 #=========================== stratigraphy couplers ============================

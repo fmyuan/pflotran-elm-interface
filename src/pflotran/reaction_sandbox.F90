@@ -8,6 +8,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
+  use Reaction_Sand_Equilibrate_class
   use Reaction_Sandbox_Simple_class
   use Reaction_Sandbox_Chromium_class
   use Reaction_Sandbox_Cyber_class
@@ -158,31 +159,33 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     call StringToUpper(word)
 
     select case(trim(word))
-      case('CLM-CN')
-        new_sandbox => CLM_CN_Create()
       ! Add new cases statements for new reacton sandbox classes here.
-      case('UFD-WP')
-        new_sandbox => WastePackageCreate()
-      case('EXAMPLE')
-        new_sandbox => EXAMPLECreate()
-      case('SIMPLE')
-        new_sandbox => SimpleCreate()
-      case('CHROMIUM_REDUCTION')
-        new_sandbox => ChromiumCreate()
-      case('CYBERNETIC')
-        new_sandbox => CyberCreate()
-      case('LAMBDA')
-        new_sandbox => LambdaCreate()
-      case('GAS')
-        new_sandbox => GasCreate()
       case('BIODEGRADATION_HILL')
         new_sandbox => BioHillCreate()
-      case('FLEXIBLE_BIODEGRADATION_HILL')
-        new_sandbox => FlexBioHillCreate()
       case('BIOPARTICLE')
         new_sandbox => BioTH_Create()
       case('CALCITE')
         new_sandbox => CalciteCreate()
+      case('CHROMIUM_REDUCTION')
+        new_sandbox => ChromiumCreate()
+      case('CLM-CN')
+        new_sandbox => CLM_CN_Create()
+      case('CYBERNETIC')
+        new_sandbox => CyberCreate()
+      case('EXAMPLE')
+        new_sandbox => EXAMPLECreate()
+      case('EQUILIBRATE')
+        new_sandbox => EquilibrateCreate()
+      case('FLEXIBLE_BIODEGRADATION_HILL')
+        new_sandbox => FlexBioHillCreate()
+      case('GAS')
+        new_sandbox => GasCreate()
+      case('LAMBDA')
+        new_sandbox => LambdaCreate()
+      case('SIMPLE')
+        new_sandbox => SimpleCreate()
+      case('UFD-WP')
+        new_sandbox => WastePackageCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)
