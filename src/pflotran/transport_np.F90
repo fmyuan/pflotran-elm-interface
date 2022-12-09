@@ -271,8 +271,6 @@ subroutine TNPFluxBC( &
             factor_avg_em(jcomp) = potent_avg(jcomp) / sum_denom_avg
           enddo
 
-          print *, factor_avg_em
-
           sum_transp = 0d0
           ! Primary l index
           do lcomp = 1, rt_parameter%naqcomp
