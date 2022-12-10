@@ -1003,6 +1003,7 @@ hdf5.o : \
   string.o \
   utility.o
 hdf5_aux.o : \
+  driver.o \
   input_aux.o \
   logging.o \
   option.o \
@@ -1272,6 +1273,7 @@ inversion_subsurface.o : \
   factory_subsurface.o \
   grid.o \
   hdf5.o \
+  hdf5_aux.o \
   init_subsurface.o \
   input_aux.o \
   inversion_aux.o \
@@ -1311,6 +1313,7 @@ inversion_zflow.o : \
   driver.o \
   field.o \
   grid.o \
+  hdf5_aux.o \
   input_aux.o \
   inversion_aux.o \
   inversion_base.o \

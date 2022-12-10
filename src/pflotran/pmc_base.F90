@@ -1425,7 +1425,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
                                          this%option)
 
     if (.not.skip_restart) then
-      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
+                         this%option%driver)
 
       ! read pmc header
       call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
@@ -1436,7 +1437,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     endif
   else
     if (.not.skip_restart) then
-      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
+                         this%option%driver)
     endif
   endif
 
@@ -1483,7 +1485,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     cur_pm => this%pm_list
     do
       if (.not.associated(cur_pm)) exit
-      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id, &
+                         this%option%driver)
       call cur_pm%RestartHDF5(h5_pm_grp_id)
       call h5gclose_f(h5_pm_grp_id, hdf5_err)
       cur_pm => cur_pm%next

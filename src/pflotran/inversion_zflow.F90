@@ -15,6 +15,7 @@ module Inversion_ZFlow_class
   type, public, extends(inversion_subsurface_type) :: inversion_zflow_type
     PetscInt :: start_iteration          ! Starting iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
+    PetscBool :: string_color
 
     PetscReal :: beta                    ! regularization parameter
     PetscReal :: beta_red_factor         ! beta reduction factor
@@ -61,6 +62,8 @@ module Inversion_ZFlow_class
     procedure, public :: SetupForwardRunLinkage => &
                            InvZFlowSetupForwardRunLinkage
     procedure, public :: EvaluateCostFunction => InvZFlowEvaluateCostFunction
+    procedure, public :: Checkpoint => InversionZFlowCheckpoint
+    procedure, public :: RestartReadData => InversionZFlowRestartReadData
     procedure, public :: CheckConvergence => InversionZFlowCheckConvergence
     procedure, public :: WriteIterationInfo => InversionZFlowWriteIterationInfo
     procedure, public :: ScaleSensitivity => InversionZFlowScaleSensitivity
@@ -154,6 +157,7 @@ subroutine InversionZFlowInit(this,driver)
   ! Default inversion parameters
   this%miniter = 10
   this%maxiter = 50
+  this%string_color = PETSC_TRUE
 
   this%beta = 100.d0
   this%beta_red_factor = 0.5d0
@@ -528,6 +532,8 @@ subroutine InversionZFlowReadBlock(this,input,option)
         call InputErrorMsg(input,option,'MIN_COST_REDUCTION',error_string)
       case('CONSTRAINED_BLOCKS')
         call ConstrainedBlockRead(this%constrained_block,input,option)
+      case('NO_STRING_COLOR')
+        this%string_color = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -1067,6 +1073,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   this%phi_total = this%phi_data + this%phi_model
 
   if (this%iteration == this%start_iteration) then
+    call this%Checkpoint(0)
     this%phi_data_0 = this%phi_data
     this%phi_model_0 = this%phi_model
     this%phi_total_0 = this%phi_total
@@ -2308,18 +2315,37 @@ subroutine InversionZFlowWriteIterationInfo(this)
   if (this%driver%PrintToScreen()) then
     write(*,*)
     write(*,98)
-    if (this%iteration == this%start_iteration) then
-      write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AT &
-                              &STARTING ITERATION:",C_RED), this%start_iteration
+    if (this%string_color) then
+      if (this%iteration == this%start_iteration) then
+        write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AT &
+                                &STARTING ITERATION:",C_RED), &
+                                this%start_iteration
+      else
+        write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AFTER &
+                                  &ITERATION:",C_RED),this%iteration
+      endif
     else
-      write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AFTER &
-                                 &ITERATION:",C_RED),this%iteration
+      if (this%iteration == this%start_iteration) then
+        write(*,'(/,2x,a,i6.4,/)') "CONVERGENCE STATISTICS AT &
+                                &STARTING ITERATION:", &
+                                this%start_iteration
+      else
+        write(*,'(/,2x,a,i6.4,/)') "CONVERGENCE STATISTICS AFTER &
+                                  &ITERATION:", this%iteration
+      endif
     endif
     write(*,99)
-    write(*,*) StringColor("  Phi_data   ",C_GREEN), &
-               StringColor("   Phi_Model  ",C_BLUE), &
-               StringColor("  Phi_Model/Beta",C_MAGENTA), &
-               StringColor("    Phi_Total   ",C_CYAN)
+    if (this%string_color) then
+      write(*,*) StringColor("  Phi_data   ",C_GREEN), &
+                StringColor("   Phi_Model  ",C_BLUE), &
+                StringColor("  Phi_Model/Beta",C_MAGENTA), &
+                StringColor("    Phi_Total   ",C_CYAN)
+    else
+      write(*,*) "  Phi_data   ", &
+                 "   Phi_Model  ", &
+                 "  Phi_Model/Beta", &
+                 "    Phi_Total   "
+    endif
     write(*,102) this%phi_data,this%phi_model,this%phi_model/this%beta, &
                  this%phi_total
     write(*,*)
@@ -2436,6 +2462,122 @@ subroutine InversionZFlowScaleSensitivity(this)
   call VecDestroy(wd_vec,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowScaleSensitivity
+
+! ************************************************************************** !
+
+subroutine InversionZFlowCheckpoint(this,iteration)
+  !
+  ! Checkpoints the values of parameters and inversion settings for the
+  ! current iterate
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/22
+  !
+  use hdf5
+  use Driver_class
+  use HDF5_Aux_module
+  use String_module
+
+  class(inversion_zflow_type) :: this
+  PetscInt :: iteration
+
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  if (len_trim(this%checkpoint_filename) == 0) return
+
+  call this%driver%PrintMsg('Checkpointing inversion iteration ' // &
+                            trim(StringWrite(iteration)) // '.')
+  call HDF5FileOpen(this%checkpoint_filename,file_id,(iteration==0), &
+                    this%driver)
+  call HDF5AttributeWrite(file_id,H5T_NATIVE_INTEGER,'Last Iteration', &
+                          iteration,this%driver)
+  string = 'Iteration ' // trim(StringWrite(iteration))
+  call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
+                          this%phi_total,this%driver)
+  call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
+                          this%phi_data,this%driver)
+  call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
+                          this%phi_model,this%driver)
+  call VecGetArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call HDF5DatasetWrite(grp_id,'Parameter Values',vec_ptr,this%driver)
+  call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5FileClose(file_id)
+
+end subroutine InversionZFlowCheckpoint
+
+! ************************************************************************** !
+
+subroutine InversionZFlowRestartReadData(this)
+  !
+  ! Reads inversion parameters for a specific iteration from the inversion
+  ! checkpoint file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/22
+  !
+  use hdf5
+  use Driver_class
+  use HDF5_Aux_module
+  use String_module
+
+  class(inversion_zflow_type) :: this
+
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  if (.not.this%inversion_aux%startup_phase .or. &
+      Uninitialized(this%restart_iteration)) return
+
+  call this%driver%PrintMsg('Reading inversion parameters from inversion &
+                            &checkpoint file "' // &
+                            trim(this%restart_filename) // '".')
+  call HDF5FileOpen(this%restart_filename,file_id,PETSC_FALSE,this%driver)
+  string = 'Iteration 0'
+  call HDF5GroupOpen(file_id,string,grp_id,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
+                         this%phi_total_0,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
+                         this%phi_data_0,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
+                         this%phi_model_0,this%driver)
+  call h5gclose_f(grp_id,hdf5_err)
+  string = 'Iteration ' // trim(StringWrite(this%restart_iteration))
+  call HDF5GroupOpen(file_id,string,grp_id,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
+                         this%phi_total,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
+                         this%phi_data,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
+                         this%phi_model,this%driver)
+  call VecGetArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call HDF5DatasetRead(grp_id,'Parameter Values',vec_ptr,this%driver)
+  call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5FileClose(file_id)
+
+  call InvAuxCopyParamToFromParamVec(this%inversion_aux,INVAUX_COPY_FROM_VEC)
+  call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                  this%inversion_aux%parameter_vec, &
+                                  this%inversion_aux%dist_parameter_vec, &
+                                  INVAUX_SCATFORWARD)
+  call InvAuxCopyParamToFromParamVec(this%inversion_aux,INVAUX_COPY_FROM_VEC)
+
+end subroutine InversionZFlowRestartReadData
 
 ! ************************************************************************** !
 

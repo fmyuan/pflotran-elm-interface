@@ -3,7 +3,8 @@ SIMULATION
 #  INVERSION TEST_SENSITIVITY_JACOBIAN
   INVERSION ZFLOW
     MAX_INVERSION_ITERATION 2
-    CHECKPOINT_FILENAME inverse_bccribs-checkpoint.h5
+    NO_STRING_COLOR
+    RESTART_FILENAME inverse_bccribs-checkpoint.h5 1
     FORWARD_SIMULATION_FILENAME ./bccribs_3x3.in
     MEASUREMENTS
       EXTERNAL_FILE bccribs_measurements_solute.txt

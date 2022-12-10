@@ -29,7 +29,7 @@ module Inversion_Aux_module
     type(material_property_ptr_type), pointer :: material_property_array(:)
     type(characteristic_curves_ptr_type), pointer :: cc_array(:)
     PetscBool :: qoi_is_full_vector
-    PetscBool :: first_inversion_iteration
+    PetscBool :: startup_phase
     Vec :: solution ! solely a pointer
     PetscInt :: isync_time              ! current index of sync_times
     PetscReal, pointer :: sync_times(:) ! an array with all measurement times
@@ -106,7 +106,7 @@ function InversionAuxCreate(driver)
   nullify(aux%material_property_array)
   nullify(aux%cc_array)
   aux%qoi_is_full_vector = PETSC_FALSE
-  aux%first_inversion_iteration = PETSC_TRUE
+  aux%startup_phase = PETSC_TRUE
   aux%isync_time = 1
   nullify(aux%sync_times)
   nullify(aux%coupled_aux)

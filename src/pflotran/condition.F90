@@ -3313,7 +3313,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
 #ifndef SERIAL_HDF5
         call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-        call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
+        call HDF5FileOpenReadOnly(filename,file_id,prop_id,option)
         call h5pclose_f(prop_id,hdf5_err)
 
         hdf5_path = trim(hdf5_path) // trim(realization_word)
