@@ -11,6 +11,7 @@ module Reactive_Transport_module
   use Material_Aux_module
 
   use PFLOTRAN_Constants_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -789,6 +790,8 @@ subroutine RTUpdateEquilibriumState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+      if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
         sec_porosity = patch%material_property_array(1)%ptr% &
                         multicontinuum%porosity
         call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
@@ -870,6 +873,8 @@ subroutine RTUpdateKineticState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+      if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
         sec_porosity = patch%material_property_array(1)%ptr% &
                         multicontinuum%porosity
 
@@ -2695,7 +2700,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-
+      if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       offset = (local_id-1)*reaction%ncomp
       istartall = offset + 1
       iendall = offset + reaction%ncomp
@@ -3378,11 +3384,11 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 
         Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
 
-        if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
-          option%io_buffer = 'Current multicontinuum implementation is for '// &
-                             'aqueous reactions only'
-          call PrintErrMsg(option)
-        endif
+!        if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
+!          option%io_buffer = 'Current multicontinuum implementation is for '// &
+!                             'aqueous reactions only'
+!          call PrintErrMsg(option)
+!        endif
 
         if (rt_sec_transport_vars(ghosted_id)%sec_jac_update) then
           jac_transport = rt_sec_transport_vars(ghosted_id)%sec_jac

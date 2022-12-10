@@ -6,6 +6,7 @@ module Mphase_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -1165,6 +1166,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
   use Field_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Material_Aux_module
 
   implicit none
 
@@ -1211,6 +1213,8 @@ subroutine MphaseUpdateSolutionPatch(realization)
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
+      if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
 
@@ -2704,6 +2708,8 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
+      if (Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle     
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
 
@@ -3525,7 +3531,8 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     Jup = ra(1:option%nflowdof,1:option%nflowdof)
 
     if (option%use_sc) then
-
+      if (Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       call MphaseSecondaryHeatJacobian(sec_heat_vars(local_id), &
                         mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                         mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &

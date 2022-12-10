@@ -1313,15 +1313,18 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       rt_sec_transport_vars =  patch%aux%SC_RT%sec_transport_vars(ghosted_id)
       sat = global_auxvars(ghosted_id)%sat(1)
       por = patch%material_property_array(1)%ptr%multicontinuum%porosity
-      do cell = 1, rt_sec_transport_vars%ncells
-        vol = rt_sec_transport_vars%vol(cell)
-        vps = vol * por * sat
-        sec_rt_aux => rt_sec_transport_vars%sec_rt_auxvar(cell)
-        call PMUFDDecaySolveISPDIAtCell(this,sec_rt_aux,&
+      if (.not.Equal((material_auxvars(ghosted_id)% &
+           soil_properties(epsilon_index)),1.d0)) then
+        do cell = 1, rt_sec_transport_vars%ncells
+          vol = rt_sec_transport_vars%vol(cell)
+          vps = vol * por * sat
+          sec_rt_aux => rt_sec_transport_vars%sec_rt_auxvar(cell)
+          call PMUFDDecaySolveISPDIAtCell(this,sec_rt_aux,&
                                reaction,vol,den_w_kg,por,sat,vps,dt,&
                                rt_sec_transport_vars%sec_rt_auxvar(cell)%pri_molal(:),&
                                local_id,imat,this%element_Kd(:,:,2))
-      enddo
+        enddo
+      endif 
       vol = material_auxvars(ghosted_id)%volume * material_auxvars(ghosted_id)% &
               soil_properties(epsilon_index)
     else

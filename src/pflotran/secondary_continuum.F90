@@ -512,6 +512,7 @@ subroutine SecondaryRTTimeCut(realization)
   use Realization_Subsurface_class
   use Grid_module
   use Reaction_Aux_module
+  use Material_Aux_module
 
   implicit none
   class(realization_subsurface_type) :: realization
@@ -532,6 +533,8 @@ subroutine SecondaryRTTimeCut(realization)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
+    if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
+        soil_properties(epsilon_index)),1.d0)) cycle
     do comp = 1, ncomp
       ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
@@ -1510,6 +1513,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
+  use Material_Aux_module
 
   implicit none
 
@@ -1555,6 +1559,8 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
+      if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       sec_diffusion_coefficient = realization%patch% &
                                   material_property_array(1)%ptr% &
                                   multicontinuum%diff_coeff

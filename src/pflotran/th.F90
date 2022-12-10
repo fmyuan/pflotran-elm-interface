@@ -1051,6 +1051,8 @@ subroutine THUpdateSolutionPatch(realization)
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+      if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
 
@@ -4144,6 +4146,8 @@ subroutine THResidualAccumulation(r,realization,ierr)
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+      if (Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
 
@@ -4980,13 +4984,16 @@ subroutine THJacobianAccumulation(A,realization,ierr)
                             vol_frac_prim,Jup)
 
     if (option%use_sc) then
-      call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
-                        th_parameter%ckwet(icct), &
-                        th_parameter%dencpr(icct), &
-                        option,jac_sec_heat)
+      if (.not.Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) then
+        call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
+                          th_parameter%ckwet(icct), &
+                          th_parameter%dencpr(icct), &
+                          option,jac_sec_heat)
 
-      Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
-                               jac_sec_heat*material_auxvars(ghosted_id)%volume
+        Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
+                                 jac_sec_heat*material_auxvars(ghosted_id)%volume
+      endif
     endif
 
     ! scale by the volume of the cell
