@@ -161,6 +161,8 @@ function RTAuxCreate(naqcomp,nphase)
   allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp,nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
   aux%rt_parameter%diffusion_activation_energy = 0.d0
+  nullify(aux%rt_parameter%pri_spec_diff_coef)
+  nullify(aux%rt_parameter%sec_spec_diff_coef)
   aux%rt_parameter%ncomp = 0
   aux%rt_parameter%nimcomp = 0
   aux%rt_parameter%ngas = 0
@@ -601,6 +603,8 @@ subroutine RTAuxDestroy(aux)
   if (associated(aux%rt_parameter)) then
     call DeallocateArray(aux%rt_parameter%diffusion_coefficient)
     call DeallocateArray(aux%rt_parameter%diffusion_activation_energy)
+    call DeallocateArray(aux%rt_parameter%pri_spec_diff_coef)
+    call DeallocateArray(aux%rt_parameter%pri_spec_diff_coef)
     deallocate(aux%rt_parameter)
   endif
   nullify(aux%rt_parameter)

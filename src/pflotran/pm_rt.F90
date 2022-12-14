@@ -199,7 +199,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('MULTIPLE_CONTINUUM')
         option%use_sc = PETSC_TRUE
       case('NERNST_PLANCK')
-        option%use_np = PETSC_TRUE
+        option%transport%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
@@ -1044,7 +1044,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
 
   if (option%use_sc) then
-    if (option%use_np) then
+    if (option%transport%use_np) then
       call SecondaryRTUpdateIterate_NP(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
     else

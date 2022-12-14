@@ -2083,6 +2083,7 @@ pm_rt.o : \
   realization_base.o \
   realization_subsurface.o \
   secondary_continuum.o \
+  secondary_continuum_np.o \
   string.o \
   utility.o \
   variables.o
@@ -2978,8 +2979,8 @@ reactive_transport.o : \
   secondary_continuum_np.o \
   string.o \
   transport.o \
-  transport_np.o \
-  transport_constraint_rt.o
+  transport_constraint_rt.o \
+  transport_np.o
 reactive_transport_aux.o : \
   matrix_block_aux.o \
   matrix_zeroing.o \
@@ -3166,29 +3167,17 @@ secondary_continuum_aux.o : \
 secondary_continuum_np.o : \
   block_solve.o \
   block_tridiag.o \
-  condition.o \
-  coupler.o \
-  eos_water.o \
   global_aux.o \
   grid.o \
-  material.o \
   material_aux.o \
-  mphase_aux.o \
   option.o \
-  patch.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
-  reaction_gas.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
-  secondary_continuum.o \
   secondary_continuum_aux.o \
-  string.o \
-  transport_constraint.o \
-  transport_constraint_rt.o \
-  utility.o \
-  variables.o  
+  utility.o
 shape_function.o : \
   gauss.o \
   grid_unstructured_cell.o \
@@ -3509,14 +3498,6 @@ transport.o : \
   option.o \
   pflotran_constants.o \
   reactive_transport_aux.o
-transport_np.o : \
-  connection.o \
-  global_aux.o \
-  material_aux.o \
-  matrix_block_aux.o \
-  option.o \
-  pflotran_constants.o \
-  reactive_transport_aux.o
 transport_constraint.o : \
   option.o \
   pflotran_constants.o \
@@ -3553,6 +3534,14 @@ transport_constraint_rt.o : \
   string.o \
   transport_constraint_base.o \
   units.o
+transport_np.o : \
+  global_aux.o \
+  material_aux.o \
+  matrix_block_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reactive_transport_aux.o
 units.o : \
   option.o \
   pflotran_constants.o

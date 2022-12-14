@@ -44,7 +44,7 @@ CHEMISTRY
 
 
     ACTIVITY_COEFFICIENTS TIMESTEP
-    DATABASE hanford_rasouli.dat
+    DATABASE ../../../database/rasouli.dat
     LOG_FORMULATION
     OUTPUT
         PH

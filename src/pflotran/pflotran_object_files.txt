@@ -265,8 +265,8 @@ misc_obj = \
 	${common_src}region.o \
 	${common_src}regression.o \
 	${common_src}secondary_continuum_aux.o\
-	${common_src}secondary_continuum_np.o \
 	${common_src}secondary_continuum.o \
+	${common_src}secondary_continuum_np.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
 	${common_src}simulation_inverse.o \

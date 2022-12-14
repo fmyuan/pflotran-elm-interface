@@ -1,10 +1,11 @@
+module Transport_NP_module
 ! This module handles specific calls from reactive_transport.f90 to
 ! take into account electromigration and specific
 ! diffusion terms (Nernst-Plank transport formulation)
-module Transport_NP_module
+! Author: Albert Nardi (Amphos21 - Barcelona Science)
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module

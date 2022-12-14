@@ -1,8 +1,7 @@
+module Secondary_Continuum_NP_module
+
 ! Added by Amphos 21
 ! For technical details contact albert.nardi@amphos21.com
-! ========================================================
-
-module Secondary_Continuum_NP_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes

@@ -102,7 +102,6 @@ module Option_module
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
 
-    PetscBool :: use_np ! If true, transport uses specific diffusion approach.
     PetscBool :: use_isothermal
     PetscBool :: use_sc           ! If true, multiple continuum formulation is used.
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
@@ -450,7 +449,6 @@ subroutine OptionInitRealization(option)
 
   option%use_isothermal = PETSC_FALSE
   option%use_matrix_free = PETSC_FALSE
-  option%use_np = PETSC_FALSE
   option%use_sc = PETSC_FALSE
 
   option%flowmode = ""

@@ -245,7 +245,6 @@ subroutine ReactionReadPass1(reaction,input,option)
           case('GAS_DIFFUSION_COEFFICIENTS')
             error_string = 'CHEMISTRY,GAS_DIFFUSION_COEFFICIENTS'
         end select
-
         nullify(generic_list)
         do
           call InputReadPflotranString(input,option)
