@@ -1073,7 +1073,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   this%phi_total = this%phi_data + this%phi_model
 
   if (this%iteration == this%start_iteration) then
-    call this%Checkpoint(0)
     this%phi_data_0 = this%phi_data
     this%phi_model_0 = this%phi_model
     this%phi_total_0 = this%phi_total
@@ -2465,7 +2464,7 @@ end subroutine InversionZFlowScaleSensitivity
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowCheckpoint(this,iteration)
+subroutine InversionZFlowCheckpoint(this)
   !
   ! Checkpoints the values of parameters and inversion settings for the
   ! current iterate
@@ -2479,7 +2478,6 @@ subroutine InversionZFlowCheckpoint(this,iteration)
   use String_module
 
   class(inversion_zflow_type) :: this
-  PetscInt :: iteration
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
@@ -2491,12 +2489,12 @@ subroutine InversionZFlowCheckpoint(this,iteration)
   if (len_trim(this%checkpoint_filename) == 0) return
 
   call this%driver%PrintMsg('Checkpointing inversion iteration ' // &
-                            trim(StringWrite(iteration)) // '.')
-  call HDF5FileOpen(this%checkpoint_filename,file_id,(iteration==0), &
+                            trim(StringWrite(this%iteration)) // '.')
+  call HDF5FileOpen(this%checkpoint_filename,file_id,(this%iteration==1), &
                     this%driver)
   call HDF5AttributeWrite(file_id,H5T_NATIVE_INTEGER,'Last Iteration', &
-                          iteration,this%driver)
-  string = 'Iteration ' // trim(StringWrite(iteration))
+                          this%iteration,this%driver)
+  string = 'Iteration ' // trim(StringWrite(this%iteration))
   call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
   call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
                           this%phi_total,this%driver)
@@ -2508,6 +2506,11 @@ subroutine InversionZFlowCheckpoint(this,iteration)
                           ierr);CHKERRQ(ierr)
   call HDF5DatasetWrite(grp_id,'Parameter Values',vec_ptr,this%driver)
   call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(this%inversion_aux%measurement_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call HDF5DatasetWrite(grp_id,'Measurement Values',vec_ptr,this%driver)
+  call VecRestoreArrayReadF90(this%inversion_aux%measurement_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
   call h5gclose_f(grp_id,hdf5_err)
   call HDF5FileClose(file_id)
@@ -2545,7 +2548,7 @@ subroutine InversionZFlowRestartReadData(this)
                             &checkpoint file "' // &
                             trim(this%restart_filename) // '".')
   call HDF5FileOpen(this%restart_filename,file_id,PETSC_FALSE,this%driver)
-  string = 'Iteration 0'
+  string = 'Iteration 1'
   call HDF5GroupOpen(file_id,string,grp_id,this%driver)
   call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
                          this%phi_total_0,this%driver)

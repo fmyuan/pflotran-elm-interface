@@ -28,7 +28,7 @@ module Inversion_Base_class
     procedure, public :: ConnectToForwardRun => InversionBaseThisOnlyError
     procedure, public :: ExecuteForwardRun => InversionBaseThisOnlyError
     procedure, public :: DestroyForwardRun => InversionBaseThisOnlyError
-    procedure, public :: Checkpoint => InversionBaseCheckpoint
+    procedure, public :: Checkpoint => InversionBaseThisOnly
     procedure, public :: RestartReadData => InversionBaseThisOnly
     procedure, public :: InitializeIterationNumber => &
                            InversionBaseInitIterationNum
@@ -142,12 +142,12 @@ subroutine InversionBaseStep(this)
   call this%ExecuteForwardRun()
   call this%CheckConvergence()
   call this%WriteIterationInfo()
+  call this%Checkpoint()
   if (.not.this%converged) then
     call this%CalculateSensitivity()
     call this%ScaleSensitivity()
     call this%CalculateUpdate()
     call this%UpdateRegularizationParameters()
-    call this%Checkpoint(this%iteration)
   endif
   call this%DestroyForwardRun()
 
@@ -185,15 +185,6 @@ subroutine InversionBaseThisOnlyError(this)
     &must be extended from the Base implementation.')
 
 end subroutine InversionBaseThisOnlyError
-
-! ************************************************************************** !
-
-subroutine InversionBaseCheckpoint(this,iteration)
-
-  class(inversion_base_type) :: this
-  PetscInt :: iteration
-
-end subroutine InversionBaseCheckpoint
 
 ! ************************************************************************** !
 

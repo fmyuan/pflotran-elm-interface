@@ -2374,50 +2374,6 @@ end subroutine InvSubsurfPrintCurParamValues
 
 ! ************************************************************************** !
 
-subroutine InversionSubsurfaceCheckpoint(this)
-  !
-  ! Checkpoints the values of parameters and inversion settings for the
-  ! current iterate
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/09/22
-  !
-  use hdf5
-  use Driver_class
-  use HDF5_Aux_module
-  use String_module
-
-  class(inversion_subsurface_type) :: this
-
-  integer(HID_T) :: file_id
-  integer(HID_T) :: grp_id
-  character(len=MAXSTRINGLENGTH) :: string
-  integer :: hdf5_err
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  if (len_trim(this%checkpoint_filename) == 0) return
-
-  call this%driver%PrintMsg('Checkpointing inversion iteration ' // &
-                            trim(StringWrite(this%iteration)) // '.')
-  call HDF5FileOpen(this%checkpoint_filename,file_id,(this%iteration==1), &
-                    this%driver)
-  call HDF5AttributeWrite(file_id,H5T_NATIVE_INTEGER,'Last Iteration', &
-                          this%iteration,this%driver)
-  string = 'Iteration ' // trim(StringWrite(this%iteration))
-  call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-  call VecGetArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
-  call HDF5DatasetWrite(grp_id,'Parameter Values',vec_ptr,this%driver)
-  call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
-                              ierr);CHKERRQ(ierr)
-  call h5gclose_f(grp_id,hdf5_err)
-  call HDF5FileClose(file_id)
-
-end subroutine InversionSubsurfaceCheckpoint
-
-! ************************************************************************** !
-
 subroutine InvSubsurfRestartIteration(this)
   !
   ! Reads the restart iteration from an inversion checkpoint file
@@ -2462,7 +2418,7 @@ subroutine InvSubsurfRestartIteration(this)
   endif
   call HDF5FileClose(file_id)
   this%restart_iteration = restart_iteration
-  this%iteration = this%restart_iteration + 1
+  this%iteration = this%restart_iteration
 
 end subroutine InvSubsurfRestartIteration
 
