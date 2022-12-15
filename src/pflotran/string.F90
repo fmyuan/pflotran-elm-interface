@@ -908,17 +908,19 @@ function StringWriteIArray(i_array)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteIArray
+  character(len=:), allocatable :: StringWriteIArray
 
   PetscInt :: i_array(:)
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  StringWriteIArray = ''
+  string = ''
   do i = 1, size(i_array)
-    StringWriteIArray = trim(StringWriteIArray) // ' ' // &
-                        trim(StringWrite(i_array(i)))
+    string = trim(string) // ' ' // &
+             trim(StringWrite(i_array(i)))
   enddo
+  StringWriteIArray = trim(adjustl(string))
 
 end function StringWriteIArray
 
@@ -934,17 +936,19 @@ function StringWriteESArray1(es_array)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteESArray1
+  character(len=:), allocatable :: StringWriteESArray1
 
   PetscReal :: es_array(:)
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  StringWriteESArray1 = ''
+  string = ''
   do i = 1, size(es_array)
-    StringWriteESArray1 = trim(StringWriteESArray1) // ' ' // &
-                          trim(StringWrite(es_array(i)))
+    string = trim(string) // ' ' // &
+             trim(StringWrite(es_array(i)))
   enddo
+  StringWriteESArray1 = trim(adjustl(string))
 
 end function StringWriteESArray1
 
@@ -960,18 +964,20 @@ function StringWriteESArray2(format_string,es_array)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteESArray2
+  character(len=:), allocatable :: StringWriteESArray2
 
   character(len=*) format_string
   PetscReal :: es_array(:)
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  StringWriteESArray2 = ''
+  string = ''
   do i = 1, size(es_array)
-    StringWriteESArray2 = trim(StringWriteESArray2) // ' ' // &
-                          trim(StringWrite(format_string,es_array(i)))
+    string = trim(string) // ' ' // &
+             trim(StringWrite(format_string,es_array(i)))
   enddo
+  StringWriteESArray2 = trim(adjustl(string))
 
 end function StringWriteESArray2
 
@@ -987,12 +993,13 @@ function StringWriteI1(i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteI1
+  character(len=:), allocatable :: StringWriteI1
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  write(StringWriteI1,*) i
-  StringWriteI1 = adjustl(StringWriteI1)
+  write(string,*) i
+  StringWriteI1 = trim(adjustl(string))
 
 end function StringWriteI1
 
@@ -1008,13 +1015,15 @@ function StringWriteI2(format_string,i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteI2
+  character(len=:), allocatable :: StringWriteI2
 
   character(len=*) format_string
   PetscInt :: i
 
-  write(StringWriteI2,format_string) i
-  StringWriteI2 = adjustl(StringWriteI2)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  write(string,format_string) i
+  StringWriteI2 = trim(adjustl(string))
 
 end function StringWriteI2
 
@@ -1030,7 +1039,7 @@ function StringWriteBracketI(i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteBracketI
+  character(len=:), allocatable :: StringWriteBracketI
 
   PetscInt :: i
 
@@ -1050,7 +1059,7 @@ function StringWriteES1(es)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteES1
+  character(len=:), allocatable :: StringWriteES1
 
   PetscReal :: es
 
@@ -1070,13 +1079,15 @@ function StringWriteES2(format_string,es)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteES2
+  character(len=:), allocatable :: StringWriteES2
 
   character(len=*) format_string
   PetscReal :: es
 
-  write(StringWriteES2,format_string) es
-  StringWriteES2 = adjustl(StringWriteES2)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  write(string,format_string) es
+  StringWriteES2 = trim(adjustl(string))
 
 end function StringWriteES2
 
@@ -1092,7 +1103,7 @@ function StringWriteF1(f)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteF1
+  character(len=:), allocatable :: StringWriteF1
 
   PetscReal :: f
 
@@ -1112,13 +1123,15 @@ function StringWriteF2(format_string,f)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteF2
+  character(len=:), allocatable :: StringWriteF2
 
   character(len=*) format_string
   PetscReal :: f
 
-  write(StringWriteF2,format_string) f
-  StringWriteF2 = adjustl(StringWriteF2)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  write(string,format_string) f
+  StringWriteF2 = trim(adjustl(string))
 
 end function StringWriteF2
 
@@ -1134,11 +1147,11 @@ function StringWriteString(s)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteString
+  character(len=:), allocatable :: StringWriteString
 
   character(len=*) :: s
 
-  StringWriteString = adjustl(s)
+  StringWriteString = trim(adjustl(s))
 
 end function StringWriteString
 
@@ -1154,7 +1167,7 @@ function StringWriteBracketString(s)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteBracketString
+  character(len=:), allocatable :: StringWriteBracketString
 
   character(len=*) :: s
 
