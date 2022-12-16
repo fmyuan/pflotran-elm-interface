@@ -13,6 +13,7 @@ module Inversion_ZFlow_class
   private
 
   type, public, extends(inversion_subsurface_type) :: inversion_zflow_type
+    PetscInt :: info_format
     PetscInt :: start_iteration          ! Starting iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
     PetscBool :: string_color
@@ -65,7 +66,7 @@ module Inversion_ZFlow_class
     procedure, public :: Checkpoint => InversionZFlowCheckpoint
     procedure, public :: RestartReadData => InversionZFlowRestartReadData
     procedure, public :: CheckConvergence => InversionZFlowCheckConvergence
-    procedure, public :: WriteIterationInfo => InversionZFlowWriteIterationInfo
+    procedure, public :: WriteIterationInfo => InvZFlowWriteIterationInfo
     procedure, public :: ScaleSensitivity => InversionZFlowScaleSensitivity
     procedure, public :: CalculateUpdate => InversionZFlowCalculateUpdate
     procedure, public :: UpdateRegularizationParameters => &
@@ -155,6 +156,7 @@ subroutine InversionZFlowInit(this,driver)
   call InversionSubsurfaceInit(this,driver)
 
   ! Default inversion parameters
+  this%info_format = 0
   this%miniter = 10
   this%maxiter = 50
   this%string_color = PETSC_TRUE
@@ -534,6 +536,8 @@ subroutine InversionZFlowReadBlock(this,input,option)
         call ConstrainedBlockRead(this%constrained_block,input,option)
       case('NO_STRING_COLOR')
         this%string_color = PETSC_FALSE
+      case('INFO_FORMAT_GLENN')
+        this%info_format = 1
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -2310,7 +2314,21 @@ end subroutine InversionZFlowComputeMatVecProductJtr
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowWriteIterationInfo(this)
+subroutine InvZFlowWriteIterationInfo(this)
+
+  class(inversion_zflow_type) :: this
+
+  if (this%info_format == 1) then
+    call InvZFlowWriteIterationInfo2(this)
+  else
+    call InvZFlowWriteIterationInfo1(this)
+  endif
+
+end subroutine InvZFlowWriteIterationInfo
+
+! ************************************************************************** !
+
+subroutine InvZFlowWriteIterationInfo1(this)
   !
   ! Writes inversion run info
   !
@@ -2431,7 +2449,101 @@ subroutine InversionZFlowWriteIterationInfo(this)
 110 format(4x,'Minimum reduction in Phi_Total ' /,8x, &
                  &'before Beta reduction:     ',2x,f15.4," %")
 
-end subroutine InversionZFlowWriteIterationInfo
+end subroutine InvZFlowWriteIterationInfo1
+
+! ************************************************************************** !
+
+subroutine InvZFlowWriteIterationInfo2(this)
+  !
+  ! Writes inversion run info
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/16/22
+  !
+
+  use String_module
+
+  implicit none
+
+  class(inversion_zflow_type) :: this
+
+  character(len=:), allocatable :: string
+  character(len=:), allocatable :: nl
+  character(len=80) :: divider
+
+  nl = new_line('a')
+  write(divider,'(40("=+"))')
+  string = nl // trim(divider)
+  call this%driver%PrintMsg(string)
+  string = nl // ' Iteration ' // &
+           StringWrite(this%iteration) // nl
+
+  call InvSubsurfWriteIterationInfo(this)
+  string = nl // ' Convergence statistics' // nl
+  call this%driver%PrintMsg(string)
+  string = Helper1('Phi_Data') // &
+             Helper2(StringWriteF(this%phi_data)) // nl // &
+           Helper1('Phi_Model') // &
+             Helper2(StringWriteF(this%phi_model)) // nl // &
+           Helper1('Phi_Model/Beta') // &
+             Helper2(StringWriteF(this%phi_model/this%beta)) // nl // &
+           Helper1('Phi_Total') // &
+             Helper2(StringWriteF(this%phi_total)) // nl
+  call this%driver%PrintMsg(string)
+  string = Helper1('Number of Constraint Eqs') // &
+             Helper2(StringWrite(this%num_constraints_total)) // nl // &
+           Helper1('Current Chi2') // &
+             Helper2(StringWriteF(this%current_chi2)) // nl // &
+           Helper1('Target Chi2') // &
+             Helper2(StringWriteF(this%target_chi2)) // nl // &
+           Helper1('RMS error') // &
+             Helper2(StringWriteF(sqrt(this%current_chi2))) // nl // &
+           Helper1('Beta') // &
+             Helper2(StringWriteF(this%beta)) // nl // &
+           Helper1('Beta reduction factor') // &
+             Helper2(StringWriteF(this%beta_red_factor)) // nl // &
+           Helper1('Reduction in Phi_Total') // &
+             Helper2(StringWriteF(100.d0*(this%phi_total_0 - &
+                                 this%phi_total)/this%phi_total_0)) // &
+             ' %' // nl // &
+           '  Minimum reduction in Phi_Total' // nl // &
+           Helper1('before Beta reduction') // &
+             Helper2(StringWriteF(100.d0*this%min_phi_red)) // ' %'
+
+  call this%driver%PrintMsg(string)
+
+  string = nl // divider // nl
+  call this%driver%PrintMsg(string)
+
+contains
+
+function Helper1(str)
+
+  use String_module
+
+  character(len=*) :: str
+
+  character(len=35) :: Helper1
+
+  Helper1 = trim(str) // ' :'
+  Helper1 = adjustr(Helper1)
+
+end function Helper1
+
+function Helper2(str)
+
+  use String_module
+
+  character(len=*) :: str
+
+  character(len=20) :: Helper2
+
+  Helper2 = trim(str)
+  Helper2 = adjustr(Helper2)
+
+end function Helper2
+
+end subroutine InvZFlowWriteIterationInfo2
 
 ! ************************************************************************** !
 

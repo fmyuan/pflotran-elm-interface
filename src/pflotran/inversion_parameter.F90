@@ -124,25 +124,25 @@ subroutine InversionParameterPrint(fid,inversion_parameter, &
   character(len=MAXSTRINGLENGTH) :: string
 
   if (print_header) then
-    write(fid,'(40("=+"),//, &
+    write(fid,'(/, &
               &" Current values of inversion parameters:",//, &
-              &"    # &
+              &"      # &
               &Parameter Name      &
               &Material Name       &
               & Value",/,&
-              &"    - &
+              &"      - &
               &--------------      &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i4," ",2a20,es13.6)') &
+  write(string,'(i6," ",2a20,es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &
     inversion_parameter%value
   write(fid,*) trim(string)
   if (print_footer) then
-    write(fid,'(/,40("=+"))')
+!    write(fid,'(/,40("=+"))')
   endif
 
 end subroutine InversionParameterPrint
@@ -169,25 +169,25 @@ subroutine InversionParameterPrintUpdate(fid,inversion_parameter, &
   character(len=MAXSTRINGLENGTH) :: string
 
   if (print_header) then
-    write(fid,'(40("=+"),//, &
+    write(fid,'(/, &
               &" Current values of inversion parameter updates:",//, &
-              &"    # &
+              &"      # &
               &Parameter Name      &
               &Material Name       &
               & Update",/,&
-              &"    - &
+              &"      - &
               &--------------      &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i4," ",2a20,es13.6)') &
+  write(string,'(i6," ",2a20,es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &
     inversion_parameter%update
   write(fid,*) trim(string)
   if (print_footer) then
-    write(fid,'(/,40("=+"))')
+!    write(fid,'(/,40("=+"))')
   endif
 
 end subroutine InversionParameterPrintUpdate

@@ -55,7 +55,7 @@ module Inversion_Subsurface_class
     procedure, public :: DestroyForwardRun => InvSubsurfDestroyForwardRun
     procedure, public :: EvaluateCostFunction => InvSuburfSkipThisOnly
     procedure, public :: CheckConvergence => InvSuburfSkipThisOnly
-    procedure, public :: WriteIterationInfo => InvSuburfSkipThisOnly
+    procedure, public :: WriteIterationInfo => InvSubsurfWriteIterationInfoLoc
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
     procedure, public :: ScaleSensitivity => InvSuburfSkipThisOnly
     procedure, public :: CalculateUpdate => InvSuburfSkipThisOnly
@@ -71,6 +71,7 @@ module Inversion_Subsurface_class
             InvSubsurfConnectToForwardRun, &
             InvSubsurfOutputSensitivity, &
             InvSubsurfPrintCurParamUpdate, &
+            InvSubsurfWriteIterationInfo, &
             InversionSubsurfaceStrip
 
 contains
@@ -1277,22 +1278,59 @@ subroutine InvSubsurfExecuteForwardRun(this)
 
   class(inversion_subsurface_type) :: this
 
-  PetscBool :: iflag
-
   if (this%realization%option%status == PROCEED) then
     call this%forward_simulation%ExecuteRun()
     call InvSubsurfPostProcMeasurements(this)
-    iflag = PETSC_TRUE
-    if (associated(this%inversion_aux%perturbation)) then
-      iflag = this%inversion_aux%perturbation%idof_pert == 0
-    endif
-    if (iflag) then
-      call InvSubsurfPrintCurMeasValues(this)
-      call InvSubsurfPrintCurParamValues(this)
-    endif
   endif
 
 end subroutine InvSubsurfExecuteForwardRun
+
+! ************************************************************************** !
+
+subroutine InvSubsurfWriteIterationInfoLoc(this)
+  !
+  ! Writes inversion run info
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/16/22
+  !
+
+  use String_module
+
+  implicit none
+
+  class(inversion_subsurface_type) :: this
+
+  character(len=:), allocatable :: string
+  character(len=:), allocatable :: nl
+  character(len=80) :: divider
+
+  nl = new_line('a')
+  write(divider,'(40("=+"))')
+  string = nl // trim(divider) // nl
+  call this%driver%PrintMsg(string)
+  call InvSubsurfWriteIterationInfo(this)
+  string = nl // divider // nl
+  call this%driver%PrintMsg(string)
+
+end subroutine InvSubsurfWriteIterationInfoLoc
+
+! ************************************************************************** !
+
+subroutine InvSubsurfWriteIterationInfo(this)
+  !
+  ! Prints information for the current inversion iteration to the screen
+  ! and/or output file.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/16/22
+
+  class(inversion_subsurface_type) :: this
+
+  call InvSubsurfPrintCurMeasValues(this)
+  call InvSubsurfPrintCurParamValues(this)
+
+end subroutine InvSubsurfWriteIterationInfo
 
 ! ************************************************************************** !
 

@@ -506,7 +506,7 @@ subroutine InvMeasurePrintComparison(fid,measurement, &
   character(len=MAXSTRINGLENGTH) :: string
 
   if (print_header) then
-    write(fid,'(40("=+"),//, &
+    write(fid,'(/, &
               &" Current values of inversion measurements:",//, &
               &"      # &
               &Measured Variable           &
@@ -524,7 +524,7 @@ subroutine InvMeasurePrintComparison(fid,measurement, &
     measurement%value
   write(fid,*) trim(string)
   if (print_footer) then
-    write(fid,'(/,40("=+"))')
+!    write(fid,'(/,40("=+"))')
   endif
 
 end subroutine InvMeasurePrintComparison
