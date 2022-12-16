@@ -26,17 +26,12 @@ module Inversion_Subsurface_class
     class(simulation_subsurface_type), pointer :: forward_simulation
     class(realization_subsurface_type), pointer :: realization
     type(inversion_aux_type), pointer :: inversion_aux
-!    type(inversion_parameter_type), pointer :: parameters(:)
     PetscInt :: dist_measurement_offset
     PetscInt :: parameter_offset  ! needed?
     PetscInt :: num_parameters_local
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest       ! reserved for inversion_ert
     Vec :: ref_quantity_of_interest   ! reserved for inversion_ert
-!    Vec :: measurement_vec
-!    Vec :: dist_measurement_vec
-!    Vec :: parameter_vec
-!    Vec :: dist_parameter_vec
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     ! flags reference in objects below the inversion objects should be
     ! stored in option_inversion_type
@@ -45,9 +40,6 @@ module Inversion_Subsurface_class
     PetscBool :: perturbation_risk_acknowledged
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
-!    VecScatter :: scatter_measure_to_dist_measure
-!    VecScatter :: scatter_param_to_dist_param
-!    VecScatter :: scatter_global_to_dist_param
     PetscReal, pointer :: local_measurement_values(:)
     PetscReal, pointer :: local_dobs_dunknown_values(:)
     PetscReal, pointer :: local_dobs_dparam_values(:)
@@ -78,6 +70,7 @@ module Inversion_Subsurface_class
             InvSubsurfSetupForwardRunLinkage, &
             InvSubsurfConnectToForwardRun, &
             InvSubsurfOutputSensitivity, &
+            InvSubsurfPrintCurParamUpdate, &
             InversionSubsurfaceStrip
 
 contains
@@ -739,6 +732,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
                         this%inversion_aux%parameter_vec, &
                         ierr);CHKERRQ(ierr)
+      call VecDuplicate(this%inversion_aux%parameter_vec, &
+                        this%inversion_aux%del_parameter_vec, &
+                        ierr);CHKERRQ(ierr)
       call ISCreateStride(this%driver%comm%mycomm,num_parameters,ZERO_INTEGER, &
                           ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
       call VecScatterCreate(this%inversion_aux%parameter_vec,is_parameter, &
@@ -1199,7 +1195,9 @@ subroutine InvSubsurfConnectToForwardRun(this)
         call InvAuxCopyParameterValue(this%inversion_aux,i, &
                                       INVAUX_GET_MATERIAL_VALUE)
       enddo
-      call InvAuxCopyParamToFromParamVec(this%inversion_aux,INVAUX_COPY_TO_VEC)
+      call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                         INVAUX_PARAMETER_VALUE, &
+                                         INVAUX_COPY_TO_VEC)
     endif
     ! must come after the copying of parameters above
     call this%RestartReadData()
@@ -1219,14 +1217,6 @@ subroutine InvSubsurfConnectToForwardRun(this)
     ! inversion for more than one parameter type
     call InvSubsurfSetAdjointVariable(this,this%inversion_aux% &
                                              parameters(1)%iparameter)
-  endif
-
-  iflag = PETSC_TRUE
-  if (associated(perturbation)) then
-    iflag = perturbation%idof_pert == 0
-  endif
-  if (iflag) then
-    call InvSubsurfPrintCurParamValues(this)
   endif
 
   this%inversion_aux%startup_phase = PETSC_FALSE
@@ -1287,9 +1277,19 @@ subroutine InvSubsurfExecuteForwardRun(this)
 
   class(inversion_subsurface_type) :: this
 
+  PetscBool :: iflag
+
   if (this%realization%option%status == PROCEED) then
     call this%forward_simulation%ExecuteRun()
     call InvSubsurfPostProcMeasurements(this)
+    iflag = PETSC_TRUE
+    if (associated(this%inversion_aux%perturbation)) then
+      iflag = this%inversion_aux%perturbation%idof_pert == 0
+    endif
+    if (iflag) then
+      call InvSubsurfPrintCurMeasValues(this)
+      call InvSubsurfPrintCurParamValues(this)
+    endif
   endif
 
 end subroutine InvSubsurfExecuteForwardRun
@@ -1353,7 +1353,6 @@ subroutine InvSubsurfPostProcMeasurements(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscInt :: icount
-  PetscBool :: iflag
   PetscErrorCode :: ierr
 
   option => this%realization%option
@@ -1484,14 +1483,6 @@ subroutine InvSubsurfPostProcMeasurements(this)
       call PrintErrMsg(option)
     endif
   enddo
-
-  iflag = PETSC_TRUE
-  if (associated(this%inversion_aux%perturbation)) then
-    iflag = this%inversion_aux%perturbation%idof_pert == 0
-  endif
-  if (iflag) then
-    call InvSubsurfPrintCurMeasValues(this)
-  endif
 
 end subroutine InvSubsurfPostProcMeasurements
 
@@ -1965,6 +1956,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
                                  iqoi(1),iqoi(2))
   else
     call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                       INVAUX_PARAMETER_VALUE, &
                                        INVAUX_COPY_FROM_VEC)
     do i = 1, size(this%inversion_aux%parameters)
       call InvAuxCopyParameterValue(this%inversion_aux,i, &
@@ -2371,6 +2363,47 @@ subroutine InvSubsurfPrintCurParamValues(this)
   endif
 
 end subroutine InvSubsurfPrintCurParamValues
+
+! ************************************************************************** !
+
+subroutine InvSubsurfPrintCurParamUpdate(this)
+  !
+  ! Prints the current update of parameters in the list of parameters
+  ! Doesn't work for full vector parameter sets
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/17/22
+  !
+  use Driver_class
+
+  class(inversion_subsurface_type) :: this
+
+  PetscInt :: i
+  PetscInt :: num_parameters
+
+  if (this%inversion_aux%qoi_is_full_vector) return
+
+  call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                     INVAUX_PARAMETER_UPDATE, &
+                                     INVAUX_COPY_FROM_VEC)
+
+  num_parameters = size(this%inversion_aux%parameters)
+  if (this%driver%PrintToScreen()) then
+    do i = 1, num_parameters
+      call InversionParameterPrintUpdate(STDOUT_UNIT, &
+                                   this%inversion_aux%parameters(i),i==1, &
+                                   i==num_parameters)
+    enddo
+  endif
+  if (this%driver%PrintToFile()) then
+    do i = 1, num_parameters
+      call InversionParameterPrintUpdate(this%driver%fid_out, &
+                                   this%inversion_aux%parameters(i),i==1, &
+                                   i==num_parameters)
+    enddo
+  endif
+
+end subroutine InvSubsurfPrintCurParamUpdate
 
 ! ************************************************************************** !
 

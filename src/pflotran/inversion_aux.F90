@@ -18,8 +18,10 @@ module Inversion_Aux_module
 
   PetscInt, parameter, public :: INVAUX_GET_MATERIAL_VALUE = 0
   PetscInt, parameter, public :: INVAUX_OVERWRITE_MATERIAL_VALUE = 1
-  PetscInt, parameter, public :: INVAUX_COPY_TO_VEC = 3
-  PetscInt, parameter, public :: INVAUX_COPY_FROM_VEC = 4
+  PetscInt, parameter, public :: INVAUX_COPY_TO_VEC = 2
+  PetscInt, parameter, public :: INVAUX_COPY_FROM_VEC = 3
+  PetscInt, parameter, public :: INVAUX_PARAMETER_VALUE = 4
+  PetscInt, parameter, public :: INVAUX_PARAMETER_UPDATE = 5
 
   PetscInt, parameter, public :: INVAUX_SCATFORWARD = 0
   PetscInt, parameter, public :: INVAUX_SCATREVERSE = 1
@@ -40,6 +42,7 @@ module Inversion_Aux_module
     Vec :: dist_measurement_vec
     Vec :: parameter_vec
     Vec :: dist_parameter_vec
+    Vec :: del_parameter_vec
     VecScatter :: scatter_measure_to_dist_measure
     VecScatter :: scatter_param_to_dist_param
     VecScatter :: scatter_global_to_dist_param
@@ -116,6 +119,7 @@ function InversionAuxCreate(driver)
   aux%dist_measurement_vec = PETSC_NULL_VEC
   aux%parameter_vec = PETSC_NULL_VEC
   aux%dist_parameter_vec = PETSC_NULL_VEC
+  aux%del_parameter_vec = PETSC_NULL_VEC
   aux%scatter_measure_to_dist_measure = PETSC_NULL_VECSCATTER
   aux%scatter_param_to_dist_param = PETSC_NULL_VECSCATTER
   aux%scatter_global_to_dist_param = PETSC_NULL_VECSCATTER
@@ -370,7 +374,7 @@ end subroutine InvAuxGetSetParamValueByMat
 
 ! ************************************************************************** !
 
-subroutine InvAuxCopyParamToFromParamVec(aux,iflag)
+subroutine InvAuxCopyParamToFromParamVec(aux,itype,idirection)
   !
   ! Copies parameter values back and forth
   !
@@ -378,26 +382,47 @@ subroutine InvAuxCopyParamToFromParamVec(aux,iflag)
   ! Date: 03/30/22
 
   class(inversion_aux_type) :: aux
-  PetscInt :: iflag
+  PetscInt :: itype
+  PetscInt :: idirection
 
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  if (iflag == INVAUX_COPY_FROM_VEC) then
-    do i = 1, size(aux%parameters)
-      aux%parameters(i)%value = vec_ptr(i)
-    enddo
-  elseif (iflag == INVAUX_COPY_TO_VEC) then
-    do i = 1, size(aux%parameters)
-      vec_ptr(i) = aux%parameters(i)%value
-    enddo
-  else
-    call aux%driver%PrintErrMsg('Unrecogized flag in &
-                                 &InvAuxCopyParamToFromParamVec')
-  endif
-  call VecRestoreArrayF90(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  select case(itype)
+    case(INVAUX_PARAMETER_VALUE)
+      call VecGetArrayF90(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      select case(idirection)
+        case(INVAUX_COPY_FROM_VEC)
+          do i = 1, size(aux%parameters)
+            aux%parameters(i)%value = vec_ptr(i)
+          enddo
+        case(INVAUX_COPY_TO_VEC)
+          do i = 1, size(aux%parameters)
+            vec_ptr(i) = aux%parameters(i)%value
+          enddo
+        case default
+          stop 'Error: idirection in InvAuxCopyParamToFromParamVec,Value'
+      end select
+      call VecRestoreArrayF90(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    case(INVAUX_PARAMETER_UPDATE)
+      call VecGetArrayF90(aux%del_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      select case(idirection)
+        case(INVAUX_COPY_FROM_VEC)
+          do i = 1, size(aux%parameters)
+            aux%parameters(i)%update = vec_ptr(i)
+          enddo
+        case(INVAUX_COPY_TO_VEC)
+          do i = 1, size(aux%parameters)
+            vec_ptr(i) = aux%parameters(i)%update
+          enddo
+        case default
+          stop 'Error: idirection in InvAuxCopyParamToFromParamVec,Update'
+      end select
+      call VecRestoreArrayF90(aux%del_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    case default
+      stop 'Error: itype in InvAuxCopyParamToFromParamVec'
+  end select
 
 end subroutine InvAuxCopyParamToFromParamVec
 
@@ -647,6 +672,9 @@ subroutine InversionAuxDestroy(aux)
   endif
   if (aux%dist_parameter_vec /= PETSC_NULL_VEC) then
     call VecDestroy(aux%dist_parameter_vec,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%del_parameter_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(aux%del_parameter_vec,ierr);CHKERRQ(ierr)
   endif
   if (aux%scatter_measure_to_dist_measure /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(aux%scatter_measure_to_dist_measure, &

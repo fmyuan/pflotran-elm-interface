@@ -1132,33 +1132,34 @@ subroutine InversionZFlowCalculateUpdate(this)
   PetscInt :: iparameter, ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec2_ptr(:)
+  PetscReal :: new_value
   Vec :: work_dup
-  Vec :: del_param_vec
+  Vec :: dist_del_param_vec
   PetscErrorCode :: ierr
 
   patch => this%realization%patch
   grid => patch%grid
 
   ! simply setting a local pointer for clarity
-  del_param_vec = this%dist_parameter_tmp_vec
+  dist_del_param_vec = this%dist_parameter_tmp_vec
 
   call InversionZFlowAllocateWorkArrays(this)
 
   ! get inversion%del_param
   call InversionZFlowCGLSSolve(this)
 
-  call VecGetArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(dist_del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = this%del_param(:)
-  call VecRestoreArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(dist_del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (this%inversion_aux%qoi_is_full_vector) then
     ! have to copy values to global work vecs in order to loop over
     ! ghosted ids
 
-    ! del_param_vec holds the update
+    ! dist_del_param_vec holds the update
     call InvAuxScatGlobalToDistParam(this%inversion_aux, &
                                      this%realization%field%work, &
-                                     del_param_vec, &
+                                     dist_del_param_vec, &
                                      INVAUX_SCATREVERSE)
     call VecDuplicate(this%realization%field%work,work_dup, &
                       ierr);CHKERRQ(ierr)
@@ -1197,23 +1198,38 @@ subroutine InversionZFlowCalculateUpdate(this)
   else
     call VecGetArrayF90(this%inversion_aux%dist_parameter_vec, &
                         vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(dist_del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
     do iparameter = 1, this%num_parameters_local
+#if 0
       vec_ptr(iparameter) = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
       if (vec_ptr(iparameter) > this%maxparam) &
         vec_ptr(iparameter) = this%maxparam
       if (vec_ptr(iparameter) < this%minparam) &
         vec_ptr(iparameter) = this%minparam
+#else
+      new_value = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
+      if (new_value > this%maxparam) then
+        new_value = this%maxparam
+      else if (new_value < this%minparam) then
+        new_value = this%minparam
+      endif
+      vec2_ptr(iparameter) = new_value - vec_ptr(iparameter)
+      vec_ptr(iparameter) = new_value
+#endif
     enddo
     call VecRestoreArrayF90(this%inversion_aux%dist_parameter_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(dist_del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
 
     call InvAuxScatParamToDistParam(this%inversion_aux, &
                                     this%inversion_aux%parameter_vec, &
                                     this%inversion_aux%dist_parameter_vec, &
                                     INVAUX_SCATREVERSE)
-
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%inversion_aux%del_parameter_vec, &
+                                    dist_del_param_vec, &
+                                    INVAUX_SCATREVERSE)
+    call InvSubsurfPrintCurParamUpdate(this)
   endif
 
 end subroutine InversionZFlowCalculateUpdate
@@ -2573,12 +2589,13 @@ subroutine InversionZFlowRestartReadData(this)
   call h5gclose_f(grp_id,hdf5_err)
   call HDF5FileClose(file_id)
 
-  call InvAuxCopyParamToFromParamVec(this%inversion_aux,INVAUX_COPY_FROM_VEC)
+  call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                     INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_FROM_VEC)
   call InvAuxScatParamToDistParam(this%inversion_aux, &
                                   this%inversion_aux%parameter_vec, &
                                   this%inversion_aux%dist_parameter_vec, &
                                   INVAUX_SCATFORWARD)
-  call InvAuxCopyParamToFromParamVec(this%inversion_aux,INVAUX_COPY_FROM_VEC)
 
 end subroutine InversionZFlowRestartReadData
 
