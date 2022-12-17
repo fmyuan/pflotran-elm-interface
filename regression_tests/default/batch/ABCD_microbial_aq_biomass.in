@@ -74,9 +74,10 @@ CHEMISTRY
     /
   /
   GENERAL_REACTION
-   REACTION D(aq) <->
-    FORWARD_RATE 1.d-9
-   BACKWARD_RATE 0.d0
+    REACTION D(aq) <->
+#    FORWARD_RATE 1.d-9
+    FORWARD_RATE 60.d-9 1/min
+    BACKWARD_RATE 0.d0
   /
   DATABASE ../../../database/hanford.dat
   LOG_FORMULATION

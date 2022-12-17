@@ -119,7 +119,7 @@ subroutine EquilibrateRead(this,input,option)
           input%err_buf = 'REACTION_SANDBOX,EQUILIBRATE,HALF_LIFE UNITS'
           call InputDefaultMsg(input,option)
         else
-          ! If units exist, convert to internal units of 1/s.
+          ! If units exist, convert to internal units of sec.
           internal_units = 'sec'
           half_life = half_life * &
             UnitsConvertToInternal(word,internal_units,option)
