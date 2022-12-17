@@ -27,6 +27,7 @@ module Communicator_Aux_module
             CommInitPetsc, &
             CommPopulate, &
             CommCreateProcessorGroups, &
+            CommStrip, &
             CommDestroy
 
 contains
@@ -47,15 +48,15 @@ function CommCreate()
   type(comm_type), pointer :: CommCreate
 
   allocate(comm)
-  comm%global_comm = 0
+  comm%global_comm = MPI_COMM_NULL
   comm%global_rank = 0
   comm%global_commsize = 0
-  comm%global_group = 0
+  comm%global_group = MPI_GROUP_NULL
 
-  comm%mycomm = 0
+  comm%mycomm = MPI_COMM_NULL
   comm%myrank = 0
   comm%mycommsize = 0
-  comm%mygroup = 0
+  comm%mygroup = MPI_GROUP_NULL
   comm%mygroup_id = 0
 
   comm%start_time = 0.d0
@@ -151,11 +152,39 @@ end subroutine CommCreateProcessorGroups
 
 ! ************************************************************************** !
 
+subroutine CommStrip(comm)
+
+  ! deallocate MPI objects prior to PetscFinalize
+
+  implicit none
+
+  type(comm_type) :: comm
+
+  PetscErrorCode :: ierr
+
+  if (comm%global_group /= MPI_GROUP_NULL) then
+    if (comm%mygroup /= comm%global_group) then
+      call MPI_Group_free(comm%mygroup,ierr);CHKERRQ(ierr)
+    endif
+    call MPI_Group_free(comm%global_group,ierr);CHKERRQ(ierr)
+  endif
+
+  if (comm%mycomm /= comm%global_comm) then
+    call MPI_Comm_free(comm%mycomm,ierr);CHKERRQ(ierr)
+    comm%mycomm = comm%global_comm
+  endif
+
+end subroutine CommStrip
+
+! ************************************************************************** !
+
 subroutine CommDestroy(comm)
 
   implicit none
 
   type(comm_type), pointer :: comm
+
+  call CommStrip(comm)
 
   deallocate(comm)
   nullify(comm)
