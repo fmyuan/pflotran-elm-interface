@@ -115,6 +115,7 @@ module Material_module
     PetscBool :: log_spacing
     PetscReal :: outer_spacing
     PetscReal :: area_scaling
+    PetscReal :: tortuosity
   end type multicontinuum_property_type
 
   type, public :: material_property_ptr_type
@@ -256,6 +257,7 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%log_spacing = PETSC_FALSE
     material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
+    material_property%multicontinuum%tortuosity = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
     nullify(material_property%multicontinuum%half_matrix_width_dataset)
   endif
@@ -942,6 +944,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%area_scaling)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
+            case('TORTUOSITY')
+              call InputReadDouble(input,option, &
+                        material_property%multicontinuum%tortuosity)
+              call InputErrorMsg(input,option,'secondary continuum tortuosity', &
+                               'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')                           
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)

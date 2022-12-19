@@ -1,7 +1,7 @@
 module Transport_module
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Material_Aux_module
