@@ -1464,6 +1464,33 @@ subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
 
 end subroutine EOSWaterSatPresWagnerPruss
 
+subroutine EOSWaterSaturationPressureIce(T, calculate_derivatives, &
+                                      PS, dPS_dT, ierr)
+  !
+  ! Calculates the saturation pressure of water as a function of temperature
+  ! above and below the freezing point of water based on Huang, J. (2018). 
+  ! A simple accurate formula for calculating saturation vapor pressure of 
+  ! water and ice. Journal of Applied Meteorology and Climatology, 57(6), 
+  ! 1265-1272.
+  !
+  ! Author: Michael Nole
+  ! Date: 12/07/2022
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  if (T > 0.d0) then
+    PS = exp(34.494d0 + 4924.99d0/(T+237.1))/(T+105.d0)**1.57d0
+  else
+    PS = exp(43.494d0 - 6545.8d0/(T+278.d0))/(T+868)**2
+  endif
+
+end subroutine EOSWaterSaturationPressureIce
+
 ! ************************************************************************** !
 
 subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
