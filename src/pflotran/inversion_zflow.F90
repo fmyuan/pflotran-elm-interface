@@ -2345,6 +2345,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
   PetscInt :: fid
   PetscInt, parameter :: zeronum = 0
 
+  call InvSubsurfWriteIterationInfo(this)
   if (this%driver%PrintToScreen()) then
     write(*,*)
     write(*,98)
