@@ -376,15 +376,19 @@ factory_forward.o : \
   factory_subsurface.o \
   factory_subsurface_read.o \
   input_aux.o \
+  inversion_aux.o \
   logging.o \
   option.o \
   option_checkpoint.o \
+  option_inversion.o \
   output_aux.o \
   pflotran_constants.o \
   pm_auxiliary.o \
   pm_base.o \
   pm_geomechanics_force.o \
   pmc_base.o \
+  realization_subsurface.o \
+  simulation_base.o \
   simulation_geomechanics.o \
   simulation_subsurface.o \
   string.o \
@@ -1190,13 +1194,19 @@ integral_flux.o : \
   string.o \
   utility.o
 inversion_aux.o : \
+  characteristic_curves.o \
+  driver.o \
   inversion_coupled_aux.o \
   inversion_measurement_aux.o \
   inversion_parameter.o \
   inversion_ts_aux.o \
+  material.o \
+  material_aux.o \
   option_inversion.o \
   pflotran_constants.o \
-  utility.o
+  string.o \
+  utility.o \
+  variables.o
 inversion_base.o : \
   driver.o \
   input_aux.o \
@@ -1247,12 +1257,12 @@ inversion_parameter.o : \
   input_aux.o \
   material_aux.o \
   option.o \
+  option_inversion.o \
   pflotran_constants.o \
   string.o \
   units.o \
   variables.o
 inversion_subsurface.o : \
-  characteristic_curves.o \
   connection.o \
   coupler.o \
   debug.o \
@@ -1271,7 +1281,6 @@ inversion_subsurface.o : \
   inversion_parameter.o \
   inversion_ts_aux.o \
   material.o \
-  material_aux.o \
   option.o \
   option_inversion.o \
   output_hdf5.o \
@@ -2727,6 +2736,7 @@ reaction_sandbox.o : \
   reaction_sandbox_calcite.o \
   reaction_sandbox_chromium.o \
   reaction_sandbox_clm_cn.o \
+  reaction_sandbox_equilibrate.o \
   reaction_sandbox_example.o \
   reaction_sandbox_flexbiohill.o \
   reaction_sandbox_gas.o \
@@ -2806,6 +2816,17 @@ reaction_sandbox_clm_cn.o : \
   string.o \
   units.o \
   utility.o
+reaction_sandbox_equilibrate.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  units.o
 reaction_sandbox_example.o : \
   global_aux.o \
   input_aux.o \
@@ -3207,7 +3228,10 @@ simulation_subsurface.o : \
   discretization.o \
   driver.o \
   eos.o \
+  init_subsurface.o \
   input_aux.o \
+  inversion_aux.o \
+  inversion_parameter.o \
   logging.o \
   material.o \
   option.o \

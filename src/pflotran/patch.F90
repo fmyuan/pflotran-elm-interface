@@ -5410,11 +5410,15 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(GAS_VISCOSITY)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%kr(option%gas_phase) / &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%mobility(option%gas_phase)
+              tempreal = patch%aux%General%auxvars(ZERO_INTEGER, &
+                                       ghosted_id)%mobility(option%gas_phase)
+              if (tempreal > 0.d0) then
+                vec_ptr(local_id) = &
+                  patch%aux%General%auxvars(ZERO_INTEGER, &
+                    ghosted_id)%kr(option%gas_phase) / tempreal
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case default
             call PatchUnsupportedVariable('GENERAL',ivar,option)
@@ -5635,11 +5639,15 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(GAS_VISCOSITY)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%kr(option%gas_phase) / &
-                patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%mobility(option%gas_phase)
+              tempreal = patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
+                                       ghosted_id)%mobility(option%gas_phase)
+              if (tempreal > 0.d0) then
+                vec_ptr(local_id) = &
+                  patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
+                    ghosted_id)%kr(option%gas_phase) / tempreal
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case default
             call PatchUnsupportedVariable('HYDRATE',ivar,option)
@@ -6717,10 +6725,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
           case(GAS_VISCOSITY)
-            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      kr(option%gas_phase) / &
-                    patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      mobility(option%gas_phase)
+            tempreal = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                          mobility(option%gas_phase)
+            if (tempreal > 0.d0) then
+              value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        kr(option%gas_phase) / tempreal
+            else
+              value = 0.d0
+            endif
           case(ICE_SATURATION)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%ice_phase)
@@ -6857,10 +6869,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
           case(GAS_VISCOSITY)
-            value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      kr(option%gas_phase) / &
-                    patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      mobility(option%gas_phase)
+            tempreal = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
+                          mobility(option%gas_phase)
+            if (tempreal > 0.d0) then
+              value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        kr(option%gas_phase) / tempreal
+            else
+              value = 0.d0
+            endif
           case(ICE_SATURATION)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%ice_phase)

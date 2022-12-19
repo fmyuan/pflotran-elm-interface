@@ -1357,22 +1357,18 @@ subroutine FlowConditionRead(condition,input,option)
                               PETSC_TRUE)
 
   select case(option%iflowmode)
-    case default
-      option%io_buffer = 'The flow mode not supported in original &
-        &FlowConditionRead.'
-      call PrintMsg(option)
     case(G_MODE)
       option%io_buffer = 'General mode not supported in original &
         &FlowConditionRead.'
-      call PrintMsg(option)
+      call PrintErrMsg(option)
     case(H_MODE)
       option%io_buffer = 'Hydrate mode not supported in original &
         &FlowConditionRead.'
-      call PrintMsg(option)
+      call PrintErrMsg(option)
     case(WF_MODE)
       option%io_buffer = 'WIPP Flow mode not supported in original &
         &FlowConditionRead.'
-      call PrintMsg(option)
+      call PrintErrMsg(option)
     case(MPH_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well) .and. .not.associated(saturation)) then
@@ -1690,6 +1686,10 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(saturation)) call FlowSubConditionDestroy(saturation)
       if (associated(temperature)) call FlowSubConditionDestroy(temperature)
       if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
+    case default
+      option%io_buffer = 'The NULL flow mode not supported in original &
+        &FlowConditionRead.'
+      call PrintErrMsg(option)
 
   end select
 

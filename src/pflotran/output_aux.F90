@@ -833,6 +833,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = '1/Pa-s'
       category = OUTPUT_GENERIC
       id = GAS_MOBILITY
+    case ('GAS_VISCOSITY')
+      name = 'Gas Viscosity'
+      units = 'Pa-s'
+      category = OUTPUT_GENERIC
+      id = GAS_VISCOSITY
     case ('GAS_ENERGY')
       name = 'Gas Energy'
       units = 'MJ/kmol'

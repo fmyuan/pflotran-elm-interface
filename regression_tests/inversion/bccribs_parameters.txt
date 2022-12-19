@@ -1,0 +1,14 @@
+    PARAMETERS
+      PARAMETER
+        NAME PERMEABILITY
+        MATERIAL backfill
+      /
+      PARAMETER
+        NAME PERMEABILITY
+        MATERIAL Hf1
+      /
+      PARAMETER
+        NAME PERMEABILITY
+        MATERIAL Hf2
+      /
+    /

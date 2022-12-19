@@ -1,0 +1,108 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+          SOLUTE_TRANSPORT
+        /
+      /
+    /
+  /
+  PREREQUISITE bccribs_initial.in
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE bccribs_base.txt
+
+#=========================== output ===========================================
+OUTPUT
+skip
+  SNAPSHOT_FILE
+    PERIODIC TIMESTEP 1
+    FORMAT HDF5
+    VARIABLES
+      LIQUID_SATURATION
+      SOLUTE_CONCENTRATION
+    /
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+    VARIABLES
+      LIQUID_SATURATION
+      SOLUTE_CONCENTRATION
+    /
+  /
+noskip
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 20.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 s at 10.d0 d
+  MAXIMUM_TIMESTEP_SIZE 3.d0 h at 10.00001d0 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d at 11.d0 d
+END
+
+#=========================== regions ==========================================
+REGION source_zone
+  FACE TOP
+  COORDINATES
+    1.d0 -1.d20 3.d0
+    2.d0 1.d20 3.d0
+  /
+END
+
+REGION pt1
+  COORDINATE 0.5 0.5 0.5
+END
+
+REGION pt2
+  COORDINATE 1.5 0.5 1.5
+END
+
+REGION pt3
+  COORDINATE 2.5 0.5 2.5
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION pt1
+END
+
+OBSERVATION
+  REGION pt2
+END
+
+OBSERVATION
+  REGION pt3
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION release
+  TYPE
+    LIQUID_FLUX NEUMANN
+    CONCENTRATION DIRICHLET
+  /
+  LIQUID_FLUX LIST
+    TIME_UNITS d
+    DATA_UNITS m/d
+    0.d0 0.d0
+    10.d0 0.1d0
+    11.d0 0.d0
+  /
+  CONCENTRATION 1.d-3
+END
+
+#=========================== condition couplers ===============================
+BOUNDARY_CONDITION source
+  FLOW_CONDITION release
+  REGION source_zone
+END
+
+END_SUBSURFACE

@@ -210,7 +210,8 @@ end function InversionParameterRead
 
 ! ************************************************************************** !
 
-subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
+subroutine InversionParameterMapNametoInt(inversion_parameter,driver, &
+                                          inversion_option)
   !
   ! Maps an inversion parameter to subsurface model parameter id
   !
@@ -218,18 +219,21 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
   ! Date: 03/25/22
   !
   use Driver_class
+  use Option_Inversion_module
 
   type(inversion_parameter_type) :: inversion_parameter
   class(driver_type) :: driver
+  type(inversion_option_type) :: inversion_option
 
   inversion_parameter%iparameter = &
-    InversionParameterGetIDFromName(inversion_parameter%parameter_name,driver)
+    InversionParameterGetIDFromName(inversion_parameter%parameter_name, &
+                                    driver,inversion_option)
 
 end subroutine InversionParameterMapNametoInt
 
 ! ************************************************************************** !
 
-function InversionParameterGetIDFromName(name_,driver)
+function InversionParameterGetIDFromName(name_,driver,inversion_option)
   !
   ! Maps an inversion parameter_name to subsurface model parameter id
   !
@@ -237,12 +241,14 @@ function InversionParameterGetIDFromName(name_,driver)
   ! Date: 11/23/22
   !
   use Driver_class
+  use Option_Inversion_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                VG_SR, VG_ALPHA, VG_M
 
   character(len=MAXWORDLENGTH) :: name_
   class(driver_type) :: driver
+  type(inversion_option_type) :: inversion_option
 
   PetscInt :: InversionParameterGetIDFromName
 
@@ -251,16 +257,22 @@ function InversionParameterGetIDFromName(name_,driver)
   select case(name_)
     case('ELECTRICAL_CONDUCTIVITY')
       i = ELECTRICAL_CONDUCTIVITY
+      inversion_option%invert_for_elec_cond = PETSC_TRUE
     case('PERMEABILITY')
       i = PERMEABILITY
+      inversion_option%invert_for_permeability = PETSC_TRUE
     case('POROSITY')
       i = POROSITY
+      inversion_option%invert_for_porosity = PETSC_TRUE
     case('ALPHA')
       i = VG_ALPHA
+      inversion_option%invert_for_vg_alpha = PETSC_TRUE
     case('RESIDUAL_SATURATION')
       i = VG_SR
+      inversion_option%invert_for_vg_sr = PETSC_TRUE
     case('M')
       i = VG_M
+      inversion_option%invert_for_vg_m = PETSC_TRUE
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParameterGetIDFromName: ' // &
