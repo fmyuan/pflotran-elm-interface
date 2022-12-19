@@ -23,7 +23,7 @@ f = plt.figure(figsize=(6,6))
 plt.subplot(1,1,1)
 f.suptitle("1D Variably Saturated Flow - Pulse, 2 Layer, Observation",fontsize=14)
 plt.xlabel('Time [y]')
-plt.ylabel('Saturation [-]')
+plt.ylabel('Liquid Saturation [-]')
 
 #plt.xlim(0.,1.)
 #plt.ylim(0.,1.)

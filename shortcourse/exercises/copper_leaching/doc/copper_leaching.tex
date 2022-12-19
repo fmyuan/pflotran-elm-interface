@@ -134,16 +134,15 @@ The ``2D Copper Leaching Problem'' simulates groundwater flow and solute transpo
   \item Fully saturated, isothermal
   \item 12 primary species
   \item Transport DOFs = 12,288
-
-  \begin{tabular}{ll}
+\end{itemize}
+\hspace{4cm}
+\begin{tabular}{ll}
   Scaling: & 2022 MacBook Pro\\
   \midrule
   1p&23.86 sec\\
   2p&13.32 sec\\
   4p&7.37 sec
-  \end{tabular}
-\end{itemize}
-
+\end{tabular}
 }
 
 %-----------------------------------------------------------------------------
@@ -696,9 +695,9 @@ END
 \begin{semiverbatim}
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC \bluecomment{! hydrostatic condition}
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 201325.d0
+  LIQUID_PRESSURE 201325.d0
   DATUM 0.d0 0.d0 128.d0
 END
 

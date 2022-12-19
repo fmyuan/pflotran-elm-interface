@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import math
 import pflotran as pft
 
-filename = 'CLM-CN-obs-0.tec'
+filename = 'CLM-CN-obs-0.pft'
 
 f = plt.figure(figsize=(14,10))
 f.suptitle("CLM-CN",fontsize=16)
