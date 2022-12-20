@@ -8566,8 +8566,8 @@ subroutine ANNReadH5File(this, option)
 
   call h5open_f(hdf5_err)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
-  call HDF5GroupOpen(file_id,group_name,group_id,option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
 
   dataset_name = 'input_hidden1_weights'
   call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
@@ -8786,12 +8786,12 @@ subroutine KnnrReadH5File(this, option)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
 
   call h5pclose_f(prop_id,hdf5_err)
 
   !hdf5groupopen
-  call HDF5GroupOpen(file_id,group_name,group_id,option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
 
   !Get Nearest Neighbors
   call KnnrGetNearestNeighbors(this,group_id,h5_name,option)

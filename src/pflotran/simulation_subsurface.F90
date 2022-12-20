@@ -567,7 +567,9 @@ subroutine SimSubsurfOverwriteInvParameters(this)
                                   realization%field%work_loc, &
                                   iqoi(1),iqoi(2))
   else
-    call InvAuxCopyParamToFromParamVec(inversion_aux,INVAUX_COPY_FROM_VEC)
+    call InvAuxCopyParamToFromParamVec(inversion_aux, &
+                                       INVAUX_PARAMETER_VALUE, &
+                                       INVAUX_COPY_FROM_VEC)
     do i = 1, size(inversion_aux%parameters)
       call InvAuxCopyParameterValue(inversion_aux,i, &
                                     INVAUX_OVERWRITE_MATERIAL_VALUE)

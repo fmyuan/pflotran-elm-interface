@@ -574,11 +574,11 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
 #endif
   string = 'HDF5 restart file "' // trim(filename) // '" not found.'
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,string,option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,string,option)
   call h5pclose_f(prop_id, hdf5_err)
 
   string = "Checkpoint"
-  call HDF5GroupOpen(file_id,string,grp_id,option)
+  call HDF5GroupOpen(file_id,string,grp_id,option%driver)
 
 end subroutine CheckpointOpenFileForReadHDF5
 

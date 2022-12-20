@@ -20,20 +20,18 @@ module Inversion_Subsurface_class
 
   type, public, extends(inversion_base_type) :: inversion_subsurface_type
     character(len=MAXSTRINGLENGTH) :: forward_simulation_filename
+    character(len=MAXSTRINGLENGTH) :: checkpoint_filename
+    character(len=MAXSTRINGLENGTH) :: restart_filename
+    PetscInt :: restart_iteration
     class(simulation_subsurface_type), pointer :: forward_simulation
     class(realization_subsurface_type), pointer :: realization
     type(inversion_aux_type), pointer :: inversion_aux
-!    type(inversion_parameter_type), pointer :: parameters(:)
     PetscInt :: dist_measurement_offset
     PetscInt :: parameter_offset  ! needed?
     PetscInt :: num_parameters_local
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest       ! reserved for inversion_ert
     Vec :: ref_quantity_of_interest   ! reserved for inversion_ert
-!    Vec :: measurement_vec
-!    Vec :: dist_measurement_vec
-!    Vec :: parameter_vec
-!    Vec :: dist_parameter_vec
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     ! flags reference in objects below the inversion objects should be
     ! stored in option_inversion_type
@@ -42,9 +40,6 @@ module Inversion_Subsurface_class
     PetscBool :: perturbation_risk_acknowledged
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
-!    VecScatter :: scatter_measure_to_dist_measure
-!    VecScatter :: scatter_param_to_dist_param
-!    VecScatter :: scatter_global_to_dist_param
     PetscReal, pointer :: local_measurement_values(:)
     PetscReal, pointer :: local_dobs_dunknown_values(:)
     PetscReal, pointer :: local_dobs_dparam_values(:)
@@ -60,7 +55,7 @@ module Inversion_Subsurface_class
     procedure, public :: DestroyForwardRun => InvSubsurfDestroyForwardRun
     procedure, public :: EvaluateCostFunction => InvSuburfSkipThisOnly
     procedure, public :: CheckConvergence => InvSuburfSkipThisOnly
-    procedure, public :: WriteIterationInfo => InvSuburfSkipThisOnly
+    procedure, public :: WriteIterationInfo => InvSubsurfWriteIterationInfoLoc
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
     procedure, public :: ScaleSensitivity => InvSuburfSkipThisOnly
     procedure, public :: CalculateUpdate => InvSuburfSkipThisOnly
@@ -75,6 +70,8 @@ module Inversion_Subsurface_class
             InvSubsurfSetupForwardRunLinkage, &
             InvSubsurfConnectToForwardRun, &
             InvSubsurfOutputSensitivity, &
+            InvSubsurfPrintCurParamUpdate, &
+            InvSubsurfWriteIterationInfo, &
             InversionSubsurfaceStrip
 
 contains
@@ -121,6 +118,9 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%ref_quantity_of_interest = PETSC_NULL_VEC
   this%ref_qoi_dataset_name = ''
   this%forward_simulation_filename = ''
+  this%checkpoint_filename = ''
+  this%restart_filename = ''
+  this%restart_iteration = UNINITIALIZED_INTEGER
   this%print_sensitivity_jacobian = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
   this%debug_verbosity = UNINITIALIZED_INTEGER
@@ -257,6 +257,16 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
     case('FORWARD_SIMULATION_FILENAME')
       call InputReadFilename(input,option,this%forward_simulation_filename)
       call InputErrorMsg(input,option,keyword,error_string)
+    case('CHECKPOINT_FILENAME')
+      call InputReadFilename(input,option,this%checkpoint_filename)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('RESTART_FILENAME')
+      call InputReadFilename(input,option,this%restart_filename)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadInt(input,option,i)
+      if (input%ierr == 0) then
+        this%restart_iteration = i
+      endif
     case('OBSERVATION_FUNCTION')
       option%io_buffer = 'OBSERVATION_FUNCTION (renamed OBSERVED_VARIABLE) &
         &must be specified in the MEASUREMENT block.'
@@ -456,12 +466,40 @@ subroutine InvSubsurfInitForwardRun(this,option)
   type(option_type), pointer :: option
 
   option => OptionCreate()
-  option%group_prefix = 'Run' // trim(StringWrite(this%iteration))
-  this%inversion_option%iteration_prefix = option%group_prefix
+  call OptionSetDriver(option,this%driver)
+  call OptionSetInversionOption(option,this%inversion_option)
   this%inversion_option%perturbation_run = PETSC_FALSE
   if (associated(this%inversion_aux%perturbation)) then
     this%inversion_option%perturbation_run = &
       (this%inversion_aux%perturbation%idof_pert /= 0)
+  endif
+  ! this %iteration may be overwritten in InvSubsurfRestartParameters
+  call InvSubsurfRestartIteration(this)
+  call InvSubsurfInitSetGroupPrefix(this,option)
+  call FactoryForwardInitialize(this%forward_simulation, &
+                                this%forward_simulation_filename,option)
+  this%realization => this%forward_simulation%realization
+
+end subroutine InvSubsurfInitForwardRun
+
+! ************************************************************************** !
+
+subroutine InvSubsurfInitSetGroupPrefix(this,option)
+  !
+  ! Initializes the forward simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/21/22
+  !
+  use Option_module
+  use String_module
+
+  class(inversion_subsurface_type) :: this
+  type(option_type) :: option
+
+  option%group_prefix = 'Run' // trim(StringWrite(this%iteration))
+  this%inversion_option%iteration_prefix = option%group_prefix
+  if (associated(this%inversion_aux%perturbation)) then
     if (this%annotate_output) then
       if (this%inversion_aux%perturbation%idof_pert > 0) then
         option%group_prefix = trim(option%group_prefix) // 'P' // &
@@ -477,13 +515,8 @@ subroutine InvSubsurfInitForwardRun(this,option)
       endif
     endif
   endif
-  call OptionSetDriver(option,this%driver)
-  call OptionSetInversionOption(option,this%inversion_option)
-  call FactoryForwardInitialize(this%forward_simulation, &
-                                this%forward_simulation_filename,option)
-  this%realization => this%forward_simulation%realization
 
-end subroutine InvSubsurfInitForwardRun
+end subroutine InvSubsurfInitSetGroupPrefix
 
 ! ************************************************************************** !
 
@@ -699,6 +732,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     else
       call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
                         this%inversion_aux%parameter_vec, &
+                        ierr);CHKERRQ(ierr)
+      call VecDuplicate(this%inversion_aux%parameter_vec, &
+                        this%inversion_aux%del_parameter_vec, &
                         ierr);CHKERRQ(ierr)
       call ISCreateStride(this%driver%comm%mycomm,num_parameters,ZERO_INTEGER, &
                           ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
@@ -1140,7 +1176,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   this%realization%patch%aux%inversion_aux => this%inversion_aux
   call InversionAuxResetMeasurements(this%inversion_aux)
 
-  if (this%inversion_aux%first_inversion_iteration) then
+  if (this%inversion_aux%startup_phase) then
     if (this%inversion_aux%qoi_is_full_vector) then
       iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
       ! on first iteration of inversion, store the values
@@ -1160,8 +1196,12 @@ subroutine InvSubsurfConnectToForwardRun(this)
         call InvAuxCopyParameterValue(this%inversion_aux,i, &
                                       INVAUX_GET_MATERIAL_VALUE)
       enddo
-      call InvAuxCopyParamToFromParamVec(this%inversion_aux,INVAUX_COPY_TO_VEC)
+      call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                         INVAUX_PARAMETER_VALUE, &
+                                         INVAUX_COPY_TO_VEC)
     endif
+    ! must come after the copying of parameters above
+    call this%RestartReadData()
   endif
 
   call FactoryForwardPrerequisite(this%forward_simulation)
@@ -1180,15 +1220,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                              parameters(1)%iparameter)
   endif
 
-  iflag = PETSC_TRUE
-  if (associated(perturbation)) then
-    iflag = perturbation%idof_pert == 0
-  endif
-  if (iflag) then
-    call InvSubsurfPrintCurParamValues(this)
-  endif
-
-  this%inversion_aux%first_inversion_iteration = PETSC_FALSE
+  this%inversion_aux%startup_phase = PETSC_FALSE
 
 end subroutine InvSubsurfConnectToForwardRun
 
@@ -1255,6 +1287,53 @@ end subroutine InvSubsurfExecuteForwardRun
 
 ! ************************************************************************** !
 
+subroutine InvSubsurfWriteIterationInfoLoc(this)
+  !
+  ! Writes inversion run info
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/16/22
+  !
+
+  use String_module
+
+  implicit none
+
+  class(inversion_subsurface_type) :: this
+
+  character(len=:), allocatable :: string
+  character(len=:), allocatable :: nl
+  character(len=80) :: divider
+
+  nl = new_line('a')
+  write(divider,'(40("=+"))')
+  string = nl // trim(divider) // nl
+  call this%driver%PrintMsg(string)
+  call InvSubsurfWriteIterationInfo(this)
+  string = nl // divider // nl
+  call this%driver%PrintMsg(string)
+
+end subroutine InvSubsurfWriteIterationInfoLoc
+
+! ************************************************************************** !
+
+subroutine InvSubsurfWriteIterationInfo(this)
+  !
+  ! Prints information for the current inversion iteration to the screen
+  ! and/or output file.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/16/22
+
+  class(inversion_subsurface_type) :: this
+
+  call InvSubsurfPrintCurMeasValues(this)
+  call InvSubsurfPrintCurParamValues(this)
+
+end subroutine InvSubsurfWriteIterationInfo
+
+! ************************************************************************** !
+
 subroutine InvSubsurfCalculateSensitivity(this)
   !
   ! Calculates sensitivity matrix Jsensitivity
@@ -1312,7 +1391,6 @@ subroutine InvSubsurfPostProcMeasurements(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscInt :: icount
-  PetscBool :: iflag
   PetscErrorCode :: ierr
 
   option => this%realization%option
@@ -1443,14 +1521,6 @@ subroutine InvSubsurfPostProcMeasurements(this)
       call PrintErrMsg(option)
     endif
   enddo
-
-  iflag = PETSC_TRUE
-  if (associated(this%inversion_aux%perturbation)) then
-    iflag = this%inversion_aux%perturbation%idof_pert == 0
-  endif
-  if (iflag) then
-    call InvSubsurfPrintCurMeasValues(this)
-  endif
 
 end subroutine InvSubsurfPostProcMeasurements
 
@@ -1924,6 +1994,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
                                  iqoi(1),iqoi(2))
   else
     call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                       INVAUX_PARAMETER_VALUE, &
                                        INVAUX_COPY_FROM_VEC)
     do i = 1, size(this%inversion_aux%parameters)
       call InvAuxCopyParameterValue(this%inversion_aux,i, &
@@ -2330,6 +2401,97 @@ subroutine InvSubsurfPrintCurParamValues(this)
   endif
 
 end subroutine InvSubsurfPrintCurParamValues
+
+! ************************************************************************** !
+
+subroutine InvSubsurfPrintCurParamUpdate(this)
+  !
+  ! Prints the current update of parameters in the list of parameters
+  ! Doesn't work for full vector parameter sets
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/17/22
+  !
+  use Driver_class
+
+  class(inversion_subsurface_type) :: this
+
+  PetscInt :: i
+  PetscInt :: num_parameters
+
+  if (this%inversion_aux%qoi_is_full_vector) return
+
+  call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                     INVAUX_PARAMETER_UPDATE, &
+                                     INVAUX_COPY_FROM_VEC)
+
+  num_parameters = size(this%inversion_aux%parameters)
+  if (this%driver%PrintToScreen()) then
+    do i = 1, num_parameters
+      call InversionParameterPrintUpdate(STDOUT_UNIT, &
+                                   this%inversion_aux%parameters(i),i==1, &
+                                   i==num_parameters)
+    enddo
+  endif
+  if (this%driver%PrintToFile()) then
+    do i = 1, num_parameters
+      call InversionParameterPrintUpdate(this%driver%fid_out, &
+                                   this%inversion_aux%parameters(i),i==1, &
+                                   i==num_parameters)
+    enddo
+  endif
+
+end subroutine InvSubsurfPrintCurParamUpdate
+
+! ************************************************************************** !
+
+subroutine InvSubsurfRestartIteration(this)
+  !
+  ! Reads the restart iteration from an inversion checkpoint file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/22
+  !
+  use hdf5
+  use Driver_class
+  use HDF5_Aux_module
+  use String_module
+
+  class(inversion_subsurface_type) :: this
+
+  integer(HID_T) :: file_id
+  PetscInt :: restart_iteration
+  PetscInt :: last_iteration
+
+  if (.not.this%inversion_aux%startup_phase .or. &
+      len_trim(this%restart_filename) == 0) return
+
+  call this%driver%PrintMsg('Reading restart iteration from inversion &
+                            &checkpoint file "' // &
+                            trim(this%restart_filename) // '".')
+  call HDF5FileOpen(this%restart_filename,file_id,PETSC_FALSE,this%driver)
+  call HDF5AttributeRead(file_id,H5T_NATIVE_INTEGER,'Last Iteration', &
+                         last_iteration,this%driver)
+  if (Initialized(this%restart_iteration)) then
+    if (this%restart_iteration > last_iteration) then
+      call this%driver%PrintErrMsg('Restart iteration ' // &
+                              trim(StringWrite(this%restart_iteration)) // &
+                              ' is beyond the last checkpoint iteration (' // &
+                              trim(StringWrite(last_iteration)) // ').')
+    endif
+    restart_iteration = this%restart_iteration
+    call this%driver%PrintMsg('Restarting at iteration (' // &
+                              trim(StringWrite(restart_iteration)) // ').')
+  else
+    restart_iteration = last_iteration
+    call this%driver%PrintMsg('Restarting at last iteration (' // &
+                              trim(StringWrite(restart_iteration)) // ').')
+  endif
+  call HDF5FileClose(file_id)
+  this%restart_iteration = restart_iteration
+  this%iteration = this%restart_iteration
+
+end subroutine InvSubsurfRestartIteration
 
 ! ************************************************************************** !
 

@@ -631,7 +631,7 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
   PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
+  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option%driver)
 
   allocate(start(1))
   allocate(dims(1))

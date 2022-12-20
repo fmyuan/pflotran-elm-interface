@@ -13,6 +13,7 @@ module Inversion_Parameter_module
     PetscInt :: iparameter
     PetscInt :: imat
     PetscReal :: value
+    PetscReal :: update
     character(len=MAXWORDLENGTH) :: parameter_name
     character(len=MAXWORDLENGTH) :: material_name
     type(inversion_parameter_type), pointer :: next
@@ -26,6 +27,7 @@ module Inversion_Parameter_module
             InversionParameterGetIDFromName, &
             InversionParameterIntToQOIArray, &
             InversionParameterPrint, &
+            InversionParameterPrintUpdate, &
             InversionParameterStrip, &
             InversionParameterDestroy
 
@@ -68,6 +70,7 @@ subroutine InversionParameterInit(inversion_parameter)
   inversion_parameter%iparameter = UNINITIALIZED_INTEGER
   inversion_parameter%imat = UNINITIALIZED_INTEGER
   inversion_parameter%value = UNINITIALIZED_DOUBLE
+  inversion_parameter%update = UNINITIALIZED_DOUBLE
   inversion_parameter%parameter_name = ''
   inversion_parameter%material_name = ''
 
@@ -92,6 +95,7 @@ subroutine InversionParameterCopy(inversion_parameter,inversion_parameter2)
   inversion_parameter2%iparameter = inversion_parameter%iparameter
   inversion_parameter2%imat = inversion_parameter%imat
   inversion_parameter2%value = inversion_parameter%value
+  inversion_parameter2%update = inversion_parameter%update
   inversion_parameter2%parameter_name = inversion_parameter%parameter_name
   inversion_parameter2%material_name = inversion_parameter%material_name
 
@@ -120,28 +124,73 @@ subroutine InversionParameterPrint(fid,inversion_parameter, &
   character(len=MAXSTRINGLENGTH) :: string
 
   if (print_header) then
-    write(fid,'(40("=+"),//, &
+    write(fid,'(/, &
               &" Current values of inversion parameters:",//, &
-              &"    # &
+              &"      # &
               &Parameter Name      &
               &Material Name       &
               & Value",/,&
-              &"    - &
+              &"      - &
               &--------------      &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i4," ",2a20,es13.6)') &
+  write(string,'(i6," ",2a20,es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &
     inversion_parameter%value
   write(fid,*) trim(string)
   if (print_footer) then
-    write(fid,'(/,40("=+"))')
+!    write(fid,'(/,40("=+"))')
   endif
 
 end subroutine InversionParameterPrint
+
+! ************************************************************************** !
+
+subroutine InversionParameterPrintUpdate(fid,inversion_parameter, &
+                                         print_header,print_footer)
+  !
+  ! Print contents of inversion parameter object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/18/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  PetscInt :: fid
+  type(inversion_parameter_type) :: inversion_parameter
+  PetscBool :: print_header
+  PetscBool :: print_footer
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (print_header) then
+    write(fid,'(/, &
+              &" Current values of inversion parameter updates:",//, &
+              &"      # &
+              &Parameter Name      &
+              &Material Name       &
+              & Update",/,&
+              &"      - &
+              &--------------      &
+              &-------------       &
+              & -----")')
+  endif
+  write(string,'(i6," ",2a20,es13.6)') &
+    inversion_parameter%id, &
+    inversion_parameter%parameter_name, &
+    inversion_parameter%material_name, &
+    inversion_parameter%update
+  write(fid,*) trim(string)
+  if (print_footer) then
+!    write(fid,'(/,40("=+"))')
+  endif
+
+end subroutine InversionParameterPrintUpdate
 
 ! ************************************************************************** !
 

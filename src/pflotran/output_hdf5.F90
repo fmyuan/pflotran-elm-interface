@@ -970,7 +970,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename_path)
 !      call PrintMsg(option)
       call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-      call HDF5OpenFileReadOnly(domain_filename_path,file_id2,prop_id,'',option)
+      call HDF5FileOpenReadOnly(domain_filename_path,file_id2,prop_id,'',option)
       call h5pclose_f(prop_id,hdf5_err)
       string = 'Domain/Cells'
       call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
