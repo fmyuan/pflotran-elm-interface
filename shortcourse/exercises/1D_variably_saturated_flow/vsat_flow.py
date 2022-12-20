@@ -21,7 +21,7 @@ filenames = pft.get_full_paths(path,files)
 f = plt.figure(figsize=(6,6))
 plt.subplot(1,1,1)
 f.suptitle("1D Variably Saturated Flow",fontsize=16)
-plt.xlabel('Saturation [-]')
+plt.xlabel('Liquid Saturation [-]')
 plt.ylabel('Z [m]')
 
 plt.xlim(0.,1.)

@@ -129,10 +129,10 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 20.d0
-  PRESSURE 150000.d0
+  LIQUID_PRESSURE 150000.d0
 END
 
 #=========================== transport conditions =============================

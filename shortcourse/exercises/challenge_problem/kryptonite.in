@@ -144,12 +144,6 @@ CHEMISTRY
   /
 END
 
-#=========================== solver options ===================================
-
-
-
-
-
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
@@ -211,7 +205,7 @@ MATERIAL_PROPERTY aquifer
   ROCK_DENSITY 2650.
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
-    PERM_ISO 1.d-11
+    PERM_HORIZONTAL 1.d-11
     VERTICAL_ANISOTROPY_RATIO 0.1
   /
 END
@@ -223,7 +217,7 @@ MATERIAL_PROPERTY well_screen ! same as aquifer
   ROCK_DENSITY 2650.
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
-    PERM_ISO 1.d-11
+    PERM_HORIZONTAL 1.d-11
     VERTICAL_ANISOTROPY_RATIO 0.1
   /
 END
@@ -235,7 +229,7 @@ MATERIAL_PROPERTY kryptonite ! same as aquifer
   ROCK_DENSITY 2650.
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
-    PERM_ISO 1.d-11
+    PERM_HORIZONTAL 1.d-11
     VERTICAL_ANISOTROPY_RATIO 0.1
   /
 END
@@ -337,20 +331,20 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 2000.d0 0.d0 800.d0 
   GRADIENT
-    PRESSURE -0.0023 0. 0. ! m/m
+    LIQUID_PRESSURE -0.0023 0. 0. ! m/m
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION recharge
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX 0.21 m/yr
+  LIQUID_FLUX 0.21 m/yr
 END
 
 FLOW_CONDITION extraction
