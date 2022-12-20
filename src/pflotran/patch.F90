@@ -2191,6 +2191,24 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           call PrintErrMsg(option)
         endif
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+        do iconn = 1, num_connections
+          if (coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) /= &
+              L_STATE) then
+            select case(coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn))
+              case(G_STATE)
+                string = 'gas state'
+              case(GA_STATE)
+                string = 'two phase state'
+              case default
+                string = 'non-liquid state'
+            end select
+            option%io_buffer = 'A ' // trim(string) // ' cell was found &
+              &within a HYDROSTATIC_BC boundary condition for HYDRATE mode. &
+              &A hydrostatic boundary condition may not be used to set &
+              &state variables in the vadose zone for HYDRATE mode.'
+            call PrintErrMsg(option)
+          endif
+        enddo
         dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
       endif
     case(G_STATE)
