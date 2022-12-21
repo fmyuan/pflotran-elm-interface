@@ -668,6 +668,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dTf, dTfs, h_sat_eff, i_sat_eff, l_sat_eff, g_sat_eff
   PetscReal :: solid_sat_eff
   PetscReal :: sigma, dP
+  PetscReal :: sat_temp
   PetscErrorCode :: ierr
 
   lid = option%liquid_phase
@@ -1113,13 +1114,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(hid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
 
+      if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid) > 1.d0) then
+        sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid)
+        hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
+        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid)/sat_temp
+      endif
+
       hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
       hyd_auxvar%sat(hid) = max(0.d0,min(1.d0,hyd_auxvar%sat(hid)))
-
-      !if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid) > 1.d0) then
-      ! hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid)
-      ! x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(hid)
-      !endif
 
       hyd_auxvar%sat(gid) = max(0.d0,1.d0 - hyd_auxvar%sat(lid) - &
                                 hyd_auxvar%sat(hid))
@@ -1177,7 +1179,13 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(lid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
 
-      hyd_auxvar%sat(lid) = min(max(0.d0,hyd_auxvar%sat(lid)),1.d0)
+      if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(iid) > 1.d0) then
+        sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(iid)
+        hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
+        hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
+      endif
+
+      hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
       hyd_auxvar%sat(iid) = min(max(0.d0,hyd_auxvar%sat(iid)),1.d0)
 
       hyd_auxvar%sat(gid) = 0.d0
@@ -1218,6 +1226,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(hid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
 
+      if (hyd_auxvar%sat(iid) + hyd_auxvar%sat(hid) > 1.d0) then
+        sat_temp = hyd_auxvar%sat(iid) + hyd_auxvar%sat(hid)
+        hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
+        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid)/sat_temp
+      endif
+
       hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
       hyd_auxvar%sat(hid) = min(max(hyd_auxvar%sat(hid),0.d0),1.d0)
 
@@ -1250,6 +1264,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%pres(gid) = x(HYDRATE_GAS_PRESSURE_DOF)
       hyd_auxvar%sat(lid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
+
+      if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(iid) > 1.d0) then
+        sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid)
+        hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
+        hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
+      endif
 
       hyd_auxvar%sat(lid) = min(max(hyd_auxvar%sat(lid),0.d0),1.d0)
       hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
@@ -1304,14 +1324,20 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
 
-      hyd_auxvar%sat(lid) = max(0.d0,hyd_auxvar%sat(lid))
-      hyd_auxvar%sat(gid) = max(0.d0,hyd_auxvar%sat(gid))
-      hyd_auxvar%sat(iid) = max(0.d0,hyd_auxvar%sat(iid))
+      if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(gid) + hyd_auxvar%sat(iid) > &
+          1.d0) then
+        sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(gid) + &
+                   hyd_auxvar%sat(iid)
+        hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
+        hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid)/sat_temp
+        hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
+      endif
+      hyd_auxvar%sat(lid) = min(max(hyd_auxvar%sat(lid),0.d0),1.d0)
+      hyd_auxvar%sat(gid) = min(max(hyd_auxvar%sat(gid),0.d0),1.d0)
+      hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
 
       hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(gid) &
                             - hyd_auxvar%sat(iid)
-      hyd_auxvar%sat(hid) = max(hyd_auxvar%sat(hid),0.d0)
-      hyd_auxvar%sat(hid) = min(hyd_auxvar%sat(hid),1.d0)
 
       call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                     h_sat_eff,i_sat_eff)

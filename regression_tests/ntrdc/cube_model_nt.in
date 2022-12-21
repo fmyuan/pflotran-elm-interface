@@ -109,6 +109,7 @@ EOS WATER
   ENTHALPY IF97
   STEAM_DENSITY IF97
   STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
 END
 
 #=========================== material properties =============================
