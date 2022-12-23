@@ -249,18 +249,18 @@ module General_Aux_module
             GeneralAuxSetEnergyDOF, &
             GeneralAuxSetAirMassDOF, &
             GeneralAuxVarCompute, &
-	    GeneralAuxVarCompute4, &
-	    GeneralAuxSetSolute, &
-	    GeneralAuxNaClSolubility, &
+            GeneralAuxVarCompute4, &
+            GeneralAuxSetSolute, &
+            GeneralAuxNaClSolubility, &
             GeneralAuxVarInit, &
             GeneralAuxVarCopy, &
             GeneralAuxVarDestroy, &
             GeneralAuxVarStrip, &
             GeneralAuxVarUpdateState, &
-	    GeneralAuxVarUpdateState4, &
+            GeneralAuxVarUpdateState4, &
             GeneralAuxVarPerturb, &
-	    GeneralAuxVarPerturb4, &
-	    EOSPrecipitateEnergy, &
+            GeneralAuxVarPerturb4, &
+            EOSPrecipitateEnergy, &
             GeneralPrintAuxVars, &
             GeneralOutputAuxVars
 
