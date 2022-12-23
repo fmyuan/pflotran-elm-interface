@@ -134,35 +134,16 @@ subroutine PMGeneralSetFlowMode(pm,option)
   PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
   PetscReal, parameter :: por_abs_inf_tol = 1.d-5
 
-  PetscReal, parameter :: abs_update_inf_tol(3,3) = &
-    reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
-            shape(abs_update_inf_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
-
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
   PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
   PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: rel_update_inf_tol(3,3) = &
-    reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
-            shape(rel_update_inf_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
 
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
   PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
   PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
   PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5
-
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3 ! Reference tolerance [Pa]
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: por_rel_inf_tol = 1.d-3
 
   PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
   PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
