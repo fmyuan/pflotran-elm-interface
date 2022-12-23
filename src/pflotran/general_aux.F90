@@ -287,9 +287,6 @@ function GeneralAuxCreate(option)
 
   type(general_type), pointer :: aux
 
-  type(material_auxvar_type) :: material_auxvar
-
-
   if (option%nflowdof == 3) then
     allocate(dof_to_primary_variable(option%nflowdof,3))
     dof_to_primary_variable(1:option%nflowdof,1:3) = &
@@ -1664,7 +1661,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: guess, dummy
   PetscInt  :: apid, cpid, vpid, spid
   PetscReal :: creep_closure_time
-  PetscReal :: Uvapor_J_kg
   PetscReal :: Hg_mixture_fractioned
   PetscReal :: aux(1)
   PetscReal :: liq_comp(4) ! slice of gen_auxvar%xmol(:,lid) for EOS aux(*)

@@ -83,8 +83,6 @@ function PMGeneralCreate()
 
   class(pm_general_type), pointer :: this
 
-  type(option_type), pointer :: option
-
 #ifdef PM_GENERAL_DEBUG
   print *, 'PMGeneralCreate()'
 #endif
@@ -311,7 +309,6 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscInt :: lid, gid, eid, sid
-  PetscInt :: flag
 
   option => this%option
 
@@ -967,7 +964,7 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(field_type), pointer :: field
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
   PetscInt :: temperature_index
-  PetscInt :: lid, gid, pid, apid, cpid, vpid, spid
+  PetscInt :: apid, spid
   PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
   PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
   PetscReal :: air_pressure0, air_pressure1, del_air_pressure
@@ -1753,7 +1750,7 @@ subroutine PMGeneralMaxChange(this)
   PetscReal, pointer :: max_change_global(:)
   PetscReal :: max_change
   PetscInt :: i, j, max_change_index
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: ghosted_id
 
 
 

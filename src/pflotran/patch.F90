@@ -1463,11 +1463,10 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   type(flow_condition_type), pointer :: flow_condition
   type(flow_general_condition_type), pointer :: general
 
-  PetscBool :: update
   PetscBool :: dof1, dof2, dof3, dof4
   PetscReal :: temperature, p_sat, p_cap, s_liq, xmol, xmol2, por
   PetscReal :: relative_humidity
-  PetscReal :: gas_sat, hyd_sat, air_pressure, gas_pressure, liq_pressure, &
+  PetscReal :: gas_sat, air_pressure, gas_pressure, liq_pressure, &
                precipitate_sat
 
   PetscReal :: dummy_real

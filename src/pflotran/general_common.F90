@@ -67,7 +67,6 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: soil_heat_capacity
-  PetscReal :: void_volume, volume
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
@@ -75,7 +74,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   PetscBool :: debug_cell
 
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_id
-  PetscInt :: icomp, iphase, spec_loop
+  PetscInt :: icomp, iphase
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
@@ -2531,7 +2530,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
 
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_comp_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
   PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave

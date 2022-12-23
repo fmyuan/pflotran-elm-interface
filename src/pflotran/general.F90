@@ -699,7 +699,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   PetscInt :: istate
 
   PetscInt :: wat_comp_id, air_comp_id, solute_comp_id
-  PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
+  PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
   PetscReal :: qsrc(realization%option%nflowdof)
   PetscInt :: real_index, variable, flow_src_sink_type
@@ -707,7 +707,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   PetscReal :: xxbc(realization%option%nflowdof), &
                xxss(realization%option%nflowdof)
 
-  PetscReal :: cell_pressure,qsrc_vol(realization%option%nflowdof-1),scale
+  PetscReal :: cell_pressure, scale
 
   PetscReal :: Res_dummy(realization%option%nflowdof)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
