@@ -198,6 +198,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_sc = PETSC_TRUE
+      case('NERNST_PLANCK')
+        option%transport%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
@@ -422,7 +424,6 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
                                         RTJumpStartKineticSorption
   use Condition_Control_module
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
@@ -872,7 +873,6 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_rt_type), pointer :: reaction
   PetscReal :: ratio, min_ratio
-  PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, n
 
@@ -968,6 +968,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Patch_module
   use Option_module
   use Secondary_Continuum_module, only : SecondaryRTUpdateIterate
+  use Secondary_Continuum_NP_module, only : SecondaryRTUpdateIterate_NP
   use Output_EKG_module
   use Reactive_Transport_Aux_module
 
@@ -1043,8 +1044,13 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
 
   if (option%use_sc) then
-    call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
+    if (option%transport%use_np) then
+      call SecondaryRTUpdateIterate_NP(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
+    else
+       call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
+                                     X1_changed,this%realization,ierr)
+    endif
   endif
 
   if (this%print_ekg) then
@@ -1955,7 +1961,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5, &
                                         RTUpdateAuxVars
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &

@@ -497,7 +497,6 @@ subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
 
   PetscInt :: natural_id = 1
   PetscInt :: i
-  PetscReal, parameter :: soil_heat_capacity = 850.d0
 
   PetscInt :: irow
   PetscReal :: res(3), res_pert(3,3)

@@ -423,15 +423,13 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Condition_Control_module
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE, &
-                                 POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE
   use String_module, only : StringWrite
   use Utility_module, only : Equal
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-  PetscBool :: update_initial_porosity
 
   ! must come before RealizUnInitializedVarsTran
   call PMSubsurfaceFlowSetSoilRefPres(this%realization)
@@ -439,45 +437,36 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call RealizUnInitializedVarsTran(this%realization)
 
   if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity) then
-      call RealizationCalcMineralPorosity(this%realization)
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_BASE)
-      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_INITIAL)
-      call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                    this%realization%field%porosity0)
+    if (this%realization%reaction%calculate_initial_porosity) then
+      ! cannot calculate porosity if restarting, even if reverting flow
+      ! parameters
+      if (this%option%restart_flag .and. &
+          this%revert_parameters_on_restart) then
+        this%option%io_buffer = 'Cannot revert flow parameters when &
+          &calculating initial porosity as a function of mineral volume &
+          &fractions.'
+        call PrintErrMsg(this%option)
+      else if (.not.this%option%restart_flag) then
+        call RealizationCalcMineralPorosity(this%realization)
+        call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                     this%realization%field%work_loc, &
+                                     POROSITY,POROSITY_BASE)
+        call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                     this%realization%field%work_loc, &
+                                     POROSITY,POROSITY_INITIAL)
+        call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                      this%realization%field%porosity0)
+      endif
     endif
   endif
 
   ! update material properties that are a function of mineral vol fracs
-  update_initial_porosity = PETSC_TRUE
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
         this%realization%reaction%update_mineral_surface_area) then
       call RealizationUpdatePropertiesTS(this%realization)
-      update_initial_porosity = PETSC_FALSE
-    endif
-  endif
-
-  if (update_initial_porosity) then
-    call this%comm1%GlobalToLocal(this%realization%field%porosity0, &
-                                  this%realization%field%work_loc)
-    ! push values to porosity_base
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_INITIAL)
-    if (.not.this%realization%option%restart_flag .or. &
-        this%revert_parameters_on_restart) then
-      ! POROSITY_BASE should not be updated to porosity0 if we are
-      ! restarting unless the revert_parameters on restart flag is true.
-      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_BASE)
     endif
   endif
 
@@ -639,10 +628,9 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   ! Date: 04/21/14
 
   use Global_module
-  use Variables_module, only : POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : POROSITY
   use Material_module
-  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE
 
   implicit none
 
@@ -680,8 +668,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   ! Date: 04/21/14
 
   use Global_module
-  use Variables_module, only : POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : POROSITY
   use Material_module
   use Material_Aux_module, only : POROSITY_CURRENT, POROSITY_BASE
 
@@ -885,7 +872,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   ! Date: 04/21/14
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE
 
   implicit none
 

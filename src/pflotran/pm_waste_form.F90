@@ -2397,7 +2397,7 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
             call InputReadDouble(input,option, &
                                  new_sp_mech%spacer_activation_energy)
             call InputErrorMsg(input,option,'grid spacer degradation model &
-                               activation energy',error_string)
+                               &activation energy',error_string)
             call InputReadAndConvertUnits(input, &
                                           new_sp_mech%spacer_activation_energy,&
                                           'J/mol','Q',option)
@@ -3270,7 +3270,6 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, allocatable :: Coeff(:)
   PetscReal, allocatable :: concentration_old(:)
   PetscReal :: inst_release_molality
-  PetscReal, parameter :: conversion = 1.d0/(24.d0*3600.d0)
   PetscReal, pointer :: xx_p(:)
   ! implicit solution parameters
   PetscReal :: norm
@@ -4231,7 +4230,6 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  PetscReal, parameter :: time_conversion = 1.d0/(24.d0*3600.d0)
   PetscReal :: avg_temp_local, avg_temp_global
   PetscReal :: ph_local, ph_global
   PetscReal :: Q_local, Q_global
@@ -6464,8 +6462,9 @@ subroutine PMWFDestroy(this)
   character(len=MAXWORDLENGTH) :: word
 
   if (OptionPrintToScreen(this%option)) then
-    word = StringWrite('(es12.4)',this%cumulative_time)
-    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+    word = trim(StringWrite('(es12.4)',this%cumulative_time))
+    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // &
+      ' seconds'
   endif
 
   call PMBaseDestroy(this)
@@ -6948,6 +6947,14 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
           call PrintMsg(option)
           num_errors = num_errors + 1
         endif
+      endif
+
+      if (.not. associated(new_crit_mech%heat_dataset)) then
+        option%io_buffer = 'ERROR: Decay heat dataset must be provided for ' &
+                         //'CRITICALITY_MECH "'//trim(new_crit_mech%mech_name) &
+                         //'".'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
       endif
 
       if (associated(new_crit_mech%crit_heat_dataset)) then
@@ -8559,8 +8566,8 @@ subroutine ANNReadH5File(this, option)
 
   call h5open_f(hdf5_err)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
-  call HDF5GroupOpen(file_id,group_name,group_id,option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
 
   dataset_name = 'input_hidden1_weights'
   call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
@@ -8715,7 +8722,6 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
 
   PetscReal :: current_temp_C
   PetscReal :: decay_time
-  PetscReal, allocatable :: conc(:)
   PetscReal :: burnup
   PetscReal :: sTme
   PetscInt :: nn
@@ -8730,15 +8736,14 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   type(kdtree_result), allocatable :: knnr_results(:)
 
   decay_time = this%decay_time
-  conc = this%concentration
   burnup = this%burnup
   nn = this%num_nearest_neighbor
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
   f(1) = log10(current_temp_C + 273.15d0)
-  f(2) = log10(conc(1)) ! Env_CO3_2n
-  f(3) = log10(conc(4)) ! Env_H2
+  f(2) = log10(this%concentration(1)) ! Env_CO3_2n
+  f(3) = log10(this%concentration(4)) ! Env_H2
   f(4) = log10(dose_rate(yTme,decay_time,burnup))
 
   allocate(knnr_results(nn))
@@ -8781,12 +8786,12 @@ subroutine KnnrReadH5File(this, option)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
 
   call h5pclose_f(prop_id,hdf5_err)
 
   !hdf5groupopen
-  call HDF5GroupOpen(file_id,group_name,group_id,option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
 
   !Get Nearest Neighbors
   call KnnrGetNearestNeighbors(this,group_id,h5_name,option)

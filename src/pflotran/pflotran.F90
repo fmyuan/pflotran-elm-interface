@@ -3,7 +3,7 @@
 !=======================================================================
 program pflotran
 
-  use Driver_module
+  use Driver_class
   use Simulation_Base_class
   use Factory_PFLOTRAN_module
   use PFLOTRAN_Constants_module

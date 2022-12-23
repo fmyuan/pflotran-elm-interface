@@ -4,7 +4,7 @@ module Inversion_Base_class
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use Driver_module
+  use Driver_class
   use Timer_class
   use Option_Inversion_module
 
@@ -16,30 +16,32 @@ module Inversion_Base_class
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
     type(inversion_option_type), pointer :: inversion_option
-    PetscInt :: iteration                ! iteration number
+    PetscInt :: iteration        ! iteration number
     PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscBool :: converged               ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
-    procedure, public :: Initialize => InversionBaseThisOnly
     procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: Step => InversionBaseStep
     procedure, public :: InitializeForwardRun => InversionBaseThisAndOption
-    procedure, public :: ConnectToForwardRun => InversionBaseThisOnly
-    procedure, public :: ExecuteForwardRun => InversionBaseThisOnly
-    procedure, public :: DestroyForwardRun => InversionBaseThisOnly
+    procedure, public :: SetupForwardRunLinkage => InversionBaseThisOnlyError
+    procedure, public :: ConnectToForwardRun => InversionBaseThisOnlyError
+    procedure, public :: ExecuteForwardRun => InversionBaseThisOnlyError
+    procedure, public :: DestroyForwardRun => InversionBaseThisOnlyError
+    procedure, public :: Checkpoint => InversionBaseThisOnly
+    procedure, public :: RestartReadData => InversionBaseThisOnly
     procedure, public :: InitializeIterationNumber => &
                            InversionBaseInitIterationNum
     procedure, public :: IncrementIteration => InversionBaseIncrementIteration
-    procedure, public :: EvaluateCostFunction => InversionBaseThisOnly
-    procedure, public :: CheckConvergence => InversionBaseThisOnly
-    procedure, public :: WriteIterationInfo => InversionBaseThisOnly
-    procedure, public :: CalculateSensitivity => InversionBaseThisOnly
-    procedure, public :: ScaleSensitivity => InversionBaseThisOnly
-    procedure, public :: CalculateUpdate => InversionBaseThisOnly
-    procedure, public :: UpdateParameters => InversionBaseThisOnly
+    procedure, public :: EvaluateCostFunction => InversionBaseThisOnlyError
+    procedure, public :: CheckConvergence => InversionBaseThisOnlyError
+    procedure, public :: WriteIterationInfo => InversionBaseThisOnlyError
+    procedure, public :: CalculateSensitivity => InversionBaseThisOnlyError
+    procedure, public :: ScaleSensitivity => InversionBaseThisOnlyError
+    procedure, public :: CalculateUpdate => InversionBaseThisOnlyError
+    procedure, public :: UpdateParameters => InversionBaseThisOnlyError
     procedure, public :: UpdateRegularizationParameters => &
-                           InversionBaseThisOnly
+                           InversionBaseThisOnlyError
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
@@ -135,11 +137,12 @@ subroutine InversionBaseStep(this)
   type(option_type), pointer :: option
 
   call this%InitializeForwardRun(option)
-  call this%Initialize()
+  call this%SetupForwardRunLinkage()
   call this%ConnectToForwardRun()
   call this%ExecuteForwardRun()
   call this%CheckConvergence()
   call this%WriteIterationInfo()
+  call this%Checkpoint()
   if (.not.this%converged) then
     call this%CalculateSensitivity()
     call this%ScaleSensitivity()
@@ -170,10 +173,18 @@ subroutine InversionBaseThisOnly(this)
 
   class(inversion_base_type) :: this
 
+end subroutine InversionBaseThisOnly
+
+! ************************************************************************** !
+
+subroutine InversionBaseThisOnlyError(this)
+
+  class(inversion_base_type) :: this
+
   call this%driver%PrintErrMsg('An inversion routine that passes only "this" &
     &must be extended from the Base implementation.')
 
-end subroutine InversionBaseThisOnly
+end subroutine InversionBaseThisOnlyError
 
 ! ************************************************************************** !
 

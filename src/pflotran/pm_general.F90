@@ -134,6 +134,24 @@ subroutine PMGeneralSetFlowMode(pm,option)
   PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
   PetscReal, parameter :: por_abs_inf_tol = 1.d-5
 
+  PetscReal, parameter :: abs_update_inf_tol(3,3) = &
+    reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
+            shape(abs_update_inf_tol)) * &
+            1.d0 ! change to 0.d0 to zero tolerances
+
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: rel_update_inf_tol(3,3) = &
+    reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
+            shape(rel_update_inf_tol)) * &
+            1.d0 ! change to 0.d0 to zero tolerances
+
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
   PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
@@ -972,7 +990,6 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal :: saturation0, saturation1, del_saturation
   PetscReal :: max_saturation_change = 0.125d0
   PetscReal :: scale, temp_scale
-  PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
   PetscInt :: newton_iteration
 
@@ -1732,10 +1749,7 @@ subroutine PMGeneralMaxChange(this)
   use Grid_module
   use Global_Aux_module
   use General_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
-                               TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               GAS_SATURATION, PRECIPITATE_SATURATION, &
-                               POROSITY
+
   implicit none
 
   class(pm_general_type) :: this
@@ -1773,9 +1787,6 @@ subroutine PMGeneralMaxChange(this)
   max_change_global = 0.d0
   max_change_local = 0.d0
 
-  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-  !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION(]), &
-  !                        POROSITY (OR) PRECIPITATE_SATURATION]
   do i = 1, max_change_index
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i), &
@@ -1837,9 +1848,6 @@ subroutine PMGeneralMaxChange(this)
     endif
   endif
 
-  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-  !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION]
-  ! ignore air pressure as it jumps during phase change
   this%max_pressure_change = maxval(max_change_global(1:2))
   this%max_xmol_change = max_change_global(4)
   this%max_temperature_change = max_change_global(5)
@@ -1911,7 +1919,6 @@ subroutine PMGeneralCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1934,7 +1941,6 @@ subroutine PMGeneralRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

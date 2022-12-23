@@ -3778,7 +3778,9 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 #endif
 #endif
 
+#ifdef LEGACY_PERTURBATION
   PetscReal, parameter :: min_mole_fraction_pert = 1.d-13
+#endif
   PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
 

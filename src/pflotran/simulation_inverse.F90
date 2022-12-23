@@ -40,7 +40,7 @@ function SimulationInverseCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-   use Driver_module
+   use Driver_class
 
   class(simulation_inverse_type), pointer :: SimulationInverseCreate
   class(driver_type), pointer :: driver
@@ -59,7 +59,7 @@ subroutine SimulationInverseInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Driver_module
+  use Driver_class
 
   class(simulation_inverse_type) :: this
   class(driver_type), pointer :: driver
@@ -84,7 +84,6 @@ subroutine SimulationInverseRead(this,option)
   use Utility_module
   use Inversion_ERT_class
   use Inversion_Subsurface_class
-  use Inversion_Tao_class
   use Inversion_ZFlow_class
 
   class(simulation_inverse_type) :: this
@@ -122,8 +121,6 @@ subroutine SimulationInverseRead(this,option)
         select case(word)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
-          case('TAO')
-            this%inversion => InversionTaoCreate(this%driver)
           case('TEST_SENSITIVITY_JACOBIAN')
             this%inversion => InversionSubsurfaceCreate(this%driver)
           case('ZFLOW')

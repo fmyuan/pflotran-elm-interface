@@ -621,7 +621,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
           option%io_buffer = 'The zero volume fraction assigned to &
             &mineral "' // trim(mineral_rxn%name) // '" in constraint "' // &
             trim(constraint_name) // '" prevents the use of a mass-based &
-            surface area in the constraint.'
+            &surface area in the constraint.'
           call PrintErrMsg(option)
         endif
       endif
@@ -695,8 +695,6 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
 #endif
 
   type(mineral_type), pointer :: mineral
-
-  PetscInt, parameter :: needs_to_be_fixed = 1
 
   PetscReal :: arrhenius_factor
 
@@ -1109,7 +1107,6 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
 
   PetscReal :: arrhenius_factor
-  PetscInt, parameter :: iphase = 1
 
   cycle_ = PETSC_FALSE
 

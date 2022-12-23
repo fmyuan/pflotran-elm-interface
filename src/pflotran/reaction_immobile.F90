@@ -127,8 +127,8 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
       case('RATE_CONSTANT')
         internal_units = '1/sec'
         call InputReadDouble(input,option,immobile_decay_rxn%rate_constant)
-        call InputErrorMsg(input,option,'rate cosntant', &
-                             'CHEMISTRY,IMMOBILE_DECAY_REACTION')
+        call InputErrorMsg(input,option,'rate constant', &
+                           'CHEMISTRY,IMMOBILE_DECAY_REACTION')
         call InputReadAndConvertUnits(input,immobile_decay_rxn%rate_constant, &
                                       internal_units, &
                                       trim(error_string)//',rate constant', &
@@ -269,8 +269,6 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
 
   PetscInt :: icomp, irxn, immobile_id
   PetscReal :: rate_constant, rate, volume
-
-  PetscInt, parameter :: iphase = 1
 
   volume = material_auxvar%volume
 

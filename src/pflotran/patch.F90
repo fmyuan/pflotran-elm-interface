@@ -3258,7 +3258,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                         liq_sat)
               coupler%flow_aux_real_var(THREE_INTEGER,iconn) = liq_sat
               dof3 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
             case default
               string = GetSubConditionType(hydrate%liquid_saturation%itype)
               option%io_buffer = &
@@ -5448,6 +5448,21 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                     patch%aux%ZFlow%auxvars(ZERO_INTEGER, &
                                             grid%nL2G(local_id))%dsat_dp
                 enddo
+              case(ZFLOW_LIQ_PRES_WRT_POROS)
+                do local_id=1,grid%nlmax
+                  ghosted_id = grid%nL2G(local_id)
+                  tempreal = &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
+                  if (tempreal < 1.d0) then
+                    vec_ptr(local_id) = &
+                      -tempreal / &
+                      patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        effective_porosity / &
+                      patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+                  else
+                    vec_ptr(local_id) = 0.d0
+                  endif
+                enddo
               case default
                 call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
                                               isubvar,option)
@@ -5781,11 +5796,15 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(GAS_VISCOSITY)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%kr(option%gas_phase) / &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%mobility(option%gas_phase)
+              tempreal = patch%aux%General%auxvars(ZERO_INTEGER, &
+                                       ghosted_id)%mobility(option%gas_phase)
+              if (tempreal > 0.d0) then
+                vec_ptr(local_id) = &
+                  patch%aux%General%auxvars(ZERO_INTEGER, &
+                    ghosted_id)%kr(option%gas_phase) / tempreal
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case default
             call PatchUnsupportedVariable('GENERAL',ivar,option)
@@ -6006,11 +6025,15 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(GAS_VISCOSITY)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%kr(option%gas_phase) / &
-                patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%mobility(option%gas_phase)
+              tempreal = patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
+                                       ghosted_id)%mobility(option%gas_phase)
+              if (tempreal > 0.d0) then
+                vec_ptr(local_id) = &
+                  patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
+                    ghosted_id)%kr(option%gas_phase) / tempreal
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case default
             call PatchUnsupportedVariable('HYDRATE',ivar,option)
@@ -6205,7 +6228,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          SURFACE_CMPLX,SURFACE_CMPLX_FREE,SURFACE_SITE_DENSITY, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD,TOTAL_SORBED,TOTAL_SORBED_MOBILE, &
-         COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK,IMMOBILE_SPECIES, &
+         AGE,TOTAL_BULK,IMMOBILE_SPECIES, &
          GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE,REACTION_AUXILIARY)
 
       select case(ivar)
@@ -6407,10 +6430,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                                     patch%aux%RT%auxvars(grid%nL2G(local_id))% &
                                       mnrl_volfrac(tempint)
               enddo
-            case(COLLOID_SURFACE)
-                option%io_buffer = 'Printing of surface site density for ' // &
-                                     'colloidal surfaces not implemented.'
-                call PrintErrMsg(option)
             case(NULL_SURFACE)
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = tempreal
@@ -6476,54 +6495,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                 enddo
               enddo
             endif
-          endif
-        case(TOTAL_SORBED_MOBILE)
-          if (patch%reaction%nsorb > 0 .and. patch%reaction%ncollcomp > 0) then
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = patch%aux%RT%auxvars(ghosted_id)%colloid% &
-                total_eq_mob(isubvar)
-            enddo
-          endif
-        case(COLLOID_MOBILE)
-          if (patch%reaction%print_tot_conc_type == TOTAL_MOLALITY) then
-            do local_id=1,grid%nlmax
-              ghosted_id =grid%nL2G(local_id)
-              if (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase) > &
-                  0.d0) then
-                vec_ptr(local_id) = &
-                  patch%aux%RT%auxvars(ghosted_id)% &
-                    colloid%conc_mob(isubvar) / &
-                  (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase)/1000.d0)
-              else
-                vec_ptr(local_id) = 0.d0
-              endif
-            enddo
-          else
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%RT%auxvars(grid%nL2G(local_id))% &
-                                    colloid%conc_mob(isubvar)
-            enddo
-          endif
-        case(COLLOID_IMMOBILE)
-          if (patch%reaction%print_tot_conc_type == TOTAL_MOLALITY) then
-            do local_id=1,grid%nlmax
-              ghosted_id =grid%nL2G(local_id)
-              if (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase) > &
-                  0.d0) then
-                vec_ptr(local_id) = &
-                  patch%aux%RT%auxvars(ghosted_id)% &
-                    colloid%conc_imb(isubvar) / &
-                  (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase)/1000.d0)
-              else
-                vec_ptr(local_id) = 0.d0
-              endif
-            enddo
-          else
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%RT%auxvars(grid%nL2G(local_id))% &
-                                    colloid%conc_imb(isubvar)
-            enddo
           endif
         case(AGE)
           do local_id=1,grid%nlmax
@@ -6804,6 +6775,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   PetscInt :: irate, irxn
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -6941,6 +6913,17 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
               case(ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
                 value = &
                   patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+              case(ZFLOW_LIQ_PRES_WRT_POROS)
+                tempreal = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
+                if (tempreal < 1.d0) then
+                  value = &
+                    -tempreal / &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      effective_porosity / &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%dsat_dp
+                else
+                  value = 0.d0
+                endif
               case default
                 call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
                                               isubvar,option)
@@ -7131,10 +7114,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
           case(GAS_VISCOSITY)
-            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      kr(option%gas_phase) / &
-                    patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      mobility(option%gas_phase)
+            tempreal = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                          mobility(option%gas_phase)
+            if (tempreal > 0.d0) then
+              value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        kr(option%gas_phase) / tempreal
+            else
+              value = 0.d0
+            endif
           case(ICE_SATURATION)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%ice_phase)
@@ -7271,10 +7258,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
           case(GAS_VISCOSITY)
-            value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      kr(option%gas_phase) / &
-                    patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      mobility(option%gas_phase)
+            tempreal = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
+                          mobility(option%gas_phase)
+            if (tempreal > 0.d0) then
+              value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
+                        kr(option%gas_phase) / tempreal
+            else
+              value = 0.d0
+            endif
           case(ICE_SATURATION)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%ice_phase)
@@ -7393,7 +7384,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          SURFACE_CMPLX,SURFACE_CMPLX_FREE,SURFACE_SITE_DENSITY, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD, TOTAL_SORBED, &
-         TOTAL_SORBED_MOBILE,COLLOID_MOBILE,COLLOID_IMMOBILE,AGE,TOTAL_BULK, &
+         TOTAL_SORBED_MOBILE,AGE,TOTAL_BULK, &
          IMMOBILE_SPECIES,GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE, &
          REACTION_AUXILIARY)
 
@@ -7506,10 +7497,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                       patch%aux%RT%auxvars(ghosted_id)% &
                         mnrl_volfrac(reaction%surface_complexation% &
                                        srfcplxrxn_to_surf(isubvar))
-            case(COLLOID_SURFACE)
-                option%io_buffer = 'Printing of surface site density for ' // &
-                  'colloidal surfaces not implemented.'
-                call PrintErrMsg(option)
             case(NULL_SURFACE)
               value = reaction%surface_complexation% &
                         srfcplxrxn_site_density(isubvar)
@@ -7545,27 +7532,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                 enddo
               enddo
             endif
-          endif
-        case(TOTAL_SORBED_MOBILE)
-          if (patch%reaction%nsorb > 0 .and. patch%reaction%ncollcomp > 0) then
-            value = &
-              patch%aux%RT%auxvars(ghosted_id)%colloid%total_eq_mob(isubvar)
-          endif
-        case(COLLOID_MOBILE)
-          if (patch%reaction%print_tot_conc_type == TOTAL_MOLALITY) then
-            value = patch%aux%RT%auxvars(ghosted_id)% &
-                      colloid%conc_mob(isubvar) / &
-                    patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase)*1000.d0
-          else
-            value = patch%aux%RT%auxvars(ghosted_id)%colloid%conc_mob(isubvar)
-          endif
-        case(COLLOID_IMMOBILE)
-          if (patch%reaction%print_tot_conc_type == TOTAL_MOLALITY) then
-            value = patch%aux%RT%auxvars(ghosted_id)% &
-                      colloid%conc_imb(isubvar) / &
-                    patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase)*1000.d0
-          else
-            value = patch%aux%RT%auxvars(ghosted_id)%colloid%conc_imb(isubvar)
           endif
         case(AGE)
           if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
@@ -8432,8 +8398,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           endif
       end select
     case(PRIMARY_MOLARITY,TOTAL_MOLALITY, &
-         SECONDARY_MOLALITY,SECONDARY_MOLARITY, &
-         COLLOID_MOBILE,COLLOID_IMMOBILE)
+         SECONDARY_MOLALITY,SECONDARY_MOLARITY)
       select case(ivar)
         case(PRIMARY_MOLARITY)
           call PrintErrMsg(option,'Setting of primary molarity at grid cell not supported.')
@@ -8443,10 +8408,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           call PrintErrMsg(option,'Setting of secondary molarity at grid cell not supported.')
         case(TOTAL_MOLALITY)
           call PrintErrMsg(option,'Setting of total molality at grid cell not supported.')
-        case(COLLOID_MOBILE)
-          call PrintErrMsg(option,'Setting of mobile colloid concentration at grid cell not supported.')
-        case(COLLOID_IMMOBILE)
-          call PrintErrMsg(option,'Setting of immobile colloid concentration at grid cell not supported.')
       end select
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY)
       if (vec_format == GLOBAL) then

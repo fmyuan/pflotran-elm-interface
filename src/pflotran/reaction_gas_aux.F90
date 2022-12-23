@@ -51,6 +51,9 @@ module Reaction_Gas_Aux_module
     PetscReal, pointer :: acteqlogK(:)
     PetscReal, pointer :: acteqlogKcoef(:,:)
 
+    PetscReal, pointer :: actmolarwt(:)
+    PetscReal, pointer :: pasmolarwt(:)
+
     PetscInt, pointer :: paseqspecid(:,:)   ! (0:ncomp in rxn)
     PetscReal, pointer :: paseqstoich(:,:)
     PetscInt, pointer :: paseqh2oid(:)       ! id of water, if present
@@ -107,6 +110,9 @@ function GasCreate()
   nullify(gas%acteqh2ostoich)
   nullify(gas%acteqlogK)
   nullify(gas%acteqlogKcoef)
+
+  nullify(gas%actmolarwt)
+  nullify(gas%pasmolarwt)
 
   nullify(gas%paseqspecid)
   nullify(gas%paseqstoich)
@@ -374,6 +380,9 @@ subroutine GasDestroy(gas)
   call DeallocateArray(gas%acteqh2ostoich)
   call DeallocateArray(gas%acteqlogK)
   call DeallocateArray(gas%acteqlogKcoef)
+
+  call DeallocateArray(gas%actmolarwt)
+  call DeallocateArray(gas%pasmolarwt)
 
   call DeallocateArray(gas%paseqspecid)
   call DeallocateArray(gas%paseqstoich)

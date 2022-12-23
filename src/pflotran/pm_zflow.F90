@@ -126,6 +126,8 @@ subroutine PMZFlowInitObject(this)
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
 
+  zflow_debug_cell_id = UNINITIALIZED_INTEGER
+
 end subroutine PMZFlowInitObject
 
 ! ************************************************************************** !
@@ -227,6 +229,9 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         call InputReadAndConvertUnits(input,zflow_viscosity,'Pa-s', &
                                       trim(error_string)//','//keyword,option)
+      case('DEBUG_CELL_ID')
+        call InputReadInt(input,option,zflow_debug_cell_id)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
     end select
@@ -917,8 +922,6 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: local_id, ghosted_id
   PetscInt :: converged_flag
 
-  PetscReal, parameter :: zero_accumulation = 1.d-15
-
   PetscReal :: max_abs_res_liq_
   PetscInt :: max_abs_res_liq_cell
   PetscReal :: max_abs_res_sol_
@@ -1240,7 +1243,6 @@ subroutine PMZFlowCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1263,7 +1265,6 @@ subroutine PMZFlowRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

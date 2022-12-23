@@ -718,7 +718,6 @@ pure subroutine SFWIPPKRP9Sw(this, Pc, Sw)
 
   PetscReal, parameter :: a = 3783.0145d0
   PetscReal, parameter :: b = 2.9d0
-  PetscReal, parameter :: b_rec = 1d0/b
 
   if (Pc <= 0d0) then
     Sw = 1d0

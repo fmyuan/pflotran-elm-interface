@@ -129,7 +129,7 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   use Option_module
   use Patch_module
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               LIQUID_DENSITY, GAS_PRESSURE, &
+                               LIQUID_DENSITY, &
                                GAS_DENSITY, GAS_SATURATION, &
                                TEMPERATURE, LIQUID_DENSITY_MOL, &
                                GAS_DENSITY_MOL
@@ -520,7 +520,6 @@ subroutine GlobalWeightAuxVars(realization,weight)
 
   use Realization_Subsurface_class
   use Option_module
-  use Material_module, only : MaterialWeightAuxVars
 
   implicit none
 

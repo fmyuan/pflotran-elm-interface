@@ -1417,16 +1417,16 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   option%io_buffer = trim(header) // ' Linear Solver'
   call PrintMsg(option)
   strings(:) = ''
-  strings(1) = 'solver: '// StringWrite(solver%ksp_type)
-  strings(2) = 'preconditioner: '// StringWrite(solver%pc_type)
-  strings(3) = 'atol: '// StringWrite(solver%linear_atol)
-  strings(4) = 'rtol: '// StringWrite(solver%linear_rtol)
-  strings(5) = 'dtol: '// StringWrite(solver%linear_dtol)
+  strings(1) = 'solver: '// trim(StringWrite(solver%ksp_type))
+  strings(2) = 'preconditioner: '// trim(StringWrite(solver%pc_type))
+  strings(3) = 'atol: '// trim(StringWrite(solver%linear_atol))
+  strings(4) = 'rtol: '// trim(StringWrite(solver%linear_rtol))
+  strings(5) = 'dtol: '// trim(StringWrite(solver%linear_dtol))
   strings(6) = 'maximum iteration: ' // &
-                                   StringWrite(solver%linear_max_iterations)
+    trim(StringWrite(solver%linear_max_iterations))
   if (Initialized(solver%linear_zero_pivot_tol)) then
     strings(7) = 'zero pivot tolerance: ' // &
-                                   StringWrite(solver%linear_zero_pivot_tol)
+      trim(StringWrite(solver%linear_zero_pivot_tol))
   endif
   call StringsCenter(strings,30,':')
   do i = 1, size(strings)
@@ -1467,28 +1467,33 @@ subroutine SolverPrintNewtonInfo(solver,header,option)
   option%io_buffer = trim(header) // ' Newton Solver'
   call PrintMsg(option)
   strings(:) = ''
-  strings(1) = 'atol: '// StringWrite(solver%newton_atol)
-  strings(2) = 'rtol: '// StringWrite(solver%newton_rtol)
-  strings(3) = 'stol: '// StringWrite(solver%newton_stol)
-  strings(4) = 'dtol: '// StringWrite(solver%newton_dtol)
-  strings(5) = 'maxnorm: '// StringWrite(solver%max_norm)
-  strings(6) = 'inftolres: ' // StringWrite(solver%newton_inf_res_tol)
-  strings(7) = 'inftolupd: ' // StringWrite(solver%newton_inf_upd_tol)
-  strings(8) = 'inftolrelupd: ' // StringWrite(solver%newton_inf_rel_update_tol)
-  strings(9) = 'inftolsclres: ' // StringWrite(solver%newton_inf_scaled_res_tol)
-  strings(10) = 'max iter: ' // StringWrite(solver%newton_max_iterations)
-  strings(11) = 'min iter: ' // StringWrite(solver%newton_min_iterations)
-  strings(12) = 'maxf: ' // StringWrite(solver%newton_maxf)
-  strings(13) = 'matrix type: ' // StringWrite(solver%M_mat_type)
-  strings(14) = 'precond. matrix type: ' // StringWrite(solver%Mpre_mat_type)
+  strings(1) = 'atol: '// trim(StringWrite(solver%newton_atol))
+  strings(2) = 'rtol: '// trim(StringWrite(solver%newton_rtol))
+  strings(3) = 'stol: '// trim(StringWrite(solver%newton_stol))
+  strings(4) = 'dtol: '// trim(StringWrite(solver%newton_dtol))
+  strings(5) = 'maxnorm: '// trim(StringWrite(solver%max_norm))
+  strings(6) = 'inftolres: ' // trim(StringWrite(solver%newton_inf_res_tol))
+  strings(7) = 'inftolupd: ' // trim(StringWrite(solver%newton_inf_upd_tol))
+  strings(8) = 'inftolrelupd: ' // &
+    trim(StringWrite(solver%newton_inf_rel_update_tol))
+  strings(9) = 'inftolsclres: ' // &
+    trim(StringWrite(solver%newton_inf_scaled_res_tol))
+  strings(10) = 'max iter: ' // &
+    trim(StringWrite(solver%newton_max_iterations))
+  strings(11) = 'min iter: ' // &
+    trim(StringWrite(solver%newton_min_iterations))
+  strings(12) = 'maxf: ' // trim(StringWrite(solver%newton_maxf))
+  strings(13) = 'matrix type: ' // trim(StringWrite(solver%M_mat_type))
+  strings(14) = 'precond. matrix type: ' // &
+    trim(StringWrite(solver%Mpre_mat_type))
   strings(15) = 'inexact newton: ' // &
-                   StringWrite(String1Or2(solver%inexact_newton,'on','off'))
+    trim(StringWrite(String1Or2(solver%inexact_newton,'on','off')))
   strings(16) = 'print convergence: ' // &
-                StringWrite(String1Or2(solver%print_convergence,'on','off'))
+    trim(StringWrite(String1Or2(solver%print_convergence,'on','off')))
   strings(17) = 'print detailed convergence: ' // &
-       StringWrite(String1Or2(solver%print_detailed_convergence,'on','off'))
+    trim(StringWrite(String1Or2(solver%print_detailed_convergence,'on','off')))
   strings(18) = 'check infinity norm: ' // &
-              StringWrite(String1Or2(solver%check_infinity_norm,'on','off'))
+    trim(StringWrite(String1Or2(solver%check_infinity_norm,'on','off')))
 
   call StringsCenter(strings,30,':')
   do i = 1, size(strings)
@@ -1791,7 +1796,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
     case(KSP_DIVERGED_NANORINF)
       if (solver%verbose_logging) then
         error_string = 'The linear solver produced a NaN (not a number) &
-          for Inf (infinite number) likely due to a divide by zero (0/0).'
+          &for Inf (infinite number) likely due to a divide by zero (0/0).'
       else
         error_string = 'KSP_DIVERGED_NANORINF'
       endif

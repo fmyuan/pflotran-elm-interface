@@ -4,6 +4,7 @@ module Inversion_ZFlow_class
   use petscksp
 
   use PFLOTRAN_Constants_module
+  use Inversion_Aux_module
   use Inversion_Base_class
   use Inversion_Subsurface_class
 
@@ -12,8 +13,10 @@ module Inversion_ZFlow_class
   private
 
   type, public, extends(inversion_subsurface_type) :: inversion_zflow_type
+    PetscInt :: info_format
     PetscInt :: start_iteration          ! Starting iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
+    PetscBool :: string_color
 
     PetscReal :: beta                    ! regularization parameter
     PetscReal :: beta_red_factor         ! beta reduction factor
@@ -32,6 +35,9 @@ module Inversion_ZFlow_class
     PetscReal :: phi_total_0,phi_total
     PetscReal :: phi_data_0,phi_data
     PetscReal :: phi_model_0,phi_model
+
+    ! to check divergence of gamma in CGLS
+    PetscBool :: check_gamma_divergence
 
     ! arrays for CGLS algorithm
     PetscReal, pointer :: b(:)           ! vector for CGLS RHS
@@ -54,10 +60,13 @@ module Inversion_ZFlow_class
   contains
     procedure, public :: Init => InversionZFlowInit
     procedure, public :: ReadBlock => InversionZFlowReadBlock
-    procedure, public :: Initialize => InversionZFlowInitialize
+    procedure, public :: SetupForwardRunLinkage => &
+                           InvZFlowSetupForwardRunLinkage
     procedure, public :: EvaluateCostFunction => InvZFlowEvaluateCostFunction
+    procedure, public :: Checkpoint => InversionZFlowCheckpoint
+    procedure, public :: RestartReadData => InversionZFlowRestartReadData
     procedure, public :: CheckConvergence => InversionZFlowCheckConvergence
-    procedure, public :: WriteIterationInfo => InversionZFlowWriteIterationInfo
+    procedure, public :: WriteIterationInfo => InvZFlowWriteIterationInfo
     procedure, public :: ScaleSensitivity => InversionZFlowScaleSensitivity
     procedure, public :: CalculateUpdate => InversionZFlowCalculateUpdate
     procedure, public :: UpdateRegularizationParameters => &
@@ -117,7 +126,7 @@ function InversionZFlowCreate(driver)
   ! Date: 01/05/22
   !
 
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -137,7 +146,7 @@ subroutine InversionZFlowInit(this,driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/05/22
   !
-  use Driver_module
+  use Driver_class
 
   implicit none
 
@@ -147,8 +156,10 @@ subroutine InversionZFlowInit(this,driver)
   call InversionSubsurfaceInit(this,driver)
 
   ! Default inversion parameters
+  this%info_format = 0
   this%miniter = 10
   this%maxiter = 50
+  this%string_color = PETSC_TRUE
 
   this%beta = 100.d0
   this%beta_red_factor = 0.5d0
@@ -173,6 +184,8 @@ subroutine InversionZFlowInit(this,driver)
   this%phi_total = UNINITIALIZED_DOUBLE
   this%phi_data = UNINITIALIZED_DOUBLE
   this%phi_model = UNINITIALIZED_DOUBLE
+
+  this%check_gamma_divergence = PETSC_FALSE
 
   this%parameter_tmp_vec = PETSC_NULL_VEC
   this%dist_parameter_tmp_vec = PETSC_NULL_VEC
@@ -280,7 +293,7 @@ subroutine InversionZFlowAllocateWorkArrays(this)
   PetscInt :: num_measurement
   PetscInt :: num_constraints
 
-  num_measurement = size(this%measurements)
+  num_measurement = size(this%inversion_aux%measurements)
   num_constraints = this%num_constraints_local
 
   allocate(this%b(num_measurement + num_constraints))
@@ -492,6 +505,8 @@ subroutine InversionZFlowReadBlock(this,input,option)
       case('MAX_CGLS_ITERATION')
         call InputReadInt(input,option,this%maxiter)
         call InputErrorMsg(input,option,'MAX_CGLS_ITERATION',error_string)
+      case('CHECK_CGLS_GAMMA_DIVERGENCE')
+        this%check_gamma_divergence = PETSC_TRUE
       case('BETA')
         call InputReadDouble(input,option,this%beta)
         call InputErrorMsg(input,option,'BETA',error_string)
@@ -519,6 +534,10 @@ subroutine InversionZFlowReadBlock(this,input,option)
         call InputErrorMsg(input,option,'MIN_COST_REDUCTION',error_string)
       case('CONSTRAINED_BLOCKS')
         call ConstrainedBlockRead(this%constrained_block,input,option)
+      case('NO_STRING_COLOR')
+        this%string_color = PETSC_FALSE
+      case('INFO_FORMAT_GLENN')
+        this%info_format = 1
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -716,7 +735,7 @@ end function ConstrainedBlockGetBlockIDFromMatID
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowInitialize(this)
+subroutine InvZFlowSetupForwardRunLinkage(this)
   !
   ! Initializes inversion
   !
@@ -728,7 +747,8 @@ subroutine InversionZFlowInitialize(this)
   use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY, &
+                               VG_ALPHA,VG_SR,VG_M
 
   implicit none
 
@@ -737,25 +757,38 @@ subroutine InversionZFlowInitialize(this)
   PetscBool :: exists
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: iqoi(2)
-  PetscInt :: i,num_measurements
+  PetscInt :: i
   PetscErrorCode :: ierr
 
-  call InversionSubsurfInitialize(this)
+  call InvSubsurfSetupForwardRunLinkage(this)
 
-  call VecDuplicate(this%dist_parameter_vec,this%dist_parameter_tmp_vec, &
+  call VecDuplicate(this%inversion_aux%dist_parameter_vec,this%dist_parameter_tmp_vec, &
                     ierr);CHKERRQ(ierr)
 
   ! check to ensure that quantity of interest exists
   exists = PETSC_FALSE
-  iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+  iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
   select case(iqoi(1))
     case(PERMEABILITY)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'PERMEABILITY'
+    case(POROSITY)
+      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'POROSITY'
     case(ELECTRICAL_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'ELECTRICAL_CONDUCTIVITY'
+    case(VG_ALPHA)
+      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'VG_ALPHA'
+    case(VG_SR)
+      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'VG_SR'
+    case(VG_M)
+      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+      word = 'VG_M'
     case default
+      word = 'unknown_parameter'
   end select
   if (.not.exists) then
     this%realization%option%io_buffer = 'Inversion for ' // trim(word) // &
@@ -767,33 +800,38 @@ subroutine InversionZFlowInitialize(this)
 
   ! scale data weight by a scalar weight for joint inversion
   if (this%iteration==1) then
-    num_measurements = size(this%measurements)
-    do i=1,num_measurements
-      if (this%measurements(i)%iobs_var == OBS_LIQUID_PRESSURE) then
-        this%measurements(i)%weight = this%alpha_liquid_pressure * &
-                                      this%measurements(i)%weight
-      elseif (this%measurements(i)%iobs_var == OBS_LIQUID_SATURATION) then
-        this%measurements(i)%weight = this%alpha_liquid_saturation * &
-                                      this%measurements(i)%weight
-      elseif (this%measurements(i)%iobs_var == OBS_SOLUTE_CONCENTRATION) then
-        this%measurements(i)%weight = this%alpha_solute_concentration * &
-                                      this%measurements(i)%weight
-      elseif (this%measurements(i)%iobs_var == OBS_ERT_MEASUREMENT) then
-        this%measurements(i)%weight = this%alpha_ert_measurement * &
-                                      this%measurements(i)%weight
-      endif
+    do i = 1, size(this%inversion_aux%measurements)
+      select case(this%inversion_aux%measurements(i)%iobs_var)
+        case(OBS_LIQUID_PRESSURE)
+          this%inversion_aux%measurements(i)%weight = &
+            this%alpha_liquid_pressure * &
+            this%inversion_aux%measurements(i)%weight
+        case(OBS_LIQUID_SATURATION)
+          this%inversion_aux%measurements(i)%weight = &
+            this%alpha_liquid_saturation * &
+            this%inversion_aux%measurements(i)%weight
+        case(OBS_SOLUTE_CONCENTRATION)
+          this%inversion_aux%measurements(i)%weight = &
+            this%alpha_solute_concentration * &
+            this%inversion_aux%measurements(i)%weight
+        case(OBS_ERT_MEASUREMENT)
+          this%inversion_aux%measurements(i)%weight = &
+            this%alpha_ert_measurement * &
+            this%inversion_aux%measurements(i)%weight
+      end select
     enddo
   endif
 
   ! Build Wm matrix
   call InversionZFlowBuildWm(this)
 
-  if (.not.this%qoi_is_full_vector) then
-    call VecDuplicate(this%parameter_vec,this%parameter_tmp_vec, &
+  if (.not.this%inversion_aux%qoi_is_full_vector) then
+    call VecDuplicate(this%inversion_aux%parameter_vec, &
+                      this%parameter_tmp_vec, &
                       ierr);CHKERRQ(ierr)
   endif
 
-end subroutine InversionZFlowInitialize
+end subroutine InvZFlowSetupForwardRunLinkage
 
 ! ************************************************************************** !
 
@@ -829,7 +867,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   use Patch_module
   use Material_Aux_module
   use String_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -840,11 +878,11 @@ subroutine InvZFlowEvaluateCostFunction(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: idata,num_measurement
   PetscInt :: iconst,num_constraints
   PetscInt :: irb,ghosted_id,ghosted_id_nb
   PetscInt :: imat_id,imat_id_nb
+  PetscInt :: iparameter
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: wd,tempreal
   PetscReal :: param_ce,param_nb              ! cell's and neighbor's
@@ -860,14 +898,14 @@ subroutine InvZFlowEvaluateCostFunction(this)
   constrained_block => this%constrained_block
   rblock => this%rblock
 
-  num_measurement = size(this%measurements)
+  num_measurement = size(this%inversion_aux%measurements)
 
   ! Data part
   this%phi_data = 0.d0
   do idata=1,num_measurement
-    wd = this%measurements(idata)%weight
-    tempreal = wd * (this%measurements(idata)%value - &
-                     this%measurements(idata)%simulated_value)
+    wd = this%inversion_aux%measurements(idata)%weight
+    tempreal = wd * (this%inversion_aux%measurements(idata)%value - &
+                     this%inversion_aux%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
 
   enddo
@@ -877,7 +915,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   ! model cost function
   this%phi_model = 0.d0
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
 
     num_constraints = this%num_constraints_local
     ! allocate to at least size 1 to allow for inner product
@@ -901,20 +939,18 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
-        case(ELECTRICAL_CONDUCTIVITY)
-          param_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
-          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
-                                         electrical_conductivity(1)
-        case(PERMEABILITY)
-          param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
-                                         permeability(perm_xx_index)
-        case default
-          string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
-            trim(StringWrite(this%parameters(1)%iparameter))
-          call this%driver%PrintErrMsg(string)
-      end select
+      iparameter = this%inversion_aux%parameters(1)%iparameter
+
+      call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
+                                     iparameter, &
+                                     patch%imat(ghosted_id), &
+                                     material_auxvars(ghosted_id))
+      if (use_neighbor) then
+        call InvAuxGetParamValueByCell(this%inversion_aux,param_nb, &
+                                       iparameter, &
+                                       patch%imat(ghosted_id_nb), &
+                                       material_auxvars(ghosted_id_nb))
+      endif
 
       x = 0.d0
 
@@ -986,24 +1022,17 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
-        case(ELECTRICAL_CONDUCTIVITY)
-          param_ce = this%realization%patch%material_property_array(imat_id)% &
-                       ptr%electrical_conductivity
-          if (use_neighbor) param_nb = this%realization%patch% &
-                                         material_property_array(imat_id_nb)% &
-                                         ptr%electrical_conductivity
-        case(PERMEABILITY)
-          param_ce = this%realization%patch%material_property_array(imat_id)% &
-                       ptr%permeability(1,1)
-          if (use_neighbor) param_nb = this%realization%patch% &
-                                         material_property_array(imat_id_nb)% &
-                                         ptr%permeability(1,1)
-        case default
-          string = 'Unrecognized variable in InvZFlowEvaluateCostFunction: '// &
-            trim(StringWrite(this%parameters(1)%iparameter))
-          call this%driver%PrintErrMsg(string)
-      end select
+      iparameter = this%inversion_aux%parameters(1)%iparameter
+
+      call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
+                                       iparameter, &
+                                       imat_id,INVAUX_GET_MATERIAL_VALUE)
+      if (use_neighbor) then
+        call InvAuxGetSetParamValueByMat(this%inversion_aux,param_nb, &
+                                         iparameter, &
+                                         imat_id_nb, &
+                                         INVAUX_GET_MATERIAL_VALUE)
+      endif
 
       x = 0.d0
 
@@ -1107,48 +1136,49 @@ subroutine InversionZFlowCalculateUpdate(this)
   PetscInt :: iparameter, ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec2_ptr(:)
+  PetscReal :: new_value
   Vec :: work_dup
-  Vec :: del_param_vec
+  Vec :: dist_del_param_vec
   PetscErrorCode :: ierr
 
   patch => this%realization%patch
   grid => patch%grid
 
   ! simply setting a local pointer for clarity
-  del_param_vec = this%dist_parameter_tmp_vec
+  dist_del_param_vec = this%dist_parameter_tmp_vec
 
   call InversionZFlowAllocateWorkArrays(this)
 
   ! get inversion%del_param
   call InversionZFlowCGLSSolve(this)
 
-  call VecGetArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(dist_del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = this%del_param(:)
-  call VecRestoreArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(dist_del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
     ! have to copy values to global work vecs in order to loop over
     ! ghosted ids
 
-    ! del_param_vec holds the update
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        this%realization%field%work, &
-                                        del_param_vec, &
-                                        INVSUBSCATREVERSE)
+    ! dist_del_param_vec holds the update
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     dist_del_param_vec, &
+                                     INVAUX_SCATREVERSE)
     call VecDuplicate(this%realization%field%work,work_dup, &
                       ierr);CHKERRQ(ierr)
     ! dist_parameter_vec holds the original value
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        work_dup, &
-                                        this%dist_parameter_vec, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     work_dup, &
+                                     this%inversion_aux%dist_parameter_vec, &
+                                     INVAUX_SCATREVERSE)
 
     ! Get updated parameter as m_new = m_old + del_m (where m = log(param))
     call VecGetArrayF90(work_dup,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%realization%field%work,vec2_ptr, &
                         ierr);CHKERRQ(ierr)
     do iparameter = 1, this%num_parameters_local
-      if (this%qoi_is_full_vector) then
+      if (this%inversion_aux%qoi_is_full_vector) then
         ghosted_id = grid%nL2G(iparameter)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
@@ -1164,30 +1194,46 @@ subroutine InversionZFlowCalculateUpdate(this)
     call InversionZFlowDeallocateWorkArrays(this)
 
     ! copy back to dist_parameter_vec
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        work_dup, &
-                                        this%dist_parameter_vec, &
-                                        INVSUBSCATFORWARD)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     work_dup, &
+                                     this%inversion_aux%dist_parameter_vec, &
+                                     INVAUX_SCATFORWARD)
     call VecDestroy(work_dup,ierr);CHKERRQ(ierr)
   else
-    call VecGetArrayF90(this%dist_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%inversion_aux%dist_parameter_vec, &
+                        vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(dist_del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
     do iparameter = 1, this%num_parameters_local
+#if 0
       vec_ptr(iparameter) = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
       if (vec_ptr(iparameter) > this%maxparam) &
         vec_ptr(iparameter) = this%maxparam
       if (vec_ptr(iparameter) < this%minparam) &
         vec_ptr(iparameter) = this%minparam
+#else
+      new_value = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
+      if (new_value > this%maxparam) then
+        new_value = this%maxparam
+      else if (new_value < this%minparam) then
+        new_value = this%minparam
+      endif
+      vec2_ptr(iparameter) = new_value - vec_ptr(iparameter)
+      vec_ptr(iparameter) = new_value
+#endif
     enddo
-    call VecRestoreArrayF90(this%dist_parameter_vec,vec_ptr, &
+    call VecRestoreArrayF90(this%inversion_aux%dist_parameter_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(dist_del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
 
-    call InvSubsurfScatParamToDistParam(this, &
-                                        this%parameter_vec, &
-                                        this%dist_parameter_vec, &
-                                        INVSUBSCATREVERSE)
-
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%inversion_aux%parameter_vec, &
+                                    this%inversion_aux%dist_parameter_vec, &
+                                    INVAUX_SCATREVERSE)
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%inversion_aux%del_parameter_vec, &
+                                    dist_del_param_vec, &
+                                    INVAUX_SCATREVERSE)
+    call InvSubsurfPrintCurParamUpdate(this)
   endif
 
 end subroutine InversionZFlowCalculateUpdate
@@ -1243,7 +1289,7 @@ subroutine InversionZFlowCGLSSolve(this)
     write(*,'(" --> Solving ZFlow normal equation using CGLS solver:")')
   endif
 
-  nm = size(this%measurements)
+  nm = size(this%inversion_aux%measurements)
   ncons = this%num_constraints_local
 
   ! Get RHS vector this%b
@@ -1277,7 +1323,7 @@ subroutine InversionZFlowCGLSSolve(this)
     if (ncons > 0) &
       delta2 = dot_product(this%q(nm+1:nm+ncons),this%q(nm+1:nm+ncons))
 
-    if (this%qoi_is_full_vector) &
+    if (this%inversion_aux%qoi_is_full_vector) &
       call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
                          MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
                          ierr);CHKERRQ(ierr)
@@ -1319,6 +1365,12 @@ subroutine InversionZFlowCGLSSolve(this)
     if ( abs((resNE_old - resNe) /resNE_old) < delta_initer .and. &
         i > this%miniter) exit_info = PETSC_TRUE
 
+    ! PJ: for coupled flow, transport, and ert we need following condition --> ?
+    if (this%check_gamma_divergence .or. &
+        this%inversion_option%coupled_flow_ert) then
+      if (gamma > gamma1) exit_info = PETSC_TRUE
+    endif
+
   enddo
 
   call timer%Stop()
@@ -1346,7 +1398,7 @@ subroutine InversionZFlowCGLSRhs(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1357,10 +1409,10 @@ subroutine InversionZFlowCGLSRhs(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: idata,iconst,irb,num_measurement
   PetscInt :: ghosted_id,ghosted_id_nb
   PetscInt :: imat_id,imat_id_nb
+  PetscInt :: iparameter
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: param_ce,param_nb,x     ! cell's and neighbor's
   PetscReal :: wm,beta
@@ -1376,19 +1428,19 @@ subroutine InversionZFlowCGLSRhs(this)
 
   this%b = 0.0d0
 
-  num_measurement = size(this%measurements)
+  num_measurement = size(this%inversion_aux%measurements)
 
   ! Data part
   do idata=1,num_measurement
-    wd = this%measurements(idata)%weight
-    this%b(idata) = wd * (this%measurements(idata)%value - &
-                          this%measurements(idata)%simulated_value)
+    wd = this%inversion_aux%measurements(idata)%weight
+    this%b(idata) = wd * (this%inversion_aux%measurements(idata)%value - &
+                        this%inversion_aux%measurements(idata)%simulated_value)
   enddo
 
   ! Model part
   beta = this%beta
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
 
     do iconst=1,this%num_constraints_local
       if (this%Wm(iconst) == 0) cycle
@@ -1407,20 +1459,18 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
-        case(ELECTRICAL_CONDUCTIVITY)
-          param_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
-          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
-                                         electrical_conductivity(1)
-        case(PERMEABILITY)
-          param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
-                                         permeability(perm_xx_index)
-        case default
-          string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
-          call this%driver%PrintErrMsg(string)
-      end select
+      iparameter = this%inversion_aux%parameters(1)%iparameter
+
+      call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
+                                     iparameter, &
+                                     patch%imat(ghosted_id), &
+                                     material_auxvars(ghosted_id))
+      if (use_neighbor) then
+        call InvAuxGetParamValueByCell(this%inversion_aux,param_nb, &
+                                       iparameter, &
+                                       patch%imat(ghosted_id_nb), &
+                                       material_auxvars(ghosted_id_nb))
+      endif
 
       x = 0.0d0
 
@@ -1483,24 +1533,16 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
-        case(ELECTRICAL_CONDUCTIVITY)
-          param_ce = this%realization%patch%material_property_array(imat_id)% &
-                       ptr%electrical_conductivity
-          if (use_neighbor) param_nb = this%realization%patch% &
-                                         material_property_array(imat_id_nb)% &
-                                         ptr%electrical_conductivity
-        case(PERMEABILITY)
-          param_ce = this%realization%patch%material_property_array(imat_id)% &
-                       ptr%permeability(1,1)
-          if (use_neighbor) param_nb = this%realization%patch% &
-                                         material_property_array(imat_id_nb)% &
-                                         ptr%permeability(1,1)
-        case default
-          string = 'Unrecognized variable in InversionZFlowCGLSRhs: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
-          call this%driver%PrintErrMsg(string)
-      end select
+      iparameter = this%inversion_aux%parameters(1)%iparameter
+
+      call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
+                                       iparameter, &
+                                       imat_id,INVAUX_GET_MATERIAL_VALUE)
+      if (use_neighbor) then
+        call InvAuxGetSetParamValueByMat(this%inversion_aux,param_nb, &
+                                         iparameter,imat_id_nb, &
+                                         INVAUX_GET_MATERIAL_VALUE)
+      endif
 
       x = 0.0d0
 
@@ -1558,7 +1600,7 @@ subroutine InversionZFlowBuildWm(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : PERMEABILITY,ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1599,9 +1641,9 @@ contains
     PetscInt :: iconst
     PetscReal :: wm
 
-    character(len=MAXSTRINGLENGTH) :: string
     PetscInt :: irb,ghosted_id,ghosted_id_nb
     PetscInt :: imat_id,imat_id_nb
+    PetscInt :: iparameter
     PetscReal :: x,awx,awy,awz
     PetscReal :: param_ce,param_nb     ! cell's and neighbor's
     PetscReal :: mn,sd
@@ -1611,7 +1653,7 @@ contains
 
     rblock => this%rblock
 
-    if (this%qoi_is_full_vector) then
+    if (this%inversion_aux%qoi_is_full_vector) then
       ! get param & block of the ith constrained eq.
       use_neighbor = PETSC_FALSE
       ghosted_id = rblock(iconst,1)
@@ -1625,20 +1667,19 @@ contains
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
-        case(ELECTRICAL_CONDUCTIVITY)
-          param_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
-          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
-                                         electrical_conductivity(1)
-        case(PERMEABILITY)
-          param_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-          if (use_neighbor) param_nb = material_auxvars(ghosted_id_nb)% &
-                                         permeability(perm_xx_index)
-        case default
-          string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
-          call this%driver%PrintErrMsg(string)
-      end select
+      iparameter = this%inversion_aux%parameters(1)%iparameter
+
+      call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
+                                     iparameter, &
+                                     patch%imat(ghosted_id), &
+                                     material_auxvars(ghosted_id))
+      if (use_neighbor) then
+        call InvAuxGetParamValueByCell(this%inversion_aux,param_nb, &
+                                       iparameter, &
+                                       patch%imat(ghosted_id_nb), &
+                                       material_auxvars(ghosted_id_nb))
+      endif
+
     else
       ! get material param & block of the ith constrained eq.
       use_neighbor = PETSC_FALSE
@@ -1658,24 +1699,18 @@ contains
         case default
       end select
 
-      select case(this%parameters(1)%iparameter)
-        case(ELECTRICAL_CONDUCTIVITY)
-          param_ce = this%realization%patch%material_property_array(imat_id)% &
-                       ptr%electrical_conductivity
-          if (use_neighbor) param_nb = this%realization%patch% &
-                                         material_property_array(imat_id_nb)% &
-                                         ptr%electrical_conductivity
-        case(PERMEABILITY)
-          param_ce = this%realization%patch%material_property_array(imat_id)% &
-                       ptr%permeability(1,1)
-          if (use_neighbor) param_nb = this%realization%patch% &
-                                         material_property_array(imat_id_nb)% &
-                                         ptr%permeability(1,1)
-        case default
-          string = 'Unrecognized variable in InversionZFlowBuildWm: ' // &
-            trim(StringWrite(this%parameters(1)%iparameter))
-          call this%driver%PrintErrMsg(string)
-      end select
+      iparameter = this%inversion_aux%parameters(1)%iparameter
+
+      call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
+                                       iparameter, &
+                                       imat_id,INVAUX_GET_MATERIAL_VALUE)
+      if (use_neighbor) then
+        call InvAuxGetSetParamValueByMat(this%inversion_aux,param_nb, &
+                                         iparameter, &
+                                         imat_id_nb, &
+                                         INVAUX_GET_MATERIAL_VALUE)
+      endif
+
     endif
 
     x = 0.d0
@@ -1808,7 +1843,7 @@ subroutine InversionZFlowAllocateWm(this)
 
   constrained_block => this%constrained_block
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
     num_constraints = 0
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1966,7 +2001,6 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   use Field_module
   use Discretization_module
   use Option_module
-  use Inversion_Aux_module
 
   implicit none
 
@@ -2006,12 +2040,13 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
   this%q = 0.d0
 
-  num_measurement = size(this%measurements)
+  num_measurement = size(this%inversion_aux%measurements)
 
   ! Data part
-  call VecDuplicate(this%dist_parameter_vec,p1,ierr);CHKERRQ(ierr)
-  call VecDuplicate(this%dist_measurement_vec,q1_dist,ierr);CHKERRQ(ierr)
-  call VecDuplicate(this%measurement_vec,q1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%inversion_aux%dist_parameter_vec,p1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%inversion_aux%dist_measurement_vec,q1_dist, &
+                    ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%inversion_aux%measurement_vec,q1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(p1,pvec_ptr,ierr);CHKERRQ(ierr)
   pvec_ptr = this%p
@@ -2021,10 +2056,10 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   call MatMultTranspose(inversion_aux%JsensitivityT,p1,q1_dist, &
                         ierr);CHKERRQ(ierr)
 
-  call InvSubsurfScatMeasToDistMeas(this, &
-                                    q1, &
-                                    q1_dist, &
-                                    INVSUBSCATREVERSE)
+  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                q1, &
+                                q1_dist, &
+                                INVAUX_SCATREVERSE)
 
   call VecGetArrayF90(q1,q1vec_ptr,ierr);CHKERRQ(ierr)
   this%q(1:num_measurement) = q1vec_ptr
@@ -2033,12 +2068,12 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   ! Model part -> q2
   beta = this%beta
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
     ! Get local this%p to ghosted in pvec_ptr
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                        this%realization%field%work, &
-                                        p1, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     p1, &
+                                     INVAUX_SCATREVERSE)
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                     field%work_loc,ONEDOF)
     call VecGetArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
@@ -2068,10 +2103,10 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   else
 
     call VecZeroEntries(this%parameter_tmp_vec,ierr);CHKERRQ(ierr)
-    call InvSubsurfScatParamToDistParam(this, &
-                                        this%parameter_tmp_vec, &
-                                        p1, &
-                                        INVSUBSCATREVERSE)
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%parameter_tmp_vec, &
+                                    p1, &
+                                    INVAUX_SCATREVERSE)
 
     call VecGetArrayF90(this%parameter_tmp_vec,pvec_ptr,ierr);CHKERRQ(ierr)
 
@@ -2122,7 +2157,6 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   use Grid_module
   use Field_module
   use Discretization_module
-  use Inversion_Aux_module
 
   implicit none
 
@@ -2160,7 +2194,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   this%s = 0.0d0
 
-  num_measurement = size(this%measurements)
+  num_measurement = size(this%inversion_aux%measurements)
 
   call VecZeroEntries(this%dist_parameter_tmp_vec,ierr);CHKERRQ(ierr)
 
@@ -2168,7 +2202,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   beta = this%beta
 
-  if (this%qoi_is_full_vector) then
+  if (this%inversion_aux%qoi_is_full_vector) then
 
     call VecGetArrayF90(field%work_loc,s2vec_ptr,ierr);CHKERRQ(ierr)
     s2vec_ptr = 0.d0
@@ -2201,10 +2235,10 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
     call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
     call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
                                         field%work,ONEDOF)
-    call InvSubsurfScatGlobalToDistParam(this, &
-                                         this%realization%field%work, &
-                                         this%dist_parameter_tmp_vec, &
-                                         INVSUBSCATFORWARD)
+    call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     this%dist_parameter_tmp_vec, &
+                                     INVAUX_SCATFORWARD)
 
   else
 
@@ -2239,30 +2273,31 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
     call VecRestoreArrayF90(this%parameter_tmp_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
 
-    call InvSubsurfScatParamToDistParam(this, &
-                                        this%parameter_tmp_vec, &
-                                        this%dist_parameter_tmp_vec, &
-                                        INVSUBSCATFORWARD)
+    call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                    this%parameter_tmp_vec, &
+                                    this%dist_parameter_tmp_vec, &
+                                    INVAUX_SCATFORWARD)
   endif
 
   ! Data part
-  call VecDuplicate(this%measurement_vec,r1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%inversion_aux%measurement_vec,r1,ierr);CHKERRQ(ierr)
   call VecDuplicate(this%dist_parameter_tmp_vec,s1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
   r1vec_ptr = this%r(1:num_measurement)
   call VecRestoreArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
-  call InvSubsurfScatMeasToDistMeas(this, &
-                                    r1, &
-                                    this%dist_measurement_vec, &
-                                    INVSUBSCATFORWARD)
-  call VecGetArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(this%dist_measurement_vec,r1vec_ptr, &
+  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                r1, &
+                                this%inversion_aux%dist_measurement_vec, &
+                                INVAUX_SCATFORWARD)
+  call VecGetArrayF90(this%inversion_aux%dist_measurement_vec,r1vec_ptr, &
+                      ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%inversion_aux%dist_measurement_vec,r1vec_ptr, &
                           ierr);CHKERRQ(ierr)
 
   ! s = J^T*r -> data part
-  call MatMult(inversion_aux%JsensitivityT,this%dist_measurement_vec,s1, &
-               ierr);CHKERRQ(ierr)
+  call MatMult(inversion_aux%JsensitivityT, &
+               this%inversion_aux%dist_measurement_vec,s1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(s1,s1vec_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%dist_parameter_tmp_vec,s2vec_ptr, &
@@ -2279,7 +2314,21 @@ end subroutine InversionZFlowComputeMatVecProductJtr
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowWriteIterationInfo(this)
+subroutine InvZFlowWriteIterationInfo(this)
+
+  class(inversion_zflow_type) :: this
+
+  if (this%info_format == 1) then
+    call InvZFlowWriteIterationInfo2(this)
+  else
+    call InvZFlowWriteIterationInfo1(this)
+  endif
+
+end subroutine InvZFlowWriteIterationInfo
+
+! ************************************************************************** !
+
+subroutine InvZFlowWriteIterationInfo1(this)
   !
   ! Writes inversion run info
   !
@@ -2296,21 +2345,41 @@ subroutine InversionZFlowWriteIterationInfo(this)
   PetscInt :: fid
   PetscInt, parameter :: zeronum = 0
 
+  call InvSubsurfWriteIterationInfo(this)
   if (this%driver%PrintToScreen()) then
     write(*,*)
     write(*,98)
-    if (this%iteration == this%start_iteration) then
-      write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AT &
-                              &STARTING ITERATION:",C_RED), this%start_iteration
+    if (this%string_color) then
+      if (this%iteration == this%start_iteration) then
+        write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AT &
+                                &STARTING ITERATION:",C_RED), &
+                                this%start_iteration
+      else
+        write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AFTER &
+                                  &ITERATION:",C_RED),this%iteration
+      endif
     else
-      write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AFTER &
-                                 &ITERATION:",C_RED),this%iteration
+      if (this%iteration == this%start_iteration) then
+        write(*,'(/,2x,a,i6.4,/)') "CONVERGENCE STATISTICS AT &
+                                &STARTING ITERATION:", &
+                                this%start_iteration
+      else
+        write(*,'(/,2x,a,i6.4,/)') "CONVERGENCE STATISTICS AFTER &
+                                  &ITERATION:", this%iteration
+      endif
     endif
     write(*,99)
-    write(*,*) StringColor("  Phi_data   ",C_GREEN), &
-               StringColor("   Phi_Model  ",C_BLUE), &
-               StringColor("  Phi_Model/Beta",C_MAGENTA), &
-               StringColor("    Phi_Total   ",C_CYAN)
+    if (this%string_color) then
+      write(*,*) StringColor("  Phi_data   ",C_GREEN), &
+                StringColor("   Phi_Model  ",C_BLUE), &
+                StringColor("  Phi_Model/Beta",C_MAGENTA), &
+                StringColor("    Phi_Total   ",C_CYAN)
+    else
+      write(*,*) "  Phi_data   ", &
+                 "   Phi_Model  ", &
+                 "  Phi_Model/Beta", &
+                 "    Phi_Total   "
+    endif
     write(*,102) this%phi_data,this%phi_model,this%phi_model/this%beta, &
                  this%phi_total
     write(*,*)
@@ -2381,7 +2450,101 @@ subroutine InversionZFlowWriteIterationInfo(this)
 110 format(4x,'Minimum reduction in Phi_Total ' /,8x, &
                  &'before Beta reduction:     ',2x,f15.4," %")
 
-end subroutine InversionZFlowWriteIterationInfo
+end subroutine InvZFlowWriteIterationInfo1
+
+! ************************************************************************** !
+
+subroutine InvZFlowWriteIterationInfo2(this)
+  !
+  ! Writes inversion run info
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/16/22
+  !
+
+  use String_module
+
+  implicit none
+
+  class(inversion_zflow_type) :: this
+
+  character(len=:), allocatable :: string
+  character(len=:), allocatable :: nl
+  character(len=80) :: divider
+
+  nl = new_line('a')
+  write(divider,'(40("=+"))')
+  string = nl // trim(divider)
+  call this%driver%PrintMsg(string)
+  string = nl // ' Iteration ' // &
+           StringWrite(this%iteration) // nl
+
+  call InvSubsurfWriteIterationInfo(this)
+  string = nl // ' Convergence statistics' // nl
+  call this%driver%PrintMsg(string)
+  string = Helper1('Phi_Data') // &
+             Helper2(StringWriteF(this%phi_data)) // nl // &
+           Helper1('Phi_Model') // &
+             Helper2(StringWriteF(this%phi_model)) // nl // &
+           Helper1('Phi_Model/Beta') // &
+             Helper2(StringWriteF(this%phi_model/this%beta)) // nl // &
+           Helper1('Phi_Total') // &
+             Helper2(StringWriteF(this%phi_total)) // nl
+  call this%driver%PrintMsg(string)
+  string = Helper1('Number of Constraint Eqs') // &
+             Helper2(StringWrite(this%num_constraints_total)) // nl // &
+           Helper1('Current Chi2') // &
+             Helper2(StringWriteF(this%current_chi2)) // nl // &
+           Helper1('Target Chi2') // &
+             Helper2(StringWriteF(this%target_chi2)) // nl // &
+           Helper1('RMS error') // &
+             Helper2(StringWriteF(sqrt(this%current_chi2))) // nl // &
+           Helper1('Beta') // &
+             Helper2(StringWriteF(this%beta)) // nl // &
+           Helper1('Beta reduction factor') // &
+             Helper2(StringWriteF(this%beta_red_factor)) // nl // &
+           Helper1('Reduction in Phi_Total') // &
+             Helper2(StringWriteF(100.d0*(this%phi_total_0 - &
+                                 this%phi_total)/this%phi_total_0)) // &
+             ' %' // nl // &
+           '  Minimum reduction in Phi_Total' // nl // &
+           Helper1('before Beta reduction') // &
+             Helper2(StringWriteF(100.d0*this%min_phi_red)) // ' %'
+
+  call this%driver%PrintMsg(string)
+
+  string = nl // divider // nl
+  call this%driver%PrintMsg(string)
+
+contains
+
+function Helper1(str)
+
+  use String_module
+
+  character(len=*) :: str
+
+  character(len=35) :: Helper1
+
+  Helper1 = trim(str) // ' :'
+  Helper1 = adjustr(Helper1)
+
+end function Helper1
+
+function Helper2(str)
+
+  use String_module
+
+  character(len=*) :: str
+
+  character(len=20) :: Helper2
+
+  Helper2 = trim(str)
+  Helper2 = adjustr(Helper2)
+
+end function Helper2
+
+end subroutine InvZFlowWriteIterationInfo2
 
 ! ************************************************************************** !
 
@@ -2402,29 +2565,152 @@ subroutine InversionZFlowScaleSensitivity(this)
   PetscReal, pointer :: wdvec_ptr(:)
   PetscErrorCode :: ierr
 
-  num_measurement = size(this%measurements)
-  call VecDuplicate(this%measurement_vec,wd_vec,ierr);CHKERRQ(ierr)
+  num_measurement = size(this%inversion_aux%measurements)
+  call VecDuplicate(this%inversion_aux%measurement_vec,wd_vec, &
+                    ierr);CHKERRQ(ierr)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
-    wdvec_ptr(idata) = this%measurements(idata)%weight
+    wdvec_ptr(idata) = this%inversion_aux%measurements(idata)%weight
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
-  call InvSubsurfScatMeasToDistMeas(this, &
-                                    wd_vec, &
-                                    this%dist_measurement_vec, &
-                                    INVSUBSCATFORWARD)
+  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                wd_vec, &
+                                this%inversion_aux%dist_measurement_vec, &
+                                INVAUX_SCATFORWARD)
 
   ! Column Scale with wd
   call MatDiagonalScale(this%inversion_aux%JsensitivityT,PETSC_NULL_VEC, &
-                        this%dist_measurement_vec,ierr);CHKERRQ(ierr)
+                        this%inversion_aux%dist_measurement_vec, &
+                        ierr);CHKERRQ(ierr)
   ! Row scale with parameter
   call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        this%dist_parameter_vec,PETSC_NULL_VEC, &
+                        this%inversion_aux%dist_parameter_vec,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   call VecDestroy(wd_vec,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowScaleSensitivity
+
+! ************************************************************************** !
+
+subroutine InversionZFlowCheckpoint(this)
+  !
+  ! Checkpoints the values of parameters and inversion settings for the
+  ! current iterate
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/22
+  !
+  use hdf5
+  use Driver_class
+  use HDF5_Aux_module
+  use String_module
+
+  class(inversion_zflow_type) :: this
+
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  if (len_trim(this%checkpoint_filename) == 0) return
+
+  call this%driver%PrintMsg('Checkpointing inversion iteration ' // &
+                            trim(StringWrite(this%iteration)) // '.')
+  call HDF5FileOpen(this%checkpoint_filename,file_id,(this%iteration==1), &
+                    this%driver)
+  call HDF5AttributeWrite(file_id,H5T_NATIVE_INTEGER,'Last Iteration', &
+                          this%iteration,this%driver)
+  string = 'Iteration ' // trim(StringWrite(this%iteration))
+  call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
+                          this%phi_total,this%driver)
+  call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
+                          this%phi_data,this%driver)
+  call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
+                          this%phi_model,this%driver)
+  call VecGetArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call HDF5DatasetWrite(grp_id,'Parameter Values',vec_ptr,this%driver)
+  call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(this%inversion_aux%measurement_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call HDF5DatasetWrite(grp_id,'Measurement Values',vec_ptr,this%driver)
+  call VecRestoreArrayReadF90(this%inversion_aux%measurement_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5FileClose(file_id)
+
+end subroutine InversionZFlowCheckpoint
+
+! ************************************************************************** !
+
+subroutine InversionZFlowRestartReadData(this)
+  !
+  ! Reads inversion parameters for a specific iteration from the inversion
+  ! checkpoint file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/22
+  !
+  use hdf5
+  use Driver_class
+  use HDF5_Aux_module
+  use String_module
+
+  class(inversion_zflow_type) :: this
+
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  if (.not.this%inversion_aux%startup_phase .or. &
+      Uninitialized(this%restart_iteration)) return
+
+  call this%driver%PrintMsg('Reading inversion parameters from inversion &
+                            &checkpoint file "' // &
+                            trim(this%restart_filename) // '".')
+  call HDF5FileOpen(this%restart_filename,file_id,PETSC_FALSE,this%driver)
+  string = 'Iteration 1'
+  call HDF5GroupOpen(file_id,string,grp_id,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
+                         this%phi_total_0,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
+                         this%phi_data_0,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
+                         this%phi_model_0,this%driver)
+  call h5gclose_f(grp_id,hdf5_err)
+  string = 'Iteration ' // trim(StringWrite(this%restart_iteration))
+  call HDF5GroupOpen(file_id,string,grp_id,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
+                         this%phi_total,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
+                         this%phi_data,this%driver)
+  call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
+                         this%phi_model,this%driver)
+  call VecGetArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call HDF5DatasetRead(grp_id,'Parameter Values',vec_ptr,this%driver)
+  call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5FileClose(file_id)
+
+  call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
+                                     INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_FROM_VEC)
+  call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                  this%inversion_aux%parameter_vec, &
+                                  this%inversion_aux%dist_parameter_vec, &
+                                  INVAUX_SCATFORWARD)
+
+end subroutine InversionZFlowRestartReadData
 
 ! ************************************************************************** !
 

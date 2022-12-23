@@ -824,7 +824,7 @@ subroutine ILTRead(illitization_function, input, option)
 
   input%ierr = 0
   error_string = 'ILLITIZATION_FUNCTION,'
-  select type(illitization_function => illitization_function)
+  select type(illitization_function_ => illitization_function)
     class is(ILT_default_type)
       error_string = trim(error_string) // 'DEFAULT'
     class is(ILT_general_type)
@@ -840,12 +840,12 @@ subroutine ILTRead(illitization_function, input, option)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
-    select type(illitization_function => illitization_function)
+    select type(illitization_function_ => illitization_function)
       !------------------------------------------
       class is(ILT_default_type)
         select case(trim(keyword))
           case default
-            call ILTDefaultRead(illitization_function,input,keyword, &
+            call ILTDefaultRead(illitization_function_,input,keyword, &
                                 error_string,'DEFAULT',option)
         end select
       !------------------------------------------
@@ -853,16 +853,16 @@ subroutine ILTRead(illitization_function, input, option)
         select case(trim(keyword))
           case('K_EXP')
             ! Exponent of potassium cation concentration
-            call InputReadDouble(input,option,illitization_function%K_exp)
+            call InputReadDouble(input,option,illitization_function_%K_exp)
             call InputErrorMsg(input,option,'potassium concentration exponent',&
                                'ILLITIZATION, GENERAL')
           case('SMECTITE_EXP')
             ! Exponent of smectite fraction
-            call InputReadDouble(input,option,illitization_function%exp)
+            call InputReadDouble(input,option,illitization_function_%exp)
             call InputErrorMsg(input,option,'smectite exponent', &
                                'ILLITIZATION, GENERAL')
           case default
-            call ILTDefaultRead(illitization_function,input,keyword, &
+            call ILTDefaultRead(illitization_function_,input,keyword, &
                                 error_string,'GENERAL',option)
         end select
       !------------------------------------------
@@ -1409,16 +1409,21 @@ subroutine ILTBaseTest(this, name, option)
   PetscReal :: smec_vec(ns)
   PetscReal :: temp_vec(nt)
   PetscReal :: time_vec(np)
-  PetscReal :: fi(ns,nt,np)
-  PetscReal :: dfi_dtemp_numerical(ns,nt,np)
+  PetscReal, allocatable :: fi(:,:,:)
+  PetscReal, allocatable :: dfi_dtemp_numerical(:,:,:)
+  PetscReal, allocatable :: sc(:,:,:)
   PetscReal :: perturbed_temp
   PetscReal :: fi_temp_pert
   PetscReal :: smec_min, smec_max
   PetscReal :: temp_min, temp_max
-  PetscReal :: sc(ns,nt,np), sc_temp_pert
+  PetscReal :: sc_temp_pert
   PetscReal :: dt,fs0_original
   PetscReal :: fs, fsp
   PetscInt :: i, j, k
+
+  allocate(fi(ns,nt,np))
+  allocate(sc(ns,nt,np))
+  allocate(dfi_dtemp_numerical(ns,nt,np))
 
   ! thermal conductivity as a function of temp. and liq. sat.
   smec_min = 1.0d-1 ! Minimum fraction smectite
@@ -1467,7 +1472,7 @@ subroutine ILTBaseTest(this, name, option)
   string = trim(name) // '_ilt_vs_time_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"initial smectite [-]", "temperature [C]", &
-               "time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
+              &"time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
   do i = 1,ns
     do j = 1,nt
       do k = 2,np
@@ -1477,6 +1482,10 @@ subroutine ILTBaseTest(this, name, option)
     enddo
   enddo
   close(86)
+
+  deallocate(fi)
+  deallocate(sc)
+  deallocate(dfi_dtemp_numerical)
 
   ! reset to original values
   this%fs0 = fs0_original
@@ -2153,54 +2162,54 @@ subroutine MaterialTransformInputRecord(material_transform_list)
     if (associated(cur_material_transform%illitization)) then
       write(id,'(a29)') '--------------: '
       write(id,'(a29)',advance='no') 'illitization model: '
-      select type (illitization_function => cur_material_transform% &
+      select type (illitization_function_ => cur_material_transform% &
         illitization%illitization_function)
         !---------------------------------
         class is (ILT_default_type)
           write(id,'(a)') 'Huang et al., 1993'
           write(id,'(a29)',advance='no') 'initial smectite: '
-          write(word,'(es12.5)') illitization_function%fs0
+          write(word,'(es12.5)') illitization_function_%fs0
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'frequency: '
-          write(word,'(es12.5)') illitization_function%freq
+          write(word,'(es12.5)') illitization_function_%freq
           write(id,'(a)') adjustl(trim(word))//' L/mol-s'
           write(id,'(a29)',advance='no') 'activation energy: '
-          write(word,'(es12.5)') illitization_function%ea
+          write(word,'(es12.5)') illitization_function_%ea
           write(id,'(a)') adjustl(trim(word))//' J/mol'
           write(id,'(a29)',advance='no') 'K+ concentration: '
-          write(word,'(es12.5)') illitization_function%K_conc
+          write(word,'(es12.5)') illitization_function_%K_conc
           write(id,'(a)') adjustl(trim(word))//' M'
           write(id,'(a29)',advance='no') 'temperature threshold: '
-          write(word,'(es12.5)') illitization_function%threshold
+          write(word,'(es12.5)') illitization_function_%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call ILTPrintPermEffects(illitization_function)
-          call ILTPrintKdEffects(illitization_function)
+          call ILTPrintPermEffects(illitization_function_)
+          call ILTPrintKdEffects(illitization_function_)
         !---------------------------------
         class is (ILT_general_type)
           write(id,'(a)') 'Cuadros and Linares, 1996'
           write(id,'(a29)',advance='no') 'initial smectite: '
-          write(word,'(es12.5)') illitization_function%fs0
+          write(word,'(es12.5)') illitization_function_%fs0
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'smectite exponent: '
-          write(word,'(es12.5)') illitization_function%exp
+          write(word,'(es12.5)') illitization_function_%exp
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'frequency: '
-          write(word,'(es12.5)') illitization_function%freq
+          write(word,'(es12.5)') illitization_function_%freq
           write(id,'(a)') adjustl(trim(word))//' '
           write(id,'(a29)',advance='no') 'activation energy: '
-          write(word,'(es12.5)') illitization_function%ea
+          write(word,'(es12.5)') illitization_function_%ea
           write(id,'(a)') adjustl(trim(word))//' J/mol'
           write(id,'(a29)',advance='no') 'K+ concentration: '
-          write(word,'(es12.5)') illitization_function%K_conc
+          write(word,'(es12.5)') illitization_function_%K_conc
           write(id,'(a)') adjustl(trim(word))//' M'
           write(id,'(a29)',advance='no') 'K+ conc. exponent: '
-          write(word,'(es12.5)') illitization_function%K_exp
+          write(word,'(es12.5)') illitization_function_%K_exp
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'temperature threshold: '
-          write(word,'(es12.5)') illitization_function%threshold
+          write(word,'(es12.5)') illitization_function_%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call ILTPrintPermEffects(illitization_function)
-          call ILTPrintKdEffects(illitization_function)
+          call ILTPrintPermEffects(illitization_function_)
+          call ILTPrintKdEffects(illitization_function_)
       end select
     endif
 

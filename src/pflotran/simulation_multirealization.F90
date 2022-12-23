@@ -44,7 +44,7 @@ function SimulationMRCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-   use Driver_module
+   use Driver_class
 
   class(simulation_multirealization_type), pointer :: SimulationMRCreate
   class(driver_type), pointer :: driver
@@ -63,7 +63,7 @@ subroutine SimulationMRInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Driver_module
+  use Driver_class
 
   class(simulation_multirealization_type) :: this
   class(driver_type), pointer :: driver
@@ -227,10 +227,12 @@ subroutine SimulationMRInitializeRun(this)
   endif
   if (this%num_groups > this%num_realizations) then
     write(string,*) this%num_realizations
-    option%io_buffer = 'Number of stochastic realizations (' // adjustl(string)
+    option%io_buffer = 'Number of stochastic realizations (' // &
+      trim(adjustl(string))
     write(string,*) this%num_groups
     option%io_buffer = trim(option%io_buffer) // ') must be equal to &
-         &or greater than number of processor groups (' // adjustl(string)
+         &or greater than number of processor groups (' // &
+         trim(adjustl(string))
     option%io_buffer = trim(option%io_buffer) // ').'
     call PrintErrMsg(option)
   endif

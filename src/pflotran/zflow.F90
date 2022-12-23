@@ -255,6 +255,11 @@ subroutine ZFlowSetup(realization)
   zflow_ts_count = 0
   zflow_ts_cut_count = 0
   zflow_ni_count = 0
+  if (Initialized(zflow_debug_cell_id) .and. &
+      option%comm%mycommsize > 1) then
+    option%io_buffer = 'Cannot debug cells in parallel.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine ZFlowSetup
 
@@ -488,7 +493,6 @@ subroutine ZFlowUpdateAuxVars(realization)
   use Connection_module
   use Material_module
   use Material_Aux_module
-  use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
 
   implicit none
 
@@ -697,7 +701,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
     call PetUtilVecSVBL(accum_p,local_id,Res,ndof,PETSC_TRUE)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
-      patch%aux%inversion_forward_aux%last%dRes_du_k(:,:,local_id) = &
+      patch%aux%inversion_aux%last_forward_ts_aux%dRes_du_k(:,:,local_id) = &
         -Jdum(1:ndof,1:ndof)
     endif
   enddo
@@ -741,7 +745,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
-  Mat, parameter :: null_mat = tMat(0)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -815,9 +818,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   store_adjoint = PETSC_FALSE
   MatdResdparam = PETSC_NULL_MAT
   call MatZeroEntries(A,ierr);CHKERRQ(ierr)
-  if (associated(patch%aux%inversion_forward_aux)) then
-    if (patch%aux%inversion_forward_aux%store_adjoint) then
-      MatdResdparam = patch%aux%inversion_forward_aux%last%dResdparam
+  if (associated(patch%aux%inversion_aux)) then
+    if (patch%aux%inversion_aux%store_adjoint) then
+      MatdResdparam = patch%aux%inversion_aux%last_forward_ts_aux%dResdparam
       if (MatdResdparam /= PETSC_NULL_MAT) then
         store_adjoint = PETSC_TRUE
         call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)
@@ -927,7 +930,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(:,iconn), &
                               zflow_parameter,option,v_darcy, &
-                              Res,Jup,Jdn,dResdparamup,dResdparamdn)
+                              Res,Jup,Jdn,dResdparamup,dResdparamdn, &
+                              (local_id_up == zflow_debug_cell_id .or. &
+                               local_id_dn == zflow_debug_cell_id))
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
           patch%internal_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)
@@ -1000,7 +1005,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
                                 zflow_parameter,option, &
-                                v_darcy,Res,Jdn,dResdparamdn)
+                                v_darcy,Res,Jdn,dResdparamdn, &
+                                local_id == zflow_debug_cell_id)
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
           patch%boundary_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)

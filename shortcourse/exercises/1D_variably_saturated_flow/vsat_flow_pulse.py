@@ -29,7 +29,7 @@ line_styles.append('--')
 f = plt.figure(figsize=(6,6))
 plt.subplot(1,1,1)
 f.suptitle("1D Variably Saturated Flow - Pulse",fontsize=16)
-plt.xlabel('Saturation [-]')
+plt.xlabel('Liquid Saturation [-]')
 plt.ylabel('Z [m]')
 
 plt.xlim(0.,1.)

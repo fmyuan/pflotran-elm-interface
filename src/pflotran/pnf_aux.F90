@@ -156,7 +156,6 @@ subroutine PNFAuxVarCompute(x,pnf_auxvar,global_auxvar, &
   use Global_Aux_module
   use Characteristic_Curves_module
   use Material_Aux_module
-  use Variables_module, only : SOIL_REFERENCE_PRESSURE
 
   implicit none
 

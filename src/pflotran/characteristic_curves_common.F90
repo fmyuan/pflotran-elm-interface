@@ -252,6 +252,26 @@ module Characteristic_Curves_Common_module
   end type rpf_IGHCC2_Comp_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
+                                     rpf_mod_Brooks_Corey_liq_type
+    PetscReal :: kr_max
+    PetscReal :: n
+  contains
+    procedure, public :: Init => RPFModBrooksCoreyLiqInit
+    procedure, public :: Verify => RPFModBrooksCoreyLiqVerify
+    procedure, public :: RelativePermeability => RPFModBrooksCoreyLiqRelPerm
+  end type rpf_mod_Brooks_Corey_liq_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rel_perm_func_base_type) :: &
+                                       rpf_mod_Brooks_Corey_gas_type
+    PetscReal :: kr_max
+    PetscReal :: n
+  contains
+    procedure, public :: Init => RPFModBrooksCoreyGasInit
+    procedure, public :: Verify => RPFModBrooksCoreyGasVerify
+    procedure, public :: RelativePermeability => RPFModBrooksCoreyGasRelPerm
+  end type rpf_mod_Brooks_Corey_gas_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rel_perm_func_base_type) :: &
                                      rpf_Table_liq_type
     class(dataset_ascii_type), pointer :: rpf_dataset
   contains
@@ -301,6 +321,8 @@ module Characteristic_Curves_Common_module
             RPFMualemVGLiqRelPerm, &
             RPFIGHCC2CompLiqCreate, &
             RPFIGHCC2CompGasCreate, &
+            RPFModBrooksCoreyLiqCreate, &
+            RPFModBrooksCoreyGasCreate, &
             RPFTableLiqCreate, &
             RPFTableGasCreate
 
@@ -1789,8 +1811,6 @@ subroutine SFLinearD2SatDP2(this,pc,d2s_dp2,option)
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
 
-  PetscReal, parameter :: dpc_dpres = -1.d0
-
   d2s_dp2 = 0.d0
 
 end subroutine SFLinearD2SatDP2
@@ -2570,6 +2590,121 @@ end subroutine RPFIGHCC2CompLiqRelPerm
 ! ************************************************************************** !
 ! ************************************************************************** !
 
+function RPFModBrooksCoreyLiqCreate()
+
+  ! Creates the modified Brooks Corey relative permeability function object
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_liq_type), pointer :: &
+                        RPFModBrooksCoreyLiqCreate
+
+  allocate(RPFModBrooksCoreyLiqCreate)
+  call RPFModBrooksCoreyLiqCreate%Init()
+
+end function RPFModBrooksCoreyLiqCreate
+
+! ************************************************************************** !
+
+subroutine RPFModBrooksCoreyLiqInit(this)
+
+  ! Initializes the modified Brooks Corey relative permeability function object
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_liq_type) :: this
+
+  call RPFBaseInit(this)
+  this%kr_max = UNINITIALIZED_DOUBLE
+  this%n = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine RPFModBrooksCoreyLiqInit
+
+! ************************************************************************** !
+
+subroutine RPFModBrooksCoreyLiqVerify(this,name,option)
+
+  ! Initializes the modified Brooks Corey relative permeability function object
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_liq_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,MODIFIED_BROOKS_COREY_LIQ'
+  endif
+  call RPFBaseVerify(this,name,option)
+  if (Uninitialized(this%kr_max)) then
+    option%io_buffer = UninitializedMessage('KR_MAX',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kr_max)) then
+    option%io_buffer = UninitializedMessage('N',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%Srg)) then
+    this%Srg = 0.d0
+  endif
+
+end subroutine RPFModBrooksCoreyLiqVerify
+
+! ************************************************************************** !
+
+subroutine RPFModBrooksCoreyLiqRelPerm(this,liquid_saturation, &
+                              relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability (and associated derivatives) as a
+  ! function of saturation.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/09/22
+  !
+  use Option_module
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_liq_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: dkr_Se
+  PetscReal :: one_over_demoninator
+
+  relative_permeability = 0.d0
+  dkr_sat = 0.d0
+
+  one_over_demoninator = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  Se = (liquid_saturation - this%Sr) * one_over_demoninator
+  if (Se >= 1.d0) then
+    relative_permeability = this%kr_max
+    return
+  else if (Se <= 0.d0) then
+    relative_permeability = 0.d0
+    return
+  endif
+
+  relative_permeability = this%kr_max * Se**this%n
+  dkr_Se =  this%n*relative_permeability/Se
+  dkr_sat = dkr_Se * one_over_demoninator
+
+end subroutine RPFModBrooksCoreyLiqRelPerm
+
+! ************************************************************************** !
+! ************************************************************************** !
+
 function RPFTableLiqCreate()
 
   ! Creates the Lookup Table relative permeability function object
@@ -2666,7 +2801,7 @@ subroutine RPFTableLiqRelPerm(this,liquid_saturation, &
   if (liquid_saturation <= this%sr) then
     relative_permeability = 0.d0
     dkr_sat = (dataset%rbuffer(2*j+2) - dataset%rbuffer(2*j)) / &
-                 (dataset%rbuffer(2*j+1) - dataset%rbuffer(2*j-1)) 
+                 (dataset%rbuffer(2*j+1) - dataset%rbuffer(2*j-1))
     !dkr_sat = 0.d0 !Not exactly true
     return
   endif
@@ -2887,49 +3022,165 @@ subroutine RPFIGHCC2CompGasVerify(this,name,option)
 end subroutine RPFIGHCC2CompGasVerify
 
 ! ************************************************************************** !
+
 subroutine RPFIGHCC2CompGasRelPerm(this,liquid_saturation, &
+  relative_permeability,dkr_sat,option)
+!
+! Computes the relative permeability (and associated derivatives) as a
+! function of saturation, to benchmark against IGHCC2 study.
+!
+! Author: Michael Nole
+! Date: 05/16/19
+!
+use Option_module
+
+implicit none
+
+class(rpf_IGHCC2_Comp_gas_type) :: this
+PetscReal, intent(in) :: liquid_saturation
+PetscReal, intent(out) :: relative_permeability
+PetscReal, intent(out) :: dkr_sat
+type(option_type), intent(inout) :: option
+
+PetscReal :: Se
+PetscReal :: power
+PetscReal :: dkr_Se
+PetscReal :: dSe_sat
+
+relative_permeability = 0.d0
+dkr_sat = 0.d0
+
+Se = (1.d0 - liquid_saturation - this%Srg) / (1.d0 - this%Sr)
+if (Se >= 1.d0) then
+relative_permeability = 1.d0
+return
+else if (Se <= 0.d0) then
+relative_permeability = 0.d0
+return
+endif
+
+power = this%lambda
+relative_permeability = Se**power
+dkr_Se = power*relative_permeability/Se
+dSe_sat = 1.d0 / (1.d0 - this%Sr)
+dkr_sat = dkr_Se * dSe_sat
+
+end subroutine RPFIGHCC2CompGasRelPerm
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPFModBrooksCoreyGasCreate()
+
+  ! Creates the modified Brooks Corey gas relative permeability function
+  ! object
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_gas_type), pointer :: &
+                        RPFModBrooksCoreyGasCreate
+
+  allocate(RPFModBrooksCoreyGasCreate)
+  call RPFModBrooksCoreyGasCreate%Init()
+
+end function RPFModBrooksCoreyGasCreate
+
+! ************************************************************************** !
+
+subroutine RPFModBrooksCoreyGasInit(this)
+
+  ! Initializes the modified Brooks Corey gas relative permeability function
+  ! object
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_gas_type) :: this
+
+  call RPFBaseInit(this)
+  this%kr_max = UNINITIALIZED_DOUBLE
+  this%n = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine RPFModBrooksCoreyGasInit
+
+! ************************************************************************** !
+
+subroutine RPFModBrooksCoreyGasVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_mod_Brooks_Corey_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,MODIFIED_BROOKS_COREY_GAS'
+  endif
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%kr_max)) then
+    option%io_buffer = UninitializedMessage('KR_MAX',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kr_max)) then
+    option%io_buffer = UninitializedMessage('N',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPFModBrooksCoreyGasVerify
+
+! ************************************************************************** !
+subroutine RPFModBrooksCoreyGasRelPerm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
   !
   ! Computes the relative permeability (and associated derivatives) as a
-  ! function of saturation, to benchmark against IGHCC2 study.
+  ! function of saturation.
   !
-  ! Author: Michael Nole
-  ! Date: 05/16/19
+  ! Author: Glenn Hammond
+  ! Date: 11/09/22
   !
   use Option_module
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_gas_type) :: this
+  class(rpf_mod_Brooks_Corey_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
 
   PetscReal :: Se
-  PetscReal :: power
   PetscReal :: dkr_Se
-  PetscReal :: dSe_sat
+  PetscReal :: one_over_demoninator
 
   relative_permeability = 0.d0
   dkr_sat = 0.d0
 
-  Se = (1.d0 - liquid_saturation - this%Srg) / (1.d0 - this%Sr)
+  one_over_demoninator = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  Se = (1.d0 - liquid_saturation - this%Srg) * one_over_demoninator
   if (Se >= 1.d0) then
-    relative_permeability = 1.d0
+    relative_permeability = this%kr_max
     return
   else if (Se <= 0.d0) then
     relative_permeability = 0.d0
     return
   endif
 
-  power = this%lambda
-  relative_permeability = Se**power
-  dkr_Se = power*relative_permeability/Se
-  dSe_sat = 1.d0 / (1.d0 - this%Sr)
-  dkr_sat = dkr_Se * dSe_sat
+  relative_permeability = this%kr_max*Se**this%n
+  dkr_Se =  this%n*relative_permeability/Se
+  dkr_sat = -1.d0*dkr_Se*one_over_demoninator
 
-end subroutine RPFIGHCC2CompGasRelPerm
+end subroutine RPFModBrooksCoreyGasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !

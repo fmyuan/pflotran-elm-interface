@@ -504,7 +504,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
 #endif
 
   ! Open the file collectively
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id, hdf5_err)
 
   ! Open group
@@ -583,7 +583,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   explicit_grid%cell_volumes = UNINITIALIZED_DOUBLE
   explicit_grid%cell_ids = UNINITIALIZED_INTEGER
   do icell = 1, num_cells_local
-    explicit_grid%cell_ids(icell) = icell + offset(1)
+    explicit_grid%cell_ids(icell) = icell + int(offset(1))
     explicit_grid%cell_volumes(icell) = double_buffer(icell)
   enddo
 

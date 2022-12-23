@@ -115,6 +115,7 @@ module Material_module
     PetscBool :: log_spacing
     PetscReal :: outer_spacing
     PetscReal :: area_scaling
+    PetscReal :: tortuosity
   end type multicontinuum_property_type
 
   type, public :: material_property_ptr_type
@@ -256,6 +257,7 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%log_spacing = PETSC_FALSE
     material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
+    material_property%multicontinuum%tortuosity = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
     nullify(material_property%multicontinuum%half_matrix_width_dataset)
   endif
@@ -300,6 +302,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
   PetscBool :: perm_iso_read
+  PetscBool :: perm_horizontal_read
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
@@ -491,6 +494,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('PERMEABILITY')
         ! if PERM_ISO is read, we cannot assign anisotropy
         perm_iso_read = PETSC_FALSE
+        ! if PERM_HORIZTONAL is read, we can assign vertical anisotropy
+        perm_horizontal_read = PETSC_FALSE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -614,6 +619,15 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                    MAXWORDLENGTH,PETSC_TRUE)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
+            case('PERM_HORIZONTAL')
+              perm_horizontal_read = PETSC_TRUE
+              call InputReadDouble(input,option, &
+                                   material_property%permeability(1,1))
+              call InputErrorMsg(input,option,'horizontal permeability', &
+                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              material_property%permeability(2,2) = &
+                material_property%permeability(1,1)
+              material_property%permeability(3,3) = UNINITIALIZED_DOUBLE
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
@@ -626,6 +640,18 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &anisotropic permeability options in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '".'
           call PrintErrMsg(option)
+        endif
+        if (perm_horizontal_read) then
+          if (Uninitialized(material_property%vertical_anisotropy_ratio)) then
+            option%io_buffer = 'VERTICAL_ANISOTROPY_RATIO must be specified &
+              &when PERM_HORIZONTAL is specified in  MATERIAL_PROPERTY "' // &
+              trim(material_property%name) // '".'
+            call PrintErrMsg(option)
+          else
+            material_property%permeability(3,3) = &
+              material_property%permeability(1,1) * &
+              material_property%vertical_anisotropy_ratio
+          endif
         endif
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
@@ -918,6 +944,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%area_scaling)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
+            case('TORTUOSITY')
+              call InputReadDouble(input,option, &
+                        material_property%multicontinuum%tortuosity)
+              call InputErrorMsg(input,option,'secondary continuum tortuosity', &
+                               'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')                           
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
@@ -2115,7 +2146,6 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
 
   use Option_module
   use Communicator_Base_class
-  use Variables_module, only : POROSITY
 
   implicit none
 

@@ -1051,7 +1051,7 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   do
     if (.not. associated(cur_m_transform)) exit
 
-    cur_m_transform%num_aux = local_mt_array(i) ! checkpoint #1
+    cur_m_transform%num_aux = int(local_mt_array(i)+1.d-5) ! checkpoint #1
 
     cur_m_transform => cur_m_transform%next
     i = i + stride
@@ -1465,7 +1465,7 @@ subroutine PMMTransformRestartBinary(this, viewer)
   do
     if (.not. associated(cur_m_transform)) exit
 
-    cur_m_transform%num_aux = local_mt_array(i) ! checkpoint #1
+    cur_m_transform%num_aux = int(local_mt_array(i)+1.d-5) ! checkpoint #1
 
     cur_m_transform => cur_m_transform%next
     i = i + stride

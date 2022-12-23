@@ -1,0 +1,40 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+          SOLUTE_TRANSPORT
+        /
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE bccribs_base.txt
+
+#=========================== output ===========================================
+skip
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    VARIABLES
+      LIQUID_SATURATION
+      SOLUTE_CONCENTRATION
+    /
+  /
+END
+noskip
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d6 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d5 y
+END
+
+END_SUBSURFACE

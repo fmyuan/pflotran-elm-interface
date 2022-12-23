@@ -25,6 +25,9 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_temp_dep_gas_air_diff = PETSC_TRUE
   PetscBool, public :: hydrate_harmonic_diff_density = PETSC_TRUE
   PetscInt, public :: hydrate_newton_iteration_number = 0
+  PetscInt, public :: hydrate_sub_newton_iter_num = 0
+  PetscInt, public :: hydrate_newtontrdc_prev_iter_num = 0
+  PetscBool, public :: hydrate_newtontrdc_hold_inner = PETSC_FALSE
   PetscBool, public :: hydrate_allow_state_change = PETSC_TRUE
   PetscBool, public :: hydrate_force_iteration = PETSC_FALSE
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
@@ -303,9 +306,8 @@ module Hydrate_Aux_module
             HydrateCompositeThermalCond,&
             HydratePE, &
             HydrateMethanogenesis, &
-            HenrysConstantMethane, &
             HydrateGHSZSolubilityCorrection, &
-            GibbsThomsonFreezing, &
+            CalcFreezingTempDepression, &
             EOSIceEnergy, &
             EOSHydrateEnthalpy
 
@@ -732,7 +734,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%xmol(acid,lid) = x(HYDRATE_L_STATE_X_MOLE_DOF)
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
 
-      hyd_auxvar%xmol(acid,lid) = max(0.d0,hyd_auxvar%xmol(acid,lid))
+      !hyd_auxvar%xmol(acid,lid) = max(0.d0,hyd_auxvar%xmol(acid,lid))
 
       hyd_auxvar%xmol(wid,lid) = 1.d0 - hyd_auxvar%xmol(acid,lid)
       hyd_auxvar%xmol(wid,gid) = 0.d0
@@ -746,7 +748,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                         hyd_auxvar%pres(spid),ierr)
       call HydratePE(hyd_auxvar%temp, 0.d0, PE_hyd, dP, characteristic_curves, &
                      material_auxvar,option)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       K_H_tilde_hyd = K_H_tilde
 
@@ -792,7 +795,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
 
@@ -829,7 +833,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydratePE(hyd_auxvar%temp,hyd_auxvar%sat(hid),PE_hyd,dP, &
               characteristic_curves, material_auxvar, option)
       hyd_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(apid)
 
@@ -884,7 +889,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(spid)
       hyd_auxvar%pres(apid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(vpid)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
@@ -939,7 +945,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                      characteristic_curves, material_auxvar, option)
 
       hyd_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       hyd_auxvar%xmol(acid,gid) = hyd_auxvar%pres(apid) / &
                                    hyd_auxvar%pres(gid)
@@ -948,8 +953,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       hyd_auxvar%xmol(acid,lid) = hyd_auxvar%pres(apid) / K_H_tilde
       hyd_auxvar%xmol(wid,lid) = 0.d0
 
@@ -987,15 +992,16 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydratePE(hyd_auxvar%temp, hyd_auxvar%sat(hid), PE_hyd, dP, &
                      characteristic_curves, material_auxvar,option)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
+      call EOSWaterSaturationPressure(hyd_auxvar%temp, &
+                                          hyd_auxvar%pres(spid),ierr)
+
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       if (hydrate_adjust_ghsz_solubility) then
         call HydrateGHSZSolubilityCorrection(hyd_auxvar%temp,hyd_auxvar% &
                                            pres(gid),dP,K_H_tilde)
       endif
-
-      call EOSWaterSaturationPressure(hyd_auxvar%temp, &
-                                          hyd_auxvar%pres(spid),ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
       hyd_auxvar%pres(cpid) = 0.d0
@@ -1031,7 +1037,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                 dP, characteristic_curves, material_auxvar,option)
 
       hyd_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       hyd_auxvar%pres(cpid) = 0.d0
       hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(cpid)
@@ -1088,19 +1095,15 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(hid) = 0.d0
       hyd_auxvar%sat(iid) = 1.d0 - hyd_auxvar%sat(lid)
 
-      if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(hyd_auxvar%sat(lid),L_ICE,ICE_DENSITY,&
-                                TQD, dTf,characteristic_curves, &
-                                material_auxvar,option)
-      else
-        dTf = 0.d0
-      endif
+      call CalcFreezingTempDepression(hyd_auxvar%sat(lid), &
+                                      characteristic_curves, dTf,option)
 
       hyd_auxvar%temp = TQD-dTf
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
       hyd_auxvar%pres(gid) = max(hyd_auxvar%pres(lid),hyd_auxvar%pres(spid))
@@ -1157,7 +1160,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
 
       !hyd_auxvar%pres(spid) = 1.d-6
 
@@ -1198,20 +1202,16 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                     h_sat_eff,i_sat_eff)
 
-      if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,material_auxvar,option)
-      else
-        dTf = 0.d0
-      endif
+      call CalcFreezingTempDepression(1.d0-i_sat_eff, &
+                                     characteristic_curves,dTf,option)
 
       hyd_auxvar%temp = TQD-dTf
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-      call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
-          characteristic_curves, material_auxvar,option)
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
-
+      call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
+           characteristic_curves, material_auxvar,option)
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       hyd_auxvar%pres(cpid) = 0.d0
 
       !hyd_auxvar%pres(spid) = 1.d-6
@@ -1277,17 +1277,17 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                     h_sat_eff,i_sat_eff)
 
-      if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE, &
-              ICE_DENSITY,TQD,dTf,characteristic_curves, material_auxvar,option)
-      endif
+      call CalcFreezingTempDepression(1.d0-i_sat_eff, &
+                                      characteristic_curves,dTf,option)
 
       hyd_auxvar%temp = TQD-dTf
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
+      
       !hyd_auxvar%pres(spid) = 1.d-6
 
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(spid)
@@ -1335,12 +1335,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                     h_sat_eff,i_sat_eff)
 
-      if (hydrate_with_gibbs_thomson) then
-        call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,material_auxvar,option)
-      else
-        dTf = 0.d0
-      endif
+      call CalcFreezingTempDepression(1.d0-i_sat_eff, &
+                                      characteristic_curves,dTf,option)
 
       hyd_auxvar%temp = TQD - dTf
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP, &
@@ -1350,8 +1346,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
 
-      call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
-
+      call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                       ierr)
       !hyd_auxvar%pres(spid) = 1.d-6
 
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(spid)
@@ -1615,6 +1611,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   use Option_module
   use Global_Aux_module
   use EOS_Water_module
+  use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_module
 
@@ -1638,6 +1635,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscInt :: gid, lid, hid, iid, acid
   PetscInt :: old_state,new_state
   PetscBool :: istatechng
+  PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string, append
 
   if (hydrate_immiscible .or. hyd_auxvar%istatechng) return
@@ -1687,18 +1685,16 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
           characteristic_curves, material_auxvar, option)
 
-  call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+  call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                   ierr)
   K_H_tilde_hyd = K_H_tilde
   if (hydrate_adjust_ghsz_solubility) then
         call HydrateGHSZSolubilityCorrection(hyd_auxvar%temp,hyd_auxvar% &
                                            pres(lid),dP,K_H_tilde_hyd)
   endif
-  if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-i_sat_eff,L_ICE,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,material_auxvar,option)
-  else
-    dTf = 0.d0
-  endif
+  dTf = 0.d0
+  call CalcFreezingTempDepression(1.d0-i_sat_eff,characteristic_curves,dTf, &
+                                  option)
 
   if (hydrate_xmol_nacl > 0.d0) then
     call IceSalinityOffset(hydrate_xmol_nacl,dTfs)
@@ -1737,8 +1733,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             istatechng = PETSC_TRUE
             global_auxvar%istate = HA_STATE
         elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
-            K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
-             pres(lid)*(1.d0-window_epsilon)) then
+            !K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+            !pres(lid)*(1.d0-window_epsilon)) then
+            hyd_auxvar%pres(vpid) <= hyd_auxvar% &
+             pres(spid)*(1.d0-window_epsilon)) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = GA_STATE
             liq_epsilon = hydrate_phase_chng_epsilon
@@ -2254,9 +2252,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     ********* Aqueous State (A) ********************************
 !     Primary variables: Pl, Xma, T
 !
-        x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(lid)
-        x(HYDRATE_L_STATE_X_MOLE_DOF) = max(0.d0,hyd_auxvar%xmol(acid,lid))
-        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
+
+        x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(lid) !* (1.d0 - epsilon)
+        x(HYDRATE_L_STATE_X_MOLE_DOF) = max(0.d0,hyd_auxvar%xmol(acid,lid)) !* &
+                                    !    (1.d0 + epsilon)
+        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp !*(1.d0-epsilon)
 
       case(G_STATE)
 !     ********* Gas State (G) ********************************
@@ -2286,9 +2286,12 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     ********* Gas & Aqueous State (GA) ********************************
 !     Primary variables: Pg, Sg, T
 !
-        x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid)
-        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
+
+        x(HYDRATE_GAS_PRESSURE_DOF) = max(hyd_auxvar%pres(gid),hyd_auxvar% &
+                                 pres(spid)) !*(1.d0+epsilon)
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid) !liq_epsilon
+        x(HYDRATE_ENERGY_DOF) = x(HYDRATE_ENERGY_DOF) !* &
+                                   !(1.d0 + epsilon - epsilon)
 
       case(HG_STATE)
 !     ********* Hydrate & Gas State (HG) ********************************
@@ -2425,13 +2428,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
   PetscInt :: lid, gid, hid
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
 !  PetscReal, parameter :: perturbation_tolerance = 1.d-11
-  PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
   PetscReal, parameter :: min_perturbation = 1.d-10
-
-  PetscReal, parameter :: min_pres_pert = 1.d-3
-  PetscReal, parameter :: min_temp_pert = 8.66d-9
-  PetscReal, parameter :: min_xmol_pert = 1.d-14
-  PetscReal, parameter :: min_sat_pert = 3.16d-11
 
   PetscInt :: idof
 
@@ -3553,7 +3550,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   dP = 0.d0
 
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-sat,L_GH, HYDRATE_DENSITY, T, dTf, &
+    call GibbsThomsonHydrate(1.d0-sat,L_GH, HYDRATE_DENSITY, T, dTf, &
                               characteristic_curves, material_auxvar, option)
   else
     dTf = 0.d0
@@ -3674,41 +3671,6 @@ subroutine HydrateMethanogenesis(z,offset,hydrate_parameter,q_meth)
 end subroutine HydrateMethanogenesis
 ! ************************************************************************** !
 
-subroutine HenrysConstantMethane(T,K_H)
-
-  !Calculates the Henry's constant of methane as a function of temperature
-  !(Carroll and Mather, 1997)
-  !
-  !Author: Michael Nole
-  !Date: 01/22/19
-  !
-  implicit none
-
-  PetscReal, intent(in) :: T
-  PetscReal, intent(out) :: K_H
-
-  PetscReal :: T_temp
-  PetscReal, parameter :: R = 8.314 !J/mol-K
-
-  T_temp = T + 273.15d0
-
-  select case(hydrate_henrys_constant)
-    case(1)
-      !Carroll & Mather  Units: Pa/mol frac
-      K_H = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
-            (T_temp**3)) *1.d3
-    case(2)
-      !Cramer, 1982
-      K_H = 1.d5*(24582.4d0 + 6.71091d2*T + 6.87067d0*T**2 - &
-                  1.773079d-1*T**3 + 1.09652d-03*T**4 - &
-                  3.19599d-6*T**5 + 4.46172d-9*T**6 - &
-                  2.40294d-12*T**7)
-  end select
-
-end subroutine HenrysConstantMethane
-
-! ************************************************************************** !
-
 subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                         h_sat_eff,i_sat_eff)
   !
@@ -3765,8 +3727,6 @@ subroutine HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
     i_sat_eff = hyd_auxvar%sat(iid)
   endif
 
-
-
 end subroutine HydrateComputeEffectiveSat
 
 ! ************************************************************************** !
@@ -3784,11 +3744,6 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
   PetscReal, intent(in) :: T, P
   PetscReal :: K_H, dP
 
-  PetscReal, parameter :: C3_0 = 156.36d0 !mM
-  PetscReal, parameter :: T_0 = 292.d0 !K
-  PetscReal, parameter :: P_0 = 20.d0 !MPa
-  PetscReal, parameter :: dC3_dT = 6.34d0 !mM
-  PetscReal, parameter :: dC3_dP = 1.11d0 !mM
   PetscReal, parameter :: alpha = 14.4d0 !C
   PetscReal :: logP
 
@@ -3834,7 +3789,44 @@ end subroutine HydrateGHSZSolubilityCorrection
 
 ! ************************************************************************** !
 
-subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,&
+subroutine CalcFreezingTempDepression(sat,characteristic_curves,dTf,option)
+
+  !This subroutine ties the capillary pressure function to a
+  !subcooling required to form ice in pores.
+  !
+  !Author: Michael Nole
+  !Date: 12/05/22
+  !
+
+  use Characteristic_Curves_module
+  use Option_module
+
+  implicit none
+
+  PetscReal, intent(in) :: sat !liquid saturation
+  type(option_type) :: option
+  class(characteristic_curves_type) :: characteristic_curves
+
+  PetscReal, intent(out) :: dTf
+
+  PetscReal :: Pc,dw,Tb,dpc_dsatl
+  PetscReal :: sigma, theta
+
+  sigma = 0.073d0 !interfacial tension
+  theta = 0.d0 !wetting angle
+  Tb = TQD !bulk freezing point
+  dw = ICE_DENSITY !density of water
+
+  !Clausius-Clapeyron derivation
+  call characteristic_curves%saturation_function% &
+         CapillaryPressure(sat,Pc,dpc_dsatl,option)
+  dTf = Pc/(L_ICE * dw * 1.d6) * (Tb + 273.15d0)
+
+end subroutine CalcFreezingTempDepression
+
+! ************************************************************************** !
+
+subroutine GibbsThomsonHydrate(sat,Hf,rho,Tb,dTf,characteristic_curves,&
                                 material_auxvar,option)
 
   !This subroutine ties the capillary pressure function to a Gibbs-Thomson
@@ -3876,7 +3868,7 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,&
   !endif
 
 
-end subroutine GibbsThomsonFreezing
+end subroutine GibbsThomsonHydrate
 
 ! ************************************************************************** !
 
@@ -3950,7 +3942,7 @@ subroutine HydrateSalinityOffset(xmol,dTd)
 
   !
   ! This ties salinity to the subcooling required to precipitate
-  ! hydrate in pores, similar to the GibbsThomsonFreezing subroutine
+  ! hydrate in pores, similar to the GibbsThomsonHydrate subroutine
   ! Based on the TOUGH method of PE-salinity behavior, using reference
   ! parameters from Dickens and Quinby-Hunt, 1997
   !

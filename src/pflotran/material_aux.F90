@@ -293,7 +293,7 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
     perm_tens_to_scal_model = model
   else
     option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
-                         model type is not recognized.'
+                        &model type is not recognized.'
     call PrintErrMsg(option)
   endif
 
@@ -668,6 +668,9 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
                                  soil_properties(soil_reference_pressure_index)
     case(ELECTRICAL_CONDUCTIVITY)
       MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)
+    case default
+      print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
+      stop
   end select
 
 end function MaterialAuxVarGetValue
@@ -723,6 +726,9 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(soil_reference_pressure_index) = value
     case(ELECTRICAL_CONDUCTIVITY)
       material_auxvar%electrical_conductivity(1) = value
+    case default
+      print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
+      stop
   end select
 
 end subroutine MaterialAuxVarSetValue

@@ -936,6 +936,12 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         hyd_auxvar_ss%pres(air_comp_id) = hyd_auxvar%pres(option%gas_phase)
       endif
 
+      if (associated(source_sink%flow_aux_real_var)) then
+        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+      else
+        scale = 1.d0
+      endif
+
       select case(flow_src_sink_type)
       case(MASS_RATE_SS)
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/ &
@@ -1213,18 +1219,19 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before HydrateUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
 
-  ! do update state
   hydrate_high_temp_ts_cut = PETSC_FALSE
 
   ! Add Newton-TR compatibility
-  !hydrate_allow_state_change = PETSC_TRUE
-  !hydrate_state_changed = PETSC_FALSE
-  !if (hydrate_sub_newton_iter_num > 1 .and. hydrate_using_newtontr) then
-  !  ! when newtonTR is active and has inner iterations to re-evaluate the
-  !  ! residual,primary variables must not change. -hdp
-  !  hydrate_allow_state_change = PETSC_FALSE
-  !endif
-                                             ! do update state
+  hydrate_allow_state_change = PETSC_TRUE
+  hydrate_state_changed = PETSC_FALSE
+  if (hydrate_sub_newton_iter_num > 1 .and. option%flow%using_newtontrdc .and. &
+      hydrate_newtontrdc_hold_inner) then
+    ! when newtonTR is active and has inner iterations to re-evaluate the
+    ! residual,primary variables must not change. -hdp
+    hydrate_allow_state_change = PETSC_FALSE
+  endif
+
+  ! do update state
   call HydrateUpdateAuxVars(realization,hydrate_allow_state_change)
 
   ! override flags since they will soon be out of date
@@ -1545,7 +1552,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
@@ -1582,6 +1588,11 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
+  call SNESGetIterationNumber(snes,hydrate_newton_iteration_number, &
+                              ierr);CHKERRQ(ierr)
+  hydrate_newton_iteration_number = hydrate_newton_iteration_number + 1
+
+  hydrate_sub_newton_iter_num = 0
   hydrate_force_iteration = PETSC_FALSE
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)

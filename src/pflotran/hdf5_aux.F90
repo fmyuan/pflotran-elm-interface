@@ -1,8 +1,10 @@
 module HDF5_Aux_module
 
 #include "petsc/finclude/petscsys.h"
+  use iso_c_binding
   use petscsys
   use hdf5
+  use h5lt
   use Logging_module
   use PFLOTRAN_Constants_module
 
@@ -11,12 +13,12 @@ module HDF5_Aux_module
   private
 
   PetscInt, parameter, public :: HDF5_READ_BUFFER_SIZE = 1000000
+  PetscMPIInt, parameter :: ON=1, OFF=0
 !#define HDF5_BROADCAST
 
   PetscErrorCode :: ierr
 
   integer :: hdf5_err
-  PetscMPIInt :: io_rank_mpi
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -25,12 +27,42 @@ module HDF5_Aux_module
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
+  interface HDF5AttributeRead
+    module procedure :: HDF5AttributeReadBase
+    module procedure :: HDF5AttributeReadDouble
+    module procedure :: HDF5AttributeReadInteger
+    module procedure :: HDF5AttributeReadIntegerArray1D
+  end interface
+
+  interface HDF5AttributeWrite
+    module procedure :: HDF5AttributeWriteBase
+    module procedure :: HDF5AttributeWriteDouble
+    module procedure :: HDF5AttributeWriteInteger
+    module procedure :: HDF5AttributeWriteIntegerArray1D
+  end interface
+
+  interface HDF5DatasetRead
+    module procedure :: HDF5DatasetReadInteger
+    module procedure :: HDF5DatasetReadDoubleArray1D
+  end interface
+
+  interface HDF5DatasetWrite
+    module procedure :: HDF5DatasetWriteInteger
+    module procedure :: HDF5DatasetWriteDoubleArray1D
+  end interface
+
   public :: HDF5ReadNDimRealArray, &
             HDF5GroupExists, &
             HDF5DatasetExists, &
             HDF5MakeStringCompatible, &
             HDF5ReadDbase, &
-            HDF5OpenFileReadOnly, &
+            HDF5AttributeRead, &
+            HDF5AttributeWrite, &
+            HDF5DatasetRead, &
+            HDF5DatasetWrite, &
+            HDF5FileOpen, &
+            HDF5FileOpenReadOnly, &
+            HDF5FileClose, &
             HDF5GroupOpen, &
             HDF5Init, &
             HDF5Finalize
@@ -238,7 +270,7 @@ end subroutine HDF5ReadDatasetReal1D
 
 ! ************************************************************************** !
 
-subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
+subroutine HDF5GroupOpen(parent_id,group_name,group_id,driver)
   !
   ! Opens an HDF5 group with proper error messaging when not found.
   !
@@ -246,14 +278,14 @@ subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
   ! Date: 06/28/18
   !
 
-  use Option_module
+  use Driver_class
 
   implicit none
 
   integer(HID_T) :: parent_id
   character(len=*) :: group_name
   integer(HID_T) :: group_id
-  type(option_type) :: option
+  class(driver_type) :: driver
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscMPIInt :: hdf5_err
@@ -261,8 +293,7 @@ subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
   string = adjustl(group_name)
   call h5gopen_f(parent_id,trim(string),group_id,hdf5_err)
   if (hdf5_err < 0) then
-    option%io_buffer = 'HDF5 Group "' // trim(string) // '" not found.'
-    call PrintErrMsg(option)
+    call driver%PrintErrMsg('HDF5 Group "' // trim(string) // '" not found.')
   endif
 
 end subroutine HDF5GroupOpen
@@ -298,7 +329,7 @@ function HDF5GroupExists(filename,group_name,option)
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
   ! open the file
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   option%io_buffer = 'Testing group: ' // trim(group_name)
@@ -368,7 +399,7 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
   ! open the file
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! I turn off error messaging since if the group does not exist, an error
@@ -480,7 +511,7 @@ subroutine HDF5ReadDbase(filename,option)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
   call h5gn_members_f(file_id, '.',num_objects, hdf5_err)
   num_ints = 0
@@ -678,7 +709,569 @@ end subroutine HDF5ReadDbase
 
 ! ************************************************************************** !
 
-subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,error_string,option)
+subroutine HDF5AttributeReadDouble(parent_id,attr_type,attr_name, &
+                                   buf,driver)
+!
+! Reads a single PetscReal dataset from an object
+!
+! Author: Glenn Hammond
+! Date: 12/08/22
+!
+
+use Driver_class
+
+integer(HID_T), intent(in) :: parent_id
+integer(HID_T), intent(in) :: attr_type
+character(len=*), intent(in) :: attr_name
+PetscReal, target, intent(out) :: buf
+class(driver_type), intent(in) :: driver
+
+type(c_ptr) :: ptr
+
+ptr = c_loc(buf)
+call HDF5AttributeReadBase(parent_id,attr_type,attr_name, &
+shape(buf),ptr,driver)
+
+end subroutine HDF5AttributeReadDouble
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeReadInteger(parent_id,attr_type,attr_name, &
+                                    buf,driver)
+!
+! Reads a single PetscInt dataset from an object
+!
+! Author: Glenn Hammond
+! Date: 12/08/22
+!
+
+use Driver_class
+
+integer(HID_T), intent(in) :: parent_id
+integer(HID_T), intent(in) :: attr_type
+character(len=*), intent(in) :: attr_name
+PetscInt, target, intent(out) :: buf
+class(driver_type), intent(in) :: driver
+
+type(c_ptr) :: ptr
+
+ptr = c_loc(buf)
+call HDF5AttributeReadBase(parent_id,attr_type,attr_name, &
+                           shape(buf),ptr,driver)
+
+end subroutine HDF5AttributeReadInteger
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeReadIntegerArray1D(parent_id,attr_type,attr_name, &
+                                           buf,driver)
+!
+! Reads a 1D PetscInt array dataset from an object
+!
+! Author: Glenn Hammond
+! Date: 12/08/22
+!
+
+use Driver_class
+
+integer(HID_T), intent(in) :: parent_id
+integer(HID_T), intent(in) :: attr_type
+character(len=*), intent(in) :: attr_name
+PetscInt, target, intent(inout) :: buf(:)
+class(driver_type), intent(in) :: driver
+
+type(c_ptr) :: ptr
+
+ptr = c_loc(buf)
+call HDF5AttributeReadBase(parent_id,attr_type,attr_name, &
+                           shape(buf),ptr,driver)
+
+end subroutine HDF5AttributeReadIntegerArray1D
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeReadBase(parent_id,attr_type,attr_name, &
+                                 attr_shape,buf,driver)
+  !
+  ! Reads a dataset from an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+  use String_module
+
+  integer(HID_T), intent(in) :: parent_id
+  integer(HID_T), intent(in) :: attr_type
+  character(len=*), intent(in) :: attr_name
+  PetscInt, intent(in) :: attr_shape(:)
+  type(c_ptr), intent(inout) :: buf
+  class(driver_type), intent(in) :: driver
+
+  integer(HID_T) :: attr_id
+  integer(HID_T) :: attr_type2
+  integer(HSIZE_T) :: dims(10)
+  integer(HSIZE_T) :: size_
+  integer(HSIZE_T) :: size2
+  integer :: ndims
+  integer :: i
+  integer :: hdf5_err
+  PetscBool :: is_equal
+
+  dims = 0
+  call h5aopen_f(parent_id,attr_name,attr_id,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Opening attribute "' // trim(attr_name) // '".')
+  endif
+  ndims = size(attr_shape)
+  call h5aget_type_f(attr_id,attr_type2,hdf5_err)
+  call h5tequal_f(attr_type,attr_type2,is_equal,hdf5_err)
+  if (.not.is_equal) then
+    call driver%PrintErrMsg('Mismatch in attribute type for "' // &
+                            trim(attr_name) // '" read.')
+  endif
+  call h5aget_storage_size_f(attr_id,size_,hdf5_err)
+  call h5tget_size_f(attr_type,size2,hdf5_err)
+  do i = 1, ndims
+    size2 = size2 * attr_shape(i)
+  enddo
+  if (size_ /= size2) then
+    call driver%PrintErrMsg('Mismatch in attribute size for "' // &
+                            trim(attr_name) // '" read: ' // &
+                            trim(StringWrite(int(size_))) // ' vs ' // &
+                            trim(StringWrite(int(size2))))
+  endif
+  call h5aread_f(attr_id,attr_type,buf,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Error reading attribute "' // &
+                            trim(attr_name) // '".')
+  endif
+  call h5aclose_f(attr_id,hdf5_err)
+
+end subroutine HDF5AttributeReadBase
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeWriteDouble(parent_id,attr_type,attr_name, &
+                                    buf,driver)
+!
+! Writes a single PetscInt dataset to an object
+!
+! Author: Glenn Hammond
+! Date: 12/08/22
+!
+
+use Driver_class
+
+integer(HID_T), intent(in) :: parent_id
+integer(HID_T), intent(in) :: attr_type
+character(len=*), intent(in) :: attr_name
+PetscReal, target, intent(in) :: buf
+class(driver_type), intent(in) :: driver
+
+call HDF5AttributeWrite(parent_id,attr_type,attr_name, &
+                        shape(buf),c_loc(buf),driver)
+
+end subroutine HDF5AttributeWriteDouble
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeWriteInteger(parent_id,attr_type,attr_name, &
+                                     buf,driver)
+!
+! Writes a single PetscInt dataset to an object
+!
+! Author: Glenn Hammond
+! Date: 12/08/22
+!
+
+use Driver_class
+
+integer(HID_T), intent(in) :: parent_id
+integer(HID_T), intent(in) :: attr_type
+character(len=*), intent(in) :: attr_name
+PetscInt, target, intent(in) :: buf
+class(driver_type), intent(in) :: driver
+
+call HDF5AttributeWrite(parent_id,attr_type,attr_name, &
+                        shape(buf),c_loc(buf),driver)
+
+end subroutine HDF5AttributeWriteInteger
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeWriteIntegerArray1D(parent_id,attr_type,attr_name, &
+                                            buf,driver)
+!
+! Writes a 1D PetscInt array dataset to an object
+!
+! Author: Glenn Hammond
+! Date: 12/08/22
+!
+
+use Driver_class
+
+integer(HID_T), intent(in) :: parent_id
+integer(HID_T), intent(in) :: attr_type
+character(len=*), intent(in) :: attr_name
+PetscInt, target, intent(in) :: buf(:)
+class(driver_type), intent(in) :: driver
+
+call HDF5AttributeWrite(parent_id,attr_type,attr_name, &
+                        shape(buf),c_loc(buf),driver)
+
+end subroutine HDF5AttributeWriteIntegerArray1D
+
+! ************************************************************************** !
+
+subroutine HDF5AttributeWriteBase(parent_id,attr_type,attr_name, &
+                                  attr_shape,buf,driver)
+  !
+  ! Writes a dataset to an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+  use String_module
+
+  integer(HID_T), intent(in) :: parent_id
+  integer(HID_T), intent(in) :: attr_type
+  character(len=*), intent(in) :: attr_name
+  PetscInt, intent(in) :: attr_shape(:)
+  type(c_ptr), intent(in) :: buf
+  class(driver_type), intent(in) :: driver
+
+  integer(HID_T) :: attr_id
+  integer(HID_T) :: attr_type2
+  integer(HID_T) :: dspace_id
+  integer(HSIZE_T) :: dims(10)
+  integer(HSIZE_T) :: size_
+  integer(HSIZE_T) :: size2
+  integer :: ndims
+  integer :: i
+  integer :: hdf5_err
+  integer :: hdf5_err2
+  PetscBool :: is_equal
+
+  dims = 0
+  call h5eset_auto_f(OFF,hdf5_err2)
+  call h5aopen_f(parent_id,attr_name,attr_id,hdf5_err)
+  call h5eset_auto_f(ON,hdf5_err2)
+  ndims = size(attr_shape)
+  if (hdf5_err == 0) then
+    ! if the attribute exists, overwrite it
+    call h5aget_type_f(attr_id,attr_type2,hdf5_err)
+    call h5tequal_f(attr_type,attr_type2,is_equal,hdf5_err)
+    if (.not.is_equal) then
+      call driver%PrintErrMsg('Mismatch in attribute type for "' // &
+                              trim(attr_name) // '" overwrite.')
+    endif
+    call h5aget_storage_size_f(attr_id,size_,hdf5_err)
+    call h5tget_size_f(attr_type,size2,hdf5_err)
+    do i = 1, ndims
+      size2 = size2 * attr_shape(i)
+    enddo
+    if (size_ /= size2) then
+      call driver%PrintErrMsg('Mismatch in attribute size for "' // &
+                              trim(attr_name) // '" overwrite: ' // &
+                              trim(StringWrite(int(size_))) // ' vs ' // &
+                              trim(StringWrite(int(size2))))
+    endif
+  else
+    ! otherwise, create it
+    if (ndims == 0) then
+      call h5screate_f(H5S_SCALAR_F,dspace_id,hdf5_err)
+    else
+      dims(1:ndims) = attr_shape
+      call h5screate_simple_f(ndims,dims,dspace_id,hdf5_err)
+    endif
+    call h5acreate_f(parent_id,attr_name,attr_type,dspace_id, &
+                     attr_id,hdf5_err)
+    call h5sclose_f(dspace_id,hdf5_err)
+  endif
+  call h5awrite_f(attr_id,attr_type,buf,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Error writing attribute "' // &
+                            trim(attr_name) // '".')
+  endif
+  call h5aclose_f(attr_id,hdf5_err)
+
+end subroutine HDF5AttributeWriteBase
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetReadDoubleArray1D(loc_id,dset_name,buf,driver)
+  !
+  ! Writes a 1D PetscReal dataset to an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+  use String_module
+
+  integer(HID_T), intent(in) :: loc_id
+  character(len=*), intent(in) :: dset_name  ! must be of variable length
+  PetscReal, target, intent(inout) :: buf(:)
+  class(driver_type), intent(in) :: driver
+
+  integer(HSIZE_T) :: dims(1)
+  type(c_ptr) :: ptr
+
+  dims(1) = size(buf,1)
+  ptr = c_loc(buf)
+  call HDF5DatasetReadBase(loc_id,dset_name,H5T_NATIVE_DOUBLE, &
+                           dims,ptr,'1D PetscReal',driver)
+
+end subroutine HDF5DatasetReadDoubleArray1D
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetReadInteger(loc_id,dset_name,buf,driver)
+  !
+  ! Writes a single PetscInt dataset to an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+
+  integer(HID_T), intent(in) :: loc_id
+  character(len=*), intent(in) :: dset_name  ! must be of variable length
+  PetscInt, target, intent(in) :: buf
+  class(driver_type), intent(in) :: driver
+
+  integer(HSIZE_T) :: dims(1)
+  type(c_ptr) :: ptr
+
+  dims(1) = 1
+  ptr = c_loc(buf)
+  call HDF5DatasetReadBase(loc_id,dset_name,H5T_NATIVE_INTEGER, &
+                           dims,ptr,'single PetscInt',driver)
+
+end subroutine HDF5DatasetReadInteger
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetReadBase(parent_id,dset_name,dset_type_expected, &
+                               dset_shape_expected,buf,dset_err_str,driver)
+  !
+  ! Reads a dataset from an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+  use String_module
+
+  integer(HID_T), intent(in) :: parent_id
+  character(len=*), intent(in) :: dset_name
+  integer(HID_T), intent(in) :: dset_type_expected
+  integer(HSIZE_T) :: dset_shape_expected(:)
+  type(c_ptr), intent(inout) :: buf
+  character(len=*), intent(in) :: dset_err_str
+  class(driver_type), intent(in) :: driver
+
+  integer(HID_T) :: dset_id
+  integer(HID_T) :: dset_type_in_file
+  integer(HSIZE_T) :: size_in_file
+  integer(HSIZE_T) :: size_expected
+  integer :: ndims_in_file
+  integer :: ndims_expected
+  integer :: i
+  integer :: hdf5_err
+  PetscBool :: is_equal
+
+  call h5dopen_f(parent_id,dset_name,dset_id,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Opening dataset "' // trim(dset_name) // '".')
+  endif
+  call h5ltget_dataset_ndims_f(parent_id,dset_name,ndims_in_file,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Reading ' // trim(dset_err_str) // &
+                            ' dataset "' // &
+                            trim(dset_name) // '" number of dimensions.')
+  endif
+  ndims_expected = size(dset_shape_expected)
+  if (ndims_in_file /= ndims_expected) then
+    call driver%PrintErrMsg(trim(dset_err_str) // ' dataset "' // &
+                            trim(dset_name) // &
+                            '" has incorrect dimensions: ' // &
+                            trim(StringWrite(ndims_in_file)) // &
+                            ' in file versus ' // &
+                            trim(StringWrite(ndims_expected)) // &
+                            ' expected.')
+  endif
+  call h5dget_type_f(dset_id,dset_type_in_file,hdf5_err)
+  call h5tequal_f(dset_type_expected,dset_type_in_file,is_equal,hdf5_err)
+  if (.not.is_equal) then
+    call driver%PrintErrMsg(trim(dset_err_str) // &
+                            ' has a mismatch in dataset type for "' // &
+                            trim(dset_name) // '" read.')
+  endif
+  call h5dget_storage_size_f(dset_id,size_in_file,hdf5_err)
+  call h5tget_size_f(dset_type_expected,size_expected,hdf5_err)
+  do i = 1, ndims_expected
+    size_expected = size_expected * dset_shape_expected(i)
+  enddo
+  if (size_in_file /= size_expected) then
+    call driver%PrintErrMsg(trim(dset_err_str) // ' dataset "' // &
+                            trim(dset_name) // &
+                            '" has a mismatch in size: ' // &
+                            trim(StringWrite(int(size_in_file))) // &
+                            ' in file versus ' // &
+                            trim(StringWrite(int(size_expected))) // &
+                            'expected.')
+  endif
+  call h5dread_f(dset_id,dset_type_expected,buf,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg(trim(dset_err_str) // ' dataset "' // &
+                            trim(dset_name) // &
+                            '" has an error while reading data.')
+  endif
+  call h5dclose_f(dset_id,hdf5_err)
+
+end subroutine HDF5DatasetReadBase
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetWriteInteger(loc_id,dset_name,buf,driver)
+  !
+  ! Writes a single PetscInt dataset to an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+
+  integer(HID_T), intent(in) :: loc_id
+  character(len=*), intent(in) :: dset_name  ! must be of variable length
+  PetscInt, target, intent(inout) :: buf
+  class(driver_type), intent(in) :: driver
+
+  integer(HSIZE_T) :: dims(1)
+  type(c_ptr) :: ptr
+
+  dims(1) = 1
+  ptr = c_loc(buf)
+  call HDF5DatasetWriteBase(loc_id,dset_name,H5T_NATIVE_INTEGER,dims, &
+                            ptr,'single PetscInt',driver)
+
+end subroutine HDF5DatasetWriteInteger
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetWriteDoubleArray1D(loc_id,dset_name,buf,driver)
+  !
+  ! Writes a 1D PetscReal dataset to an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+
+  integer(HID_T), intent(in) :: loc_id
+  character(len=*), intent(in) :: dset_name  ! must be of variable length
+  PetscReal, target, intent(in) :: buf(:)
+  class(driver_type), intent(in) :: driver
+
+  integer(HSIZE_T) :: dims(1)
+  type(c_ptr) :: ptr
+
+  dims(1) = size(buf)
+  ptr = c_loc(buf)
+  call HDF5DatasetWriteBase(loc_id,dset_name,H5T_NATIVE_DOUBLE,dims, &
+                            ptr,'1D PetscReal',driver)
+
+end subroutine HDF5DatasetWriteDoubleArray1D
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetWriteBase(loc_id,dset_name,dset_type,dset_dims, &
+                                buf,dset_err_str,driver)
+  !
+  ! Writes a single PetscInt dataset to an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+
+  integer(HID_T), intent(in) :: loc_id
+  character(len=*), intent(in) :: dset_name  ! must be of variable length
+  integer(HID_T), intent(in) :: dset_type
+  integer(HSIZE_T) :: dset_dims(:)
+  type(c_ptr) :: buf
+  character(len=*), intent(in) :: dset_err_str
+  class(driver_type), intent(in) :: driver
+
+  integer :: ndims
+  integer :: hdf5_err
+
+  ndims = size(dset_dims)
+  call h5ltmake_dataset_f(loc_id,dset_name,ndims,dset_dims, &
+                          dset_type,buf,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Error writing ' // trim(dset_err_str) // &
+                            'dataset "' // trim(dset_name) // '".')
+  endif
+
+end subroutine HDF5DatasetWriteBase
+
+! ************************************************************************** !
+
+subroutine HDF5FileOpen(filename,file_id,create,driver)
+  !
+  ! Opens an HDF5 file.  This wrapper provides error messaging if the file
+  ! does not exist.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+
+  character(len=*) :: filename  ! must be of variable length
+  integer(HID_T) :: file_id
+  PetscBool :: create
+  class(driver_type) :: driver
+
+  integer(HID_T) :: prop_id
+  PetscMPIInt, parameter :: ON=1, OFF=0
+  integer :: hdf5_err, hdf5_err2
+  character(len=MAXWORDLENGTH) :: word
+
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_fapl_mpio_f(prop_id,driver%comm%mycomm,MPI_INFO_NULL,hdf5_err)
+#endif
+  hdf5_err = 0
+  if (create) then
+    call h5eset_auto_f(OFF, hdf5_err2)
+    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+                     H5P_DEFAULT_F,prop_id)
+    call h5eset_auto_f(ON, hdf5_err2)
+  else
+    call h5eset_auto_f(OFF, hdf5_err2)
+    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    call h5eset_auto_f(ON, hdf5_err2)
+  endif
+  if (hdf5_err /= 0) then
+    if (create) then
+      word = 'creating'
+    else
+      word = 'opening'
+    endif
+    call driver%PrintErrMsg('Error ' // trim(word) // ' HDF5 file "' // &
+                            trim(filename) // '".')
+  endif
+  call h5pclose_f(prop_id,hdf5_err)
+
+end subroutine HDF5FileOpen
+
+! ************************************************************************** !
+
+subroutine HDF5FileOpenReadOnly(filename,file_id,prop_id,error_string,option)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -710,7 +1303,23 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,error_string,option)
   endif
   call h5eset_auto_f(ON, hdf5_err)
 
-end subroutine HDF5OpenFileReadOnly
+end subroutine HDF5FileOpenReadOnly
+
+! ************************************************************************** !
+
+subroutine HDF5FileClose(file_id)
+  !
+  ! Closes an HDF5 file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  integer(HID_T), intent(in) :: file_id
+  integer :: hdf5_err
+
+  call h5fclose_f(file_id,hdf5_err)
+
+end subroutine HDF5FileClose
 
 ! ************************************************************************** !
 

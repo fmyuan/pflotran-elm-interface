@@ -288,6 +288,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('IGHCC2_COMP_GAS')
             rel_perm_function_ptr => RPFIGHCC2CompGasCreate()
             phase_keyword = 'GAS'
+          case('MODIFIED_BROOKS_COREY','MODIFIED_BROOKS_COREY_LIQ')
+            rel_perm_function_ptr => RPFModBrooksCoreyLiqCreate()
+            phase_keyword = 'LIQUID'
+          case('MODIFIED_BROOKS_COREY_GAS')
+            rel_perm_function_ptr => RPFModBrooksCoreyGasCreate()
+            phase_keyword = 'GAS'
           case('TABLE_LIQ')
             rel_perm_function_ptr => RPFTABLELiqCreate()
             phase_keyword = 'LIQUID'
@@ -1089,6 +1095,10 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
     class is(rpf_IGHCC2_Comp_gas_type)
       error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
+      class is(rpf_mod_Brooks_Corey_liq_type)
+      error_string = trim(error_string) // 'MODIFIED_BROOKS_COREY_LIQ'
+    class is(rpf_mod_Brooks_Corey_gas_type)
+      error_string = trim(error_string) // 'MODIFIED_BROOKS_COREY_GAS'
     class is(rpf_Table_liq_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE_LIQ'
     class is(rpf_Table_gas_type)
@@ -1638,6 +1648,40 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
           case default
             call InputKeywordUnrecognized(input,keyword, &
               'IGHCC2 Comparison gas rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_mod_Brooks_Corey_liq_type)
+        select case(keyword)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case('KR_MAX')
+            call InputReadDouble(input,option,rpf%kr_max)
+            call InputErrorMsg(input,option,'kr_max',error_string)
+          case('N')
+            call InputReadDouble(input,option,rpf%n)
+            call InputErrorMsg(input,option,'n',error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+              'modified Brooks Corey liq rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_mod_Brooks_Corey_gas_type)
+        select case(keyword)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case('KR_MAX')
+            call InputReadDouble(input,option,rpf%kr_max)
+            call InputErrorMsg(input,option,'kr_max',error_string)
+          case('N')
+            call InputReadDouble(input,option,rpf%n)
+            call InputErrorMsg(input,option,'n',error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+              'modified Brooks Corey gas rel perm function', &
               option)
         end select
     !------------------------------------------

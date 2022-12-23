@@ -124,7 +124,7 @@ subroutine TimeStorageVerify(default_time, time_storage, &
   else
     if (time_storage%times(1) > 1.d-40) then
       option%io_buffer = 'The first time in transient datasets must be zero. &
-        See ' // trim(header) // '.'
+        &See ' // trim(header) // '.'
       call PrintErrMsg(option)
     endif
   endif

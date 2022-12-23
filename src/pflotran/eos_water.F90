@@ -1407,8 +1407,12 @@ subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, 
     dz_dT = dT0_dT
     dy_dT = -dT0_dT
     dw_dT = 2*z*dZ_dT
-    dln_p_dT = -e1*z**-2.d0*dz_dT+(e2*1.d1**(e3*w**2-1.d0)*(z*dw_dT*e3*log(100.d0)*w**2+1.d0)-w*dz_dT)/(z**2)+&
-         e2*w/z*(e3*5.d0**(3.d0*w**2-1.d0)*8.d0**(w**2.d0)*dw_dT*log(10.d0))+2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
+    dln_p_dT = -e1*z**(-2.d0)*dz_dT+ &
+               (e2*1.d1**(e3*w**2-1.d0)* &
+                 (z*dw_dT*e3*log(100.d0)*w**2+1.d0)-w*dz_dT)/(z**2)+&
+               e2*w/z*(e3*5.d0**(3.d0*w**2-1.d0)*8.d0**(w**2.d0)* &
+                         dw_dT*log(10.d0))+ &
+               2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
     dPS_dT = 1.d5*exp(ln_p)*dln_p_dT
   endif
 
@@ -1518,9 +1522,6 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
-  PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
   data aa/ &
@@ -1752,11 +1753,8 @@ subroutine EOSWaterEnthalpyIFC67(t,p,calculate_derivatives,hw, &
   PetscReal, parameter :: one = 1.d0
   PetscReal, parameter :: two = 2.d0
   PetscReal, parameter :: three = 3.d0
-  PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
   PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
@@ -2114,7 +2112,6 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   PetscReal, intent(out) :: dwt ! kmol/m^3-C
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter :: g_cm3_to_kg_m3 = 1.d3
   PetscReal, parameter :: Pa_to_bar = 1.d-5
 
   PetscReal :: T_v ! Scaled temperature for volumetric correlation
@@ -2127,8 +2124,8 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   t_C = T
   p_bar = P*Pa_to_bar
 
-  x = aux(1) !mass fraction
-  molal = (1.d3*x/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+  s = aux(1)*100.d0 !mass %
+  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
   x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
 
   n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
@@ -2179,11 +2176,10 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
 
   PetscReal :: A, B, C, D, E
   PetscReal :: s, molal
-  PetscReal, parameter :: g_to_kg = 1.d-3
   PetscReal, parameter :: mol_to_kmol = 1.d-3
   PetscReal, parameter :: kJ_to_J = 1.d3
 
-  s = aux(1)
+  s = aux(1) ! mass fraction
   ! eq 8
   A = (0.0005d0  +s*(0.0378d0  +s*(-0.3682d0 +s*(-0.6529d0 +s*2.89d0))))*1.d3
   B = 4.145d0    +s*(-4.973d0  +s*(4.482d0   +s*(18.31d0   +s*(-46.41d0))))
@@ -2191,6 +2187,8 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
   D = (-0.0048d0 +s*(0.0639d0  +s*(-0.714d0  +s*(3.273d0   +s*(-4.85d0)))))*1.d-3
   E = (0.0202d0  +s*(-0.2432d0 +s*(2.054d0   +s*(-8.211d0  +s*11.43d0))))*1.d-6
   hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
+
+  molal = (1.d3*(s*100.d0)/(58.442d0*(1.d2 - (s*100.d0))))*1.d2 !mol/kg
 
   hw = hw*kJ_to_J/((molal+55.508435d0)*mol_to_kmol) !J/kmol
   if (calculate_derivatives) then
@@ -2749,9 +2747,6 @@ subroutine EOSWaterSteamDensityEnthalpyIFC67(t,pv,calculate_derivatives, &
   PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
-  PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
   data delt,delp/1.d-6,1.d-6/
@@ -3828,7 +3823,8 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
        g_cm3_to_kg_m3
 
   ! molar density H2O = solution density (kg/m3) * (1-mass frac salt) / (kg/kmol water)
-  dwmol = dw * (1-s) / (FMWH2O)
+  !dwmol = dw * (1-s) / (FMWH2O)
+  dwmol = dw / FMWH2O
 
   if (calculate_derivatives) then
         ! v - this dwp is in the correct units of kmol/m^3-Pa
@@ -4025,7 +4021,8 @@ subroutine EOSWaterDensitySparrowExt(T,P, aux, &
   E = (-0.0276d0 +s*(0.2978d0 +s*(-2.017d0  +s*(6.345d0  +s*(-3.914d0)))))*1.d-6
 
   dw = A+T*(B+T*(C+T*(D+E*T))) !kg/m^3
-  dwmol = dw*(1-s)/FMWH2O ! kmol/m^3
+  !dwmol = dw*(1-s)/FMWH2O ! kmol/m^3
+  dwmol = dw/FMWH2O
 
 end subroutine EOSWaterDensitySparrowExt
 

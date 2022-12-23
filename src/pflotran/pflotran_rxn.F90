@@ -170,7 +170,6 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      constraint%free_ion_guess => tran_constraint%free_ion_guess
      constraint%minerals => tran_constraint%minerals
      constraint%surface_complexes => tran_constraint%surface_complexes
-     constraint%colloids => tran_constraint%colloids
      constraint_coupler%global_auxvar => global_auxvars
      constraint_coupler%rt_auxvar => rt_auxvars
 
@@ -206,7 +205,7 @@ program pflotran_rxn
   use Reaction_Database_module
   use Communicator_Aux_module
   use Option_module
-  use Driver_module
+  use Driver_class
   use Input_Aux_module
   use String_module
 
