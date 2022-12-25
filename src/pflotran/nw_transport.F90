@@ -5,6 +5,7 @@ module NW_Transport_module
   use Global_Aux_module
   use Material_Aux_module
   use NW_Transport_Aux_module
+  use Option_module
 
   use PFLOTRAN_Constants_module
 
@@ -40,7 +41,6 @@ subroutine NWTMaxChange(realization,dcmax)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Field_module
   use Grid_module
 
@@ -74,7 +74,6 @@ subroutine NWTSetup(realization)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Grid_module
   use Material_module
   use Material_Aux_module
@@ -246,7 +245,6 @@ subroutine NWTProcessConstraint(reaction_nw,constraint_name, &
   ! Author: Jenn Frederick
   ! Date: 03/22/2019
   !
-  use Option_module
   use String_module
   use Utility_module
 
@@ -315,7 +313,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   use Grid_module
   use Coupler_module
   use Connection_module
-  use Option_module
   use Field_module
   use Logging_module
   use Global_Aux_module
@@ -337,7 +334,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
   PetscInt :: istart, iend
   PetscReal, pointer :: xx_loc_p(:)
-  PetscInt, parameter :: iphase = 1
   PetscInt :: offset
   PetscErrorCode :: ierr
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -346,7 +342,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
-  class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
   PetscInt, save :: icall
 
   data icall/0/
@@ -465,8 +460,6 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Jenn Frederick
   ! Date: 05/29/2019
   !
-
-  use Option_module
   use Material_Aux_module
   use NWT_Equilibrium_module
 
@@ -566,7 +559,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   use Coupler_module
   use Connection_module
   use Discretization_module
-  use Option_module
   use Grid_module
   use Logging_module
   use Debug_module
@@ -581,7 +573,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: r_p(:), fixed_accum_p(:), vec_p(:)
+  PetscReal, pointer :: r_p(:), fixed_accum_p(:)
   PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id, local_id_up, local_id_dn
   PetscInt :: nphase, iphase, nspecies
@@ -709,7 +701,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               source_sink,realization%patch%ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Res)
+                              sum_connection,reaction_nw,Res,option)
       !WRITE(*,*)  '  SrcSinkName = ', source_sink%name
       !WRITE(*,*)  '   ResSrcSink = ', Res(:)
 
@@ -929,7 +921,6 @@ subroutine NWTUpdateFixedAccumulation(realization)
 
   use Realization_Subsurface_class
   use NW_Transport_Aux_module
-  use Option_module
   use Field_module
   use Grid_module
 
@@ -1006,8 +997,6 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   ! Date: 04/18/2019
   !
 
-  use Option_module
-
   implicit none
 
   type(nw_transport_auxvar_type) :: nwt_auxvar
@@ -1055,7 +1044,8 @@ end subroutine NWTResidualAccum
 ! ************************************************************************** !
 
 subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
-                              ss_flow_vol_fluxes,sum_connection,reaction_nw,Res)
+                              ss_flow_vol_fluxes,sum_connection,&
+                              reaction_nw,Res,option)
   !
   ! Computes the source/sink terms in the residual function.
   ! All residual entries should be in [mol-species/sec].
@@ -1076,10 +1066,12 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
   class(reaction_nw_type), pointer :: reaction_nw
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar_out
   PetscReal :: Res(reaction_nw%params%nspecies)
+  type(option_type) :: option
 
   PetscInt :: istart, iend
   PetscReal :: qsrc, sat
   PetscReal :: coef_in, coef_out
+  PetscReal :: density_avg ! [kg/m3]
 
   sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   Res = 0.d0
@@ -1088,38 +1080,58 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
     TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
                                    cur_constraint_coupler)
 
-  if (associated(ss_flow_vol_fluxes)) then
-    ! qsrc = [m^3-liq/sec]
-    qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
-  endif
-
   istart = 1
   iend = reaction_nw%params%nspecies
 
   ! -- Aqueous-Component ----------------------------------------
   select case(source_sink%tran_condition%itype)
-    case(EQUILIBRIUM_SS)
-      !TODO(jenn) What is EQUILIBRIUM_SS option?
-    case(MASS_RATE_SS)
-      !TODO(jenn) What is MASS_RATE_SS option?
+  !--------------------------------------------------------------
+    case(EQUILIBRIUM_SS,MASS_RATE_SS,VOLUMETRIC_RATE_SS, &
+         SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
+         CONCENTRATION_SS,HET_VOL_RATE_SS,HET_MASS_RATE_SS, &
+         TOTAL_MASS_RATE_SS)
+      option%io_buffer = 'source_sink%tran_condition%itype not &
+                          &supported.'
+      call PrintErrMsg(option)
+  !---------------------------------------------------------------
+    case(WELL_SS)
+      ! qsrc = [kg-liq/sec]
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      ! density_avg = [kg-liq/m3]
+      density_avg = source_sink%flow_condition%well%aux_real(1)
+      ! qsrc = [m^3-liq/sec]
+      qsrc = qsrc/density_avg 
+  !---------------------------------------------------------------
     case default
-      if (qsrc > 0.d0) then ! source of fluid flux
-        ! represents inside of the domain
-        coef_in = 0.d0
-        ! represents outside of the domain
-        coef_out = qsrc
-      else                  ! sink of fluid flux
-        ! represents inside of the domain
-        coef_in = qsrc
-        ! represents outside of the domain
-        coef_out = 0.d0
+      if (associated(ss_flow_vol_fluxes)) then
+        ! qsrc = [m^3-liq/sec]
+        qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+      else
+        option%io_buffer = 'ss_flow_vol_fluxes not associated.'
+        call PrintErrMsg(option)
       endif
+  !---------------------------------------------------------------
   end select
+
+  coef_in = 0.d0; coef_out = 0.d0 
+  if (qsrc > 0.d0) then                  ! source of fluid flux
+    ! represents inside of the domain
+    coef_in = 0.d0
+    ! represents outside of the domain
+    coef_out = qsrc
+  else if (qsrc < 0.d0) then             ! sink of fluid flux
+    ! represents inside of the domain
+    coef_in = qsrc
+    ! represents outside of the domain
+    coef_out = 0.d0
+  endif
+
   ! units of coef = [m^3-liq/sec]
   ! units of aqueous_eq_conc = [mol-species/m^3-liq]
   ! units of residual entries = [mol-species/sec]
   Res(istart:iend) = (coef_in*sat*nwt_auxvar%aqueous_eq_conc(:)) + &
                      (coef_out*sat*nwt_auxvar_out%aqueous_eq_conc(:))
+
   !WRITE(*,*)  '      coef_in = ', coef_in
   !WRITE(*,*)  '   in aq_conc = ', nwt_auxvar%aqueous_eq_conc(:)
   !WRITE(*,*)  '     coef_out = ', coef_out
@@ -1145,8 +1157,6 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,reaction_nw,Res)
   ! Author: Jenn Frederick
   ! Date: 05/09/2019
   !
-
-  use Option_module
 
   implicit none
 
@@ -1226,7 +1236,6 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! Date: 05/09/2019
   !
 
-  use Option_module
   use Connection_module
 
   implicit none
@@ -1245,8 +1254,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   PetscInt :: unit_n_up, unit_n_dn
   PetscInt :: nspecies
-  PetscReal :: q, u
-  PetscReal :: harmonic_ps
+  PetscReal :: q
   PetscReal :: sat_up, sat_dn
   PetscReal :: por_up, por_dn
   PetscReal :: ps_up, ps_dn
@@ -1368,7 +1376,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   use petscmat
   use Realization_Subsurface_class
   use Grid_module
-  use Option_module
   use Field_module
   use Logging_module
   use Debug_module
@@ -1384,22 +1391,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
-  Mat :: J, J_num, J_ana, J_flux
+  Mat :: J
   MatType :: mat_type
-  PetscViewer :: viewer, viewer2
-  Vec :: xx_pert, res, res_pert, fixed_accum
-  PetscReal, pointer :: res_pert_p(:), res_p(:), xx_pert_p(:)
-  PetscReal, pointer :: fixed_accum_p(:)
-  PetscReal, pointer :: derivative(:), derivative_accum(:), derivative_flux(:)
-  PetscReal, pointer :: derivative_rxn(:), derivative_srcsink(:)
-  PetscReal, pointer :: perturbation(:)
-  PetscReal, pointer :: residual(:)
-  PetscReal, pointer :: residual_pert(:)
-  PetscReal, pointer :: dRes(:), dRes_accum(:), dRes_rxn(:), dRes_flux(:)
+  PetscViewer :: viewer
   PetscReal, pointer :: work_loc_p(:)
-  PetscReal :: res_at_cell(realization%reaction_nw%params%nspecies)
-  PetscReal :: Res_up(realization%reaction_nw%params%nspecies)
-  PetscReal :: Res_dn(realization%reaction_nw%params%nspecies)
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
   type(field_type), pointer :: field
@@ -1417,7 +1412,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: boundary_condition
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: istart, iend, offset
-  PetscInt :: i, k, idof, ispecies, nspecies
+  PetscInt :: nspecies
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -1433,9 +1428,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                      realization%reaction_nw%params%nspecies)
   PetscReal :: JacDn(realization%reaction_nw%params%nspecies, &
                      realization%reaction_nw%params%nspecies)
-  PetscReal :: area, value, unA_up, unA_dn
-  PetscReal :: compare_accum, compare_rxn, compare_flux
-  PetscBool :: numerical
+  PetscReal :: area
 
   option => realization%option
   grid => realization%patch%grid
@@ -1459,9 +1452,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   iphase = LIQUID_PHASE
   nspecies = realization%reaction_nw%params%nspecies
 
-  ! For debugging only. Set the type of jacobian here:
-  numerical = PETSC_FALSE
-
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
@@ -1476,25 +1466,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   ! Zero out the Jacobian matrix
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
 
-  ! For debugging viewer:
-  call MatCreate(option%mycomm,J_ana,ierr);CHKERRQ(ierr)
-  call MatSetSizes(J_ana,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%ntrandof, &
-                   grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
-  call MatSetType(J_ana,MATAIJ,ierr);CHKERRQ(ierr)
-  call MatSetFromOptions(J_ana,ierr);CHKERRQ(ierr)
-  call MatSetUp(J_ana,ierr);CHKERRQ(ierr)
-  call MatZeroEntries(J_ana,ierr);CHKERRQ(ierr)
-  ! For debugging jacobian entries:
-  call MatCreate(option%mycomm,J_flux,ierr);CHKERRQ(ierr)
-  call MatSetSizes(J_flux,PETSC_DECIDE,PETSC_DECIDE, &
-                   grid%nlmax*option%ntrandof,grid%nlmax*option%ntrandof, &
-                   ierr);CHKERRQ(ierr)
-  call MatSetType(J_flux,MATAIJ,ierr);CHKERRQ(ierr)
-  call MatSetFromOptions(J_flux,ierr);CHKERRQ(ierr)
-  call MatSetUp(J_flux,ierr);CHKERRQ(ierr)
-  call MatZeroEntries(J_flux,ierr);CHKERRQ(ierr)
-
-#if 1
   !== Accumulation Terms ======================================
   if (.not.option%transport%steady_state) then
     do local_id = 1, grid%nlmax
@@ -1508,14 +1479,9 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_accum, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_accum, &
-                               ADD_VALUES,ierr);CHKERRQ(ierr)
-
     enddo
   endif
-#endif
 
-#if 1
   !== Source/Sink Terms =======================================
   source_sink => realization%patch%source_sink_list%first
   sum_connection = 0
@@ -1532,7 +1498,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
       call NWTJacobianSrcSink(material_auxvars(ghosted_id),source_sink, &
                               realization%patch%ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Jac_srcsink)
+                              sum_connection,reaction_nw,Jac_srcsink,option)
 
       !WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
 
@@ -1540,16 +1506,11 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1, &
                                     Jac_srcsink,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)
-      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1, &
-                               Jac_srcsink,ADD_VALUES,ierr);CHKERRQ(ierr)
-
     enddo
 
     source_sink => source_sink%next
   enddo
-#endif
 
-#if 1
   !== Decay and Ingrowth ======================================
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -1562,13 +1523,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
     call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_rxn, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
-    call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_rxn, &
-                             ADD_VALUES,ierr);CHKERRQ(ierr)
-
   enddo
-#endif
 
-#if 1
   !== Fluxes ==================================================
 
   ! Interior Flux Terms ---------------------------------------
@@ -1611,16 +1567,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlocked(J_ana,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                 JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
       if (local_id_dn>0) then
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlocked(J_ana,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                 JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
     enddo
@@ -1660,8 +1612,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
-                               ADD_VALUES,ierr);CHKERRQ(ierr)
       ! note: Don't need to worry about JacUp because that is outside of
       ! the domain, and doesn't have a place in A.
 
@@ -1669,15 +1619,9 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
   boundary_condition => boundary_condition%next
   enddo
-#endif
 
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
-  call MatAssemblyBegin(J_ana,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(J_ana,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
-  !== ?????? ==================================================
 
   if (reaction_nw%use_log_formulation) then
     call VecGetArrayF90(realization%field%tran_work_loc,work_loc_p, &
@@ -1697,13 +1641,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                             ierr);CHKERRQ(ierr)
   endif
 
-  if (realization%debug%matview_Matrix) then
-    string = 'NWTjacobianAN'
-    call DebugCreateViewer(realization%debug,string,realization%option,viewer)
-    call MatView(J_ana,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
   if (realization%reaction_nw%use_log_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
@@ -1716,429 +1653,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     endif
   endif
 
-  ! numerical jacobian:
-  ! for debugging ONLY!! assumes no decay, and single processor
-#if 0
-  call MatCreate(option%mycomm,J_num,ierr);CHKERRQ(ierr)
-  call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%ntrandof, &
-                   grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
-  call MatSetType(J_num,MATAIJ,ierr);CHKERRQ(ierr)
-  call MatSetFromOptions(J_num,ierr);CHKERRQ(ierr)
-  call MatSetUp(J_num,ierr);CHKERRQ(ierr)
-  call MatZeroEntries(J_num,ierr);CHKERRQ(ierr)
-
-  ! Prepare Vecs for numerical Jacobian
-  call VecDuplicate(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
-  call VecDuplicate(field%tran_xx,res,ierr);CHKERRQ(ierr)
-  call VecDuplicate(field%tran_xx,res_pert,ierr);CHKERRQ(ierr)
-  call VecDuplicate(field%tran_accum,fixed_accum,ierr);CHKERRQ(ierr)
-
-  allocate(derivative(grid%nlmax*option%ntrandof))
-  allocate(derivative_accum(grid%nlmax*option%ntrandof))
-  allocate(derivative_flux(grid%nlmax*option%ntrandof))
-  allocate(derivative_rxn(grid%nlmax*option%ntrandof))
-  allocate(derivative_srcsink(grid%nlmax*option%ntrandof))
-  allocate(perturbation(grid%nlmax*option%ntrandof))
-  allocate(residual(grid%nlmax*option%ntrandof))
-  allocate(residual_pert(grid%nlmax*option%ntrandof))
-  allocate(dRes(grid%nlmax*option%ntrandof))
-  allocate(dRes_accum(grid%nlmax*option%ntrandof))
-  allocate(dRes_rxn(grid%nlmax*option%ntrandof))
-  allocate(dRes_flux(grid%nlmax*option%ntrandof))
-
-  ! get the dM value:
-  call VecCopy(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
-  do i=1,size(xx_pert_p)
-    perturbation(i) = max(xx_pert_p(i)*perturbation_tolerance,1.0d-30)
-    xx_pert_p(i) = xx_pert_p(i)+perturbation(i)
-  enddo
-
-  call VecCopy(field%tran_accum,fixed_accum,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(fixed_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
-  residual(:) = 0.d0
-  residual_pert(:) = 0.d0
-  do i=1,grid%nlmax
-    offset = (i-1)*realization%reaction_nw%params%nspecies
-    istart = offset + 1
-    iend = offset + realization%reaction_nw%params%nspecies
-    ! note: auxvars should be current
-    ! get the unperturbed residual:
-    call NWTResidualAccum(nwt_auxvars(i),global_auxvars(i), &
-                          material_auxvars(i),reaction_nw,res_at_cell)
-    residual(istart:iend) = &
-      (res_at_cell(1:realization%reaction_nw%params%nspecies) &
-        - fixed_accum_p(istart:iend))/option%tran_dt
-    ! use dM to get a perturbed residual:
-    nwt_auxvars(i)%total_bulk_conc = xx_pert_p(istart:iend)
-    call NWTAuxVarCompute(nwt_auxvars(i),global_auxvars(i), &
-                          material_auxvars(i),reaction_nw,option)
-    call NWTResidualAccum(nwt_auxvars(i),global_auxvars(i), &
-                          material_auxvars(i),reaction_nw,res_at_cell)
-    residual_pert(istart:iend) = &
-      (res_at_cell(1:realization%reaction_nw%params%nspecies) &
-        - fixed_accum_p(istart:iend))/option%tran_dt
-    ! calculate the numerical Jacobian entry:
-    dRes_accum(istart:iend) = residual_pert(istart:iend) &
-                              - residual(istart:iend)
-    derivative_accum(istart:iend) = dRes_accum(istart:iend) / &
-                                    perturbation(istart:iend)
-  enddo
-
-  ! call Residual routine with original unperturbed M to set auxvars back
-  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
-  residual(:) = 0.d0
-  residual_pert(:) = 0.d0
-  do i=1,grid%nlmax
-    offset = (i-1)*realization%reaction_nw%params%nspecies
-    istart = offset + 1
-    iend = offset + realization%reaction_nw%params%nspecies
-    ! note: auxvars should be current
-    ! get the unperturbed residual:
-    call NWTResidualRx(nwt_auxvars(i),material_auxvars(i), &
-                       reaction_nw,res_at_cell)
-    residual(istart:iend) = (-1.d0) * & ! b/c rx are subtracted
-                      res_at_cell(1:realization%reaction_nw%params%nspecies)
-    ! use dM to get a perturbed residual:
-    nwt_auxvars(i)%total_bulk_conc = xx_pert_p(istart:iend)
-    call NWTAuxVarCompute(nwt_auxvars(i),global_auxvars(i), &
-                          material_auxvars(i),reaction_nw,option)
-    call NWTResidualRx(nwt_auxvars(i),material_auxvars(i),reaction_nw, &
-                       res_at_cell)
-    residual_pert(istart:iend) = (-1.d0) * & ! b/c rx are subtracted
-                      res_at_cell(1:realization%reaction_nw%params%nspecies)
-    ! calculate the numerical Jacobian entry:
-    dRes_rxn(istart:iend) = residual_pert(istart:iend) &
-                            - residual(istart:iend)
-    derivative_rxn(istart:iend) = dRes_rxn(istart:iend) / &
-                                  perturbation(istart:iend)
-  enddo
-
-  ! call Residual routine with original unperturbed M to set auxvars back
-  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
-  residual(:) = 0.d0
-  residual_pert(:) = 0.d0
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0
-  do
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
-
-      area = cur_connection_set%area(iconn)
-      if (associated(wippflo_auxvars)) then
-        area = area * 0.5d0 * &
-               (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
-                wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
-      endif
-
-      call NWTResidualFlux(nwt_auxvars(ghosted_id_up), &
-                      nwt_auxvars(ghosted_id_dn), &
-                      global_auxvars(ghosted_id_up), &
-                      global_auxvars(ghosted_id_dn), &
-                      material_auxvars(ghosted_id_up), &
-                      material_auxvars(ghosted_id_dn), &
-                      area, &
-                      cur_connection_set%dist(:,iconn), &
-                      realization%patch%internal_velocities(:,sum_connection), &
-                      reaction_nw,option,PETSC_FALSE,Res_up,Res_dn)
-
-      if (local_id_up>0) then
-        offset = (local_id_up-1)*realization%reaction_nw%params%nspecies
-        istart = offset + 1
-        iend = offset + realization%reaction_nw%params%nspecies
-        residual(istart:iend) = residual(istart:iend) &
-                              + Res_up(1:realization%reaction_nw%params%nspecies)
-      endif
-
-      if (local_id_dn>0) then
-        offset = (local_id_dn-1)*realization%reaction_nw%params%nspecies
-        istart = offset + 1
-        iend = offset + realization%reaction_nw%params%nspecies
-        residual(istart:iend) = residual(istart:iend) &
-                              + Res_dn(1:realization%reaction_nw%params%nspecies)
-      endif
-
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-  ! use dM to get a perturbed residual:
-  do i=1,grid%nlmax
-    offset = (i-1)*realization%reaction_nw%params%nspecies
-    istart = offset + 1
-    iend = offset + realization%reaction_nw%params%nspecies
-    nwt_auxvars(i)%total_bulk_conc = xx_pert_p(istart:iend)
-    call NWTAuxVarCompute(nwt_auxvars(i),global_auxvars(i), &
-                          material_auxvars(i),reaction_nw,option)
-  enddo
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0
-  do
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
-
-      area = cur_connection_set%area(iconn)
-      if (associated(wippflo_auxvars)) then
-        area = area * 0.5d0 * &
-               (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
-                wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
-      endif
-
-      call NWTResidualFlux(nwt_auxvars(ghosted_id_up), &
-                      nwt_auxvars(ghosted_id_dn), &
-                      global_auxvars(ghosted_id_up), &
-                      global_auxvars(ghosted_id_dn), &
-                      material_auxvars(ghosted_id_up), &
-                      material_auxvars(ghosted_id_dn), &
-                      area, &
-                      cur_connection_set%dist(:,iconn), &
-                      realization%patch%internal_velocities(:,sum_connection), &
-                      reaction_nw,option,PETSC_FALSE,Res_up,Res_dn)
-
-      if (local_id_up>0) then
-        offset = (local_id_up-1)*realization%reaction_nw%params%nspecies
-        istart = offset + 1
-        iend = offset + realization%reaction_nw%params%nspecies
-        residual_pert(istart:iend) = residual_pert(istart:iend) &
-                                   + Res_up(1:realization%reaction_nw%params%nspecies)
-      endif
-
-      if (local_id_dn>0) then
-        offset = (local_id_dn-1)*realization%reaction_nw%params%nspecies
-        istart = offset + 1
-        iend = offset + realization%reaction_nw%params%nspecies
-        residual_pert(istart:iend) = residual_pert(istart:iend) &
-                                   + Res_dn(1:realization%reaction_nw%params%nspecies)
-      endif
-
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-  ! calculate the numerical Jacobian entry:
-  do i=1,grid%nlmax
-    offset = (i-1)*nspecies
-    istart = offset + 1
-    iend = offset + nspecies
-    dRes_flux(istart:iend) = residual_pert(istart:iend) &
-                             - residual(istart:iend)
-    derivative_flux(istart:iend) = dRes_flux(istart:iend) / &
-                                   perturbation(istart:iend)
-  enddo
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  residual(:) = 0.d0
-  residual_pert(:) = 0.d0
-  ! get the unperturbed residual:
-  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
-  call VecGetArrayF90(res,res_p,ierr);CHKERRQ(ierr)
-  ! get the dM value:
-  do i=1,grid%nlmax
-    nwt_auxvars(i)%total_bulk_conc = xx_pert_p(istart:iend)
-  enddo
-  ! use dM to get a perturbed residual:
-  call NWTResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
-  call VecGetArrayF90(res_pert,res_pert_p,ierr);CHKERRQ(ierr)
-  ! calculate the numerical Jacobian entry:
-  do i=1,size(res_pert_p)
-    dRes(i) = res_pert_p(i)-res_p(i)
-    derivative(i) = dRes(i)/perturbation(i)
-  enddo
-  ! call Residual routine with original unperturbed M to set auxvars back
-  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0
-  do
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
-
-      area = cur_connection_set%area(iconn)
-      if (associated(wippflo_auxvars)) then
-        area = area * 0.5d0 * &
-               (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
-                wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
-      endif
-
-      call NWTJacobianFlux(nwt_auxvars(ghosted_id_up), &
-                      nwt_auxvars(ghosted_id_dn), &
-                      global_auxvars(ghosted_id_up), &
-                      global_auxvars(ghosted_id_dn), &
-                      material_auxvars(ghosted_id_up), &
-                      material_auxvars(ghosted_id_dn), &
-                      area, &
-                      cur_connection_set%dist(:,iconn), &
-                      realization%patch%internal_velocities(:,sum_connection), &
-                      reaction_nw,option,JacUp,JacDn)
-
-      if (ghosted_id_up == cell_number) then
-        if (realization%patch%internal_velocities(LIQUID_PHASE,sum_connection) > 0.d0) then
-          unA_up = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_up)%porosity*area*(-1.d0)
-        else
-          unA_up = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_dn)%porosity*area*(-1.d0)
-        endif
-        WRITE(*,*) 'u*A.n = ', unA_up
-        !WRITE(*,*) 'JacUp = ', JacUp(1,1)
-      endif
-      if (ghosted_id_dn == cell_number) then
-        if (realization%patch%internal_velocities(LIQUID_PHASE,sum_connection) > 0.d0) then
-          unA_dn = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_up)%porosity*area*1.d0
-        else
-          unA_dn = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_dn)%porosity*area*1.d0
-        endif
-        WRITE(*,*) 'u*A.n = ', unA_dn
-        !WRITE(*,*) 'JacDn = ', JacDn(1,1)
-      endif
-
-      k = 0
-      if (local_id_up>0) then
-        offset = (local_id_up-1)*nspecies
-        istart = offset + 1
-        iend = offset + nspecies
-        do i=istart,iend
-          k = k + 1
-          !WRITE(*,*) 'Adding value', JacUp(k,k), 'in diagonal position', i-1
-          ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-          call MatSetValues(J_flux,1,i-1,1,i-1,JacUp(k,k),ADD_VALUES, &
-                            ierr);CHKERRQ(ierr)
-        enddo
-      endif
-      k = 0
-      if (local_id_dn>0) then
-        offset = (local_id_dn-1)*nspecies
-        istart = offset + 1
-        iend = offset + nspecies
-        do i=istart,iend
-          k = k + 1
-          !WRITE(*,*) 'Adding value', JacUp(k,k), 'in diagonal position', i-1
-          ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-          call MatSetValues(J_flux,1,i-1,1,i-1,JacDn(k,k),ADD_VALUES, &
-                            ierr);CHKERRQ(ierr)
-        enddo
-      endif
-
-    enddo
-
-  cur_connection_set => cur_connection_set%next
-  enddo
-  call MatAssemblyBegin(J_flux,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(J_flux,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  WRITE(*,*) 'net sum = ', unA_dn + unA_up
-
-  do i=1,grid%nlmax
-    offset = (i-1)*nspecies
-    istart = offset + 1
-    iend = offset + nspecies
-    call MatGetValues(J_ana,1,istart-1,1,istart-1,value,ierr);CHKERRQ(ierr)
-    if (i == cell_number) WRITE(*,*) '[num]jac_whole =', derivative(istart), &
-     '[an]compare = ', value, '% diff =', (derivative(istart)-value)/value*100.d0
-    call NWTJacobianAccum(material_auxvars(i),reaction_nw,option,Jac_accum)
-    compare_accum = Jac_accum(1,1)
-    if (i == cell_number) WRITE(*,*) '[num]jac_accum =', derivative_accum(istart), &
-     '[an]compare = ', compare_accum, '% diff =', &
-     (derivative_accum(cell_number)-compare_accum)/compare_accum*100.d0
-    call NWTJacobianRx(material_auxvars(i),reaction_nw,Jac_rxn)
-    compare_rxn = Jac_rxn(1,1)
-    if (i == cell_number) WRITE(*,*) '[num]jac_rxn =', derivative_rxn(istart), &
-     '[an]compare = ', compare_rxn, '% diff =', &
-     (derivative_rxn(istart)-compare_rxn)/compare_rxn*100.d0
-    call MatGetValues(J_flux,1,istart-1,1,istart-1,value,ierr);CHKERRQ(ierr)
-    compare_flux = value
-    if (i == cell_number) WRITE(*,*) '[num]jac_flux =', derivative_flux(istart), &
-     '[an]compare = ', compare_flux, '% diff =', &
-     (derivative_flux(istart)-compare_flux)/compare_flux*100.d0
-  enddo
-
-  call VecRestoreArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(res_pert,res_pert_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(res,res_p,ierr);CHKERRQ(ierr)
-
-  if (numerical) call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-
-  ! note: off-diagonal terms from decay are not included!
-  !       need to figure out how to do this
-  do local_id = 1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    ! ignore inactive cells with inactive materials
-    if (realization%patch%imat(ghosted_id) <= 0) cycle
-    do ispecies = 1,option%ntrandof
-      idof = (local_id-1)*ispecies + ispecies
-
-      if (dabs(derivative(idof)) > 1.d-50) then
-        call MatSetValue(J_num,idof-1,idof-1,derivative(idof),insert_values, &
-                         ierr);CHKERRQ(ierr)
-      endif
-       if (numerical) then
-         if (dabs(derivative(idof)) > 1.d-50) then
-           call MatSetValue(J,idof-1,idof-1,derivative(idof),insert_values, &
-                            ierr);CHKERRQ(ierr)
-         else
-           call MatSetValue(J,idof-1,idof-1,0.d0,insert_values, &
-                            ierr);CHKERRQ(ierr)
-         endif
-       endif
-
-    enddo
-  enddo
-
-  if (numerical) then
-    call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  endif
-  call MatAssemblyBegin(J_num,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(J_num,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
-  call VecDestroy(xx_pert,ierr);CHKERRQ(ierr)
-  call VecDestroy(res,ierr);CHKERRQ(ierr)
-  call VecDestroy(res_pert,ierr);CHKERRQ(ierr)
-
-  if (realization%debug%matview_Jacobian) then
-    string = 'NWTjacobianNUM'
-    call DebugCreateViewer(realization%debug,string,realization%option,viewer2)
-    call MatView(J_num,viewer2,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer2,ierr);CHKERRQ(ierr)
-  endif
-
-  if (realization%debug%matview_Jacobian) then
-    string = 'NWTjacobianNUMFLUX'
-    call DebugCreateViewer(realization%debug,string,realization%option,viewer2)
-    call MatView(J_flux,viewer2,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer2,ierr);CHKERRQ(ierr)
-  endif
-
-  call MatDestroy(J_num,ierr);CHKERRQ(ierr)
-
-#endif
-
-  call MatDestroy(J_ana,ierr);CHKERRQ(ierr)
-  call MatDestroy(J_flux,ierr);CHKERRQ(ierr)
   call PetscLogEventEnd(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
 end subroutine NWTJacobian
@@ -2153,8 +1667,6 @@ subroutine NWTJacobianAccum(material_auxvar,reaction_nw,option,Jac)
   ! Author: Jenn Frederick
   ! Date: 05/14/2019
   !
-
-  use Option_module
 
   implicit none
 
@@ -2184,7 +1696,7 @@ end subroutine NWTJacobianAccum
 ! ************************************************************************** !
 
 subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Jac)
+                              sum_connection,reaction_nw,Jac,option)
   !
   ! Computes the source/sink terms in the Jacobian matrix.
   ! All Jacobian entries should be in [m^3-bulk/sec].
@@ -2203,46 +1715,65 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
   PetscInt :: sum_connection
   class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: Jac(reaction_nw%params%nspecies,reaction_nw%params%nspecies)
+  type(option_type) :: option
 
   PetscInt :: istart, iend, ispecies
   PetscReal :: qsrc, u, vol
   PetscReal :: coef_in
+  PetscReal :: density_avg
   PetscBool :: dry_out
 
   Jac = 0.d0
-
-  if (associated(ss_flow_vol_fluxes)) then
-    ! qsrc = [m^3-liq/sec]
-    qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
-  endif
-
-  ! transform qsrc into pore velocity volumetric flow
-  ! units of porosity = [m^3-void/m^3-bulk]
-  ! units of u = [m^3-bulk/sec]
-  u = qsrc/material_auxvar%porosity
 
   ! units of vol = [m^3-bulk]
   vol = material_auxvar%volume
 
   ! -- Aqueous-Component ----------------------------------------
   select case(source_sink%tran_condition%itype)
-    case(EQUILIBRIUM_SS)
-      !TODO(jenn) What is EQUILIBRIUM_SS option?
-    case(MASS_RATE_SS)
-      !TODO(jenn) What is MASS_RATE_SS option?
+  !--------------------------------------------------------------
+    case(EQUILIBRIUM_SS,MASS_RATE_SS,VOLUMETRIC_RATE_SS, &
+         SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
+         CONCENTRATION_SS,HET_VOL_RATE_SS,HET_MASS_RATE_SS, &
+         TOTAL_MASS_RATE_SS)
+      option%io_buffer = 'source_sink%tran_condition%itype not &
+                          &supported.'
+      call PrintErrMsg(option)
+  !--------------------------------------------------------------
+    case(WELL_SS)
+      ! qsrc = [kg-liq/sec]
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      ! density_avg = [kg-liq/m3]
+      density_avg = source_sink%flow_condition%well%aux_real(1)
+      ! qsrc = [m^3-liq/sec]
+      qsrc = qsrc/density_avg       
+  !--------------------------------------------------------------
     case default
-      ! Note: We only care about coef_in here, because the Jac is a derivative
-      ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
-      ! On the outside of the domain, we have a specified conc, which is not a
-      ! fn(total_bulk_conc), thus the derivative is zero.
-      if (u > 0.d0) then ! source of fluid flux
-        ! represents inside of the domain
-        coef_in = 0.d0
-      else               ! sink of fluid flux
-        ! represents inside of the domain
-        coef_in = u
+      if (associated(ss_flow_vol_fluxes)) then
+        ! qsrc = [m^3-liq/sec]
+        qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+      else
+        option%io_buffer = 'ss_flow_vol_fluxes not associated.'
+        call PrintErrMsg(option)
       endif
+  !--------------------------------------------------------------
   end select
+
+  ! transform qsrc into pore velocity volumetric flow
+  ! units of porosity = [m^3-void/m^3-bulk]
+  ! units of u = [m^3-bulk/sec]
+  u = qsrc/material_auxvar%porosity
+
+  ! Note: We only care about coef_in here, because the Jac is a derivative
+  ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
+  ! On the outside of the domain, we have a specified conc, which is not a
+  ! fn(total_bulk_conc), thus the derivative is zero.
+  if (u > 0.d0) then ! source of fluid flux
+    ! represents inside of the domain
+    coef_in = 0.d0
+  else               ! sink of fluid flux
+    ! represents inside of the domain
+    coef_in = u
+  endif
 
   ! units of coef = [m^3-bulk/sec]
   ! units of vol = [m^3-bulk]
@@ -2274,8 +1805,6 @@ subroutine NWTJacobianRx(material_auxvar,reaction_nw,Jac)
   ! Author: Jenn Frederick
   ! Date: 05/14/2019
   !
-
-  use Option_module
 
   implicit none
 
@@ -2348,7 +1877,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! Date: 05/14/2019
   !
 
-  use Option_module
   use Connection_module
 
   implicit none
@@ -2367,7 +1895,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   PetscInt :: nspecies, ispecies
   PetscBool :: dry_out_up, dry_out_dn
   PetscReal :: q, u
-  PetscReal :: harmonic_ps
   PetscReal :: sat_up, sat_dn
   PetscReal :: por_up, por_dn
   PetscReal :: ps_up, ps_dn
@@ -2503,7 +2030,6 @@ subroutine NWTZeroMassBalanceDelta(realization)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Patch_module
   use Grid_module
 
@@ -2551,7 +2077,6 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Field_module
   use Grid_module
 
@@ -2572,7 +2097,6 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   PetscReal :: sum_mol_sb(max_size)
   PetscReal :: sum_mol_mnrl(max_size)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id, ghosted_id
   PetscInt :: nspecies
   PetscReal :: liquid_saturation, porosity, volume
@@ -2641,7 +2165,6 @@ subroutine NWTUpdateMassBalance(realization)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Grid_module
 
   implicit none

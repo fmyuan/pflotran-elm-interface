@@ -432,6 +432,7 @@ subroutine DatasetPrint(this,option)
     class default
       option%io_buffer = 'Unknown dataset type for dataset "' // &
         trim(this%name) // '" in DatasetPrint()'
+      call PrintErrMsg(option)
   end select
 
 end subroutine DatasetPrint
@@ -587,7 +588,7 @@ subroutine DatasetUnknownClass(this,option,string)
 
   option%io_buffer = 'Dataset "' // trim(this%name) // &
     '" from filename "' // trim(this%filename) // '" of class "' // &
-    trim(DatasetGetClass(this)) // '" is not recognized in "' // &
+    trim(DatasetGetClass(this)) // '" is not supported in "' // &
     trim(string) // '".'
   call PrintErrMsg(option)
 

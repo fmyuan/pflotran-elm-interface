@@ -128,7 +128,7 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Res(option%nflowdof)
   PetscBool :: debug_cell
 
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
@@ -209,12 +209,9 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure
-  PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, q
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
-  PetscReal :: stpd_up, stpd_dn
-  PetscReal :: sat_up, sat_dn, den_up, den_dn
 
   PetscReal :: temp_perm_up, temp_perm_dn
 
@@ -432,16 +429,10 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_rho_mu_area_ave_over_dist(2)
   PetscReal :: area_up, area_dn, area_ave
   PetscReal :: perm_up, perm_dn
-  PetscReal :: dummy
   PetscReal :: delta_pressure
-  PetscReal :: pressure_ave
   PetscReal :: gravity_term
-  PetscReal :: rel_perm, q
+  PetscReal :: rel_perm
   PetscReal :: wat_mole_flux, air_mole_flux
-  PetscReal :: stpd_up, stpd_dn
-  PetscReal :: sat_up, sat_dn, den_up, den_dn
-
-  PetscReal :: temp_perm_up, temp_perm_dn
 
   PetscReal :: up_scale, dn_scale
   PetscInt :: iabs_upwind_direction1
@@ -666,7 +657,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: debug_connection
 
   PetscInt :: wat_comp_id, air_comp_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: perm_dn_adj(option%nphase)
@@ -678,7 +669,6 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
-  PetscReal :: tempreal
   PetscReal :: wat_mole_flux, air_mole_flux
   PetscBool :: upwind
   PetscInt :: iabs_upwind_direction1
@@ -982,9 +972,9 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: debug_connection
 
   PetscInt :: wat_comp_id, air_comp_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
-  PetscReal :: density_ave, density_kg_ave
+  PetscReal :: density_ave
   PetscReal :: perm_dn_adj(2)
   PetscReal :: perm_ave_over_dist
   PetscReal :: delta_pressure
@@ -994,13 +984,11 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tot_mole_flux
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
-  PetscReal :: tempreal
   PetscReal :: wat_mole_flux, air_mole_flux
   PetscBool :: upwind
   PetscInt :: iabs_upwind_direction1
 
   PetscReal :: dn_scale
-  PetscReal :: dummy
 
   PetscInt :: idof
 
@@ -1262,10 +1250,8 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
   PetscBool :: debug_cell
 
   PetscReal :: qsrc_mol
-  PetscReal :: cell_pressure, dummy_pressure
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: wat_comp_id, air_comp_id
   PetscReal :: dden_bool
-  PetscErrorCode :: ierr
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -1585,6 +1571,26 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscInt :: idof, irow
 
   option%iflag = -3
+
+  if (Initialized(wippflo_auxvars(ZERO_INTEGER)%well%pl)) then
+    if (dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl) < 1.d-15) then
+      scale = 0.d0
+    else
+      ! jmfrede 09/14/2022 Getting rid of this scale factor because it
+      ! changes wildly within Newton iterations, which seems to make
+      ! WIPP_FLOW have a harder time converging. When it does converge,
+      ! the scale seems to be ~ 1 anyways. Uncomment the WRITE statement
+      ! to quickly see the value of scale printed to screen.
+      scale = dabs(wippflo_auxvars(ZERO_INTEGER)% &
+              pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER)% &
+              well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER)% &
+              well%dpl)
+      scale = 1.d0
+    endif
+  endif
+
+
   ! unperturbed wippflo_auxvars value
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvars(ZERO_INTEGER),global_auxvar, &
@@ -1592,6 +1598,20 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
 
   ! perturbed wippflo_auxvars values
   do idof = 1, option%nflowdof
+
+  if (Initialized(wippflo_auxvars(idof)%well%pl)) then
+    if (dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl) < 1.d-15) then
+      scale = 0.d0
+    else
+      scale = dabs(wippflo_auxvars(idof)% &
+              pres(ONE_INTEGER)-wippflo_auxvars(idof)% &
+              well%pl)/dabs(wippflo_auxvars(idof)% &
+              well%dpl)
+    endif
+  endif
+
+
     call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvars(idof),global_auxvar, &
                         material_auxvar,dummy_real, &

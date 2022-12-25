@@ -270,8 +270,6 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt :: icomp, irxn, immobile_id
   PetscReal :: rate_constant, rate, volume
 
-  PetscInt, parameter :: iphase = 1
-
   volume = material_auxvar%volume
 
   do irxn = 1, reaction%immobile%ndecay_rxn ! for each reaction

@@ -189,15 +189,12 @@ subroutine TimestepperKSPUpdateDT(this,process_model)
     update_time_step = PETSC_FALSE
   endif
 
-  if (update_time_step) then
-
-    call process_model%UpdateTimestep(this%dt, &
-                                      this%dt_min, &
-                                      this%dt_max, &
-                                      dummy_int, dummy_int, dummy_array, &
-                                      this%time_step_max_growth_factor)
-
-  endif
+  call process_model%UpdateTimestep(update_time_step, &
+                                    this%dt, &
+                                    this%dt_min, &
+                                    this%dt_max, &
+                                    dummy_int, dummy_int, dummy_array, &
+                                    this%time_step_max_growth_factor)
 
 end subroutine TimestepperKSPUpdateDT
 
@@ -292,6 +289,7 @@ subroutine TimestepperKSPStepDT(this,process_model,stop_flag)
           ! add any verbose logging (see timestepper_BE)
         endif
       endif
+      if (stop_flag == TS_STOP_FAILURE) return
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt
@@ -429,8 +427,6 @@ subroutine TimestepperKSPSetHeader(this,bag,header)
   class(timestepper_KSP_type) :: this
   class(stepper_KSP_header_type) :: header
   PetscBag :: bag
-
-  PetscErrorCode :: ierr
 
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
 

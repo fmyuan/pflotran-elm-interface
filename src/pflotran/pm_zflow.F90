@@ -310,9 +310,14 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
-
   error_string = 'ZFLOW Newton Solver'
+
+  select case(trim(keyword))
+    case('ITOL_UPDATE')
+      option%io_buffer = 'ITOL_UPDATE not supported with ZFLOW. Please &
+        &use MAX_ALLOW_LIQ_PRES_CHANGE_NI.'
+      call PrintErrMsg(option)
+  end select
 
   found = PETSC_FALSE
   call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
@@ -361,6 +366,7 @@ recursive subroutine PMZFlowInitializeRun(this)
   use Realization_Base_class
   use Patch_module
   use Field_module
+  use Material_Aux_module
   use Option_module
   use Variables_module
 
@@ -417,6 +423,12 @@ recursive subroutine PMZFlowInitializeRun(this)
   if (Initialized(this%temperature_change_governor)) then
     option%io_buffer = 'TEMPERATURE_CHANGE_GOVERNOR &
       &may not be used with ZFLOW.'
+    call PrintErrMsg(option)
+  endif
+
+  if (soil_compressibility_index == 0 .and. associated(option%inversion)) then
+    option%io_buffer = 'Soil compressibility must be employed for ZFlow &
+      &when used for inversion.'
     call PrintErrMsg(option)
   endif
 
@@ -492,7 +504,8 @@ end subroutine PMZFlowPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMZFlowUpdateTimestep(this,update_dt, &
+                                 dt,dt_min,dt_max,iacceleration, &
                                  num_newton_iterations,tfac, &
                                  time_step_max_growth_factor)
   !
@@ -506,6 +519,7 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_zflow_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -518,29 +532,30 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: sat_ratio, pres_ratio
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  sat_ratio = (2.d0*this%liq_sat_change_ts_governor)/ &
-              (this%liq_sat_change_ts_governor+this%max_saturation_change)
-  pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
-               (this%liq_pres_change_ts_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(sat_ratio,pres_ratio)*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (min(sat_ratio,pres_ratio) > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else if (sat_ratio < pres_ratio) then
-      string = 'liquid saturation governor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    sat_ratio = (2.d0*this%liq_sat_change_ts_governor)/ &
+                (this%liq_sat_change_ts_governor+this%max_saturation_change)
+    pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
+                (this%liq_pres_change_ts_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(min(sat_ratio,pres_ratio)*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (min(sat_ratio,pres_ratio) > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else if (sat_ratio < pres_ratio) then
+        string = 'liquid saturation governor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call PrintMsg(this%option,string)
   endif
 
   if (Initialized(this%cfl_governor)) then
@@ -902,8 +917,6 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: local_id, ghosted_id
   PetscInt :: converged_flag
 
-  PetscReal, parameter :: zero_accumulation = 1.d-15
-
   PetscReal :: max_abs_res_liq_
   PetscInt :: max_abs_res_liq_cell
   PetscReal :: max_abs_res_sol_
@@ -1116,8 +1129,6 @@ subroutine PMZFlowMaxChange(this)
   PetscReal :: max_change, change
   PetscInt :: i, j
   PetscInt :: ivar
-  character(len=MAXSTRINGLENGTH) :: string
-
   PetscErrorCode :: ierr
 
   realization => this%realization
@@ -1205,7 +1216,6 @@ subroutine PMZFlowInputRecord(this)
 
   class(pm_zflow_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -1228,7 +1238,6 @@ subroutine PMZFlowCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1251,7 +1260,6 @@ subroutine PMZFlowRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1279,8 +1287,6 @@ subroutine PMZFlowDestroy(this)
   implicit none
 
   class(pm_zflow_type) :: this
-
-  PetscErrorCode :: ierr
 
   if (associated(this%next)) then
     call this%next%Destroy()

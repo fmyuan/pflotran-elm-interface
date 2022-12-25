@@ -652,7 +652,6 @@ subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   PetscInt :: ja, jb
   PetscInt :: istart, iend
   class(lookup_table_axis2_general_type), pointer :: axis2
-  class(lookup_table_axis3_general_type), pointer :: axis3
 
   ! axis 1 corresponds to the j dim below
   call LookupTableAxisIndexGeneral(lookup1,this%axis1%values, &
@@ -803,7 +802,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   kend = 0
   pselect = 0
   if (allocated(axis3%bounds)) then
-    ! ---> axis3 is has defined partitions (non-rectangular)
+    ! ---> axis3 has defined partitions (non-rectangular)
     ! allocate saved partition indices if needed
     if (.not. allocated(axis3%saved_index_partition)) then
       allocate(axis3%saved_index_partition(li,lj))

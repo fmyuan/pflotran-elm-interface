@@ -1356,7 +1356,7 @@ subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, 
   PetscReal :: T0, Tx, x
   PetscReal :: dT0_dT,da_dT,db_dT,dm_dT,dln_T0_dT,dz_dT,dy_dT,dw_dT
   PetscReal :: dln_p_dT
-  PetscReal :: ln_T0, p
+  PetscReal :: ln_T0
   PetscReal :: a, b, m
   PetscReal :: w, y, z
   PetscReal, parameter :: a1 = 5.93582d-6
@@ -1491,15 +1491,12 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscInt :: i
-
   PetscReal, save :: aa(0:22)
   PetscReal, save :: a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12
 
-  PetscReal :: beta,beta2x,beta4,theta,utheta,theta2x,theta18,theta20
+  PetscReal :: beta,beta2x,beta4,theta,theta2x,theta18,theta20
   PetscReal :: xx,yy,zz
   PetscReal :: u0,u1,u2,u3,u4,u5,u6,u7,u8,u9
-  PetscReal :: tempreal
 !  PetscReal :: v0_1, v1_1, v2_1, v3_1, v4_1
 !  PetscReal :: v1_2, v2_2, v3_2, v4_2, v20_2, v40_2
 !  PetscReal :: v1_3, v2_3, v3_3, v4_3
@@ -1509,7 +1506,7 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
 !  PetscReal :: term1,term2,term2t,term3,term3t,term3p,term4,term4t,term4p, &
 !               term5,term5t,term5p,term6,term6t,term6p,term7,term7t,term7p
 !  PetscReal :: dv2t,dv2p,dv3t
-  PetscReal :: vr,ypt,yptt,zpt,zpp,vrpt,vrpp,cnv
+  PetscReal :: vr,ypt,zpt,zpp,vrpt,vrpp,cnv
   PetscReal :: tc1,pc1,vc1,utc1,upc1,vc1mol
   PetscReal :: d2z_dp2    ! 2nd derivative of z w.r.t. pressure
   PetscReal :: d2vr_dp2   ! 2nd derivative of vr w.r.t. pressure
@@ -1521,9 +1518,6 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
-  PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
   data aa/ &
@@ -1668,7 +1662,7 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
   PetscInt, parameter :: J_i(34) = [-2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1, &
                                      3,17,-4,0,6,-5,-2,10,-8,-11,-6,-29,-31, &
                                      -38,-39,-40,-41]
-  PetscReal :: pi, tao, g_pi, g_taoi, T_temp
+  PetscReal :: pi, tao, g_pi, T_temp
   PetscReal :: dg_pi_dT, dv_dt, dg_pi_dp, dv_dp
 
 ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
@@ -1755,11 +1749,8 @@ subroutine EOSWaterEnthalpyIFC67(t,p,calculate_derivatives,hw, &
   PetscReal, parameter :: one = 1.d0
   PetscReal, parameter :: two = 2.d0
   PetscReal, parameter :: three = 3.d0
-  PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
   PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
@@ -2117,7 +2108,6 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   PetscReal, intent(out) :: dwt ! kmol/m^3-C
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter :: g_cm3_to_kg_m3 = 1.d3
   PetscReal, parameter :: Pa_to_bar = 1.d-5
 
   PetscReal :: T_v ! Scaled temperature for volumetric correlation
@@ -2130,8 +2120,8 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   t_C = T
   p_bar = P*Pa_to_bar
 
-  x = aux(1) !mass fraction
-  molal = (1.d3*x/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+  s = aux(1)*100.d0 !mass %
+  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
   x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
 
   n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
@@ -2182,11 +2172,10 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
 
   PetscReal :: A, B, C, D, E
   PetscReal :: s, molal
-  PetscReal, parameter :: g_to_kg = 1.d-3
   PetscReal, parameter :: mol_to_kmol = 1.d-3
   PetscReal, parameter :: kJ_to_J = 1.d3
 
-  s = aux(1)
+  s = aux(1) ! mass fraction
   ! eq 8
   A = (0.0005d0  +s*(0.0378d0  +s*(-0.3682d0 +s*(-0.6529d0 +s*2.89d0))))*1.d3
   B = 4.145d0    +s*(-4.973d0  +s*(4.482d0   +s*(18.31d0   +s*(-46.41d0))))
@@ -2194,6 +2183,8 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
   D = (-0.0048d0 +s*(0.0639d0  +s*(-0.714d0  +s*(3.273d0   +s*(-4.85d0)))))*1.d-3
   E = (0.0202d0  +s*(-0.2432d0 +s*(2.054d0   +s*(-8.211d0  +s*11.43d0))))*1.d-6
   hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
+
+  molal = (1.d3*(s*100.d0)/(58.442d0*(1.d2 - (s*100.d0))))*1.d2 !mol/kg
 
   hw = hw*kJ_to_J/((molal+55.508435d0)*mol_to_kmol) !J/kmol
   if (calculate_derivatives) then
@@ -2582,8 +2573,6 @@ subroutine EOSWaterDensityTPPlanarSetup()
   PetscReal, parameter :: drho_dT = -0.312d0
   PetscReal, parameter :: rho_reference = 996.d0
 
-  PetscReal :: dw
-
   call GeomComputePlaneWithGradients(water_density_tp_plane,p0,t0, &
                                      rho_reference,drho_dp,drho_dT)
 
@@ -2754,9 +2743,6 @@ subroutine EOSWaterSteamDensityEnthalpyIFC67(t,pv,calculate_derivatives, &
   PetscReal, parameter :: four = 4.d0
   PetscReal, parameter :: five = 5.d0
   PetscReal, parameter :: six = 6.d0
-  PetscReal, parameter :: seven = 7.d0
-  PetscReal, parameter :: eight = 8.d0
-  PetscReal, parameter :: nine = 9.d0
   PetscReal, parameter :: ten = 10.d0
 
   data delt,delp/1.d-6,1.d-6/
@@ -3481,7 +3467,6 @@ subroutine EOSWaterInternalEnergyIce(T, u_ice, du_ice_dT)
   PetscReal, intent(in) :: T
   PetscReal, intent(out) :: u_ice
   PetscReal, intent(out) :: du_ice_dT
-  PetscErrorCode :: ierr
 
   PetscReal, parameter :: a = -10.6644d0
   PetscReal, parameter :: b = 0.1698d0
@@ -3526,7 +3511,6 @@ subroutine EOSWaterDensityPainter(t,p,calculate_derivatives,dw,dwmol, &
 
   PetscReal :: den_w_one_bar, T_K
   PetscReal :: u_J_kg, h_J_kg
-  PetscReal :: du_dt
 
   ! Density of water
   T_K = T + T_ref    ! convert to Kelvin
@@ -3680,7 +3664,6 @@ subroutine EOSWaterDensityTGDPB01(t, p, calculate_derivatives, &
   PetscReal,parameter :: k1 = -0.326d-11      ! [Pa^{-1} degC^{-1}]
   PetscReal,parameter :: k2 = 0.00416d-11     ! [Pa^{-1} degC^{-2}]
   PetscReal,parameter :: p0 = 101325.d0       ! [Pa]
-  PetscReal :: t_c
   PetscReal :: dent
   PetscReal :: kappa
   PetscReal :: ddent_dt
@@ -3690,7 +3673,6 @@ subroutine EOSWaterDensityTGDPB01(t, p, calculate_derivatives, &
   PetscReal :: ddent_dp
   PetscReal :: dkappa_dp
   PetscReal :: dkappa_dt
-  PetscReal :: dden_dt
 
   ! Density of water as function of temperature
   dent = a5*(1.d0 - ((t + a1)**2.d0)*(t + a2)/a3/(t + a4))
@@ -4195,7 +4177,6 @@ subroutine EOSWaterDensityExtNumericalDerive(t,p,aux,dw,dwmol,dwp,dwt,ierr)
 
   PetscReal :: dwp_analytical, dwt_analytical
   PetscReal :: dwp_numerical, dwt_numerical
-  PetscReal :: dw_no_salt, dwp_no_salt, dwt_no_salt
   PetscReal :: dum1, dum2, dum3
   PetscReal :: dwmol_tpert, dwmol_ppert
   PetscReal :: tpert, ppert, t_plus_tpert, p_plus_ppert
@@ -4254,8 +4235,7 @@ subroutine EOSWaterInputRecord()
 
   implicit none
 
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') '---------------------------------------------------------&
@@ -4449,7 +4429,7 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
   PetscReal, allocatable :: enthalpy(:,:)
   PetscReal, allocatable :: viscosity(:,:)
   PetscReal, allocatable :: saturation_pressure_array(:)
-  PetscReal :: dum1, dum2, dum3, dum4
+  PetscReal :: dum1, dum2, dum3
   PetscInt :: itemp, ipres
   PetscReal :: ln_low, ln_high
   PetscReal :: saturation_pressure
@@ -4867,7 +4847,7 @@ subroutine EOSWaterKelvin(Pc,rhow,T,Psat,Pv)
   PetscReal, intent(in) :: Pc, T, Psat, rhow
   PetscReal, intent(out) :: Pv
 
-  PetscReal :: sigma, vp_factor, T_temp
+  PetscReal :: vp_factor, T_temp
 
   T_temp = T + 273.15d0
 

@@ -127,12 +127,9 @@ subroutine RichardsSetupPatch(realization)
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
-  type(coupler_type), pointer :: boundary_condition
-  type(coupler_type), pointer :: source_sink
 
   PetscInt :: local_id, ghosted_id, iconn, sum_connection
   PetscInt :: ivertex, nvert, region_id, vertex_id
-  PetscInt :: i
   PetscBool :: error_found, found
   PetscInt :: flag(10)
   PetscReal :: minz, maxz, zcenter, zface
@@ -408,7 +405,6 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   type(region_type), pointer :: region
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id, region_id
   PetscInt :: ghosted_id
   PetscReal :: mass
@@ -600,7 +596,6 @@ subroutine RichardsUpdatePermPatch(realization)
   PetscReal :: p_min, p_max, permfactor_max
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
-  PetscReal, pointer :: perm_ptr(:)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -733,12 +728,11 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, region_id
-  PetscInt :: iphasebc, iphase, i, istart, iend
+  PetscInt :: ghosted_id, local_id, sum_connection, iconn, region_id
+  PetscInt :: istart, iend
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), Pl
   PetscErrorCode :: ierr
-  Vec :: phi
 
   call PetscLogEventBegin(logging%event_r_auxvars,ierr);CHKERRQ(ierr)
 
@@ -930,9 +924,6 @@ subroutine RichardsInitializeTimestep(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
-
   type(field_type), pointer :: field
 
 
@@ -1063,7 +1054,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id
-  PetscInt :: numfaces, jface, ghost_face_id, j, region_id
+  PetscInt :: region_id
   PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Res(1)
@@ -1254,7 +1245,6 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   PetscInt :: skip_conn_type
   PetscErrorCode :: ierr
 
-  type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
@@ -1371,7 +1361,6 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  character(len=MAXSTRINGLENGTH) :: string
 
   field => realization%field
   discretization => realization%discretization
@@ -1606,14 +1595,12 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: region_id, i
   PetscInt :: istart
-  PetscInt :: icc_up
   PetscInt :: icc_dn
   PetscInt :: iconn
   PetscInt :: sum_connection
@@ -1781,16 +1768,13 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscReal, pointer :: qflx_pf_p(:)
 #endif
   PetscReal :: qsrc, qsrc_mol
-  PetscReal :: Res(realization%option%nflowdof)
-  PetscReal, pointer :: r_p(:), accum_p(:)
+  PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: mmsrc(:)
-  PetscReal, allocatable :: msrc(:)
   PetscReal :: well_status
   PetscReal :: well_factor
   PetscReal :: pressure_bh
   PetscReal :: pressure_max
   PetscReal :: pressure_min
-  PetscReal :: well_inj_water
   PetscReal :: Dq, dphi, v_darcy, ukvr
 
   Mat, parameter :: null_mat = tMat(0)
@@ -2069,7 +2053,6 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   Mat :: J
   MatType :: mat_type_A, mat_type_B
   PetscViewer :: viewer
-  type(grid_type),  pointer :: grid
   type(option_type), pointer :: option
   PetscReal :: norm
   character(len=MAXSTRINGLENGTH) :: string
@@ -2176,12 +2159,11 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: region_id_up, region_id_dn
-  PetscInt :: istart_up, istart_dn, istart
+  PetscInt :: istart_up, istart_dn
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
 
-  type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
@@ -2408,17 +2390,15 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
 
   PetscErrorCode :: ierr
 
-  PetscInt :: icc_up,icc_dn
+  PetscInt :: icc_dn
   PetscInt :: local_id, ghosted_id
-  PetscInt :: local_id_up, local_id_dn, region_id, i
-  PetscInt :: ghosted_id_up, ghosted_id_dn
-  PetscInt :: istart_up, istart_dn, istart
+  PetscInt :: region_id, i
+  PetscInt :: istart
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
 
-  type(coupler_type), pointer :: boundary_condition, source_sink
-  type(connection_set_list_type), pointer :: connection_set_list
+  type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
@@ -2721,7 +2701,6 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscInt :: flow_pc
   PetscViewer :: viewer
   PetscReal, pointer :: mmsrc(:)
   PetscReal :: well_status
@@ -2898,7 +2877,6 @@ subroutine RichardsMaxChange(realization,dpmax)
   PetscReal :: dpmax
 
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
   option => realization%option
   field => realization%field

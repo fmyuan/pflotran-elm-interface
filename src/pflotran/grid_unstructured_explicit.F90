@@ -45,19 +45,17 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   type(option_type) :: option
 
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: string, hint
+  character(len=MAXSTRINGLENGTH) :: hint
   character(len=MAXWORDLENGTH) :: word, card
   PetscInt :: fileid, icell, iconn, irank, remainder, temp_int, num_to_read
 
   PetscInt :: num_cells, num_connections, num_elems
   PetscInt :: num_cells_local, num_cells_local_save
   PetscInt :: num_connections_local, num_connections_local_save
-  PetscInt :: num_elems_local, num_elems_local_save
   PetscMPIInt :: status_mpi(MPI_STATUS_SIZE)
   PetscMPIInt :: int_mpi
   PetscErrorCode :: ierr
   PetscReal, allocatable :: temp_real_array(:,:)
-  PetscInt, allocatable :: temp_int_array(:,:)
   PetscInt :: ivertex, num_vertices, num_grid_vertices
 
   explicit_grid => unstructured_grid%explicit_grid
@@ -470,11 +468,9 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
 
   type(unstructured_explicit_type), pointer :: explicit_grid
   character(len=MAXSTRINGLENGTH) :: group_name
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  character(len=MAXSTRINGLENGTH) :: string
   PetscMPIInt :: hdf5_err
   PetscMPIInt :: rank_mpi
-  PetscInt :: istart, iend, local_id, iconn, icell
+  PetscInt :: istart, iend, iconn, icell
   PetscInt :: num_cells, num_connections
   PetscInt :: num_cells_local, num_cells_local_save
   PetscInt :: num_connections_local, num_connections_local_save
@@ -485,15 +481,12 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   PetscErrorCode :: ierr
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
-  integer(HID_T) :: file_space_id
   integer(HID_T) :: data_space_id
   integer(HID_T) :: memory_space_id
-  integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
-  integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
+  integer(HSIZE_T) :: offset(2), length(2)
   integer :: ndims_h5
 
   explicit_grid => unstructured_grid%explicit_grid
@@ -590,7 +583,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   explicit_grid%cell_volumes = UNINITIALIZED_DOUBLE
   explicit_grid%cell_ids = UNINITIALIZED_INTEGER
   do icell = 1, num_cells_local
-    explicit_grid%cell_ids(icell) = icell + offset(1)
+    explicit_grid%cell_ids(icell) = icell + int(offset(1))
     explicit_grid%cell_volumes(icell) = double_buffer(icell)
   enddo
 
@@ -911,13 +904,11 @@ subroutine UGridExplicitDecompose(ugrid,option)
   type(option_type) :: option
 
   type(unstructured_explicit_type), pointer :: explicit_grid
-  PetscViewer :: viewer
 
   Mat :: M_mat,M_mat_loc
   Vec :: M_vec
   Mat :: Adj_mat
   Mat :: Dual_mat
-  MatPartitioning :: Part
   IS :: is_new
   IS :: is_scatter
   IS :: is_gather
@@ -927,7 +918,6 @@ subroutine UGridExplicitDecompose(ugrid,option)
   VecScatter :: vec_scatter
 
   PetscInt :: global_offset_old
-  PetscInt :: global_offset_new
   PetscInt :: ghosted_id
   PetscInt, allocatable :: local_connections(:), local_connection_offsets(:)
   PetscInt, allocatable :: local_connections2(:), local_connection_offsets2(:)
@@ -938,16 +928,15 @@ subroutine UGridExplicitDecompose(ugrid,option)
   PetscInt :: num_connections_total
   PetscInt :: num_connections_global, global_connection_offset
   PetscInt :: id_up, id_dn, iconn, icell, count, offset
-  PetscInt :: conn_id, dual_id
+  PetscInt :: conn_id
   PetscBool :: found
-  PetscInt :: i, temp_int, idual
+  PetscInt :: i, temp_int
   PetscReal :: temp_real
 
-  PetscInt :: iflag
   PetscBool :: success
   PetscInt, pointer :: ia_ptr(:), ja_ptr(:)
   PetscInt, pointer :: ia_ptr2(:), ja_ptr2(:)
-  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: num_rows, num_cols, istart, iend, icol
   PetscInt :: cell_stride, dual_offset, connection_offset, connection_stride
   PetscInt :: natural_id_offset
@@ -1743,10 +1732,6 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
   PetscInt :: iconn
   PetscInt :: id_up, id_dn
   PetscReal :: pt_up(3), pt_dn(3), pt_center(3)
-  PetscReal :: v(3), v_up(3), unit_vector(3), v_up_projected(3)
-  PetscReal :: distance
-  PetscReal :: upwind_fraction
-  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: error
 
   num_connections = size(explicit_grid%connections,2)

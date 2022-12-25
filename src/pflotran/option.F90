@@ -102,7 +102,7 @@ module Option_module
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
 
     PetscBool :: use_isothermal
-    PetscBool :: use_mc           ! If true, multiple continuum formulation is used.
+    PetscBool :: use_sc           ! If true, multiple continuum formulation is used.
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
@@ -153,7 +153,6 @@ module Option_module
 
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
-    PetscBool :: use_upwinding
     PetscBool :: out_of_table
 
     ! Specify secondary continuum solver
@@ -376,8 +375,6 @@ subroutine OptionInitAll(option)
 
   option%input_filename = ''
 
-  option%use_upwinding = PETSC_TRUE
-
   option%out_of_table = PETSC_FALSE
 
   call OptionInitRealization(option)
@@ -414,7 +411,7 @@ subroutine OptionInitRealization(option)
 
   option%use_isothermal = PETSC_FALSE
   option%use_matrix_free = PETSC_FALSE
-  option%use_mc = PETSC_FALSE
+  option%use_sc = PETSC_FALSE
 
   option%flowmode = ""
   option%iflowmode = NULL_MODE
@@ -551,9 +548,7 @@ subroutine OptionCheckCommandLine(option)
   type(option_type) :: option
 
   PetscBool :: option_found
-  PetscInt :: temp_int
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                            "-buffer_matrix",option%use_matrix_buffer, &
@@ -563,8 +558,8 @@ subroutine OptionCheckCommandLine(option)
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                            "-use_isothermal",option%use_isothermal, &
                            ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_mc", &
-                           option%use_mc,ierr);CHKERRQ(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_sc", &
+                           option%use_sc,ierr);CHKERRQ(ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                              '-restart',option%restart_filename, &

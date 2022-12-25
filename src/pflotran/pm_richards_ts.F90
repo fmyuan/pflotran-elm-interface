@@ -349,8 +349,6 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   PetscInt :: ibeg
   PetscInt :: row, col
   PetscReal:: val
-  PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
   PetscReal :: por, dpor_dP, d2por_dP2
   PetscReal :: sat, dsat_dP, d2sat_dP2
   PetscReal :: den, dden_dP, d2den_dP2
@@ -467,9 +465,6 @@ subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   SNESConvergedReason :: reason
   class(pm_richards_ts_type) :: this
   PetscErrorCode :: ierr
-
-  character(len=MAXSTRINGLENGTH) :: string
-
 
   call PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 

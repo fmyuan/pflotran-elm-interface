@@ -111,9 +111,6 @@ subroutine InversionParameterPrint(inversion_parameter,option)
   type(inversion_parameter_type) :: inversion_parameter
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word
-  PetscErrorCode :: ierr
-
 end subroutine InversionParameterPrint
 
 ! ************************************************************************** !
@@ -231,9 +228,7 @@ function InversionParameterIntToQOIArray(inversion_parameter)
   ! Date: 03/25/22
   !
   use String_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA
+  use Variables_module, only : POROSITY
   use Material_Aux_module, only : POROSITY_BASE
 
   type(inversion_parameter_type) :: inversion_parameter

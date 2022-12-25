@@ -175,7 +175,6 @@ function InputCreate1(fid,path,filename,option)
   type(input_type), pointer :: InputCreate1
   PetscInt :: istatus
   PetscInt :: islash
-  character(len=MAXSTRINGLENGTH) :: local_path
   character(len=MAXSTRINGLENGTH) :: full_path
   type(input_type), pointer :: input
   PetscBool, parameter :: back = PETSC_TRUE
@@ -1229,7 +1228,7 @@ subroutine InputReadNChars1(input, option, chars, n, return_blank_error)
   PetscBool :: return_blank_error ! Return an error for a blank line
                                    ! Therefore, a blank line is not acceptable.
 
-  PetscInt :: n, begins, ends
+  PetscInt :: n
   character(len=n) :: chars
 
   if (InputError(input)) return
@@ -2016,8 +2015,6 @@ function getCommandLineArgumentCount()
 
   implicit none
 
-  integer :: iargc
-
   PetscInt :: getCommandLineArgumentCount
 
   ! initialize to zero
@@ -2689,11 +2686,12 @@ subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   option%io_buffer = 'Keyword "' // &
                      trim(keyword) // &
                      '" not recognized in ' // &
-                     trim(string) // '.'
+                     trim(string)
   if (len_trim(string2) > 0) then
     option%io_buffer = trim(option%io_buffer) // ' ' // &
-                     trim(string2) // '.'
+                     trim(string2)
   endif
+  option%io_buffer = trim(option%io_buffer) // '.'
   call PrintErrMsg(option)
 
 end subroutine InputKeywordUnrecognized2

@@ -361,17 +361,15 @@ subroutine CouplerComputeConnections(grid,option,coupler)
 
   type(grid_type) :: grid
   type(option_type) :: option
-  type(coupler_type), pointer :: coupler_list
 
   PetscInt :: iconn
-  PetscInt :: cell_id_local, cell_id_ghosted
+  PetscInt :: cell_id_local
   PetscInt :: connection_itype
   PetscInt :: iface
   type(connection_set_type), pointer :: connection_set
   type(region_type), pointer :: region
   type(coupler_type), pointer :: coupler
   PetscBool :: nullify_connection_set
-  PetscErrorCode :: ierr
 
   if (.not.associated(coupler)) return
 

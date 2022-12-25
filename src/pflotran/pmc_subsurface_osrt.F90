@@ -198,7 +198,6 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: sum_linear_iterations_temp
   PetscInt :: sum_wasted_linear_iterations
   PetscInt :: icut
-  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   PetscInt :: rreact_error
   PetscInt :: tempint
   PetscReal :: tconv
@@ -412,7 +411,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       !TODO(geh): move to timestepper base and call from daughters.
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
         sum_linear_iterations_temp
-      call timestepper%CutDT(process_model,icut,stop_flag,'osrt_rxn',-999,option)
+      call timestepper%CutDT(process_model,icut,stop_flag,'osrt_rxn', &
+                             -999,option)
+      if (stop_flag == TS_STOP_FAILURE) return
       timestepper%target_time = timestepper%target_time + timestepper%dt
       option%dt = timestepper%dt
       call process_model%TimeCut()

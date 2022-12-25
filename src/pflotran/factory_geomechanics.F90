@@ -80,9 +80,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(timestepper_steady_type), pointer :: timestepper
   character(len=MAXSTRINGLENGTH) :: string
-  type(waypoint_type), pointer :: waypoint
   type(input_type), pointer :: input
-  PetscErrorCode :: ierr
 
   option => simulation%option
   nullify(timestepper)
@@ -283,9 +281,7 @@ subroutine GeomechanicsJumpStart(simulation)
   class(timestepper_steady_type), pointer :: master_timestepper
   class(timestepper_steady_type), pointer :: geomech_timestepper
   type(option_type), pointer :: option
-  type(output_option_type), pointer :: output_option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
   PetscBool :: geomech_read
   PetscBool :: failure
@@ -349,7 +345,6 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   class(realization_geomech_type) :: geomech_realization
   type(input_type), pointer :: input
 
-  type(geomech_discretization_type), pointer :: geomech_discretization
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
 
@@ -509,25 +504,19 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   type(option_type), pointer :: option
   type(geomech_discretization_type), pointer :: geomech_discretization
   type(geomech_material_property_type),pointer :: geomech_material_property
-  type(waypoint_type), pointer :: waypoint
   type(geomech_grid_type), pointer :: grid
   type(gm_region_type), pointer :: region
-  type(geomech_debug_type), pointer :: debug
   type(geomech_strata_type), pointer :: strata
   type(geomech_condition_type), pointer :: condition
   type(geomech_coupler_type), pointer :: coupler
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
-  PetscReal :: units_conversion
 
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: card
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=1) :: backslash
 
-  PetscReal :: temp_real, temp_real2
-  PetscReal, pointer :: temp_real_array(:)
-  PetscInt :: i
+  PetscReal :: temp_real
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
   input%ierr = 0
@@ -803,11 +792,8 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
 
   class(realization_geomech_type) :: geomech_realization
 
-  PetscReal, pointer :: vec_p(:)
-
-  PetscInt :: ivertex, local_id, ghosted_id, natural_id, geomech_material_id
+  PetscInt :: ivertex, local_id, ghosted_id, geomech_material_id
   PetscInt :: istart, iend
-  character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscErrorCode :: ierr
 

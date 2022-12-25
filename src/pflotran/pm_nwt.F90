@@ -318,7 +318,7 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
   PetscReal, pointer :: temp_itol_rel_update(:)
   PetscReal, pointer :: temp_itol_scaled_res(:)
   PetscReal, pointer :: temp_itol_abs_res(:)
-  PetscInt :: k, j
+  PetscInt :: k
   character(len=MAXSTRINGLENGTH) :: error_string_ex
   character(len=MAXWORDLENGTH) :: word
 
@@ -643,7 +643,6 @@ subroutine PMNWTInitializeRun(this)
   PetscInt :: p
   type(material_property_type), pointer :: material_property
   type(region_type), pointer :: region
-  type(coupler_type), pointer :: init_condition
   character(len=MAXSTRINGLENGTH) :: hack_region_name
 
   ! check for uninitialized flow variables
@@ -910,7 +909,6 @@ subroutine PMNWTFinalizeTimestep(this)
   implicit none
 
   class(pm_nwt_type) :: this
-  PetscReal :: time
   PetscErrorCode :: ierr
 
   if (this%params%transient_porosity) then
@@ -935,7 +933,8 @@ end subroutine PMNWTFinalizeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMNWTUpdateTimestep(this,update_dt, &
+                               dt,dt_min,dt_max,iacceleration, &
                                num_newton_iterations,tfac, &
                                time_step_max_growth_factor)
   !
@@ -946,6 +945,7 @@ subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_nwt_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -957,47 +957,49 @@ subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: ifac
   PetscReal, parameter :: pert = 1.d-20
 
-  if (this%controls%volfrac_change_governor < 1.d0) then
-    ! with volume fraction potentially scaling the time step
-    if (iacceleration > 0) then
-      fac = 0.5d0
-      if (num_newton_iterations >= iacceleration) then
-        fac = 0.33d0
-        uvf = 0.d0
+  if (update_dt .and. iacceleration /= 0) then
+    if (this%controls%volfrac_change_governor < 1.d0) then
+      ! with volume fraction potentially scaling the time step
+      if (iacceleration > 0) then
+        fac = 0.5d0
+        if (num_newton_iterations >= iacceleration) then
+          fac = 0.33d0
+          uvf = 0.d0
+        else
+          uvf = this%controls%volfrac_change_governor/ &
+                (maxval(this%controls%max_volfrac_change)+pert)
+        endif
+        dtt = fac * dt * (1.d0 + uvf)
       else
-        uvf = this%controls%volfrac_change_governor/ &
-              (maxval(this%controls%max_volfrac_change)+pert)
+        ifac = max(min(num_newton_iterations,size(tfac)),1)
+        dt_tfac = tfac(ifac) * dt
+
+        fac = 0.5d0
+        uvf= this%controls%volfrac_change_governor/ &
+            (maxval(this%controls%max_volfrac_change)+pert)
+        dt_vf = fac * dt * (1.d0 + uvf)
+
+        dtt = min(dt_tfac,dt_vf)
       endif
-      dtt = fac * dt * (1.d0 + uvf)
     else
-      ifac = max(min(num_newton_iterations,size(tfac)),1)
-      dt_tfac = tfac(ifac) * dt
-
-      fac = 0.5d0
-      uvf= this%controls%volfrac_change_governor/ &
-           (maxval(this%controls%max_volfrac_change)+pert)
-      dt_vf = fac * dt * (1.d0 + uvf)
-
-      dtt = min(dt_tfac,dt_vf)
+      ! original implementation
+      ! this overrides the default setting of iacceleration = 5
+      ! by default size(tfac) is 13, so this is safe
+      dtt = dt
+      iacceleration = size(tfac)
+      if (num_newton_iterations <= iacceleration) then
+        dtt = tfac(num_newton_iterations) * dt
+      else
+        dtt = this%controls%dt_cut * dt
+      endif
     endif
-  else
-    ! original implementation
-    ! this overrides the default setting of iacceleration = 5
-    ! by default size(tfac) is 13, so this is safe
-    dtt = dt
-    iacceleration = size(tfac)
-    if (num_newton_iterations <= iacceleration) then
-      dtt = tfac(num_newton_iterations) * dt
-    else
-      dtt = this%controls%dt_cut * dt
-    endif
+
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: see comment above under flow stepper
+    dtt = max(dtt,dt_min)
+    dt = dtt
   endif
-
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: see comment above under flow stepper
-  dtt = max(dtt,dt_min)
-  dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%controls%cfl_governor, &
                                dt,dt_max)
@@ -1219,9 +1221,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: ratio, min_ratio
-  PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, n, k
+  PetscInt :: i, k
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
@@ -1262,7 +1263,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 #else
       min_ratio = MAX_DOUBLE ! large number
       k = 0
-      do i = 1, n
+      do i = 1, size(C_p)
         if (C_p(i) <= dC_p(i)) then
           !WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
           ratio = abs(C_p(i)/dC_p(i))
@@ -1356,7 +1357,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: max_scaled_residual
   PetscReal :: max_absolute_change
   PetscReal :: max_absolute_residual
-  PetscReal :: min_C0, min_C_prev
+  PetscReal :: min_C0
   PetscInt :: loc_max_scaled_residual
   PetscInt :: loc_max_abs_residual
   PetscInt :: loc_max_rel_update
@@ -1372,7 +1373,6 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: temp_int, i
   PetscInt :: newton_iter_number
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
-  PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
   PetscMPIInt :: mpi_int
   PetscInt :: local_id, offset, idof, index
   PetscReal :: tempreal
@@ -2144,7 +2144,6 @@ subroutine PMNWTInputRecord(this)
 
   class(pm_nwt_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

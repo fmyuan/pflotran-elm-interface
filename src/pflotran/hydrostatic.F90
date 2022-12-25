@@ -60,8 +60,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: gas_pressure
   PetscReal :: xm_nacl
   PetscReal :: max_z, min_z, temp_real
-  PetscInt :: num_faces, face_id_ghosted, conn_id, num_regions
-  type(connection_set_type), pointer :: conn_set_ptr
+  PetscInt :: num_faces
   PetscReal, pointer :: pressure_array(:)
   PetscReal, allocatable :: density_array(:), z(:)
   PetscReal :: pressure_gradient(3), piezometric_head_gradient(3), datum(3)
@@ -70,7 +69,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: z_offset
   PetscReal :: aux(1), dummy
   PetscReal :: lower_segment, upper_segment
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: water_index, conductance_index, energy_index, solute_index
   PetscErrorCode :: ierr
 
@@ -79,8 +77,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: datum_dataset_rmin
 
   type(flow_condition_type), pointer :: condition
-
-  type(connection_set_type), pointer :: cur_connection_set
 
   condition => coupler%flow_condition
 
@@ -154,11 +150,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         temperature_gradient(1:3) = &
           condition%hydrate%temperature%gradient%rarray(1:3)
       endif
-      concentration_at_datum = &
-        condition%hydrate%mole_fraction%dataset%rarray(1)
-      if (associated(condition%hydrate%mole_fraction%gradient)) then
-        concentration_gradient(1:3) = &
-        condition%hydrate%mole_fraction%gradient%rarray(1:3)
+      if (associated(condition%hydrate%mole_fraction)) then
+        concentration_at_datum = &
+          condition%hydrate%mole_fraction%dataset%rarray(1)
+        if (associated(condition%hydrate%mole_fraction%gradient)) then
+          concentration_gradient(1:3) = &
+          condition%hydrate%mole_fraction%gradient%rarray(1:3)
+        endif
       endif
       pressure_at_datum = &
         condition%hydrate%liquid_pressure%dataset%rarray(1)
@@ -180,7 +178,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       ! air pressure here is being hijacked to store capillary pressure
       coupler%flow_aux_mapping(HYDRATE_AIR_PRESSURE_INDEX) = 2
       coupler%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX) = 3
-      coupler%flow_aux_mapping(HYDRATE_GAS_SATURATION_INDEX) = 3
+      coupler%flow_aux_mapping(HYDRATE_GAS_SATURATION_INDEX) = 2
     case(WF_MODE)
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)
@@ -634,23 +632,37 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
         endif
       case(H_MODE)
-        temperature = temperature_at_datum + &
-                    ! gradient in K/m
-                    temperature_gradient(X_DIRECTION)*dist_x + &
-                    temperature_gradient(Y_DIRECTION)*dist_y + &
-                    temperature_gradient(Z_DIRECTION)*dist_z
-        coupler%flow_aux_real_var(3,iconn) = &
-          temperature
-        ! switch to two-phase if liquid pressure drops below gas pressure
-        if (pressure < gas_pressure) then
-          ! we hijack the air pressure entry, storing capillary pressure there
-          coupler%flow_aux_real_var(1,iconn) = gas_pressure
-          coupler%flow_aux_real_var(2,iconn) = gas_pressure - pressure
-          coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = GA_STATE
-        else
-          coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
-          coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = L_STATE
-        endif
+        select case (coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn))
+          case(GA_STATE)
+            ! This is only to be used for very low Sg where the user
+            ! intends to initialize at gas pressure = liquid pressure
+            temperature = temperature_at_datum + &
+                        ! gradient in K/m
+                        temperature_gradient(X_DIRECTION)*dist_x + &
+                        temperature_gradient(Y_DIRECTION)*dist_y + &
+                        temperature_gradient(Z_DIRECTION)*dist_z
+            coupler%flow_aux_real_var(3,iconn) = &
+              temperature
+            coupler%flow_aux_real_var(1,iconn) = pressure
+            coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = GA_STATE
+          case default
+            temperature = temperature_at_datum + &
+                        ! gradient in K/m
+                        temperature_gradient(X_DIRECTION)*dist_x + &
+                        temperature_gradient(Y_DIRECTION)*dist_y + &
+                        temperature_gradient(Z_DIRECTION)*dist_z
+            coupler%flow_aux_real_var(3,iconn) = &
+              temperature
+            ! switch to two-phase if liquid pressure drops below gas pressure
+            if (pressure < gas_pressure) then
+              coupler%flow_aux_real_var(1,iconn) = gas_pressure
+              coupler%flow_aux_real_var(2,iconn) = gas_pressure - pressure
+              coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = GA_STATE
+            else
+              coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
+              coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = L_STATE
+            endif
+        end select
       case default
         coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,iconn) = 1
     end select

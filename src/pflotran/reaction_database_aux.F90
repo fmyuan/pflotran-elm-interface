@@ -18,13 +18,20 @@ module Reaction_Database_Aux_module
     PetscReal, pointer :: logKCoeff_hpt(:)
   end type database_rxn_type
 
+  type, public :: database_rxn_ptr_type
+    type(database_rxn_type), pointer :: dbaserxn
+    type(database_rxn_ptr_type), pointer :: next
+  end type database_rxn_ptr_type
+
   public :: BasisAlignSpeciesInRxn, &
             BasisSubSpeciesInGasOrSecRxn, &
             BasisSubSpeciesinMineralRxn, &
             DatabaseRxnCreate, &
+            DatabaseRxnPtrCreate, &
             DatabaseRxnCreateFromRxnString, &
             DatabaseCheckLegitimateLogKs, &
-            DatabaseRxnDestroy
+            DatabaseRxnDestroy, &
+            DatabaseRxnPtrDestroy
 
 contains
 
@@ -54,6 +61,30 @@ function DatabaseRxnCreate()
   DatabaseRxnCreate => dbaserxn
 
 end function DatabaseRxnCreate
+
+! ************************************************************************** !
+
+function DatabaseRxnPtrCreate()
+  !
+  ! Allocate and initialize a pointer to the database reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/01/08
+  !
+
+  implicit none
+
+  type(database_rxn_ptr_type), pointer :: DatabaseRxnPtrCreate
+
+  type(database_rxn_ptr_type), pointer :: dbaserxn_ptr
+
+  allocate(dbaserxn_ptr)
+  nullify(dbaserxn_ptr%dbaserxn)
+  nullify(dbaserxn_ptr%next)
+
+  DatabaseRxnPtrCreate => dbaserxn_ptr
+
+end function DatabaseRxnPtrCreate
 
 ! ************************************************************************** !
 
@@ -621,5 +652,28 @@ subroutine DatabaseRxnDestroy(dbaserxn)
   nullify(dbaserxn)
 
 end subroutine DatabaseRxnDestroy
+
+! ************************************************************************** !
+
+recursive subroutine DatabaseRxnPtrDestroy(dbaserxn_ptr)
+  !
+  ! Deallocates a database reaction pointer
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/24/22
+  !
+  implicit none
+
+  type(database_rxn_ptr_type), pointer :: dbaserxn_ptr
+
+  if (.not.associated(dbaserxn_ptr)) return
+
+  call DatabaseRxnPtrDestroy(dbaserxn_ptr%next)
+  call DatabaseRxnDestroy(dbaserxn_ptr%dbaserxn)
+
+  deallocate(dbaserxn_ptr)
+  nullify(dbaserxn_ptr)
+
+end subroutine DatabaseRxnPtrDestroy
 
 end module Reaction_Database_Aux_module

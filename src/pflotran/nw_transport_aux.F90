@@ -12,6 +12,11 @@ module NW_Transport_Aux_module
 
   PetscReal, public :: MIN_LIQ_SAT = 1.0d-5
 
+  type, public :: nwt_well_aux_type
+    PetscReal, pointer :: AQ_conc(:)   ! aqueous concentration for each species
+    PetscReal, pointer :: AQ_mass(:)   ! aqueous mass for each species
+  end type nwt_well_aux_type
+
   type, public :: nw_transport_auxvar_type
     ! total mass as bulk concentration
     PetscReal, pointer :: total_bulk_conc(:)   ! mol-species/m^3-bulk
@@ -26,6 +31,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
+    type(nwt_well_aux_type) :: well
   end type nw_transport_auxvar_type
 
   type, public :: nw_transport_type
@@ -134,6 +140,11 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
 
+  interface NWTGetSpeciesIDFromName
+    module procedure NWTGetSpeciesIDFromName1
+    module procedure NWTGetSpeciesIDFromName2
+  end interface
+
   public :: NWTAuxCreate, &
             NWTSpeciesCreate, &
             NWTSpeciesConstraintCreate, &
@@ -149,7 +160,8 @@ module NW_Transport_Aux_module
             NWTAuxDestroy, &
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
-            NWTReactionDestroy
+            NWTReactionDestroy, &
+            NWTGetSpeciesIDFromName
 
 
 contains
@@ -218,6 +230,11 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   auxvar%mnrl_eq_conc = 0.d0
   allocate(auxvar%mnrl_vol_frac(nspecies))
   auxvar%mnrl_vol_frac = 0.d0
+
+  allocate(auxvar%well%AQ_conc(nspecies))
+  auxvar%well%AQ_conc = UNINITIALIZED_DOUBLE
+  allocate(auxvar%well%AQ_mass(nspecies))
+  auxvar%well%AQ_mass = UNINITIALIZED_DOUBLE
 
   if (nauxiliary > 0) then
     allocate(auxvar%auxiliary_data(nauxiliary))
@@ -408,7 +425,6 @@ subroutine NWTRead(reaction_nw,input,option)
             case('NAME')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'species name',error_string)
-              call StringToUpper(word)
               temp_species_names(k) = trim(word)
               new_species%name = trim(word)
             case('SOLUBILITY')
@@ -477,7 +493,6 @@ subroutine NWTRead(reaction_nw,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'radioactive species name', &
                              error_string)
-          call StringToUpper(word)
           new_rad_rxn%name = trim(word)
           parent_name_hold = trim(word)
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -485,7 +500,6 @@ subroutine NWTRead(reaction_nw,input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'radioactive species daughter &
                                &name',error_string)
-            call StringToUpper(word)
             new_rad_rxn%daughter_name = trim(word)
             j = 0
             ! record which species was the parent
@@ -1079,6 +1093,86 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
   enddo
 
 end subroutine NWTVerifySpecies
+
+! ************************************************************************** !
+
+function NWTGetSpeciesIDFromName1(name,reaction,option)
+  !
+  ! Returns the ID of the named species
+  !
+  ! Author: Alex Salazar III
+  ! Based on code from Glenn Hammond
+  ! Date: 09/13/2022
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: NWTGetSpeciesIDFromName1
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_nw_type) :: reaction
+  type(option_type) :: option
+
+  NWTGetSpeciesIDFromName1 = NWTGetSpeciesIDFromName2(name, reaction, &
+                                                      PETSC_TRUE, option)
+
+end function NWTGetSpeciesIDFromName1
+
+! ************************************************************************** !
+
+function NWTGetSpeciesIDFromName2(name,reaction,return_error,option)
+  !
+  ! Returns the ID of the named species
+  !
+  ! Author: Alex Salazar III
+  ! Based on code from Glenn Hammond
+  ! Date: 09/13/2022
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: NWTGetSpeciesIDFromName2
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_nw_type) :: reaction
+  type(option_type) :: option
+
+  type(species_type), pointer :: species
+  PetscInt :: i
+  PetscBool :: return_error
+
+  NWTGetSpeciesIDFromName2 = UNINITIALIZED_INTEGER
+
+  if (associated(reaction%species_names)) then
+    do i = 1, size(reaction%species_names)
+      if (StringCompare(name,reaction%species_names(i),MAXWORDLENGTH)) then
+        NWTGetSpeciesIDFromName2 = i
+        exit
+      endif
+    enddo
+  else
+    species => reaction%species_list
+    i = 0
+    do
+      if (.not.associated(species)) exit
+      i = i + 1
+      if (StringCompare(name,species%name,MAXWORDLENGTH)) then
+        NWTGetSpeciesIDFromName2 = i
+        exit
+      endif
+      species => species%next
+    enddo
+  endif
+
+  if (return_error .and. NWTGetSpeciesIDFromName2 <= 0) then
+    option%io_buffer = 'Species "' // trim(name) // &
+      '" not found within species list in NWTGetSpeciesIDFromName().'
+    call PrintErrMsg(option)
+  endif
+
+end function NWTGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 

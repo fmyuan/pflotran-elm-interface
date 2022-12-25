@@ -312,7 +312,6 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  PetscInt :: ghosted_id, natural_id, material_id
   PetscInt :: fid = 86
   PetscInt :: status
   PetscErrorCode :: ierr

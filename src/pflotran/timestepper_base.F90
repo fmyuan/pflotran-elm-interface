@@ -513,15 +513,16 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: equal_to_or_exceeds_sync_time
   PetscBool :: revert_due_to_waypoint
   PetscBool :: revert_due_to_sync_time
-  PetscBool :: truncated_due_to_next_dt_max
-  PetscReal :: temp_time
-  type(waypoint_type), pointer :: cur_waypoint, next_waypoint, prev_waypoint
+  type(waypoint_type), pointer :: cur_waypoint
 
 !geh: for debugging
 #ifdef DEBUG
   option%io_buffer = 'TimestepperBaseSetTargetTime()'
   call PrintMsg(option)
 #endif
+
+!geh: for debugging purposes
+!  call TimestepperBaseHardwireStep(this%steps,this%dt)
 
   if (this%time_step_cut_flag) then
     this%time_step_cut_flag = PETSC_FALSE
@@ -763,7 +764,7 @@ subroutine TimestepperBaseCutDT(this,process_model,icut,stop_flag, &
         ', dtmin= ' // &
         StringWrite('(es15.7)', &
                     this%dt_min/process_model%output_option%tconv) // &
-        ' ' // StringWriteBracket(process_model%output_option%tunit)
+        ' ' // trim(StringWriteBracket(process_model%output_option%tunit))
       call PrintMsg(option)
     endif
 
@@ -822,15 +823,16 @@ subroutine TimestepperBasePrintInfo(this,aux_string,option)
   option%io_buffer = trim(this%name) // ' Time Stepper ' // trim(aux_string)
   call PrintMsg(option)
   strings(:) = ''
-  strings(1) = 'maximum number of steps: ' // StringWrite(this%max_time_step)
+  strings(1) = 'maximum number of steps: ' // &
+    trim(StringWrite(this%max_time_step))
   strings(2) = 'constant time steps threshold: ' // &
-                              StringWrite(this%constant_time_step_threshold)
+    trim(StringWrite(this%constant_time_step_threshold))
   strings(3) = 'maximum number of cuts: ' // &
-                                        StringWrite(this%max_time_step_cuts)
+    trim( StringWrite(this%max_time_step_cuts))
   strings(4) = 'reduction factor: ' // &
-                                StringWrite(this%time_step_reduction_factor)
+    trim(StringWrite(this%time_step_reduction_factor))
   strings(5) = 'maximum growth factor: ' // &
-                               StringWrite(this%time_step_max_growth_factor)
+    trim(StringWrite(this%time_step_max_growth_factor))
   call StringsCenter(strings,30,':')
   do i = 1, size(strings)
     if (len_trim(strings(i)) > 0) call PrintMsg(option,strings(i))
@@ -991,8 +993,6 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
-
-  PetscErrorCode :: ierr
 
   header%time = this%target_time
   header%dt = this%dt
@@ -1220,6 +1220,30 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   call PrintMsg(option,string)
 
 end subroutine TimestepperBaseFinalizeRun
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseHardwireStep(istep,ts)
+  !
+  ! Hardwires the timestep for debugging purposes
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/22
+  !
+  implicit none
+
+  PetscInt :: istep
+  PetscReal :: ts
+
+  PetscReal :: ts_(15) = [0.1,2.,1.,3.,0.5, &
+                          0.3,1.5,0.4,2.1,0.05, &
+                          1.,2.,0.6,1.9,1.]
+
+  if (istep > 0 .and. istep <= size(ts_)) then
+    ts = ts_(istep)*3600.d0
+  endif
+
+end subroutine TimestepperBaseHardwireStep
 
 ! ************************************************************************** !
 

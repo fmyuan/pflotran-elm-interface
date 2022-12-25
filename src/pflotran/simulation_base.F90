@@ -115,7 +115,6 @@ subroutine SimulationBaseInputRecordPrint(this,option)
   class(simulation_base_type) :: this
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscBool :: is_open
 

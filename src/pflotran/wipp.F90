@@ -345,7 +345,6 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
   PetscReal :: phi
   PetscReal :: phi0
   PetscReal :: phii
-  PetscReal :: phia
   PetscReal :: Ci ! pore compressibility
   PetscReal :: P0 ! initial pressure
   PetscReal :: Pi ! initiating pressure
@@ -841,7 +840,6 @@ subroutine CreepClosureArrayDestroy(creep_closure_array)
   class(creep_closure_ptr_type), pointer :: &
     creep_closure_array(:)
 
-  class(creep_closure_type), pointer :: cur_creep_closure
   PetscInt :: i
 
   if (.not. associated(creep_closure_array)) return
@@ -1299,13 +1297,9 @@ subroutine WIPPCCVerify(saturation_func, &
 
   implicit none
 
-  PetscReal :: saturation(2)
   class(sat_func_base_type) :: saturation_func
   class(rel_perm_func_base_type) :: liq_rel_perm_func
   class(rel_perm_func_base_type) :: gas_rel_perm_func
-  PetscReal :: capillary_pressure
-  PetscReal :: liq_rel_perm
-  PetscReal :: gas_rel_perm
   type(option_type) :: option
 
   PetscReal :: sswr
@@ -1501,10 +1495,6 @@ subroutine WIPPCharacteristicCurves(saturation, &
   PetscReal :: krl_check
   PetscReal :: krg_check
   PetscReal :: tempreal
-
-  character(len=MAXWORDLENGTH) :: stype
-  character(len=MAXWORDLENGTH) :: ltype
-  character(len=MAXWORDLENGTH) :: gtype
 
   PetscBool :: error
 

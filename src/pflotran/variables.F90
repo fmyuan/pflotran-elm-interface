@@ -57,8 +57,8 @@ module Variables_module
   PetscInt, parameter, public :: PRIMARY_KD =              47
   PetscInt, parameter, public :: TOTAL_SORBED =            48
   PetscInt, parameter, public :: TOTAL_SORBED_MOBILE =     49
-  PetscInt, parameter, public :: COLLOID_MOBILE =          50
-  PetscInt, parameter, public :: COLLOID_IMMOBILE =        51
+!  PetscInt, parameter, public :: COLLOID_MOBILE =          50
+!  PetscInt, parameter, public :: COLLOID_IMMOBILE =        51
   PetscInt, parameter, public :: AGE =                     52
   PetscInt, parameter, public :: STATE =                   53
   PetscInt, parameter, public :: PROCESS_ID =              54
@@ -162,16 +162,23 @@ module Variables_module
   PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 132
   PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 133
 
-
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
-  PetscInt, parameter, public :: MATRIX_LENGTH    = 135
+  PetscInt, parameter, public :: HALF_MATRIX_WIDTH    = 135
 
   PetscInt, parameter, public :: VG_ALPHA                = 136
   PetscInt, parameter, public :: VG_M                    = 137
   PetscInt, parameter, public :: VG_SR                   = 138
 
-  PetscInt, parameter, public :: NWT_AUXILIARY = 139
+  PetscInt, parameter, public :: NWT_AUXILIARY           = 139
 
   PetscInt, parameter, public :: SMECTITE                = 140
+  PetscInt, parameter, public :: GAS_PARTIAL_PRESSURE    = 141
+
+  PetscInt, parameter, public :: WELL_LIQ_PRESSURE       = 142
+  PetscInt, parameter, public :: WELL_GAS_PRESSURE       = 143
+  PetscInt, parameter, public :: WELL_AQ_CONC            = 144
+  PetscInt, parameter, public :: WELL_AQ_MASS            = 145
+  PetscInt, parameter, public :: WELL_LIQ_Q              = 146
+  PetscInt, parameter, public :: WELL_GAS_Q              = 147
 
 end module Variables_module

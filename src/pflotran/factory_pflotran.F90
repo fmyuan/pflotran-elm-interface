@@ -38,7 +38,6 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
 
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
   PetscBool :: option_found

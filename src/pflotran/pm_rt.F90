@@ -197,7 +197,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,rt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
-        option%use_mc = PETSC_TRUE
+        option%use_sc = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
@@ -422,7 +422,6 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
                                         RTJumpStartKineticSorption
   use Condition_Control_module
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
@@ -546,7 +545,6 @@ subroutine PMRTWeightFlowParameters(this,time_level)
   PetscInt :: time_level
 
   PetscReal :: tran_weight
-  PetscErrorCode :: ierr
 
   if (time_level == TIME_T) then ! for ts initialization and ts cut
     if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
@@ -652,7 +650,6 @@ subroutine PMRTFinalizeTimestep(this)
   implicit none
 
   class(pm_rt_type) :: this
-  PetscReal :: time
   PetscErrorCode :: ierr
 
   if (this%transient_porosity) then
@@ -664,6 +661,8 @@ subroutine PMRTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
+  else if (this%realization%reaction%update_mineral_surface_area) then
+    call RealizationUpdatePropertiesTS(this%realization)
   endif
 
   call RTMaxChange(this%realization,this%max_concentration_change, &
@@ -706,7 +705,8 @@ end function PMRTAcceptSolution
 
 ! ************************************************************************** !
 
-subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMRTUpdateTimestep(this,update_dt, &
+                              dt,dt_min,dt_max,iacceleration, &
                               num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
   !
@@ -717,6 +717,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_rt_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -728,47 +729,50 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: ifac
   PetscReal, parameter :: pert = 1.d-20
 
-  if (this%volfrac_change_governor < 1.d0) then
-    ! with volume fraction potentially scaling the time step.
-    if (iacceleration > 0) then
-      fac = 0.5d0
-      if (num_newton_iterations >= iacceleration) then
-        fac = 0.33d0
-        uvf = 0.d0
+  if (update_dt .and. iacceleration /= 0) then
+    if (this%volfrac_change_governor < 1.d0) then
+      ! with volume fraction potentially scaling the time step.
+      if (iacceleration > 0) then
+        fac = 0.5d0
+        if (num_newton_iterations >= iacceleration) then
+          fac = 0.33d0
+          uvf = 0.d0
+        else
+          uvf = this%volfrac_change_governor/ &
+                (maxval(this%max_volfrac_change)+pert)
+        endif
+        dtt = fac * dt * (1.d0 + uvf)
       else
-        uvf = this%volfrac_change_governor/ &
-              (maxval(this%max_volfrac_change)+pert)
+        ifac = max(min(num_newton_iterations,size(tfac)),1)
+        dt_tfac = tfac(ifac) * dt
+
+        fac = 0.5d0
+        uvf= this%volfrac_change_governor/ &
+             (maxval(this%max_volfrac_change)+pert)
+        dt_vf = fac * dt * (1.d0 + uvf)
+
+        dtt = min(dt_tfac,dt_vf)
       endif
-      dtt = fac * dt * (1.d0 + uvf)
     else
-      ifac = max(min(num_newton_iterations,size(tfac)),1)
-      dt_tfac = tfac(ifac) * dt
-
-      fac = 0.5d0
-      uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
-      dt_vf = fac * dt * (1.d0 + uvf)
-
-      dtt = min(dt_tfac,dt_vf)
-    endif
-  else
-    ! original implementation
-    dtt = dt
-    if (num_newton_iterations <= iacceleration) then
-      if (num_newton_iterations <= size(tfac)) then
-        dtt = tfac(num_newton_iterations) * dt
+      ! original implementation
+      dtt = dt
+      if (num_newton_iterations <= iacceleration) then
+        if (num_newton_iterations <= size(tfac)) then
+          dtt = tfac(num_newton_iterations) * dt
+        else
+          dtt = 0.5d0 * dt
+        endif
       else
         dtt = 0.5d0 * dt
       endif
-    else
-      dtt = 0.5d0 * dt
     endif
-  endif
 
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: see comment above under flow stepper
-  dtt = max(dtt,dt_min)
-  dt = dtt
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: see comment above under flow stepper
+    dtt = max(dtt,dt_min)
+    dt = dtt
+  endif
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
 
@@ -867,7 +871,6 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_rt_type), pointer :: reaction
   PetscReal :: ratio, min_ratio
-  PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, n
 
@@ -992,7 +995,6 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: converged_flag
   PetscInt :: temp_int
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
-  PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
   PetscMPIInt :: mpi_int
   PetscInt :: local_id, offset, idof, index
   PetscReal :: tempreal
@@ -1038,7 +1040,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     option%converged = PETSC_TRUE
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
   endif
@@ -1094,7 +1096,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   character(len=MAXSTRINGLENGHT) :: out_string
   character(len=2) :: pass_or_fail
 
-  if (this%option%use_mc .and. it > 0) then
+  if (this%option%use_sc .and. it > 0) then
     pass_or_fail = ' P'
     !TODO(geh): move newton_inf_res_tol_sec into RT option block
     if (.not. this%option%infnorm_res_sec < &
@@ -1425,7 +1427,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -1609,7 +1611,7 @@ subroutine PMRTRestartBinary(this,viewer)
     enddo
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     do mc_i = 1, patch%material_property_array(1)%ptr% &
                  multicontinuum%ncells
       do i = 1, realization%reaction%naqcomp
@@ -1850,7 +1852,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -1921,7 +1923,14 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
-   endif
+  endif
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
+  nullify(start,dims,length,stride,int_array)
 
 end subroutine PMRTCheckpointHDF5
 
@@ -1944,7 +1953,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5, &
                                         RTUpdateAuxVars
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
@@ -2113,7 +2121,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
       enddo
     endif
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
                    multicontinuum%ncells
@@ -2196,6 +2204,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   deallocate(length)
   deallocate(stride)
   deallocate(int_array)
+  nullify(start,dims,length,stride,int_array)
 
 end subroutine PMRTRestartHDF5
 
@@ -2213,7 +2222,6 @@ subroutine PMRTInputRecord(this)
 
   class(pm_rt_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

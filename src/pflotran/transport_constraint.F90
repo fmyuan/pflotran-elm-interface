@@ -130,8 +130,6 @@ subroutine TranConstraintListDestroy(constraint_list)
 
   type(tran_constraint_list_type), pointer :: constraint_list
 
-  class(tran_constraint_base_type), pointer :: constraint, prev_constraint
-
   if (.not.associated(constraint_list)) return
 
   if (associated(constraint_list%first)) then

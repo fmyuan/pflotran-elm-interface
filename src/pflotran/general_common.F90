@@ -473,7 +473,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: temp_ave, stpd_ave_over_dist, tempreal
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
 
-  PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
 
   ! Darcy flux
@@ -510,13 +509,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
   PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
-  PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
-
-  !Non darcy
-  PetscReal :: K, I, grad
-
-  ! DELETE
 
   PetscReal :: Jlup(3,3), Jldn(3,3)
   PetscReal :: Jgup(3,3), Jgdn(3,3)
@@ -2398,16 +2391,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   heat_flux = dheat_flux_ddelta_temp * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
 
-! MAN: Kris changes
-!  delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-!  dheat_flux_ddelta_temp_up = (dkeff_up_dTup * delta_temp - k_eff_ave) &
-!                               * 1.d-6 * area
-!  dheat_flux_ddelta_temp_dn = (dkeff_dn_dTdn * delta_temp + k_eff_ave) &
-!                               * 1.d-6 * area
-!  heat_flux = area * k_eff_ave * delta_temp * 1.d-6
-!  dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
-! MAN: end Kris changes
-
   ! MJ/s or MW
   Res(energy_id) = Res(energy_id) + heat_flux
 
@@ -2419,11 +2402,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-
-        ! MAN: Kris changes
-        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
-        !
-
         Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
 
       case(TWO_PHASE_STATE)
@@ -2434,9 +2412,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! derivative energy wrt temperature
         ! positive for upwind
 
-        ! MAN: Kris change
-        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
-        ! MAN: end Kris change
 
         Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
 
@@ -2447,9 +2422,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! derivative energy wrt temperature
         ! positive for upwind
 
-        ! MAN: Kris change
-        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
-        ! MAN: end Kris change
 
         Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
 
@@ -2461,9 +2433,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! derivative energy wrt temperature
         ! positive for upwind
 
-        ! MAN: Kris change
-        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
-        ! MAN: end Kris change
 
         Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
 
@@ -2527,7 +2496,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: debug_connection
 
   PetscInt :: wat_comp_id, air_comp_id, energy_id
-  PetscInt :: icomp, iphase
+  PetscInt :: iphase
   PetscInt :: bc_type
   PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
@@ -2540,7 +2509,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux
   PetscReal :: sat_dn, perm_dn, den_dn
-  PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
+  PetscReal :: temp_ave, stpd_ave_over_dist
   PetscReal :: k_eff_dn, k_eff_ave, heat_flux
   PetscReal :: boundary_pressure
   PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
@@ -2551,13 +2520,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: upwind
 
   ! Darcy flux
-  PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
-  PetscReal :: ddelta_pressure_dpaup, ddelta_pressure_dpadn
-  PetscReal :: ddelta_pressure_dTup, ddelta_pressure_dTdn
+  PetscReal :: ddelta_pressure_dpdn
+  PetscReal :: ddelta_pressure_dpadn
+  PetscReal :: ddelta_pressure_dTdn
   PetscReal :: dv_darcy_ddelta_pressure
   PetscReal :: dv_darcy_dmobility
 
-  PetscReal :: up_scale, dn_scale
+  PetscReal :: dn_scale
   PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
   PetscReal :: dtot_mole_flux_dp, dtot_mole_flux_dT, dtot_mole_flux_dsatg
@@ -2585,8 +2554,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: perm3(3)
 
   ! Conduction
-  PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn, dkeff_dn_dTdn
-  PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
+  PetscReal :: dkeff_dn_dsatldn, dkeff_dn_dTdn
+  PetscReal :: dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
 
   ! DELETE
@@ -2596,12 +2565,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jc(3,3)
 
   !Non darcy
-  PetscReal :: K, I, grad
-
   PetscInt :: idof
-
-  PetscReal :: temp_perm_dn
-  PetscReal :: dummy_dperm_dn
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -2641,7 +2605,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case(bc_type)
     ! figure out the direction of flow
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-         HYDROSTATIC_CONDUCTANCE_BC)
+         HYDROSTATIC_CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC)
       if (gen_auxvar_up%mobility(iphase) + &
           gen_auxvar_dn%mobility(iphase) > eps) then
 
@@ -2705,6 +2669,18 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
             endif
           endif
         endif
+
+        if (bc_type == DIRICHLET_SEEPAGE_BC) then
+          if (delta_pressure < 0.d0) then
+            delta_pressure = 0.d0
+            if (analytical_derivatives) then
+              option%io_buffer = 'DIRCHLET_SEEPAGE_BC &
+                &needs to be verified in GeneralBCFlux().'
+              call PrintErrMsg(option)
+            endif
+          endif
+        endif
+
         dn_scale = 0.d0
         upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
                                  .not.analytical_derivatives, &
@@ -2991,7 +2967,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-         HYDROSTATIC_CONDUCTANCE_BC)
+         HYDROSTATIC_CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC)
       if (gen_auxvar_up%mobility(iphase) + &
           gen_auxvar_dn%mobility(iphase) > eps) then
 
@@ -3856,11 +3832,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
       dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
       heat_flux = dheat_flux_ddelta_temp * delta_temp
-      ! AS3 Kris changes
-      ! dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
-      !      * area * 1.d-6 ! J/s -> MJ/s
-      ! heat_flux = area * k_eff_ave * delta_temp * 1.d-6
-      ! AS3 end Kris changes
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
@@ -3885,10 +3856,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! derivative energy wrt temperature
         ! positive for upwind
         Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
-        ! AS3 Kris changes
-        ! Jc(3,3) = dheat_flux_ddelta_temp
-        ! AS3 end Kris changes
-
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
         ! derivative energy wrt gas saturation
@@ -3897,9 +3864,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! derivative energy wrt temperature
         ! positive for upwind
         Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
-        ! AS3 Kris changes
-        ! Jc(3,3) = dheat_flux_ddelta_temp
-        ! AS3 end Kris changes
     end select
     J = J + Jc
   endif
@@ -3956,7 +3920,6 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: Je(option%nflowdof,option%nflowdof)
   PetscReal :: dden_bool
   PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
-  PetscErrorCode :: ierr
   PetscReal :: mob_tot
   PetscReal :: cell_pressure
   PetscReal :: xxss(THREE_INTEGER)
@@ -4038,8 +4001,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
 
   qsrc_mol = 0.d0
   if (flow_src_sink_type == TOTAL_MASS_RATE_SS) then
-    !MAN: this has only been tested for an extraction well. Scales the mass of
-    !water and gas extracted by the mobility ratio.
+    !Scales the mass of water and gas extracted by the mobility ratio.
     mob_tot = gen_auxvar_ss%mobility(lid) + &
               gen_auxvar_ss%mobility(gid)
       if (gen_auxvar_ss%sat(gid) <= 0.d0) then

@@ -87,8 +87,6 @@ subroutine PMCLinearSetupSolvers(this)
 
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
-  type(discretization_type), pointer :: discretization
-  class(realization_subsurface_type), pointer :: realization
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 

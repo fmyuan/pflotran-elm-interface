@@ -407,14 +407,9 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
 
   PetscInt, pointer :: int_ptr(:)
   PetscInt :: local_id, ghosted_id
-  PetscInt :: idof
   IS :: is_tmp
   Vec :: vec_tmp
   PetscErrorCode :: ierr
-  character(len=MAXWORDLENGTH) :: ndof_word
-  character(len=MAXSTRINGLENGTH) :: string
-
-  PetscViewer :: viewer
 
   PetscInt, allocatable :: int_array(:)
 
@@ -1057,8 +1052,6 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   PetscInt, allocatable :: cell_counts(:)
   PetscInt :: iflag
   PetscInt :: tempint
-  PetscViewer :: viewer
-  PetscInt :: local_vertex_offset
   PetscErrorCode :: ierr
 
 #if UGRID_DEBUG
@@ -1131,7 +1124,6 @@ subroutine UGridCreateOldVec(ugrid,option,elements_old, &
   IS :: is_scatter
   PetscInt :: stride
 
-  PetscViewer :: viewer
   IS :: is_num
   PetscInt, pointer :: index_ptr(:)
   PetscErrorCode :: ierr
@@ -1203,7 +1195,6 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   IS :: is_scatter
 
   Vec :: elements_petsc, elements_natural
-  PetscViewer :: viewer
   VecScatter :: vec_scatter
   IS :: is_gather
 
@@ -1214,15 +1205,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt :: temp_int
   PetscInt :: ghosted_id
   PetscInt :: ghost_cell_count
-  PetscInt :: ghost_offset_new
   PetscInt :: dual_id
-  PetscInt :: global_num_cells
-  PetscInt :: global_num_g_cells
-  PetscInt :: ghost_global_offset
-  PetscInt :: lc_g_count
-  PetscInt :: ghost_to_scatter_glb_offset
-  PetscInt :: global_petsc_id
-  PetscInt :: istart1, iend1, istart2, iend2
   PetscBool :: found
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
@@ -1231,18 +1214,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt, allocatable :: int_array3(:)
   PetscInt, allocatable :: int_array4(:)
   PetscInt, allocatable :: int_array5(:)
-  PetscInt, allocatable :: ele_g_glb_petsc_ids(:)
-  PetscInt, allocatable :: ele_g_glb_rank_to_petsc(:)
-  PetscInt, allocatable :: ele_g_lc_rank_to_petsc(:)
-  PetscInt, allocatable :: ele_g_glb_petsc_to_rank(:)
-  PetscInt, allocatable :: ele_g_lc_petsc_to_rank(:)
-  PetscInt, allocatable :: ele_g_lc_to_glb_by_rank(:)
-  PetscReal, allocatable :: elements_global_petsc(:)
-  PetscReal, allocatable :: ele_g_global_by_rank(:)
-  PetscReal, allocatable :: ele_g_local_by_rank(:)
   PetscInt, pointer :: int_array_pointer(:)
-  PetscMPIInt :: send_size_mpi, send_displ_mpi
-  PetscMPIInt, allocatable :: rcv_sizes_mpi(:),disp_mpi(:)
   PetscErrorCode :: ierr
 
   ! create a petsc vec to store all the information for each element
@@ -2178,8 +2150,6 @@ subroutine UGridExplicitDestroy(explicit_grid)
 
   type(unstructured_explicit_type), pointer :: explicit_grid
 
-  PetscErrorCode :: ierr
-
   if (.not.associated(explicit_grid)) return
 
   call DeallocateArray(explicit_grid%cell_ids)
@@ -2222,8 +2192,6 @@ subroutine UGridPolyhedraDestroy(polyhedra_grid)
   implicit none
 
   type(unstructured_polyhedra_type), pointer :: polyhedra_grid
-
-  PetscErrorCode :: ierr
 
   if (.not.associated(polyhedra_grid)) return
 

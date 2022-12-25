@@ -193,7 +193,7 @@ subroutine IsothermDestroy(isotherm,option)
   nullify(isotherm%isotherm_list)
 
   ! secondary continuum
-  if (option%use_mc) then
+  if (option%use_sc) then
     isotherm_rxn_link => isotherm%multicontinuum_isotherm_list
     do
       if (.not.associated(isotherm_rxn_link)) exit

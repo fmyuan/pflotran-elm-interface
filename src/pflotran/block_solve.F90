@@ -74,10 +74,9 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 
 ! Local variables:
 
-  PetscInt :: j, i, l, ll, info, info1, iwork(k)
-  character(len=1) :: trans, norm = '1'
+  character(len=1) :: trans
   PetscReal, parameter :: one = 1.d0
-  PetscReal anorm, sum, rcond, work(4*k)
+  PetscReal anorm
 
 !************************************************************************
 

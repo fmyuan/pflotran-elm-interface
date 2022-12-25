@@ -23,7 +23,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/characteristic_curves.o \
 	$(EXE_DIR)/characteristic_curves_base.o \
 	$(EXE_DIR)/characteristic_curves_common.o \
-        $(EXE_DIR)/characteristic_curves_loop_invariant.o \
+  $(EXE_DIR)/characteristic_curves_loop_invariant.o \
 	$(EXE_DIR)/characteristic_curves_wipp.o \
 	$(EXE_DIR)/characteristic_curves_wipp_invariant.o \
 	$(EXE_DIR)/characteristic_curves_thermal.o \
@@ -53,7 +53,11 @@ PFLOTRAN_OBJS = \
 FFLAGS = -g -I. -I$(EXE_DIR) -I$(PFUNIT_DIR)/source -I$(PFUNIT_DIR)/include
 LIBS   =
 
-ifdef codecov
+ifdef ci
+  gnu_code_coverage = 1
+endif
+
+ifdef gnu_code_coverage
   FFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
 endif

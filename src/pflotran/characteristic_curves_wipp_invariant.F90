@@ -718,7 +718,6 @@ pure subroutine SFWIPPKRP9Sw(this, Pc, Sw)
 
   PetscReal, parameter :: a = 3783.0145d0
   PetscReal, parameter :: b = 2.9d0
-  PetscReal, parameter :: b_rec = 1d0/b
 
   if (Pc <= 0d0) then
     Sw = 1d0
@@ -953,7 +952,7 @@ pure subroutine RPFWIPPBBCKrg(this, Sw, Kr, dKr_dSw)
   class(rpf_WIPP_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
-  PetscReal :: Se, Se_comp, Se_expon, Se_expon_comp
+  PetscReal :: Se, Se_comp, Se_expon_comp
 
   Se = (Sw - this%Swr) * this%dSe_dSw
   Se_comp = 1d0 - Se

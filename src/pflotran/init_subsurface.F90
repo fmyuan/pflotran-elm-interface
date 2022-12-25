@@ -256,7 +256,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, ELECTRICAL_CONDUCTIVITY, &
-                               MATRIX_LENGTH
+                               HALF_MATRIX_WIDTH
 
   use HDF5_module
   use Utility_module, only : DeallocateArray
@@ -324,7 +324,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                        epsilon0);
     call VecGetArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
   endif
-  if (matrix_length_index > 0) then
+  if (half_matrix_width_index > 0) then
     call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
                                        matrixlength0);
     call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
@@ -441,8 +441,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (epsilon_index > 0) then
       eps0_p(local_id) = material_property%multicontinuum%epsilon
     endif
-    if (matrix_length_index > 0) then
-      length0_p(local_id) = material_property%multicontinuum%length
+    if (half_matrix_width_index > 0) then
+      length0_p(local_id) = material_property%multicontinuum%half_matrix_width
     endif
 
     if (option%ngeopdof > 0) then
@@ -471,7 +471,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   if (epsilon_index > 0) then
     call VecRestoreArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
   endif
-  if (matrix_length_index > 0) then
+  if (half_matrix_width_index > 0) then
     call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
 
@@ -533,9 +533,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                  material_property%multicontinuum%epsilon_dataset, &
                  material_property%internal_id,PETSC_FALSE,epsilon0)
         endif
-        if (associated(material_property%multicontinuum%length_dataset)) then
+        if (associated(material_property%multicontinuum%half_matrix_width_dataset)) then
           call SubsurfReadDatasetToVecWithMask(realization, &
-                 material_property%multicontinuum%length_dataset, &
+                 material_property%multicontinuum%half_matrix_width_dataset, &
                  material_property%internal_id,PETSC_FALSE,matrixlength0)
         endif
       endif
@@ -605,11 +605,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                  EPSILON,ZERO_INTEGER)
     call VecDestroy(epsilon0,ierr);CHKERRQ(ierr)
   endif
-  if (matrix_length_index > 0) then
+  if (half_matrix_width_index > 0) then
     call DiscretizationGlobalToLocal(discretization,matrixlength0, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 MATRIX_LENGTH,ZERO_INTEGER)
+                                 HALF_MATRIX_WIDTH,ZERO_INTEGER)
     call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr)
   endif
 
@@ -1353,7 +1353,7 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
 
   if (ncount /= n_inactive_rows) then
     option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
-      StringWrite(ncount) // ' ' // StringWrite(n_inactive_rows)
+      StringWrite(ncount) // ' ' // trim(StringWrite(n_inactive_rows))
     call PrintErrMsgByRank(option)
   endif
 

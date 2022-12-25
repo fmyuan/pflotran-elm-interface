@@ -126,9 +126,7 @@ function PMWIPPFloCreate()
   ! Author: Glenn Hammond
   ! Date: 07/11/17
   !
-  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_wippflo_type), pointer :: PMWIPPFloCreate
@@ -151,8 +149,7 @@ subroutine PMWIPPFloInitObject(this)
   ! Author: Glenn Hammond
   ! Date: 10/26/17
   !
-  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
+  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, &
                                GAS_SATURATION
   implicit none
 
@@ -238,11 +235,11 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
-  PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
   PetscInt :: icount
+  PetscInt :: i
   PetscInt :: temp_int
   ! temp_int_array has a natural_id and 1,2, or 3 that indicates
   ! pressure, satruation, or both to be zerod in the residual
@@ -358,7 +355,9 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
       case('DIP_ROTATION_REGIONS')
         strings => StringSplit(adjustl(input%buf),' ')
         allocate(this%rotation_region_names(size(strings)))
-        this%rotation_region_names(:) = strings(:)
+        do i = 1, size(strings)
+          this%rotation_region_names(i) = trim(strings(i))
+        enddo
         deallocate(strings)
         nullify(strings)
       case('AUTO_PRESSURE_MATERIAL_IDS')
@@ -541,7 +540,6 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
 
   PetscBool :: found
   character(len=MAXWORDLENGTH) :: word
-  PetscReal :: tempreal
   PetscInt :: lid, gid, eid
 
   option => this%option
@@ -711,8 +709,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
 
   if (this%scale_linear_system .and. option%flow%scale_all_pressure) then
     option%io_buffer = 'cannot be used with SCALE_JACOBIAN, &
-                        Jacobian is already scaled. Please use &
-                        DO_NOT_SCALE_JACOBIAN in NEWTON_SOLVER'
+                        &Jacobian is already scaled. Please use &
+                        &DO_NOT_SCALE_JACOBIAN in NEWTON_SOLVER'
     call PrintErrMsg(option)
   endif
 
@@ -1003,7 +1001,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       Initialized(this%temperature_change_governor) .or. &
       Initialized(this%saturation_change_governor)) then
     option%io_buffer = 'PRESSURE_CHANGE_GOVERNOR, TEMPERATURE_CHANGE_GOVERNOR, &
-      or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
+      &or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
     call PrintErrMsg(option)
   endif
 
@@ -1020,7 +1018,6 @@ subroutine PMWIPPFloInitializeTimestep(this)
   use WIPP_Flow_module, only : WIPPFloInitializeTimestep
   use WIPP_Flow_Aux_module
   use Global_module
-  use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
   use Option_module
 
@@ -1131,7 +1128,8 @@ end subroutine PMWIPPFloPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMWIPPFloUpdateTimestep(this,update_dt, &
+                                   dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
   !
@@ -1150,6 +1148,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_wippflo_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -1164,34 +1163,35 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
 
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  dtime(1) = (2.d0*this%gas_sat_change_ts_governor)/ &
-             (this%gas_sat_change_ts_governor+this%max_saturation_change)
-  dtime(2) = (2.d0*this%liq_pres_change_ts_governor)/ &
-             (this%liq_pres_change_ts_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(min(dtime(1),dtime(2))*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (minval(dtime) > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else if (dtime(1) < dtime(2)) then
-      string = 'gas saturation governor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    dtime(1) = (2.d0*this%gas_sat_change_ts_governor)/ &
+              (this%gas_sat_change_ts_governor+this%max_saturation_change)
+    dtime(2) = (2.d0*this%liq_pres_change_ts_governor)/ &
+              (this%liq_pres_change_ts_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(min(dtime(1),dtime(2))*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (minval(dtime) > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else if (dtime(1) < dtime(2)) then
+        string = 'gas saturation governor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call PrintMsg(this%option,string)
+    ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
+    ! within timestepper_BE. use %minimum_timestep_size, which is specific to
+    ! wipp_flow.
+    dt = max(dt,this%minimum_timestep_size)
   endif
-  ! do not use the PFLOTRAN dt_min as it will shut down the simulation from
-  ! within timestepper_BE. use %minimum_timestep_size, which is specific to
-  ! wipp_flow.
-  dt = max(dt,this%minimum_timestep_size)
 
   if (wippflo_debug_ts_update) then
     if (minval(dtime(:)) < time_step_max_growth_factor .and. dt < dt_max) then
@@ -1243,7 +1243,7 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   PetscReal, pointer :: r_p(:)
-  PetscInt :: i, idof
+  PetscInt :: i
 
   grid => this%realization%patch%grid
 
@@ -1821,6 +1821,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   use Material_Aux_module
   use WIPP_Flow_Aux_module
   use Convergence_module
+  use Coupler_module
+  use Connection_module
 
   implicit none
 
@@ -1848,6 +1850,9 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   type(patch_type), pointer :: patch
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
+
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
@@ -1881,6 +1886,9 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: i
   PetscMPIInt :: int_mpi
   PetscBool :: cell_id_match
+
+  PetscInt :: sum_connection, local_start, local_end, iconn
+  PetscReal :: well_delta_liq, well_delta_gas
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -2154,6 +2162,55 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       reason_string(10:10) = 'S'
     endif
   endif
+
+  ! Add check on delta pressure with well model
+!  if (converged_flag == CONVERGENCE_CONVERGED) then
+!  source_sink => patch%source_sink_list%first
+!  sum_connection = 0
+!  !How do I know which ones are well source/sinks?
+!  do
+!    if (.not. associated(source_sink)) exit
+!
+!    if (.not. associated(source_sink%flow_condition%general%liquid_pressure)) &
+!        then
+!      source_sink => source_sink%next
+!      cycle
+!    endif
+!
+!    cur_connection_set => source_sink%connection_set
+!
+!    do iconn = 1, cur_connection_set%num_connections
+!      sum_connection = sum_connection + 1
+!      local_id = cur_connection_set%id_dn(iconn)
+!      ghosted_id = grid%nL2G(local_id)
+!      if (patch%imat(ghosted_id) <= 0) cycle
+!
+!      local_end = local_id * option%nflowdof
+!      local_start = local_end - option%nflowdof + 1
+!
+!      if (Initialized(source_sink%flow_condition%general%liquid_pressure% &
+!          aux_real(1))) then 
+!        well_delta_liq = source_sink%flow_condition%general%liquid_pressure% &
+!                         aux_real(2)
+!        if (well_delta_liq > 0.d0) then
+!          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) < &
+!              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
+!            converged_flag = CONVERGENCE_CUT_TIMESTEP
+!            reason_string(2:2) = 'W'
+!          endif
+!        elseif (well_delta_liq < 0.d0) then
+!          if (source_sink%flow_condition%general%liquid_pressure%aux_real(1) > &
+!              wippflo_auxvars(ZERO_INTEGER,ghosted_id)%pres(ONE_INTEGER)) then
+!            converged_flag = CONVERGENCE_CUT_TIMESTEP
+!            reason_string(2:2) = 'W'
+!          endif 
+!        endif
+!      endif
+!    enddo
+!    source_sink => source_sink%next
+!  enddo
+!  endif
+
   if (OptionPrintToScreen(option)) then
     !TODO(geh): add the option to report only violated tolerances, zeroing
     !           the others.
@@ -2348,9 +2405,7 @@ subroutine PMWIPPFloMaxChange(this)
   use Field_module
   use Grid_module
   use WIPP_Flow_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
-                               TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_wippflo_type) :: this
@@ -2455,7 +2510,6 @@ subroutine PMWIPPFloInputRecord(this)
 
   class(pm_wippflo_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -2478,7 +2532,6 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -2530,7 +2583,6 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

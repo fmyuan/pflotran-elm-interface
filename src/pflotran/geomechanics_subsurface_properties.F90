@@ -330,7 +330,6 @@ subroutine GeomechanicsSubsurfaceBandisPoroEvaluate(grid,porosity_before, &
   PetscReal, intent(in) :: normal_vector_x, normal_vector_y, normal_vector_z
   PetscReal, intent(out) :: porosity_after
   PetscReal :: effective_stress, b_p, b
-  PetscInt :: icount
 
   effective_stress = local_stress(3)
   b_p = 1.d0  ! need to extract delta_x, delta_y, delta_z to get b_p
@@ -489,7 +488,6 @@ subroutine GeomechanicsSubsurfaceBandisPermEvaluate(grid,permeability_before, &
   PetscReal, intent(in) :: normal_vector_x, normal_vector_y, normal_vector_z
   PetscReal, intent(out) :: permeability_after
   PetscReal :: effective_stress, b_p, b
-  PetscInt :: icount
 
   effective_stress = local_stress(3)
   b_p = 1.d0  ! need to extract delta_x, delta_y, delta_x to get b_p

@@ -516,7 +516,6 @@ subroutine PMPNFCalculateVelocities(this)
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
-  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(connection_set_list_type), pointer :: connection_set_list
   PetscReal, pointer :: vec_loc_ptr(:)
@@ -606,9 +605,10 @@ end subroutine PMPNFCalculateVelocities
 
 ! ************************************************************************** !
 
-subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                 num_newton_iterations,tfac, &
-                                 time_step_max_growth_factor)
+subroutine PMPNFUpdateTimestep(this,update_dt, &
+                               dt,dt_min,dt_max,iacceleration, &
+                               num_newton_iterations,tfac, &
+                               time_step_max_growth_factor)
   !
   ! Author: Glenn Hammond
   ! Date: 08/27/21
@@ -623,6 +623,7 @@ subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_pnf_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min ! DO NOT USE (see comment below)
   PetscReal :: dt_max
@@ -635,25 +636,26 @@ subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: pres_ratio
   PetscReal :: dt_prev
 
-  dt_prev = dt
-
-  ! calculate the time step ramping factor
-  pres_ratio = (2.d0*this%pressure_change_governor)/ &
-               (this%pressure_change_governor+this%max_pressure_change)
-  ! pick minimum time step from calc'd ramping factor or maximum ramping factor
-  dt = min(pres_ratio*dt,time_step_max_growth_factor*dt)
-  ! make sure time step is within bounds given in the input deck
-  dt = min(dt,dt_max)
-  if (this%logging_verbosity > 0) then
-    if (Equal(dt,dt_max)) then
-      string = 'maximum time step size'
-    else if (pres_ratio > time_step_max_growth_factor) then
-      string = 'maximum time step growth factor'
-    else
-      string = 'liquid pressure governor'
+  if (update_dt .and. iacceleration /= 0) then
+    dt_prev = dt
+    ! calculate the time step ramping factor
+    pres_ratio = (2.d0*this%pressure_change_governor)/ &
+                (this%pressure_change_governor+this%max_pressure_change)
+    ! pick minimum time step from calc'd ramping factor or maximum ramping factor
+    dt = min(pres_ratio*dt,time_step_max_growth_factor*dt)
+    ! make sure time step is within bounds given in the input deck
+    dt = min(dt,dt_max)
+    if (this%logging_verbosity > 0) then
+      if (Equal(dt,dt_max)) then
+        string = 'maximum time step size'
+      else if (pres_ratio > time_step_max_growth_factor) then
+        string = 'maximum time step growth factor'
+      else
+        string = 'liquid pressure governor'
+      endif
+      string = 'TS update: ' // trim(string)
+      call PrintMsg(this%option,string)
     endif
-    string = 'TS update: ' // trim(string)
-    call PrintMsg(this%option,string)
   endif
 
   if (Initialized(this%cfl_governor)) then
@@ -738,7 +740,7 @@ subroutine PMPNFMaxChange(this)
   use Field_module
   use Grid_module
   use PNF_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION
+  use Variables_module, only : LIQUID_PRESSURE
 
   implicit none
 
@@ -826,7 +828,6 @@ subroutine PMPNFInputRecord(this)
 
   class(pm_pnf_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -849,7 +850,6 @@ subroutine PMPNFCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -872,7 +872,6 @@ subroutine PMPNFRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

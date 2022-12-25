@@ -86,7 +86,6 @@ subroutine WIPPGasGenerationRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXSTRINGLENGTH) :: error_strg
   PetscBool :: found

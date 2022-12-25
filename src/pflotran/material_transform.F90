@@ -984,7 +984,7 @@ subroutine BufferErosionRead(this, input, option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string, verify_string
   ! class(buffer_erosion_base_type), pointer :: buffer_erosion_model_ptr
 
@@ -1409,16 +1409,21 @@ subroutine ILTBaseTest(this, name, option)
   PetscReal :: smec_vec(ns)
   PetscReal :: temp_vec(nt)
   PetscReal :: time_vec(np)
-  PetscReal :: fi(ns,nt,np)
-  PetscReal :: dfi_dtemp_numerical(ns,nt,np)
+  PetscReal, allocatable :: fi(:,:,:)
+  PetscReal, allocatable :: dfi_dtemp_numerical(:,:,:)
+  PetscReal, allocatable :: sc(:,:,:)
   PetscReal :: perturbed_temp
   PetscReal :: fi_temp_pert
   PetscReal :: smec_min, smec_max
   PetscReal :: temp_min, temp_max
-  PetscReal :: sc(ns,nt,np), sc_temp_pert
+  PetscReal :: sc_temp_pert
   PetscReal :: dt,fs0_original
   PetscReal :: fs, fsp
   PetscInt :: i, j, k
+
+  allocate(fi(ns,nt,np))
+  allocate(sc(ns,nt,np))
+  allocate(dfi_dtemp_numerical(ns,nt,np))
 
   ! thermal conductivity as a function of temp. and liq. sat.
   smec_min = 1.0d-1 ! Minimum fraction smectite
@@ -1467,7 +1472,7 @@ subroutine ILTBaseTest(this, name, option)
   string = trim(name) // '_ilt_vs_time_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"initial smectite [-]", "temperature [C]", &
-               "time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
+              &"time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
   do i = 1,ns
     do j = 1,nt
       do k = 2,np
@@ -1477,6 +1482,10 @@ subroutine ILTBaseTest(this, name, option)
     enddo
   enddo
   close(86)
+
+  deallocate(fi)
+  deallocate(sc)
+  deallocate(dfi_dtemp_numerical)
 
   ! reset to original values
   this%fs0 = fs0_original
@@ -2133,12 +2142,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   type(material_transform_type), pointer :: material_transform_list
 
   class(material_transform_type), pointer :: cur_material_transform
-  class(illitization_base_type), pointer :: illitization_function
-  class(ILT_kd_effects_type), pointer :: kdl
-  class(ILT_perm_effects_type), pointer :: perm
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
-  PetscInt :: i, j, k
 
   write(id,'(a)') ' '
   write(id,'(a)') '---------------------------------------------------------&
@@ -2223,11 +2228,29 @@ subroutine ILTDestroy(illitization_function)
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
 
+  use Utility_module
+
   implicit none
 
   class(illitization_base_type), pointer :: illitization_function
 
   if (.not. associated(illitization_function)) return
+  if (associated(illitization_function%shift_perm)) then
+    call DeallocateArray(illitization_function%shift_perm%f_perm)
+    if (associated(illitization_function%shift_perm%f_perm_mode)) then
+      deallocate(illitization_function%shift_perm%f_perm_mode)
+      nullify(illitization_function%shift_perm%f_perm_mode)
+    endif
+    deallocate(illitization_function%shift_perm)
+    nullify(illitization_function%shift_perm)
+  endif
+  if (associated(illitization_function%shift_kd_list)) then
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd)
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd_mode)
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd_element)
+    deallocate(illitization_function%shift_kd_list)
+    nullify(illitization_function%shift_kd_list)
+  endif
   deallocate(illitization_function)
   nullify(illitization_function)
 
@@ -2381,6 +2404,7 @@ recursive subroutine MaterialTransformDestroy(material_transform)
     call BufferErosionDestroy(material_transform%buffer_erosion)
   endif
 
+  deallocate(material_transform)
   nullify(material_transform)
 
 end subroutine MaterialTransformDestroy

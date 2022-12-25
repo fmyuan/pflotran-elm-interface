@@ -53,6 +53,7 @@ module Inversion_ERT_class
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
     procedure, public :: Step => InversionERTStep
+    procedure, public :: ExecuteForwardRun => InversionERTExecuteForwardRun
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
@@ -452,7 +453,6 @@ subroutine InversionERTReadBlock(this,input,option)
   use Input_Aux_module
   use String_module
   use Option_module
-  use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
   type(input_type), pointer :: input
@@ -699,7 +699,7 @@ subroutine InversionERTInitialize(this)
   use Material_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
 
@@ -800,6 +800,24 @@ subroutine InversionERTStep(this)
   call this%DestroyForwardRun()
 
 end subroutine InversionERTStep
+
+
+! ************************************************************************** !
+
+subroutine InversionERTExecuteForwardRun(this)
+  !
+  ! Executes a forward simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/02/22
+
+  class(inversion_ert_type) :: this
+
+  if (this%realization%option%status == PROCEED) then
+    call this%forward_simulation%ExecuteRun()
+  endif
+
+end subroutine InversionERTExecuteForwardRun
 
 ! ************************************************************************** !
 
@@ -1025,10 +1043,7 @@ subroutine InversionERTUpdateParameters(this)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
 
-  PetscInt :: local_id,ghosted_id
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iqoi(2)
-  PetscErrorCode :: ierr
 
   field => this%realization%field
   discretization => this%realization%discretization
@@ -1856,7 +1871,6 @@ subroutine InversionERTWriteIterationInfo(this)
   class(inversion_ert_type) :: this
 
   PetscInt :: fid
-  character(len=MAXWORDLENGTH) :: string
 
   if (this%driver%PrintToScreen()) then
     write(*,*)

@@ -351,7 +351,6 @@ subroutine OutputGetCellCenteredVelocities(realization_base,vec_x,vec_y, &
 
   class(realization_base_type) :: realization_base
   Vec :: vec_x,vec_y,vec_z
-  PetscInt :: direction
   PetscInt :: iphase
 
   PetscErrorCode :: ierr
@@ -918,7 +917,6 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: idual
   PetscInt :: iconn
   PetscInt :: face_id
   PetscInt :: local_id_up,local_id_dn
@@ -928,36 +926,24 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   PetscInt :: sum_connection
   PetscInt :: offset
   PetscInt :: cell_type
-  PetscInt :: local_size
   PetscInt :: i
-  PetscInt :: iface
-  PetscInt :: ndof
   PetscInt :: idx
 
-  PetscReal, pointer :: flowrates(:,:,:)
   PetscReal, pointer :: vx(:,:,:)
   PetscReal, pointer :: vy(:,:,:)
   PetscReal, pointer :: vz(:,:,:)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
-  PetscReal, pointer :: vec_ptr3(:)
   PetscReal, pointer :: vx_ptr(:)
   PetscReal, pointer :: vy_ptr(:)
   PetscReal, pointer :: vz_ptr(:)
-  PetscReal, pointer :: double_array(:)
   PetscReal :: vel_vector(3)
-  PetscReal :: dtime
 
-  Vec :: natural_flowrates_vec
   Vec :: natural_vx_vec
   Vec :: natural_vy_vec
   Vec :: natural_vz_vec
 
-  PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
-
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: unit_string
 
   patch => realization_base%patch
   grid => patch%grid
@@ -1232,7 +1218,6 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscInt :: idual
   PetscInt :: iconn
   PetscInt :: face_id
   PetscInt :: local_id_up,local_id_dn
@@ -1242,36 +1227,16 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
   PetscInt :: sum_connection
   PetscInt :: offset
   PetscInt :: cell_type
-  PetscInt :: local_size
-  PetscInt :: i
-  PetscInt :: iface
-  PetscInt :: ndof
   PetscInt :: idx
 
   PetscReal, pointer :: flowrates(:,:,:)
-  PetscReal, pointer :: vx(:,:,:)
-  PetscReal, pointer :: vy(:,:,:)
-  PetscReal, pointer :: vz(:,:,:)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscReal, pointer :: vec_ptr3(:)
-  PetscReal, pointer :: vx_ptr(:)
-  PetscReal, pointer :: vy_ptr(:)
-  PetscReal, pointer :: vz_ptr(:)
-  PetscReal, pointer :: double_array(:)
-  PetscReal :: vel_vector(3)
   PetscReal :: dtime
 
   Vec :: natural_flowrates_vec
-  Vec :: natural_vx_vec
-  Vec :: natural_vy_vec
-  Vec :: natural_vz_vec
-
-  PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
-
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: unit_string
 
   patch => realization_base%patch
   grid => patch%grid
@@ -1459,11 +1424,8 @@ subroutine OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
   PetscReal, pointer :: vec_ptr2(:)
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscInt, pointer :: ids_up(:),ids_dn(:)
-  PetscInt :: offset
-  PetscInt :: istart,iend
   PetscInt :: iconn
   PetscErrorCode :: ierr
-  PetscReal :: val
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id_up, local_id_dn
   PetscReal :: proc_up, proc_dn, conn_proc
@@ -1471,7 +1433,6 @@ subroutine OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
   Vec :: global_vec
   Vec :: local_vec
   Vec :: vec_proc
-  PetscInt :: idof
 
   patch => realization_base%patch
   grid => patch%grid
@@ -1611,12 +1572,10 @@ subroutine OutputGetExplicitFlowrates(realization_base,count,vec_proc, &
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscReal, pointer :: flowrates(:,:)
   PetscReal, pointer :: darcy(:), area(:)
-  PetscInt :: offset
   PetscInt :: iconn
   PetscErrorCode :: ierr
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id_up, local_id_dn
-  PetscReal :: proc_up, proc_dn, conn_proc
   PetscInt :: sum_connection, count
   Vec :: vec_proc
   PetscInt :: idof
@@ -1691,7 +1650,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(grid_unstructured_type),pointer :: ugrid
   type(field_type), pointer :: field
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -1701,20 +1659,14 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
-  PetscReal, pointer :: flowrates(:,:)
-  PetscReal, pointer :: darcy(:)
   PetscReal, pointer :: density(:)
-  PetscInt :: offset
   PetscInt :: iconn
   PetscErrorCode :: ierr
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id_up, local_id_dn
-  PetscReal :: proc_up, proc_dn, conn_proc
   PetscInt :: sum_connection, count
   Vec :: vec_proc
-  PetscInt :: idof
   PetscInt :: icc_up, icc_dn
-  PetscReal :: sir_up, sir_dn
   PetscReal, parameter :: eps = 1.D-8
   PetscReal :: upweight
   PetscBool :: is_flowing
@@ -1815,12 +1767,9 @@ subroutine OutputGetExplicitCellInfo(realization_base,num_cells,ids,sat,por, &
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(grid_unstructured_type),pointer :: ugrid
   type(field_type), pointer :: field
   type(global_auxvar_type), pointer :: global_auxvar(:)
 
-
-  PetscErrorCode :: ierr
   PetscInt :: num_cells
   PetscReal, pointer :: sat(:)
   PetscReal, pointer :: por(:)

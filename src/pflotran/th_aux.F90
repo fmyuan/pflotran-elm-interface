@@ -944,7 +944,6 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: icct
-  PetscErrorCode :: ierr
 
   type(th_parameter_type) :: th_parameter
   PetscInt :: iphase, ideriv

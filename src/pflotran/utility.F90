@@ -123,7 +123,7 @@ function rnd()
 
   iseed = iseed*125
   iseed = iseed - (iseed/2796203) * 2796203
-  rnd   = iseed/2796203.0
+  rnd   = dble(iseed)/2796203.0
   return
 
 end function rnd
@@ -197,11 +197,11 @@ function ran2(idum)
 
   parameter (IA = 16807)
   parameter (IM = 2147483647)
-  parameter (AM = 1.0/IM)
+  parameter (AM = 1.0/dble(IM))
   parameter (IQ = 127773)
   parameter (IR = 2836)
   parameter (NTAB = 32)
-  parameter (NDIV = 1+(IM-1)/NTAB)
+  parameter (NDIV = int(1+(IM-1)/dble(NTAB)))
   parameter (EPS  = 1.2e-7)
   parameter (RNMX = 1.0-EPS)
 
@@ -579,7 +579,7 @@ subroutine LUDecomposition2(A,N,INDX,D)
   implicit none
 
   PetscInt :: N
-  PetscReal :: A(N,N),VV(N)
+  PetscReal :: A(N,N)
   PetscInt :: INDX(N)
   PetscInt :: D
 
@@ -688,7 +688,7 @@ end subroutine LUDecomposition1
 
 subroutine LUBackSubstitution(A,N,INDX,B)
   !
-  ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
+  ! Solves the set of N linear equations A.X=B. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
   ! vector returned by LUDecomposition. B is input as the right-hand side
   ! vector B, and returns with the solution vector X.
@@ -1558,7 +1558,7 @@ subroutine UtilityEnforceUseOfContinuation(input,option,comment)
   PetscInt, parameter :: max_char_in_line = 480
 
   if (len_trim(input%buf) > max_char_in_line) then
-    word = StringWrite(max_char_in_line)
+    word = trim(StringWrite(max_char_in_line))
     option%io_buffer = 'The number of characters in the input buffer in &
       &UtilityReadIntArray() exceeds ' // trim(word)
     if (len_trim(comment) > 0) then
@@ -2331,12 +2331,12 @@ subroutine InterfaceApproxWithoutDeriv(v_up, v_dn, dv_up2dn, &
   PetscReal, intent(out) :: v_interf
 
   PetscReal :: dummy_in
-  PetscReal :: dummy_out
+  PetscReal :: dummy_out, dummy_out2
 
   dummy_in = 1.d0
 
   call InterfaceApproxWithDeriv(v_up, v_dn, dummy_in, dummy_in, dv_up2dn, &
-                                approx_type, v_interf, dummy_out, dummy_out)
+                                approx_type, v_interf, dummy_out, dummy_out2)
 
 end subroutine InterfaceApproxWithoutDeriv
 

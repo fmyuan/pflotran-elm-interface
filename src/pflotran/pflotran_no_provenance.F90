@@ -73,8 +73,6 @@ subroutine PrintProvenanceToScreen()
 
   implicit none
 
-  PetscInt i
-
   write(*, '(''------------------------------ Provenance --------------------------------------'')')
 
   write(*, '(''pflotran_compile_date_time = '', a)') pflotran_compile_date_time

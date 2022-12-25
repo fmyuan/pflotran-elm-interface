@@ -225,7 +225,6 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(geomech_field_type), pointer :: geomech_field
-  type(gmdm_ptr_type), pointer :: dm_ptr
   PetscErrorCode :: ierr
 
   geomech_discretization => geomech_realization%geomech_discretization
@@ -355,12 +354,10 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   type(geomech_grid_type), pointer :: geomech_grid
   type(option_type) :: option
   type(grid_type), pointer :: grid
-  type(gmdm_type), pointer :: gmdm
   type(gmdm_ptr_type), pointer :: dm_ptr
   IS :: is_geomech, is_subsurf
   IS :: is_subsurf_natural
   IS :: is_subsurf_petsc
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
   AO :: ao_geomech_to_subsurf_natural
   AO :: ao_subsurf_natual_to_petsc
@@ -629,8 +626,6 @@ subroutine GeomechGridElemSharedByNodes(geomech_realization,option)
   PetscInt :: elenodes(10)
   PetscReal, pointer :: elem_sharing_node_loc_p(:)
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
-  character(len=MAXSTRINGLENGTH) :: string
 
   grid => geomech_realization%geomech_discretization%grid
 
@@ -941,11 +936,8 @@ subroutine GeomechRealizProcessGeomechConditions(geomech_realization)
   class(realization_geomech_type), pointer :: geomech_realization
 
   type(geomech_condition_type), pointer :: cur_geomech_condition
-  type(geomech_sub_condition_type), pointer :: cur_geomech_sub_condition
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: dataset_name
-  class(dataset_base_type), pointer :: dataset
   PetscInt :: i
 
   option => geomech_realization%option
@@ -1058,7 +1050,7 @@ subroutine GeomechRealizAddWaypointsToList(geomech_realization,waypoint_list)
   type(waypoint_type), pointer :: waypoint, cur_waypoint
   type(option_type), pointer :: option
   PetscInt :: itime, isub_condition
-  PetscReal :: temp_real, final_time
+  PetscReal :: final_time
   PetscReal, pointer :: times(:)
 
   option => geomech_realization%option

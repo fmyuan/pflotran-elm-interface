@@ -39,6 +39,8 @@ module Reaction_Gas_Aux_module
     character(len=MAXWORDLENGTH), pointer :: active_names(:)
     character(len=MAXWORDLENGTH), pointer :: passive_names(:)
     PetscBool :: print_all
+    PetscBool :: print_concentration
+    PetscBool :: print_partial_pressure
     PetscBool, pointer :: active_print_me(:)
     PetscBool, pointer :: passive_print_me(:)
 
@@ -48,6 +50,9 @@ module Reaction_Gas_Aux_module
     PetscReal, pointer :: acteqh2ostoich(:)  ! stoichiometry of water, if present
     PetscReal, pointer :: acteqlogK(:)
     PetscReal, pointer :: acteqlogKcoef(:,:)
+
+    PetscReal, pointer :: actmolarwt(:)
+    PetscReal, pointer :: pasmolarwt(:)
 
     PetscInt, pointer :: paseqspecid(:,:)   ! (0:ncomp in rxn)
     PetscReal, pointer :: paseqstoich(:,:)
@@ -91,6 +96,8 @@ function GasCreate()
   gas%nactive_gas = 0
   gas%npassive_gas = 0
   gas%print_all = PETSC_FALSE
+  gas%print_concentration = PETSC_FALSE
+  gas%print_partial_pressure = PETSC_FALSE
   nullify(gas%list)
   nullify(gas%active_names)
   nullify(gas%passive_names)
@@ -103,6 +110,9 @@ function GasCreate()
   nullify(gas%acteqh2ostoich)
   nullify(gas%acteqlogK)
   nullify(gas%acteqlogKcoef)
+
+  nullify(gas%actmolarwt)
+  nullify(gas%pasmolarwt)
 
   nullify(gas%paseqspecid)
   nullify(gas%paseqstoich)
@@ -355,9 +365,6 @@ subroutine GasDestroy(gas)
 
   type(gas_type), pointer :: gas
 
-  type(gas_species_type), pointer :: cur_gas_species, &
-                                     prev_gas_species
-
   if (.not.associated(gas)) return
 
   call GasSpeciesListDestroy(gas%list)
@@ -373,6 +380,9 @@ subroutine GasDestroy(gas)
   call DeallocateArray(gas%acteqh2ostoich)
   call DeallocateArray(gas%acteqlogK)
   call DeallocateArray(gas%acteqlogKcoef)
+
+  call DeallocateArray(gas%actmolarwt)
+  call DeallocateArray(gas%pasmolarwt)
 
   call DeallocateArray(gas%paseqspecid)
   call DeallocateArray(gas%paseqstoich)

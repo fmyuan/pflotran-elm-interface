@@ -379,7 +379,6 @@ subroutine GeneralDerivativeSetupEOS(option)
   type(option_type), pointer :: option
   PetscReal :: tlow, thigh, plow, phigh
   PetscInt :: ntemp, npres
-  PetscReal :: aux(1)
   character(len=MAXWORDLENGTH) :: word
 
 #if 1
@@ -498,7 +497,6 @@ subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
 
   PetscInt :: natural_id = 1
   PetscInt :: i
-  PetscReal, parameter :: soil_heat_capacity = 850.d0
 
   PetscInt :: irow
   PetscReal :: res(3), res_pert(3,3)
