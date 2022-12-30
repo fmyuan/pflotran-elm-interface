@@ -244,7 +244,7 @@ Function GetpHResponse(pH, itype)
 
 ! ph function from Parton et al., (2001, 1996)
 !  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   select case(itype)
       case(PH_RESPONSE_FUNCTION_CENTURY)
           f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + pH))/rpi

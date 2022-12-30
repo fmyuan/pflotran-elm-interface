@@ -335,7 +335,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-#ifdef CLM_PF_DEBUG
+#ifdef ELM_PF_DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 

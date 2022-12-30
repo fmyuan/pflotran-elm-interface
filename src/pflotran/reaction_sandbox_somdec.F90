@@ -1696,10 +1696,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     else
 #ifdef ELM_PFLOTRAN
       ! if NO resp. function , i.e. BGC only coupled with CLM, directly read-in factors from CLM
-      call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecGetArrayReadF90(elm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
       f_t = xfactor_pf_loc(veclocal_id)
-      call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecRestoreArrayReadF90(elm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
 #else
       f_t = 1.0
