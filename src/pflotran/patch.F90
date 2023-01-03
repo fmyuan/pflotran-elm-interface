@@ -1523,9 +1523,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         select type(dataset => general%gas_saturation%dataset)
           class is(dataset_ascii_type)
             gas_sat = general%gas_saturation%dataset%rarray(1)
-	    if (option%nflowdof == 4) then
+            if (option%nflowdof == 4) then
               precipitate_sat = general%precipitate_saturation%dataset%rarray(1)
-	    endif
+            endif
             if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
                 TWO_PHASE_STATE
