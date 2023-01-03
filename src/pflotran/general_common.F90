@@ -2527,6 +2527,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: update_upwind_direction_
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
+  PetscBool :: dirichlet_solute = PETSC_FALSE
 
 
   PetscInt :: wat_comp_id, air_comp_id, energy_id, solute_comp_id
@@ -3378,10 +3379,21 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! liquid diffusion always exists as the internal cell has a liquid phase,
   ! but gas phase diffusion only occurs if the internal cell has a gas
   ! phase.
+  
+  !DF: This checks for a dirichlet condition on either solute
+  if (option%nflowdof == 4) then
+    if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
+        ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
+      dirichlet_solute = PETSC_TRUE
+    endif
+  elseif (option%nflowdof == 3) then
+    if (ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
+      dirichlet_solute = PETSC_TRUE
+    endif
+  endif
   sat_dn = gen_auxvar_dn%sat(iphase)
   if ((sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) &
-      .or. (ibndtype(iphase)==NEUMANN_BC .and. ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF) &
-            == DIRICHLET_BC)) then
+      .or. (ibndtype(iphase)==NEUMANN_BC .and. dirichlet_solute)) then
     if (general_harmonic_diff_density) then
       ! density_ave in this case is not used.
       density_ave = 1.d0
