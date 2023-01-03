@@ -712,7 +712,7 @@ subroutine PMWellSetup(this)
   PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real
-  PetscReal :: cum_z
+  PetscReal :: cum_z, z_dum
   PetscReal :: face_dn, face_up
   PetscReal, allocatable :: temp_z_list(:)
   PetscReal, allocatable :: temp_repeated_list(:) 
@@ -905,9 +905,16 @@ subroutine PMWellSetup(this)
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
 
-    ! TODO:
     ! sort the z-list in ascending order, in case it was not 
-    ! check if the user provided repeated z values (only take unique ones)
+    do i = 1, nsegments
+      do j = i+1, nsegments
+        if (well_grid%z_list(i) > well_grid%z_list(j)) then
+          z_dum = well_grid%z_list(j)
+          well_grid%z_list(j) = well_grid%z_list(i)
+          well_grid%z_list(i) = z_dum
+        endif
+      enddo
+    enddo
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -940,6 +947,13 @@ subroutine PMWellSetup(this)
         face_dn = (well_grid%h(k)%z + well_grid%h(k-1)%z)/2.d0
       endif
       well_grid%dh(k) = face_up - face_dn
+      if (well_grid%dh(k) < 1.d-20) then
+        option%io_buffer =  'At least one value provided in & 
+          &SEGMENT_CENTER_Z_VALUES is a duplicate, resulting in a calculated &
+          &DZ value equal to zero. Double check the values provided in &
+          &WELLBORE_MODEL,WELL_GRID,SEGMENT_CENTER_Z_VALUES.'
+        call PrintErrMsg(option)
+      endif
     enddo
 
   else 
