@@ -1299,6 +1299,12 @@ subroutine PMWellSetup(this)
       &Well grid resolution is adequate. No reservoir grid cell &
       &connections have been skipped.'
     call PrintMsg(option)
+    if (well_grid%match_reservoir) then
+      option%io_buffer = 'WELLBORE_MODEL: &
+        &For your convenience, the SEGMENT_CENTER_Z_VALUES are: '
+      call PrintMsg(option)
+      write(*,*) well_grid%h%z
+    endif
   endif
 
   allocate(this%well%ccid(nsegments))
@@ -1332,7 +1338,7 @@ subroutine PMWellSetup(this)
   ! add a reservoir src/sink coupler for each well segment
   do k = 1,well_grid%nsegments
     if (well_grid%h_rank_id(k) /= option%myrank) cycle
-    
+
     write(string,'(I0.6)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
     source_sink%name = 'well_segment_' // trim(string)
