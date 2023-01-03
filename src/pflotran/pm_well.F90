@@ -892,7 +892,7 @@ subroutine PMWellSetup(this)
     deallocate(temp_repeated_list)
     deallocate(temp_z_list)
 
-  elseif (Associated(well_grid%z_list)) then
+  elseif (associated(well_grid%z_list)) then
   !---------------------------------------------------------------------------
   ! Use the provided z list to build the grid
 
@@ -904,6 +904,7 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
+    allocate(well_grid%res_dz(nsegments))
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
@@ -945,6 +946,11 @@ subroutine PMWellSetup(this)
       endif
       well_grid%dh(k) = face_up - face_dn
     enddo
+
+    !This could be way off if # of well cells per reservoir cell >> 1
+    !This could also lead to inconsisent well indices between the 
+    !generated vs. read-in well.
+    well_grid%res_dz(:) = this%well_grid%dh(:)
 
   elseif (Initialized(well_grid%nsegments)) then 
   !---------------------------------------------------------------------------
