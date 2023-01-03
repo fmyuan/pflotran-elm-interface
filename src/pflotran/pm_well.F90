@@ -718,9 +718,9 @@ subroutine PMWellSetup(this)
   PetscReal, allocatable :: temp_repeated_list(:) 
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
   PetscInt :: repeated
-  !PetscReal :: dz_list(10000), res_dz_list(10000)
-  !PetscReal :: min_dz, dz, z
-  !PetscInt :: cell_id_list(10000)
+  PetscReal :: dz_list(10000), res_dz_list(10000)
+  PetscReal :: min_dz, dz, z
+  PetscInt :: cell_id_list(10000)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_well, local_id_res, res_cell_count
   PetscInt :: nsegments, nsegments_save
@@ -853,6 +853,8 @@ subroutine PMWellSetup(this)
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
+    allocate(well_grid%res_dz(nsegments))
+
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
@@ -878,6 +880,8 @@ subroutine PMWellSetup(this)
       well_grid%h_ghosted_id(k) = res_grid%nL2G(well_grid%h_local_id(k))
       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
     enddo
+
+    this%well_grid%res_dz(:) = well_grid%dh(:)
 
     diff_x = diff_x*diff_x
     diff_y = diff_y*diff_y
@@ -942,7 +946,7 @@ subroutine PMWellSetup(this)
       well_grid%dh(k) = face_up - face_dn
     enddo
 
-  else 
+  elseif (Initialized(well_grid%nsegments)) then 
   !---------------------------------------------------------------------------
   ! Build an equally-spaced grid based on nsegments:
 
@@ -989,6 +993,102 @@ subroutine PMWellSetup(this)
       endif
     enddo
   !---------------------------------------------------------------------------
+  else
+   ! Use reservoir grid info: 1 well cell per reservoir cell
+     dz_list = UNINITIALIZED_DOUBLE
+     res_dz_list = UNINITIALIZED_DOUBLE
+
+     if (Initialized(well_grid%min_dz)) then
+       min_dz = well_grid%min_dz
+     else
+       min_dz = 1.d-5
+     endif
+
+     dz = min_dz
+     z = well_grid%bottomhole(3)
+     dummy_h%x = well_grid%bottomhole(1)
+     dummy_h%y = well_grid%bottomhole(2)
+     dummy_h%z = z
+     call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+     cell_id_list(1) = local_id
+     cur_id = local_id
+     z = z + min_dz
+     dummy_h%z = z
+     nsegments = 1
+     nsegments_save = 0
+     res_cell_count = 1
+     do
+       if (z > well_grid%tophole(3)) exit
+       call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+
+       res_cell_count = res_cell_count + 1
+       if (res_cell_count <= well_grid%well_res_ratio .and. &
+           cur_id == local_id) then
+         nsegments = nsegments + 1
+         cell_id_list(nsegments) = local_id
+         dz = dz + min_dz
+       elseif (cur_id /= local_id) then
+         res_dz_list(nsegments_save+1:nsegments) = dz
+         dz = dz / (nsegments-nsegments_save)
+         dz_list(nsegments_save+1:nsegments) = dz
+         res_cell_count = 1
+         cur_id = local_id
+         nsegments_save = nsegments
+         nsegments = nsegments+1
+         cell_id_list(nsegments) = local_id
+         dz = min_dz
+       else
+         dz = dz + min_dz
+       endif
+
+       z = z + min_dz
+       dummy_h%z = z
+     enddo
+     res_dz_list(nsegments_save+1:nsegments) = dz
+     dz = dz / (nsegments-nsegments_save)
+     dz_list(nsegments_save+1:nsegments) = dz
+
+     allocate(well_grid%dh(nsegments))
+     allocate(well_grid%h(nsegments))
+     allocate(well_grid%res_dz(nsegments))
+     allocate(well_grid%h_local_id(nsegments))
+     allocate(well_grid%h_ghosted_id(nsegments))
+     allocate(well_grid%h_global_id(nsegments))
+     allocate(well_grid%strata_id(nsegments))
+     allocate(well_grid%h_rank_id(nsegments))
+
+     well_grid%h_rank_id(:) = 0
+     well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
+
+     well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+     this%well_grid%nsegments = nsegments
+     well_grid%nconnections = well_grid%nsegments - 1
+
+     well_grid%h(1)%id = 1
+     well_grid%h(1)%x = well_grid%bottomhole(1)
+     well_grid%h(1)%y = well_grid%bottomhole(2)
+     well_grid%h(1)%z = well_grid%bottomhole(3) + dz_list(1)/2.d0
+     well_grid%dh(1) = dz_list(1)
+
+     local_id = cell_id_list(1)
+     well_grid%h_local_id(1) = local_id
+     well_grid%h_ghosted_id(1) = res_grid%nL2G(local_id)
+     well_grid%h_global_id(1) = res_grid%nG2A(well_grid%h_ghosted_id(1))
+
+     do k = 2,nsegments
+       well_grid%h(k)%id = k
+       well_grid%h(k)%x = well_grid%bottomhole(1)
+       well_grid%h(k)%y = well_grid%bottomhole(2)
+       well_grid%h(k)%z = well_grid%bottomhole(3) + &
+                          sum(dz_list(1:k-1)) + dz_list(k)/2.d0
+       well_grid%dh(k) = dz_list(k)
+
+       local_id = cell_id_list(k)
+       well_grid%h_local_id(k) = local_id
+       well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+
+     enddo
   endif
 
   write(string,'(I0.5)') well_grid%nsegments
@@ -1038,114 +1138,6 @@ subroutine PMWellSetup(this)
                        ierr);CHKERRQ(ierr)
   endif
     
-
-
-
-
-
-  ! Michael's code that we might want to save for later:
-
-  ! if (nsegments == UNINITIALIZED_INTEGER) then
-
-  ! ! Use reservoir grid info: 1 well cell per reservoir cell
-  !   dz_list = UNINITIALIZED_DOUBLE
-  !   res_dz_list = UNINITIALIZED_DOUBLE
-
-  !   if (Initialized(this%min_dz)) then
-  !     min_dz = this%min_dz
-  !   else
-  !     min_dz = 1.d-5
-  !   endif
-
-  !   dz = min_dz
-  !   z = well_grid%bottomhole(3) 
-  !   dummy_h%x = well_grid%bottomhole(1)
-  !   dummy_h%y = well_grid%bottomhole(2) 
-  !   dummy_h%z = z
-  !   call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-  !   cell_id_list(1) = local_id
-  !   cur_id = local_id
-  !   z = z + min_dz
-  !   dummy_h%z = z
-  !   nsegments = 1
-  !   nsegments_save = 0
-  !   res_cell_count = 1
-  !   do
-  !     if (z > well_grid%tophole(3)) exit
-  !     call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-
-  !     res_cell_count = res_cell_count + 1
-  !     if (res_cell_count <= this%well_res_ratio .and. cur_id == local_id) then
-  !       nsegments = nsegments + 1
-  !       cell_id_list(nsegments) = local_id
-  !       dz = dz + min_dz
-  !     elseif (cur_id /= local_id) then
-  !       res_dz_list(nsegments_save+1:nsegments) = dz
-  !       dz = dz / (nsegments-nsegments_save)
-  !       dz_list(nsegments_save+1:nsegments) = dz
-  !       res_cell_count = 1
-  !       cur_id = local_id
-  !       nsegments_save = nsegments
-  !       nsegments = nsegments+1
-  !       cell_id_list(nsegments) = local_id
-  !       dz = min_dz
-  !     else
-  !       dz = dz + min_dz
-  !     endif
-
-  !     z = z + min_dz
-  !     dummy_h%z = z
-  !   enddo
-  !   res_dz_list(nsegments_save+1:nsegments) = dz
-  !   dz = dz / (nsegments-nsegments_save)
-  !   dz_list(nsegments_save+1:nsegments) = dz
-
-  !   allocate(well_grid%dh(nsegments))
-  !   allocate(well_grid%h(nsegments))
-  !   allocate(well_grid%res_dz(nsegments))
-  !   allocate(well_grid%h_local_id(nsegments))
-  !   allocate(well_grid%h_ghosted_id(nsegments))
-  !   allocate(well_grid%h_global_id(nsegments))
-  !   allocate(well_grid%strata_id(nsegments))
-
-  !   well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
-
-  !   well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-  !   this%well_grid%nsegments = nsegments
-  !   well_grid%nconnections = well_grid%nsegments - 1
-
-  !   well_grid%h(1)%id = 1
-  !   well_grid%h(1)%x = well_grid%bottomhole(1)
-  !   well_grid%h(1)%y = well_grid%bottomhole(2)
-  !   well_grid%h(1)%z = well_grid%bottomhole(3) + dz_list(1)/2.d0
-  !   well_grid%dh(1) = dz_list(1)
-
-  !   local_id = cell_id_list(1)
-  !   well_grid%h_local_id(1) = local_id
-  !   well_grid%h_ghosted_id(1) = res_grid%nL2G(local_id)
-  !   well_grid%h_global_id(1) = res_grid%nG2A(well_grid%h_ghosted_id(1))
-
-  !   do k = 2,nsegments
-  !     well_grid%h(k)%id = k
-  !     well_grid%h(k)%x = well_grid%bottomhole(1)
-  !     well_grid%h(k)%y = well_grid%bottomhole(2)
-  !     well_grid%h(k)%z = well_grid%bottomhole(3) + &
-  !                        sum(dz_list(1:k-1)) + dz_list(k)/2.d0
-  !     well_grid%dh(k) = dz_list(k)
-
-  !     local_id = cell_id_list(k)
-  !     well_grid%h_local_id(k) = local_id
-  !     well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
-  !     well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-
-  !   enddo
-  ! endif
-
-
-
-
-
-
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -1639,21 +1631,21 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (pm_well%well_grid%match_reservoir .eqv. PETSC_FALSE) then
-        if (Uninitialized(pm_well%well_grid%nsegments)) then
-          option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
-                             &in the ' // trim(error_string) // ' block, or &
-                             &SEGMENT_CENTER_Z_VALUES must be provided.'
-          call PrintMsg(option)
-          num_errors = num_errors + 1
-        endif
-        if (pm_well%well_grid%nsegments < 3) then
-          option%io_buffer = 'ERROR: The well must consist of >= 3 segments &
-                             &in the ' // trim(error_string) // ' block.'
-          call PrintMsg(option)
-          num_errors = num_errors + 1
-        endif
-      endif
+!      if (pm_well%well_grid%match_reservoir .eqv. PETSC_FALSE) then
+!        if (Uninitialized(pm_well%well_grid%nsegments)) then
+!          option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
+!                             &in the ' // trim(error_string) // ' block, or &
+!                             &SEGMENT_CENTER_Z_VALUES must be provided.'
+!          call PrintMsg(option)
+!          num_errors = num_errors + 1
+!        endif
+!        if (pm_well%well_grid%nsegments < 3) then
+!          option%io_buffer = 'ERROR: The well must consist of >= 3 segments &
+!                             &in the ' // trim(error_string) // ' block.'
+!          call PrintMsg(option)
+!          num_errors = num_errors + 1
+!        endif
+!      endif
       if (pm_well%well_grid%match_reservoir .eqv. PETSC_TRUE) then
         !if (Uninitialized(pm_well%well_grid%min_dz)) then
         !  option%io_buffer = 'ERROR: The minimum z spacing (MIN_DZ) must be &
@@ -2653,8 +2645,6 @@ recursive subroutine PMWellInitializeRun(this)
     allocate(this%well_pert(k)%liq%kr(nsegments))
     allocate(this%well_pert(k)%gas%kr(nsegments))
 
-    call PMWellCopyWell(this%well,this%well_pert(k))
-
     this%well_pert(k)%liq%rho0 = this%option%flow%reference_density(1)
     this%well_pert(k)%gas%rho0 = this%option%flow%reference_density(2)
   enddo
@@ -2679,6 +2669,7 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%reservoir%dy(nsegments))
   allocate(this%reservoir%dz(nsegments))
   allocate(this%reservoir%volume(nsegments))
+
   if (this%transport) then
     allocate(this%reservoir%aqueous_conc(this%nspecies, &
                                          this%well_grid%nsegments))
@@ -2825,6 +2816,9 @@ subroutine PMWellInitializeTimestep(this)
     ! enter here if its the very first timestep
     call PMWellInitializeWell(this)
   endif
+
+  call PMWellCopyWell(this%well,this%well_pert(ONE_INTEGER))
+  call PMWellCopyWell(this%well,this%well_pert(TWO_INTEGER))
 
   if (this%well%bh_p_set_by_reservoir) then
     this%well%bh_p = this%reservoir%p_l(1)
