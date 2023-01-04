@@ -1014,7 +1014,7 @@ subroutine PMWellSetup(this)
     enddo
   !---------------------------------------------------------------------------
   else
-   ! Use reservoir grid info: 1 well cell per reservoir cell
+   ! Use reservoir grid info
      dz_list = UNINITIALIZED_DOUBLE
      res_dz_list = UNINITIALIZED_DOUBLE
 
@@ -1132,10 +1132,18 @@ subroutine PMWellSetup(this)
                      MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   well_grid%h_rank_id = h_all_rank_id
   well_grid%h_global_id = h_all_global_id
-  
+
+  h_rank_id_unique(:) = UNINITIALIZED_INTEGER  
+
   min_val = minval(h_all_rank_id)-1
   max_val = maxval(h_all_rank_id)
-  k = 0
+  !Always include rank 0 in comm
+  if (min_val > -1) then
+    h_rank_id_unique(1) = 0
+    k = 1
+  else
+    k = 0
+  endif
   do while (min_val < max_val)
     k = k + 1
     min_val = minval(h_all_rank_id, mask=h_all_rank_id > min_val)
@@ -4761,7 +4769,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
         flow_soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of FLOW Newton iterations reached. &
                       &Cutting timestep!'
-        call PrintMsg(this%option,out_string); WRITE(*,*) ""
+        call PrintMsg(this%option,out_string)
         call PMWellCutTimestepFlow(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -4907,7 +4915,7 @@ subroutine PMWellSolveTran(this,time,ierr)
         soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
-        call PrintMsg(this%option,out_string); WRITE(*,*) ""
+        call PrintMsg(this%option,out_string)
         call PMWellCutTimestepTran(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -5231,7 +5239,6 @@ subroutine PMWellPostSolveFlow(this)
                     cur_time_converted,this%output_option%tunit, &
                     this%flow_soln%n_newton
   call PrintMsg(this%option,out_string)
-  WRITE(*,*) ""
 
 end subroutine PMWellPostSolveFlow
 
@@ -5256,7 +5263,6 @@ subroutine PMWellPostSolveTran(this)
                     cur_time_converted,this%output_option%tunit, &
                     this%flow_soln%n_newton
   call PrintMsg(this%option,out_string)
-  WRITE(*,*) ""
 
 end subroutine PMWellPostSolveTran
 
@@ -5469,7 +5475,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     flow_soln%converged = PETSC_TRUE
     flow_soln%not_converged = PETSC_FALSE
     out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
-    call PrintMsg(this%option,out_string); WRITE(*,*) ""
+    call PrintMsg(this%option,out_string)
     this%cumulative_dt_flow = this%cumulative_dt_flow + this%dt_flow
     this%flow_soln%prev_soln%pl = this%well%pl
     this%flow_soln%prev_soln%sg = this%well%gas%s
