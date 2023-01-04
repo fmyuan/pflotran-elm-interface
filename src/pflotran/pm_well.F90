@@ -364,6 +364,7 @@ module PM_Well_class
     procedure, public :: PreSolve => PMWellPreSolve
     procedure, public :: Solve => PMWellSolve
     procedure, public :: PostSolve => PMWellPostSolve
+    procedure, public :: InputRecord => PMWellInputRecord
     procedure, public :: Destroy => PMWellDestroy
   end type pm_well_type
 
@@ -1109,6 +1110,7 @@ subroutine PMWellSetup(this)
        well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
 
      enddo
+  !---------------------------------------------------------------------------
   endif
 
   write(string,'(I0.5)') well_grid%nsegments
@@ -7187,6 +7189,29 @@ subroutine PMWellUpdateMass(this)
   enddo
 
 end subroutine PMWellUpdateMass
+
+! *************************************************************************** !
+
+subroutine PMWellInputRecord(this)
+  !
+  ! Writes ingested information to the input record file.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 01/03/2023
+  !
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+
+end subroutine PMWellInputRecord
 
 ! ************************************************************************** !
 
