@@ -2427,6 +2427,7 @@ pmc_subsurface.o : \
   pm_base.o \
   pm_base_pointer.o \
   pm_general.o \
+  pm_hydrate.o \
   pm_nwt.o \
   pm_richards.o \
   pm_rt.o \

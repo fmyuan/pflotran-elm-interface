@@ -251,7 +251,7 @@ subroutine EOSRead(input,option)
             select case(trim(word))
               case('HAAS','SPARROW')
                 option%flow%sat_pres_depends_on_salinity = PETSC_TRUE
-              case('IFC67','IF97','WAGNER_AND_PRUSS')
+              case('IFC67','IF97','WAGNER_AND_PRUSS','HUANG-ICE','ICE')
               case default
                 call InputKeywordUnrecognized(input,word, &
                        'EOS,WATER,SATURATION_PRESSURE', &
