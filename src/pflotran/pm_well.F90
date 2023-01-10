@@ -5241,6 +5241,7 @@ subroutine PMWellPostSolveFlow(this)
                     cur_time_converted,this%output_option%tunit, &
                     this%flow_soln%n_newton
   call PrintMsg(this%option,out_string)
+  call PrintMsg(this%option,'')
 
 end subroutine PMWellPostSolveFlow
 
@@ -5604,7 +5605,6 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     soln%not_converged = PETSC_FALSE
     out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
     call PrintMsg(this%option,out_string)
-    call PrintMsg(this%option,'')
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
     soln%prev_soln%aqueous_conc = this%well%aqueous_conc
     soln%prev_soln%aqueous_mass = this%well%aqueous_mass
