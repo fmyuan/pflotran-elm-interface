@@ -1151,6 +1151,9 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   ! Date: 05/14/2019
   !
   use Convergence_module
+  use Field_module
+  use Option_module
+  use Grid_module
 
   implicit none
 
@@ -1163,32 +1166,136 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
 
+  character(len=MAXSTRINGLENGTH) :: out_string, string, rsn_string
+  Vec :: dX
+  PetscReal, pointer :: dX_p(:)    ! solution update
+  PetscReal, pointer :: X0_p(:)    ! previous solution
+  PetscReal, pointer :: X1_p(:)    ! current solution
+  PetscReal, pointer :: r_p(:)     ! current residual R
+  PetscReal, pointer :: accum_p(:) ! current accumulation term in R
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  PetscReal :: max_relative_change
+  PetscReal :: max_scaled_residual
+  PetscReal :: max_absolute_residual
+  PetscReal :: tempreal
+  PetscInt :: temp_int, i 
+  PetscInt :: local_id, offset, idof, index
+  PetscInt :: converged_flag
+
+  PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
+                                            this%realization%patch%grid%nlmax)
+  PetscBool :: idof_cnvgd_due_to_update(this%option%ntrandof)
+
+  grid => this%realization%patch%grid
+  option => this%realization%option
+  field => this%realization%field
+
+  if (it == 0) then
+    option%converged = PETSC_FALSE
+    option%convergence = CONVERGENCE_KEEP_ITERATING
+    reason = 0
+    return
+  endif
+
+  converged_flag = 0
+  idof_cnvgd_due_to_update = PETSC_FALSE
+  idof_cnvgd_due_to_rel_update = PETSC_FALSE
+
   !call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
   !                     this%realization%patch%grid, &
   !                     this%option,this%solver,ierr)
-
-  ! The default convergence criteria are ignored by commenting out the
-  ! call to ConvergenceTest() above.
   ierr = 0
-  if (this%option%convergence == CONVERGENCE_OFF) then
-    reason = 0 ! (force newton iteration)
-    this%option%convergence = CONVERGENCE_FORCE_ITERATION
+  call SNESGetSolutionUpdate(this%solver%snes,dX,ierr);CHKERRQ(ierr)
 
-  else if (this%option%convergence == CONVERGENCE_KEEP_ITERATING) then
-    reason = 0 ! (force newton iteration)
-    this%option%convergence = CONVERGENCE_FORCE_ITERATION
-    this%option%converged = PETSC_FALSE
+  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
-  else if (this%option%convergence == CONVERGENCE_CUT_TIMESTEP) then
-    reason = -88 ! (cut timestep)
-    this%option%convergence = CONVERGENCE_OFF
-    this%option%converged = PETSC_FALSE
+  
+  max_relative_change = 100.0d0
+  max_scaled_residual = 1.d0 
+  max_absolute_residual = 10.d0 
 
-  else if (this%option%convergence == CONVERGENCE_CONVERGED) then
-    reason = 999
-    this%option%convergence = CONVERGENCE_OFF
-    this%option%converged = PETSC_FALSE
+  max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
+
+  do local_id = 1, grid%nlmax
+    offset = (local_id-1)*option%ntrandof
+    do idof = 1, option%ntrandof
+      index = idof + offset
+    !-----------------------------------------------------------------
+    !---relative-update-----------------------------------------------
+      tempreal = dabs((dX_p(index))/X0_p(index))
+      if (tempreal < this%controls%itol_rel_update(idof)) then
+        idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_TRUE
+      endif 
+    !-----------------------------------------------------------------
+    enddo 
+  enddo 
+
+
+
+
+
+  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+
+  do idof = 1, option%ntrandof
+    if (all(idof_cnvgd_due_to_rel_update(idof,:))) then
+      idof_cnvgd_due_to_update(idof) = PETSC_TRUE
+    endif
+  enddo
+
+  if (all(idof_cnvgd_due_to_update)) then
+    converged_flag = 1
+    rsn_string = ' rUP'
+  else
+    converged_flag = 0
   endif
+
+  ! get global minimum
+  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+
+  if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
+    option%converged = PETSC_FALSE
+    option%convergence = CONVERGENCE_KEEP_ITERATING
+    reason = 0
+    if (it >= this%controls%max_newton_iterations) then
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
+      reason = -88
+    endif
+  else  ! means ITOL_* tolerances were satisfied
+    option%converged = PETSC_TRUE
+    option%convergence = CONVERGENCE_CONVERGED
+    reason = 999
+  endif
+
+  write(out_string,'(i3,"   aR:",es10.3," sR:",es10.3," rUP:",es10.3)') &
+        it, max_absolute_residual, max_scaled_residual, &
+        max_relative_change
+  call PrintMsg(option,out_string)
+
+  out_string = "     update converged (T/F) = "
+  do i = 1,option%ntrandof
+    write(string,'(L2)') idof_cnvgd_due_to_update(i)
+    out_string = trim(out_string) // trim(string)
+  enddo
+  call PrintMsg(option,out_string)
+
+  ! finalize convergence and reset option flags:
+  if (option%convergence == CONVERGENCE_CONVERGED) then
+    out_string = ' NW TRANS converged!   Rsn ->' // trim(rsn_string)
+    call PrintMsg(option,out_string)
+    option%convergence = CONVERGENCE_OFF
+    option%converged = PETSC_FALSE
+  endif 
 
 end subroutine PMNWTCheckConvergence
 
@@ -1196,8 +1303,7 @@ end subroutine PMNWTCheckConvergence
 
 subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   !
-  ! In the case of the log formulation, ensures that the update
-  ! vector does not exceed a prescribed tolerance
+  ! Checks the solution update vector prior to updating the solution.
   !
   ! Author: Glenn Hammond, Jenn Frederick
   ! Date: 05/28/2019
@@ -1216,98 +1322,79 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: C_p(:)  ! CURRENT SOLUTION
-  PetscReal, pointer :: dC_p(:) ! SOLUTION UPDATE STEP
+  PetscReal, pointer :: X_p(:)  ! CURRENT SOLUTION
+  PetscReal, pointer :: dX_p(:) ! SOLUTION UPDATE STEP
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
+  type(option_type), pointer :: option
   PetscReal :: ratio, min_ratio
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, k
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
+  option => this%realization%option
 
-  call VecGetArrayF90(X,C_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+  changed = PETSC_FALSE
 
-  if (reaction_nw%use_log_formulation) then
-    ! C and dC are actually lnC and dlnC
-    dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),this%controls%max_dlnC)
-    ! at this point, it does not matter whether "changed" is set to true,
-    ! since it is not checkied in PETSc.  Thus, I don't want to spend
-    ! time checking for changes and performing an allreduce for log
-    ! formulation.
-    if (Initialized(reaction_nw%params%truncated_concentration)) then
-      dC_p = min(C_p-log(reaction_nw%params%truncated_concentration),dC_p)
-    endif
-  else
+  call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
 
-    if (Initialized(reaction_nw%params%truncated_concentration)) then
-      do k = 1,size(C_p)
-        if (C_p(k) < reaction_nw%params%truncated_concentration) then
-          C_p(k) = reaction_nw%params%truncated_concentration
-          dC_p(k) = 0.0d0
-        else
-          dC_p(k) = min(dC_p(k),C_p(k) - &
-                        reaction_nw%params%truncated_concentration)
-        endif
-      enddo
-    else
-      ! C^p+1 = C^p - dC^p
-      ! if dC is positive and abs(dC) larger than C
-      ! we need to scale the update
-
-      ! compute smallest ratio of C to dC
-#if 0
-      min_ratio = 1.d0/maxval(dC_p/C_p)
-#else
-      min_ratio = MAX_DOUBLE ! large number
-      k = 0
-      do i = 1, size(C_p)
-        if (C_p(i) <= dC_p(i)) then
-          !WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
-          ratio = abs(C_p(i)/dC_p(i))
-          if (ratio < min_ratio) then
-            min_ratio = ratio
-            k = i
-          endif
-        endif
-      enddo
-#endif
-      ratio = min_ratio
-      !WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
-
-      ! get global minimum
-      call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                         MPI_MIN,this%realization%option%mycomm, &
-                         ierr);CHKERRQ(ierr)
-
-      ! scale if necessary
-      if (min_ratio < 1.d0) then
-        if (min_ratio < this%realization%option%min_allowable_scale) then
-          write(string,'(es10.3)') min_ratio
-          string = 'The update of primary species concentration is being ' // &
-            'scaled by a very small value (i.e. ' // &
-            trim(adjustl(string)) // &
-            ') to prevent negative concentrations.  This value is too ' // &
-            'small and will likely cause the solver to mistakenly ' // &
-            'converge based on the infinity norm of the update vector. ' // &
-            'In this case, it is recommended that you use the ' // &
-            'LOG_FORMULATION keyword or TRUNCATE_CONCENTRATION <float> in &
-            &the NUCLEAR_WASTE_TRANSPORT block).'
-          this%realization%option%io_buffer = string
-          call PrintErrMsgToDev(this%realization%option, 'send your input &
-                                &deck if that does not work')
-        endif
-        ! scale by 0.99 to make the update slightly smaller than the min_ratio
-        dC_p = dC_p*min_ratio*0.99d0
-        changed = PETSC_TRUE
+  if (Initialized(reaction_nw%params%truncated_concentration)) then
+    do k = 1,size(X_p)
+      if (X_p(k) < reaction_nw%params%truncated_concentration) then
+        X_p(k) = reaction_nw%params%truncated_concentration
+        dX_p(k) = 0.0d0
+      else
+        dX_p(k) = min(dX_p(k),X_p(k) - &
+                      reaction_nw%params%truncated_concentration)
       endif
+    enddo
+  else
+    ! C^p+1 = C^p - dC^p
+    ! if dC is positive and abs(dC) larger than C
+    ! we need to scale the update
+
+    ! compute smallest ratio of C to dC
+#if 0
+    min_ratio = 1.d0/maxval(dX_p/X_p)
+#else
+    min_ratio = MAX_DOUBLE ! large number
+    k = 0
+    do i = 1, size(X_p)
+      if (X_p(i) <= dX_p(i)) then
+        !WRITE(*,*)  ' i =', i, '  X_p(i) =', X_p(i), '  dX_p(i) =', dX_p(i)
+        ratio = abs(X_p(i)/dX_p(i))
+        if (ratio < min_ratio) then
+          min_ratio = ratio
+          k = i
+        endif
+      endif
+    enddo
+#endif
+    ratio = min_ratio
+    !WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
+
+    ! get global minimum
+    call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                       MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+
+    ! scale if necessary
+    if (min_ratio < 1.d0) then
+      if (min_ratio < option%min_allowable_scale) then
+        option%converged = PETSC_FALSE
+        option%convergence = CONVERGENCE_CUT_TIMESTEP
+        string = ' *WARNING* Solution update is being scaled by an extremely &
+          &small value in order to prevent negative mass. Cutting time step!' 
+        call PrintMsg(option,string)
+      endif
+      dX_p = dX_p*min_ratio
+      changed = PETSC_TRUE
     endif
   endif
 
-  call VecRestoreArrayF90(X,C_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMNWTCheckUpdatePre
 
@@ -1339,10 +1426,13 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
 
+
+#if 0
+
   type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: out_string, string
   PetscReal, pointer :: C0_p(:)
   PetscReal, pointer :: dC_p(:)
@@ -1378,7 +1468,6 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: tempreal
 
   grid => this%realization%patch%grid
-  option => this%realization%option
   field => this%realization%field
   patch => this%realization%patch
   out_string = ''
@@ -1566,6 +1655,8 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       write(IUNIT_EKG,100) max_relative_change_by_dof(:)
     endif
   endif
+
+#endif
 
 end subroutine PMNWTCheckUpdatePost
 
