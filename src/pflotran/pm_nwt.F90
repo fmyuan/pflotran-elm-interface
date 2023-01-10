@@ -16,10 +16,6 @@ module PM_NWT_class
   private
 
   type, public :: pm_nwt_controls_type
-    PetscReal, pointer :: max_concentration_change(:)
-    PetscReal, pointer :: max_volfrac_change(:)
-    PetscReal :: volfrac_change_governor
-    PetscReal :: cfl_governor
     PetscReal, pointer :: itol_rel_update(:)
     PetscReal, pointer :: itol_scaled_res(:)
     PetscReal, pointer :: itol_abs_res(:)
@@ -29,11 +25,12 @@ module PM_NWT_class
     character(len=MAXWORDLENGTH), pointer :: names_itol_scaled_res(:)
     character(len=MAXWORDLENGTH), pointer :: names_itol_abs_res(:)
     PetscInt :: max_newton_iterations
-    PetscReal :: max_dlnC
     PetscReal :: dt_cut
     PetscBool :: check_post_converged
     PetscBool :: check_post_convergence
     PetscBool :: check_update
+    PetscBool :: verbose_newton
+    PetscBool :: scaling_cut_dt
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -135,10 +132,6 @@ function PMNWTCreate()
   nullify(nwt_pm%comm1)
 
   allocate(nwt_pm%controls)
-  nullify(nwt_pm%controls%max_concentration_change)
-  nullify(nwt_pm%controls%max_volfrac_change)
-  nwt_pm%controls%volfrac_change_governor = 1.d0
-  nwt_pm%controls%cfl_governor = UNINITIALIZED_DOUBLE
   nullify(nwt_pm%controls%itol_rel_update)
   nullify(nwt_pm%controls%itol_scaled_res)
   nullify(nwt_pm%controls%itol_abs_res)
@@ -149,11 +142,11 @@ function PMNWTCreate()
   nullify(nwt_pm%controls%names_itol_abs_res)
   nwt_pm%controls%max_newton_iterations = 10
   nwt_pm%controls%dt_cut = 0.5d0
-  nwt_pm%controls%max_dlnC = 5.0d0
+  nwt_pm%controls%scaling_cut_dt = PETSC_FALSE
   nwt_pm%controls%check_post_converged = PETSC_FALSE
-  ! set to true so that itol_relative_update always gets checked:
-  nwt_pm%controls%check_post_convergence = PETSC_TRUE
+  nwt_pm%controls%check_post_convergence = PETSC_FALSE
   nwt_pm%controls%check_update = PETSC_TRUE
+  nwt_pm%controls%verbose_newton = PETSC_FALSE
 #ifdef OS_STATISTICS
   nwt_pm%controls%newton_call_count = 0
   nwt_pm%controls%sum_newton_call_count = 0.d0
@@ -278,12 +271,6 @@ subroutine PMNWTReadTSSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('CFL_GOVERNOR')
-      call InputReadDouble(input,option,this%controls%cfl_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('VOLUME_FRACTION_CHANGE_GOVERNOR')
-      call InputReadDouble(input,option,this%controls%volfrac_change_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
   end select
@@ -334,6 +321,10 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       call InputReadInt(input,option,this%controls%max_newton_iterations)
       call InputErrorMsg(input,option,'VALUE',error_string)
       this%solver%newton_max_iterations = this%controls%max_newton_iterations
+    !------------------------------------------------------------------------
+    case('VERBOSE_NEWTON')
+      error_string_ex = trim(error_string) // ',VERBOSE_NEWTON'
+      this%controls%verbose_newton = PETSC_TRUE
     !------------------------------------------------------------------------
     case('NWT_ITOL_RELATIVE_UPDATE')
       k = 0
@@ -475,8 +466,6 @@ subroutine PMNWTSetup(this)
   ! set the communicator
   this%comm1 => this%realization%comm1
 
-  allocate(this%controls%max_concentration_change(this%params%nspecies))
-  allocate(this%controls%max_volfrac_change(this%params%nspecies))
   allocate(this%controls%cnvg_criteria_value(this%params%nspecies))
   allocate(this%controls%i_mapping(this%params%nspecies))
 
@@ -922,13 +911,6 @@ subroutine PMNWTFinalizeTimestep(this)
                                   this%realization%field%porosity_tpdt)
   endif
 
-  call NWTMaxChange(this%realization,this%controls%max_concentration_change)
-  write(this%option%io_buffer,'("  --> max change: dcmx= ",1pe12.4,&
-                              &"  dc/dt= ",1pe12.4," [mol/s]")') &
-    maxval(this%controls%max_concentration_change), &
-    maxval(this%controls%max_concentration_change)/this%option%tran_dt
-  call PrintMsg(this%option)
-
 end subroutine PMNWTFinalizeTimestep
 
 ! ************************************************************************** !
@@ -958,40 +940,15 @@ subroutine PMNWTUpdateTimestep(this,update_dt, &
   PetscReal, parameter :: pert = 1.d-20
 
   if (update_dt .and. iacceleration /= 0) then
-    if (this%controls%volfrac_change_governor < 1.d0) then
-      ! with volume fraction potentially scaling the time step
-      if (iacceleration > 0) then
-        fac = 0.5d0
-        if (num_newton_iterations >= iacceleration) then
-          fac = 0.33d0
-          uvf = 0.d0
-        else
-          uvf = this%controls%volfrac_change_governor/ &
-                (maxval(this%controls%max_volfrac_change)+pert)
-        endif
-        dtt = fac * dt * (1.d0 + uvf)
-      else
-        ifac = max(min(num_newton_iterations,size(tfac)),1)
-        dt_tfac = tfac(ifac) * dt
-
-        fac = 0.5d0
-        uvf= this%controls%volfrac_change_governor/ &
-            (maxval(this%controls%max_volfrac_change)+pert)
-        dt_vf = fac * dt * (1.d0 + uvf)
-
-        dtt = min(dt_tfac,dt_vf)
-      endif
+  
+    ! this overrides the default setting of iacceleration = 5
+    ! by default size(tfac) is 13, so this is safe
+    dtt = dt
+    iacceleration = size(tfac)
+    if (num_newton_iterations <= iacceleration) then
+      dtt = tfac(num_newton_iterations) * dt
     else
-      ! original implementation
-      ! this overrides the default setting of iacceleration = 5
-      ! by default size(tfac) is 13, so this is safe
-      dtt = dt
-      iacceleration = size(tfac)
-      if (num_newton_iterations <= iacceleration) then
-        dtt = tfac(num_newton_iterations) * dt
-      else
-        dtt = this%controls%dt_cut * dt
-      endif
+      dtt = this%controls%dt_cut * dt
     endif
 
     dtt = min(time_step_max_growth_factor*dt,dtt)
@@ -1000,9 +957,6 @@ subroutine PMNWTUpdateTimestep(this,update_dt, &
     dtt = max(dtt,dt_min)
     dt = dtt
   endif
-
-  call RealizationLimitDTByCFL(this%realization,this%controls%cfl_governor, &
-                               dt,dt_max)
 
 end subroutine PMNWTUpdateTimestep
 
@@ -1147,8 +1101,8 @@ end subroutine PMNWTJacobian
 
 subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   !
-  ! Author: Jenn Frederick
-  ! Date: 05/14/2019
+  ! Author: Jennifer M. Frederick
+  ! Date: 05/14/2019, refactored 01/10/2023
   !
   use Convergence_module
   use Field_module
@@ -1167,6 +1121,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: out_string, string, rsn_string
+  character(len=6) :: aR_str, sR_str, rUP_str
   Vec :: dX
   PetscReal, pointer :: dX_p(:)    ! solution update
   PetscReal, pointer :: X0_p(:)    ! previous solution
@@ -1176,10 +1131,16 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
+  PetscReal :: tempreal
   PetscReal :: max_relative_change
   PetscReal :: max_scaled_residual
   PetscReal :: max_absolute_residual
-  PetscReal :: tempreal
+  PetscReal :: species_max_relative_update(this%option%ntrandof)
+  PetscReal :: species_max_scaled_residual(this%option%ntrandof)
+  PetscReal :: species_max_absolute_residual(this%option%ntrandof)
+  PetscInt :: loc_max_scaled_residual
+  PetscInt :: loc_max_abs_residual
+  PetscInt :: loc_max_rel_update
   PetscInt :: temp_int, i 
   PetscInt :: local_id, offset, idof, index
   PetscInt :: converged_flag
@@ -1187,10 +1148,24 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_update(this%option%ntrandof)
+  PetscBool :: idof_cnvgd_due_to_scaled_res(this%option%ntrandof, &
+                                            this%realization%patch%grid%nlmax)
+  PetscBool :: idof_cnvgd_due_to_abs_res(this%option%ntrandof, &
+                                         this%realization%patch%grid%nlmax)  
+  PetscBool :: idof_cnvgd_due_to_residual(this%option%ntrandof)
+  PetscBool :: rsn_rUP, rsn_aR, rsn_sR
 
   grid => this%realization%patch%grid
   option => this%realization%option
   field => this%realization%field
+
+  ! check if scaling from PMNWTCheckUpdatePre() requires ts cut
+  if (this%controls%scaling_cut_dt) then
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    reason = -88
+    this%controls%scaling_cut_dt = PETSC_FALSE
+    return
+  endif
 
   if (it == 0) then
     option%converged = PETSC_FALSE
@@ -1202,6 +1177,15 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   converged_flag = 0
   idof_cnvgd_due_to_update = PETSC_FALSE
   idof_cnvgd_due_to_rel_update = PETSC_FALSE
+  idof_cnvgd_due_to_residual = PETSC_FALSE
+  idof_cnvgd_due_to_scaled_res = PETSC_FALSE
+  idof_cnvgd_due_to_abs_res = PETSC_FALSE
+  rsn_aR = PETSC_FALSE
+  rsn_sR = PETSC_FALSE
+  rsn_rUP = PETSC_FALSE
+  species_max_relative_update = 0.d0
+  species_max_absolute_residual = 0.d0
+  species_max_scaled_residual = 0.d0
 
   !call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
   !                     this%realization%patch%grid, &
@@ -1215,12 +1199,13 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
-  
-  max_relative_change = 100.0d0
-  max_scaled_residual = 1.d0 
-  max_absolute_residual = 10.d0 
-
   max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
+  max_absolute_residual = maxval(dabs(r_p(:)))
+  max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
+
+  loc_max_scaled_residual = maxloc(dabs(r_p(:)/accum_p(:)),1)
+  loc_max_abs_residual = maxloc(dabs(r_p(:)),1)
+  loc_max_rel_update = maxloc(dabs(dX_p(:)/X0_p(:)),1)
 
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%ntrandof
@@ -1232,13 +1217,27 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       if (tempreal < this%controls%itol_rel_update(idof)) then
         idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_TRUE
       endif 
+      species_max_relative_update(idof) = &
+          max(species_max_relative_update(idof),tempreal)
+    !-----------------------------------------------------------------
+    !---absolute-residual---------------------------------------------
+      tempreal = dabs(r_p(index))
+      if (tempreal < this%controls%itol_abs_res(idof)) then
+        idof_cnvgd_due_to_abs_res(idof,local_id) = PETSC_TRUE
+      endif
+      species_max_absolute_residual(idof) = &
+          max(species_max_absolute_residual(idof),tempreal)
+    !-----------------------------------------------------------------
+    !---scaled-residual-----------------------------------------------
+      tempreal = dabs(r_p(index)/accum_p(index))
+      if (tempreal < this%controls%itol_scaled_res(idof)) then
+        idof_cnvgd_due_to_scaled_res(idof,local_id) = PETSC_TRUE
+      endif
+      species_max_scaled_residual(idof) = &
+          max(species_max_scaled_residual(idof),tempreal)
     !-----------------------------------------------------------------
     enddo 
   enddo 
-
-
-
-
 
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
@@ -1246,15 +1245,35 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
+  aR_str  = '   aR:'
+  sR_str  = '   sR:'
+  rUP_str = '  rUP:'
   do idof = 1, option%ntrandof
     if (all(idof_cnvgd_due_to_rel_update(idof,:))) then
       idof_cnvgd_due_to_update(idof) = PETSC_TRUE
+      rsn_rUP = PETSC_TRUE
+      rUP_str = ' *rUP:'
+    endif
+    if (all(idof_cnvgd_due_to_abs_res(idof,:))) then
+      rsn_aR = PETSC_TRUE
+      aR_str  = '  *aR:'
+    endif
+    if (all(idof_cnvgd_due_to_scaled_res(idof,:))) then
+      rsn_sR = PETSC_TRUE
+      sR_str  = '  *sR:'
+    endif
+    if (rsn_aR .or. rsn_sR) then
+      idof_cnvgd_due_to_residual(idof) = PETSC_TRUE
     endif
   enddo
 
-  if (all(idof_cnvgd_due_to_update)) then
+  rsn_string = '' 
+  if (rsn_aR) rsn_string = trim(rsn_string) // ' aR,' 
+  if (rsn_sR) rsn_string = trim(rsn_string) // ' sR,' 
+  if (rsn_rUP) rsn_string = trim(rsn_string) // ' rUP' 
+
+  if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual)) then
     converged_flag = 1
-    rsn_string = ' rUP'
   else
     converged_flag = 0
   endif
@@ -1277,18 +1296,32 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     reason = 999
   endif
 
-  write(out_string,'(i3,"   aR:",es10.3," sR:",es10.3," rUP:",es10.3)') &
-        it, max_absolute_residual, max_scaled_residual, &
-        max_relative_change
+  write(out_string,'(i4,a7,es10.3,a7,es10.3,a7,es10.3)') &
+        it, aR_str, max_absolute_residual, sR_str, max_scaled_residual, &
+        rUP_str, max_relative_change
   call PrintMsg(option,out_string)
 
-  out_string = "     update converged (T/F) = "
-  do i = 1,option%ntrandof
-    write(string,'(L2)') idof_cnvgd_due_to_update(i)
-    out_string = trim(out_string) // trim(string)
-  enddo
-  call PrintMsg(option,out_string)
+  if (this%controls%verbose_newton) then
+    write(out_string,'(a4,a7,i10,a7,i10,a7,i10)') &
+        'cell', aR_str, loc_max_abs_residual, sR_str, &
+        loc_max_scaled_residual, rUP_str, loc_max_rel_update
+    call PrintMsg(option,out_string)
 
+    out_string = "     update converged (T/F) = "
+    do i = 1,option%ntrandof
+      write(string,'(L2)') idof_cnvgd_due_to_update(i)
+      out_string = trim(out_string) // trim(string)
+    enddo
+    call PrintMsg(option,out_string)
+
+    out_string = "     residual converged (T/F) = "
+    do i = 1,option%ntrandof
+      write(string,'(L2)') idof_cnvgd_due_to_residual(i)
+      out_string = trim(out_string) // trim(string)
+    enddo
+    call PrintMsg(option,out_string)
+  endif
+  
   ! finalize convergence and reset option flags:
   if (option%convergence == CONVERGENCE_CONVERGED) then
     out_string = ' NW TRANS converged!   Rsn ->' // trim(rsn_string)
@@ -1382,8 +1415,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
       if (min_ratio < option%min_allowable_scale) then
-        option%converged = PETSC_FALSE
-        option%convergence = CONVERGENCE_CUT_TIMESTEP
+        this%controls%scaling_cut_dt = PETSC_TRUE
         string = ' *WARNING* Solution update is being scaled by an extremely &
           &small value in order to prevent negative mass. Cutting time step!' 
         call PrintMsg(option,string)
@@ -1426,237 +1458,6 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
 
-
-#if 0
-
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: patch
-  type(option_type), pointer :: option
-  character(len=MAXSTRINGLENGTH) :: out_string, string
-  PetscReal, pointer :: C0_p(:)
-  PetscReal, pointer :: dC_p(:)
-  PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: accum_p(:)
-  PetscBool :: idof_cnvgd_due_to_update(this%option%ntrandof)
-  PetscBool :: idof_cnvgd_due_to_residual(this%option%ntrandof)
-  PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof,this%realization%patch%grid%nlmax)
-  PetscBool :: idof_cnvgd_due_to_scaled_res(this%option%ntrandof,this%realization%patch%grid%nlmax)
-  PetscBool :: idof_cnvgd_due_to_abs_res(this%option%ntrandof,this%realization%patch%grid%nlmax)
-  PetscReal :: max_relative_change
-  PetscReal :: max_scaled_residual
-  PetscReal :: max_absolute_change
-  PetscReal :: max_absolute_residual
-  PetscReal :: min_C0
-  PetscInt :: loc_max_scaled_residual
-  PetscInt :: loc_max_abs_residual
-  PetscInt :: loc_max_rel_update
-  PetscReal :: residual_at_max
-  PetscReal :: accum_at_max
-  PetscReal :: update_at_max
-  PetscReal :: soln_at_max
-  PetscReal :: species_max_relative_change(this%option%ntrandof)
-  PetscReal :: species_max_scaled_residual(this%option%ntrandof)
-  PetscReal :: species_max_absolute_change(this%option%ntrandof)
-  PetscReal :: species_max_absolute_residual(this%option%ntrandof)
-  PetscInt :: converged_flag
-  PetscInt :: temp_int, i
-  PetscInt :: newton_iter_number
-  PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
-  PetscMPIInt :: mpi_int
-  PetscInt :: local_id, offset, idof, index
-  PetscReal :: tempreal
-
-  grid => this%realization%patch%grid
-  field => this%realization%field
-  patch => this%realization%patch
-  out_string = ''
-
-  dX_changed = PETSC_FALSE
-  X1_changed = PETSC_FALSE
-
-  call SNESGetIterationNumber(this%solver%snes,newton_iter_number, &
-                              ierr);CHKERRQ(ierr)
-
-  converged_flag = 0
-  if (this%controls%check_post_convergence) then
-    idof_cnvgd_due_to_rel_update = PETSC_FALSE
-    idof_cnvgd_due_to_scaled_res = PETSC_FALSE
-    idof_cnvgd_due_to_abs_res = PETSC_FALSE
-    idof_cnvgd_due_to_update = PETSC_FALSE
-    idof_cnvgd_due_to_residual = PETSC_FALSE
-
-    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
-
-    min_C0 = minval(dabs(C0_p(:)))
-
-    max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
-    max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
-    max_absolute_change = maxval(dabs(dC_p(:)))
-    max_absolute_residual = maxval(dabs(r_p(:)))
-
-    loc_max_scaled_residual = maxloc(dabs(r_p(:)/accum_p(:)),1)
-    loc_max_abs_residual = maxloc(dabs(r_p(:)),1)
-    loc_max_rel_update = maxloc(dabs(dC_p(:)/C0_p(:)),1)
-
-    residual_at_max = dabs(r_p(loc_max_scaled_residual))
-    accum_at_max = dabs(accum_p(loc_max_scaled_residual))
-    update_at_max = dabs(dC_p(loc_max_rel_update))
-    soln_at_max = dabs(C0_p(loc_max_rel_update))
-
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%ntrandof
-      do idof = 1, option%ntrandof
-        index = idof + offset
-      !-----------------------------------------------------------------
-        idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_FALSE
-        tempreal = dabs((dC_p(index))/C0_p(index))
-        if (tempreal < this%controls%itol_rel_update(idof)) then
-          idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_TRUE
-        else
-          if (dC_p(index) < 1.d-18) then
-            idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_TRUE
-          endif
-        endif
-        species_max_relative_change(idof) = &
-          max(species_max_relative_change(idof),tempreal)
-      !-----------------------------------------------------------------
-        idof_cnvgd_due_to_scaled_res(idof,local_id) = PETSC_FALSE
-        tempreal = dabs(r_p(index)/accum_p(index))
-        if (tempreal < this%controls%itol_scaled_res(idof)) then
-          idof_cnvgd_due_to_scaled_res(idof,local_id) = PETSC_TRUE
-        else
-          if (r_p(index) < this%controls%itol_abs_res(idof)) then
-            idof_cnvgd_due_to_scaled_res(idof,local_id) = PETSC_TRUE
-          endif
-        endif
-        species_max_scaled_residual(idof) = &
-          max(species_max_scaled_residual(idof),tempreal)
-      !-----------------------------------------------------------------
-        tempreal = dabs(dC_p(index))
-        species_max_absolute_change(idof) = &
-          max(species_max_absolute_change(idof),tempreal)
-      !-----------------------------------------------------------------
-        idof_cnvgd_due_to_abs_res(idof,local_id) = PETSC_FALSE
-        tempreal = dabs(r_p(index))
-        if (tempreal < this%controls%itol_abs_res(idof)) then
-          idof_cnvgd_due_to_abs_res(idof,local_id) = PETSC_TRUE
-        endif
-        species_max_absolute_residual(idof) = &
-          max(species_max_absolute_residual(idof),tempreal)
-      !-----------------------------------------------------------------
-      enddo
-    enddo
-    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
-
-    do idof = 1, option%ntrandof
-      if (all(idof_cnvgd_due_to_rel_update(idof,:))) then
-        idof_cnvgd_due_to_update(idof) = PETSC_TRUE
-      endif
-      if (all(idof_cnvgd_due_to_scaled_res(idof,:)) .or. &
-          all(idof_cnvgd_due_to_abs_res(idof,:))) then
-        idof_cnvgd_due_to_residual(idof) = PETSC_TRUE
-      endif
-    enddo
-
-    if (all(idof_cnvgd_due_to_residual) .and. all(idof_cnvgd_due_to_update)) then
-      converged_flag = 1
-    else
-      converged_flag = 0
-    endif
-
-  endif
-
-  write(out_string,'(i3,"   aR:",es10.3," sR:",es10.3," rUP:",es10.3)') &
-        newton_iter_number, max_absolute_residual, max_scaled_residual, &
-        max_relative_change
-  call PrintMsg(option,out_string)
-
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '          max scaled residual = ', max_scaled_residual
-  !WRITE(*,*)  '                     location = ', loc_max_scaled_residual
-  !WRITE(*,*)  '               residual @ max = ', residual_at_max
-  !WRITE(*,*)  '                  accum @ max = ', accum_at_max
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '     max absolute residual = ', max_absolute_residual
-  !WRITE(*,*)  '                  location = ', loc_max_abs_residual
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '   residual converged (T/F) = ', idof_cnvgd_due_to_residual
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '      max relative update = ', max_relative_change
-  !WRITE(*,*)  '                 location = ', loc_max_rel_update
-  !WRITE(*,*)  '             update @ max = ', update_at_max
-  !WRITE(*,*)  '               soln @ max = ', soln_at_max
-  !WRITE(*,*)  '                   min C0 = ', min_C0
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '     update converged (T/F) = ', idof_cnvgd_due_to_update
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-
-  out_string = "   residual converged (T/F) = "
-  do i = 1,option%ntrandof
-    write(string,'(L2)') idof_cnvgd_due_to_residual(i)
-    out_string = trim(out_string) // trim(string)
-  enddo
-  call PrintMsg(option,out_string)
-
-  out_string = "     update converged (T/F) = "
-  do i = 1,option%ntrandof
-    write(string,'(L2)') idof_cnvgd_due_to_update(i)
-    out_string = trim(out_string) // trim(string)
-  enddo
-  call PrintMsg(option,out_string)
-
-  ! get global minimum
-  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,this%realization%option%mycomm, &
-                     ierr);CHKERRQ(ierr)
-
-  if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
-    this%realization%option%converged = PETSC_FALSE
-    this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
-    if (newton_iter_number >= this%controls%max_newton_iterations) then
-      this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
-    endif
-  else  ! means ITOL_* tolerances were satisfied
-    this%realization%option%converged = PETSC_TRUE
-    this%realization%option%convergence = CONVERGENCE_CONVERGED
-  endif
-
-  if (this%print_ekg) then
-    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    max_relative_change_by_dof = -MAX_DOUBLE
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%ntrandof
-      do idof = 1, option%ntrandof
-        index = idof + offset
-        tempreal = dabs(dC_p(index)/C0_p(index))
-        max_relative_change_by_dof(idof) = &
-          max(max_relative_change_by_dof(idof),tempreal)
-      enddo
-    enddo
-    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    mpi_int = option%ntrandof
-    call MPI_Allreduce(MPI_IN_PLACE,max_relative_change_by_dof,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm, &
-                       ierr);CHKERRQ(ierr)
-    if (OptionPrintToFile(option)) then
-100 format("NUCLEAR WASTE TRANSPORT  NEWTON_ITERATION ",30es16.8)
-      write(IUNIT_EKG,100) max_relative_change_by_dof(:)
-    endif
-  endif
-
-#endif
 
 end subroutine PMNWTCheckUpdatePost
 
@@ -2260,8 +2061,6 @@ subroutine PMNWTDestroy(this)
 
   class(pm_nwt_type) :: this
 
-  call DeallocateArray(this%controls%max_concentration_change)
-  call DeallocateArray(this%controls%max_volfrac_change)
   call DeallocateArray(this%controls%itol_rel_update)
   call DeallocateArray(this%controls%itol_scaled_res)
   call DeallocateArray(this%controls%itol_abs_res)
