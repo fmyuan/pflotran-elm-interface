@@ -536,10 +536,10 @@ module PM_Waste_Form_class
 
   type, public :: spacer_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
-    PetscReal :: threshold_sat ! threshold saturation for asm. exposure to water
+    PetscReal :: threshold_sat ! threshold saturation for exposure to water
     PetscReal :: alteration_rate  ! saturation-based factor for altering rate
-    PetscReal :: spacer_mass  ! total mass of grid spacers
-    PetscReal :: spacer_surface_area ! total surface area of grid spacers
+    PetscReal :: spacer_loss_ratio  ! metal loss ratio from oxide formation
+    PetscReal :: spacer_thickness ! initial thickness of metal
     PetscReal :: spacer_coeff  ! empirical coefficient of Arrhenius term
     PetscReal :: spacer_activation_energy  ! activation energy
     class(spacer_mechanism_base_type), pointer :: next
@@ -891,8 +891,8 @@ function PMWFSpacerMechCreate()
   spc%mech_name = ''
   spc%threshold_sat = 0.0d0
   spc%alteration_rate = UNINITIALIZED_DOUBLE
-  spc%spacer_mass = UNINITIALIZED_DOUBLE
-  spc%spacer_surface_area = UNINITIALIZED_DOUBLE
+  spc%spacer_loss_ratio = UNINITIALIZED_DOUBLE
+  spc%spacer_thickness = UNINITIALIZED_DOUBLE
   spc%spacer_coeff = UNINITIALIZED_DOUBLE
   spc%spacer_activation_energy = UNINITIALIZED_DOUBLE
 
@@ -2367,22 +2367,22 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
             call InputErrorMsg(input,option,'grid spacer exposure &
                                &saturation limit',error_string)
         !-----------------------------
-          case('MASS')
+          case('METAL_LOSS_RATIO')
             call InputReadDouble(input,option, &
-                                 new_sp_mech%spacer_mass)
-            call InputErrorMsg(input,option,'grid spacer total mass', &
+                                 new_sp_mech%spacer_loss_ratio)
+            call InputErrorMsg(input,option,'grid spacer metal loss ratio', &
                                error_string)
-            call InputReadAndConvertUnits(input, new_sp_mech%spacer_mass, &
-                                          'kg','MASS',option)
+            call InputReadAndConvertUnits(input, new_sp_mech%spacer_loss_ratio,&
+                                          'm^3/kg','METAL_LOSS_RATIO',option)
         !-----------------------------
-          case('SURFACE_AREA')
+          case('THICKNESS')
             call InputReadDouble(input,option, &
-                                 new_sp_mech%spacer_surface_area)
-            call InputErrorMsg(input,option,'grid spacer total surface &
-                               &area',error_string)
+                                 new_sp_mech%spacer_thickness)
+            call InputErrorMsg(input,option,'grid spacer initial thickness', &
+                               error_string)
             call InputReadAndConvertUnits(input, &
-                                          new_sp_mech%spacer_surface_area, &
-                                          'm^2','SURFACE_AREA',option)
+                                          new_sp_mech%spacer_thickness, &
+                                          'm','THICKNESS',option)
         !-----------------------------
           case('C')
             call InputReadDouble(input,option, &
@@ -2418,9 +2418,9 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
                          //'with a waste form.'
         call PrintWrnMsg(option)
       endif
-      if (Uninitialized(new_sp_mech%spacer_mass)) then
-        option%io_buffer = 'ERROR: Total spacer grid mass must be specified &
-                           &for spacer grid degradation mechanism.'
+      if (Uninitialized(new_sp_mech%spacer_loss_ratio)) then
+        option%io_buffer = 'ERROR: Metal loss ratio for spacer grid must be &
+                           &specified for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -2436,8 +2436,8 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
-      if (Uninitialized(new_sp_mech%spacer_surface_area)) then
-        option%io_buffer = 'ERROR: Total spacer grid surface area must be &
+      if (Uninitialized(new_sp_mech%spacer_thickness)) then
+        option%io_buffer = 'ERROR: Spacer grid initial thickness must be &
                            &specified for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
@@ -6122,16 +6122,16 @@ subroutine SpacerMechInputRecord(this)
       write(id,'(a)') trim(adjustl(cur_sp_mech%mech_name))
     endif
 
-    if (Initialized(cur_sp_mech%spacer_mass)) then
-      write(id,'(a29)',advance='no') 'grid spc. tot. mass: '
-      write(word,'(es12.5)') cur_sp_mech%spacer_mass
-      write(id,'(a)') trim(adjustl(word)) // ' kg'
+    if (Initialized(cur_sp_mech%spacer_loss_ratio)) then
+      write(id,'(a29)',advance='no') 'grid spc. metal loss ratio: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_loss_ratio
+      write(id,'(a)') trim(adjustl(word)) // ' m^3/kg'
     endif
 
-    if (Initialized(cur_sp_mech%spacer_surface_area)) then
-      write(id,'(a29)',advance='no') 'grid spc. tot. surface area: '
-      write(word,'(es12.5)') cur_sp_mech%spacer_surface_area
-      write(id,'(a)') trim(adjustl(word)) // ' m^2'
+    if (Initialized(cur_sp_mech%spacer_thickness)) then
+      write(id,'(a29)',advance='no') 'grid spc. init. thickness: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_thickness
+      write(id,'(a)') trim(adjustl(word)) // ' m'
     endif
 
     if (Initialized(cur_sp_mech%spacer_coeff)) then
@@ -6497,13 +6497,13 @@ subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
                                     this%spacer_activation_energy / &
                                     (IDEAL_GAS_CONSTANT * temp))
 
-  ! Modify rate with total surface area and saturation factor [kg/s]
+  ! Modify rate with metal loss ratio and saturation factor [kg/s]
   waste_form%spacer_vitality_rate = waste_form%spacer_vitality_rate* &
-                                    this%spacer_surface_area* &
+                                    this%spacer_loss_ratio* &
                                     this%alteration_rate
 
   ! Change in spacer vitality [kg/kg]
-  dspv = (1.0d0 / this%spacer_mass) * waste_form%spacer_vitality_rate * dt
+  dspv = (2.0d0 / this%spacer_thickness) * waste_form%spacer_vitality_rate * dt
 
   ! Spacer vitality [kg/kg]
   waste_form%spacer_vitality = waste_form%spacer_vitality - dspv
