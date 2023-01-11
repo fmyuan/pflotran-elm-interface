@@ -1076,10 +1076,9 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
   PetscReal :: Res(reaction_nw%params%nspecies)
 
   PetscInt :: istart, iend
-  PetscReal :: qsrc, sat
+  PetscReal :: qsrc
   PetscReal :: coef_in, coef_out
 
-  sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   Res = 0.d0
 
   nwt_auxvar_out => &
@@ -1116,8 +1115,8 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
   ! units of coef = [m^3-liq/sec]
   ! units of aqueous_eq_conc = [mol-species/m^3-liq]
   ! units of residual entries = [mol-species/sec]
-  Res(istart:iend) = (coef_in*sat*nwt_auxvar%aqueous_eq_conc(:)) + &
-                     (coef_out*sat*nwt_auxvar_out%aqueous_eq_conc(:))
+  Res(istart:iend) = (coef_in*nwt_auxvar%aqueous_eq_conc(:)) + &
+                     (coef_out*nwt_auxvar_out%aqueous_eq_conc(:))
   !WRITE(*,*)  '      coef_in = ', coef_in
   !WRITE(*,*)  '   in aq_conc = ', nwt_auxvar%aqueous_eq_conc(:)
   !WRITE(*,*)  '     coef_out = ', coef_out
@@ -1234,7 +1233,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscReal :: area, dist(-1:3)
-  PetscReal :: velocity(*)
+  PetscReal :: velocity(*) ! vdarcy
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type) :: option
   PetscBool :: bc
@@ -1308,7 +1307,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! with the cell centered velocities. Also, the boundary cells may need
   ! their own calculation for dispersion (There is a TDispersionBC).
 
-  ! units of q = [m/s]
+  ! units of q = [m3-liq/m2-bulk-sec] Darcy
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
 
   ! units of unit_n = [-] unitless
@@ -1319,28 +1318,22 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   if (.not.bc) then
     if (q > 0.d0) then ! q flows from _up to _dn (think: upstream to downstream)
       Res_up(:) = (unit_n_up*area) * &
-                   (q*sat_up*nwt_auxvar_up%aqueous_eq_conc(:) &
-                    - diffusive_flux(:))
+                   (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
       Res_dn(:) = (unit_n_dn*area) * &
-                   (q*sat_up*nwt_auxvar_up%aqueous_eq_conc(:) &
-                    - diffusive_flux(:))
+                   (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
     else               ! q flows from _dn to _up (think: downstream to upstream)
       Res_up(:) = (unit_n_up*area) * &
-                   (q*sat_dn*nwt_auxvar_dn%aqueous_eq_conc(:) &
-                    - diffusive_flux(:))
+                   (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
       Res_dn(:) = (unit_n_dn*area) * &
-                   (q*sat_dn*nwt_auxvar_dn%aqueous_eq_conc(:) &
-                    - diffusive_flux(:))
+                   (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
     endif
   else ! boundary calculation and there is only Res_dn(:)
     if (q > 0.d0) then ! q flows into domain
       Res_dn(:) = (unit_n_dn*area) * &
-                   (q*sat_up*nwt_auxvar_up%aqueous_eq_conc(:) &
-                    - diffusive_flux(:))
+                   (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
     else               ! q flows out of domain
       Res_dn(:) = (unit_n_dn*area) * &
-                   (q*sat_dn*nwt_auxvar_dn%aqueous_eq_conc(:) &
-                    - diffusive_flux(:))
+                   (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
     endif
   endif
 
@@ -1709,8 +1702,8 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
   PetscReal :: Jac(reaction_nw%params%nspecies,reaction_nw%params%nspecies)
 
   PetscInt :: istart, iend, ispecies
-  PetscReal :: qsrc, u, vol
-  PetscReal :: coef_in
+  PetscReal :: qsrc, u, vol, por, sat
+  PetscReal :: coef_in, coef_out
 
   Jac = 0.d0
 
@@ -1719,13 +1712,16 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
     qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
   endif
 
-  ! transform qsrc into pore velocity volumetric flow
-  ! units of porosity = [m^3-void/m^3-bulk]
-  ! units of u = [m^3-bulk/sec]
-  u = qsrc/material_auxvar%porosity
+  ! porosity = [m^3-void/m^3-bulk]
+  ! sat = [m^3-liq/m^3-void]
+  ! qsrc = [m^3-liq/sec]
+  ! vol = [m^3-bulk]
 
-  ! units of vol = [m^3-bulk]
+  por = material_auxvar%porosity
   vol = material_auxvar%volume
+
+  ! units of u = [m^3-bulk/sec]
+  u = qsrc/(por*sat)
 
   ! -- Aqueous-Component ----------------------------------------
   select case(source_sink%tran_condition%itype)
@@ -1734,16 +1730,12 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
     case(MASS_RATE_SS)
       !TODO(jenn) What is MASS_RATE_SS option?
     case default
-      ! Note: We only care about coef_in here, because the Jac is a derivative
-      ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
-      ! On the outside of the domain, we have a specified conc, which is not a
-      ! fn(total_bulk_conc), thus the derivative is zero.
       if (u > 0.d0) then ! source of fluid flux
-        ! represents inside of the domain
-        coef_in = 0.d0
-      else               ! sink of fluid flux
-        ! represents inside of the domain
         coef_in = u
+        coef_out = 0.d0
+      else               ! sink of fluid flux
+        coef_in = 0.d0 
+        coef_out = u
       endif
   end select
 
@@ -1753,7 +1745,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
   iend = reaction_nw%params%nspecies
   do ispecies=istart,iend
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = (-1.d0) * vol * (coef_in/vol)
+    Jac(ispecies,ispecies) = (-1.d0) * vol * ((coef_in+coef_out)/vol)
     ! Note: I multiply and then divide by volume to be consistent with the
     ! details provided in the theory guide for this transport mode.
     ! Note: I multiply by -1 because src/sinks are subtracted in the residual.
@@ -1938,18 +1930,20 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   unit_n_up = +1
   unit_n_dn = -1
 
-  ! units of q = [m-liq/s]
-  ! units of u = [m-bulk/s]
+  ! units of q = [m3-liq/m2-bulk-sec] Darcy
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
+
+  ! units of u = [m-bulk/s]
+  ! units of ps = [m^3-liq/m^3-bulk]
 
   if (q == 0.d0) then
     u = 0.d0
   else
     ! upwinding for porosity
     if (q > 0.d0) then ! q flows from _up to _dn
-      u = q/por_up
+      u = q/ps_up
     else               ! q flows from _dn to _up
-      u = q/por_dn
+      u = q/ps_dn
     endif
     !if (dry_out_up .and. dry_out_dn) then
     !  ! this situation means both cells at the connection face are dry
@@ -1981,6 +1975,7 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   endif
 
   do ispecies=1,nspecies
+    ! units of Jac = [m^3-bulk/sec]
     Jac_up(ispecies,ispecies) = (unit_n_up*area) * &
                                 (u - harmonic_D_over_dist(ispecies))
     Jac_dn(ispecies,ispecies) = (unit_n_dn*area) * &
