@@ -85,6 +85,8 @@ module PM_Well_class
     PetscInt :: well_res_ratio
     ! list of segment center z values [m]
     PetscReal, pointer :: z_list(:)
+    ! list of segment length values [m]
+    PetscReal, pointer :: l_list(:)
   end type well_grid_type
 
   type :: well_reservoir_type
@@ -422,6 +424,7 @@ function PMWellCreate()
   PMWellCreate%well_grid%min_dz = UNINITIALIZED_DOUBLE
   PMWellCreate%well_grid%well_res_ratio = 1
   nullify(PMWellCreate%well_grid%z_list)
+  nullify(PMWellCreate%well_grid%l_list)
 
   ! create the well object:
   allocate(PMWellCreate%well)
@@ -712,11 +715,11 @@ subroutine PMWellSetup(this)
   PetscReal :: top_of_reservoir, top_of_hole
   PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: max_diameter, xy_span
-  PetscReal :: temp_real
+  PetscReal :: temp_real, temp_real2
   PetscReal :: cum_z, z_dum
   PetscReal :: face_dn, face_up
-  PetscReal, allocatable :: temp_z_list(:)
-  PetscReal, allocatable :: temp_repeated_list(:) 
+  PetscReal, allocatable :: temp_z_list(:), temp_l_list(:)
+  PetscReal, allocatable :: temp_repeated_list(:)
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
   PetscInt :: repeated
   PetscReal :: dz_list(10000), res_dz_list(10000)
@@ -793,10 +796,10 @@ subroutine PMWellSetup(this)
   !---------------------------------------------------------------------------
     if (option%comm%global_commsize > 1) then
       option%io_buffer = 'WELLBORE_MODEL WELL_GRID,MATCH_RESERVOIR option &
-                        &is not supported yet for parallel simulations. &
-                        &Use WELL_GRID,NUMBER_OF_SEGMENTS option or &
-                        &WELL_GRID,SEGMENT_CENTER_Z_VALUES option to define &
-                        &the wellbore model grid.'
+        &is not supported yet for parallel simulations. Use & 
+        &WELL_GRID,NUMBER_OF_SEGMENTS option or WELL_GRID,&
+        &SEGMENT_CENTER_Z_VALUES with SEGMENT_LENGTH_VALUES option to define &
+        &the wellbore model grid.'
       call PrintErrMsg(option)
     endif
 
@@ -893,9 +896,31 @@ subroutine PMWellSetup(this)
     deallocate(temp_repeated_list)
     deallocate(temp_z_list)
 
-  elseif (associated(well_grid%z_list)) then
+  elseif (associated(well_grid%z_list) .or. associated(well_grid%l_list)) then
   !---------------------------------------------------------------------------
   ! Use the provided z list to build the grid
+
+    if (.not.associated(well_grid%l_list)) then
+      option%io_buffer = 'When providing SEGMENT_CENTER_Z_VALUES, you must & 
+                         &also provide a list of SEGMENT_LENGTH_VALUES that &
+                         &contains the same number of values (i.e. one length &
+                         &value for every z-center value).'
+      call PrintErrMsg(option)
+    endif
+    if (.not.associated(well_grid%z_list)) then
+      option%io_buffer = 'When providing SEGMENT_LENGTH_VALUES, you must & 
+                         &also provide a list of SEGMENT_CENTER_Z_VALUES that &
+                         &contains the same number of values (i.e. one z-center&
+                         & value for every length value).'
+      call PrintErrMsg(option)
+    endif
+    if (size(well_grid%l_list) /= size(well_grid%z_list)) then
+      option%io_buffer = 'The length of SEGMENT_LENGTH_VALUES must match the & 
+                         &length of SEGMENT_CENTER_Z_VALUES (i.e. one z-center &
+                         &value for every length value) provided in the &
+                         &WELLBORE_MODEL,WELL_GRID block.'
+      call PrintErrMsg(option)
+    endif
 
     nsegments = well_grid%nsegments
 
@@ -911,7 +936,9 @@ subroutine PMWellSetup(this)
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
 
-    ! sort the z-list in ascending order, in case it was not 
+    ! sort the z-list in ascending order, in case it was not provided that way
+    allocate(temp_z_list(nsegments))
+    temp_z_list = well_grid%z_list
     do i = 1, nsegments
       do j = i+1, nsegments
         if (well_grid%z_list(i) > well_grid%z_list(j)) then
@@ -921,6 +948,16 @@ subroutine PMWellSetup(this)
         endif
       enddo
     enddo
+    ! if re-sorted doesn't match the given list, throw error
+    do i = 1, nsegments
+      if (well_grid%z_list(i) /= temp_z_list(i)) then
+        option%io_buffer = 'The list of SEGMENT_CENTER_Z_VALUES must be & 
+          &provided in ascending order. Ensure that the list of corresponding & 
+          &SEGMENT_LENGTH_VALUES is also modified accordingly.'
+        call PrintErrMsg(option)
+      endif
+    enddo
+    deallocate(temp_z_list)
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -941,26 +978,24 @@ subroutine PMWellSetup(this)
       endif
     enddo
 
-    do k = 1,well_grid%nsegments
-      if (k == 1) then
-        face_up = (well_grid%h(k)%z + well_grid%h(k+1)%z)/2.d0
-        face_dn = well_grid%bottomhole(3)
-      elseif (k == nsegments) then
-        face_up = well_grid%tophole(3)
-        face_dn = (well_grid%h(k)%z + well_grid%h(k-1)%z)/2.d0
-      else
-        face_up = (well_grid%h(k)%z + well_grid%h(k+1)%z)/2.d0
-        face_dn = (well_grid%h(k)%z + well_grid%h(k-1)%z)/2.d0
-      endif
-      well_grid%dh(k) = face_up - face_dn
-      if (well_grid%dh(k) < 1.d-20) then
-        option%io_buffer =  'At least one value provided in & 
-          &SEGMENT_CENTER_Z_VALUES is a duplicate, resulting in a calculated &
-          &DZ value equal to zero. Double check the values provided in &
-          &WELLBORE_MODEL,WELL_GRID,SEGMENT_CENTER_Z_VALUES.'
+    well_grid%dh = well_grid%l_list
+
+    temp_real = SUM(well_grid%dh)
+    total_length = sqrt((diff_x*diff_x)+(diff_y*diff_y)+(diff_z*diff_z))
+    write(string,'(1pe12.4)') temp_real
+    write(string2,'(1pe12.4)') total_length
+    if (temp_real /= total_length) then
+      temp_real2 = abs(temp_real - total_length)
+      !write(*,*) temp_real2
+      if (temp_real2 > 1.d-2) then
+        option%io_buffer = 'The sum of the list of SEGMENT_LENGTH_VALUES & 
+          &(' // trim(string) // ' m) does not match the total length of the &
+          &well according to the coordinates provided by WELLBORE_MODEL,&
+          &TOP_OF_HOLE and WELLBORE_MODEL,TOP_OF_HOLE (' // trim(string2) // &
+          ' m).'
         call PrintErrMsg(option)
       endif
-    enddo
+    endif
 
     !This could be way off if # of well cells per reservoir cell >> 1
     !This could also lead to inconsisent well indices between the 
@@ -1331,9 +1366,13 @@ subroutine PMWellSetup(this)
     call PrintMsg(option)
     if (well_grid%match_reservoir) then
       option%io_buffer = 'WELLBORE_MODEL: &
-        &For your convenience, the SEGMENT_CENTER_Z_VALUES are: '
+        &For your convenience, the SEGMENT_CENTER_Z_VALUES (meters) are: '
       call PrintMsg(option)
       write(*,*) well_grid%h%z
+      option%io_buffer = 'WELLBORE_MODEL: &
+        &For your convenience, the SEGMENT_LENGTH_VALUES (meters) are: '
+      call PrintMsg(option)
+      write(*,*) well_grid%dh
     endif
   endif
 
@@ -1574,10 +1613,11 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
   PetscInt :: k
   character(len=MAXWORDLENGTH) :: word
   PetscReal, pointer :: temp_z_list(:)
+  PetscReal, pointer :: temp_l_list(:)
 
   error_string = trim(error_string) // ',WELL_GRID'
   found = PETSC_TRUE
-  num_errors = 0; num_read = 0
+  num_errors = 0
 
   select case(trim(keyword))
   !-------------------------------------
@@ -1615,6 +1655,7 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
             call InputErrorMsg(input,option,'NUMBER_OF_SEGMENTS',error_string)
         !-----------------------------
           case('SEGMENT_CENTER_Z_VALUES')
+            num_read = 0
             allocate(temp_z_list(read_max))
             temp_z_list(:) = UNINITIALIZED_DOUBLE
             do k = 1,read_max
@@ -1632,6 +1673,26 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
             pm_well%well_grid%z_list(1:num_read) = temp_z_list(1:num_read)
             pm_well%well_grid%nsegments = num_read
             deallocate(temp_z_list)
+        !-----------------------------
+          case('SEGMENT_LENGTH_VALUES')
+            num_read = 0
+            allocate(temp_l_list(read_max))
+            temp_l_list(:) = UNINITIALIZED_DOUBLE
+            do k = 1,read_max
+              call InputReadDouble(input,option,temp_l_list(k))
+              if (InputError(input)) exit
+              num_read = num_read + 1
+            enddo
+            if (num_read == 0) then
+              option%io_buffer = 'At least one value for &
+                &SEGMENT_LENGTH_VALUES must be &
+                &provided in the ' // trim(error_string) // ' block.'
+              call PrintErrMsg(option)
+            endif
+            allocate(pm_well%well_grid%l_list(num_read))
+            pm_well%well_grid%l_list(1:num_read) = temp_l_list(1:num_read)
+            pm_well%well_grid%nsegments = num_read
+            deallocate(temp_l_list)
         !-----------------------------
           case('TOP_OF_HOLE')
             call InputReadDouble(input,option,pm_well%well_grid%tophole(1))
