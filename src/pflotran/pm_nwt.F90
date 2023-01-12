@@ -17,11 +17,13 @@ module PM_NWT_class
 
   type, public :: pm_nwt_controls_type
     PetscReal, pointer :: itol_rel_update(:)
+    PetscReal, pointer :: itol_abs_update(:)
     PetscReal, pointer :: itol_scaled_res(:)
     PetscReal, pointer :: itol_abs_res(:)
     PetscReal, pointer :: cnvg_criteria_value(:)
     PetscInt, pointer :: i_mapping(:)
     character(len=MAXWORDLENGTH), pointer :: names_itol_rel_update(:)
+    character(len=MAXWORDLENGTH), pointer :: names_itol_abs_update(:)
     character(len=MAXWORDLENGTH), pointer :: names_itol_scaled_res(:)
     character(len=MAXWORDLENGTH), pointer :: names_itol_abs_res(:)
     PetscInt :: max_newton_iterations
@@ -133,11 +135,13 @@ function PMNWTCreate()
 
   allocate(nwt_pm%controls)
   nullify(nwt_pm%controls%itol_rel_update)
+  nullify(nwt_pm%controls%itol_abs_update)
   nullify(nwt_pm%controls%itol_scaled_res)
   nullify(nwt_pm%controls%itol_abs_res)
   nullify(nwt_pm%controls%cnvg_criteria_value)
   nullify(nwt_pm%controls%i_mapping)
   nullify(nwt_pm%controls%names_itol_rel_update)
+  nullify(nwt_pm%controls%names_itol_abs_update)
   nullify(nwt_pm%controls%names_itol_scaled_res)
   nullify(nwt_pm%controls%names_itol_abs_res)
   nwt_pm%controls%max_newton_iterations = 10
@@ -302,6 +306,7 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
   type(option_type), pointer :: option
 
   character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
+  PetscReal, pointer :: temp_itol_abs_update(:)
   PetscReal, pointer :: temp_itol_rel_update(:)
   PetscReal, pointer :: temp_itol_scaled_res(:)
   PetscReal, pointer :: temp_itol_abs_res(:)
@@ -350,6 +355,31 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       allocate(this%controls%names_itol_rel_update(k-1))
       this%controls%names_itol_rel_update(:) = temp_species_names(1:k-1)
       deallocate(temp_itol_rel_update)
+    !------------------------------------------------------------------------
+    case('NWT_ITOL_ABSOLUTE_UPDATE')
+      k = 0
+      temp_species_names = ''
+      error_string_ex = trim(error_string) // ',NWT_ITOL_ABSOLUTE_UPDATE'
+      allocate(temp_itol_abs_update(50))
+      temp_itol_abs_update = -999.99999
+      do
+        k = k + 1
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SPECIES NAME',error_string_ex)
+        call StringToUpper(word)
+        temp_species_names(k) = trim(word)
+        call InputReadDouble(input,option,temp_itol_abs_update(k))
+        call InputErrorMsg(input,option,'SPECIES TOLERANCE VALUE', &
+                           error_string_ex)
+      enddo
+      allocate(this%controls%itol_abs_update(k-1))
+      this%controls%itol_abs_update(:) = temp_itol_abs_update(1:k-1)
+      allocate(this%controls%names_itol_abs_update(k-1))
+      this%controls%names_itol_abs_update(:) = temp_species_names(1:k-1)
+      deallocate(temp_itol_abs_update)
     !------------------------------------------------------------------------
     case('NWT_ITOL_SCALED_RESIDUAL')
       k = 0
@@ -487,6 +517,12 @@ subroutine PMNWTSetup(this)
       &MODE NWT.'
     call PrintErrMsg(this%option)
   endif
+  if (.not.associated(this%controls%itol_abs_update)) then
+    this%option%io_buffer = 'A NWT_ITOL_ABSOLUTE_UPDATE block is required &
+      &in the NUMERICAL_METHODS,NEWTON_SOLVER block for SUBSURFACE_TRANSPORT &
+      &MODE NWT.'
+    call PrintErrMsg(this%option)
+  endif
 
   if (associated(this%controls%itol_abs_res)) then
     if (size(this%controls%itol_abs_res) /= this%params%nspecies) then
@@ -510,6 +546,15 @@ subroutine PMNWTSetup(this)
     if (size(this%controls%itol_rel_update) /= this%params%nspecies) then
       this%option%io_buffer = 'The number of species-dependent values of &
         &ITOL_RELATIVE_UPDATE provided in the NUMERICAL_METHODS,NEWTON_SOLVER &
+        &block for SUBSURFACE_TRANSPORT MODE NWT does not match the number of &
+        &species provided in the NUCLEAR_WASTE_CHEMISTRY block.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
+  if (associated(this%controls%itol_abs_update)) then
+    if (size(this%controls%itol_abs_update) /= this%params%nspecies) then
+      this%option%io_buffer = 'The number of species-dependent values of &
+        &ITOL_ABSOLUTE_UPDATE provided in the NUMERICAL_METHODS,NEWTON_SOLVER &
         &block for SUBSURFACE_TRANSPORT MODE NWT does not match the number of &
         &species provided in the NUCLEAR_WASTE_CHEMISTRY block.'
       call PrintErrMsg(this%option)
@@ -583,6 +628,28 @@ subroutine PMNWTSetup(this)
                     this%controls%itol_rel_update(this%controls%i_mapping(k))
   enddo
   this%controls%itol_rel_update = this%controls%cnvg_criteria_value
+  !---------------------------------------------------------------------------
+  do k = 1,this%params%nspecies
+    this%controls%i_mapping(k) = 0
+    name_species = trim(reaction_nw%species_names(k))
+    call StringToUpper(name_species)
+    do j = 1,this%params%nspecies
+      name_cnvgcrit = trim(this%controls%names_itol_abs_update(j))
+      call StringToUpper(name_cnvgcrit)
+      if (name_cnvgcrit == name_species) then
+        this%controls%i_mapping(k) = j ! gives the index in controls order
+      endif
+    enddo
+    if (this%controls%i_mapping(k) == 0) then
+      this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
+        &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
+        &NWT_ITOL_ABSOLUTE_UPDATE block.'
+      call PrintErrMsg(this%option)
+    endif
+    this%controls%cnvg_criteria_value(k) = &
+                    this%controls%itol_abs_update(this%controls%i_mapping(k))
+  enddo
+  this%controls%itol_abs_update = this%controls%cnvg_criteria_value
 
 end subroutine PMNWTSetup
 
@@ -1121,7 +1188,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: out_string, string, rsn_string
-  character(len=6) :: aR_str, sR_str, rUP_str
+  character(len=6) :: aR_str, sR_str, rUP_str, aUP_str
   Vec :: dX
   PetscReal, pointer :: dX_p(:)    ! solution update
   PetscReal, pointer :: X0_p(:)    ! previous solution
@@ -1133,13 +1200,16 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   type(field_type), pointer :: field
   PetscReal :: tempreal
   PetscReal :: max_relative_change
+  PetscReal :: max_absolute_change
   PetscReal :: max_scaled_residual
   PetscReal :: max_absolute_residual
   PetscReal :: species_max_relative_update(this%option%ntrandof)
+  PetscReal :: species_max_absolute_update(this%option%ntrandof)
   PetscReal :: species_max_scaled_residual(this%option%ntrandof)
   PetscReal :: species_max_absolute_residual(this%option%ntrandof)
   PetscInt :: loc_max_scaled_residual
   PetscInt :: loc_max_abs_residual
+  PetscInt :: loc_max_abs_update
   PetscInt :: loc_max_rel_update
   PetscInt :: temp_int, i 
   PetscInt :: local_id, offset, idof, index
@@ -1147,13 +1217,15 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
+  PetscBool :: idof_cnvgd_due_to_abs_update(this%option%ntrandof, &
+                                            this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_update(this%option%ntrandof)
   PetscBool :: idof_cnvgd_due_to_scaled_res(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_abs_res(this%option%ntrandof, &
                                          this%realization%patch%grid%nlmax)  
   PetscBool :: idof_cnvgd_due_to_residual(this%option%ntrandof)
-  PetscBool :: rsn_rUP, rsn_aR, rsn_sR
+  PetscBool :: rsn_rUP, rsn_aUP, rsn_aR, rsn_sR
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -1177,13 +1249,16 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   converged_flag = 0
   idof_cnvgd_due_to_update = PETSC_FALSE
   idof_cnvgd_due_to_rel_update = PETSC_FALSE
+  idof_cnvgd_due_to_abs_update = PETSC_FALSE
   idof_cnvgd_due_to_residual = PETSC_FALSE
   idof_cnvgd_due_to_scaled_res = PETSC_FALSE
   idof_cnvgd_due_to_abs_res = PETSC_FALSE
   rsn_aR = PETSC_FALSE
   rsn_sR = PETSC_FALSE
   rsn_rUP = PETSC_FALSE
+  rsn_aUP = PETSC_FALSE
   species_max_relative_update = 0.d0
+  species_max_absolute_update = 0.d0
   species_max_absolute_residual = 0.d0
   species_max_scaled_residual = 0.d0
 
@@ -1200,12 +1275,14 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
   max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
+  max_absolute_change = maxval(dabs(dX_p(:)))
   max_absolute_residual = maxval(dabs(r_p(:)))
   max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
 
   loc_max_scaled_residual = maxloc(dabs(r_p(:)/accum_p(:)),1)
   loc_max_abs_residual = maxloc(dabs(r_p(:)),1)
   loc_max_rel_update = maxloc(dabs(dX_p(:)/X0_p(:)),1)
+  loc_max_abs_update = maxloc(dabs(dX_p(:)),1)
 
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%ntrandof
@@ -1219,6 +1296,14 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       endif 
       species_max_relative_update(idof) = &
           max(species_max_relative_update(idof),tempreal)
+    !-----------------------------------------------------------------
+    !---absolute-update-----------------------------------------------
+      tempreal = dabs(dX_p(index))
+      if (tempreal < this%controls%itol_abs_update(idof)) then
+        idof_cnvgd_due_to_abs_update(idof,local_id) = PETSC_TRUE
+      endif 
+      species_max_absolute_update(idof) = &
+          max(species_max_absolute_update(idof),tempreal)
     !-----------------------------------------------------------------
     !---absolute-residual---------------------------------------------
       tempreal = dabs(r_p(index))
@@ -1248,9 +1333,13 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   aR_str  = '   aR:'
   sR_str  = '   sR:'
   rUP_str = '  rUP:'
+  aUP_str = '  aUP:'
   do idof = 1, option%ntrandof
+    if (all(idof_cnvgd_due_to_abs_update(idof,:))) then
+      rsn_aUP = PETSC_TRUE
+      aUP_str = ' *aUP:'
+    endif
     if (all(idof_cnvgd_due_to_rel_update(idof,:))) then
-      idof_cnvgd_due_to_update(idof) = PETSC_TRUE
       rsn_rUP = PETSC_TRUE
       rUP_str = ' *rUP:'
     endif
@@ -1262,6 +1351,10 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       rsn_sR = PETSC_TRUE
       sR_str  = '  *sR:'
     endif
+
+    if (rsn_aUP .or. rsn_rUP) then
+      idof_cnvgd_due_to_update(idof) = PETSC_TRUE
+    endif
     if (rsn_aR .or. rsn_sR) then
       idof_cnvgd_due_to_residual(idof) = PETSC_TRUE
     endif
@@ -1270,7 +1363,8 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   rsn_string = '' 
   if (rsn_aR) rsn_string = trim(rsn_string) // ' aR,' 
   if (rsn_sR) rsn_string = trim(rsn_string) // ' sR,' 
-  if (rsn_rUP) rsn_string = trim(rsn_string) // ' rUP' 
+  if (rsn_rUP) rsn_string = trim(rsn_string) // ' rUP,' 
+  if (rsn_aUP) rsn_string = trim(rsn_string) // ' aUP'
 
   if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual)) then
     converged_flag = 1
@@ -1296,15 +1390,16 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     reason = 999
   endif
 
-  write(out_string,'(i4,a7,es10.3,a7,es10.3,a7,es10.3)') &
+  write(out_string,'(i4,a7,es10.3,a7,es10.3,a7,es10.3,a7,es10.3)') &
         it, aR_str, max_absolute_residual, sR_str, max_scaled_residual, &
-        rUP_str, max_relative_change
+        rUP_str, max_relative_change, aUP_str, max_absolute_change
   call PrintMsg(option,out_string)
 
   if (this%controls%verbose_newton) then
-    write(out_string,'(a4,a7,i10,a7,i10,a7,i10)') &
+    write(out_string,'(a4,a7,i10,a7,i10,a7,i10,a7,i10)') &
         'cell', aR_str, loc_max_abs_residual, sR_str, &
-        loc_max_scaled_residual, rUP_str, loc_max_rel_update
+        loc_max_scaled_residual, rUP_str, loc_max_rel_update, aUP_str, &
+        loc_max_abs_update
     call PrintMsg(option,out_string)
 
     out_string = "     update converged (T/F) = "
