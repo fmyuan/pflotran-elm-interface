@@ -1410,20 +1410,21 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     if (option%iflag /= HYDRATE_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = hyd_auxvar%effective_porosity
     endif
-    solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
-
-    if (hydrate_perm_scaling) then
-      select case (hydrate_perm_scaling_function)
-        case(1) ! Dai and Seol, 2014
-          hyd_auxvar%effective_permeability = max(1.d-3, &
-                      (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2)
-        case default
-      end select
-    else
-      hyd_auxvar%effective_permeability = 1.d0
-    endif
-
   endif
+
+  solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+
+  if (hydrate_perm_scaling) then
+    select case (hydrate_perm_scaling_function)
+      case(1) ! Dai and Seol, 2014
+        hyd_auxvar%effective_permeability = max(1.d-5, &
+                    (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2)
+      case default
+    end select
+  else
+    hyd_auxvar%effective_permeability = 1.d0
+  endif
+
   if (associated(hyd_auxvar%d)) then
     hyd_auxvar%d%por_p = dpor_dp
   endif
