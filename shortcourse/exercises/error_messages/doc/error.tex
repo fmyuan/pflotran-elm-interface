@@ -37,6 +37,10 @@
 
 %\frame{\titlepage}
 
+\begin{frame}[fragile,containsverbatim]\frametitle{\color{red}UPDATES NEEDED!!!}
+  The screen output for errors that are printed while reading the input deck now list the line number of the error. We need to add this to the examples below (missing end).
+\end{frame}
+
 %-----------------------------------------------------------------------------
 \section{Location of Example}
 
@@ -169,7 +173,7 @@ One last example of a very tidy error message:
 > pflotran -input_prefix calcite_mineral_constraint
 ... \gehcomment{returns screen output ending with:}
   ERROR: Two aqueous species (HCO3- and Ca++) are
-  constrained by the same mineral (Calcite) in 
+  constrained by the same mineral (Calcite) in
   CONSTRAINT "initial".
 
   Stopping!
@@ -279,7 +283,7 @@ END
 
 > pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
-  ERROR: Number of concentration constraints exceeds 
+  ERROR: Number of concentration constraints exceeds
   number of primary chemical components in constraint:
   initial
 
