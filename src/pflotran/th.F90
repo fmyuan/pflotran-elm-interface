@@ -1340,9 +1340,9 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: vol,por,rock_dencpr
   type(th_parameter_type) :: th_parameter
   PetscInt :: icct
-  class(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type), pointer :: characteristic_curves
   class(cc_thermal_type) :: thermal_cc
-  type(saturation_function_type) :: sat_func
+  type(saturation_function_type), pointer :: sat_func
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
   PetscReal :: porXvol
@@ -2568,8 +2568,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: por_dn,perm_dn,Dk_dn,tor_dn
   PetscReal :: area
-  type(saturation_function_type) :: sf_dn
-  class(characteristic_curves_type) :: cc_dn
+  type(saturation_function_type), pointer :: sf_dn
+  class(characteristic_curves_type), pointer :: cc_dn
   class(cc_thermal_type), pointer :: tcc_dn
 
   PetscReal :: Dk_dry_dn
@@ -4931,6 +4931,9 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
   ! secondary continuum variables
   PetscReal :: jac_sec_heat
+
+  nullify(sat_func)
+  nullify(characteristic_curves)
 
   patch => realization%patch
   grid => patch%grid
