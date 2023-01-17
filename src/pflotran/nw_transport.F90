@@ -1731,7 +1731,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
       !TODO(jenn) What is MASS_RATE_SS option?
     case default
       if (u > 0.d0) then ! source of fluid flux
-        coef_in = u
+        coef_in = 0.d0 
         coef_out = 0.d0
       else               ! sink of fluid flux
         coef_in = 0.d0 
