@@ -247,8 +247,6 @@ subroutine RTSetup(realization)
     do ghosted_id = 1, grid%ngmax
       ! Ignore inactive cells with inactive materials
       if (patch%imat(ghosted_id) <= 0) cycle
-!      if (Equal((material_auxvars(ghosted_id)% &
-!          soil_properties(epsilon_index)),1.d0)) cycle
       ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                                  multicontinuum,material_auxvars(ghosted_id)% &
