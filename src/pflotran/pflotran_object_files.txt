@@ -87,6 +87,7 @@ mode_obj = \
 	${common_src}global.o \
 	${common_src}mphase.o \
 	${common_src}nw_transport.o \
+	${common_src}nw_transport_equilibrium.o \
 	${common_src}pnf.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
@@ -150,7 +151,6 @@ chem_obj = \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
 	${common_src}reaction_surf_complex_aux.o \
-	${common_src}nw_transport_equilibrium.o \
 	${common_src}transport_constraint.o \
 	${common_src}transport_constraint_base.o \
 	${common_src}transport_constraint_rt.o \
