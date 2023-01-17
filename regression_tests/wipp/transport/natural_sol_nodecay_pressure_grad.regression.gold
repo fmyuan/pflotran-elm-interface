@@ -1,0 +1,101 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   1.2700012554683E+06
+      Min:   1.0300012555317E+06
+     Mean:   1.1500023715000E+06
+        3:   1.1500034875000E+06
+-- PRESSURE: Gas Pressure --
+      Max:   1.2700012554683E+06
+      Min:   1.0300012555317E+06
+     Mean:   1.1500023715000E+06
+        3:   1.1500034875000E+06
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        3:   1.0000000000000E+00
+-- SATURATION: Gas Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- GENERIC: Liquid Density --
+      Max:   1.2204420734343E+03
+      Min:   1.2203512759218E+03
+     Mean:   1.2203966746780E+03
+        3:   1.2203966746780E+03
+-- GENERIC: Gas Density --
+      Max:   1.0327613211836E+00
+      Min:   8.3759402040224E-01
+     Mean:   9.3517857832086E-01
+        3:   9.3517948584880E-01
+-- CONCENTRATION: Total Bulk Conc. AM241L --
+      Max:   2.7993936050251E-09
+      Min:   2.4807480971427E-09
+     Mean:   2.5591109841143E-09
+        3:   2.4807480971427E-09
+-- CONCENTRATION: Total Bulk Conc. PU239L --
+      Max:   2.7993936050254E-06
+      Min:   2.4807480971426E-06
+     Mean:   2.5591109841144E-06
+        3:   2.4807480971426E-06
+-- CONCENTRATION: Aq. Conc. AM241L --
+      Max:   9.3310320698734E-09
+      Min:   8.2679200139494E-09
+     Mean:   8.5291149673160E-09
+        3:   8.2679200139494E-09
+-- CONCENTRATION: Aq. Conc. PU239L --
+      Max:   9.3310320698746E-06
+      Min:   8.2679200139493E-06
+     Mean:   8.5291149673163E-06
+        3:   8.2679200139493E-06
+-- CONCENTRATION: Mnrl. Conc. AM241L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Conc. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. AM241L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. AM241L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         3
+      Min:         3
+     Mean:   3.0000000000000E+00
+        3:         3
+-- SOLUTION: Flow --
+   Time (seconds):   1.4333489998535E-03
+   Time Steps:            7
+   Newton Iterations:            9
+   Linear Solver Iterations:            9
+   Time Step Cuts:            0
+   Solution 2-Norm:   2.5784738261729E+06
+   Residual 2-Norm:   5.2772101527075E-16
+-- SOLUTION: Transport --
+   Time (seconds):   3.5357219999241E-03
+   Time Steps:           15
+   Newton Iterations:           60
+   Linear Solver Iterations:           60
+   Time Step Cuts:            3
+   Solution 2-Norm:   5.7287011938524E-06
+   Residual 2-Norm:   3.1124047284484E-09
