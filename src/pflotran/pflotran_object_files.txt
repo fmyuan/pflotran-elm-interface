@@ -44,7 +44,6 @@ mode_aux_obj = \
 	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
 	${common_src}mphase_aux.o \
-	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
 	${common_src}pnf_aux.o \
 	${common_src}richards_aux.o \
@@ -109,6 +108,7 @@ shared_mode_aux_obj = \
 	${common_src}global_aux.o \
 	${common_src}lookup_table.o \
 	${common_src}material_aux.o \
+	${common_src}nw_transport_aux.o \
 	${common_src}reactive_transport_aux.o
 
 # DO NOT place any object files that depend on the discretization within
