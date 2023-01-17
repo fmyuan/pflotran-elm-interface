@@ -28,7 +28,7 @@ pflotran_rxn_list.append(('reaction',remove_file_list))
 differing_pflotran_rxn_dependencies = dict(pflotran_rxn_list)
 
 module_skip_list = ('hdf5','h5lt','petsc','clm_pflotran_interface_data', \
-                    'ieee_arithmetic')
+                    'ieee_arithmetic','iso_c_binding')
 
 # Obtain list of source files
 source_file_roots = []

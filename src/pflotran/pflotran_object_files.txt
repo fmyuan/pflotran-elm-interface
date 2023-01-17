@@ -134,8 +134,10 @@ chem_obj = \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_calcite.o \
+	${common_src}reaction_sandbox_chromium.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
+	${common_src}reaction_sandbox_equilibrate.o \
 	${common_src}reaction_sandbox_biohill.o \
 	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
@@ -231,6 +233,8 @@ misc_obj = \
 	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
+	${common_src}factory_subsurface_linkage.o \
+	${common_src}factory_subsurface_read.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
 	${common_src}init_common.o \
@@ -245,7 +249,6 @@ misc_obj = \
 	${common_src}inversion_measurement_aux.o \
 	${common_src}inversion_parameter.o \
 	${common_src}inversion_subsurface.o \
-	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
 	${common_src}inversion_zflow.o \
 	${common_src}matrix_buffer.o \
@@ -263,6 +266,7 @@ misc_obj = \
 	${common_src}regression.o \
 	${common_src}secondary_continuum_aux.o\
 	${common_src}secondary_continuum.o \
+	${common_src}secondary_continuum_np.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
 	${common_src}simulation_inverse.o \
@@ -275,6 +279,7 @@ misc_obj = \
 	${common_src}timestepper_SNES.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
+	${common_src}transport_np.o \
 	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o

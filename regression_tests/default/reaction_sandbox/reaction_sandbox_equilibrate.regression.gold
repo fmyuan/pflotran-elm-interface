@@ -1,0 +1,20 @@
+-- CONCENTRATION: Total Aaq --
+      Max:   1.0011860627234E-04
+      Min:   9.9999881298836E-05
+     Mean:   1.0005924378559E-04
+        1:   1.0011860627234E-04
+        2:   9.9999881298836E-05
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+        2:         1
+-- SOLUTION: Transport --
+   Time (seconds):   4.0750503540039E-03
+   Time Steps:            4
+   Newton Iterations:           21
+   Linear Solver Iterations:           21
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.4150516450539E-04
+   Residual 2-Norm:   1.4699991164941E-18

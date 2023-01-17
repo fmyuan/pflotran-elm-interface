@@ -1079,9 +1079,6 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
-  use Inversion_Coupled_Aux_module
-  use Inversion_Parameter_module
-  use Inversion_TS_Aux_module
   use Material_Aux_module
   use String_module
   use Timer_class
@@ -1229,7 +1226,7 @@ subroutine PMERTBuildCoupledJacobian(this)
   use Grid_module
   use Inversion_Coupled_Aux_module
   use Inversion_Parameter_module
-  use Inversion_TS_Aux_module
+  use Inversion_Aux_module
   use Material_Aux_module
   use String_module
   use Timer_class
@@ -1284,10 +1281,8 @@ subroutine PMERTBuildCoupledJacobian(this)
   ndata = survey%num_measurement
 
   if (this%coupled_ert_flow_jacobian) then
-    solutions => &
-      patch%aux%inversion_forward_aux%inversion_coupled_aux%solutions
-    parameters => &
-      patch%aux%inversion_forward_aux%inversion_coupled_aux%parameters
+    solutions => patch%aux%inversion_aux%coupled_aux%solutions
+    parameters => patch%aux%inversion_aux%parameters
 
     call VecGetArrayReadF90(this%dconductivity_dsaturation, &
                             dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
@@ -1399,8 +1394,7 @@ subroutine PMERTBuildCoupledJacobian(this)
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
                        ierr);CHKERRQ(ierr)
 
-          call MatSetValue(patch%aux%inversion_forward_aux% &
-                               JsensitivityT_ptr, &
+          call MatSetValue(patch%aux%inversion_aux%JsensitivityT, &
                              iparam-1,imeasurement-1,coupled_jacob, &
                              INSERT_VALUES,ierr);CHKERRQ(ierr)
         enddo

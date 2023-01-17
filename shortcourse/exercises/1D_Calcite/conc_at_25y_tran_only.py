@@ -25,7 +25,7 @@ plt.xlabel('X [m]')
 plt.ylabel('Concentration [M]')
 
 #plt.xlim(0.,1.)
-#plt.ylim(0.,1.)
+plt.ylim(1.e-5,3.e-3)
 #plt.grid(True)
 plt.yscale('log')
 

@@ -3217,20 +3217,28 @@ subroutine BasisInit(reaction,option)
       enddo
 
       if (associated(cur_microbial_rxn%biomass)) then
-        ! check for biomass species in global immobile list
+        ! try aqueous
         temp_int = &
-          StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
-                                immobile%names)
+          GetPrimarySpeciesIDFromName(cur_microbial_rxn%biomass%species_name, &
+                                      reaction,PETSC_FALSE,option)
+        ! temp_int will be UNINITIALIZED_INTEGER if not found
+        if (Uninitialized(temp_int)) then
+          ! check for biomass species in global immobile list
+          temp_int = &
+            StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
+                                  immobile%names)
+          ! temp_int will be zero if not found
+          temp_int = -temp_int ! toggle to negative index for immobile
+        endif
         if (temp_int == 0) then
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
-            ' not found among immobile species.'
+            ' not found among the primary aqueous or immobile species.'
           call PrintErrMsg(option)
-        else
-          microbial%biomassid(irxn) = temp_int
-          microbial%biomass_yield(irxn) = &
-            cur_microbial_rxn%biomass%yield
         endif
+        microbial%biomassid(irxn) = temp_int
+        microbial%biomass_yield(irxn) = &
+          cur_microbial_rxn%biomass%yield
         ! check for biomass species in microbial reaction
         temp_int = &
           StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
@@ -3238,7 +3246,17 @@ subroutine BasisInit(reaction,option)
         if (temp_int /= 0) then
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
-            ' should not be included in microbial reaction.'
+            ' should not be included in microbial reaction mass action &
+            &expression.'
+          if (microbial%biomassid(irxn) > 0) then
+            option%io_buffer = trim(option%io_buffer) // ' Mobile biomass &
+              &growth and decay is specified through a BIOMASS &
+              &YIELD and a first-order aqueous GENERAL_REACTION, respectively.'
+          else
+            option%io_buffer = trim(option%io_buffer) // ' Immobile biomass &
+              &growth and decay is specified through a BIOMASS &
+              &YIELD and an IMMOBLE_DECAY_REACTION, respectively.'
+          endif
           call PrintErrMsg(option)
         endif
       endif

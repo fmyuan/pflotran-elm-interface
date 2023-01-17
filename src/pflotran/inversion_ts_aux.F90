@@ -11,24 +11,6 @@ module Inversion_TS_Aux_module
 
   private
 
-  type, public :: inversion_forward_aux_type
-    PetscBool :: store_adjoint
-    PetscInt :: num_timesteps
-    PetscInt :: isync_time              ! current index of sync_times
-    PetscReal, pointer :: sync_times(:) ! an array with all measurement times
-    PetscInt :: iparameter
-    Mat :: M_ptr
-    Mat :: JsensitivityT_ptr
-    type(inversion_forward_ts_aux_type), pointer :: first
-    type(inversion_forward_ts_aux_type), pointer :: last
-    type(inversion_measurement_aux_type), pointer :: measurements(:)
-    type(inversion_coupled_aux_type), pointer :: inversion_coupled_aux
-    Vec :: measurement_vec
-    PetscReal, pointer :: local_measurement_values_ptr(:)
-    PetscReal, pointer :: local_dobs_dunknown_values_ptr(:)
-    PetscReal, pointer :: local_dobs_dparam_values_ptr(:)
-  end type inversion_forward_aux_type
-
   type, public :: inversion_forward_ts_aux_type
     PetscInt :: timestep
     PetscReal :: time
@@ -40,105 +22,50 @@ module Inversion_TS_Aux_module
     type(inversion_forward_ts_aux_type), pointer :: next
   end type inversion_forward_ts_aux_type
 
+  interface InversionForwardTSAuxCreate
+    module procedure :: InversionForwardTSAuxCreate1
+    module procedure :: InversionForwardTSAuxCreate2
+  end interface InversionForwardTSAuxCreate
 
-  public :: InversionForwardAuxCreate, &
-            InvForwardAuxResetMeasurements, &
-            InversionForwardAuxStep, &
-            InvForwardAuxDestroyList, &
-            InversionForwardAuxDestroy, &
-            InversionTSAuxCreate, &
-            InvTSAuxAllocate, &
-            InvTSAuxStoreCopyGlobalMatVecs, &
-            InversionTSAuxDestroy
+
+  public :: InversionForwardTSAuxCreate, &
+            InvForwardTSAuxDestroyList, &
+            InvForTSAuxDupForwardJacobian, &
+            InvForwardTSAuxDestroyMatrices
 
 contains
 
 ! ************************************************************************** !
 
-function InversionForwardAuxCreate()
+function InversionForwardTSAuxCreate1(M_ptr,ndof,ncell)
   !
-  ! Allocate and initialize auxiliary inversion forward object
+  ! Allocate and initialize auxiliary inversion time step object
   !
   ! Author: Glenn Hammond
-  ! Date: 02/14/22
+  ! Date: 11/19/21
   !
   implicit none
 
-  type(inversion_forward_aux_type), pointer :: InversionForwardAuxCreate
+  Mat :: M_ptr
+  PetscInt :: ndof
+  PetscInt :: ncell
 
-  type(inversion_forward_aux_type), pointer :: aux
+  type(inversion_forward_ts_aux_type), pointer :: InversionForwardTSAuxCreate1
+
+  type(inversion_forward_ts_aux_type), pointer :: aux
 
   allocate(aux)
+  call InvForwardTSAuxInit(aux)
+  aux%timestep = 1
+  call InvForwardTSAuxAllocateMatrices(aux,M_ptr,ndof,ncell)
 
-  aux%store_adjoint = PETSC_TRUE
-  aux%num_timesteps = 0
-  aux%isync_time = 1
-  nullify(aux%sync_times)
-  aux%iparameter = UNINITIALIZED_INTEGER
-  aux%M_ptr = PETSC_NULL_MAT
-  aux%JsensitivityT_ptr = PETSC_NULL_MAT
-  nullify(aux%first)
-  nullify(aux%last)
-  nullify(aux%measurements)
-  nullify(aux%inversion_coupled_aux)
-  aux%measurement_vec = PETSC_NULL_VEC
-  nullify(aux%local_measurement_values_ptr)
-  nullify(aux%local_dobs_dunknown_values_ptr)
-  nullify(aux%local_dobs_dparam_values_ptr)
+  InversionForwardTSAuxCreate1 => aux
 
-  InversionForwardAuxCreate => aux
-
-end function InversionForwardAuxCreate
+end function InversionForwardTSAuxCreate1
 
 ! ************************************************************************** !
 
-subroutine InvForwardAuxResetMeasurements(aux)
-  !
-  ! Resets flags for forward run back to original settings.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/21/22
-
-  type(inversion_forward_aux_type), pointer :: aux
-
-  PetscInt :: imeasurement
-
-  aux%isync_time = 1
-  do imeasurement = 1, size(aux%measurements)
-    call InversionMeasurementAuxReset(aux%measurements(imeasurement))
-  enddo
-
-end subroutine InvForwardAuxResetMeasurements
-
-! ************************************************************************** !
-
-subroutine InversionForwardAuxStep(aux,time)
-  !
-  ! Appends a time step to the linked list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/14/22
-
-  use Utility_module
-
-  implicit none
-
-  type(inversion_forward_aux_type), pointer :: aux
-  PetscReal :: time
-
-  if (associated(aux%last)) then
-    aux%last%time = time
-    ! store the solution
-    call InvTSAuxStoreCopyGlobalMatVecs(aux,aux%last)
-    ! append next time step
-    aux%last => InversionTSAuxCreate(aux%last,aux%M_ptr)
-  endif
-
-end subroutine InversionForwardAuxStep
-
-! ************************************************************************** !
-
-function InversionTSAuxCreate(prev_ts_aux,M_ptr)
+function InversionForwardTSAuxCreate2(prev_ts_aux)
   !
   ! Allocate and initialize auxiliary inversion time step object
   !
@@ -148,14 +75,39 @@ function InversionTSAuxCreate(prev_ts_aux,M_ptr)
   implicit none
 
   type(inversion_forward_ts_aux_type), pointer :: prev_ts_aux
-  Mat :: M_ptr
 
-  type(inversion_forward_ts_aux_type), pointer :: InversionTSAuxCreate
+  type(inversion_forward_ts_aux_type), pointer :: InversionForwardTSAuxCreate2
 
   type(inversion_forward_ts_aux_type), pointer :: aux
 
   allocate(aux)
+  call InvForwardTSAuxInit(aux)
 
+  aux%timestep = prev_ts_aux%timestep + 1
+  prev_ts_aux%next => aux
+  aux%prev => prev_ts_aux
+  call InvForwardTSAuxAllocateMatrices(aux,aux%prev%dResdparam, &
+                                       size(prev_ts_aux%dRes_du_k,1), &
+                                       size(prev_ts_aux%dRes_du_k,3))
+
+  InversionForwardTSAuxCreate2 => aux
+
+end function InversionForwardTSAuxCreate2
+
+! ************************************************************************** !
+
+subroutine InvForwardTSAuxInit(aux)
+  !
+  ! Initializes the contents of inversion_forward_ts_aux_type
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/28/22
+
+  implicit none
+
+  type(inversion_forward_ts_aux_type) :: aux
+
+  aux%timestep = UNINITIALIZED_INTEGER
   aux%time = UNINITIALIZED_DOUBLE
   aux%dResdu = PETSC_NULL_MAT
   aux%dResdparam = PETSC_NULL_MAT
@@ -164,23 +116,11 @@ function InversionTSAuxCreate(prev_ts_aux,M_ptr)
   nullify(aux%prev)
   nullify(aux%next)
 
-  if (associated(prev_ts_aux)) then
-    aux%timestep = prev_ts_aux%timestep + 1
-    prev_ts_aux%next => aux
-    aux%prev => prev_ts_aux
-    call InvTSAuxAllocate(aux,M_ptr,size(prev_ts_aux%dRes_du_k,1), &
-                          size(prev_ts_aux%dRes_du_k,3))
-  else
-    aux%timestep = 1
-  endif
-
-  InversionTSAuxCreate => aux
-
-end function InversionTSAuxCreate
+end subroutine InvForwardTSAuxInit
 
 ! ************************************************************************** !
 
-subroutine InvTSAuxAllocate(aux,M_ptr,ndof,ncell)
+subroutine InvForwardTSAuxAllocateMatrices(aux,M_ptr,ndof,ncell)
   !
   ! Allocated array holding Jacobian and dResdk matrix coefficients
   !
@@ -198,76 +138,43 @@ subroutine InvTSAuxAllocate(aux,M_ptr,ndof,ncell)
   allocate(aux%dRes_du_k(ndof,ndof,ncell))
   aux%dRes_du_k = 0.d0
 
-end subroutine InvTSAuxAllocate
+end subroutine InvForwardTSAuxAllocateMatrices
 
 ! ************************************************************************** !
 
-subroutine InvTSAuxStoreCopyGlobalMatVecs(forward_aux,ts_aux)
+subroutine InvForTSAuxDupForwardJacobian(M_ptr,ts_aux)
   !
   ! Copies Jacobian matrix and solution vector
   !
   ! Author: Glenn Hammond
   ! Date: 02/14/22
 
-  type(inversion_forward_aux_type), pointer :: forward_aux
+  Mat :: M_ptr
   type(inversion_forward_ts_aux_type), pointer :: ts_aux
 
   PetscErrorCode :: ierr
 
-  call MatDuplicate(forward_aux%M_ptr,MAT_COPY_VALUES,ts_aux%dResdu, &
+  call MatDuplicate(M_ptr,MAT_COPY_VALUES,ts_aux%dResdu, &
                     ierr);CHKERRQ(ierr)
 
-end subroutine InvTSAuxStoreCopyGlobalMatVecs
+end subroutine InvForTSAuxDupForwardJacobian
 
 ! ************************************************************************** !
 
-subroutine InversionForwardAuxDestroy(aux)
-  !
-  ! Deallocates a inversion forward auxiliary object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/14/22
-  !
-  use Utility_module, only : DeallocateArray
-
-  type(inversion_forward_aux_type), pointer :: aux
-
-  call InvForwardAuxDestroyList(aux,PETSC_FALSE)
-
-  call DeallocateArray(aux%sync_times)
-
-  ! simply nullify
-  nullify(aux%last)
-  aux%M_ptr = PETSC_NULL_MAT
-  aux%JsensitivityT_ptr = PETSC_NULL_MAT
-  nullify(aux%measurements)
-  aux%measurement_vec = PETSC_NULL_VEC
-  nullify(aux%local_measurement_values_ptr)
-  nullify(aux%local_dobs_dunknown_values_ptr)
-  nullify(aux%local_dobs_dparam_values_ptr)
-  nullify(aux%inversion_coupled_aux)
-
-  deallocate(aux)
-  nullify(aux)
-
-end subroutine InversionForwardAuxDestroy
-
-! ************************************************************************** !
-
-subroutine InvForwardAuxDestroyList(aux,print_msg)
+subroutine InvForwardTSAuxDestroyList(list,print_msg)
   !
   ! Deallocates a inversion auxiliary timestep list object
   !
   ! Author: Glenn Hammond
   ! Date: 12/03/21
   !
-  type(inversion_forward_aux_type) :: aux
+  type(inversion_forward_ts_aux_type), pointer :: list
   PetscBool :: print_msg
 
   type(inversion_forward_ts_aux_type), pointer :: cur_inversion_ts_aux
   type(inversion_forward_ts_aux_type), pointer :: next_inversion_ts_aux
 
-  cur_inversion_ts_aux => aux%first
+  cur_inversion_ts_aux => list
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     next_inversion_ts_aux => cur_inversion_ts_aux%next
@@ -281,18 +188,17 @@ subroutine InvForwardAuxDestroyList(aux,print_msg)
       endif
     endif
 #endif
-    call InversionTSAuxDestroy(cur_inversion_ts_aux)
+    call InvForwardTSAuxDestroyMatrices(cur_inversion_ts_aux)
     cur_inversion_ts_aux => next_inversion_ts_aux
   enddo
 
-  nullify(aux%first)
-  nullify(aux%last)
+  nullify(list)
 
-end subroutine InvForwardAuxDestroyList
+end subroutine InvForwardTSAuxDestroyList
 
 ! ************************************************************************** !
 
-subroutine InversionTSAuxDestroy(aux)
+subroutine InvForwardTSAuxDestroyMatrices(aux)
   !
   ! Deallocates a inversion auxiliary object
   !
@@ -321,6 +227,6 @@ subroutine InversionTSAuxDestroy(aux)
   deallocate(aux)
   nullify(aux)
 
-end subroutine InversionTSAuxDestroy
+end subroutine InvForwardTSAuxDestroyMatrices
 
 end module Inversion_TS_Aux_module

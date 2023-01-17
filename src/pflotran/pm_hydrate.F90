@@ -87,6 +87,7 @@ function PMHydrateCreate()
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
   PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
 
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
@@ -103,7 +104,6 @@ function PMHydrateCreate()
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
-  PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-5 !1.d-10
   !For convergence using hydrate and ice formation capability
   PetscReal, parameter :: abs_update_inf_tol(3,15) = &
              !L_STATE
@@ -115,27 +115,27 @@ function PMHydrateCreate()
              !I_STATE
              pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
              !GA_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HG_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HA_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !GI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !AI_STATE
-             pres_abs_inf_tol,xmol_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             pres_abs_inf_tol,xmol_abs_inf_tol,sat_abs_inf_tol, &
              !HGA_STATE
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             sat_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !HAI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol, &
              !HGI_STATE
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             sat_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              !GAI_STATE
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol, &
              !HGAI_STATE
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol], &
+             sat_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol], &
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
   PetscReal, parameter :: rel_update_inf_tol(3,15) = &
@@ -518,6 +518,10 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         hydrate_harmonic_diff_density = PETSC_TRUE
+      case('NEWTONTRDC_HOLD_INNER_ITERATIONS',&
+           'HOLD_INNER_ITERATIONS','NEWTONTRDC_HOLD_INNER')
+        !heeho: only used when using newtontrd-c
+        hydrate_newtontrdc_hold_inner = PETSC_TRUE
       case('IMMISCIBLE')
         hydrate_immiscible = PETSC_TRUE
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
@@ -1101,22 +1105,6 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, pointer :: X_p(:),dX_p(:)
 
-  ! MAN: OLD
-  type(field_type), pointer :: field
-  PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
-  PetscInt :: temperature_index
-  PetscInt :: apid, spid
-  PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
-  PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
-  PetscReal :: air_pressure0, air_pressure1, del_air_pressure
-  PetscReal :: temperature0, temperature1, del_temperature
-  PetscReal :: saturation0, saturation1, del_saturation
-  PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: scale, temp_scale
-  PetscReal, parameter :: initial_scale = 1.d0
-  PetscInt :: newton_iteration
-  ! MAN: END OLD
-
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
@@ -1126,196 +1114,277 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
 
-  changed = PETSC_TRUE
-
-  ! MAN: OLD
-  field => this%realization%field
-
-  spid = option%saturation_pressure_id
-  apid = option%air_pressure_id
-
-  call SNESGetIterationNumber(snes,newton_iteration,ierr);CHKERRQ(ierr)
-
-  hydrate_allow_state_change = PETSC_FALSE
-
-  ! MAN: END OLD
-  if (this%check_post_convergence) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      offset = (local_id-1)*option%nflowdof
-      select case(global_auxvars(ghosted_id)%istate)
-        case(L_STATE)
-          xmol_index = offset + HYDRATE_L_STATE_X_MOLE_DOF
-          pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
-          if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-            dX_p(xmol_index) = X_p(xmol_index)
-            changed = PETSC_TRUE
-          endif
-          if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
-           dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
-           changed = PETSC_TRUE
-          endif
-        case(G_STATE)
-         pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-         if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
-           dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-           changed = PETSC_TRUE
-         endif
-        case(GA_STATE)
-          pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-          if (X_p(pgas_index) - dX_p(pgas_index) < &
+!  changed = PETSC_TRUE
+if (PETSC_FALSE) then
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    offset = (local_id-1)*option%nflowdof
+    select case(global_auxvars(ghosted_id)%istate)
+      case(L_STATE)
+        ! Truncate liquid pressure > 0
+        pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
+        if (X_p(pw_index) - dX_p(pw_index) <= 0.d0) then
+          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        ! Truncate xmol > 0
+        xmol_index = offset + HYDRATE_L_STATE_X_MOLE_DOF
+        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+          dX_p(xmol_index) = X_p(xmol_index)
+          changed = PETSC_TRUE
+        endif
+      case(G_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
+          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(H_STATE)
+      case(I_STATE)
+      case(GA_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) < &
+                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
+                pres(option%saturation_pressure_id)) then
+          dX_p(pgas_index) = X_p(pgas_index) - &
                   hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)) then
-            dX_p(pgas_index) = X_p(pgas_index) - &
-                    hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%saturation_pressure_id)
-            changed = PETSC_TRUE
-          endif
-          if (hydrate_immiscible) then
-            saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-            temp_real = X_p(saturation_index) - dX_p(saturation_index)
-            if (temp_real > ALMOST_ONE) then
-              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-              changed = PETSC_TRUE
-            else if (temp_real < ALMOST_ZERO) then
-              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-              changed = PETSC_TRUE
-            endif
-          endif
-      end select
-    enddo
-
-    if (this%damping_factor > 0.d0) then
-      dX_p = dX_p*this%damping_factor
-      changed = PETSC_TRUE
-    endif
-
-! MAN OLD
-  else
-
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      offset = (local_id-1)*option%nflowdof
-      select case(global_auxvars(ghosted_id)%istate)
-        case(L_STATE)
-          xmol_index = offset + HYDRATE_L_STATE_X_MOLE_DOF
-          pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
-          if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-            dX_p(xmol_index) = X_p(xmol_index)
-            changed = PETSC_TRUE
-          endif
-        case(GA_STATE)
-          pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-          if (X_p(pgas_index) - dX_p(pgas_index) < &
+                  pres(option%saturation_pressure_id)
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sg <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HG_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) < &
+                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
+                pres(option%saturation_pressure_id)) then
+          dX_p(pgas_index) = X_p(pgas_index) - &
                   hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)) then
-            dX_p(pgas_index) = X_p(pgas_index) - &
-                    hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%saturation_pressure_id)
-            changed = PETSC_TRUE
-          endif
-          if (hydrate_immiscible) then
-            saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-            temp_real = X_p(saturation_index) - dX_p(saturation_index)
-            if (temp_real > ALMOST_ONE) then
-              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-              changed = PETSC_TRUE
-            else if (temp_real < ALMOST_ZERO) then
-              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-              changed = PETSC_TRUE
-            endif
-          endif
-      end select
-    enddo
+                  pres(option%saturation_pressure_id)
+          changed = PETSC_TRUE
+        endif
+        ! Truncate 0 <= Sg <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HA_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
+          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        ! Truncate 0 <= Sh <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HI_STATE)
+      case(GI_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) < &
+                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
+                pres(option%saturation_pressure_id)) then
+          dX_p(pgas_index) = X_p(pgas_index) - &
+                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)
+          changed = PETSC_TRUE
+        endif
+        ! Truncate 0 <= Si <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(AI_STATE)
+        ! Truncate liquid pressure > 0
+        pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
+        if (X_p(pw_index) - dX_p(pw_index) <= 0.d0) then
+          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        ! Truncate xmol > 0
+        xmol_index = offset + HYDRATE_GAS_SATURATION_DOF
+        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+          dX_p(xmol_index) = X_p(xmol_index)
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sl <= 1
+        saturation_index = offset + HYDRATE_ENERGY_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HGA_STATE)
+        !Truncate 0 <= Sl <= 1
+        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sh <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HAI_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
+          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sl <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Si <= 1
+        saturation_index = offset + HYDRATE_ENERGY_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HGI_STATE)
+        !Truncate 0 <= Si <= 1
+        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sh <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(GAI_STATE)
+        ! Truncate gas pressure > 0
+        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) < &
+                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
+                pres(option%saturation_pressure_id)) then
+          dX_p(pgas_index) = X_p(pgas_index) - &
+                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sl <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Si <= 1
+        saturation_index = offset + HYDRATE_ENERGY_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+      case(HGAI_STATE)
+        !Truncate 0 <= Si <= 1
+        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Sg <= 1
+        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+        !Truncate 0 <= Si <= 1
+        saturation_index = offset + HYDRATE_ENERGY_DOF
+        temp_real = X_p(saturation_index) - dX_p(saturation_index)
+        if (temp_real > ALMOST_ONE) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+          changed = PETSC_TRUE
+        else if (temp_real < ALMOST_ZERO) then
+          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+          changed = PETSC_TRUE
+        endif
+    end select
+  enddo
+endif
 
-    scale = initial_scale
-    if (hydrate_max_it_before_damping > 0 .and. &
-        newton_iteration > hydrate_max_it_before_damping) then
-      scale = hydrate_damping_factor
-    endif
-
-#define LIMIT_MAX_PRESSURE_CHANGE
-#define LIMIT_MAX_SATURATION_CHANGE
-    ! scaling
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      offset = (local_id-1)*option%nflowdof
-      temp_scale = 1.d0
-      select case(global_auxvars(ghosted_id)%istate)
-        case(L_STATE)
-          liquid_pressure_index  = offset + HYDRATE_LIQUID_PRESSURE_DOF
-          temperature_index  = offset + HYDRATE_ENERGY_DOF
-          dX_p(liquid_pressure_index) = dX_p(liquid_pressure_index) * &
-                                        HYDRATE_PRESSURE_SCALE
-          temp_scale = 1.d0
-          del_liquid_pressure = dX_p(liquid_pressure_index)
-          liquid_pressure0 = X_p(liquid_pressure_index)
-          liquid_pressure1 = liquid_pressure0 - del_liquid_pressure
-          del_temperature = dX_p(temperature_index)
-          temperature0 = X_p(temperature_index)
-          temperature1 = temperature0 - del_temperature
-#ifdef LIMIT_MAX_PRESSURE_CHANGE
-          if (dabs(del_liquid_pressure) > hydrate_max_pressure_change) then
-            temp_real = dabs(hydrate_max_pressure_change/del_liquid_pressure)
-            temp_scale = min(temp_scale,temp_real)
-          endif
-#endif
-!LIMIT_MAX_PRESSURE_CHANGE
-        case(GA_STATE)
-          gas_pressure_index = offset + HYDRATE_GAS_PRESSURE_DOF
-!        air_pressure_index = offset + 2
-          saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-          temperature_index  = offset + HYDRATE_ENERGY_DOF
-          dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
-                                     HYDRATE_PRESSURE_SCALE
-          if (hydrate_2ph_energy_dof == HYDRATE_AIR_PRESSURE_INDEX) then
-            air_pressure_index = offset + HYDRATE_ENERGY_DOF
-            dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                       HYDRATE_PRESSURE_SCALE
-            del_air_pressure = dX_p(air_pressure_index)
-            air_pressure0 = X_p(air_pressure_index)
-            air_pressure1 = air_pressure0 - del_air_pressure
-          endif
-          temp_scale = 1.d0
-          del_gas_pressure = dX_p(gas_pressure_index)
-          gas_pressure0 = X_p(gas_pressure_index)
-          gas_pressure1 = gas_pressure0 - del_gas_pressure
-          del_saturation = dX_p(saturation_index)
-          saturation0 = X_p(saturation_index)
-          saturation1 = saturation0 - del_saturation
-#ifdef LIMIT_MAX_PRESSURE_CHANGE
-          if (dabs(del_gas_pressure) > hydrate_max_pressure_change) then
-            temp_real = dabs(hydrate_max_pressure_change/del_gas_pressure)
-            temp_scale = min(temp_scale,temp_real)
-          endif
-#endif
-#ifdef LIMIT_MAX_SATURATION_CHANGE
-          if (dabs(del_saturation) > max_saturation_change) then
-            temp_real = dabs(max_saturation_change/del_saturation)
-            temp_scale = min(temp_scale,temp_real)
-          endif
-#endif
-!LIMIT_MAX_SATURATION_CHANGE
-        case(G_STATE)
-          gas_pressure_index = offset + HYDRATE_GAS_PRESSURE_DOF
-          air_pressure_index = offset + HYDRATE_G_STATE_AIR_PRESSURE_DOF
-          dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
-                                     HYDRATE_PRESSURE_SCALE
-          dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                     HYDRATE_PRESSURE_SCALE
-      end select
-      scale = min(scale,temp_scale)
-    enddo
-
-    temp_scale = scale
-    call MPI_Allreduce(temp_scale,scale,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                       MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
-
-    if (scale < 0.9999d0) then
-      dX_p = scale*dX_p
-    endif
+  if (this%damping_factor > 0.d0) then
+    dX_p = dX_p*this%damping_factor
+    changed = PETSC_TRUE
   endif
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -1505,6 +1574,10 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool :: flags(181)
   character(len=MAXSTRINGLENGTH) :: string
+
+  PetscBool :: rho_flag
+
+
   character(len=14), parameter :: state_string(15) = &
     ['Liquid State  ','Gas State     ','Hydrate State ','Ice State     ', &
      'GA State      ','HG State      ','HA State      ','HI State      ', &
@@ -1535,6 +1608,15 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
+
+  call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
+
+  if (this%option%flow%using_newtontrdc) then
+    if (hydrate_newtontrdc_prev_iter_num == it) then
+      hydrate_sub_newton_iter_num = hydrate_sub_newton_iter_num + 1
+    endif
+    hydrate_newtontrdc_prev_iter_num = it
+  endif
 
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
@@ -1659,6 +1741,42 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         enddo
       enddo
     enddo
+
+    if (option%flow%using_newtontrdc .and. &
+        hydrate_state_changed .and. &
+        .not.rho_flag) then
+      if (hydrate_newtontrdc_hold_inner) then
+        ! if we hold inner iterations, we must not change state in
+        ! the inner iteration. If we reach convergence in an inner
+        ! newtontrdc iteration, then we must force an outer iteration
+        ! to allow state change in case the solutions are
+        ! out-of-bounds of the states -hdp
+        hydrate_force_iteration = PETSC_TRUE
+        hydrate_state_changed = PETSC_FALSE
+      else
+        ! if we have state changes, we exit out of inner iteration
+        ! and go to the next newton iteration. the tr inner iteration
+        !  should only be used when there is no state changes
+        ! if rho is satisfied in inner iteration, the algorithm already
+        ! exited the inner iteration. -heeho
+        hydrate_force_iteration = PETSC_TRUE
+        hydrate_state_changed = PETSC_FALSE
+      endif
+    endif
+
+    call MPI_Allreduce(MPI_IN_PLACE,hydrate_force_iteration,ONE_INTEGER, &
+                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+    if (hydrate_force_iteration) then
+      if (.not.hydrate_newtontrdc_hold_inner) then
+        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+        hydrate_force_iteration = PETSC_FALSE
+      elseif (hydrate_newtontrdc_hold_inner .and. &
+               option%convergence == CONVERGENCE_CONVERGED) then
+        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+        hydrate_force_iteration = PETSC_FALSE
+      endif
+    endif
+
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
@@ -1691,29 +1809,6 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call PrintMsg(option,string)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
-
-    ! MAN: Add Newton TR compatibility
-    !if (hydrate_using_newtontr .and. hydrate_state_changed) then
-    !    ! if we reach convergence in an inner newton iteration of TR
-    !    ! then we must force an outer iteration to allow state change
-    !    ! in case the solutions are out-of-bounds of the states -hdp
-    !    hydrate_force_iteration = PETSC_TRUE
-    !endif
-    !
-    !if (hydrate_using_newtontr .and. &
-    !    hydrate_sub_newton_iter_num > 1 .and. &
-    !    hydrate_force_iteration .and. &
-    !    option%convergence == CONVERGENCE_CONVERGED) then
-    !    ! This is a complicated case but necessary.
-    !    ! right now PFLOTRAN declares convergence with a negative rho in tr.c
-    !    ! this should not be happening thus cutting timestep.
-    !    option%convergence = CONVERGENCE_CUT_TIMESTEP
-    !endif
-
-
-    !call MPI_Allreduce(MPI_IN_PLACE,hydrate_force_iteration,ONE_INTEGER, &
-    !                   MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
-    !option%force_newton_iteration = hydrate_force_iteration
 
   endif
 

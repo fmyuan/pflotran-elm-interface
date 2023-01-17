@@ -1,7 +1,7 @@
 module Simulation_Subsurface_class
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use PFLOTRAN_Constants_module
   use Simulation_Base_class
   use Simulation_Aux_module
@@ -70,7 +70,7 @@ function SimSubsurfCreate(driver,option)
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -101,7 +101,7 @@ subroutine SimSubsurfInit(this,driver,option)
   use Timestepper_Base_class, only : TS_CONTINUE
   use Output_Aux_module
   use Waypoint_module
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -222,23 +222,26 @@ subroutine SimSubsurfInitializeRun(this)
   call OutputEnsureVariablesExist(this%output_option,this%option)
   call SimSubsurfForbiddenCombinations(this)
 
-  if (associated(this%process_model_coupler_list)) then
-    if (this%option%restart_flag) then
-      if (index(this%option%restart_filename,'.chk') > 0) then
-        call this%process_model_coupler_list%RestartBinary(viewer)
-      elseif (index(this%option%restart_filename,'.h5') > 0) then
-        call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
-      else
-        this%option%io_buffer = 'Unknown restart filename format. ' // &
-        'Only *.chk and *.h5 supported.'
-        call PrintErrMsg(this%option)
-      endif
+  if (this%option%restart_flag) then
+    if (index(this%option%restart_filename,'.chk') > 0) then
+      call this%process_model_coupler_list%RestartBinary(viewer)
+    elseif (index(this%option%restart_filename,'.h5') > 0) then
+      call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
+    else
+      this%option%io_buffer = 'Unknown restart filename format (' // &
+        trim(this%option%restart_filename) // &
+        '). Only *.chk and *.h5 supported.'
+      call PrintErrMsg(this%option)
     endif
-
-    ! initialize performs overwrite of restart, if applicable
-    call this%process_model_coupler_list%InitializeRun()
-    call this%JumpStart()
   endif
+
+  if (associated(this%realization%patch%aux%inversion_aux)) then
+    call SimSubsurfOverwriteInvParameters(this)
+  endif
+
+  ! initialize performs overwrite of restart, if applicable
+  call this%process_model_coupler_list%InitializeRun()
+  call this%JumpStart()
 
   call SimulationBaseInputRecordPrint(this,this%option)
   call PrintMsg(this%option,'')
@@ -515,6 +518,146 @@ subroutine SimSubsurfJumpStart(this)
   endif
 
 end subroutine SimSubsurfJumpStart
+
+! ************************************************************************** !
+
+subroutine SimSubsurfOverwriteInvParameters(this)
+  !
+  ! Overwrites forward simulation parameters with those prescribed by the
+  ! inversion calculation, whether that be the latest set of parameters in
+  ! the inversion iteration or those perturbed for the sensitivity Jacobian
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/01/22
+  !
+  use Discretization_module
+  use Init_Subsurface_module
+  use Inversion_Aux_module
+  use Inversion_Parameter_module
+  use Material_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: this
+
+  class(realization_subsurface_type), pointer :: realization
+  type(inversion_aux_type), pointer :: inversion_aux
+  type(inversion_perturbation_type), pointer :: perturbation
+  PetscInt :: i
+  PetscInt :: iqoi(2)
+  PetscReal :: rmax, rmin
+  PetscErrorCode :: ierr
+
+  realization => this%realization
+  inversion_aux => realization%patch%aux%inversion_aux
+  perturbation => inversion_aux%perturbation
+
+  if (inversion_aux%qoi_is_full_vector) then
+    iqoi = InversionParameterIntToQOIArray(inversion_aux%parameters(1))
+    ! on subsequent iterations, overwrite what was read from input file
+    ! with latest inverted values
+    call InvAuxScatGlobalToDistParam(inversion_aux, &
+                                      realization%field%work, &
+                                      inversion_aux%dist_parameter_vec, &
+                                      INVAUX_SCATREVERSE)
+    call DiscretizationGlobalToLocal(realization%discretization, &
+                                      realization%field%work, &
+                                      realization%field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
+                                  realization%field%work_loc, &
+                                  iqoi(1),iqoi(2))
+  else
+    call InvAuxCopyParamToFromParamVec(inversion_aux, &
+                                       INVAUX_PARAMETER_VALUE, &
+                                       INVAUX_COPY_FROM_VEC)
+    do i = 1, size(inversion_aux%parameters)
+      call InvAuxCopyParameterValue(inversion_aux,i, &
+                                    INVAUX_OVERWRITE_MATERIAL_VALUE)
+    enddo
+    ! update material auxvars
+    call InitSubsurfAssignMatProperties(realization)
+  endif
+
+  if (associated(perturbation)) then
+    ! on first pass, store and set thereafter
+    if (perturbation%idof_pert <= 0) then
+      if (perturbation%base_parameter_vec == PETSC_NULL_VEC) then
+        if (inversion_aux%qoi_is_full_vector) then
+          call VecDuplicate(inversion_aux%dist_parameter_vec, &
+                            perturbation%base_parameter_vec, &
+                            ierr);CHKERRQ(ierr)
+        else
+          call VecDuplicate(inversion_aux%parameter_vec, &
+                            perturbation%base_parameter_vec, &
+                            ierr);CHKERRQ(ierr)
+        endif
+      endif
+      if (inversion_aux%qoi_is_full_vector) then
+        call VecCopy(inversion_aux%dist_parameter_vec, &
+                     perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
+      else
+        if (perturbation%idof_pert == 0) then
+          call VecCopy(inversion_aux%parameter_vec, &
+                       perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
+        endif
+      endif
+    else
+      ! on subsequent passes, we have to overwrite the entire
+      if (inversion_aux%qoi_is_full_vector) then
+        call VecZeroEntries(inversion_aux%dist_parameter_vec, &
+                            ierr);CHKERRQ(ierr)
+        if (this%driver%comm%myrank == 0) then
+          call VecSetValue(inversion_aux%dist_parameter_vec, &
+                           perturbation%idof_pert-1, &
+                           perturbation%tolerance,INSERT_VALUES, &
+                           ierr);CHKERRQ(ierr)
+        endif
+        call VecAssemblyBegin(inversion_aux%dist_parameter_vec, &
+                              ierr);CHKERRQ(ierr)
+        call VecAssemblyEnd(inversion_aux%dist_parameter_vec, &
+                            ierr);CHKERRQ(ierr)
+        call VecPointwiseMult(inversion_aux%dist_parameter_vec, &
+                              inversion_aux%dist_parameter_vec, &
+                              perturbation%base_parameter_vec, &
+                              ierr);CHKERRQ(ierr)
+        call VecMax(inversion_aux%dist_parameter_vec, &
+                    PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
+        call VecMin(inversion_aux%dist_parameter_vec, &
+                    PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
+        if (rmax > 0.d0) then
+          perturbation%pert = rmax
+        else
+          perturbation%pert = rmin
+        endif
+        call VecAXPY(inversion_aux%dist_parameter_vec,1.d0, &
+                     perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
+        call InvAuxScatGlobalToDistParam(inversion_aux, &
+                                         realization%field%work, &
+                                         inversion_aux%dist_parameter_vec, &
+                                         INVAUX_SCATREVERSE)
+        call DiscretizationGlobalToLocal(realization%discretization, &
+                                         realization%field%work, &
+                                         realization%field%work_loc,ONEDOF)
+        iqoi = InversionParameterIntToQOIArray(inversion_aux%parameters(1))
+        call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
+                                     realization%field%work_loc, &
+                                     iqoi(1),iqoi(2))
+      else
+        perturbation%base_value = &
+          inversion_aux%parameters(perturbation%idof_pert)%value
+        perturbation%pert = perturbation%base_value* &
+                                 perturbation%tolerance
+        inversion_aux%parameters(perturbation%idof_pert)%value = &
+          perturbation%base_value + perturbation%pert
+        ! overwrite material property value
+        call InvAuxCopyParameterValue(inversion_aux,perturbation%idof_pert, &
+                                      INVAUX_OVERWRITE_MATERIAL_VALUE)
+        call InitSubsurfAssignMatProperties(realization)
+      endif
+    endif
+  endif
+
+end subroutine SimSubsurfOverwriteInvParameters
 
 ! ************************************************************************** !
 

@@ -455,10 +455,10 @@ END
 #hydrostatic pressure gradient and geothermal gradient for initial conditions
 FLOW_CONDITION initial #also BC for top, bottom, west, east; north and south no flow
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE DATASET 1d_pressure
+  LIQUID_PRESSURE DATASET 1d_pressure
   TEMPERATURE DATASET 1d_temperature
 END
 

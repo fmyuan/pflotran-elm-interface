@@ -431,26 +431,16 @@ subroutine ReactionReadPass1(reaction,input,option)
               call InputReadDouble(input,option,general_rxn%forward_rate)
               call InputErrorMsg(input,option,'forward rate', &
                                  'CHEMISTRY,GENERAL_REACTION')
-              ! throw error if units exist after rate
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
-                option%io_buffer = 'Units conversion not supported for &
-                  &GENERAL_REACTION FORWARD_RATE. Please assume the &
-                  &documented units.'
-                call PrintErrMsg(option)
-              endif
+              call InputReadAndConvertUnits(input,general_rxn%forward_rate, &
+                     'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
             case('BACKWARD_RATE')
               call InputReadDouble(input,option,general_rxn%backward_rate)
               call InputErrorMsg(input,option,'backward rate', &
                                  'CHEMISTRY,GENERAL_REACTION')
-              ! throw error if units exist after rate
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
-                option%io_buffer = 'Units conversion not supported for &
-                  &GENERAL_REACTION BACKWARD_RATE. Please assume the &
-                  &documented units.'
-                call PrintErrMsg(option)
-              endif
+              call InputReadAndConvertUnits(input,general_rxn%backward_rate, &
+                     'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
           end select
         enddo
         call InputPopBlock(input,option)

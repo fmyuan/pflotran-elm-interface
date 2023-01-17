@@ -13,6 +13,7 @@ module Inversion_Parameter_module
     PetscInt :: iparameter
     PetscInt :: imat
     PetscReal :: value
+    PetscReal :: update
     character(len=MAXWORDLENGTH) :: parameter_name
     character(len=MAXWORDLENGTH) :: material_name
     type(inversion_parameter_type), pointer :: next
@@ -23,8 +24,10 @@ module Inversion_Parameter_module
             InversionParameterRead, &
             InversionParameterCopy, &
             InversionParameterMapNameToInt, &
+            InversionParameterGetIDFromName, &
             InversionParameterIntToQOIArray, &
             InversionParameterPrint, &
+            InversionParameterPrintUpdate, &
             InversionParameterStrip, &
             InversionParameterDestroy
 
@@ -67,6 +70,7 @@ subroutine InversionParameterInit(inversion_parameter)
   inversion_parameter%iparameter = UNINITIALIZED_INTEGER
   inversion_parameter%imat = UNINITIALIZED_INTEGER
   inversion_parameter%value = UNINITIALIZED_DOUBLE
+  inversion_parameter%update = UNINITIALIZED_DOUBLE
   inversion_parameter%parameter_name = ''
   inversion_parameter%material_name = ''
 
@@ -91,6 +95,7 @@ subroutine InversionParameterCopy(inversion_parameter,inversion_parameter2)
   inversion_parameter2%iparameter = inversion_parameter%iparameter
   inversion_parameter2%imat = inversion_parameter%imat
   inversion_parameter2%value = inversion_parameter%value
+  inversion_parameter2%update = inversion_parameter%update
   inversion_parameter2%parameter_name = inversion_parameter%parameter_name
   inversion_parameter2%material_name = inversion_parameter%material_name
 
@@ -119,28 +124,73 @@ subroutine InversionParameterPrint(fid,inversion_parameter, &
   character(len=MAXSTRINGLENGTH) :: string
 
   if (print_header) then
-    write(fid,'(40("=+"),//, &
+    write(fid,'(/, &
               &" Current values of inversion parameters:",//, &
-              &"    # &
+              &"      # &
               &Parameter Name      &
               &Material Name       &
               & Value",/,&
-              &"    - &
+              &"      - &
               &--------------      &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i4," ",2a20,es13.6)') &
+  write(string,'(i6," ",2a20,es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &
     inversion_parameter%value
   write(fid,*) trim(string)
   if (print_footer) then
-    write(fid,'(/,40("=+"))')
+!    write(fid,'(/,40("=+"))')
   endif
 
 end subroutine InversionParameterPrint
+
+! ************************************************************************** !
+
+subroutine InversionParameterPrintUpdate(fid,inversion_parameter, &
+                                         print_header,print_footer)
+  !
+  ! Print contents of inversion parameter object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/18/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  PetscInt :: fid
+  type(inversion_parameter_type) :: inversion_parameter
+  PetscBool :: print_header
+  PetscBool :: print_footer
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (print_header) then
+    write(fid,'(/, &
+              &" Current values of inversion parameter updates:",//, &
+              &"      # &
+              &Parameter Name      &
+              &Material Name       &
+              & Update",/,&
+              &"      - &
+              &--------------      &
+              &-------------       &
+              & -----")')
+  endif
+  write(string,'(i6," ",2a20,es13.6)') &
+    inversion_parameter%id, &
+    inversion_parameter%parameter_name, &
+    inversion_parameter%material_name, &
+    inversion_parameter%update
+  write(fid,*) trim(string)
+  if (print_footer) then
+!    write(fid,'(/,40("=+"))')
+  endif
+
+end subroutine InversionParameterPrintUpdate
 
 ! ************************************************************************** !
 
@@ -209,45 +259,78 @@ end function InversionParameterRead
 
 ! ************************************************************************** !
 
-subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
+subroutine InversionParameterMapNametoInt(inversion_parameter,driver, &
+                                          inversion_option)
   !
-  ! Maps an inverion parameter to subsurface model parameter id
+  ! Maps an inversion parameter to subsurface model parameter id
   !
   ! Author: Glenn Hammond
   ! Date: 03/25/22
   !
-  use Driver_module
-  use String_module
+  use Driver_class
+  use Option_Inversion_module
+
+  type(inversion_parameter_type) :: inversion_parameter
+  class(driver_type) :: driver
+  type(inversion_option_type) :: inversion_option
+
+  inversion_parameter%iparameter = &
+    InversionParameterGetIDFromName(inversion_parameter%parameter_name, &
+                                    driver,inversion_option)
+
+end subroutine InversionParameterMapNametoInt
+
+! ************************************************************************** !
+
+function InversionParameterGetIDFromName(name_,driver,inversion_option)
+  !
+  ! Maps an inversion parameter_name to subsurface model parameter id
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/23/22
+  !
+  use Driver_class
+  use Option_Inversion_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                VG_SR, VG_ALPHA, VG_M
 
-  type(inversion_parameter_type) :: inversion_parameter
-  type(driver_type) :: driver
+  character(len=MAXWORDLENGTH) :: name_
+  class(driver_type) :: driver
+  type(inversion_option_type) :: inversion_option
+
+  PetscInt :: InversionParameterGetIDFromName
 
   PetscInt :: i
 
-  select case(inversion_parameter%parameter_name)
+  select case(name_)
     case('ELECTRICAL_CONDUCTIVITY')
       i = ELECTRICAL_CONDUCTIVITY
+      inversion_option%invert_for_elec_cond = PETSC_TRUE
     case('PERMEABILITY')
       i = PERMEABILITY
+      inversion_option%invert_for_permeability = PETSC_TRUE
     case('POROSITY')
       i = POROSITY
+      inversion_option%invert_for_porosity = PETSC_TRUE
     case('ALPHA')
       i = VG_ALPHA
+      inversion_option%invert_for_vg_alpha = PETSC_TRUE
     case('RESIDUAL_SATURATION')
       i = VG_SR
+      inversion_option%invert_for_vg_sr = PETSC_TRUE
     case('M')
       i = VG_M
+      inversion_option%invert_for_vg_m = PETSC_TRUE
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
-                              &InversionParameterMap: ' // &
-                              StringWrite(inversion_parameter%parameter_name))
+                              &InversionParameterGetIDFromName: ' // &
+                              trim(name_))
   end select
-  inversion_parameter%iparameter = i
 
-end subroutine InversionParameterMapNametoInt
+  InversionParameterGetIDFromName = i
+
+end function InversionParameterGetIDFromName
 
 ! ************************************************************************** !
 

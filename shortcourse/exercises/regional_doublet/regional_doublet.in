@@ -14,7 +14,7 @@ SIMULATION
     PERIODIC TIMESTEP 50
     PERIODIC TIME 2 yr
   /
-  #RESTART regional_doublet-restart.chk 0.d0
+  #RESTART regional_doublet-restart.chk RESET_TO_TIME_ZERO
 END
 
 SUBSURFACE
@@ -28,10 +28,6 @@ NUMERICAL_METHODS FLOW
 
 END
 
-NUMERICAL_METHODS TRANSPORT
-
-END
-
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
@@ -40,15 +36,9 @@ CHEMISTRY
   /
   OUTPUT
     TOTAL
-    all
+    ALL
   /
 END
-
-#=========================== solver options ===================================
-
-
-
-
 
 #=========================== discretization ===================================
 GRID
@@ -293,31 +283,31 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM 0.d0 0.d0 90.d0
   GRADIENT
-    PRESSURE -0.002 0. 0.
+    LIQUID_PRESSURE -0.002 0. 0.
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION river
   TYPE
-    PRESSURE SEEPAGE
+    LIQUID_PRESSURE SEEPAGE
   /
   INTERPOLATION LINEAR
   CYCLIC
   DATUM FILE river_stage.txt
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION recharge
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX LIST
+  LIQUID_FLUX LIST
     TIME_UNITS yr
     DATA_UNITS cm/yr
     0.d0 25.d0
@@ -437,7 +427,5 @@ STRATA
   REGION layer4
   MATERIAL soil4
 END
-
-#========================== checkpointing
 
 END_SUBSURFACE

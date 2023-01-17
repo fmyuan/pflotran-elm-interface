@@ -128,7 +128,7 @@
 
 \includegraphics[width=\linewidth]{./calcite_fig}
 
-The ``1D Calcite Scenario'' simulates solute transport along a horizontal, 1D domain measuring 100 meters in length with unit cross sectional area.  Assumptions with regard to transport include:
+The ``1D Calcite Scenario'' simulates solute transport along a horizontal, 1D domain measuring 100 meters in length with unit cross sectional area.  Assumptions regarding transport include:
 
 \begin{itemize}
   \item Problem domain: $100 \times 1 \times 1$ m (x $\times$ y $\times$ z)
@@ -219,7 +219,7 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport \bluecomment{! process model name}
-      MODE GIRT
+      MODE GIRT   \bluecomment{! Global Implicit Reactive Transport}
     /
   /
 END
@@ -400,7 +400,6 @@ CHEMISTRY
 
   DATABASE ../../../hanford.dat  \bluecomment{! path to database file}
   LOG_FORMULATION         \bluecomment{! logarithmic derivatives}
-#  OPERATOR_SPLITTING     \bluecomment{! operator splitting flag}
   ACTIVITY_COEFFICIENTS TIMESTEP  \bluecomment{! time step lagged}
   OUTPUT                          \bluecomment{!   activity}
     PH                            \bluecomment{!   coefficients}
@@ -556,15 +555,17 @@ END
 
 \begin{semiverbatim}
 
-LINEAR_SOLVER TRANSPORT   \bluecomment{! transport solver}
-  SOLVER DIRECT           \bluecomment{! sets both the below}
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER           \bluecomment{! transport solver}
+    SOLVER DIRECT         \bluecomment{! sets both the below}
+  /
 END
 
-\bluecomment{! could also use:}
-LINEAR_SOLVER TRANSPORT
-  KSP_TYPE PREONLY        \bluecomment{! turn off Krylov solver}
-  PC_TYPE PCLU            \bluecomment{! LU preconditioner}
-END
+  \bluecomment{! could also use:}
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY        \bluecomment{! turn off Krylov solver}
+    PC_TYPE PCLU            \bluecomment{! LU preconditioner}
+  /
 
 \end{semiverbatim}
 
@@ -797,12 +798,17 @@ END
 
 \begin{semiverbatim}
 
-\magentacomment{LINEAR_SOLVER FLOW}
-  \magentacomment{SOLVER DIRECT}
+\magentacomment{NUMERICAL_METHODS FLOW}
+  \magentacomment{LINEAR_SOLVER}
+    \magentacomment{SOLVER DIRECT}
+  \magentacomment{/}
 \magentacomment{END}
 
-LINEAR_SOLVER TRANSPORT  \bluecomment{! the original transport solver}
-  SOLVER DIRECT
+\bluecomment{! the original transport solver}
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER TRANSPORT 
+    SOLVER DIRECT
+  /
 END
 \end{semiverbatim}
 
@@ -841,16 +847,16 @@ END}
 \begin{semiverbatim}
 \magentacomment{FLOW_CONDITION initial_pressure} \bluecomment{! named \greencomment{initial_pressure}}
   \magentacomment{TYPE
-    PRESSURE DIRICHLET}   \bluecomment{! type is \redcomment{dirichlet} for pressure}
-  \magentacomment{/}                      \bluecomment{!   (constant pressure [Pa])}
-  \magentacomment{PRESSURE 201325.d0}     \bluecomment{! greater than atmospheric}
-\magentacomment{END}                      \bluecomment{!   to ensure saturation}
+    LIQUID_PRESSURE DIRICHLET} \bluecomment{! type is \redcomment{dirichlet} for}
+  \magentacomment{/}                           \bluecomment{!   constant pressure [Pa]}
+  \magentacomment{LIQUID_PRESSURE 201325.d0}   \bluecomment{! greater than atmospheric}
+\magentacomment{END}                           \bluecomment{!   to ensure saturation}
 
 \magentacomment{FLOW_CONDITION inlet_flux} \bluecomment{! named \greencomment{inlet_flux}}
   \magentacomment{TYPE
-    FLUX NEUMANN}          \bluecomment{! type is \redcomment{neumann} for a flux}
+    LIQUID_FLUX NEUMANN}    \bluecomment{! type is \redcomment{neumann} for a flux}
   \magentacomment{/
-  FLUX 1.d0 m/yr}          \bluecomment{! Darcy velocity of 1 m/y}
+  LIQUID_FLUX 1.d0 m/yr}    \bluecomment{! Darcy velocity of 1 m/y}
 \magentacomment{END}
 \end{semiverbatim}
 
@@ -1022,17 +1028,17 @@ END}
 \begin{semiverbatim}
 FLOW_CONDITION initial_pressure
   TYPE
-    PRESSURE \magentacomment{HYDROSTATIC}    \bluecomment{! pressure as a function}
-  /                         \bluecomment{!   of elevation}
-  \magentacomment{DATUM 0.d0 0.d0 1.d0}      \bluecomment{! location of water table}
-  PRESSURE \magentacomment{101325.d0}        \bluecomment{! atmospheric pressure}
+    LIQUID_PRESSURE \magentacomment{HYDROSTATIC} \bluecomment{! pressure as a function}
+  /                             \bluecomment{!   of elevation}
+  \magentacomment{DATUM 0.d0 0.d0 1.d0}          \bluecomment{! location of water table}
+  LIQUID_PRESSURE \magentacomment{101325.d0}     \bluecomment{! atmospheric pressure}
 END
 
 FLOW_CONDITION \magentacomment{recharge}
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX \magentacomment{10 cm/y}              \bluecomment{! Darcy velocity}
+  LIQUID_FLUX \magentacomment{10 cm/y}           \bluecomment{! Darcy velocity}
 END
 
 \end{semiverbatim}

@@ -1,0 +1,232 @@
+#Description: Simplifaction for regression test purpose 1D Rasouli Nernst-Planck benchmark (see Rasouli et al., 2015Rasouli P., Steefel C.I., Mayer K.U., Rolle M., Benchmarks for multicomponent diffusion and electrochemical migration, Comput. Geosci. 19 (3) (2015) 523–533)
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+        NERNST_PLANCK
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== chemistry ========================================
+CHEMISTRY
+
+    PRIMARY_SPECIES
+        Tracer
+        H+
+        Na+
+        Cl-
+        NO3-        
+    END
+    SECONDARY_SPECIES
+        OH-
+    END
+
+    AQUEOUS_DIFFUSION_COEFFICIENTS
+        Tracer 1.87d-9
+        H+ 9.31d-9
+        Na+ 1.33d-9
+        Cl- 2.03d-9
+        NO3- 1.90d-9
+        OH- 5.27d-9
+    END
+
+
+    ACTIVITY_COEFFICIENTS TIMESTEP
+    DATABASE ../../../database/rasouli.dat
+    LOG_FORMULATION
+    OUTPUT
+        PH
+        all
+        TOTAL
+    /
+END
+
+
+#=========================== discretization ===================================
+GRID
+    TYPE structured
+    ORIGIN 0.d0 0.d0 0.d0
+    NXYZ 10 1 1
+    BOUNDS
+        0.d0 0.d0 0.d0
+        5.d-3 1.0 1.0
+    /
+END
+
+#=========================== numerical methods =================================
+
+NUMERICAL_METHODS TRANSPORT
+  TIMESTEPPER
+    CFL_GOVERNOR 1.d0
+
+  /
+  NEWTON_SOLVER
+	MATRIX_TYPE AIJ
+	PRECONDITIONER_MATRIX_TYPE AIJ
+    RTOL 1.d-12
+    ATOL 1.d-12
+    STOL 1.d-30	
+  /
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+REGRESSION
+  CELL_IDS
+    1
+	5
+	9
+  /
+END
+
+
+
+#=========================== flow velocity ===================================
+
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0d0 0.d0 0.d0 m/yr
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+    DIFFUSION_COEFFICIENT 2.03d-9
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY diffusiveMaterial
+    ID 1
+    POROSITY 1d0
+    TORTUOSITY 1.d0
+    LONGITUDINAL_DISPERSIVITY 0d0
+    CHARACTERISTIC_CURVES default
+/
+
+MATERIAL_PROPERTY sourceMaterial
+    ID 2
+    POROSITY 50000d0
+    TORTUOSITY 1.d0
+    LONGITUDINAL_DISPERSIVITY 0d0
+    CHARACTERISTIC_CURVES default
+/
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+#  TIMES y 5. 10. 15. 20.
+  FORMAT TECPLOT POINT
+END
+
+#=========================== times ============================================
+TIME
+    FINAL_TIME 0.1 h
+    INITIAL_TIMESTEP_SIZE 0.01 h
+    MAXIMUM_TIMESTEP_SIZE 0.001 h
+/
+
+#=========================== regions ==========================================
+
+REGION horizontalBottom
+    COORDINATES
+    1.d-4 0.d0 0.d0
+    5.d-3 1.0  1.0
+    /
+END
+
+REGION sourceConcentrationRegion
+    COORDINATES
+    0.d0 0.d0 0.d0
+    1.d-4 1.0 1.0
+    /
+END
+
+REGION east
+    FACE EAST
+    COORDINATES
+    5.d-3 0.d0 0.d0
+    5.d-3 1.0 1.0
+    /
+END
+
+#=========================== observations =====================================
+
+OBSERVATION
+    REGION east
+    #VELOCITY
+    #REGION source
+/
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION sourceConcentrationCondition
+    TYPE zero_gradient
+    CONSTRAINT_LIST
+    0.d0 sourceConcentrationConstraint
+    /
+END
+
+TRANSPORT_CONDITION initialConcentrationCondition
+    TYPE zero_gradient
+    CONSTRAINT_LIST
+    0.d0 initialConcentrationConstraint
+    /
+END
+
+
+#=========================== constraints ======================================
+CONSTRAINT sourceConcentrationConstraint
+    CONCENTRATIONS
+    Tracer 1.d-3 T
+    H+    6.001 pH
+    Na+   1d-4 T
+    Cl-   1d-4 T
+    NO3-  1d-6 T
+    /
+END
+
+CONSTRAINT initialConcentrationConstraint
+    CONCENTRATIONS
+    Tracer      1d-8 T
+    H+          4.007 pH
+    Na+         1d-4 T
+    Cl-         1d-4 T
+    NO3-        1d-4 T
+    /
+END
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+    TRANSPORT_CONDITION initialConcentrationCondition
+    REGION horizontalBottom
+END
+
+INITIAL_CONDITION
+    TRANSPORT_CONDITION sourceConcentrationCondition
+    REGION sourceConcentrationRegion
+END
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+    REGION horizontalBottom
+    MATERIAL diffusiveMaterial
+END
+STRATA
+    REGION sourceConcentrationRegion
+    MATERIAL sourceMaterial
+END
+
+END_SUBSURFACE
