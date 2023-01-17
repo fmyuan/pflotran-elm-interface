@@ -29,9 +29,9 @@ END
 
 #=========================== hydrate ==========================================
 HYDRATE
-  EFFECTIVE_SAT_SCALING
   ADJUST_SOLUBILITY_WITHIN_GHSZ
   HYDRATE_PHASE_BOUNDARY MORIDIS
+  NO_SOLID_SATURATION_PERM_SCALING
 END
 #=========================== discretization ===================================
 GRID
