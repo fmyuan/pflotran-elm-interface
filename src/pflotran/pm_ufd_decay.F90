@@ -966,6 +966,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   use Material_Aux_module
   use Material_Transform_module
   use Secondary_Continuum_Aux_module
+  use Utility_module
   implicit none
 
 ! INPUT ARGUMENTS:
@@ -1062,6 +1063,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
               kd_kgw_m3b                                   ! [kg-water/m3-bulk]
 
           if (this%option%use_sc) then
+            if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
+                soil_properties(epsilon_index)),1.d0)) cycle
             rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
             kd_kgw_m3b = this%element_Kd(iele,imat,2)
             do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
@@ -1312,7 +1315,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     if (option%use_sc) then
       rt_sec_transport_vars =  patch%aux%SC_RT%sec_transport_vars(ghosted_id)
       sat = global_auxvars(ghosted_id)%sat(1)
-      por = patch%material_property_array(1)%ptr%multicontinuum%porosity
+      por = patch%material_property_array(patch%imat(ghosted_id)) &
+            %ptr%multicontinuum%porosity
       if (.not.Equal((material_auxvars(ghosted_id)% &
            soil_properties(epsilon_index)),1.d0)) then
         do cell = 1, rt_sec_transport_vars%ncells

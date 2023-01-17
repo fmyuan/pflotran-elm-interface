@@ -245,8 +245,10 @@ subroutine RTSetup(realization)
     do ghosted_id = 1, grid%ngmax
       ! Ignore inactive cells with inactive materials
       if (patch%imat(ghosted_id) <= 0) cycle
+!      if (Equal((material_auxvars(ghosted_id)% &
+!          soil_properties(epsilon_index)),1.d0)) cycle
       ! Assuming the same secondary continuum type for all regions
-      call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr% &
+      call SecondaryRTAuxVarInit(patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                                  multicontinuum,material_auxvars(ghosted_id)% &
                                    soil_properties(epsilon_index), &
                                  material_auxvars(ghosted_id)% &
@@ -256,6 +258,14 @@ subroutine RTSetup(realization)
                                  sec_tran_constraint,option)
     enddo
     patch%aux%SC_RT%sec_transport_vars => rt_sec_transport_vars
+    do i = 1, size(patch%material_property_array)
+      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
+           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
+        option%io_buffer = &
+          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACCROSS MATERIALS'
+        call PrintErrMsg(option)
+      endif
+    enddo 
   endif
 
 !===============================================================================
@@ -792,8 +802,8 @@ subroutine RTUpdateEquilibriumState(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
           soil_properties(epsilon_index)),1.d0)) cycle
-        sec_porosity = patch%material_property_array(1)%ptr% &
-                        multicontinuum%porosity
+        sec_porosity = patch%material_property_array(patch%imat(ghosted_id))% & 
+                        ptr%multicontinuum%porosity
         call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                           global_auxvars(ghosted_id), &
                                           reaction,sec_porosity,option)
@@ -875,7 +885,7 @@ subroutine RTUpdateKineticState(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
           soil_properties(epsilon_index)),1.d0)) cycle
-        sec_porosity = patch%material_property_array(1)%ptr% &
+        sec_porosity = patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                         multicontinuum%porosity
 
         call SecondaryRTUpdateKineticState(rt_sec_transport_vars(ghosted_id), &
@@ -2707,9 +2717,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       iendall = offset + reaction%ncomp
 
       sec_diffusion_coefficient = patch% &
-                                  material_property_array(1)%ptr% &
-                                  multicontinuum%diff_coeff
-      sec_porosity = patch%material_property_array(1)%ptr% &
+                                  material_property_array(patch%imat(ghosted_id))% &
+                                  ptr%multicontinuum%diff_coeff
+      sec_porosity = patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                      multicontinuum%porosity
       res_sec_transport = 0.d0
 
@@ -3384,18 +3394,15 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 
         Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
 
-!        if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
-!          option%io_buffer = 'Current multicontinuum implementation is for '// &
-!                             'aqueous reactions only'
-!          call PrintErrMsg(option)
-!        endif
-
         if (rt_sec_transport_vars(ghosted_id)%sec_jac_update) then
           jac_transport = rt_sec_transport_vars(ghosted_id)%sec_jac
         else
-          option%io_buffer = 'RT secondary continuum term in primary '// &
+          if (.not.Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) then
+            option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
-          call PrintErrMsg(option)
+            call PrintErrMsg(option)
+          endif
         endif
 
         Jup = Jup - jac_transport

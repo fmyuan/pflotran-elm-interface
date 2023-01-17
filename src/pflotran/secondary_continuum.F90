@@ -741,7 +741,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   !
   ! RTSecondaryTransportMulti:  Calculates the source term contribution due to
   ! secondary continuum in the primary continuum residual for multicomponent
-  ! system assuming only aqueous reaction
+  ! system
   !
   ! Author: Satish Karra, LANL
   ! Date: 1/31/13
@@ -1562,9 +1562,9 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
           soil_properties(epsilon_index)),1.d0)) cycle
       sec_diffusion_coefficient = realization%patch% &
-                                  material_property_array(1)%ptr% &
+                                  material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                                   multicontinuum%diff_coeff
-      sec_porosity = realization%patch%material_property_array(1)%ptr% &
+      sec_porosity = realization%patch%material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                     multicontinuum%porosity
 
       call SecondaryRTAuxVarComputeMulti(&

@@ -135,7 +135,7 @@ subroutine MphaseSetupPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
 
-  PetscInt :: ghosted_id, iconn, sum_connection, ipara
+  PetscInt :: ghosted_id, iconn, sum_connection, ipara, i
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(Mphase_auxvar_type), pointer :: auxvars_bc(:)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
@@ -201,68 +201,75 @@ subroutine MphaseSetupPatch(realization)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
-        patch%material_property_array(1)%ptr%multicontinuum%name, &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%name, &
         patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
-        patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
-        patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
-        patch%material_property_array(1)%ptr%multicontinuum%radius, &
-        patch%material_property_array(1)%ptr%multicontinuum%porosity, &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%matrix_block_size, &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%fracture_spacing, &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%radius, &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%porosity, &
         option)
 
-      mphase_sec_heat_vars(local_id)%ncells = &
-        patch%material_property_array(1)%ptr%multicontinuum%ncells
-      mphase_sec_heat_vars(local_id)%half_aperture = &
-        patch%material_property_array(1)%ptr%multicontinuum%half_aperture
-      mphase_sec_heat_vars(local_id)%epsilon = &
+      mphase_sec_heat_vars(ghosted_id)%ncells = &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%ncells
+      mphase_sec_heat_vars(ghosted_id)%half_aperture = &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%half_aperture
+      mphase_sec_heat_vars(ghosted_id)%epsilon = &
         patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
-      mphase_sec_heat_vars(local_id)%log_spacing = &
-        patch%material_property_array(1)%ptr%multicontinuum%log_spacing
-      mphase_sec_heat_vars(local_id)%outer_spacing = &
-        patch%material_property_array(1)%ptr%multicontinuum%outer_spacing
+      mphase_sec_heat_vars(ghosted_id)%log_spacing = &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%log_spacing
+      mphase_sec_heat_vars(ghosted_id)%outer_spacing = &
+        patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%outer_spacing
 
 
-      allocate(mphase_sec_heat_vars(local_id)%area(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%vol(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%dm_minus(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%dm_plus(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%sec_continuum% &
-               distance(mphase_sec_heat_vars(local_id)%ncells))
+      allocate(mphase_sec_heat_vars(ghosted_id)%area(mphase_sec_heat_vars(ghosted_id)%ncells))
+      allocate(mphase_sec_heat_vars(ghosted_id)%vol(mphase_sec_heat_vars(ghosted_id)%ncells))
+      allocate(mphase_sec_heat_vars(ghosted_id)%dm_minus(mphase_sec_heat_vars(ghosted_id)%ncells))
+      allocate(mphase_sec_heat_vars(ghosted_id)%dm_plus(mphase_sec_heat_vars(ghosted_id)%ncells))
+      allocate(mphase_sec_heat_vars(ghosted_id)%sec_continuum% &
+               distance(mphase_sec_heat_vars(ghosted_id)%ncells))
 
       call SecondaryContinuumType(&
-                              mphase_sec_heat_vars(local_id)%sec_continuum, &
-                              mphase_sec_heat_vars(local_id)%ncells, &
-                              mphase_sec_heat_vars(local_id)%area, &
-                              mphase_sec_heat_vars(local_id)%vol, &
-                              mphase_sec_heat_vars(local_id)%dm_minus, &
-                              mphase_sec_heat_vars(local_id)%dm_plus, &
-                              mphase_sec_heat_vars(local_id)%half_aperture, &
-                              mphase_sec_heat_vars(local_id)%epsilon, &
-                              mphase_sec_heat_vars(local_id)%log_spacing, &
-                              mphase_sec_heat_vars(local_id)%outer_spacing, &
+                              mphase_sec_heat_vars(ghosted_id)%sec_continuum, &
+                              mphase_sec_heat_vars(ghosted_id)%ncells, &
+                              mphase_sec_heat_vars(ghosted_id)%area, &
+                              mphase_sec_heat_vars(ghosted_id)%vol, &
+                              mphase_sec_heat_vars(ghosted_id)%dm_minus, &
+                              mphase_sec_heat_vars(ghosted_id)%dm_plus, &
+                              mphase_sec_heat_vars(ghosted_id)%half_aperture, &
+                              mphase_sec_heat_vars(ghosted_id)%epsilon, &
+                              mphase_sec_heat_vars(ghosted_id)%log_spacing, &
+                              mphase_sec_heat_vars(ghosted_id)%outer_spacing, &
                               area_per_vol,option)
 
-      mphase_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
-          (1.d0 - mphase_sec_heat_vars(local_id)%epsilon)* &
-          patch%material_property_array(1)%ptr% &
+      mphase_sec_heat_vars(ghosted_id)%interfacial_area = area_per_vol* &
+          (1.d0 - mphase_sec_heat_vars(ghosted_id)%epsilon)* &
+          patch%material_property_array(patch%imat(ghosted_id))%ptr% &
           multicontinuum%area_scaling
 
 
     ! Setting the initial values of all secondary node temperatures same as primary node
     ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
-      allocate(mphase_sec_heat_vars(local_id)%sec_temp(mphase_sec_heat_vars(local_id)%ncells))
+      allocate(mphase_sec_heat_vars(ghosted_id)%sec_temp(mphase_sec_heat_vars(ghosted_id)%ncells))
 
       if (option%flow%set_secondary_init_temp) then
-        mphase_sec_heat_vars(local_id)%sec_temp = &
-          patch%material_property_array(1)%ptr%multicontinuum%init_temp
+        mphase_sec_heat_vars(ghosted_id)%sec_temp = &
+          patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%init_temp
       else
-        mphase_sec_heat_vars(local_id)%sec_temp = &
+        mphase_sec_heat_vars(ghosted_id)%sec_temp = &
         initial_condition%flow_condition%temperature%dataset%rarray(1)
       endif
 
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => mphase_sec_heat_vars
-
+    do i = 1, size(patch%material_property_array)
+      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
+           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
+        option%io_buffer = &
+          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACCROSS MATERIALS'
+        call PrintErrMsg(option)
+      endif
+    enddo
   endif
 
 
