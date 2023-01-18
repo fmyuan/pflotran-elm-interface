@@ -2419,7 +2419,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
@@ -3232,7 +3232,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(reactive_transport_param_type), pointer :: rt_parameter
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
