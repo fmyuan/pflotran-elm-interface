@@ -275,11 +275,14 @@ pflotran : $(pflotran_obj)
 libpflotran.a : $(pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(pflotran_obj)
 
-libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
-	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
+libpflotranchem.a : $(chem_obj) $(shared_mode_aux_obj) $(util_obj)
+	$(AR) $(ARFLAGS) $@ $(chem_obj) $(shared_mode_aux_obj) $(util_obj)
 
+# GNU 11.3 reports link errors when libpflotranchem.a is used instead of the
+# object files lists below.... This is a workaround.
 pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
-	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
+	${FLINKER} -o $@ $(pflotran_rxn_obj) $(chem_obj) $(shared_mode_aux_obj) \
+	$(util_obj) ${PETSC_LIB} ${LIBS} 
 
 # PFLOTRAN derivative test
 pflotran_derivative : $(pflotran_base_obj) pflotran_derivative.o
