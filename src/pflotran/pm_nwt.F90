@@ -1002,8 +1002,7 @@ subroutine PMNWTUpdateTimestep(this,update_dt, &
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
 
-  PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
-  PetscInt :: ifac
+  PetscReal :: dtt
   PetscReal, parameter :: pert = 1.d-20
 
   if (update_dt .and. iacceleration /= 0) then
