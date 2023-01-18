@@ -5,6 +5,7 @@ module PM_WIPP_Flow_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_WIPP_SrcSink_class
+  use PM_Well_class
 
   use PFLOTRAN_Constants_module
 
@@ -48,6 +49,7 @@ module PM_WIPP_Flow_class
     PetscReal :: minimum_timestep_size
     PetscBool :: convergence_test_both
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+    class(pm_well_type), pointer :: pmwell_ptr
     Vec :: stored_residual_vec
     PetscInt :: convergence_flags(MIN_GAS_PRES)
     ! store maximum quantities for the above
@@ -424,6 +426,8 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
         enddo
         allocate(this%dirichlet_dofs_ints(2,icount))
         this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
+      case ('QUASI_IMPLICIT_WELLBORE_COUPLING')
+        wippflo_well_quasi_imp_coupled = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -731,6 +735,11 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     call this%pmwss_ptr%InitializeRun()
   endif
 
+  !MAN: not sure if this is needed
+  !if (associated(this%pmwell_ptr)) then
+  !  call this%pmwell_ptr%InitializeRun()
+  !endif
+
   ! read in alphas
   if (len_trim(this%alpha_dataset_name) > 0) then
     string = 'BRAGFLO ALPHA Dataset'
@@ -1034,6 +1043,11 @@ subroutine PMWIPPFloInitializeTimestep(this)
     call this%pmwss_ptr%InitializeTimestep()
   endif
 
+  !MAN: not sure if this is needed
+  !if (associated(this%pmwell_ptr)) then
+  !  call this%pmwell_ptr%InitializeTimestep()
+  !endif
+
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
   wippflo_prev_liq_res_cell = 0
@@ -1056,6 +1070,10 @@ subroutine PMWIPPFloFinalizeTimestep(this)
   if (associated(this%pmwss_ptr)) then
     call this%pmwss_ptr%FinalizeTimestep()
   endif
+  !MAN: not sure if this is needed
+  !if (associated(this%pmwell_ptr)) then
+  !  call this%pmwell_ptr%FinalizeTimestep()
+  !endif
   call PMSubsurfaceFlowFinalizeTimestep(this)
 
 end subroutine PMWIPPFloFinalizeTimestep
@@ -1250,7 +1268,8 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
-  call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
+  call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr, &
+                       this%pmwell_ptr,ierr)
 
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_local)) then
@@ -1318,7 +1337,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   option => this%option
   field => this%realization%field
 
-  call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
+  call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr, &
+                       this%pmwell_ptr,ierr)
 
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_ghosted)) then
@@ -2544,6 +2564,10 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
   if (associated(this%pmwss_ptr)) then
     call PMWSSCheckpointBinary(this%pmwss_ptr,viewer)
   endif
+  !MAN: not sure if this is needed
+  !if (associatd(this%pmwell_ptr)) then
+  !  call PMWellCheckpointBinary(this%pmwell_ptr,viewer)
+  !endif
 
 end subroutine PMWIPPFloCheckpointBinary
 
@@ -2570,6 +2594,11 @@ subroutine PMWIPPFloCheckpointHDF5(this,pm_grp_id)
   if (associated(this%pmwss_ptr)) then
     call PMWSSCheckpointHDF5(this%pmwss_ptr,pm_grp_id)
   endif
+
+  !MAN: not sure if this is needed
+  !if (associated(this%pmwell_ptr)) then
+  !  call PMWellCheckpointHDF5(this%pmwell_ptr,pm_grp_id)
+  !endif
 end subroutine PMWIPPFloCheckpointHDF5
 
 ! ************************************************************************** !
@@ -2598,6 +2627,13 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
     endif
   endif
 
+  !MAN: not sure if this is needed
+  !if (associated(this%pmwell_ptr)) then
+  !  if (.not.this%pmwell_ptr%skip_restart) then
+  !    call PMWellRestartBinary(this%pmwell_ptr,viewer)
+  !  endif
+  !endif
+
 end subroutine PMWIPPFloRestartBinary
 
 ! ************************************************************************** !
@@ -2625,6 +2661,14 @@ subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
       call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
     endif
   endif
+
+  !MAN: not sure if this is needed
+  !if (associated(this%pmwell_ptr)) then
+  !  if (.not.this%pmwell_ptr%skip_restart) then
+  !    call PMWellRestartHDF5(this%pmwell_ptr,pm_grp_id)
+  !  endif
+  !endif
+
 end subroutine PMWIPPFloRestartHDF5
 
 ! ************************************************************************** !

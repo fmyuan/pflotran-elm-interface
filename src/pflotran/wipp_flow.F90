@@ -669,7 +669,7 @@ end subroutine WIPPFloUpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
+subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr,pmwell_ptr)
   !
   ! Computes the a test numerical jacobian
   !
@@ -683,6 +683,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
   use Grid_module
   use Field_module
   use PM_WIPP_SrcSink_class
+  use PM_Well_class
 
   implicit none
 
@@ -690,6 +691,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
   class(realization_subsurface_type) :: realization
   Mat :: B
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+  class(pm_well_type), pointer :: pmwell_ptr
 
   Vec :: xx_pert
   Vec :: res
@@ -731,7 +733,8 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
 
   call VecZeroEntries(res,ierr);CHKERRQ(ierr)
   print *, 'Unperturbed Residual'
-  call WIPPFloResidual(PETSC_NULL_SNES,xx,res,realization,pmwss_ptr,ierr)
+  call WIPPFloResidual(PETSC_NULL_SNES,xx,res,realization,pmwss_ptr, &
+                       pmwell_ptr,ierr)
 #if 0
   word  = 'num_0.dat'
   call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
@@ -774,7 +777,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
                 &" pert: ",1pe12.5)') &
         icell,2-mod(idof,option%nflowdof),idof,perturbation
       call WIPPFloResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization, &
-                           pmwss_ptr,ierr)
+                           pmwss_ptr,pmwell_ptr,ierr)
 #if 0
       write(word,*) idof
       word  = 'num_' // trim(adjustl(word)) // '.dat'
@@ -822,7 +825,7 @@ end subroutine WIPPFloNumericalJacobianTest
 
 ! ************************************************************************** !
 
-subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
+subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   !
   ! Computes the residual equation
   !
@@ -842,6 +845,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   use Coupler_module
   use Material_Aux_module
   use PM_WIPP_SrcSink_class
+  use PM_Well_class
   use Upwind_Direction_module
 
   implicit none
@@ -851,6 +855,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   Vec :: r
   class(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+  class(pm_well_type), pointer :: pmwell_ptr
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
@@ -1279,6 +1284,15 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   endif
   endif
 
+  ! Compute WIPP well model source/sinks for the quasi-implicitly coupled well
+  ! model approach
+  if (wippflo_well_quasi_imp_coupled) then
+  if (associated(pmwell_ptr)) then
+    call PMWellUpdateRates(pmwell_ptr,PETSC_FALSE,ierr)
+    call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
+  endif
+  endif
+
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
     do i=1,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows
       r_p(patch%aux%WIPPFlo%matrix_zeroing%inactive_rows_local(i)) = 0.d0
@@ -1336,7 +1350,7 @@ end subroutine WIPPFloResidual
 
 ! ************************************************************************** !
 
-subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
+subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   !
   ! Computes the Jacobian
   !
@@ -1353,6 +1367,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   use Field_module
   use Material_Aux_module
   use PM_WIPP_SrcSink_class
+  use PM_Well_class
   use Upwind_Direction_module
   use Debug_module
 
@@ -1363,6 +1378,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   Mat :: A, B
   class(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
+  class(pm_well_type), pointer :: pmwell_ptr
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
@@ -1691,6 +1707,15 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   endif
   endif
 
+  ! Compute WIPP well model source/sinks for the quasi-implicitly coupled well
+  ! model approach
+  if (wippflo_well_quasi_imp_coupled) then
+  if (associated(pmwell_ptr)) then
+    call PMWellUpdateRates(pmwell_ptr,PETSC_TRUE,ierr)
+    call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+  endif
+  endif
+
   call WIPPFloSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         wippflo_auxvars,option)
 
@@ -1731,7 +1756,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
 
   if (wippflo_jacobian_test) then
     wippflo_jacobian_test_active = PETSC_TRUE
-    call WIPPFloNumericalJacobianTest(xx,A,realization,pmwss_ptr)
+    call WIPPFloNumericalJacobianTest(xx,A,realization,pmwss_ptr,pmwell_ptr)
     wippflo_jacobian_test_active = PETSC_FALSE
   endif
 

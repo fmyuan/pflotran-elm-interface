@@ -49,6 +49,8 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
   PetscBool, public :: wippflo_use_bragflo_cc = PETSC_FALSE
 
+  PetscBool, public :: wippflo_well_quasi_imp_coupled = PETSC_FALSE
+
   ! debugging
   PetscInt, public :: wippflo_ni_count
   PetscInt, public :: wippflo_ts_cut_count

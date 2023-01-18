@@ -45,6 +45,11 @@ module PM_Well_class
   PetscInt, parameter :: PEACEMAN_ISO = 1
   PetscInt, parameter :: PEACEMAN_ANISOTROPIC = 2
 
+  ! srcsink vector indexing
+  PetscInt, parameter :: UNPERT = 0
+  PetscInt, parameter :: PERT_WRT_PL = 1
+  PetscInt, parameter :: PERT_WRT_SG = 2
+
   type :: well_grid_type
     ! number of well segments
     PetscInt :: nsegments
@@ -343,6 +348,8 @@ module PM_Well_class
     type(strata_list_type), pointer :: strata_list
     type(well_comm_type), pointer :: well_comm
     PetscReal, pointer :: pert(:,:)
+    PetscReal, pointer :: srcsink_brine(:,:)
+    PetscReal, pointer :: srcsink_gas(:,:)
     PetscInt :: nphase
     PetscInt :: nspecies
     PetscReal :: intrusion_time_start           ! [sec]
@@ -370,7 +377,12 @@ module PM_Well_class
     procedure, public :: Destroy => PMWellDestroy
   end type pm_well_type
 
-  public :: PMWellCreate, PMWellReadPMBlock, PMWellReadPass2
+  public :: PMWellCreate, &
+            PMWellReadPMBlock, &
+            PMWellReadPass2, &
+            PMWellUpdateRates, &
+            PMWellCalcResidualValues, &
+            PMWellCalcJacobianValues
 
   contains
 
@@ -404,6 +416,8 @@ function PMWellCreate()
   PMWellCreate%print_well = PETSC_FALSE
 
   nullify(PMWellCreate%pert)
+  nullify(PMWellCreate%srcsink_brine)
+  nullify(PMWellCreate%srcsink_gas)
 
   ! create the well grid object:
   allocate(PMWellCreate%well_grid)
@@ -2624,6 +2638,12 @@ recursive subroutine PMWellInitializeRun(this)
   curr_time = this%option%time
   nsegments = this%well_grid%nsegments
 
+  ! srcsink_brine/gas is indexed (0,:) unperturbed value
+  !                              (1,:) perturbed wrt gas pressure
+  !                              (2,:) perturbed wrt gas saturation
+  allocate(this%srcsink_brine(0:2,nsegments))
+  allocate(this%srcsink_gas(0:2,nsegments))
+
   patch_strata => this%realization%patch%strata_list%first
   do
     if (.not.associated(patch_strata)) exit
@@ -3462,10 +3482,17 @@ subroutine PMWellUpdateReservoirSrcSink(this)
       if (.not.associated(source_sink)) exit
 
       if (trim(srcsink_name) == trim(source_sink%name)) then
-        source_sink%flow_condition%general%rate%dataset%rarray(1) = &
-          -1.d0 * this%well%liq%Q(k) * FMWH2O ! [kg/s]
-        source_sink%flow_condition%general%rate%dataset%rarray(2) = &
-          -1.d0 * this%well%gas%Q(k) * fmw_comp(TWO_INTEGER) ! [kg/s]
+        if (wippflo_well_quasi_imp_coupled) then
+          source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+            0.d0 ! [kmol/s]
+          source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+            0.d0 ! [kmol/s]
+        else
+          source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+            -1.d0 * this%well%liq%Q(k) ! [kmol/s]
+          source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+            -1.d0 * this%well%gas%Q(k) ! [kmol/s]
+        endif
 
         source_sink%flow_condition%general%liquid_pressure%aux_real(1) = &
                                                            this%well%pl(k)
@@ -3514,6 +3541,154 @@ subroutine PMWellUpdateReservoirSrcSink(this)
   enddo
 
 end subroutine PMWellUpdateReservoirSrcSink
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateRates(this,calculate_jacobian,ierr)
+!
+! This subroutine performs the well rate computation when called from the
+! fully-coupled source/sink update in WIPP FLOW mode.
+! Author: Michael Nole
+! Date: 01/16/2023
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscBool :: calculate_jacobian
+  PetscErrorCode :: ierr
+
+  PetscInt :: max_index, k
+
+  max_index = 0
+  if (calculate_jacobian) max_index = 2
+
+  do k = 0, max_index
+
+    call PMWellInitializeTimestep(this)
+    call PMWellSolveFlow(this,this%option%flow_dt,PETSC_FALSE,ierr)
+    !call PMWellSolve(this)   
+
+    this%srcsink_brine(k,:) = -1.d0 * this%well%liq%Q(:)! [kmol/s]   
+    this%srcsink_gas(k,:)   = -1.d0 * this%well%gas%Q(:)! [kmol/s]
+
+  enddo 
+  
+
+end subroutine
+
+! ************************************************************************** !
+
+subroutine PMWellCalcResidualValues(this,residual,ss_flow_vol_flux)
+!
+! This subroutine computes the well contribution to the reservoir residual when 
+! called from the fully-coupled source/sink update in WIPP FLOW mode.
+! Author: Michael Nole
+! Date: 01/16/2023
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal, pointer :: residual(:)
+  PetscReal :: ss_flow_vol_flux(this%option%nphase)
+
+  PetscReal :: Res(this%flow_soln%ndof)
+  PetscInt :: air_comp_id, wat_comp_id
+  PetscInt :: local_id, local_start, local_end
+  PetscInt :: ghosted_id
+  PetscInt :: k
+
+  air_comp_id = this%option%air_id
+  wat_comp_id = this%option%water_id
+
+  if (this%well_comm%comm == MPI_COMM_NULL) return
+
+  do k = 1,this%well_grid%nsegments
+    if (this%well_grid%h_rank_id(k) /= this%option%myrank) cycle
+
+    ghosted_id = this%well_grid%h_ghosted_id(k)
+    local_id = this%realization%patch%grid%nG2L(ghosted_id)
+    local_end = local_id * this%flow_soln%ndof
+    local_start = local_end - this%flow_soln%ndof + 1
+
+    ! kmol/sec
+    Res(wat_comp_id) = this%srcsink_brine(UNPERT,k)
+    Res(air_comp_id) = this%srcsink_gas(UNPERT,k)
+
+    call WIPPFloConvertUnitsToBRAGFlo(Res,this%realization%patch%aux%Material% &
+                                      auxvars(ghosted_id),this%option)
+    residual(local_start:local_end) = residual(local_start:local_end) - Res(:)
+    
+  enddo
+
+end subroutine PMWellCalcResidualValues
+
+! ************************************************************************** !
+
+subroutine PMWellCalcJacobianValues(this,Jac,ierr)
+!
+! This subroutine computes the well contribution to the reservoir Jacobian when 
+! called from the fully-coupled source/sink update in WIPP FLOW mode.
+! Author: Michael Nole
+! Date: 01/16/2023
+
+  use petscsnes
+
+  implicit none
+
+  class(pm_well_type) :: this
+  Mat :: Jac
+  PetscErrorCode :: ierr
+
+  PetscReal :: pert_pl, pert_sg
+  PetscReal :: res, res_pert_pl, res_pert_sg
+  PetscInt :: ghosted_id
+  PetscReal :: J_block(this%flow_soln%ndof,this%flow_soln%ndof)
+  PetscInt :: air_comp_id, wat_comp_id
+  PetscInt :: k
+
+  air_comp_id = this%option%air_id
+  wat_comp_id = this%option%water_id
+
+  if (this%well_comm%comm == MPI_COMM_NULL) return
+
+  do k = 1,this%well_grid%nsegments
+    if (this%well_grid%h_rank_id(k) /= this%option%myrank) cycle
+
+    J_block = 0.d0
+
+    ghosted_id = this%well_grid%h_ghosted_id(k)
+    pert_pl = this%realization%patch%aux%WIPPFlo% &
+                   auxvars(WIPPFLO_LIQUID_PRESSURE_DOF,ghosted_id)%pert
+    pert_sg = this%realization%patch%aux%WIPPFlo% &
+                   auxvars(WIPPFLO_GAS_SATURATION_DOF,ghosted_id)%pert
+
+    ! Liquid portion
+    res = this%srcsink_brine(UNPERT,k)
+    res_pert_pl = this%srcsink_brine(PERT_WRT_PL,k)
+    res_pert_sg = this%srcsink_brine(PERT_WRT_SG,k)
+    J_block(wat_comp_id,WIPPFLO_LIQUID_PRESSURE_DOF) = &
+           (res_pert_pl - res)/pert_pl
+    J_block(wat_comp_id,WIPPFLO_GAS_SATURATION_DOF) = &
+           (res_pert_sg - res)/pert_sg
+
+    ! Gas portion
+    res = this%srcsink_gas(UNPERT,k)
+    res_pert_pl = this%srcsink_gas(PERT_WRT_PL,k)
+    res_pert_sg = this%srcsink_gas(PERT_WRT_SG,k)
+    J_block(air_comp_id,WIPPFLO_LIQUID_PRESSURE_DOF) = &
+           (res_pert_pl - res)/pert_pl
+    J_block(air_comp_id,WIPPFLO_GAS_SATURATION_DOF) = &
+           (res_pert_sg - res)/pert_sg
+
+    J_block = -1.d0*J_block
+    call WIPPFloConvertUnitsToBRAGFlo(J_block,this%realization%patch%aux% &
+                                      Material%auxvars(ghosted_id),this%option)
+
+    call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,J_block, &
+                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+  enddo
+
+end subroutine PMWellCalcJacobianValues
 
 ! ************************************************************************** !
 
@@ -4462,7 +4637,7 @@ end subroutine PMWellPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellPreSolveFlow(this)
+subroutine PMWellPreSolveFlow(this,print_output)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
@@ -4470,6 +4645,7 @@ subroutine PMWellPreSolveFlow(this)
   implicit none
 
   class(pm_well_type) :: this
+  PetscBool :: print_output
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time, cur_time_converted
@@ -4482,11 +4658,13 @@ subroutine PMWellPreSolveFlow(this)
   cur_time_converted = cur_time/this%output_option%tconv
   dt_converted = this%dt_flow/this%output_option%tconv
 
-  write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
-                     1pe12.5," ",a4)') &
-                   (this%flow_soln%n_steps+1),cur_time_converted, &
-                   dt_converted,this%output_option%tunit
-  call PrintMsg(this%option,out_string)
+  if (print_output) then
+    write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+                       1pe12.5," ",a4)') &
+                     (this%flow_soln%n_steps+1),cur_time_converted, &
+                     dt_converted,this%output_option%tunit
+    call PrintMsg(this%option,out_string)
+  endif
 
 end subroutine PMWellPreSolveFlow
 
@@ -4549,7 +4727,7 @@ subroutine PMWellSolve(this,time,ierr)
     return
   endif
 
-  call PMWellSolveFlow(this,time,ierr)
+  call PMWellSolveFlow(this,time,PETSC_TRUE,ierr)
 
   if (this%transport) then
     call PMWellSolveTran(this,time,ierr)
@@ -4559,7 +4737,7 @@ end subroutine PMWellSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellSolveFlow(this,time,ierr)
+subroutine PMWellSolveFlow(this,time,print_output,ierr)
   !
   ! Author: Michael Nole
   ! Date: 12/01/2021
@@ -4568,6 +4746,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
   class(pm_well_type) :: this
   PetscReal :: time
+  PetscBool :: print_output
   PetscErrorCode :: ierr
 
   type(well_soln_flow_type), pointer :: flow_soln
@@ -4640,7 +4819,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
               well_perm = (dx+this%well_grid%dh(k)/2.d0)/ &
                           (dx/well_perm + &
                           this%well_grid%dh(k)/(2.d0*this%well%permeability(k)))
-              dx = dx+this%well_grid%dh(k)
+              dx = dx+this%well_grid%dh(k)/2.d0
             else
               well_perm = (dx+this%well_grid%dh(k))/ &
                           (dx/well_perm + &
@@ -4654,7 +4833,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
                       (this%well%r0(i)/(this%well%WI(i)/this%well_grid%dh(i))+ &
                        this%well%r0(j)/(this%well%WI(j)/this%well_grid%dh(j))+ &
                        dx / (well_perm))
-          dx = dx + this%well%r0(i) + this%well%r0(j)
+          !dx = dx + this%well%r0(i) + this%well%r0(j)
 
           ! Liquid Phase
 
@@ -4769,7 +4948,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
         this%well%liq%Q(i) = this%well%liq%Q(i) + &
                              den_kg_ave*mobility*delta_pressure/dx* &
-                             well_perm * perm_factor*area
+                             perm_factor*area
 
         !Gas Phase
 
@@ -4789,7 +4968,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
         this%well%gas%Q(i) = this%well%gas%Q(i) + &
                              den_kg_ave*mobility*delta_pressure/dx* &
-                             well_perm * perm_factor*area
+                             perm_factor*area
 
       endif
     enddo
@@ -4812,7 +4991,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
     ! update the well src/sink Q vector at start of time step
     call PMWellUpdateWellQ(this%well,this%reservoir)
 
-    call PMWellPreSolveFlow(this)
+    call PMWellPreSolveFlow(this,print_output)
 
     ! Fixed accumulation term
     res_fixed = 0.d0
@@ -4866,7 +5045,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
       call PMWellNewtonFlow(this)
 
-      call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
+      call PMWellCheckConvergenceFlow(this,n_iter,res_fixed,print_output)
 
     enddo
 
@@ -4927,9 +5106,9 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
   enddo
 
-  call PMWellPostSolveFlow(this)
+  !call PMWellPostSolveFlow(this)
 
-  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+  !call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
 end subroutine PMWellSolveFlow
 
@@ -5038,7 +5217,7 @@ end subroutine PMWellSolveTran
 subroutine PMWellUpdateSolutionFlow(pm_well)
   !
   ! Author: Michael Nole
-  ! Date: 01/21/22
+  ! Date: 01/21/2022
 
   implicit none
 
@@ -5332,7 +5511,7 @@ end subroutine PMWellPostSolveTran
 
 ! ************************************************************************** !
 
-subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
+subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum,print_output)
   !
   ! Checks flow solution convergence against prescribed tolerances.
   !
@@ -5344,6 +5523,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   class(pm_well_type) :: this
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%flow_soln%ndof*this%well_grid%nsegments)
+  PetscBool :: print_output
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -5528,18 +5708,9 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     rsn_string = trim(rsn_string) // ' ruP&ruS '
   endif
 
-  write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  uP:" &
-        &,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
-        n_iter,max_absolute_residual,max_scaled_residual, &
-        max_absolute_update_p,max_absolute_update_s, &
-        max_relative_update_p,max_relative_update_s
-  call PrintMsg(this%option,out_string)
-
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     flow_soln%converged = PETSC_TRUE
     flow_soln%not_converged = PETSC_FALSE
-    out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
-    call PrintMsg(this%option,out_string)
     this%cumulative_dt_flow = this%cumulative_dt_flow + this%dt_flow
     this%flow_soln%prev_soln%pl = this%well%pl
     this%flow_soln%prev_soln%sg = this%well%gas%s
@@ -5549,6 +5720,18 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     flow_soln%not_converged = PETSC_TRUE
   endif
 
+  if (print_output) then
+    write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  uP:" &
+          &,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
+          n_iter,max_absolute_residual,max_scaled_residual, &
+          max_absolute_update_p,max_absolute_update_s, &
+          max_relative_update_p,max_relative_update_s
+    call PrintMsg(this%option,out_string)
+    if (flow_soln%converged) then
+      out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
+      call PrintMsg(this%option,out_string)
+    endif
+  endif
 
 end subroutine PMWellCheckConvergenceFlow
 
@@ -5762,7 +5945,7 @@ subroutine PMWellComputeWellIndex(this)
   ! Computes the well index.
   !
   ! Author: Michael Nole
-  ! Date: 12/22/21
+  ! Date: 12/22/2021
 
   implicit none
 

@@ -304,8 +304,15 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form, &
   if (associated(pm_auxiliary)) &
     call AddPMCGeneral(simulation,pm_auxiliary,'SALINITY',realization,option)
 
-  if (associated(pm_well)) &
-    call AddPMCWell(simulation,pm_well,'PMCWell',realization,input,option)
+  if (associated(pm_flow)) then
+    select type(pm_flow)
+      class is (pm_wippflo_type)
+        if (associated(pm_well)) then
+          call AddPMCWell(simulation,pm_well,'PMCWell',pm_flow,realization, &
+                          input,option)
+        endif
+    end select
+  endif
   if (associated(pm_material_transform)) &
     call AddPMCMaterialTransform(simulation,pm_material_transform, &
                                  'PMC3MaterialTransform',realization,input, &
@@ -910,8 +917,8 @@ end subroutine AddPMCMaterialTransform
 
 ! ************************************************************************** !
 
-subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
-                      option)
+subroutine AddPMCWell(simulation,pm_well,pmc_name,pm_wippflo, &
+                      realization,input,option)
 
   !
   ! Adds a well PMC
@@ -923,6 +930,7 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
   use PMC_Base_class
   use PMC_Third_Party_class
   use PM_Well_class
+  use PM_WIPP_Flow_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -932,6 +940,7 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
 
   class(simulation_subsurface_type) :: simulation
   class(pm_well_type), pointer :: pm_well
+  class(pm_wippflo_type) :: pm_wippflo
   character(len=*) :: pmc_name
   class(realization_subsurface_type), pointer :: realization
   type(input_type), pointer :: input
@@ -983,6 +992,9 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
          simulation%flow_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
   endif
+
+  ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
+  pm_wippflo%pmwell_ptr => pm_well
 
 end subroutine AddPMCWell
 
