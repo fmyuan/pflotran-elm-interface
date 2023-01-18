@@ -280,8 +280,10 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
     call StringToUpper(word)
 
     select case(trim(word))
-      case('SCALE_PERM_BY_HYD_SAT')
-        hydrate_perm_scaling = PETSC_TRUE
+      case('NO_SOLID_SATURATION_PERM_SCALING')
+        ! This turns of scaling of the intrinsic permeability
+        ! as a function of (ice + hydrate) saturations
+        hydrate_perm_scaling = PETSC_FALSE
       case('HYDRATE_PHASE_BOUNDARY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','hydrate phase boundary')
@@ -306,9 +308,12 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_HENRYS_CONSTANT',option)
         end select
-      case('EFFECTIVE_SAT_SCALING')
-        hydrate_eff_sat_scaling = PETSC_TRUE
+      case('NO_EFFECTIVE_SATURATION_SCALING')
+        ! This turns off normalizing the liquid and gas saturations by the 
+        ! sum of mobile phases when computing relative permeabilities.
+        hydrate_eff_sat_scaling = PETSC_FALSE
       case('WITH_GIBBS_THOMSON')
+        ! Scales methane solubility as a function of pore size.
         hydrate_with_gibbs_thomson = PETSC_TRUE
       case('GT_3PHASE')
         hydrate_gt_3phase = PETSC_TRUE

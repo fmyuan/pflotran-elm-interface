@@ -37,6 +37,17 @@
 
 %\frame{\titlepage}
 
+\begin{frame}[fragile,containsverbatim]\frametitle{\color{red}UPDATES NEEDED!!!}
+Todo:
+\begin{itemize}
+  \item Add radioactive decay reaction and half life to figure.
+  \item Capitalize the Kryptonite(s) in the figure. {\color{red}DO NOT replace the figure with a large figure. The file must be as small as possible to avoid bloating the repository.}
+  \item Suggest starting with regional double and then adding chemistry from 1D Calcite.
+  \item Have a developer dry-run the test problem on their own.
+\end{itemize}
+
+\end{frame}
+
 %-----------------------------------------------------------------------------
 \section{Location of Example}
 
@@ -99,7 +110,7 @@ Superman drinks from a well downgradient of a kryptonite deposit. The kryptonite
 \end{itemize}
 
 \begin{itemize}
-  \item Will kryptonite contaminate the well at levels Superman should avoid? 
+  \item Will kryptonite contaminate the well at levels Superman should avoid?
   \item When should Superman avoid drinking water from the well if he wants to avoid damage from \greencomment{KrA(aq)}, \greencomment{KrB(aq)}, and \greencomment{KrC(aq)}?
 \end{itemize}
 
@@ -135,9 +146,9 @@ Superman isn't affected by \greencomment{Cs137(aq)}, but humans have set an effl
 \subsection{Getting Started}
 
 \begin{frame}[fragile]\frametitle{Getting Started}
-Copy 1D\_Calcite/flow\_and\_tran.in to mykryptonite.in and begin editing.
+Copy 1D\_Calcite/calcite\_flow\_and\_tran.in to mykryptonite.in and begin editing.
 \begin{semiverbatim}
-  > cp ../1D\_Calcite/flow\_and\_tran.in mykryptonite.in
+  > cp ../1D\_Calcite/calcite\_flow\_and\_tran.in mykryptonite.in
   > vi mykryptonite.in \bluecomment{(or use text editor of choice)}
 \end{semiverbatim}
 Avoid having to debug multiple changes at once. Make one set of changes at a time and try out your simulation.
@@ -146,11 +157,11 @@ Avoid having to debug multiple changes at once. Make one set of changes at a tim
 \end{semiverbatim}
 Use documentation at \bluecomment{documentation.pflotran.org}
 -
-Put an observation point in the well and one in the kryptonite deposit. Copy kryptonite.py to mykryptonite.py and edit file paths and column numbers to plot concentrations.
+Put an observation point in the well and one in the kryptonite deposit. Copy kryptonite\_xx.py to mykryptonite\_xx.py and edit file paths and column numbers to plot concentrations.
 \begin{semiverbatim}
-  > cp kryptonite.py mykryptonite.py
-  > vi mykryptonite.py \bluecomment{(or use text editor of choice)}
-  > python mykryptonite.py
+  > cp kryptonite\_xx.py mykryptonite\_xx.py
+  > vi mykryptonite\_xx.py \bluecomment{(or use text editor of choice)}
+  > python mykryptonite\_xx.py
 \end{semiverbatim}
 
 \end{frame}
@@ -161,7 +172,7 @@ Put an observation point in the well and one in the kryptonite deposit. Copy kry
 \begin{frame}[fragile]\frametitle{If You Get Stuck}
 Create a clean copy of mykryptonite.in
 \begin{semiverbatim}
-  > cp ../1D\_Calcite/flow\_and\_tran.in mykryptonite.in
+  > cp ../1D\_Calcite/calcite\_flow\_and\_tran.in mykryptonite.in
 \end{semiverbatim}
 1. Grab a real characteristic curve first
 \begin{itemize}\small
@@ -254,7 +265,7 @@ Time steps or grid cells that are too large introduce numerical dispersion.
 \subsection{BONUS 2}
 
 \begin{frame}[fragile]\frametitle{Bonus \#2}
-Play with increasing the recharge at the top boundary and decreasing the pressure gradient from west to east until Superman doesn't have to worry about his drinking water. 
+Play with increasing the recharge at the top boundary and decreasing the pressure gradient from west to east until Superman doesn't have to worry about his drinking water.
 
 \begin{itemize}
   \item What combinations of recharge and pressure gradient prevent kryptonite from reaching the well?
