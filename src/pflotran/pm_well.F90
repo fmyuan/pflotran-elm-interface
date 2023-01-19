@@ -360,6 +360,7 @@ module PM_Well_class
     PetscReal :: cumulative_dt_tran             ! [sec]
     PetscBool :: transport
     PetscBool :: ss_check
+    PetscBool :: well_on
     PetscBool :: print_well
   contains
     procedure, public :: Setup => PMWellSetup
@@ -413,6 +414,7 @@ function PMWellCreate()
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
   PMWellCreate%ss_check = PETSC_FALSE
+  PMWellCreate%well_on = PETSC_TRUE
   PMWellCreate%print_well = PETSC_FALSE
 
   nullify(PMWellCreate%pert)
@@ -1544,6 +1546,7 @@ subroutine PMWellReadPMBlock(this,input)
                            error_string)
         call InputReadAndConvertUnits(input,this%intrusion_time_start,'sec', &
                            'WELLBORE_MODEL, WIPP_INTRUSION_START_TIME',option)
+        this%well_on = PETSC_FALSE
         cycle
     !-------------------------------------
       case('WIPP_INTRUSION_ZERO_VALUE')  ! [mol/m3-bulk]
@@ -2921,7 +2924,8 @@ subroutine PMWellInitializeTimestep(this)
   curr_time = this%option%time - this%option%flow_dt
 
   if (Initialized(this%intrusion_time_start) .and. &
-      (curr_time < this%intrusion_time_start)) return
+      (curr_time < this%intrusion_time_start) .and. &
+      .not. this%well_on) return
 
   ! update the reservoir object with current reservoir properties
   call PMWellUpdateReservoir(this)
@@ -3427,7 +3431,8 @@ subroutine PMWellFinalizeTimestep(this)
   curr_time = this%option%time - this%option%flow_dt
 
   if (Initialized(this%intrusion_time_start) .and. &
-      (curr_time < this%intrusion_time_start)) return
+      (curr_time < this%intrusion_time_start) .and. &
+      .not. this%well_on) return
 
   call PMWellUpdateReservoirSrcSink(this)
 
@@ -3558,6 +3563,14 @@ subroutine PMWellUpdateRates(this,calculate_jacobian,ierr)
   PetscErrorCode :: ierr
 
   PetscInt :: max_index, k
+
+
+  if (.not. this%well_on .and. this%option%time < &
+      this%intrusion_time_start) then
+    return
+  elseif (.not. this%well_on) then
+    this%well_on = PETSC_TRUE
+  endif
 
   max_index = 0
   if (calculate_jacobian) max_index = 2
@@ -5009,9 +5022,11 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
 
       if (n_iter > (flow_soln%max_iter-1)) then
         flow_soln%cut_timestep = PETSC_TRUE
-        out_string = ' Maximum number of FLOW Newton iterations reached. &
-                      &Cutting timestep!'
-        call PrintMsg(this%option,out_string)
+        if (print_output) then
+          out_string = ' Maximum number of FLOW Newton iterations reached. &
+                        &Cutting timestep!'
+          call PrintMsg(this%option,out_string)
+        endif
         call PMWellCutTimestepFlow(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -5956,7 +5971,7 @@ subroutine PMWellComputeWellIndex(this)
   PetscReal :: temp_real
   type(option_type), pointer :: option
   PetscInt :: k
-  character(len=8) :: diameter_string
+  character(len=8) :: diameter_string, dx_string
 
   if (this%well_comm%comm == MPI_COMM_NULL) then
     this%well%WI = UNINITIALIZED_DOUBLE
@@ -5972,13 +5987,15 @@ subroutine PMWellComputeWellIndex(this)
     case(PEACEMAN_ISO)
       do k = 1,this%well_grid%nsegments
         write(diameter_string,'(F7.4)') this%well%diameter(k)
+        write(dx_string,'(F7.4)') this%reservoir%dx(k)
         temp_real = log(2.079d-1*this%reservoir%dx(k)/ &
                         (this%well%diameter(k)/2.d0))
 
         if (temp_real <= 0.d0) then
           option%io_buffer = 'Wellbore diameter (' // diameter_string // '&
-          & m) is too large relative to reservoir dx. For the PEACEMAN_ISO &
-          &model, wellbore diameter must be smaller than 0.4158 * reservoir dx.'
+          & m) is too large relative to reservoir dx (' // dx_string  //  '&
+          & m). For the PEACEMAN_ISO model, wellbore diameter must be &
+          &smaller than 0.4158 * reservoir dx.'
           call PrintErrMsg(option)
         endif
 
@@ -6520,6 +6537,15 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
               call sat_func% &
                    CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
             endif
+          class is (sat_func_KRP4_type)
+            if (.not. option%flow%pct_updated) then
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            endif
           class default
             call sat_func% &
                CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
@@ -6651,6 +6677,15 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         ! Capillary Pressure
         select type(sat_func => saturation_function)
           class is (sat_func_KRP3_type)
+            if (.not. option%flow%pct_updated) then
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
+            endif
+          class is (sat_func_KRP4_type)
             if (.not. option%flow%pct_updated) then
               option%flow%pct_updated = PETSC_TRUE
               call sat_func% &
@@ -6901,6 +6936,15 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
         else
           call sat_func% &
                    CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
+        endif
+      class is (sat_func_KRP4_type)
+        if (.not. option%flow%pct_updated) then
+          option%flow%pct_updated = PETSC_TRUE
+          call sat_func% &
+               CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
+        else
+          call sat_func% &
+               CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
         endif
       class default
         call sat_func% &
