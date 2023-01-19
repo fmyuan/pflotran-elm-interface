@@ -1510,8 +1510,10 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     if (min_ratio < 1.d0) then
       if (min_ratio < option%min_allowable_scale) then
         this%controls%scaling_cut_dt = PETSC_TRUE
-        string = ' *WARNING* Solution update is being scaled by an extremely &
-          &small value in order to prevent negative mass. Cutting time step!' 
+        string = " *WARNING* Solution update is being scaled by &
+                  an extremely small value" 
+        call PrintMsg(option,string)
+        string = "           to prevent negative mass. Cutting time step!"
         call PrintMsg(option,string)
       endif
       dX_p = dX_p*min_ratio
