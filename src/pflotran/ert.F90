@@ -407,7 +407,8 @@ end subroutine ERTCalculateMatrix
 
 subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                            cond_c,empirical_law,cond, &
-                                           tracer_scale,dcond_dsat,dcond_dconc)
+                                           tracer_scale,dcond_dsat, &
+                                           dcond_dconc,dcond_dpor)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -440,6 +441,7 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   PetscReal :: tracer_scale
   PetscReal :: dcond_dsat
   PetscReal :: dcond_dconc
+  PetscReal :: dcond_dpor
   PetscReal :: cond_ws
 
   ! Archie's law
@@ -447,6 +449,9 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
 
   ! dcond/dsat
   dcond_dsat = n * cond / sat
+
+  !dcond/dpor
+  dcond_dpor = m * cond / por
 
   ! Modify by adding surface conductivity
   cond = cond + cond_s
@@ -462,6 +467,7 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
       cond_ws = cond_c * Vc * (1.d0-por) * sat**(n-1.d0)
       cond = cond + cond_ws
       dcond_dsat = dcond_dsat + (n-1.d0) * cond_ws / sat
+      dcond_dpor = dcond_dpor - cond_c * Vc * sat**(n-1.d0)
   end select
 
 end subroutine ERTConductivityFromEmpiricalEqs
