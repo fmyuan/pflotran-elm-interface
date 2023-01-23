@@ -48,6 +48,7 @@ module PM_WIPP_Flow_class
     PetscReal :: gas_sat_gov_switch_abs_to_rel
     PetscReal :: minimum_timestep_size
     PetscBool :: convergence_test_both
+    PetscBool :: well_force_ts_cut
     class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
     class(pm_well_type), pointer :: pmwell_ptr
     Vec :: stored_residual_vec
@@ -209,6 +210,7 @@ subroutine PMWIPPFloInitObject(this)
   nullify(this%dirichlet_dofs_ghosted)
   nullify(this%dirichlet_dofs_ints)
   nullify(this%dirichlet_dofs_local)
+  this%well_force_ts_cut = PETSC_FALSE
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
@@ -1044,6 +1046,19 @@ subroutine PMWIPPFloInitializeTimestep(this)
   endif
 
   !MAN: not sure if this is needed
+  if (associated(this%pmwell_ptr)) then
+    if (.not.this%pmwell_ptr%well_on) then
+      if (Initialized(this%pmwell_ptr%intrusion_time_start) .and. &
+          this%realization%option%time >=  &
+          this%pmwell_ptr%intrusion_time_start) then
+        this%pmwell_ptr%well_on = PETSC_TRUE
+      elseif (Uninitialized(this%pmwell_ptr%intrusion_time_start)) then
+        this%pmwell_ptr%well_on = PETSC_TRUE
+      endif
+    endif
+    call this%pmwell_ptr%InitializeTimestep()
+  endif
+
   !if (associated(this%pmwell_ptr)) then
   !  call this%pmwell_ptr%InitializeTimestep()
   !endif
@@ -1862,7 +1877,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscReal :: residual
   PetscReal :: accumulation
   PetscReal :: abs_residual_over_accumulation
-  character(len=10) :: reason_string
+  character(len=11) :: reason_string
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -2122,8 +2137,28 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     endif
   endif
 
+  !Check Well Model convergence
+  if (associated(this%pmwell_ptr)) then
+    call MPI_Allreduce(MPI_IN_PLACE,this%pmwell_ptr%well_force_ts_cut, &
+               ONE_INTEGER,MPIU_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  endif
+
+!  if (associated(this%pmwell_ptr)) then
+!    if (.not.this%pmwell_ptr%well_on) then
+!      if (Initialized(this%pmwell_ptr%intrusion_time_start) .and. &
+!          option%time >= this%pmwell_ptr%intrusion_time_start) then
+!        this%pmwell_ptr%well_on = PETSC_TRUE
+!      elseif (Uninitialized(this%pmwell_ptr%intrusion_time_start)) then
+!        this%pmwell_ptr%well_on = PETSC_TRUE
+!      endif
+!    endif   
+!    call this%pmwell_ptr%InitializeTimestep()
+!  endif
+
+  ! Update well model with new state variables.
+
   ! these conditionals cannot change order
-  reason_string = '-------|--'
+  reason_string = '--------|--'
   converged_flag = CONVERGENCE_CONVERGED
   if (this%convergence_flags(OUTSIDE_BOUNDS) > 0) then
     converged_flag = CONVERGENCE_CUT_TIMESTEP
@@ -2170,6 +2205,13 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       endif
       reason_string(7:7) = 'S'
     endif
+  endif
+  if (associated(this%pmwell_ptr)) then
+    if (this%pmwell_ptr%well_force_ts_cut > 0) then
+      converged_flag = CONVERGENCE_CUT_TIMESTEP
+      reason_string(8:8) = 'W'
+    endif
+    this%pmwell_ptr%well_force_ts_cut = 0
   endif
   if (converged_flag == CONVERGENCE_CONVERGED) then
     ! converged based on NI criteria, but need to check TS

@@ -360,8 +360,11 @@ module PM_Well_class
     PetscReal :: cumulative_dt_tran             ! [sec]
     PetscBool :: transport
     PetscBool :: ss_check
-    PetscBool :: well_on
+    PetscBool :: well_on          !Turns the well on, regardless of other checks
+    PetscInt :: well_force_ts_cut
+    PetscBool :: flow_quasi_implicit_coupling
     PetscBool :: print_well
+    PetscBool :: print_output
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
@@ -415,6 +418,8 @@ function PMWellCreate()
   PMWellCreate%transport = PETSC_FALSE
   PMWellCreate%ss_check = PETSC_FALSE
   PMWellCreate%well_on = PETSC_TRUE
+  PMWellCreate%well_force_ts_cut = 0
+  PMWellCreate%flow_quasi_implicit_coupling = PETSC_FALSE
   PMWellCreate%print_well = PETSC_FALSE
 
   nullify(PMWellCreate%pert)
@@ -1553,6 +1558,10 @@ subroutine PMWellReadPMBlock(this,input)
         call InputReadDouble(input,option,this%bh_zero_value)
         call InputErrorMsg(input,option,'WIPP_INTRUSION_ZERO_VALUE', &
                            error_string)
+        cycle
+    !-------------------------------------
+      case('FLOW_QUASI_IMPLICIT_COUPLING')
+        this%flow_quasi_implicit_coupling = PETSC_TRUE
         cycle
     !-------------------------------------
     end select
@@ -2928,7 +2937,7 @@ subroutine PMWellInitializeTimestep(this)
       .not. this%well_on) return
 
   ! update the reservoir object with current reservoir properties
-  call PMWellUpdateReservoir(this)
+  call PMWellUpdateReservoir(this,-999)
   call PMWellComputeWellIndex(this)
 
   call PMWellUpdateStrata(this,curr_time)
@@ -3117,6 +3126,7 @@ subroutine PMWellUpdateStrata(this,curr_time)
       well_strata => well_strata%next
     enddo
   enddo
+
   allocate(all_strata_id(nsegments))
   all_strata_id = UNINITIALIZED_INTEGER
   if (this%well_comm%comm /= MPI_COMM_NULL) then
@@ -3136,7 +3146,7 @@ end subroutine PMWellUpdateStrata
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateReservoir(this)
+subroutine PMWellUpdateReservoir(this,wippflo_update_index)
 !
 ! Updates the reservoir properties for the well process model.
 !
@@ -3151,6 +3161,7 @@ subroutine PMWellUpdateReservoir(this)
   implicit none
 
   class(pm_well_type) :: this
+  PetscInt :: wippflo_update_index
 
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
@@ -3159,7 +3170,7 @@ subroutine PMWellUpdateReservoir(this)
   type(option_type), pointer :: option
   type(well_comm_type), pointer :: well_comm
   PetscInt :: TAG, peer, root_rank
-  PetscInt :: k
+  PetscInt :: k, indx
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
@@ -3168,13 +3179,19 @@ subroutine PMWellUpdateReservoir(this)
 
   res_grid => this%realization%patch%grid
 
+  if (wippflo_update_index < ZERO_INTEGER) then
+    indx = ZERO_INTEGER
+  else
+    indx = wippflo_update_index
+  endif
+
   do k = 1,this%well_grid%nsegments
     if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
 
     ghosted_id = this%well_grid%h_ghosted_id(k)
 
     wippflo_auxvar => &
-      this%realization%patch%aux%wippflo%auxvars(0,ghosted_id)
+      this%realization%patch%aux%wippflo%auxvars(indx,ghosted_id)
     if (this%transport) then
       nwt_auxvar => &
         this%realization%patch%aux%nwt%auxvars(ghosted_id)
@@ -3222,6 +3239,7 @@ subroutine PMWellUpdateReservoir(this)
 
   enddo
 
+  if (wippflo_update_index < 0) then
   if (option%myrank == this%well_grid%h_rank_id(1)) then
       root_rank = this%well_comm%rank
   endif 
@@ -3385,6 +3403,7 @@ subroutine PMWellUpdateReservoir(this)
       endif
     endif
   endif
+  endif
 
 end subroutine PMWellUpdateReservoir
 
@@ -3434,18 +3453,21 @@ subroutine PMWellFinalizeTimestep(this)
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
 
-  call PMWellUpdateReservoirSrcSink(this)
+  if (.not. this%flow_quasi_implicit_coupling) then
 
-  call PMWellUpdateMass(this)
+    call PMWellUpdateReservoirSrcSink(this)
 
-  call PMWellMassBalance(this)
+    call PMWellUpdateMass(this)
+
+    call PMWellMassBalance(this)
+
+  endif
 
   if (this%print_well) then
     call PMWellOutput(this)
   endif
 
 end subroutine PMWellFinalizeTimestep
-
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSink(this)
@@ -3549,7 +3571,7 @@ end subroutine PMWellUpdateReservoirSrcSink
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateRates(this,calculate_jacobian,ierr)
+subroutine PMWellUpdateRates(this,k,ierr)
 !
 ! This subroutine performs the well rate computation when called from the
 ! fully-coupled source/sink update in WIPP FLOW mode.
@@ -3559,35 +3581,41 @@ subroutine PMWellUpdateRates(this,calculate_jacobian,ierr)
   implicit none
 
   class(pm_well_type) :: this
-  PetscBool :: calculate_jacobian
   PetscErrorCode :: ierr
+  PetscInt :: k
 
-  PetscInt :: max_index, k
+  PetscInt :: max_index
+  PetscReal :: time
 
+  time = this%realization%option%time
+!  if (this%flow_soln%n_steps < 1) return
 
-  if (.not. this%well_on .and. this%option%time < &
-      this%intrusion_time_start) then
+  ! Need to limit well model timestepping 
+  this%min_dt_flow = this%option%flow_dt * 1.d-3 
+
+  if (.not. this%well_on .and. Initialized(this%intrusion_time_start) .and. &
+      time < this%intrusion_time_start) then
     return
   elseif (.not. this%well_on) then
     this%well_on = PETSC_TRUE
   endif
 
-  max_index = 0
-  if (calculate_jacobian) max_index = 2
+  this%print_output = PETSC_FALSE
+  call PMWellUpdateReservoir(this,k)
+  call PMWellInitializeWell(this)
+  call PMWellCopyWell(this%well,this%well_pert(ONE_INTEGER))
+  call PMWellCopyWell(this%well,this%well_pert(TWO_INTEGER))
+  call PMWellUpdatePropertiesFlow(this,this%well,&
+                        this%realization%patch%characteristic_curves_array,&
+                        this%realization%option)
+  this%dt_flow = this%realization%option%flow_dt
+  call PMWellSolveFlow(this,time,ierr)
+  this%print_output = PETSC_TRUE  
 
-  do k = 0, max_index
+  this%srcsink_brine(k,:) = -1.d0 * this%well%liq%Q(:)! [kmol/s]   
+  this%srcsink_gas(k,:)   = -1.d0 * this%well%gas%Q(:)! [kmol/s]
 
-    call PMWellInitializeTimestep(this)
-    call PMWellSolveFlow(this,this%option%flow_dt,PETSC_FALSE,ierr)
-    !call PMWellSolve(this)   
-
-    this%srcsink_brine(k,:) = -1.d0 * this%well%liq%Q(:)! [kmol/s]   
-    this%srcsink_gas(k,:)   = -1.d0 * this%well%gas%Q(:)! [kmol/s]
-
-  enddo 
-  
-
-end subroutine
+end subroutine PMWellUpdateRates
 
 ! ************************************************************************** !
 
@@ -3612,6 +3640,8 @@ subroutine PMWellCalcResidualValues(this,residual,ss_flow_vol_flux)
 
   air_comp_id = this%option%air_id
   wat_comp_id = this%option%water_id
+
+  Res(:) = 0.d0
 
   if (this%well_comm%comm == MPI_COMM_NULL) return
 
@@ -3719,11 +3749,14 @@ subroutine PMWellResidualFlow(this)
   PetscReal :: res_src_sink(this%nphase)
   PetscReal :: res_flux(this%nphase)
   PetscReal :: res_flux_bc(2*this%nphase)
+  PetscReal :: res_temp(this%flow_soln%ndof*this%well_grid%nsegments)
 
   res_accum = 0.d0
   res_src_sink = 0.d0
   res_flux = 0.d0
   res_flux_bc = 0.d0
+
+  res_temp(:) = this%flow_soln%residual(:)
 
   select case(this%well%well_model_type)
     !-------------------------------------------------------------------------
@@ -3741,15 +3774,15 @@ subroutine PMWellResidualFlow(this)
         ! Accumulation Term
         call PMWellAccumulationFlow(this,this%well,i,res_accum)
 
-        this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
+        res_temp(this%flow_soln%ndof*(i-1)+1) = &
+               res_temp(this%flow_soln%ndof*(i-1)+1) + &
                res_accum(ONE_INTEGER)
 
         ! Source/Sink Term
         call PMWellSrcSink(this,this%well,i,res_src_sink)
 
-        this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
-             this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
+        res_temp(this%flow_soln%ndof*(i-1)+1) = &
+             res_temp(this%flow_soln%ndof*(i-1)+1) + &
              res_src_sink(ONE_INTEGER)
   
         ! Flux Term
@@ -3759,69 +3792,70 @@ subroutine PMWellResidualFlow(this)
 
         if (i == 1) then
           ! Water mass residual in cell i+1: Subtract flux to i+1 cell
-          this%flow_soln%residual(this%flow_soln%ndof*i+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*i+1) &
+          res_temp(this%flow_soln%ndof*i+1) = &
+               res_temp(this%flow_soln%ndof*i+1) &
                - res_flux(1)
 
           ! Water mass residual in cell i: Add flux in from BC,
           ! add flux to i+1 cell
-          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
+          res_temp(this%flow_soln%ndof*(i-1)+1) = &
+               res_temp(this%flow_soln%ndof*(i-1)+1) &
                - res_flux_bc(1) + res_flux(1)
 
         elseif (i < this%well_grid%nsegments) then
           ! Water mass residual in cell i: Subtract flux to i+1 cell
-          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
+          res_temp(this%flow_soln%ndof*(i-1)+1) = &
+               res_temp(this%flow_soln%ndof*(i-1)+1) &
                + res_flux(1)
           ! Water mass residual in cell i+1: Add flux to i+1 cell
-          this%flow_soln%residual(this%flow_soln%ndof*i+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*i+1) &
+          res_temp(this%flow_soln%ndof*i+1) = &
+               res_temp(this%flow_soln%ndof*i+1) &
                - res_flux(1)
         else
           ! Water mass residual in cell i: Subtract flux to BC
-          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
+          res_temp(this%flow_soln%ndof*(i-1)+1) = &
+               res_temp(this%flow_soln%ndof*(i-1)+1) &
                - res_flux_bc(3)
         endif
 
         if (this%nphase == 2) then
 
-          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) + &
+          res_temp(this%flow_soln%ndof*(i-1)+2) = &
+               res_temp(this%flow_soln%ndof*(i-1)+2) + &
                res_accum(TWO_INTEGER)
 
-          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) + &
+          res_temp(this%flow_soln%ndof*(i-1)+2) = &
+               res_temp(this%flow_soln%ndof*(i-1)+2) + &
                res_src_sink(TWO_INTEGER)
 
           if (i == 1) then
             ! Air mass residual in cell i+1: Subtract flux to i+1 cell
-            this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*i+2) &
+            res_temp(this%flow_soln%ndof*i+2) = &
+                 res_temp(this%flow_soln%ndof*i+2) &
                  - res_flux(2)
             ! Air mass residual in cell i: Subtract flux in from BC,
             ! add flux to i+1 cell
-            this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
+            res_temp(this%flow_soln%ndof*(i-1)+2) = &
+                 res_temp(this%flow_soln%ndof*(i-1)+2) &
                  - res_flux_bc(2) + res_flux(2)
           elseif (i < this%well_grid%nsegments) then
             ! Air mass residual in cell i: Subtract flux to i+1 cell
-            this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
+            res_temp(this%flow_soln%ndof*(i-1)+2) = &
+                 res_temp(this%flow_soln%ndof*(i-1)+2) &
                  + res_flux(2)
             ! Air mass residual in cell i+1: Add flux to i+1 cell
-            this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*i+2) &
+            res_temp(this%flow_soln%ndof*i+2) = &
+                 res_temp(this%flow_soln%ndof*i+2) &
                  - res_flux(2)
           else
             ! Air mass residual in cell i: Subtract flux to BC
-            this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
+            res_temp(this%flow_soln%ndof*(i-1)+2) = &
+                 res_temp(this%flow_soln%ndof*(i-1)+2) &
                  - res_flux_bc(4)
           endif
         endif
       enddo
+      this%flow_soln%residual(:) = res_temp(:)
     !-------------------------------------------------------------------------
     case('FULL_MOMENTUM')
     !-------------------------------------------------------------------------
@@ -4650,7 +4684,7 @@ end subroutine PMWellPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellPreSolveFlow(this,print_output)
+subroutine PMWellPreSolveFlow(this)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
@@ -4658,7 +4692,6 @@ subroutine PMWellPreSolveFlow(this,print_output)
   implicit none
 
   class(pm_well_type) :: this
-  PetscBool :: print_output
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time, cur_time_converted
@@ -4667,11 +4700,11 @@ subroutine PMWellPreSolveFlow(this,print_output)
   this%flow_soln%not_converged = PETSC_TRUE
   this%flow_soln%converged = PETSC_FALSE
 
-  cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt_flow
+  cur_time = this%option%time + this%cumulative_dt_flow
   cur_time_converted = cur_time/this%output_option%tconv
   dt_converted = this%dt_flow/this%output_option%tconv
 
-  if (print_output) then
+  if (this%print_output) then
     write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                        1pe12.5," ",a4)') &
                      (this%flow_soln%n_steps+1),cur_time_converted, &
@@ -4733,6 +4766,12 @@ subroutine PMWellSolve(this,time,ierr)
            ! routines are not entered, either due to an inactive well or due
            ! to being on a process that doesn't contain a well segment.
 
+  if (this%flow_quasi_implicit_coupling) then
+    write(out_string,'("Quasi-implicit wellbore flow coupling is being used.")')
+    call PrintMsg(this%option,out_string)
+    return
+  endif
+
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
     write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
@@ -4740,7 +4779,7 @@ subroutine PMWellSolve(this,time,ierr)
     return
   endif
 
-  call PMWellSolveFlow(this,time,PETSC_TRUE,ierr)
+  call PMWellSolveFlow(this,time,ierr)
 
   if (this%transport) then
     call PMWellSolveTran(this,time,ierr)
@@ -4750,7 +4789,7 @@ end subroutine PMWellSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellSolveFlow(this,time,print_output,ierr)
+subroutine PMWellSolveFlow(this,time,ierr)
   !
   ! Author: Michael Nole
   ! Date: 12/01/2021
@@ -4759,7 +4798,6 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
 
   class(pm_well_type) :: this
   PetscReal :: time
-  PetscBool :: print_output
   PetscErrorCode :: ierr
 
   type(well_soln_flow_type), pointer :: flow_soln
@@ -4994,6 +5032,8 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
 
     ! Update transport
 
+    flow_soln%n_steps = flow_soln%n_steps + 1
+
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
   endif
@@ -5004,7 +5044,7 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
     ! update the well src/sink Q vector at start of time step
     call PMWellUpdateWellQ(this%well,this%reservoir)
 
-    call PMWellPreSolveFlow(this,print_output)
+    call PMWellPreSolveFlow(this)
 
     ! Fixed accumulation term
     res_fixed = 0.d0
@@ -5022,7 +5062,7 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
 
       if (n_iter > (flow_soln%max_iter-1)) then
         flow_soln%cut_timestep = PETSC_TRUE
-        if (print_output) then
+        if (this%print_output) then
           out_string = ' Maximum number of FLOW Newton iterations reached. &
                         &Cutting timestep!'
           call PrintMsg(this%option,out_string)
@@ -5053,6 +5093,11 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
         call PrintErrMsg(this%realization%option)
       endif
 
+      if (this%dt_flow <= this%min_dt_flow) then
+        this%well_force_ts_cut = 1
+        return
+      endif
+
       flow_soln%residual = 0.d0
       flow_soln%residual = res_fixed / this%dt_flow
 
@@ -5060,7 +5105,9 @@ subroutine PMWellSolveFlow(this,time,print_output,ierr)
 
       call PMWellNewtonFlow(this)
 
-      call PMWellCheckConvergenceFlow(this,n_iter,res_fixed,print_output)
+      if (this%well_force_ts_cut > 0) return
+
+      call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
 
     enddo
 
@@ -5394,6 +5441,7 @@ subroutine PMWellNewtonFlow(this)
     this%well%pg(:) = this%well%bh_p
   !--------------------------------------
   case('WIPP_DARCY')
+
     do i = 1,this%nphase*this%well_grid%nsegments
       do j = 1,this%nphase*this%well_grid%nsegments
         if (i==j) then
@@ -5409,6 +5457,19 @@ subroutine PMWellNewtonFlow(this)
                             this%nphase*this%well_grid%nsegments,&
                             indx,this%flow_soln%residual)
     new_dx = -1.d0 * this%flow_soln%residual
+
+
+    do i = 1,this%well_grid%nsegments
+      if (dabs(new_dx(i)) > 1.d15) then
+        this%well_force_ts_cut = 1
+        return        
+      endif
+      if (isnan(new_dx(i))) then
+        this%well_force_ts_cut = 1
+        return
+      endif
+    enddo
+
     this%flow_soln%update = new_dx
 
     call PMWellUpdateSolutionFlow(this)
@@ -5526,7 +5587,7 @@ end subroutine PMWellPostSolveTran
 
 ! ************************************************************************** !
 
-subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum,print_output)
+subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   !
   ! Checks flow solution convergence against prescribed tolerances.
   !
@@ -5538,7 +5599,6 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum,print_output)
   class(pm_well_type) :: this
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%flow_soln%ndof*this%well_grid%nsegments)
-  PetscBool :: print_output
 
   PetscReal, parameter :: zero_saturation = 1.d-15
   PetscReal, parameter :: zero_accumulation = 1.d-15
@@ -5735,7 +5795,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum,print_output)
     flow_soln%not_converged = PETSC_TRUE
   endif
 
-  if (print_output) then
+  if (this%print_output) then
     write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  uP:" &
           &,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
           n_iter,max_absolute_residual,max_scaled_residual, &
@@ -6530,6 +6590,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         select type(sat_func => saturation_function)
           class is (sat_func_KRP3_type)
             if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well% permeability(1) ** &
+                             sat_func%pct_exp
               option%flow%pct_updated = PETSC_TRUE
               call sat_func% &
                    CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
@@ -6539,6 +6601,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
             endif
           class is (sat_func_KRP4_type)
             if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
               option%flow%pct_updated = PETSC_TRUE
               call sat_func% &
                    CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
@@ -6678,6 +6742,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         select type(sat_func => saturation_function)
           class is (sat_func_KRP3_type)
             if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
               option%flow%pct_updated = PETSC_TRUE
               call sat_func% &
                    CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
@@ -6687,6 +6753,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
             endif
           class is (sat_func_KRP4_type)
             if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
               option%flow%pct_updated = PETSC_TRUE
               call sat_func% &
                    CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
@@ -6930,6 +6998,8 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
     select type(sat_func => saturation_function)
       class is (sat_func_KRP3_type)
         if (.not. option%flow%pct_updated) then
+          sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
           option%flow%pct_updated = PETSC_TRUE
           call sat_func% &
                    CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
@@ -6939,6 +7009,8 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
         endif
       class is (sat_func_KRP4_type)
         if (.not. option%flow%pct_updated) then
+          sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
           option%flow%pct_updated = PETSC_TRUE
           call sat_func% &
                CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
