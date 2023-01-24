@@ -197,8 +197,6 @@ subroutine MphaseSetupPatch(realization)
     do local_id = 1, grid%nlmax
 
       ghosted_id = grid%nL2G(local_id)
-    ! Assuming the same secondary continuum for all regions (need to make it an array)
-    ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
         patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum%name, &
@@ -266,7 +264,7 @@ subroutine MphaseSetupPatch(realization)
       if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
            == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
         option%io_buffer = &
-          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACCROSS MATERIALS'
+          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
         call PrintErrMsg(option)
       endif
     enddo
