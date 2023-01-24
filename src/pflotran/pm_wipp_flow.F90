@@ -170,6 +170,7 @@ subroutine PMWIPPFloInitObject(this)
 
   this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   nullify(this%pmwss_ptr)
+  nullify(this%pmwell_ptr)
   this%check_post_convergence = PETSC_TRUE
 
   ! defaults from BRAGFLO input deck or recommended values from user manual
