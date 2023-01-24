@@ -5095,7 +5095,7 @@ subroutine PMWFOutputHeader(this)
                                  icolumn)
 
         variable_string = 'Dose Rate'
-        units_string = ''
+        units_string = 'Gy/s'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
 
