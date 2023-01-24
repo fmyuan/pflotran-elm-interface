@@ -4846,6 +4846,7 @@ subroutine PMWFOutput(this)
 ! option: pointer to option object
 ! output_option: pointer to output option object
 ! cur_waste_form: pointer to curent waste form object
+! cwfm: pointer to current waste form mechanism object  
 ! grid: pointer to grid object
 ! filename: filename string
 ! fid: [-] file id number
@@ -4896,7 +4897,7 @@ subroutine PMWFOutput(this)
       write(fid,100,advance="no") cur_waste_form%spacer_vitality_rate, &
                                   cur_waste_form%spacer_vitality
     endif
-    
+    cwfm => cur_waste_form%mechanism    
     select type(cwfm => cur_waste_form%mechanism)
       type is(wf_mechanism_fmdm_surrogate_type)
          write(fid,100,advance="no") cwfm%temp, &
@@ -4975,6 +4976,7 @@ subroutine PMWFOutputHeader(this)
 ! output_option: pointer to output option object
 ! grid: pointer to grid object
 ! cur_waste_form: pointer to current waste form object
+! cwfm: pointer to current waste form mechanism object
 ! cell_string: cell string
 ! x_string, y_string, z_string: coordinate strings
 ! units_string: units string
@@ -5086,7 +5088,7 @@ subroutine PMWFOutputHeader(this)
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
     endif
-
+    cwfm => cur_waste_form%mechanism
     select type (cwfm => cur_waste_form%mechanism)
       type is(wf_mechanism_fmdm_surrogate_type)
         variable_string = 'Temperature'
