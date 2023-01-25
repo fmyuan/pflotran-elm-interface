@@ -212,10 +212,6 @@ contains
     integer(HSIZE_T), dimension(1) :: adims = (/1/)   ! Attribute dimension
     integer(HSIZE_T), dimension(1) :: data_dims 
   
-    ! for STAT function
-    integer(kind=8), dimension(13) :: stat_buf
-    integer :: stat_err
-  
 
     attrlen = MAXWORDLENGTH
   
