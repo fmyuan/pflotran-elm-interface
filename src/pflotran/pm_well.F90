@@ -3595,6 +3595,8 @@ subroutine PMWellUpdateRates(this,k,ierr)
 
   if (.not. this%well_on .and. Initialized(this%intrusion_time_start) .and. &
       time < this%intrusion_time_start) then
+      this%srcsink_brine(k,:) = 0.d0
+      this%srcsink_gas(k,:) = 0.d0
     return
   elseif (.not. this%well_on) then
     this%well_on = PETSC_TRUE
@@ -4766,15 +4768,15 @@ subroutine PMWellSolve(this,time,ierr)
            ! routines are not entered, either due to an inactive well or due
            ! to being on a process that doesn't contain a well segment.
 
-  if (this%flow_quasi_implicit_coupling) then
-    write(out_string,'("Quasi-implicit wellbore flow coupling is being used.")')
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) then
+    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
     call PrintMsg(this%option,out_string)
     return
   endif
 
-  if (Initialized(this%intrusion_time_start) .and. &
-      (curr_time < this%intrusion_time_start)) then
-    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
+  if (this%flow_quasi_implicit_coupling) then
+    write(out_string,'("Quasi-implicit wellbore flow coupling is being used.")')
     call PrintMsg(this%option,out_string)
     return
   endif
