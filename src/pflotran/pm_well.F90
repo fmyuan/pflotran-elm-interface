@@ -3591,7 +3591,7 @@ subroutine PMWellUpdateRates(this,k,ierr)
 !  if (this%flow_soln%n_steps < 1) return
 
   ! Need to limit well model timestepping 
-  this%min_dt_flow = this%option%flow_dt * 1.d-8 
+  this%min_dt_flow = this%option%flow_dt * 1.d-3 
 
   if (.not. this%well_on .and. Initialized(this%intrusion_time_start) .and. &
       time < this%intrusion_time_start) then

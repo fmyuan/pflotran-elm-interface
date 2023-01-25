@@ -1259,10 +1259,12 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
         patch%ss_flow_fluxes(:,sum_connection) = Res(:)
       endif
       if (option%compute_mass_balance_new) then
+        if (associated(global_auxvars_ss)) then
         ! contribution to boundary
-        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
+            global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
+            Res(1:2)
+        endif
       endif
       call WIPPFloConvertUnitsToBRAGFlo(Res, &
                                        material_auxvars(ghosted_id), &
