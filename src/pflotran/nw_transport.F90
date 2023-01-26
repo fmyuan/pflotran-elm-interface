@@ -320,6 +320,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   use Logging_module
   use Global_Aux_module
   use Transport_Constraint_NWT_module
+  use NWT_Equilibrium_module
 
   implicit none
 
@@ -347,6 +348,18 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   PetscInt, save :: icall
 
+  type(species_type), pointer :: cur_species
+  PetscReal, pointer :: solubility(:)  ! [mol/m^3-liq]
+  PetscReal, pointer :: mnrl_molar_density(:)  ! [mol/m^3-mnrl]
+  PetscReal, pointer :: ele_kd(:)  ! [m^3-water/m^3-bulk]
+  PetscReal :: aq_mass     ! [mol/m^3-liq]
+  PetscReal :: ppt_mass    ! [mol/m^3-bulk]
+  PetscReal :: sorb_mass   ! [mol/m^3-bulk]
+  PetscReal :: sat, por
+  PetscReal :: extra_mass  ! [mol/m^3-liq]
+  PetscInt :: ispecies
+  PetscBool :: dry_out
+
   data icall/0/
 
   option => realization%option
@@ -361,6 +374,13 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
 
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+
+  allocate(solubility(reaction_nw%params%nspecies))
+  solubility = 0.d0
+  allocate(mnrl_molar_density(reaction_nw%params%nspecies))
+  mnrl_molar_density = 0.d0
+  allocate(ele_kd(reaction_nw%params%nspecies))
+  ele_kd = 0.d0
 
   if (update_cells) then
 
@@ -393,6 +413,16 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
     boundary_condition => realization%patch%boundary_condition_list%first
     sum_connection = 0
+    
+    cur_species => reaction_nw%species_list
+    do
+      if (.not.associated(cur_species)) exit
+      solubility(cur_species%id) = cur_species%solubility_limit
+      mnrl_molar_density(cur_species%id) = cur_species%mnrl_molar_density
+      ele_kd(cur_species%id) = cur_species%ele_kd
+      cur_species => cur_species%next
+    enddo
+
     do
       if (.not.associated(boundary_condition)) exit
       cur_connection_set => boundary_condition%connection_set
@@ -419,25 +449,55 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 !     ***I propose that we do away with the minimum sorbed and precipitate
 !        concentrations altogether as they add artificial mass to the system.***
 
-#if 1
-        nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
-                       nwt_auxvar%total_bulk_conc(:)
-        call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
-                              global_auxvars_bc(sum_connection), &
-                              material_auxvars(ghosted_id), &
-                              reaction_nw,option)
-#else
-        nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
-                       nwt_auxvar%total_bulk_conc(:)
-        nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(:) = &
-                       nwt_auxvar%aqueous_eq_conc(:)
-        nwt_auxvars_bc(sum_connection)%sorb_eq_conc(:) = &
-                       nwt_auxvar%sorb_eq_conc(:)
-        nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(:) = &
-                       nwt_auxvar%mnrl_eq_conc(:)
-        nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(:) = &
-                       nwt_auxvar%mnrl_vol_frac(:)
-#endif
+!#if 0
+
+
+      do ispecies = 1, reaction_nw%params%nspecies
+        if (nwt_auxvar%constraint_type(ispecies) == CONSTRAINT_T_EQUILIBRIUM) then
+          !nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+          !               nwt_auxvar%total_bulk_conc(ispecies)
+          !call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
+          !                      global_auxvars_bc(sum_connection), &
+          !                      material_auxvars(ghosted_id), &
+          !                      reaction_nw,option)
+          
+          nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+                         nwt_auxvar%total_bulk_conc(ispecies)
+          ! check aqueous concentration against solubility limit and update
+          sat = max(MIN_LIQ_SAT,global_auxvars_bc(sum_connection)%sat(LIQUID_PHASE))
+          if (sat > 0.d0) then
+            dry_out = PETSC_FALSE
+          else
+            dry_out = PETSC_TRUE
+          endif
+          call NWTEqDissPrecipSorb(solubility(ispecies), &
+                                   material_auxvars(ghosted_id), &
+                                   global_auxvars_bc(sum_connection), &
+                                   dry_out,ele_kd(ispecies), &
+                                   nwt_auxvar%total_bulk_conc(ispecies), &
+                                   aq_mass,ppt_mass,sorb_mass)
+          nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = aq_mass
+          nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = sorb_mass
+          nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = ppt_mass
+          nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
+                             nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies)/ &
+                                            (material_auxvars(ghosted_id)%porosity* &
+                                            mnrl_molar_density(ispecies))                                
+        else                      
+!#else
+          nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+                         nwt_auxvar%total_bulk_conc(ispecies)
+          nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = &
+                         nwt_auxvar%aqueous_eq_conc(ispecies)
+          nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = &
+                         nwt_auxvar%sorb_eq_conc(ispecies)
+          nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = &
+                         nwt_auxvar%mnrl_eq_conc(ispecies)
+          nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
+                         nwt_auxvar%mnrl_vol_frac(ispecies)
+        endif
+      enddo
+!#endif
 
       enddo ! iconn
 
@@ -450,6 +510,10 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
   call VecRestoreArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   icall = icall+ 1
+
+  deallocate(solubility)
+  deallocate(mnrl_molar_density)
+  deallocate(ele_kd)
 
 end subroutine NWTUpdateAuxVars
 
