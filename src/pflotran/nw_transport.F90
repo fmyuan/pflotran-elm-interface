@@ -355,8 +355,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscReal :: aq_mass     ! [mol/m^3-liq]
   PetscReal :: ppt_mass    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass   ! [mol/m^3-bulk]
-  PetscReal :: sat, por
-  PetscReal :: extra_mass  ! [mol/m^3-liq]
+  PetscReal :: sat
   PetscInt :: ispecies
   PetscBool :: dry_out
 
