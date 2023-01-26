@@ -29,25 +29,25 @@
      Mean:   9.3517857832086E-01
         3:   9.3517948584880E-01
 -- CONCENTRATION: Total Bulk Conc. AM241L --
-      Max:   2.7993936050251E-09
-      Min:   2.4807480971427E-09
-     Mean:   2.5591109841143E-09
-        3:   2.4807480971427E-09
+      Max:   3.1165056201329E-09
+      Min:   2.9443806280675E-09
+     Mean:   3.0128520967912E-09
+        3:   3.0018051879923E-09
 -- CONCENTRATION: Total Bulk Conc. PU239L --
-      Max:   2.7993936050254E-06
-      Min:   2.4807480971426E-06
-     Mean:   2.5591109841144E-06
-        3:   2.4807480971426E-06
+      Max:   3.1165056201330E-06
+      Min:   2.9443806280675E-06
+     Mean:   3.0128520967913E-06
+        3:   3.0018051879923E-06
 -- CONCENTRATION: Aq. Conc. AM241L --
-      Max:   9.3310320698734E-09
-      Min:   8.2679200139494E-09
-     Mean:   8.5291149673160E-09
-        3:   8.2679200139494E-09
+      Max:   1.0388040408180E-08
+      Min:   9.8137187903683E-09
+     Mean:   1.0041341023821E-08
+        3:   1.0004516468385E-08
 -- CONCENTRATION: Aq. Conc. PU239L --
-      Max:   9.3310320698746E-06
-      Min:   8.2679200139493E-06
-     Mean:   8.5291149673163E-06
-        3:   8.2679200139493E-06
+      Max:   1.0388040408180E-05
+      Min:   9.8137187903681E-06
+     Mean:   1.0041341023821E-05
+        3:   1.0004516468385E-05
 -- CONCENTRATION: Mnrl. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -84,7 +84,7 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   1.4333489998535E-03
+   Time (seconds):   1.4814759997535E-03
    Time Steps:            7
    Newton Iterations:            9
    Linear Solver Iterations:            9
@@ -92,10 +92,10 @@
    Solution 2-Norm:   2.5784738261729E+06
    Residual 2-Norm:   5.2772101527075E-16
 -- SOLUTION: Transport --
-   Time (seconds):   3.5357219999241E-03
+   Time (seconds):   4.9578679991100E-03
    Time Steps:           15
-   Newton Iterations:           60
-   Linear Solver Iterations:           60
+   Newton Iterations:           64
+   Linear Solver Iterations:           64
    Time Step Cuts:            3
-   Solution 2-Norm:   5.7287011938524E-06
-   Residual 2-Norm:   3.1124047284484E-09
+   Solution 2-Norm:   6.7381213903366E-06
+   Residual 2-Norm:   1.1177249776954E-09
