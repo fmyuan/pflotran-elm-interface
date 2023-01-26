@@ -1,8 +1,4 @@
-#!/usr/bin/env python
-# For python 2.6-2.7
-from __future__ import print_function
-# For python2.5
-# from __future__ import with_statement
+#!/usr/bin/env python3
 
 # 
 # Generate AssertRealArrays.F90, which provides assertEqual for arrays.
