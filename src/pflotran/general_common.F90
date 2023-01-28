@@ -5355,14 +5355,12 @@ end subroutine GeneralDiffJacobian
 
 ! ************************************************************************** !
 
-
-
 subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,&
                                      perm_ave_over_dist,kr,mobility, &
                                      density_ave,area,v_darcy, &
                                      tot_mole_flux_ddel_pressure,q,tot_mole_flux)
 
-  use Utility_module
+  use Utility_module, only : expm1
 
   implicit none
 
@@ -5375,13 +5373,10 @@ subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,&
 
   ! based on Liu (2014) "Non-Darcian flow in low-permeability media"
   ! DOI 10.1007/s10040-014-1145-x
-  ! "i" in Liu (2014) in terms of head
-  ! doesn't need to divide by distance (already in delta_pressure)
   rhog = density_kg_ave*EARTH_GRAVITY
   grad = abs(delta_pressure)/rhog
   ! eqn 11 in Liu (2014), in terms of permeability
   I = non_darcy_A*(perm_ave_over_dist*kr)**(non_darcy_B)
-  ! hydraulic conductivity
   K = perm_ave_over_dist*mobility*rhog
   ! expm1() to reduce cancelation
   ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
@@ -5394,9 +5389,6 @@ subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,&
   !                             density_ave[kmol phase/m^3 phase]
   tot_mole_flux = q*density_ave
 
-  !tot_mole_flux_ddel_pressure = area*density_ave* &
-  !  (K/(density_kg_ave*EARTH_GRAVITY))* &
-  !  (-expm1(-grad/I))
   tot_mole_flux_ddel_pressure = area*density_ave*K*&
        &grad/rhog*(-expm1(-grad/I))
 
@@ -5408,7 +5400,7 @@ subroutine GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
                                        perm_ave_over_dist,kr,mobility,v_darcy, &
                                        dv_darcy_ddelta_pressure,dv_darcy_dmobility)
 
-  use Utility_module
+  use Utility_module, only : expm1
 
   implicit none
 
@@ -5421,7 +5413,6 @@ subroutine GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
 
   ! based on Liu (2014) "Non-Darcian flow in low-permeability media"
   ! DOI 10.1007/s10040-014-1145-x
-  ! "i" in Liu (2014)
   rhog = density_kg_ave*EARTH_GRAVITY
   grad = abs(delta_pressure)/rhog
   ! eqn 11 in Liu (2014)
@@ -5430,7 +5421,6 @@ subroutine GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
   ! expm1() to avoid cancelation
   ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-(grad)/I)))
   ! eqn 3 in Liu (2014)
-
   v_darcy = sign(K*(grad + I*expm1(-grad/I)), delta_pressure)
 
   dv_darcy_ddelta_pressure = K/rhog*grad*(-expm1(-grad/I))
