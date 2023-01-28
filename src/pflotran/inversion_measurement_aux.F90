@@ -35,7 +35,8 @@ module Inversion_Measurement_Aux_module
     PetscInt :: iobs_var
     PetscReal :: value
     PetscReal :: weight
-    PetscReal :: simulated_derivative
+    PetscReal :: dobs_dunknown
+    PetscReal :: dobs_dparam
     PetscReal :: simulated_value
     PetscBool :: first_lambda
     PetscBool :: measured
@@ -49,6 +50,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
             InversionMeasurementPrintConcise, &
+            InvMeasurePrintComparison, &
             InvMeasAnnounceToString, &
             InvMeasAuxObsVarIDToString, &
             InversionMeasurementMeasure, &
@@ -102,7 +104,8 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%iobs_var = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
   measurement%weight = UNINITIALIZED_DOUBLE
-  measurement%simulated_derivative = UNINITIALIZED_DOUBLE
+  measurement%dobs_dunknown = UNINITIALIZED_DOUBLE
+  measurement%dobs_dparam = UNINITIALIZED_DOUBLE
   measurement%simulated_value = UNINITIALIZED_DOUBLE
   measurement%first_lambda = PETSC_FALSE
   measurement%measured = PETSC_FALSE
@@ -151,7 +154,8 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%iobs_var = measurement%iobs_var
   measurement2%value = measurement%value
   measurement2%weight = measurement%weight
-  measurement2%simulated_derivative = measurement%simulated_derivative
+  measurement2%dobs_dunknown = measurement%dobs_dunknown
+  measurement2%dobs_dparam = measurement%dobs_dparam
   measurement2%simulated_value = measurement%simulated_value
   call GeometryCopyCoordinate(measurement%coordinate,measurement2%coordinate)
 
@@ -419,16 +423,18 @@ subroutine InversionMeasurementPrintConcise(measurement,optional_string, &
   if (OptionPrintToScreen(option)) then
     word = 'sec'
     option%io_buffer = 'Measurement #' // &
-      trim(StringWrite(measurement%id)) // ', Time: ' // &
-      trim(StringWrite(measurement%time / &
-                       UnitsConvertToInternal(measurement%time_units,word, &
-                                              option,ierr))) // ' ' // &
-      trim(measurement%time_units) // ', Var: ' // &
-      trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
-      ', Cell: ' // &
-      trim(StringWrite(measurement%cell_id)) // ', Value: ' // &
-      trim(StringWrite(measurement%simulated_value)) // ', Deriv: ' // &
-      trim(StringWrite(measurement%simulated_derivative))
+        trim(StringWrite(measurement%id)) // &
+      ', Time: ' // &
+        trim(StringWrite(measurement%time / &
+                         UnitsConvertToInternal(measurement%time_units,word, &
+                                                option,ierr))) // ' ' // &
+        trim(measurement%time_units) // &
+      ', Var: ' // &
+        trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
+      ', Cell: ' // trim(StringWrite(measurement%cell_id)) // &
+      ', Value: ' // trim(StringWrite(measurement%simulated_value)) // &
+      ', dobs_dunknown: ' // trim(StringWrite(measurement%dobs_dunknown)) // &
+      ', dobs_dparam: ' // trim(StringWrite(measurement%dobs_dparam))
     if (len_trim(optional_string) > 0) then
       option%io_buffer = trim(optional_string) // ' : ' // &
         trim(option%io_buffer)
@@ -472,10 +478,56 @@ subroutine InversionMeasurementPrint(measurement,option)
     print *, '     Simulated Value: ' // &
       trim(StringWrite(measurement%simulated_value))
     print *, 'Simulated Derivative: ' // &
-      trim(StringWrite(measurement%simulated_derivative))
+      trim(StringWrite(measurement%dobs_dunknown))
   endif
 
 end subroutine InversionMeasurementPrint
+
+! ************************************************************************** !
+
+subroutine InvMeasurePrintComparison(fid,measurement, &
+                                     print_header,print_footer,option)
+  !
+  ! Print contents of measurement object for debugging
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  PetscInt :: fid
+  type(inversion_measurement_aux_type) :: measurement
+  PetscBool :: print_header
+  PetscBool :: print_footer
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (print_header) then
+    write(fid,'(/, &
+              &" Current values of inversion measurements:",//, &
+              &"      # &
+              &Measured Variable           &
+              &Current Value       &
+              &Measured Value",/, &
+              &"      - &
+              &-----------------           &
+              &-------------       &
+              &--------------")')
+  endif
+  write(string,'(i6," ",a28,es13.6,8x,es13.6)') &
+    measurement%id, &
+    InvMeasAuxObsVarIDToString(measurement%iobs_var,option), &
+    measurement%simulated_value, &
+    measurement%value
+  write(fid,*) trim(string)
+  if (print_footer) then
+!    write(fid,'(/,40("=+"))')
+  endif
+
+end subroutine InvMeasurePrintComparison
 
 ! ************************************************************************** !
 

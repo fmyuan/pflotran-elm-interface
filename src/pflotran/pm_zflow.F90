@@ -126,6 +126,8 @@ subroutine PMZFlowInitObject(this)
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
 
+  zflow_debug_cell_id = UNINITIALIZED_INTEGER
+
 end subroutine PMZFlowInitObject
 
 ! ************************************************************************** !
@@ -227,6 +229,9 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         call InputReadAndConvertUnits(input,zflow_viscosity,'Pa-s', &
                                       trim(error_string)//','//keyword,option)
+      case('DEBUG_CELL_ID')
+        call InputReadInt(input,option,zflow_debug_cell_id)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
     end select

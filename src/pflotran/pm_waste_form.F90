@@ -6949,6 +6949,14 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
         endif
       endif
 
+      if (.not. associated(new_crit_mech%heat_dataset)) then
+        option%io_buffer = 'ERROR: Decay heat dataset must be provided for ' &
+                         //'CRITICALITY_MECH "'//trim(new_crit_mech%mech_name) &
+                         //'".'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+
       if (associated(new_crit_mech%crit_heat_dataset)) then
         if (Initialized(new_crit_mech%crit_event%crit_start)) then
           if (new_crit_mech%crit_event%crit_start > &
@@ -8558,8 +8566,8 @@ subroutine ANNReadH5File(this, option)
 
   call h5open_f(hdf5_err)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
-  call HDF5GroupOpen(file_id,group_name,group_id,option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
 
   dataset_name = 'input_hidden1_weights'
   call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
@@ -8778,12 +8786,12 @@ subroutine KnnrReadH5File(this, option)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
 
   call h5pclose_f(prop_id,hdf5_err)
 
   !hdf5groupopen
-  call HDF5GroupOpen(file_id,group_name,group_id,option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
 
   !Get Nearest Neighbors
   call KnnrGetNearestNeighbors(this,group_id,h5_name,option)

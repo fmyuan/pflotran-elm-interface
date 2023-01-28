@@ -608,6 +608,8 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
       EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
     case('SPARROW')
       EOSWaterSaturationPressureExtPtr => EOSWaterSatPressSparrowExt
+    case('HUANG-ICE','ICE')
+      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIce
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSaturationPressure().'
@@ -636,7 +638,6 @@ subroutine EOSWaterSetSteamDensity(keyword,aux)
       EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIFC67
     case('IF97')
       EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIF97
-      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIF97
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSteamDensity().'
@@ -1407,8 +1408,12 @@ subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, 
     dz_dT = dT0_dT
     dy_dT = -dT0_dT
     dw_dT = 2*z*dZ_dT
-    dln_p_dT = -e1*z**-2.d0*dz_dT+(e2*1.d1**(e3*w**2-1.d0)*(z*dw_dT*e3*log(100.d0)*w**2+1.d0)-w*dz_dT)/(z**2)+&
-         e2*w/z*(e3*5.d0**(3.d0*w**2-1.d0)*8.d0**(w**2.d0)*dw_dT*log(10.d0))+2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
+    dln_p_dT = -e1*z**(-2.d0)*dz_dT+ &
+               (e2*1.d1**(e3*w**2-1.d0)* &
+                 (z*dw_dT*e3*log(100.d0)*w**2+1.d0)-w*dz_dT)/(z**2)+&
+               e2*w/z*(e3*5.d0**(3.d0*w**2-1.d0)*8.d0**(w**2.d0)* &
+                         dw_dT*log(10.d0))+ &
+               2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
     dPS_dT = 1.d5*exp(ln_p)*dln_p_dT
   endif
 
@@ -1459,6 +1464,44 @@ subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
   endif
 
 end subroutine EOSWaterSatPresWagnerPruss
+
+subroutine EOSWaterSaturationPressureIce(T, calculate_derivatives, &
+                                      PS, dPS_dT, ierr)
+  !
+  ! Calculates the saturation pressure of water as a function of temperature
+  ! above and below the freezing point of water based on Huang, J. (2018). 
+  ! A simple accurate formula for calculating saturation vapor pressure of 
+  ! water and ice. Journal of Applied Meteorology and Climatology, 57(6), 
+  ! 1265-1272.
+  !
+  ! Author: Michael Nole
+  ! Date: 12/07/2022
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  if (T > 0.d0) then
+    PS = exp(34.494d0 - 4924.99d0/(T+237.1d0))/(T+105.d0)**1.57d0
+    if (calculate_derivatives) then
+      dPS_dT = -1.57d0*(T+105.d0)**(-2.57d0)*exp(34.494d0-4924.99d0/(T+237.1d0))
+      dPS_dT = dPS_dT +(T+105.d0)**(-1.57d0)*exp(34.494d0-4924.99d0/ &
+               (T+237.1d0)) * 4924.99d0*(T+237.1d0)**(-2.d0)
+    endif
+  else
+    PS = exp(43.494d0 - 6545.8d0/(T+278.d0))/(T+868.d0)**2
+    if (calculate_derivatives) then
+      dPS_dT = -2.d0*(T+868.d0)**(-3.d0)*exp(43.494d0 - 6545.8d0/(T+278.d0))
+      dPS_dT = dPS_dT + (T+868.d0)**(-2.d0)*exp(43.494d0 - 6545.8d0/ &
+               (T+278.d0))*6545.8d0*(T+278.d0)**(-2.d0)
+    endif
+  endif
+!print *, T
+!print *, PS
+end subroutine EOSWaterSaturationPressureIce
 
 ! ************************************************************************** !
 
@@ -3819,7 +3862,8 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
        g_cm3_to_kg_m3
 
   ! molar density H2O = solution density (kg/m3) * (1-mass frac salt) / (kg/kmol water)
-  dwmol = dw * (1-s) / (FMWH2O)
+  !dwmol = dw * (1-s) / (FMWH2O)
+  dwmol = dw / FMWH2O
 
   if (calculate_derivatives) then
         ! v - this dwp is in the correct units of kmol/m^3-Pa
@@ -4016,7 +4060,8 @@ subroutine EOSWaterDensitySparrowExt(T,P, aux, &
   E = (-0.0276d0 +s*(0.2978d0 +s*(-2.017d0  +s*(6.345d0  +s*(-3.914d0)))))*1.d-6
 
   dw = A+T*(B+T*(C+T*(D+E*T))) !kg/m^3
-  dwmol = dw*(1-s)/FMWH2O ! kmol/m^3
+  !dwmol = dw*(1-s)/FMWH2O ! kmol/m^3
+  dwmol = dw/FMWH2O
 
 end subroutine EOSWaterDensitySparrowExt
 
@@ -4543,6 +4588,9 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
   elseif (associated(EOSWaterSaturationPressurePtr, &
                      EOSWaterSatPresWagnerPruss)) then
     eos_saturation_pressure_name = 'WagnerAndPruss'
+  elseif (associated(EOSWaterSaturationPressurePtr, &
+                     EOSWaterSaturationPressureIce)) then
+    eos_saturation_pressure_name = 'Huang-Ice'
   else
     eos_saturation_pressure_name = 'Unknown'
   endif

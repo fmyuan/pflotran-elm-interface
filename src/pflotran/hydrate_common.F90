@@ -258,20 +258,8 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
   call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
-#if 0
-!TODO(geh): remove for now
-  ! Fracture permeability change only available for structured grid (Heeho)
-  if (associated(material_auxvar_up%fracture)) then
-    call FracturePermEvaluate(material_auxvar_up,perm_up,temp_perm_up, &
-                              dummy_dperm_up,dist)
-    perm_up = temp_perm_up
-  endif
-  if (associated(material_auxvar_dn%fracture)) then
-    call FracturePermEvaluate(material_auxvar_dn,perm_dn,temp_perm_dn, &
-                              dummy_dperm_dn,dist)
-    perm_dn = temp_perm_dn
-  endif
-#endif
+  perm_up = perm_up * hyd_auxvar_up%effective_permeability
+  perm_dn = perm_dn * hyd_auxvar_dn%effective_permeability
 
   if (associated(klinkenberg)) then
     perm_ave_over_dist(1) = (perm_up * perm_dn) / &
@@ -908,15 +896,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   v_darcy = 0.d0
 
   call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
-
-#if 0
-  ! Fracture permeability change only available for structured grid (Heeho)
-  if (associated(material_auxvar_dn%fracture)) then
-    call FracturePermEvaluate(material_auxvar_dn,perm_dn,temp_perm_dn, &
-                              dummy_dperm_dn,dist)
-    perm_dn = temp_perm_dn
-  endif
-#endif
+  perm_dn = perm_dn * hyd_auxvar_dn%effective_permeability
 
   if (associated(klinkenberg)) then
     perm_dn_adj(1) = perm_dn

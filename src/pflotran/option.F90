@@ -4,7 +4,8 @@ module Option_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Communicator_Aux_module
-  use Driver_module
+  use Driver_class
+  use Option_Checkpoint_module
   use Option_Flow_module
   use Option_Transport_module
   use Option_Geophysics_module
@@ -19,7 +20,7 @@ module Option_module
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
-
+    type(checkpoint_option_type), pointer :: checkpoint
     type(inversion_option_type), pointer :: inversion
     type(comm_type), pointer :: comm
     class(driver_type), pointer :: driver
@@ -165,6 +166,11 @@ module Option_module
 
   end type option_type
 
+  interface OptionCreate
+    module procedure OptionCreate1
+    module procedure OptionCreate2
+  end interface
+
   interface PrintMsg
     module procedure PrintMsg1
     module procedure PrintMsg2
@@ -244,7 +250,7 @@ contains
 
 ! ************************************************************************** !
 
-function OptionCreate()
+function OptionCreate1()
   !
   ! Allocates and initializes a new Option object
   !
@@ -253,7 +259,7 @@ function OptionCreate()
   !
   implicit none
 
-  type(option_type), pointer :: OptionCreate
+  type(option_type), pointer :: OptionCreate1
 
   type(option_type), pointer :: option
 
@@ -261,6 +267,7 @@ function OptionCreate()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  nullify(option%checkpoint)
   nullify(option%inversion)
   nullify(option%driver)
   nullify(option%comm)
@@ -271,9 +278,40 @@ function OptionCreate()
   ! stochastic simulations).  This is done in OptionInitAll() and
   ! OptionInitRealization()
   call OptionInitAll(option)
-  OptionCreate => option
+  OptionCreate1 => option
 
-end function OptionCreate
+end function OptionCreate1
+
+! ************************************************************************** !
+
+function OptionCreate2(outer_option)
+  !
+  ! Same as OptionCreate() but increments file pointers
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/21/22
+  !
+  implicit none
+
+  type(option_type), pointer :: outer_option
+
+  type(option_type), pointer :: OptionCreate2
+
+  type(option_type), pointer :: option
+
+  option => OptionCreate()
+  if (associated(outer_option)) then
+    option%fid_out = outer_option%fid_out + 1
+    option%group_prefix = outer_option%group_prefix
+    if (option%fid_out > MAX_OUT_UNIT) then
+      option%io_buffer = 'The maximum output file id (MAX_OUT_UNIT) has been &
+        &exceeded. Please increase MAX_OUT_UNIT in pflotran_constants.F90.'
+      call PrintErrMsg(option)
+    endif
+  endif
+  OptionCreate2 => option
+
+end function OptionCreate2
 
 ! ************************************************************************** !
 
@@ -883,7 +921,10 @@ subroutine PrintMsgNoAdvance1(option)
 
   type(option_type) :: option
 
-  call PrintMsgNoAdvance2(option,option%io_buffer)
+  PetscBool, parameter :: advance_ = PETSC_FALSE
+
+  call DriverPrintMessage(option%driver,option%fid_out,option%io_buffer, &
+                          advance_)
 
 end subroutine PrintMsgNoAdvance1
 
@@ -901,7 +942,9 @@ subroutine PrintMsgNoAdvance2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  call PrintMsg3(option,string,PETSC_FALSE)
+  PetscBool, parameter :: advance_ = PETSC_FALSE
+
+  call DriverPrintMessage(option%driver,option%fid_out,string,advance_)
 
 end subroutine PrintMsgNoAdvance2
 
@@ -918,7 +961,10 @@ subroutine PrintMsg1(option)
 
   type(option_type) :: option
 
-  call PrintMsg3(option,option%io_buffer,PETSC_TRUE)
+  PetscBool, parameter :: advance_ = PETSC_TRUE
+
+  call DriverPrintMessage(option%driver,option%fid_out,option%io_buffer, &
+                          advance_)
 
 end subroutine PrintMsg1
 
@@ -936,7 +982,9 @@ subroutine PrintMsg2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  call PrintMsg3(option,string,PETSC_TRUE)
+  PetscBool, parameter :: advance_ = PETSC_TRUE
+
+  call DriverPrintMessage(option%driver,option%fid_out,string,advance_)
 
 end subroutine PrintMsg2
 
@@ -956,20 +1004,7 @@ subroutine PrintMsg3(option,string,advance_)
   PetscBool :: advance_
 
   ! note that these flags can be toggled off specific time steps
-  if (option%print_screen_flag) then
-    if (.not.advance_) then
-      write(STDOUT_UNIT,'(a)',advance='no') trim(string)
-    else
-      write(STDOUT_UNIT,'(a)') trim(string)
-    endif
-  endif
-  if (option%print_file_flag) then
-    if (.not.advance_) then
-      write(option%fid_out,'(a)',advance='no') trim(string)
-    else
-      write(option%fid_out,'(a)') trim(string)
-    endif
-  endif
+  call DriverPrintMessage(option%driver,option%fid_out,string,advance_)
 
 end subroutine PrintMsg3
 
@@ -982,7 +1017,6 @@ subroutine PrintMsgAnyRank1(option)
   ! Author: Glenn Hammond
   ! Date: 01/12/12
   !
-
   implicit none
 
   type(option_type) :: option
@@ -1000,7 +1034,6 @@ subroutine PrintMsgAnyRank2(string)
   ! Author: Glenn Hammond
   ! Date: 01/12/12
   !
-
   implicit none
 
   character(len=*) :: string
@@ -1351,7 +1384,7 @@ subroutine OptionDestroy(option)
   ! Date: 10/26/07
   !
   use Communicator_Aux_module
-  use Driver_module
+  use Driver_class
 
   implicit none
 
@@ -1360,6 +1393,7 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
+  call OptionCheckpointDestroy(option%checkpoint)
   ! never destroy the driver as it was created elsewhere
   nullify(option%inversion)
   nullify(option%driver)

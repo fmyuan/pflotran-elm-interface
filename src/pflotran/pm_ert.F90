@@ -25,6 +25,8 @@ module PM_ERT_class
     PetscInt :: linear_iterations_in_step
     PetscLogDouble :: ksp_time
     Vec :: rhs
+    Vec :: dconductivity_dsaturation
+    Vec :: dconductivity_dconcentration
     ! EMPIRICAL Archie and Waxman-Smits options
     PetscInt :: conductivity_mapping_law
     PetscReal :: tortuosity_constant   ! a
@@ -38,8 +40,10 @@ module PM_ERT_class
     PetscReal :: max_tracer_conc
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
+    character(len=MAXSTRINGLENGTH) :: survey_time_units
     ! Starting sulution/potential
     PetscBool :: analytical_potential
+    PetscBool :: coupled_ert_flow_jacobian
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -109,6 +113,8 @@ subroutine PMERTInit(pm_ert)
   pm_ert%linear_iterations_in_step = 0
   pm_ert%ksp_time = 0.d0
   pm_ert%rhs = PETSC_NULL_VEC
+  pm_ert%dconductivity_dsaturation = PETSC_NULL_VEC
+  pm_ert%dconductivity_dconcentration = PETSC_NULL_VEC
 
   ! Archie and Waxman-Smits default values
   pm_ert%conductivity_mapping_law = ARCHIE
@@ -123,9 +129,11 @@ subroutine PMERTInit(pm_ert)
   pm_ert%max_tracer_conc = UNINITIALIZED_DOUBLE
 
   pm_ert%analytical_potential = PETSC_TRUE
+  pm_ert%coupled_ert_flow_jacobian = PETSC_FALSE
 
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
+  pm_ert%survey_time_units = ''
 
 end subroutine PMERTInit
 
@@ -230,6 +238,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       case('SURVEY_TIMES')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'units','OUTPUT,TIMES')
+        this%survey_time_units = word
         internal_units = 'sec'
         units_conversion = &
           UnitsConvertToInternal(word,internal_units,option)
@@ -396,6 +405,26 @@ recursive subroutine PMERTInitializeRun(this)
 
   ! Initialize to zeros
   call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
+
+  if (associated(option%inversion)) then
+    if (option%inversion%coupled_flow_ert .and. &
+        option%inversion%calculate_ert_jacobian) then
+      this%coupled_ert_flow_jacobian = PETSC_TRUE
+      if (option%iflowmode == ZFLOW_MODE) then
+        call DiscretizationDuplicateVector(this%realization%discretization, &
+                                           this%realization%field%work, &
+                                           this%dconductivity_dsaturation)
+        call VecZeroEntries(this%dconductivity_dsaturation,ierr);CHKERRQ(ierr)
+        if (zflow_sol_tran_eq > 0 .or. option%itranmode == RT_MODE) then
+          call DiscretizationDuplicateVector(this%realization%discretization, &
+                                             this%realization%field%work, &
+                                             this%dconductivity_dconcentration)
+          call VecZeroEntries(this%dconductivity_dconcentration, &
+                              ierr);CHKERRQ(ierr)
+        endif
+      endif
+    endif
+  endif
 
   if (option%iflowmode == ZFLOW_MODE .and. zflow_sol_tran_eq > 0) then
     zflow_auxvars => patch%aux%ZFlow%auxvars
@@ -662,13 +691,16 @@ subroutine PMERTPreSolve(this)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
-  PetscInt :: ghosted_id
+  PetscInt :: ghosted_id,local_id
   PetscInt :: species_id
   PetscInt :: empirical_law
   PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
   PetscReal :: cond_sp,cond_w0
+  PetscReal :: dcond_dsat,dcond_dconc
   PetscReal :: tracer_scale
+  PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
+  PetscErrorCode :: ierr
 
   option => this%option
   if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
@@ -686,6 +718,7 @@ subroutine PMERTPreSolve(this)
   cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
   cond_w0 = cond_w
+  tracer_scale = 0.d0
 
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
@@ -693,17 +726,34 @@ subroutine PMERTPreSolve(this)
   if (option%itranmode == RT_MODE) then
     rt_auxvars => patch%aux%RT%auxvars
   endif
-  if (zflow_sol_tran_eq > 0) then
+  if (option%iflowmode == ZFLOW_MODE) then
     zflow_auxvars => patch%aux%ZFlow%auxvars
   endif
   if (Initialized(this%max_tracer_conc)) then
     tracer_scale = this%tracer_conductivity/this%max_tracer_conc
   endif
 
+  if (this%coupled_ert_flow_jacobian) then
+    call VecGetArrayF90(this%dconductivity_dsaturation, &
+                        dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
+    if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
+      call VecGetArrayF90(this%dconductivity_dconcentration, &
+                          dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
+    endif
+  endif
+
   material_auxvars => patch%aux%Material%auxvars
   do ghosted_id = 1, grid%ngmax
+    local_id = grid%nG2L(ghosted_id)
+    dcond_dsat = 0.d0
+    dcond_dconc = 0.d0
     if (patch%imat(ghosted_id) <= 0) cycle
-    por = material_auxvars(ghosted_id)%porosity
+    if (option%iflowmode == ZFLOW_MODE) then
+      por = zflow_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
+    else
+      por = material_auxvars(ghosted_id)%porosity
+    endif
+
     sat = global_auxvars(ghosted_id)%sat(1)
     if (associated(rt_auxvars)) then
       if (associated(this%species_conductivity_coef)) then
@@ -729,9 +779,25 @@ subroutine PMERTPreSolve(this)
     endif
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
-                                         cond_c,empirical_law,cond)
+                                         cond_c,empirical_law,cond, &
+                                         tracer_scale,dcond_dsat,dcond_dconc)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
+    if (this%coupled_ert_flow_jacobian) then
+      if (local_id > 0) dcond_dsat_vec_ptr(local_id) = dcond_dsat
+      if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
+        if (local_id > 0) dcond_dconc_vec_ptr(local_id) = dcond_dconc
+      endif
+    endif
   enddo
+
+  if (this%coupled_ert_flow_jacobian) then
+    call VecRestoreArrayF90(this%dconductivity_dsaturation, &
+                            dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
+    if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
+      call VecRestoreArrayF90(this%dconductivity_dconcentration, &
+                             dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
+    endif
+  endif
 
 end subroutine PMERTPreSolve
 
@@ -895,7 +961,18 @@ subroutine PMERTSolve(this,time,ierr)
   call PMERTAssembleSimulatedData(this,time)
 
   ! Build Jacobian
-  if (this%option%geophysics%compute_jacobian) call PMERTBuildJacobian(this)
+  if (this%option%geophysics%compute_jacobian) then
+    if (associated(this%option%inversion)) then
+      if (.not.this%option%inversion%coupled_flow_ert) then
+        call PMERTBuildJacobian(this)
+      elseif (this%option%inversion%coupled_flow_ert .and. &
+              this%option%inversion%calculate_ert_jacobian) then
+        call PMERTBuildCoupledJacobian(this)
+      endif
+    else
+      call PMERTBuildJacobian(this)
+    endif
+  endif
 
 end subroutine PMERTSolve
 
@@ -1002,9 +1079,6 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
-  use Inversion_Coupled_Aux_module
-  use Inversion_Parameter_module
-  use Inversion_TS_Aux_module
   use Material_Aux_module
   use String_module
   use Timer_class
@@ -1021,8 +1095,6 @@ subroutine PMERTBuildJacobian(this)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
-  type(inversion_coupled_soln_type), pointer :: solutions(:)
-  type(inversion_parameter_type), pointer :: parameters(:)
 
   PetscInt, pointer :: cell_neighbors(:,:)
   PetscReal, allocatable :: phi_sor(:), phi_rec(:)
@@ -1127,32 +1199,6 @@ subroutine PMERTBuildJacobian(this)
     enddo
   enddo
 
-  if (associated(option%inversion)) then
-    if (option%inversion%coupled_flow_ert .and. &
-        option%inversion%calculate_ert_jacobian) then
-      solutions => &
-        patch%aux%inversion_forward_aux%inversion_coupled_aux%solutions
-      parameters => &
-        patch%aux%inversion_forward_aux%inversion_coupled_aux%parameters
-      do im = 1, size(solutions)
-        if (.not.Equal(solutions(im)%time,option%time)) cycle
-        do in = 1, size(parameters)
-          print *, 'liquid saturation -> ', &
-                   trim(parameters(in)%parameter_name), ' : ', &
-                   trim(parameters(in)%material_name), ' ', im
-!          call VecView(solutions(im)%dsaturation_dparameter(in), &
-!                       PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-          print *, 'solute concentration -> ', &
-                   trim(parameters(in)%parameter_name), ' : ', &
-                   trim(parameters(in)%material_name), ' ', im
-!          call VecView(solutions(im)%dsolute_dparameter(in), &
-!                       PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-        enddo
-      enddo
-    endif
-  endif
-
-
   ! I can now deallocate potential and delM (and M just after solving)
   ! But what about potential field output?
 
@@ -1165,6 +1211,233 @@ subroutine PMERTBuildJacobian(this)
   call TimerDestroy(timer)
 
 end subroutine PMERTBuildJacobian
+
+! ************************************************************************** !
+
+subroutine PMERTBuildCoupledJacobian(this)
+  !
+  ! Builds ERT FLOW Coupled Jacobian Matrix distributed across processors
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 10/03/22
+  !
+
+  use Patch_module
+  use Grid_module
+  use Inversion_Coupled_Aux_module
+  use Inversion_Parameter_module
+  use Inversion_Aux_module
+  use Material_Aux_module
+  use String_module
+  use Timer_class
+  use Units_module
+  use Utility_module
+  use ZFlow_Aux_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+  class(timer_type), pointer ::timer
+  type(inversion_coupled_soln_type), pointer :: solutions(:)
+  type(inversion_parameter_type), pointer :: parameters(:)
+
+  PetscInt, pointer :: cell_neighbors(:,:)
+  PetscReal, allocatable :: phi_sor(:), phi_rec(:)
+  PetscReal, pointer :: dsat_dparam_ptr(:),dconc_dparam_ptr(:)
+  PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
+  PetscReal :: jacob,coupled_jacob
+  PetscInt :: idata,ndata,imeasurement
+  PetscInt :: ia,ib,im,in,isurvey,iparam
+  PetscInt :: local_id,ghosted_id
+  PetscInt :: inbr,num_neighbors
+  PetscBool :: iflag
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  survey => this%survey
+
+  ert_auxvars => patch%aux%ERT%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  cell_neighbors => grid%cell_neighbors_local_ghosted
+
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+  timer => TimerCreate()
+  call timer%Start()
+
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(/," --> Building partial ERT FLOW Coupled Jacobian matrix:")')
+  endif
+
+  ndata = survey%num_measurement
+
+  if (this%coupled_ert_flow_jacobian) then
+    solutions => patch%aux%inversion_aux%coupled_aux%solutions
+    parameters => patch%aux%inversion_aux%parameters
+
+    call VecGetArrayReadF90(this%dconductivity_dsaturation, &
+                            dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
+    if (Initialized(zflow_sol_tran_eq)) then
+      call VecGetArrayReadF90(this%dconductivity_dconcentration, &
+                              dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
+    endif
+
+    iflag = PETSC_FALSE
+    do isurvey = 1, size(solutions)
+      if (.not.Equal(solutions(isurvey)%time,option%time)) cycle
+      iflag = PETSC_TRUE
+      do iparam = 1, size(parameters)
+        call VecGetArrayReadF90(solutions(isurvey)% &
+                                dsaturation_dparameter(iparam), &
+                                dsat_dparam_ptr,ierr);CHKERRQ(ierr)
+        if (Initialized(zflow_sol_tran_eq)) then
+          call VecGetArrayReadF90(solutions(isurvey)% &
+                                  dsolute_dparameter(iparam), &
+                                  dconc_dparam_ptr,ierr);CHKERRQ(ierr)
+        endif
+
+        do idata=1,ndata
+
+          ! for A and B electrodes
+          ia = survey%config(1,idata)
+          ib = survey%config(2,idata)
+          im = survey%config(3,idata)
+          in = survey%config(4,idata)
+
+          imeasurement = idata + (isurvey - 1) * ndata
+
+          jacob = 0.d0
+          coupled_jacob = 0.d0
+          do local_id=1,grid%nlmax
+
+            ghosted_id = grid%nL2G(local_id)
+            if (patch%imat(ghosted_id) <= 0) cycle
+
+            num_neighbors = cell_neighbors(0,local_id)
+            allocate(phi_sor(num_neighbors+1), phi_rec(num_neighbors+1))
+            phi_sor = 0.d0
+            phi_rec = 0.d0
+
+            ! Source electrode +A
+            if(ia/=0) phi_sor(1) = phi_sor(1) + &
+                                   ert_auxvars(ghosted_id)%potential(ia)
+            ! Source electrode -B
+            if(ib/=0) phi_sor(1) = phi_sor(1) - &
+                                   ert_auxvars(ghosted_id)%potential(ib)
+            ! Receiver electrode +M
+            if(im/=0) phi_rec(1) = phi_rec(1) + &
+                                   ert_auxvars(ghosted_id)%potential(im)
+            ! Receiver electrode -N
+            if(in/=0) phi_rec(1) = phi_rec(1) - &
+                                   ert_auxvars(ghosted_id)%potential(in)
+
+            jacob = phi_sor(1) * ert_auxvars(ghosted_id)%delM(1) * phi_rec(1)
+
+            do inbr = 1,num_neighbors
+            ! Source electrode +A
+              if (ia/=0) then
+                phi_sor(inbr+1) = phi_sor(inbr+1) + &
+                  ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ia)
+              endif
+
+              ! Source electrode -B
+              if (ib/=0) then
+                phi_sor(inbr+1) = phi_sor(inbr+1) - &
+                  ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ib)
+              endif
+
+              ! Receiver electrode +M
+              if (im/=0) then
+                phi_rec(inbr+1) = phi_rec(inbr+1) + &
+                  ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(im)
+              endif
+
+              ! Receiver electrode -N
+              if (in/=0) then
+                phi_rec(inbr+1) = phi_rec(inbr+1) - &
+                  ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(in)
+              endif
+
+              jacob = jacob + &
+                      phi_sor(1) * ert_auxvars(ghosted_id)%delM(1+inbr) * &
+                        phi_rec(inbr+1) + &
+                      phi_sor(1+inbr) * ( &
+                        ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(1) - &
+                        ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(1+inbr) )
+
+            enddo
+
+            ! dERT/dparam = dERT/dCond * dCond/dSat  * dSat/dParam + &
+            !               dERT/dCond * dCond/dConc * dConc/dParam
+            coupled_jacob = coupled_jacob + jacob * dsat_dparam_ptr(local_id) *&
+                            dcond_dsat_vec_ptr(local_id)
+            if (Initialized(zflow_sol_tran_eq)) then
+              coupled_jacob = coupled_jacob + &
+                              jacob * dconc_dparam_ptr(local_id) * &
+                              dcond_dconc_vec_ptr(local_id)
+            endif
+
+            deallocate(phi_sor, phi_rec)
+
+          enddo
+
+          call MPI_Allreduce(MPI_IN_PLACE,coupled_jacob,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
+
+          call MatSetValue(patch%aux%inversion_aux%JsensitivityT, &
+                             iparam-1,imeasurement-1,coupled_jacob, &
+                             INSERT_VALUES,ierr);CHKERRQ(ierr)
+        enddo
+        call VecRestoreArrayReadF90(solutions(isurvey)% &
+                                    dsaturation_dparameter(iparam), &
+                                    dsat_dparam_ptr,ierr);CHKERRQ(ierr)
+        if (Initialized(zflow_sol_tran_eq)) then
+          call VecRestoreArrayReadF90(solutions(isurvey)% &
+                                      dsolute_dparameter(iparam), &
+                                      dconc_dparam_ptr,ierr);CHKERRQ(ierr)
+        endif
+      enddo
+    enddo
+
+    if (.not.iflag) then
+      word = 'sec'
+      option%io_buffer = 'No flow or transport measurements were recorded &
+        &for the Jacobian calculation at ' // &
+        trim(StringWrite(option%time*&
+                         UnitsConvertToExternal(this%survey_time_units, &
+                         word,option))) // &
+        ' ' // trim(this%survey_time_units)
+      call PrintErrMsg(option)
+    endif
+
+    call VecRestoreArrayReadF90(this%dconductivity_dsaturation, &
+                                dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
+    if (Initialized(zflow_sol_tran_eq)) then
+      call VecRestoreArrayReadF90(this%dconductivity_dconcentration, &
+                                  dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
+    endif
+
+  endif
+
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) &
+    // ' seconds to build partial coupled Jacobian.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
+
+end subroutine PMERTBuildCoupledJacobian
 
 ! ************************************************************************** !
 
@@ -1285,6 +1558,12 @@ subroutine PMERTStrip(this)
   call DeallocateArray(this%species_conductivity_coef)
   if (this%rhs /= PETSC_NULL_VEC) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)
+  endif
+  if (this%dconductivity_dsaturation /= PETSC_NULL_VEC) then
+    call VecDestroy(this%dconductivity_dsaturation,ierr);CHKERRQ(ierr)
+  endif
+  if (this%dconductivity_dconcentration /= PETSC_NULL_VEC) then
+    call VecDestroy(this%dconductivity_dconcentration,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine PMERTStrip

@@ -217,7 +217,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(this%filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   string = trim(this%hdf5_dataset_name) // '/Data'

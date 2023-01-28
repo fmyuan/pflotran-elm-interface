@@ -649,15 +649,15 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! Open the Regions group
   string = 'Regions'
-  call HDF5GroupOpen(file_id,string,grp_id,option)
+  call HDF5GroupOpen(file_id,string,grp_id,option%driver)
 
   ! Open the Regions group
-  call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
+  call HDF5GroupOpen(grp_id,region%name,grp_id2,option%driver)
 
   option%io_buffer = 'Querying definition for Region: ' // trim(region%name)
   call PrintMsg(option)
@@ -724,20 +724,20 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! Open the Regions group
   string = 'Regions'
   option%io_buffer = 'Opening group: ' // trim(string)
   call PrintMsg(option)
-  call HDF5GroupOpen(file_id,string,grp_id,option)
+  call HDF5GroupOpen(file_id,string,grp_id,option%driver)
 
   ! Open the Regions group
   string = trim(region%name)
   option%io_buffer = 'Opening group: ' // trim(string)
   call PrintMsg(option)
-  call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
+  call HDF5GroupOpen(grp_id,region%name,grp_id2,option%driver)
 
   ! Read Cell Ids
   string = "Cell Ids"
@@ -842,7 +842,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
 #endif
 
   ! Open the file collectively
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! Open dataset
@@ -1013,7 +1013,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   option%io_buffer = 'Setting up grid cell indices'
@@ -1023,7 +1023,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
     call PrintMsg(option)
-    call HDF5GroupOpen(file_id,group_name,grp_id,option)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option%driver)
   else
     grp_id = file_id
   endif
@@ -1146,7 +1146,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   option%io_buffer = 'Setting up grid cell indices'
@@ -1156,7 +1156,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
     call PrintMsg(option)
-    call HDF5GroupOpen(file_id,group_name,grp_id,option)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option%driver)
   else
     grp_id = file_id
   endif

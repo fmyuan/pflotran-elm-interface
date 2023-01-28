@@ -90,13 +90,13 @@ CHEMISTRY
 
     ! forward rate = -ln(0.5) / half life [1/sec]
 
-    FORWARD_RATE 1.75836d-9  ! 1/s  half life = 12.5 yrs
-    BACKWARD_RATE 0.d0
+    FORWARD_RATE 1.75836d-9 1/s ! half life = 12.5 yrs
+    BACKWARD_RATE 0.d0 1/d
   /
   GENERAL_REACTION
     REACTION B(aq) <-> C(aq)
     FORWARD_RATE 8.7918d-10  ! 1/s  half life = 25. yrs
-    BACKWARD_RATE 0.d0
+    BACKWARD_RATE 0.d0 1/yr
   /
   GENERAL_REACTION
     ! Note that C(aq) simply decays with no daugher products

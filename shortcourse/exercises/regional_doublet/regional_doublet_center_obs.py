@@ -16,13 +16,15 @@ path = []
 path.append('.')
 
 files = []
-#files.append('regional_doublet-obs-1.pft')
+# 1 core
 files.append('regional_doublet-obs-0.pft')
+# 8 cores
+#files.append('regional_doublet-obs-1.pft')
 filenames = pft.get_full_paths(path,files)
 
 f = plt.figure(figsize=(8,6))
 plt.subplot(1,1,1)
-f.suptitle("Regional Doublet on 8 Cores, Center Obs. Point",fontsize=14)
+f.suptitle("Regional Doublet Center Obs. Point",fontsize=14)
 plt.xlabel('Time [y]')
 plt.ylabel('Concentration [M]')
 

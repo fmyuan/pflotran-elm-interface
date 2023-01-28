@@ -24,7 +24,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   ! Date: 05/10/21
 
   use Communicator_Aux_module
-  use Driver_module
+  use Driver_class
   use EOS_module
   use HDF5_Aux_module
   use Input_Aux_module
@@ -93,7 +93,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
   ! Author: Glenn Hammond
   ! Date: 05/25/21
 
-  use Driver_module
+  use Driver_class
   use Input_Aux_module
   use Option_module
   use Factory_Forward_module
@@ -186,7 +186,8 @@ subroutine FactoryPFLOTRANFinalize(driver)
   ! Author: Glenn Hammond
   ! Date: 05/10/21
   !
-  use Driver_module
+  use Communicator_Aux_module
+  use Driver_class
   use HDF5_Aux_module
   use Logging_module
 
@@ -202,6 +203,7 @@ subroutine FactoryPFLOTRANFinalize(driver)
   ! list any PETSc objects that have not been freed - for debugging
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS,'-objects_left','yes', &
                             ierr);CHKERRQ(ierr)
+  call CommStrip(driver%comm)
   call PetscFinalize(ierr);CHKERRQ(ierr)
 
 end subroutine FactoryPFLOTRANFinalize

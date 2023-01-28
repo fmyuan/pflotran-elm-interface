@@ -125,29 +125,21 @@
 \begin{frame}[fragile]\frametitle{Running PFLOTRAN}
 
 This problem takes a while to run, so let's get it started first.
+
+\vspace{0.5cm}
 Homogeneous permeability field version:
-
 \begin{semiverbatim}
-
  > cd \$PFLOTRAN_DIR
  > cd shortcourse/exercises/regional_doublet/
  > pflotran -input_prefix regional_doublet
-
 \end{semiverbatim}
 
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
-
-This problem takes a while to run, so let's get it started first.
 Stochastic permeability field version:
-
 \begin{semiverbatim}
- > cd \$PFLOTRAN_DIR
- > cd shortcourse/exercises/regional_doublet/
- > pflotran -input_prefix stochastic_regional_doublet
-  -realization_id 5
+  > cd \$PFLOTRAN_DIR
+  > cd shortcourse/exercises/regional_doublet/
+  > pflotran -input_prefix stochastic_regional_doublet \\
+      -realization_id 5
 \end{semiverbatim}
 
 \end{frame}
@@ -400,7 +392,6 @@ S_j &\eq \text{source/sink term for aqueous species } j\\
 
 \begin{itemize}
 \item Dirichlet (e.g. specified concentration)
-\item Neumann (e.g. specified mass flux)
 \item Zero Gradient (e.g. outflow boundary)
 \end{itemize}
 
@@ -478,7 +469,7 @@ END_SUBSURFACE
 
 \begin{semiverbatim}
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 100 51 20
   BOUNDS
     0.d0 0.d0 0.d0
@@ -646,25 +637,27 @@ END
 
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC  \bluecomment{! hydrostatic condition}
+    LIQUID_PRESSURE HYDROSTATIC \bluecomment{! hydrostatic condition}
   /
-  DATUM 0.d0 0.d0 90.d0   \bluecomment{! point in space}
-  GRADIENT
-    PRESSURE -0.002 0. 0. \bluecomment{! gradient for pressure \redcomment{[m/m]}}
-  /                       \bluecomment{!   unless \redcomment{dz} specified \redcomment{[Pa/m]}}
-  PRESSURE 101325.d0      \bluecomment{! pressure at datum}
+  DATUM 0.d0 0.d0 90.d0         \bluecomment{! point in space}
+  
+  GRADIENT                       \bluecomment{! gradient for pressure}
+    LIQUID_PRESSURE -0.002 0. 0. \bluecomment{!   \redcomment{[m/m]} unless \redcomment{dz} is}
+  /                              \bluecomment{!   specified \redcomment{[Pa/m]}}
+  LIQUID_PRESSURE 101325.d0      \bluecomment{! pressure at datum}
 END
 
 \newpage
 
 FLOW_CONDITION river
   TYPE
-    PRESSURE SEEPAGE     \bluecomment{! seepage face condition}
+    LIQUID_PRESSURE SEEPAGE   \bluecomment{! seepage face condition}
   /
   INTERPOLATION LINEAR   \bluecomment{! dataset time interpolation}
   CYCLIC                 \bluecomment{! cycle dataset}
   DATUM FILE river_stage.txt  \bluecomment{! read transient datum}
-  PRESSURE 101325.d0          \bluecomment{!    dataset from file}
+                              \bluecomment{!   dataset from file}
+  LIQUID_PRESSURE 101325.d0   \bluecomment{! pressure at datum}
 END
 
 \newpage
@@ -682,9 +675,9 @@ END
 \newpage
 FLOW_CONDITION recharge
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX LIST
+  LIQUID_FLUX LIST
     TIME_UNITS yr
     DATA_UNITS cm/yr
     0.d0 25.d0
@@ -844,9 +837,10 @@ END
 \end{itemize}
 
 \begin{semiverbatim}
-
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d0   \bluecomment{! infinity norm of update vector}
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0   \bluecomment{! infinity norm of update vector}
+  /
 END
 \end{semiverbatim}
 
@@ -978,7 +972,7 @@ OUTPUT
     /
   /
   OBSERVATION_FILE
-    PERIODIC TIMESTEP 1  \bluecomment{! observ. every step}
+    PERIODIC TIMESTEP 1  \bluecomment{! observe every step}
   /
   VELOCITY_AT_CENTER     \bluecomment{! include velocities}
 END
@@ -1009,7 +1003,6 @@ END
 \begin{frame}[fragile]\frametitle{CHECKPOINT/RESTART II}
 
 \begin{semiverbatim}
-
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
@@ -1022,11 +1015,11 @@ SIMULATION
     PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
     PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
   /
-  RESTART restart.chk \redcomment{RESET_TO_TIME_ZERO}  
-END                        \bluecomment{! restart simulation using}
-                           \bluecomment{! file \redcomment{restart.chk}}
-                           \bluecomment{! and reset time to 0.}
-
+  RESTART                  \bluecomment{! restart at time zero }
+    FILENAME regional\_doublet-restart.chk
+    RESET\_TO\_TIME\_ZERO
+  /
+END
 \end{semiverbatim}
 
 \end{frame}
@@ -1040,6 +1033,7 @@ END                        \bluecomment{! restart simulation using}
 When the simulation is finished running, you can plot the results using
 the python script called regional\_doublet\_center\_obs.py
 
+\vspace{1cm}
 To run the python script:
 
 \begin{semiverbatim}

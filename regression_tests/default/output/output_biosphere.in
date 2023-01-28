@@ -120,19 +120,9 @@ OBSERVATION
   REGION all
 END
 
-#=========================== flow conditions ==================================
-
-FLOW_CONDITION well
-  TYPE
-    RATE VOLUMETRIC_RATE
-  /
-  RATE -1.d-15 m^3/day
-END
-
 #=========================== source/sinks =====================================
 SOURCE_SINK well
   REGION well
-  FLOW_CONDITION well
   TRANSPORT_CONDITION sink
 END
 

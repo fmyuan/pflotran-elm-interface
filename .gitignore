@@ -12,10 +12,12 @@
 *.swp
 *.synctex.gz
 *.old
+.vscode
 .DS_Store
 ._.DS_Store
 .hgignore.orig
 .hgignore~
+.vscode
 src/.DS_Store
 src/pflotran/*.o
 src/pflotran/*.MOD

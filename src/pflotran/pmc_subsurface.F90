@@ -127,6 +127,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_General_class
+  use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
@@ -320,6 +321,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
               add_pre_check = PETSC_TRUE
           endif
         class is(pm_general_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_hydrate_type)
               add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
               add_pre_check = PETSC_TRUE

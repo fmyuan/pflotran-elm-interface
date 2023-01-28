@@ -792,7 +792,9 @@ subroutine TimestepperBaseCutDT(this,process_model,icut,stop_flag, &
     trim(StringWrite('(1pe12.5)', &
          option%time/process_model%output_option%tconv)) // &
     ' dt= ' // &
-    trim(StringWrite('(1pe12.5)',this%dt/process_model%output_option%tconv))
+    trim(StringWrite('(1pe12.5)',&
+         this%dt/process_model%output_option%tconv)) // &
+    ' [' // trim(process_model%output_option%tunit) // ']'
   call PrintMsg(option)
 
 end subroutine TimestepperBaseCutDT

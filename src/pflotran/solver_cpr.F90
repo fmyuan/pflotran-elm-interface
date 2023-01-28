@@ -84,6 +84,8 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case('ILU')
             ! this will cause crash if using more than 1 proc
             stash%T2_type = 'ILU'
+          case('JACOBI')
+            stash%T2_type = 'JACOBI'
           case default
             option%io_buffer  = 'CPR T2 Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
@@ -135,14 +137,14 @@ subroutine SolverCPRRead(stash, input, option, ierr)
         select case(trim(word))
           case('ABF')
             stash%extract_type = 'ABF'
-          case('QIMPES_WIPP','QIMPES_IMMISCIBLE','QIMPES_TWO_UNKNOWNS')
+          case('ABF_TWO_UNKNOWNS','ABF_IMMISCIBLE')
+            stash%extract_type = 'ABF_TWO_UNKNOWNS'
+          case('ABF_THREE_UNKNOWNS','ABF_MISCIBLE')
+            stash%extract_type = 'ABF_THREE_UNKNOWNS'
+          case('ABF_GENERIC')
+            stash%extract_type = 'ABF_GENERIC'
+          case('QIMPES','QIMPES_WIPP','QIMPES_IMMISCIBLE','QIMPES_TWO_UNKNOWNS')
             stash%extract_type = 'QIMPES_TWO_UNKNOWNS'
-          case('QIMPES_VARIABLE','QIMPES_THREE_UNKNOWNS')
-            stash%extract_type = 'QIMPES_THREE_UNKNOWNS'
-          case('QIMPES','QIMPES_ANY_UNKNOWNS','QIMPES_ANY_UNKNOWN')
-            stash%extract_type = 'QIMPES'
-          case('QIMPES_VARIABLE_FORCE')
-            stash%extract_type = 'QIMPES_VARIABLE_FORCE'
           case default
             option%io_buffer  = 'CPR Extraction type: ' // trim(word) // &
                                 ' unknown.'
@@ -524,7 +526,7 @@ subroutine SolverCPRInitializeStorage(ctx)
   ! typically scaling saturation block won't help
   ctx%T3_scale = PETSC_FALSE
   ! most general method call
-  ctx%extract_type = "QIMPES"
+  ctx%extract_type = "ABF"
 
   ctx%asmfactorinplace = PETSC_FALSE
   ctx%t2shiftinblocks = PETSC_FALSE

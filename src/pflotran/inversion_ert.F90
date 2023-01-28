@@ -50,9 +50,10 @@ module Inversion_ERT_class
 
   contains
     procedure, public :: Init => InversionERTInit
-    procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
     procedure, public :: Step => InversionERTStep
+    procedure, public :: SetupForwardRunLinkage => &
+                           InvERTSetupForwardRunLinkage
     procedure, public :: ExecuteForwardRun => InversionERTExecuteForwardRun
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
@@ -114,7 +115,7 @@ function InversionERTCreate(driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -136,16 +137,16 @@ subroutine InversionERTInit(this,driver)
   !
   use Inversion_Parameter_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY
-  use Driver_module
+  use Driver_class
 
   class(inversion_ert_type) :: this
   class(driver_type), pointer :: driver
 
   call InversionSubsurfaceInit(this,driver)
   ! override default set in InversionSubsurfaceInit
-  allocate(this%parameters(1))
-  call InversionParameterInit(this%parameters(1))
-  this%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
+  allocate(this%inversion_aux%parameters(1))
+  call InversionParameterInit(this%inversion_aux%parameters(1))
+  this%inversion_aux%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -685,7 +686,7 @@ end subroutine ConstrainedBlockParRead
 
 ! ************************************************************************** !
 
-subroutine InversionERTInitialize(this)
+subroutine InvERTSetupForwardRunLinkage(this)
   !
   ! Initializes inversion
   !
@@ -713,7 +714,7 @@ subroutine InversionERTInitialize(this)
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
     ! theck to ensure that quantity of interest exists
     exists = PETSC_FALSE
-    select case(this%parameters(1)%iparameter)
+    select case(this%inversion_aux%parameters(1)%iparameter)
       case(ELECTRICAL_CONDUCTIVITY)
         if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
         word = 'ELECTRICAL_CONDUCTIVITY'
@@ -725,7 +726,7 @@ subroutine InversionERTInitialize(this)
       call PrintErrMsg(this%realization%option)
     endif
 
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     if (this%app_cond_start_model) then
       ! non-ghosted Vec
       call VecDuplicate(this%realization%field%work,this%quantity_of_interest, &
@@ -770,7 +771,7 @@ subroutine InversionERTInitialize(this)
     endif
   endif
 
-end subroutine InversionERTInitialize
+end subroutine InvERTSetupForwardRunLinkage
 
 ! ************************************************************************** !
 
@@ -789,7 +790,7 @@ subroutine InversionERTStep(this)
   type(option_type), pointer :: option
 
   call this%InitializeForwardRun(option)
-  call this%Initialize()
+  call this%SetupForwardRunLinkage()
   call this%UpdateParameters()
   call this%forward_simulation%InitializeRun()
   call this%ExecuteForwardRun()
@@ -1049,7 +1050,7 @@ subroutine InversionERTUpdateParameters(this)
   discretization => this%realization%discretization
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     call DiscretizationGlobalToLocal(discretization, &
                                      this%quantity_of_interest, &
                                      field%work_loc,ONEDOF)

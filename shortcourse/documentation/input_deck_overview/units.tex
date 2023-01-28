@@ -1,0 +1,23 @@
+\begin{frame}[fragile,containsverbatim]\frametitle{Units}
+
+For the most part, all units default to SI, if not specified (i.e., Joule [J], kilogram [kg], meter [m], mole [mol], second [s], watt [W]). Concentration [M] and temperature [C] are exceptions.
+
+\begin{semiverbatim}
+  TIME
+    FINAL_TIME 20.d0 y
+    INITIAL_TIMESTEP_SIZE 1.d0 h
+    MAXIMUM_TIMESTEP_SIZE 1.d0 y
+  END
+\end{semiverbatim}
+
+\begin{semiverbatim}
+  FLOW_CONDITION recharge
+    TYPE
+      LIQUID_FLUX NEUMANN
+    /
+    LIQUID_FLUX 10.d0 cm/y
+  END
+\end{semiverbatim}
+
+\end{frame}
+

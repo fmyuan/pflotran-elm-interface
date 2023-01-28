@@ -68,13 +68,13 @@ CHEMISTRY
 #      F1    1.d0
 #      F2    1.d0
 #      F3    1.d0
-      K1    28.26d0 1/d
+      K1    28.26d0 mol/L-d
       Ka1   0.001d0 mM
       Kd1   0.25d0 mM
-      K2    23.28d0 1/d
+      K2    23.28d0 mol/L-d
       Ka2   0.004d0 mM
       Kd2   0.25d0 mM
-      K3    84.78d0 1/d
+      K3    84.78d0 mol/L-d
       Ka3   0.001d0 mM
       Kd3   0.25d0 mM
       Kdeg  0.242d0 1/d
