@@ -16,9 +16,9 @@
       Max:   9.9982539298606E-01
       Min:   1.0044757150343E-06
      Mean:   1.5311856059035E-01
-      200:   2.6588206528601E-01
-      400:   4.2170439289164E-03
-      550:   8.4359417572067E-06
+      200:   2.6588206528600E-01
+      400:   4.2170439289162E-03
+      550:   8.4359417572065E-06
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -27,18 +27,16 @@
       400:         1
       550:         1
 -- SOLUTION: Flow --
-   Time (seconds):   1.0579371452332E-01
    Time Steps:           11
    Newton Iterations:           14
-   Linear Solver Iterations:          229
+   Linear Solver Iterations:          227
    Time Step Cuts:            0
    Solution 2-Norm:   2.5974482932479E+08
-   Residual 2-Norm:   1.6082817345325E-14
+   Residual 2-Norm:   1.6548376028009E-14
 -- SOLUTION: Transport --
-   Time (seconds):   8.9716434478760E-02
    Time Steps:           11
    Newton Iterations:           15
    Linear Solver Iterations:           27
    Time Step Cuts:            0
    Solution 2-Norm:   7.9697695691955E+00
-   Residual 2-Norm:   5.4767035903473E-12
+   Residual 2-Norm:   5.4766598736479E-12
