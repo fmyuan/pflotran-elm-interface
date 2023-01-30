@@ -1414,8 +1414,10 @@ subroutine PMERTBuildCoupledJacobian(this)
                               dcond_dconc_vec_ptr(local_id)
             endif
             if (this%invert_for_porosity) then
-              coupled_jacob = coupled_jacob + &
-                              jacob * dcond_dpor_vec_ptr(local_id)
+              if (parameters(iparam)%imat == patch%imat(ghosted_id)) then
+                coupled_jacob = coupled_jacob + &
+                                jacob * dcond_dpor_vec_ptr(local_id)
+              endif
             endif
 
             deallocate(phi_sor, phi_rec)
@@ -1423,12 +1425,12 @@ subroutine PMERTBuildCoupledJacobian(this)
           enddo
 
           call MPI_Allreduce(MPI_IN_PLACE,coupled_jacob,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
-                       ierr);CHKERRQ(ierr)
+                             MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                             ierr);CHKERRQ(ierr)
 
           call MatSetValue(patch%aux%inversion_aux%JsensitivityT, &
-                             iparam-1,imeasurement-1,coupled_jacob, &
-                             INSERT_VALUES,ierr);CHKERRQ(ierr)
+                           iparam-1,imeasurement-1,coupled_jacob, &
+                           INSERT_VALUES,ierr);CHKERRQ(ierr)
         enddo
         call VecRestoreArrayReadF90(solutions(isurvey)% &
                                     dsaturation_dparameter(iparam), &
