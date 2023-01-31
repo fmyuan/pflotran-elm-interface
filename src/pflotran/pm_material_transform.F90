@@ -170,6 +170,7 @@ subroutine PMMaterialTransformSetup(this)
   grid => patch%grid
 
   found = PETSC_FALSE
+  option%flow%store_state_variables = PETSC_TRUE
 
   ! pass material transform list from PM to realization
   this%realization%material_transform => this%material_transform_list
