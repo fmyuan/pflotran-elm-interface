@@ -1,5 +1,5 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   1.3952072597124E+05
+      Max:   1.3952072597128E+05
       Min:   9.2553829950056E+04
      Mean:   1.1517512296561E+05
         1:   1.3952055284548E+05
@@ -26,10 +26,9 @@
         4:         1
         5:         1
 -- SOLUTION: Flow --
-   Time (seconds):   2.7019977569580E-02
    Time Steps:            2
    Newton Iterations:            8
-   Solver Iterations:           14
+   Linear Solver Iterations:           14
    Time Step Cuts:            0
    Solution 2-Norm:   2.6470769793846E+06
-   Residual 2-Norm:   9.8013879312197E-11
+   Residual 2-Norm:   1.0061253023386E-10
