@@ -33,7 +33,7 @@
         1:   9.9999832527126E-11
        21:   1.0000251511474E-10
        41:   1.0000087820837E-10
-       61:   9.9999860699068E-11
+       61:   9.9999860699067E-11
        81:   9.9999801831201E-11
       101:   1.0000098485726E-10
       121:   1.0000238209794E-10
@@ -42,7 +42,7 @@
       181:   1.0000041624613E-10
 -- CONCENTRATION: Total Tracer2 --
       Max:   9.9992836809109E-01
-      Min:   6.0686128079348E-08
+      Min:   6.0686128079349E-08
      Mean:   2.2984885261106E-01
         1:   4.7343900762199E-01
        21:   4.8079034924743E-01
@@ -69,18 +69,16 @@
       161:         4
       181:         4
 -- SOLUTION: Flow --
-   Time (seconds):   3.4155869483948E-01
    Time Steps:           34
    Newton Iterations:          106
-   Solver Iterations:         1009
+   Linear Solver Iterations:         1009
    Time Step Cuts:            0
    Solution 2-Norm:   7.4621194416056E+06
-   Residual 2-Norm:   5.2690993777384E-09
+   Residual 2-Norm:   5.2691022939518E-09
 -- SOLUTION: Transport --
-   Time (seconds):   1.2114381790161E-01
    Time Steps:           34
    Newton Iterations:           55
-   Solver Iterations:           95
+   Linear Solver Iterations:           95
    Time Step Cuts:            0
    Solution 2-Norm:   5.8463505994682E+00
-   Residual 2-Norm:   7.5300408495320E-07
+   Residual 2-Norm:   7.5300414257003E-07
