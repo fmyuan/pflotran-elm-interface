@@ -1,4 +1,4 @@
-#!/opt/local/bin/python2.7
+#!/opt/local/bin/python3
 
 import re
 from parseArgs import parseArgs

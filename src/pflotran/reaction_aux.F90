@@ -1552,7 +1552,7 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
 
   implicit none
 
-  type(reaction_rt_type) :: reaction
+  class(reaction_rt_type) :: reaction
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt, pointer :: spec_ids(:,:)
   PetscReal, pointer :: stoich(:,:)

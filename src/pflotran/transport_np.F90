@@ -45,7 +45,7 @@ subroutine TNPFlux(reaction, &
 
   implicit none
 
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -194,7 +194,7 @@ subroutine TNPFluxBC( &
   implicit none
 
   PetscInt :: ibndtype
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
@@ -335,7 +335,7 @@ subroutine TNPFluxDerivative(reaction, &
 
   implicit none
 
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -474,7 +474,7 @@ subroutine TNPFluxDerivativeBC(&
   implicit none
 
   PetscInt :: ibndtype
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
@@ -610,7 +610,7 @@ subroutine ComputeElectricPotentialTotalComponent(reaction, &
   ! Author: Albert Nardi (Amphos21 - Barcelona Science)
   ! Date: 29/06/20
   !
-  type(reaction_rt_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   PetscInt :: icomp, jcomp

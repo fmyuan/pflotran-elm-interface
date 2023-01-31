@@ -1,13 +1,16 @@
-FROM ubuntu:bionic
+FROM ubuntu:jammy
 
 ENV PETSC_DIR=/scratch/petsc PETSC_ARCH=petsc-arch
 ARG PETSC_VERSION
 
-RUN apt-get update -qq && \
-    apt-get install -y git make cmake gcc gfortran g++ lcov \
-                       python3 python3-h5py python
+RUN apt update -qq && \
+    apt install -y git make cmake gcc gfortran g++ lcov
+RUN apt install -y python3 python3-h5py
+RUN apt install -y wget
+RUN apt install -y vim
 
 WORKDIR /scratch
+RUN wget https://www.mpich.org/static/downloads/4.1/mpich-4.1.tar.gz
 COPY ./.gitlab/build-petsc.sh .
 RUN /scratch/build-petsc.sh
 

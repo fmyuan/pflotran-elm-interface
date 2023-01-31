@@ -775,8 +775,9 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-          flow_stepper%cumulative_solver_time
+!geh: no need to store time and it clutters the 'diff' of regression files
+!geh          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+!geh          flow_stepper%cumulative_solver_time
           write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
           write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
           flow_stepper%cumulative_newton_iterations
@@ -794,8 +795,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-          flow_stepper%cumulative_solver_time
+!geh          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+!geh          flow_stepper%cumulative_solver_time
           write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
           write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
           flow_stepper%cumulative_newton_iterations
@@ -811,8 +812,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-          flow_stepper%cumulative_solver_time
+!geh          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+!geh          flow_stepper%cumulative_solver_time
           write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
           write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
           flow_stepper%cumulative_linear_iterations
@@ -836,8 +837,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-            tran_stepper%cumulative_solver_time
+!geh          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+!geh            tran_stepper%cumulative_solver_time
           write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') tran_stepper%steps
           write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
             tran_stepper%cumulative_newton_iterations
@@ -853,8 +854,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-            tran_stepper%cumulative_solver_time
+!geh          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+!geh            tran_stepper%cumulative_solver_time
           write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') tran_stepper%steps
           write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
             tran_stepper%cumulative_linear_iterations
