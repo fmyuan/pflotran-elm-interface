@@ -170,7 +170,6 @@ subroutine PMMaterialTransformSetup(this)
   grid => patch%grid
 
   found = PETSC_FALSE
-  option%flow%store_state_variables = PETSC_TRUE
 
   ! pass material transform list from PM to realization
   this%realization%material_transform => this%material_transform_list
@@ -375,7 +374,8 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
 
   option%io_buffer = 'pflotran card:: MATERIAL_TRANSFORM_GENERAL'
   call PrintMsg(option)
-
+  option%flow%store_state_variables = PETSC_TRUE
+  
   input%ierr = 0
 
   nullify(prev_material_transform)
@@ -464,6 +464,8 @@ subroutine PMMaterialTransformInitializeTS(this)
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
 
+  use Global_module
+
   implicit none
 
   ! INPUT ARGUMENTS:
@@ -473,6 +475,8 @@ subroutine PMMaterialTransformInitializeTS(this)
   class(pm_material_transform_type) :: this
   ! --------------------------------
 
+  call GlobalWeightAuxVars(this%realization,1.d0)
+  
 end subroutine PMMaterialTransformInitializeTS
 
 ! ************************************************************************** !
@@ -682,7 +686,7 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
         endif
         ! if (associated(material_transform%buffer_erosion)) then
         ! endif
-        if (associated(material_transform%bats_function)) then 
+        if (associated(material_transform%bats_function)) then
           call material_transform%bats_function%ModifyPerm(material_aux, &
             m_transform_aux%bf_aux,global_aux,option)    
         endif
