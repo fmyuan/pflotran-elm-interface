@@ -475,7 +475,7 @@ subroutine PMMaterialTransformInitializeTS(this)
   class(pm_material_transform_type) :: this
   ! --------------------------------
 
-  call GlobalWeightAuxVars(this%realization,1.d0)
+  if (.not.this%option%ntrandof > 0) call GlobalWeightAuxVars(this%realization,1.d0)
   
 end subroutine PMMaterialTransformInitializeTS
 
