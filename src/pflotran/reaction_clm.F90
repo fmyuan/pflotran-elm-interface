@@ -610,27 +610,19 @@ subroutine CLMDec_Read(this,input,option)
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,CLM_RXN,CLMDec,')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (InputError(input)) then
-                input%err_buf = 'CLMDec RATE CONSTANT UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,rate_constant, &
+                                            internal_units, &
+                                            'CHEMISTRY,CLM_RXN,CLMDec,&
+                                            &RATE_CONSTANT',option)
             case('TURNOVER_TIME')
               internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,CLM_RXN,CLMDec')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (InputError(input)) then
-                input%err_buf = 'CLMDec TURNOVER TIME UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,turnover_time, &
+                                            internal_units, &
+                                            'CHEMISTRY,CLM_RXN,CLMDec,&
+                                            &TURNOVER_TIME',option)
             case default
               call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)

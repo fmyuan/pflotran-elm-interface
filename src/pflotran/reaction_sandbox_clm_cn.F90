@@ -208,31 +208,21 @@ subroutine CLM_CN_Read(this,input,option)
               call InputErrorMsg(input,option,'downstream pool name', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
             case('RATE_CONSTANT')
+              internal_units = 'mol/L-s|1/s|L/mol-s'
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              internal_units = 'unitless/sec'
-              if (InputError(input)) then
-                input%err_buf = 'CLM-CN RATE CONSTANT UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,rate_constant, &
+                              internal_units,'CHEMISTRY,REACTION_SANDBOX,&
+                              &CLM-CN,REACTION,RATE_CONSTANT',option)
             case('TURNOVER_TIME')
+              internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              internal_units = 'sec'
-              if (InputError(input)) then
-                input%err_buf = 'CLM-CN TURNOVER TIME UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,turnover_time, &
+                              internal_units,'CHEMISTRY,REACTION_SANDBOX,&
+                              &CLM-CN,REACTION,TURNOVER_TIME',option)
             case('RESPIRATION_FRACTION')
               call InputReadDouble(input,option, &
                                    new_reaction%respiration_fraction)

@@ -132,34 +132,25 @@ subroutine DownregRead(this,input,option)
                                  units,internal_units)
       case('POSITIVE_REG_PRESSURE')
         call InputReadDouble(input,option,this%pressure_max)
-        call InputErrorMsg(input,option,'maximum pressure', &
-          'SOURCE_SINK_SANDBOX,DOWNREG')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          internal_units = 'Pa'
-          this%pressure_max = this%pressure_max * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,DOWNREG')
+        internal_units = 'Pa'
+        call InputReadAndConvertUnits(input,this%pressure_max, &
+                                      internal_units,'SOURCE_SINK_SANDBOX,&
+                                      &DOWNREG,POSITIVE_REG_PRESSURE',option)
       case('NEGATIVE_REG_PRESSURE')
         call InputReadDouble(input,option,this%pressure_min)
-        call InputErrorMsg(input,option,'minimum pressure', &
-          'SOURCE_SINK_SANDBOX,DOWNREG')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          internal_units = 'Pa'
-          this%pressure_min = this%pressure_min * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,DOWNREG')
+        internal_units = 'Pa'
+        call InputReadAndConvertUnits(input,this%pressure_min, &
+                                      internal_units,'SOURCE_SINK_SANDBOX,&
+                                      &DOWNREG,NEGATIVE_REG_PRESSURE',option)
       case('DELTA_REG_PRESSURE')
         call InputReadDouble(input,option,this%pressure_delta)
-        call InputErrorMsg(input,option,'delta pressure', &
-          'SOURCE_SINK_SANDBOX,DOWNREG')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          internal_units = 'Pa'
-          this%pressure_delta = this%pressure_delta * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,DOWNREG')
+        internal_units = 'Pa'
+        call InputReadAndConvertUnits(input,this%pressure_delta, &
+                                      internal_units,'SOURCE_SINK_SANDBOX,&
+                                      &DOWNREG,DELTA_REG_PRESSURE',option)
         if (this%pressure_delta <= 1.0d-10) then
           option%io_buffer = 'SRCSINK_SANDBOX,DOWNREG,DELTA_REG_PRESSURE' // &
             ': the pressure delta is too close to 0 Pa.'

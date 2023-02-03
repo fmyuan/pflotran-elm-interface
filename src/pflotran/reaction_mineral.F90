@@ -164,7 +164,9 @@ subroutine MineralReadKinetics(mineral,input,option)
                 call InputDefaultMsg(input,option)
               else
                 tstrxn%rate = tstrxn%rate * &
-                  UnitsConvertToInternal(word,internal_units,option)
+                  UnitsConvertToInternal(word,internal_units, &
+                                     trim(error_string)//',RATE_CONSTANT', &
+                                     option)
               endif
             case('ACTIVATION_ENERGY')
 !             read activation energy for Arrhenius law
@@ -259,7 +261,8 @@ subroutine MineralReadKinetics(mineral,input,option)
                       call InputDefaultMsg(input,option)
                     else
                       prefactor%rate = prefactor%rate * &
-                        UnitsConvertToInternal(word,internal_units,option)
+                        UnitsConvertToInternal(word,internal_units, &
+                          trim(cur_mineral%name)//'PREFACTOR_RATE',option)
                     endif
                   case('ACTIVATION_ENERGY')
                     ! read activation energy for Arrhenius law
@@ -587,7 +590,9 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
     if (per_unit_mass) then
       internal_units = 'm^2/kg' ! m^2 mnrl/kg mnrl
     endif
-    tempreal = UnitsConvertToInternal(units,internal_units,option)
+    tempreal = UnitsConvertToInternal(units,internal_units, &
+                         trim(mineral_rxn%name)//',specific surface area', &
+                         option)
     if (per_unit_mass) then
       mineral_rxn => GetMineralFromName(constraint%names(imnrl),mineral)
       if (mineral_rxn%molar_weight < epsilon .or. &

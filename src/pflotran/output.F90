@@ -249,7 +249,7 @@ subroutine OutputFileRead(input,realization,output_option, &
         call InputErrorMsg(input,option,'units',string)
         internal_units = 'sec'
         units_conversion = &
-             UnitsConvertToInternal(word,internal_units,option)
+             UnitsConvertToInternal(word,internal_units,string,option)
         call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER, &
              string,input,option)
         do k = 1, size(temp_real_array)
@@ -271,52 +271,45 @@ subroutine OutputFileRead(input,realization,output_option, &
       case('PERIODIC')
         string = 'OUTPUT,' // trim(block_name) // ',PERIODIC'
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'periodic time increment type',string)
+        call InputErrorMsg(input,option,'periodic increment type',string)
         call StringToUpper(word)
         select case(trim(word))
         !.............
           case('TIME')
-            string = 'OUTPUT,' // trim(block_name) // ',PERIODIC,TIME'
+            string = trim(string)//',TIME'
             call InputReadDouble(input,option,temp_real)
             call InputErrorMsg(input,option,'time increment',string)
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'time increment units',string)
             internal_units = 'sec'
-            units_conversion = UnitsConvertToInternal(word, &
-                 internal_units,option)
+            call InputReadAndConvertUnits(input,temp_real, &
+                                          internal_units,string,option)
             select case(trim(block_name))
               case('SNAPSHOT_FILE')
-                output_option%periodic_snap_output_time_incr = temp_real* &
-                     units_conversion
+                output_option%periodic_snap_output_time_incr = temp_real
               case('OBSERVATION_FILE')
-                output_option%periodic_obs_output_time_incr = temp_real* &
-                     units_conversion
+                output_option%periodic_obs_output_time_incr = temp_real
               case('MASS_BALANCE_FILE')
-                output_option%periodic_msbl_output_time_incr = temp_real* &
-                     units_conversion
+                output_option%periodic_msbl_output_time_incr = temp_real
             end select
             call InputReadCard(input,option,word)
             if (input%ierr == 0) then
               if (StringCompareIgnoreCase(word,'between')) then
                 call InputReadDouble(input,option,temp_real)
                 call InputErrorMsg(input,option,'start time',string)
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'start time units',string)
-                units_conversion = UnitsConvertToInternal(word, &
-                     internal_units,option)
-                temp_real = temp_real * units_conversion
+                internal_units = 'sec'
+                call InputReadAndConvertUnits(input,temp_real, &
+                                              internal_units, &
+                                              trim(string)//',START TIME', &
+                                              option)
                 call InputReadCard(input,option,word)
                 if (.not.StringCompareIgnoreCase(word,'and')) then
                   input%ierr = 1
                 endif
-                call InputErrorMsg(input,option,'and',string)
+                call InputErrorMsg(input,option,'AND',string)
                 call InputReadDouble(input,option,temp_real2)
                 call InputErrorMsg(input,option,'end time',string)
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'end time units',string)
-                units_conversion = UnitsConvertToInternal(word, &
-                     internal_units,option)
-                temp_real2 = temp_real2 * units_conversion
+                call InputReadAndConvertUnits(input,temp_real2, &
+                                              internal_units, &
+                                              trim(string)//',END TIME',option)
                 select case(trim(block_name))
                   case('SNAPSHOT_FILE')
                     do
@@ -354,12 +347,12 @@ subroutine OutputFileRead(input,realization,output_option, &
                 end select
               else
                 input%ierr = 1
-                call InputErrorMsg(input,option,'between',string)
+                call InputErrorMsg(input,option,'BETWEEN',string)
               endif
             endif
         !.................
           case('TIMESTEP')
-            string = 'OUTPUT,' // trim(block_name) // ',TIMESTEP'
+            string = trim(string)//',TIMESTEP'
             select case(trim(block_name))
               case('SNAPSHOT_FILE')
                 call InputReadInt(input,option, &

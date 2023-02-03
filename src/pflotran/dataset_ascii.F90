@@ -304,7 +304,9 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   ! time units conversion
   if (len_trim(time_units) > 0) then
     internal_units = 'sec'
-    conversion = UnitsConvertToInternal(time_units,internal_units,option)
+    conversion = UnitsConvertToInternal(time_units,internal_units, &
+                                        trim(error_string)//',TIME_UNITS', &
+                                        option)
     this%time_storage%times(:) = conversion * &
                                  this%time_storage%times(:)
   endif
@@ -328,7 +330,10 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         call InputErrorMsg(input,option,'DATA_UNITS',error_string)
         internal_units = trim(internal_data_units_strings( &
                            min(i,size(internal_data_units_strings))))
-        conversion = UnitsConvertToInternal(word,internal_units,option)
+        conversion = UnitsConvertToInternal(word,internal_units, &
+                                            trim(error_string)// &
+                                              ',DATA_UNITS', &
+                                            option)
       endif
       temp_array(i+1,:) = conversion * temp_array(i+1,:)
     enddo
@@ -440,7 +445,9 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
       internal_units = trim(internal_data_units_strings( &
                             min(icol,size(internal_data_units_strings))))
       this%rarray(icol) = &
-        UnitsConvertToInternal(word,internal_units,option) * this%rarray(icol)
+        UnitsConvertToInternal(word,internal_units, &
+                               trim(error_string)//',UNITS',option) * &
+                               this%rarray(icol)
       data_external_units = trim(data_external_units) // ' ' // trim(word)
     enddo
   endif

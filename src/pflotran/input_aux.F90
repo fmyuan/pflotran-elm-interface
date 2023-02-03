@@ -2784,7 +2784,8 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
     endif
     internal_units_word = trim(internal_units)
     double_value = double_value * &
-                   UnitsConvertToInternal(units,internal_units_word,option)
+                   UnitsConvertToInternal(units,internal_units_word, &
+                                          keyword_string,option)
   else
     string = trim(keyword_string) // ' units'
     call InputDefaultMsg(input,option,string)
@@ -2829,7 +2830,8 @@ function UnitReadAndConversionFactor(input,internal_units, &
     endif
     internal_units_word = trim(internal_units)
     UnitReadAndConversionFactor =  &
-                   UnitsConvertToInternal(units,internal_units_word,option)
+                   UnitsConvertToInternal(units,internal_units_word, &
+                                          keyword_string,option)
   else
     input%err_buf = keyword_string
     call InputCheckMandatoryUnits(input,option)

@@ -3057,7 +3057,8 @@ subroutine TranConditionRead(condition,constraint_list, &
             internal_units = 'sec'
             constraint_coupler%time = constraint_coupler%time* &
               UnitsConvertToInternal(constraint_coupler%time_units, &
-                                     internal_units,option)
+                                     internal_units, &
+                                     'CONSTRAINT_LIST,TIME_UNITS',option)
           endif
           ! add to end of list
           if (.not.associated(condition%constraint_coupler_list)) then
@@ -3123,6 +3124,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
+                                        'TRANSPORT_CONDITION,TIME_UNITS', &
                                         option)
     cur_constraint_coupler => condition%constraint_coupler_list
     do
