@@ -3020,7 +3020,8 @@ subroutine TranConditionRead(condition,constraint_list, &
           case('s','sec','min','m','hr','h','d','day','y','yr')
             default_time_units = trim(word)
           case default
-            option%io_buffer = 'Units "' // trim(word) // '" not recognized.'
+            option%io_buffer = 'Units "' // trim(word) // '" not recognized &
+              &in TRANSPORT_CONDITION "' // trim(condition%name) // '".'
             call PrintErrMsg(option)
         end select
       case('CONSTRAINT_LIST')

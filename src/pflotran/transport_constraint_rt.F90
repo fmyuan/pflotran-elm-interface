@@ -697,7 +697,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
           ! read units if they exist
           internal_units = 'mol/m^3'
           call InputReadWord(input,option,word,PETSC_TRUE)
-          string = immobile_constraint%names(iimmobile) // &
+          string = trim(immobile_constraint%names(iimmobile)) // &
                              ' IMMOBILE CONCENTRATION UNITS'
           if (InputError(input)) then
             input%err_buf = string

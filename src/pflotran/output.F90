@@ -307,6 +307,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 call InputErrorMsg(input,option,'AND',string)
                 call InputReadDouble(input,option,temp_real2)
                 call InputErrorMsg(input,option,'end time',string)
+                internal_units = 'sec'
                 call InputReadAndConvertUnits(input,temp_real2, &
                                               internal_units, &
                                               trim(string)//',END TIME',option)

@@ -242,7 +242,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,this%clay_volume_factor)
         call InputErrorMsg(input,option,keyword,error_string)
       case('SURVEY_TIMES')
-        string = trim(error_string) // 'SURVEY_TIMES'
+        string = trim(error_string) // ',SURVEY_TIMES'
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'units','OUTPUT,TIMES')
         this%survey_time_units = word

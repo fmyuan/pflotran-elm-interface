@@ -79,8 +79,9 @@ function UnitsConvertToInternal(units,internal_units,keyword_string, &
       ierr = -1
       return
     else
-      option%io_buffer = 'Location of units conversion error: ' // &
-        trim(keyword_string)
+      option%io_buffer = new_line('a') // &
+                         'Location of units conversion error: ' // &
+                         trim(keyword_string)
       call PrintMsg(option)
       option%io_buffer = error_msg
       call PrintErrMsg(option)

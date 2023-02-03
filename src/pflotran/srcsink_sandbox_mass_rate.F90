@@ -110,7 +110,8 @@ subroutine MassRateRead(this,input,option)
           call InputReadDouble(input,option,this%rate(i))
           call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,XXX_RATE')
           call InputReadAndConvertUnits(input,this%rate(i),internal_units, &
-                                        'SOURCE_SINK_SANDBOX,XXX_RATE',option)
+                                        'SOURCE_SINK_SANDBOX,'//trim(word), &
+                                        option)
         enddo
       case default
         call InputKeywordUnrecognized(input,word, &
