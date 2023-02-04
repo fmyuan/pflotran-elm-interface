@@ -1190,6 +1190,13 @@ subroutine ZFlowSetPlotVariables(realization,list)
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
                                  LIQUID_SATURATION)
+
+    if (zflow_sol_tran_eq > 0) then
+      name = 'Solute Concentration'
+      units = 'M'
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                   SOLUTE_CONCENTRATION)
+    endif
   endif
 
 end subroutine ZFlowSetPlotVariables
