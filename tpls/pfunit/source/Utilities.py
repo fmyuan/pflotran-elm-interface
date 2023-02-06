@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 def flattened(l):
     "http://caolanmcmahon.com/posts/flatten_for_python/"

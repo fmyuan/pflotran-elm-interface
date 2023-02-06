@@ -109,7 +109,6 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.1594533920288E-02
    Time Steps:           35
    Linear Solver Iterations:          245
    Time Step Cuts:            0

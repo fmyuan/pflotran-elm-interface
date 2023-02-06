@@ -6187,6 +6187,13 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                                   material_auxvars(ghosted_id), &
                                   vec_ptr(local_id),ivar)
           enddo
+        case(H_MODE)
+          do local_id=1,grid%nlmax
+            ghosted_id = grid%nL2G(local_id)
+            vec_ptr(local_id) = vec_ptr(local_id) * patch%aux%Hydrate% &
+                                auxvars(ZERO_INTEGER,ghosted_id)% &
+                                effective_permeability
+          enddo
       end select
     case(LIQUID_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
@@ -7201,6 +7208,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                                           ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 value,ivar)
+        case(H_MODE)
+          value = value * patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
+                                            ghosted_id)%effective_permeability
       end select
     case(LIQUID_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
