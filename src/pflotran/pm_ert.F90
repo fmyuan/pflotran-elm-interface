@@ -828,7 +828,8 @@ subroutine PMERTPreSolve(this)
       endif
     endif
     if (associated(zflow_auxvars)) then
-      cond_sp = tracer_scale * zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc
+      cond_sp = tracer_scale * &
+        max(zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc,0.d0)
       cond_w = cond_w0 + cond_sp
     endif
     ! compute conductivity
