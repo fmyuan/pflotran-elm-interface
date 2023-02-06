@@ -29,37 +29,36 @@
      Mean:   1.2274215540305E+00
         3:   1.2274207893960E+00
 -- CONCENTRATION: Total Bulk Conc. Am241 --
-      Max:   7.4246340989523E-03
-      Min:   7.4084896681001E-03
-     Mean:   7.4126485790876E-03
-        3:   7.4095278044393E-03
+      Max:   7.2720461132961E-03
+      Min:   7.2295830721029E-03
+     Mean:   7.2391185250275E-03
+        3:   7.2295830721029E-03
 -- CONCENTRATION: Aq. Conc. Am241 --
       Max:   3.0853184768064E-03
       Min:   3.0853184768064E-03
      Mean:   3.0853184768064E-03
         3:   3.0853184768064E-03
 -- CONCENTRATION: Mnrl. Conc. Am241 --
-      Max:   7.4246248430249E-03
-      Min:   7.4084804121393E-03
-     Mean:   7.4126393231379E-03
-        3:   7.4095185484896E-03
+      Max:   7.2720368573687E-03
+      Min:   7.2295738161533E-03
+     Mean:   7.2391092690779E-03
+        3:   7.2295738161533E-03
 -- CONCENTRATION: Sorb. Conc. Am241 --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. Am241 --
-      Max:   6.4099519377746E-07
-      Min:   6.3959907698605E-07
-     Mean:   6.3995890051036E-07
-        3:   6.3968947305114E-07
+      Max:   6.2782171127811E-07
+      Min:   6.2415421927543E-07
+     Mean:   6.2497744902957E-07
+        3:   6.2415421927543E-07
 -- DISCRETE: Material ID --
       Max:         3
       Min:         3
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   3.6413908004761E-02
    Time Steps:          111
    Newton Iterations:          172
    Linear Solver Iterations:          172
@@ -67,10 +66,9 @@
    Solution 2-Norm:   3.3750733023085E+06
    Residual 2-Norm:   7.0801614594644E-16
 -- SOLUTION: Transport --
-   Time (seconds):   3.7103891372681E-02
    Time Steps:          114
    Newton Iterations:          114
    Linear Solver Iterations:          114
    Time Step Cuts:            0
-   Solution 2-Norm:   1.6575191791762E-02
-   Residual 2-Norm:   7.6606745699572E-13
+   Solution 2-Norm:   1.6187203484731E-02
+   Residual 2-Norm:   4.8392136586449E-09

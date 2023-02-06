@@ -284,6 +284,8 @@ subroutine PMERTSetup(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
+  use ZFlow_Aux_module
+
   implicit none
 
   class(pm_ert_type) :: this
@@ -292,6 +294,17 @@ subroutine PMERTSetup(this)
   this%comm1 => this%realization%comm1
   ! setup survey
   this%survey => this%realization%survey
+
+  if ((this%option%iflowmode == ZFLOW_MODE .and. &
+       zflow_sol_tran_eq > 0) .and. &
+      this%option%itranmode /= NULL_MODE) then
+    this%option%io_buffer = 'ZFlow solute transport and the reactive &
+      &transport process model may not be used simultaneously &
+      &in combination with the ERT process model. Either the ERT &
+      &process model needs to be refactored to allow both, or please &
+      &use only one of the two.'
+    call PrintErrMsg(this%option)
+  endif
 
 end subroutine PMERTSetup
 

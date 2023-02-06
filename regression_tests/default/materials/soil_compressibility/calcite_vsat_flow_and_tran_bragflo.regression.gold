@@ -73,17 +73,17 @@
 -- VOLUME_FRACTION: Calcite VF --
       Max:   9.9998343209452E-06
       Min:   0.0000000000000E+00
-     Mean:   3.9401761636024E-06
-        1:   9.9998270041493E-06
-       21:   9.9996128230526E-06
+     Mean:   3.9401761636022E-06
+        1:   9.9998270041473E-06
+       21:   9.9996128230510E-06
        41:   0.0000000000000E+00
        61:   0.0000000000000E+00
        81:   0.0000000000000E+00
 -- RATE: Calcite Rate --
       Max:   1.1544436517852E-15
       Min:  -2.0609170622829E-08
-     Mean:  -2.0668317935098E-10
-        1:  -4.9155346459884E-17
+     Mean:  -2.0668317935088E-10
+        1:  -4.9154458281464E-17
        21:   1.0391687510491E-19
        41:   0.0000000000000E+00
        61:   0.0000000000000E+00
@@ -98,18 +98,16 @@
        61:         2
        81:         2
 -- SOLUTION: Flow --
-   Time (seconds):   1.6334629058838E-01
    Time Steps:          112
    Newton Iterations:          183
-   Solver Iterations:          183
+   Linear Solver Iterations:          183
    Time Step Cuts:            0
    Solution 2-Norm:   7.5249606351895E+05
    Residual 2-Norm:   2.2554232295982E-17
 -- SOLUTION: Transport --
-   Time (seconds):   9.1933417320251E-01
    Time Steps:          144
    Newton Iterations:          791
-   Solver Iterations:          791
+   Linear Solver Iterations:          791
    Time Step Cuts:            0
    Solution 2-Norm:   1.2931404851770E-02
-   Residual 2-Norm:   1.2196685259341E-21
+   Residual 2-Norm:   1.0763047106640E-21
