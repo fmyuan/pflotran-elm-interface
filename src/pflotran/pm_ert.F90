@@ -37,13 +37,14 @@ module PM_ERT_class
     PetscReal :: tracer_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
-    PetscReal :: max_tracer_conc
+    PetscReal :: max_tracer_concentration
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
     character(len=MAXSTRINGLENGTH) :: survey_time_units
     ! Starting sulution/potential
     PetscBool :: analytical_potential
     PetscBool :: coupled_ert_flow_jacobian
+    PetscBool :: calc_max_tracer_concentration
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -126,10 +127,11 @@ subroutine PMERTInit(pm_ert)
   pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
-  pm_ert%max_tracer_conc = UNINITIALIZED_DOUBLE
+  pm_ert%max_tracer_concentration = UNINITIALIZED_DOUBLE
 
   pm_ert%analytical_potential = PETSC_TRUE
   pm_ert%coupled_ert_flow_jacobian = PETSC_FALSE
+  pm_ert%calc_max_tracer_concentration = PETSC_FALSE
 
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
@@ -258,6 +260,11 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('OUTPUT_ALL_SURVEYS')
         output_all_surveys = PETSC_TRUE
+      case('MAX_TRACER_CONCENTRATION')
+        call InputReadDouble(input,option,this%max_tracer_concentration)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CALC_MAX_TRACER_CONCENTRATION')
+        this%calc_max_tracer_concentration = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -285,25 +292,52 @@ subroutine PMERTSetup(this)
   ! Date: 01/22/21
   !
   use ZFlow_Aux_module
+  use Option_module
 
   implicit none
 
   class(pm_ert_type) :: this
+
+  type(option_type), pointer :: option
+
+  option => this%option
 
   ! set the communicator
   this%comm1 => this%realization%comm1
   ! setup survey
   this%survey => this%realization%survey
 
-  if ((this%option%iflowmode == ZFLOW_MODE .and. &
+  if ((option%iflowmode == ZFLOW_MODE .and. &
        zflow_sol_tran_eq > 0) .and. &
-      this%option%itranmode /= NULL_MODE) then
-    this%option%io_buffer = 'ZFlow solute transport and the reactive &
+      option%itranmode /= NULL_MODE) then
+    option%io_buffer = 'ZFlow solute transport and the reactive &
       &transport process model may not be used simultaneously &
       &in combination with the ERT process model. Either the ERT &
       &process model needs to be refactored to allow both, or please &
       &use only one of the two.'
-    call PrintErrMsg(this%option)
+    call PrintErrMsg(option)
+  endif
+
+  if ((this%option%iflowmode == ZFLOW_MODE .and. &
+       zflow_sol_tran_eq > 0) .or. &
+      this%option%itranmode /= NULL_MODE) then
+    ! cannot specify and calculate max tracer concentration simultaneously
+    if (this%calc_max_tracer_concentration .and. &
+        Initialized(this%max_tracer_concentration)) then
+      option%io_buffer = 'CALC_MAX_TRACER_CONCENTRATION may not be used &
+        &when specifying a MAX_TRACER_CONCENTRATION for ERT.'
+      call PrintErrMsg(option)
+    endif
+    ! maximum tracer concentration must be set if using solute transport
+    ! when calc_max_solute_conc is FALSE
+    if (Uninitialized(this%max_tracer_concentration) .and. &
+        .not.this%calc_max_tracer_concentration) then
+      this%option%io_buffer = 'MAX_TRACER_CONCENTRATION must be specified &
+        &as an ERT option when CALC_MAX_TRACER_CONCENTRATION is not &
+        &specified as an ERT option and solute transport is included as a &
+        &PFLOTRAN process model.'
+      call PrintErrMsg(this%option)
+    endif
   endif
 
 end subroutine PMERTSetup
@@ -439,45 +473,49 @@ recursive subroutine PMERTInitializeRun(this)
     endif
   endif
 
-  if (option%iflowmode == ZFLOW_MODE .and. zflow_sol_tran_eq > 0) then
-    zflow_auxvars => patch%aux%ZFlow%auxvars
-    do local_id = 1, grid%nlmax  ! For each local node do...
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      this%max_tracer_conc = max(this%max_tracer_conc, &
-                                 zflow_auxvars(ZERO_INTEGER,local_id)%conc)
-    enddo
-    zflow_auxvars_bcss => patch%aux%ZFlow%auxvars_bc
-    boundary_condition => patch%boundary_condition_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(boundary_condition)) exit
-      cur_connection_set => boundary_condition%connection_set
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-        this%max_tracer_conc = &
-          max(this%max_tracer_conc, &
-              zflow_auxvars_bcss(sum_connection)%conc)
+  if (this%calc_max_tracer_concentration) then
+    this%max_tracer_concentration = 0.d0
+    if (option%iflowmode == ZFLOW_MODE .and. zflow_sol_tran_eq > 0) then
+      zflow_auxvars => patch%aux%ZFlow%auxvars
+      do local_id = 1, grid%nlmax  ! For each local node do...
+        ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        this%max_tracer_concentration = &
+          max(this%max_tracer_concentration, &
+              zflow_auxvars(ZERO_INTEGER,local_id)%conc)
       enddo
-      boundary_condition => boundary_condition%next
-    enddo
-    zflow_auxvars_bcss => patch%aux%ZFlow%auxvars_ss
-    source_sink => patch%source_sink_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(source_sink)) exit
-      cur_connection_set => source_sink%connection_set
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-        this%max_tracer_conc = &
-          max(this%max_tracer_conc, &
-              zflow_auxvars_bcss(sum_connection)%conc)
+      zflow_auxvars_bcss => patch%aux%ZFlow%auxvars_bc
+      boundary_condition => patch%boundary_condition_list%first
+      sum_connection = 0
+      do
+        if (.not.associated(boundary_condition)) exit
+        cur_connection_set => boundary_condition%connection_set
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+          this%max_tracer_concentration = &
+            max(this%max_tracer_concentration, &
+                zflow_auxvars_bcss(sum_connection)%conc)
+        enddo
+        boundary_condition => boundary_condition%next
       enddo
-      source_sink => source_sink%next
-    enddo
-    call MPI_Allreduce(MPI_IN_PLACE,this%max_tracer_conc,ONE_INTEGER, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
-                       ierr);CHKERRQ(ierr)
+      zflow_auxvars_bcss => patch%aux%ZFlow%auxvars_ss
+      source_sink => patch%source_sink_list%first
+      sum_connection = 0
+      do
+        if (.not.associated(source_sink)) exit
+        cur_connection_set => source_sink%connection_set
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+          this%max_tracer_concentration = &
+            max(this%max_tracer_concentration, &
+                zflow_auxvars_bcss(sum_connection)%conc)
+        enddo
+        source_sink => source_sink%next
+      enddo
+      call MPI_Allreduce(MPI_IN_PLACE,this%max_tracer_concentration, &
+                        ONE_INTEGER,MPI_DOUBLE_PRECISION,MPI_MAX, &
+                        option%mycomm,ierr);CHKERRQ(ierr)
+    endif
   endif
 
   if (option%itranmode == RT_MODE) then
@@ -529,15 +567,18 @@ recursive subroutine PMERTInitializeRun(this)
         call PrintErrMsg(option)
       endif
       call InputDestroy(input)
-    else if (associated(patch%aux%RT)) then
+    else if (associated(patch%aux%RT) .and. &
+             this%calc_max_tracer_concentration) then
+      this%max_tracer_concentration = 0.d0
       rt_auxvars => patch%aux%RT%auxvars
       rt_auxvars_bc => patch%aux%RT%auxvars_bc
       ispecies = 1
       do local_id = 1, grid%nlmax  ! For each local node do...
         ghosted_id = grid%nL2G(local_id)
         if (patch%imat(ghosted_id) <= 0) cycle
-        this%max_tracer_conc = max(this%max_tracer_conc, &
-                                  rt_auxvars(local_id)%total(ispecies,1))
+        this%max_tracer_concentration = &
+          max(this%max_tracer_concentration, &
+              rt_auxvars(local_id)%total(ispecies,1))
       enddo
       boundary_condition => patch%boundary_condition_list%first
       sum_connection = 0
@@ -546,8 +587,8 @@ recursive subroutine PMERTInitializeRun(this)
         cur_connection_set => boundary_condition%connection_set
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
-          this%max_tracer_conc = &
-            max(this%max_tracer_conc, &
+          this%max_tracer_concentration = &
+            max(this%max_tracer_concentration, &
                 rt_auxvars_bc(sum_connection)%total(ispecies,1))
         enddo
         boundary_condition => boundary_condition%next
@@ -558,13 +599,13 @@ recursive subroutine PMERTInitializeRun(this)
         cur_connection_set => source_sink%connection_set
         rt_auxvar => TranConstraintRTGetAuxVar(source_sink%tran_condition% &
                                               cur_constraint_coupler)
-        this%max_tracer_conc = max(this%max_tracer_conc, &
+        this%max_tracer_concentration = max(this%max_tracer_concentration, &
                                   rt_auxvar%total(ispecies,1))
         source_sink => source_sink%next
       enddo
-      call MPI_Allreduce(MPI_IN_PLACE,this%max_tracer_conc,ONE_INTEGER, &
-                         MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
-                         ierr);CHKERRQ(ierr)
+      call MPI_Allreduce(MPI_IN_PLACE,this%max_tracer_concentration, &
+                         ONE_INTEGER,MPI_DOUBLE_PRECISION,MPI_MAX, &
+                         option%mycomm,ierr);CHKERRQ(ierr)
     endif
   endif
 
@@ -742,8 +783,8 @@ subroutine PMERTPreSolve(this)
   if (option%iflowmode == ZFLOW_MODE) then
     zflow_auxvars => patch%aux%ZFlow%auxvars
   endif
-  if (Initialized(this%max_tracer_conc)) then
-    tracer_scale = this%tracer_conductivity/this%max_tracer_conc
+  if (Initialized(this%max_tracer_concentration)) then
+    tracer_scale = this%tracer_conductivity/this%max_tracer_concentration
   endif
 
   if (this%coupled_ert_flow_jacobian) then

@@ -260,6 +260,7 @@ transport :
 geophysics :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(GEOPHYSICS_CFG) --suite geophysics
+
 inverse :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(INVERSE_CFG) --suite inverse
