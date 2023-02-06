@@ -34,10 +34,9 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   7.8179121017456E-02
    Time Steps:           50
    Newton Iterations:          100
-   Solver Iterations:          100
+   Linear Solver Iterations:          100
    Time Step Cuts:            0
    Solution 2-Norm:   1.3857074453760E-05
    Residual 2-Norm:   1.1352085531845E-17
