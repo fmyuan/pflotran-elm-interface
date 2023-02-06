@@ -13,6 +13,7 @@ SIMULATION
       MODE ERT
       OPTIONS
         COMPUTE_JACOBIAN
+        CALC_MAX_TRACER_CONCENTRATION
         SURVEY_TIMES h 2.7778d-4 6.d0 12.d0 24.d0 # 2.778d-4 ~= 1 second
         OUTPUT_ALL_SURVEYS
         MOBILITY_DATABASE ../../../database/mobilities.dat

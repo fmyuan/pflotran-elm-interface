@@ -253,10 +253,12 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
-  auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
 !  auxvar2%dphi = auxvar%dphi
 
+  if (associated(auxvar2%den)) then
+    auxvar2%den = auxvar%den
+  endif
   if (associated(auxvar2%darcy_vel)) then
     auxvar2%darcy_vel = auxvar%darcy_vel
   endif
