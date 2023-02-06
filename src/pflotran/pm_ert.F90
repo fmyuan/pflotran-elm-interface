@@ -28,7 +28,6 @@ module PM_ERT_class
     Vec :: dconductivity_dsaturation
     Vec :: dconductivity_dconcentration
     Vec :: dconductivity_dporosity
-    Vec :: dconductivity_dporosity
     ! EMPIRICAL Archie and Waxman-Smits options
     PetscInt :: conductivity_mapping_law
     PetscReal :: tortuosity_constant   ! a
