@@ -1941,8 +1941,8 @@ end subroutine ILTShiftPerm
 ! ************************************************************************** !
 
 subroutine BFModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
-  !                                                                                                                                                                   
-  ! Modifies the permeability tensor according to Bats Function                                                                                                       
+  !                                                                                                                                          
+  ! Modifies the permeability tensor according to Bats Function                                                        
   !   
 
   use Option_module
@@ -1959,6 +1959,11 @@ subroutine BFModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
 
   PetscInt  :: ps, i
   PetscReal :: scale
+
+  if (Uninitialized(auxvar%temp0)) then
+    !store intial temperature
+    auxvar%temp0 = global_auxvar%temp_store(1)
+  endif
   
   scale = (this%b(1) * (global_auxvar%temp - auxvar%temp0) + this%b(3) &
        * exp(this%b(2) * (global_auxvar%temp - auxvar%temp0)))

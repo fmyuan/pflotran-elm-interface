@@ -319,8 +319,6 @@ subroutine PMMaterialTransformSetup(this)
             m_transform_auxvars(ghosted_id)%bf_aux%perm0(i) = &
               material_auxvars(ghosted_id)%permeability(i)
           enddo
-          m_transform_auxvars(ghosted_id)%bf_aux%temp0 = &
-            global_auxvars(ghosted_id)%temp
         endif
       endif
     endif
