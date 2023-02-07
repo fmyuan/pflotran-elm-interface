@@ -247,7 +247,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
     call PrintErrMsg(option)
   endif
   if (UnInitialized(new_measurement%weight)) then
-    sd = 0.05 * new_measurement%value
+    sd = 0.05 * new_measurement%value + 1.d-2
     new_measurement%weight = 1 / sd
   endif
 
