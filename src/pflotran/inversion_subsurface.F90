@@ -538,7 +538,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   use PM_ERT_class
   use PM_Subsurface_Flow_class
   use String_module
-  use Variables_module, only : PERMEABILITY
+  use Variables_module, only : PERMEABILITY,POROSITY
   use Waypoint_module
   use ZFlow_Aux_module
 
@@ -554,6 +554,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   PetscInt :: icount
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters
+  PetscInt :: param_id
   PetscInt, allocatable :: int_array(:), int_array2(:)
   PetscReal :: tempreal
   PetscReal, pointer :: vec_ptr(:)
@@ -655,13 +656,20 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     if (this%inversion_option%coupled_flow_ert) then
       do i = 1, size(this%inversion_aux%parameters)
-        if (InversionParameterGetIDFromName(this%inversion_aux%parameters(i)% &
-                                              parameter_name,this%driver, &
-                                            this%inversion_option) /= &
-            PERMEABILITY) then
-          call this%driver%PrintErrMsg('COUPLED_ZFLOW_ERT currently only &
-                                        &supported for permeability.')
-        endif
+        param_id = InversionParameterGetIDFromName(this%inversion_aux% &
+                                                     parameters(i)% &
+                                                     parameter_name, &
+                                                   this%driver, &
+                                                   this%inversion_option)
+        select case(param_id)
+          case(PERMEABILITY,POROSITY)
+          case default
+            string = 'COUPLED_ZFLOW_ERT does not currently support &
+              &inversion for "' // &
+              trim(this%inversion_aux%parameters(i)%parameter_name) // &
+              '", only PERMEABILITY and POROSITY.'
+            call this%driver%PrintErrMsg(string)
+        end select
       enddo
       if (.not.(associated(this%forward_simulation% &
                             flow_process_model_coupler) .and. &
