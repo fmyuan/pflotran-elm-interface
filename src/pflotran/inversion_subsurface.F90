@@ -661,11 +661,15 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                                                      parameter_name, &
                                                    this%driver, &
                                                    this%inversion_option)
-        if ( param_id /= PERMEABILITY .and. param_id /= POROSITY) then
-          call this%driver%PrintErrMsg('COUPLED_ZFLOW_ERT currently only &
-                                        &supported for permeability and &
-                                        &porosity.')
-        endif
+        select case(param_id)
+          case(PERMEABILITY,POROSITY)
+          case default
+            string = 'COUPLED_ZFLOW_ERT does not currently support &
+              &inversion for "' // &
+              trim(this%inversion_aux%parameters(i)%parameter_name) // &
+              '", only PERMEABILITY and POROSITY.'
+            call this%driver%PrintErrMsg(string)
+        end select
       enddo
       if (.not.(associated(this%forward_simulation% &
                             flow_process_model_coupler) .and. &
