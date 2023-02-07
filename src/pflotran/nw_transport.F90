@@ -1542,7 +1542,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id) <= 0) cycle
 
-      call NWTJacobianSrcSink(material_auxvars(ghosted_id),source_sink, &
+      call NWTJacobianSrcSink(material_auxvars(ghosted_id), &
+                              global_auxvars(ghosted_id),source_sink, &
                               realization%patch%ss_flow_vol_fluxes, &
                               sum_connection,reaction_nw,Jac_srcsink)
 
@@ -1743,8 +1744,8 @@ end subroutine NWTJacobianAccum
 
 ! ************************************************************************** !
 
-subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Jac)
+subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
+                              ss_flow_vol_fluxes,sum_connection,reaction_nw,Jac)
   !
   ! Computes the source/sink terms in the Jacobian matrix.
   ! All Jacobian entries should be in [m^3-bulk/sec].
@@ -1758,6 +1759,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
   implicit none
 
   type(material_auxvar_type) :: material_auxvar
+  type(global_auxvar_type) :: global_auxvar
   type(coupler_type), pointer :: source_sink
   PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
@@ -1782,6 +1784,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
 
   por = material_auxvar%porosity
   vol = material_auxvar%volume
+  sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
 
   ! units of u = [m^3-bulk/sec]
   u = qsrc/(por*sat)
