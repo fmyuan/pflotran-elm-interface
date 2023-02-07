@@ -210,17 +210,17 @@ subroutine CyberRead(this,input,option)
       case('K1','K_NO3-')
         call InputReadDouble(input,option,this%k1)
         call InputErrorMsg(input,option,'k1',error_string)
-        call InputReadAndConvertUnits(input,this%k1,'mol/L-sec', &
+        call InputReadAndConvertUnits(input,this%k1,'1/sec|mol/mol-sec', &
                                       trim(error_string)//',k1',option)
       case('K2','K_NO2-')
         call InputReadDouble(input,option,this%k2)
         call InputErrorMsg(input,option,'k2',error_string)
-        call InputReadAndConvertUnits(input,this%k2,'mol/L-sec', &
+        call InputReadAndConvertUnits(input,this%k2,'1/sec|mol/mol-sec', &
                                       trim(error_string)//',k2',option)
       case('K3','K_O2(aq)')
         call InputReadDouble(input,option,this%k3)
         call InputErrorMsg(input,option,'k3',error_string)
-        call InputReadAndConvertUnits(input,this%k3,'mol/L-sec', &
+        call InputReadAndConvertUnits(input,this%k3,'1/sec|mol/mol-sec', &
                                       trim(error_string)//',k3',option)
       case('KA1','KA_NO3-')
         call InputReadDouble(input,option,this%Ka1)
