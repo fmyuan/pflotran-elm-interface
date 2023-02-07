@@ -24,10 +24,9 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   4.5938491821289E-03
    Time Steps:           10
    Newton Iterations:           10
-   Solver Iterations:           10
+   Linear Solver Iterations:           10
    Time Step Cuts:            0
    Solution 2-Norm:   4.3872452294047E+05
    Residual 2-Norm:   0.0000000000000E+00

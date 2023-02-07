@@ -95,7 +95,6 @@ STANDARD_CFG = \
 	default/zflow/zflow.cfg \
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
-	general/cpr_general/cpr_general.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
@@ -125,6 +124,7 @@ STANDARD_CFG = \
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
+	general/cpr_general/cpr_general.cfg \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
@@ -260,6 +260,7 @@ transport :
 geophysics :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(GEOPHYSICS_CFG) --suite geophysics
+
 inverse :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(INVERSE_CFG) --suite inverse
