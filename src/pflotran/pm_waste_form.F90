@@ -291,6 +291,9 @@ module PM_Waste_Form_class
     PetscInt :: num_qoi
     PetscReal, pointer :: table_data(:,:)
     PetscReal :: knnr_eps
+    ! outputs
+    PetscReal :: temp
+    PetscReal :: dose_rate
   contains
     procedure, public :: Dissolution => WFMechFMDMSurrogateDissolution
   end type wf_mechanism_fmdm_surrogate_type
@@ -789,6 +792,9 @@ function PMWFMechanismFMDMSurrogateCreate(option)
   surrfmdm%iFe_2p = 3
   surrfmdm%iH2 = 4
 
+  surrfmdm%temp = UNINITIALIZED_DOUBLE
+  surrfmdm%dose_rate = UNINITIALIZED_DOUBLE
+  
   allocate(surrfmdm%mapping_surrfmdm_to_pflotran(surrfmdm%num_concentrations))
   surrfmdm%mapping_surrfmdm_to_pflotran = UNINITIALIZED_INTEGER
 
@@ -4665,6 +4671,9 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
     call AMP_ann_surrogate_step(this, time, avg_temp_global)
   endif
 
+  ! store for output
+  this%temp = avg_temp_global
+  
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
@@ -4837,6 +4846,7 @@ subroutine PMWFOutput(this)
 ! option: pointer to option object
 ! output_option: pointer to output option object
 ! cur_waste_form: pointer to curent waste form object
+! cwfm: pointer to current waste form mechanism object  
 ! grid: pointer to grid object
 ! filename: filename string
 ! fid: [-] file id number
@@ -4845,6 +4855,7 @@ subroutine PMWFOutput(this)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   class(waste_form_base_type), pointer :: cur_waste_form
+  class(wf_mechanism_base_type), pointer :: cwfm
   type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
@@ -4886,7 +4897,16 @@ subroutine PMWFOutput(this)
       write(fid,100,advance="no") cur_waste_form%spacer_vitality_rate, &
                                   cur_waste_form%spacer_vitality
     endif
-
+    cwfm => cur_waste_form%mechanism    
+    select type(cwfm => cur_waste_form%mechanism)
+      type is(wf_mechanism_fmdm_surrogate_type)
+         write(fid,100,advance="no") cwfm%temp, &
+                                     cwfm%dose_rate, &
+                                     cwfm%concentration(1), &
+                                     cwfm%concentration(2), &
+                                     cwfm%concentration(3), &
+                                     cwfm%concentration(4)
+    end select
     cur_waste_form => cur_waste_form%next
   enddo
   close(fid)
@@ -4956,6 +4976,7 @@ subroutine PMWFOutputHeader(this)
 ! output_option: pointer to output option object
 ! grid: pointer to grid object
 ! cur_waste_form: pointer to current waste form object
+! cwfm: pointer to current waste form mechanism object
 ! cell_string: cell string
 ! x_string, y_string, z_string: coordinate strings
 ! units_string: units string
@@ -4969,6 +4990,7 @@ subroutine PMWFOutputHeader(this)
   type(output_option_type), pointer :: output_option
   type(grid_type), pointer :: grid
   class(waste_form_base_type), pointer :: cur_waste_form
+  class(wf_mechanism_base_type), pointer :: cwfm
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   character(len=MAXWORDLENGTH) :: units_string, variable_string
@@ -5066,7 +5088,39 @@ subroutine PMWFOutputHeader(this)
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
     endif
+    cwfm => cur_waste_form%mechanism
+    select type (cwfm => cur_waste_form%mechanism)
+      type is(wf_mechanism_fmdm_surrogate_type)
+        variable_string = 'Temperature'
+        units_string = 'C'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
 
+        variable_string = 'Dose Rate'
+        units_string = 'Gy/s'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'CO3_2'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'O2'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'Fe++'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'H2'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+    end select   
     cur_waste_form => cur_waste_form%next
   enddo
 
@@ -8508,13 +8562,16 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
+  ! store for output
+  this%dose_rate = dose_rate(yTme,this%decay_time,this%burnup)
+  
   ! features
   f(1) = current_temp_C + 273.15d0
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(2)) ! Env_O2
   f(4) = log10(this%concentration(3)) ! Env_Fe_2p
   f(5) = log10(this%concentration(4)) ! Env_H2
-  f(6) = log10(dose_rate(yTme,this%decay_time,this%burnup))
+  f(6) = log10(this%dose_rate)
 
   ! standardize
   do i = 1,num_features
@@ -8738,13 +8795,16 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   decay_time = this%decay_time
   burnup = this%burnup
   nn = this%num_nearest_neighbor
-
+  
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
+
+  ! store for output
+  this%dose_rate = dose_rate(yTme,decay_time,burnup)
 
   f(1) = log10(current_temp_C + 273.15d0)
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(4)) ! Env_H2
-  f(4) = log10(dose_rate(yTme,decay_time,burnup))
+  f(4) = log10(this%dose_rate)
 
   allocate(knnr_results(nn))
 
