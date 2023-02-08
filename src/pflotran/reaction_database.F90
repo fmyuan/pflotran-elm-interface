@@ -1118,6 +1118,33 @@ subroutine BasisInit(reaction,option)
   enddo
 
   if (icount /= ncomp_secondary) then
+    call PrintMsgNoAdvance(option,new_line('a') // &
+                 'Species with reactions associated with them in database:')
+    cur_pri_aq_spec => reaction%primary_species_list
+    do
+      if (.not.associated(cur_pri_aq_spec)) exit
+      if (associated(cur_pri_aq_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_pri_aq_spec%name))
+      endif
+      cur_pri_aq_spec => cur_pri_aq_spec%next
+    enddo
+    cur_sec_aq_spec => reaction%secondary_species_list
+    do
+      if (.not.associated(cur_sec_aq_spec)) exit
+      if (associated(cur_sec_aq_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_sec_aq_spec%name))
+      endif
+      cur_sec_aq_spec => cur_sec_aq_spec%next
+    enddo
+    cur_gas_spec => reaction%gas%list
+    do
+      if (.not.associated(cur_gas_spec)) exit
+      if (associated(cur_gas_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_gas_spec%name))
+      endif
+      cur_gas_spec => cur_gas_spec%next
+    enddo
+    call PrintMsg(option,'')
     if (icount < ncomp_secondary) then
       option%io_buffer = 'Too few reactions read from database for &
         &number of secondary species defined.'
@@ -1126,6 +1153,8 @@ subroutine BasisInit(reaction,option)
         &number of secondary species defined.  Perhaps &
         &DECOUPLED_EQUILIBRIUM_REACTIONS need to be defined?'
     endif
+    option%io_buffer = trim(option%io_buffer) // &
+      ' One or more of the species above is the problem species.'
     call PrintErrMsg(option)
   endif
 
