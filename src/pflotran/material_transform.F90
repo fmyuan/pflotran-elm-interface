@@ -91,23 +91,23 @@ module Material_Transform_module
     ! Placeholder for buffer erosion model auxvars
   end type buffer_erosion_auxvar_type
   !---------------------------------------------------------------------------
-  type, public :: bats_function_type
+  type, public :: bats_transform_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
-    PetscReal :: b(3) ! coefficients for bats function
+    PetscReal :: b(3) ! coefficients for the bats transform
   contains
-    procedure, public :: ModifyPerm => BFModifyPerm
-  end type bats_function_type
+    procedure, public :: ModifyPerm => BTModifyPerm
+  end type bats_transform_type
   !---------------------------------------------------------------------------
-  type, public :: bats_function_auxvar_type
+  type, public :: bats_transform_auxvar_type
     PetscReal :: temp0 ! initial temperature
     PetscReal, allocatable :: perm0(:) ! initial permeability 
-  end type bats_function_auxvar_type
+  end type bats_transform_auxvar_type
   !---------------------------------------------------------------------------
   type, public :: material_transform_auxvar_type
     class(illitization_auxvar_type), pointer :: il_aux ! auxvars for illitization class
     class(buffer_erosion_auxvar_type), pointer :: be_aux ! auxvars for buffer erosion class
-    class(bats_function_auxvar_type), pointer :: bf_aux ! auxvars for bats function class
+    class(bats_transform_auxvar_type), pointer :: bt_aux ! auxvars for bats transform class
   end type material_transform_auxvar_type
   !---------------------------------------------------------------------------
   type, public :: material_transform_type
@@ -121,7 +121,7 @@ module Material_Transform_module
     ! Classes for material transformations
     class(illitization_type), pointer :: illitization
     class(buffer_erosion_type), pointer :: buffer_erosion
-    class(bats_function_type), pointer :: bats_function
+    class(bats_transform_type), pointer :: bats_transform
 
     ! Linked list
     type(material_transform_type), pointer :: next
@@ -144,7 +144,7 @@ module Material_Transform_module
             MTransformSetAuxVarVecLoc, &
             IllitizationAuxVarInit, &
             BufferErosionAuxVarInit, &
-            BatsFunctionAuxVarInit
+            BatsTransformAuxVarInit
 
 contains
 
@@ -314,24 +314,26 @@ end function BufferErosionCreate
 
 ! ************************************************************************** !
 
-function BatsFunctionCreate()
+function BatsTransformCreate()
   !
-  ! Creates an object for the bats function
+  ! Creates an object for the bats transform
   !
-
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
   implicit none
 
-  class(bats_function_type), pointer :: BatsFunctionCreate
-  class(bats_function_type), pointer :: BatsFunction
+  class(bats_transform_type), pointer :: BatsTransformCreate
+  class(bats_transform_type), pointer :: BatsTransform
 
-  allocate(BatsFunction)
-  BatsFunction%name = ''
-  BatsFunction%print_me = PETSC_FALSE
-  BatsFunction%b(3) = UNINITIALIZED_DOUBLE
+  allocate(BatsTransform)
+  BatsTransform%name = ''
+  BatsTransform%print_me = PETSC_FALSE
+  BatsTransform%b(3) = UNINITIALIZED_DOUBLE
 
-  BatsFunctionCreate => BatsFunction
+  BatsTransformCreate => BatsTransform
 
-end function BatsFunctionCreate
+end function BatsTransformCreate
 
 ! ************************************************************************** !
 
@@ -354,7 +356,7 @@ function MaterialTransformCreate()
   nullify(material_transform%auxvars)
   nullify(material_transform%illitization)
   nullify(material_transform%buffer_erosion)
-  nullify(material_transform%bats_function)
+  nullify(material_transform%bats_transform)
   nullify(material_transform%next)
 
   MaterialTransformCreate => material_transform
@@ -420,17 +422,19 @@ end function BufferErosionAuxVarInit
 
 ! ************************************************************************** !
 
-function BatsFunctionAuxVarInit(option)
+function BatsTransformAuxVarInit(option)
   !
-  ! Initializes a bats function auxiliary object
+  ! Initializes a bats transform auxiliary object
   !
-
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
   use Option_module
 
   implicit none
 
-  class(bats_function_auxvar_type), pointer :: BatsFunctionAuxVarInit
-  class(bats_function_auxvar_type), pointer :: auxvar
+  class(bats_transform_auxvar_type), pointer :: BatsTransformAuxVarInit
+  class(bats_transform_auxvar_type), pointer :: auxvar
   type(option_type) :: option
 
   allocate(auxvar)
@@ -446,9 +450,9 @@ function BatsFunctionAuxVarInit(option)
     auxvar%perm0 = UNINITIALIZED_DOUBLE
   endif
 
-  BatsFunctionAuxVarInit => auxvar
+  BatsTransformAuxVarInit => auxvar
 
-end function BatsFunctionAuxVarInit
+end function BatsTransformAuxVarInit
   
 ! ************************************************************************** !
 
@@ -465,7 +469,7 @@ subroutine MaterialTransformAuxVarInit(auxvar)
 
   nullify(auxvar%il_aux)
   nullify(auxvar%be_aux)
-  nullify(auxvar%bf_aux)
+  nullify(auxvar%bt_aux)
 
 end subroutine MaterialTransformAuxVarInit
 
@@ -1111,18 +1115,20 @@ end subroutine BufferErosionRead
 
 ! ************************************************************************** !
 
-subroutine BatsFunctionRead(this, input, option)
+subroutine BatsTransformRead(this, input, option)
   !
   ! Reads in contents of a BATS_FUNCTION block from MATERIAL_TRANSFORM
   !
-
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
   use Option_module
   use Input_Aux_module
   use String_module
 
   implicit none
 
-  class(bats_function_type) :: this
+  class(bats_transform_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -1169,7 +1175,7 @@ subroutine BatsFunctionRead(this, input, option)
     call PrintErrMsg(option)
   endif
 
-end subroutine BatsFunctionRead
+end subroutine BatsTransformRead
 
 ! ************************************************************************** !
 
@@ -1218,9 +1224,9 @@ subroutine MaterialTransformRead(this, input, option)
         call BufferErosionRead(this%buffer_erosion,input,option)
       !------------------------------------------
       case('BATS_FUNCTION')
-        this%bats_function => BatsFunctionCreate()
-        this%bats_function%name = this%name
-        call BatsFunctionRead(this%bats_function,input,option)
+        this%bats_transform => BatsTransformCreate()
+        this%bats_transform%name = this%name
+        call BatsTransformRead(this%bats_transform,input,option)
       !------------------------------------------
   
       case default
@@ -1940,21 +1946,23 @@ end subroutine ILTShiftPerm
 
 ! ************************************************************************** !
 
-subroutine BFModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
-  !                                                                                                                                          
-  ! Modifies the permeability tensor according to Bats Function                                                        
+subroutine BTModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
+  !                                                       
+  ! Modifies the permeability tensor according to the Bats Function
   !   
-
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
   use Option_module
   use Material_Aux_module
   use Global_Aux_module
   
   implicit none
 
-  class(bats_function_type), intent(inout) :: this
+  class(bats_transform_type), intent(inout) :: this
   class(material_auxvar_type), intent(inout) :: material_auxvar
   class(global_auxvar_type), intent(inout) :: global_auxvar
-  class(bats_function_auxvar_type), intent(inout) :: auxvar
+  class(bats_transform_auxvar_type), intent(inout) :: auxvar
   class(option_type), intent(inout) :: option
 
   PetscInt  :: ps, i
@@ -1973,7 +1981,7 @@ subroutine BFModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
     material_auxvar%permeability(i) = auxvar%perm0(i) * scale 
   enddo   
 
-end subroutine BFModifyPerm
+end subroutine BTModifyPerm
 
 ! ************************************************************************** !
 
@@ -2389,18 +2397,18 @@ subroutine MaterialTransformInputRecord(material_transform_list)
       end select
     endif
 
-    !Bats Function
-    if (associated(cur_material_transform%bats_function)) then
+    !Bats Transform
+    if (associated(cur_material_transform%bats_transform)) then
       write(id,'(a29)') '--------------: '
-      write(id,'(a29)',advance='no') 'Bats Function'
+      write(id,'(a29)',advance='no') 'Bats Transform'
       write(id,'(a29)',advance='no') 'B1 Coefficient: '
-      write(word,'(es12.5)') cur_material_transform%bats_function%b(1)
+      write(word,'(es12.5)') cur_material_transform%bats_transform%b(1)
       write(id,'(a)') adjustl(trim(word))
       write(id,'(a29)',advance='no') 'B2 Coefficient: '
-      write(word,'(es12.5)') cur_material_transform%bats_function%b(2)
+      write(word,'(es12.5)') cur_material_transform%bats_transform%b(2)
       write(id,'(a)') adjustl(trim(word))
       write(id,'(a29)',advance='no') 'B3 Coefficient: '
-      write(word,'(es12.5)') cur_material_transform%bats_function%b(3)
+      write(word,'(es12.5)') cur_material_transform%bats_transform%b(3)
       write(id,'(a)') adjustl(trim(word))
     endif
    
@@ -2496,16 +2504,18 @@ end subroutine BufferErosionAuxVarStrip
 
 ! ************************************************************************** !
 
-subroutine BatsFunctionAuxVarStrip(auxvar)
+subroutine BatsTransformAuxVarStrip(auxvar)
   !
-  ! Deallocates an bats function auxiliary object
+  ! Deallocates an bats transform auxiliary object
   !
-
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
   use Utility_module, only : DeallocateArray
 
   implicit none
 
-  class(bats_function_auxvar_type), pointer :: auxvar
+  class(bats_transform_auxvar_type), pointer :: auxvar
 
   if (.not. associated(auxvar)) return
 
@@ -2516,7 +2526,7 @@ subroutine BatsFunctionAuxVarStrip(auxvar)
   deallocate(auxvar)
   nullify(auxvar)
 
-end subroutine BatsFunctionAuxVarStrip
+end subroutine BatsTransformAuxVarStrip
 
 ! ************************************************************************** !
 
@@ -2537,8 +2547,8 @@ subroutine MaterialTransformAuxVarStrip(auxvar)
   if (associated(auxvar%be_aux)) then
     call BufferErosionAuxVarStrip(auxvar%be_aux)
   endif
-  if (associated(auxvar%bf_aux)) then
-    call BatsFunctionAuxVarStrip(auxvar%bf_aux)
+  if (associated(auxvar%bt_aux)) then
+    call BatsTransformAuxVarStrip(auxvar%bt_aux)
   endif
  
 end subroutine MaterialTransformAuxVarStrip
@@ -2589,21 +2599,23 @@ end subroutine BufferErosionDestroy
 
 ! ************************************************************************** !
 
-recursive subroutine BatsFunctionDestroy(bats_function)
+recursive subroutine BatsTransformDestroy(bats_transform)
   !
-  ! Deallocates a bats function object
+  ! Deallocates a bats transform object
   !
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
 
   implicit none
 
-  class(bats_function_type), pointer :: bats_function
+  class(bats_transform_type), pointer :: bats_transform
 
-  if (.not. associated(bats_function)) return
+  if (.not. associated(bats_transform)) return
 
-  deallocate(bats_function)
-  nullify(bats_function)
+  deallocate(bats_transform)
+  nullify(bats_transform)
 
-end subroutine BatsFunctionDestroy
+end subroutine BatsTransformDestroy
 
 ! ************************************************************************** !
 
@@ -2640,8 +2652,8 @@ recursive subroutine MaterialTransformDestroy(material_transform)
     call BufferErosionDestroy(material_transform%buffer_erosion)
   endif
 
-  if (associated(material_transform%bats_function)) then
-    call BatsFunctionDestroy(material_transform%bats_function)
+  if (associated(material_transform%bats_transform)) then
+    call BatsTransformDestroy(material_transform%bats_transform)
   endif
 
   deallocate(material_transform)

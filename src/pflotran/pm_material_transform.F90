@@ -284,10 +284,10 @@ subroutine PMMaterialTransformSetup(this)
             BufferErosionAuxVarInit()
         endif
 
-        if (associated(material_transform%bats_function)) then
+        if (associated(material_transform%bats_transform)) then
           ! initialize the bats function auxiliary variable object
-          m_transform_auxvars(ghosted_id)%bf_aux => &
-            BatsFunctionAuxVarInit(option)
+          m_transform_auxvars(ghosted_id)%bt_aux => &
+            BatsTransformAuxVarInit(option)
         endif
 
         ! pass information from functions to auxiliary variables as needed
@@ -313,10 +313,10 @@ subroutine PMMaterialTransformSetup(this)
         endif
 
         ! Save initial permability tensor and temperature for bats function
-        if (associated(m_transform_auxvars(ghosted_id)%bf_aux)) then
+        if (associated(m_transform_auxvars(ghosted_id)%bt_aux)) then
           ps = size(material_auxvars(ghosted_id)%permeability)
           do i = 1, ps
-            m_transform_auxvars(ghosted_id)%bf_aux%perm0(i) = &
+            m_transform_auxvars(ghosted_id)%bt_aux%perm0(i) = &
               material_auxvars(ghosted_id)%permeability(i)
           enddo
         endif
@@ -684,9 +684,9 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
         endif
         ! if (associated(material_transform%buffer_erosion)) then
         ! endif
-        if (associated(material_transform%bats_function)) then
-          call material_transform%bats_function%ModifyPerm(material_aux, &
-            m_transform_aux%bf_aux,global_aux,option)    
+        if (associated(material_transform%bats_transform)) then
+          call material_transform%bats_transform%ModifyPerm(material_aux, &
+            m_transform_aux%bt_aux,global_aux,option)    
         endif
       endif
     endif
