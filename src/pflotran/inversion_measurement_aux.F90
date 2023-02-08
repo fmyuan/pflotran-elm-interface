@@ -250,6 +250,8 @@ function InversionMeasurementAuxRead(input,error_string,option)
   if (UnInitialized(new_measurement%weight)) then
     sd = 0.05 * new_measurement%value
     new_measurement%weight = 1 / sd
+    if (new_measurement%weight /= new_measurement%weight) &
+      new_measurement%weight = 1.d-16
   endif
 
   InversionMeasurementAuxRead => new_measurement
