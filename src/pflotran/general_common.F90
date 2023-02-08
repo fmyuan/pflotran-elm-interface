@@ -1095,14 +1095,14 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
          tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
               mobility * area * density_ave
 
-         else
-            !Taken from (Liu, 2014)
-            call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave, &
-                 perm_ave_over_dist(iphase),kr,mobility,density_ave,area, &
-                 v_darcy(iphase),tot_mole_flux_ddel_pressure,q,tot_mole_flux)
-       endif
+      else
+         !Taken from (Liu, 2014)
+         call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave, &
+              perm_ave_over_dist(iphase),kr,mobility,density_ave,area, &
+              v_darcy(iphase),tot_mole_flux_ddel_pressure,q,tot_mole_flux)
+      endif
 
-       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
       air_mole_flux = tot_mole_flux * xmol(air_comp_id)
@@ -5389,8 +5389,8 @@ subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,&
   !                             density_ave[kmol phase/m^3 phase]
   tot_mole_flux = q*density_ave
 
-  tot_mole_flux_ddel_pressure = area*density_ave*K*&
-       &grad/rhog*(-expm1(-grad/I))
+  tot_mole_flux_ddel_pressure = area*density_ave*K* &
+       grad/rhog*(-expm1(-grad/I))
 
 end subroutine GeneralNonDarcyCorrection
 
