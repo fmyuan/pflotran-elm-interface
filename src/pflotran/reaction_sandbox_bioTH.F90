@@ -207,7 +207,10 @@ subroutine BioTH_Read(this,input,option)
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%decay_aqueous = this%decay_aqueous * &
-                      UnitsConvertToInternal(word,internal_units,option)
+                      UnitsConvertToInternal(word,internal_units, &
+                                  'REACTION_SANDBOX,BIOPARTICLE,&
+                                     &DECAY_AQUEOUS,RATE CONSTANT UNITS', &
+                                   option)
                   endif
                 case default
                   call InputKeywordUnrecognized(input,word, &
@@ -305,7 +308,9 @@ subroutine BioTH_Read(this,input,option)
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%decay_adsorbed = this%decay_adsorbed * &
-                      UnitsConvertToInternal(word,internal_units,option)
+                      UnitsConvertToInternal(word,internal_units, &
+                            'REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED,&
+                            &CONSTANT,VALUE,RATE CONSTANT UNITS',option)
                   endif
                 case default
                   call InputKeywordUnrecognized(input,word, &
@@ -399,7 +404,9 @@ subroutine BioTH_Read(this,input,option)
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%rate_attachment = this%rate_attachment * &
-                      UnitsConvertToInternal(word,internal_units,option)
+                      UnitsConvertToInternal(word,internal_units, &
+                                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
+                                    &,RATE_ATTACHMENT,CONSTANT',option)
                   endif
                 case default
                   call InputKeywordUnrecognized(input,word, &
@@ -518,7 +525,9 @@ subroutine BioTH_Read(this,input,option)
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%rate_detachment = this%rate_detachment * &
-                      UnitsConvertToInternal(word,internal_units,option)
+                      UnitsConvertToInternal(word,internal_units, &
+                                  'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                                  &RATE_DETACHMENT,CONSTANT',option)
                   endif
                 case default
                   call InputKeywordUnrecognized(input,word, &

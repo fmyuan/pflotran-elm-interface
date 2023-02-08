@@ -7337,20 +7337,20 @@ subroutine CritHeatRead(this,filename,option)
         call InputReadWord(input2,option,word,PETSC_TRUE)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         time_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,keyword,option)
       case('TEMPERATURE_UNITS')
         internal_units = 'C'
         call InputReadWord(input2,option,word,PETSC_TRUE)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         call StringToUpper(word)
         temp_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,keyword,option)
       case('POWER_UNITS')
         internal_units = 'MW'
         call InputReadWord(input2,option,word,PETSC_TRUE)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         power_units_conversion = UnitsConvertToInternal(word, &
-                                 internal_units,option)
+                                 internal_units,keyword,option)
       case('START_TIME')
         if (Uninitialized(this%num_start_times) .or. &
             Uninitialized(this%num_values_per_start_time)) then
@@ -7541,21 +7541,21 @@ subroutine CritInventoryRead(this,filename,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'time units',error_string)
         time_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,keyword,option)
     !-------------------------------------
       case('POWER_UNITS')
         internal_units = 'MW'
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'power units',error_string)
         power_units_conversion = UnitsConvertToInternal(word, &
-                                 internal_units,option)
+                                 internal_units,keyword,option)
     !-------------------------------------
       case('DATA_UNITS')
         internal_units = 'g/g'
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'data units',error_string)
         data_units_conversion = UnitsConvertToInternal(word, &
-                                 internal_units,option)
+                                 internal_units,keyword,option)
     !-------------------------------------
       case('START_TIME')
         string = 'START_TIME in criticality inventory lookup table "' &

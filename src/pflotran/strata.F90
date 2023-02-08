@@ -173,7 +173,6 @@ subroutine StrataRead(strata,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
@@ -192,7 +191,7 @@ subroutine StrataRead(strata,input,option)
       case('FILE')
         call InputReadFilename(input,option,strata%material_property_filename)
         call InputErrorMsg(input,option,'material property filename','STRATA')
-      case('REGION','SURF_REGION')
+      case('REGION')
         call InputReadWord(input,option,strata%region_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'region name','STRATA')
       case('MATERIAL')
@@ -203,24 +202,18 @@ subroutine StrataRead(strata,input,option)
         strata%realization_dependent = PETSC_TRUE
       case('START_TIME')
         call InputReadDouble(input,option,strata%start_time)
-        call InputErrorMsg(input,option,'start time','STRATA')
-        ! read units, if present
+        call InputErrorMsg(input,option,keyword,'STRATA')
         internal_units = 'sec'
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          strata%start_time = strata%start_time * &
-                              UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputReadAndConvertUnits(input,strata%start_time, &
+                                      internal_units,'STRATA,START_TIME', &
+                                      option)
       case('FINAL_TIME')
         call InputReadDouble(input,option,strata%final_time)
-        call InputErrorMsg(input,option,'final time','STRATA')
-        ! read units, if present
+        call InputErrorMsg(input,option,keyword,'STRATA')
         internal_units = 'sec'
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          strata%final_time = strata%final_time * &
-                       UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputReadAndConvertUnits(input,strata%final_time, &
+                                      internal_units,'STRATA,FINAL_TIME', &
+                                      option)
       case('WELL')
         strata%well = PETSC_TRUE
       case('INACTIVE')

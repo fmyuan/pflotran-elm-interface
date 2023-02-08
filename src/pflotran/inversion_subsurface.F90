@@ -315,6 +315,9 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             last_measurement => new_measurement
             nullify(new_measurement)
           case('TIME')
+            ! cannot use InputReadAndConvertUnits here because the
+            ! time and time units may be reused for subsequent measurement
+            ! yet InputReadAndConvertUnits does not return the time units.
             call InputReadDouble(input,option,measurement_time)
             call InputErrorMsg(input,option,keyword,error_string)
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -322,7 +325,10 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             measurement_time_units = trim(word)
             internal_units = 'sec'
             measurement_time = measurement_time * &
-                           UnitsConvertToInternal(word,internal_units,option)
+                           UnitsConvertToInternal(word,internal_units, &
+                                                  trim(error_string)// &
+                                                  ',MEASUREMENTS,MEASUREMENT,&
+                                                  &TIME',option)
           case('OBSERVED_VARIABLE')
             observed_variable = &
               InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
@@ -1515,10 +1521,10 @@ subroutine InvSubsurfPostProcMeasurements(this)
         option%io_buffer = trim(option%io_buffer) // &
           ' at ' // &
           trim(StringWrite(this%inversion_aux% &
-                             measurements(imeasurement)%time/ &
-          UnitsConvertToInternal(this%inversion_aux% &
+                             measurements(imeasurement)%time* &
+          UnitsConvertToExternal(this%inversion_aux% &
                                    measurements(imeasurement)%time_units, &
-                                 word,option,ierr))) // &
+                                 word,option))) // &
           ' ' // trim(this%inversion_aux%measurements(imeasurement)%time_units)
       endif
       option%io_buffer = trim(option%io_buffer) // &

@@ -108,12 +108,10 @@ subroutine MassRateRead(this,input,option)
               call PrintErrMsg(option)
           end select
           call InputReadDouble(input,option,this%rate(i))
-          call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,MASS_RATE')
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          if (input%ierr == 0) then
-            this%rate(i) = this%rate(i) * &
-              UnitsConvertToInternal(word,internal_units,option)
-          endif
+          call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,XXX_RATE')
+          call InputReadAndConvertUnits(input,this%rate(i),internal_units, &
+                                        'SOURCE_SINK_SANDBOX,'//trim(word), &
+                                        option)
         enddo
       case default
         call InputKeywordUnrecognized(input,word, &

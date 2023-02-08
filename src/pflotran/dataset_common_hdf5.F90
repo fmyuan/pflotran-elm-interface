@@ -381,7 +381,8 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     call h5fclose_f(file_id,hdf5_err)
     internal_units = 'sec'
     time_storage%times = time_storage%times * &
-      UnitsConvertToInternal(time_units,internal_units,option)
+      UnitsConvertToInternal(time_units,internal_units, &
+                             trim(dataset_name)//'Time Units',option)
   endif
 
   int_mpi = int(num_times)

@@ -131,19 +131,12 @@ subroutine ExampleRead(this,input,option)
         ! in the error message, as they are identical.
         call InputErrorMsg(input,option,word, &
                            'CHEMISTRY,REACTION_SANDBOX,EXAMPLE')
-        ! Read the units.
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (InputError(input)) then
-          ! If units do not exist, assume default units of 1/s which are the
-          ! standard internal PFLOTRAN units for this rate constant.
-          input%err_buf = 'REACTION_SANDBOX,EXAMPLE,RATE CONSTANT UNITS'
-          call InputDefaultMsg(input,option)
-        else
-          ! If units exist, convert to internal units of 1/s.
-          internal_units = 'unitless/sec'
-          this%rate_constant = this%rate_constant * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        ! Read the optional units and convert to internal
+        ! units of 1/s.
+        internal_units = 'unitless/sec'
+        call InputReadAndConvertUnits(input,this%rate_constant, &
+                                internal_units,'CHEMISTRY,REACTION_SANDBOX,&
+                                &EXAMPLE,RATE_CONSTANT',option)
       case default
         call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,EXAMPLE',option)
