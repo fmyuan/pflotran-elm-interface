@@ -2146,13 +2146,19 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
     case(GP_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
+      gen_auxvar%pres(apid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      gen_auxvar%pres(apid) = x(GENERAL_PRECIPITATE_SAT_DOF)
+      if (.not.general_soluble_matrix) then
+        gen_auxvar%sat(gid) = x(GENERAL_PRECIPITATE_SAT_DOF)
+        gen_auxvar%sat(pid) = 1.d0 - gen_auxvar%sat(gid)
+      else
+        gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
+        material_auxvar%porosity = gen_auxvar%effective_porosity
+        gen_auxvar%sat(pid) = 0.d0
+      endif
 
       gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(pid) = 1.d0 - gen_auxvar%sat(gid)
-
+      
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
         if (associated(gen_auxvar%d)) then
@@ -2274,7 +2280,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
           gen_auxvar%effective_porosity = min(1.d0,gen_auxvar%effective_porosity)
         else
           gen_auxvar%sat(pid) = max(0.d0,gen_auxvar%sat(pid))
-          gen_auxvar%sat(pid) = min(1.d0,gen_auxvar%sat(gid))
+          gen_auxvar%sat(pid) = min(1.d0,gen_auxvar%sat(pid))
         endif
       endif
 
