@@ -2899,7 +2899,7 @@ subroutine LookupTableVarConvFactors(this,option)
   do
     if (.not.associated(var)) exit
       var%conversion_factor = &
-          UnitsConvertToInternal(var%user_units,var%internal_units,option)
+          UnitsConvertToInternal(var%user_units,var%internal_units,'',option)
       var => var%next
   enddo
 

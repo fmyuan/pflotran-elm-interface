@@ -315,6 +315,9 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             last_measurement => new_measurement
             nullify(new_measurement)
           case('TIME')
+            ! cannot use InputReadAndConvertUnits here because the
+            ! time and time units may be reused for subsequent measurement
+            ! yet InputReadAndConvertUnits does not return the time units.
             call InputReadDouble(input,option,measurement_time)
             call InputErrorMsg(input,option,keyword,error_string)
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -322,7 +325,10 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             measurement_time_units = trim(word)
             internal_units = 'sec'
             measurement_time = measurement_time * &
-                           UnitsConvertToInternal(word,internal_units,option)
+                           UnitsConvertToInternal(word,internal_units, &
+                                                  trim(error_string)// &
+                                                  ',MEASUREMENTS,MEASUREMENT,&
+                                                  &TIME',option)
           case('OBSERVED_VARIABLE')
             observed_variable = &
               InvMeasAuxReadObservedVariable(input,keyword,error_string,option)
@@ -538,7 +544,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   use PM_ERT_class
   use PM_Subsurface_Flow_class
   use String_module
-  use Variables_module, only : PERMEABILITY
+  use Variables_module, only : PERMEABILITY,POROSITY
   use Waypoint_module
   use ZFlow_Aux_module
 
@@ -554,6 +560,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   PetscInt :: icount
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters
+  PetscInt :: param_id
   PetscInt, allocatable :: int_array(:), int_array2(:)
   PetscReal :: tempreal
   PetscReal, pointer :: vec_ptr(:)
@@ -655,13 +662,20 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     if (this%inversion_option%coupled_flow_ert) then
       do i = 1, size(this%inversion_aux%parameters)
-        if (InversionParameterGetIDFromName(this%inversion_aux%parameters(i)% &
-                                              parameter_name,this%driver, &
-                                            this%inversion_option) /= &
-            PERMEABILITY) then
-          call this%driver%PrintErrMsg('COUPLED_ZFLOW_ERT currently only &
-                                        &supported for permeability.')
-        endif
+        param_id = InversionParameterGetIDFromName(this%inversion_aux% &
+                                                     parameters(i)% &
+                                                     parameter_name, &
+                                                   this%driver, &
+                                                   this%inversion_option)
+        select case(param_id)
+          case(PERMEABILITY,POROSITY)
+          case default
+            string = 'COUPLED_ZFLOW_ERT does not currently support &
+              &inversion for "' // &
+              trim(this%inversion_aux%parameters(i)%parameter_name) // &
+              '", only PERMEABILITY and POROSITY.'
+            call this%driver%PrintErrMsg(string)
+        end select
       enddo
       if (.not.(associated(this%forward_simulation% &
                             flow_process_model_coupler) .and. &
@@ -1507,10 +1521,10 @@ subroutine InvSubsurfPostProcMeasurements(this)
         option%io_buffer = trim(option%io_buffer) // &
           ' at ' // &
           trim(StringWrite(this%inversion_aux% &
-                             measurements(imeasurement)%time/ &
-          UnitsConvertToInternal(this%inversion_aux% &
+                             measurements(imeasurement)%time* &
+          UnitsConvertToExternal(this%inversion_aux% &
                                    measurements(imeasurement)%time_units, &
-                                 word,option,ierr))) // &
+                                 word,option))) // &
           ' ' // trim(this%inversion_aux%measurements(imeasurement)%time_units)
       endif
       option%io_buffer = trim(option%io_buffer) // &

@@ -26,27 +26,33 @@ NUMERICAL_METHODS TRANSPORT
   /
 
   NEWTON_SOLVER
-    ATOL 1.D-50
-    STOL 1.D-5
-    RTOL 1.D-5
-    DTOL 1.D4 
-    NWT_ITOL_RELATIVE_UPDATE 
-      PU239L  1.0d0
-      PU238L  1.0d0
-      U234L   1.0d4
-      TH230L  1.0d4
+    NWT_ITOL_RELATIVE_UPDATE
+      AM241L 1.0d-1
+      PU239L 1.0d-1
+      PU238L 1.0d-1
+      U234L  3.0d-1
+      TH230L 2.0d-1
+    /
+    NWT_ITOL_ABSOLUTE_UPDATE
+      AM241L 2.0d-4
+      PU239L 0.1d-1
+      PU238L 3.3d-5
+      U234L  5.9d-5
+      TH230L 2.7d-7
     /
     NWT_ITOL_SCALED_RESIDUAL
-      PU239L  1.D-2
-      PU238L  1.D-2
-      U234L   1.D-2
-      TH230L  1.D-2
+      AM241L 1.0d-3
+      PU239L 1.0d-3
+      PU238L 1.0d-3
+      U234L  1.0d-3
+      TH230L 1.0d-3
     /
     NWT_ITOL_ABSOLUTE_RESIDUAL
-      PU239L  1.D-5
-      PU238L  1.D-5
-      U234L   1.D-5
-      TH230L  1.D-5
+      AM241L 1.0d-9
+      PU239L 1.0d-6
+      PU238L 1.0d-11
+      U234L  1.0d-11
+      TH230L 1.0d-13
     /
     #VERBOSE_LOGGING
     #PRINT_DETAILED_CONVERGENCE

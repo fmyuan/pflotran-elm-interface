@@ -164,7 +164,9 @@ subroutine MineralReadKinetics(mineral,input,option)
                 call InputDefaultMsg(input,option)
               else
                 tstrxn%rate = tstrxn%rate * &
-                  UnitsConvertToInternal(word,internal_units,option)
+                  UnitsConvertToInternal(word,internal_units, &
+                                     trim(error_string)//',RATE_CONSTANT', &
+                                     option)
               endif
             case('ACTIVATION_ENERGY')
 !             read activation energy for Arrhenius law
@@ -172,7 +174,7 @@ subroutine MineralReadKinetics(mineral,input,option)
               call InputErrorMsg(input,option,'activation',error_string)
               call InputReadAndConvertUnits(input,tstrxn%activation_energy, &
                                             'J/mol', &
-                              trim(error_string)//',activation energy',option)
+                              trim(error_string)//',ACTIVATION_ENERGY',option)
             case('AFFINITY_THRESHOLD')
 !             read affinity threshold for precipitation
               call InputReadDouble(input,option,tstrxn%affinity_threshold)
@@ -259,7 +261,9 @@ subroutine MineralReadKinetics(mineral,input,option)
                       call InputDefaultMsg(input,option)
                     else
                       prefactor%rate = prefactor%rate * &
-                        UnitsConvertToInternal(word,internal_units,option)
+                        UnitsConvertToInternal(word,internal_units, &
+                          trim(cur_mineral%name)//',PREFACTOR RATE_CONSTANT', &
+                          option)
                     endif
                   case('ACTIVATION_ENERGY')
                     ! read activation energy for Arrhenius law
@@ -270,7 +274,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                     call InputReadAndConvertUnits(input, &
                                                   prefactor%activation_energy, &
                                                   'J/mol', &
-                              trim(error_string)//',activation energy',option)
+                              trim(error_string)//',ACTIVATION_ENERGY',option)
                   case('PREFACTOR_SPECIES')
                     error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,&
                                    &SPECIES'
@@ -587,7 +591,10 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
     if (per_unit_mass) then
       internal_units = 'm^2/kg' ! m^2 mnrl/kg mnrl
     endif
-    tempreal = UnitsConvertToInternal(units,internal_units,option)
+    tempreal = UnitsConvertToInternal(units,internal_units, &
+                         trim(constraint%names(imnrl))// &
+                         ',specific surface area', &
+                         option)
     if (per_unit_mass) then
       mineral_rxn => GetMineralFromName(constraint%names(imnrl),mineral)
       if (mineral_rxn%molar_weight < epsilon .or. &

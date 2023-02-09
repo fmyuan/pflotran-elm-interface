@@ -44,7 +44,6 @@ mode_aux_obj = \
 	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
 	${common_src}mphase_aux.o \
-	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
 	${common_src}pnf_aux.o \
 	${common_src}richards_aux.o \
@@ -88,6 +87,7 @@ mode_obj = \
 	${common_src}global.o \
 	${common_src}mphase.o \
 	${common_src}nw_transport.o \
+	${common_src}nw_transport_equilibrium.o \
 	${common_src}pnf.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
@@ -109,6 +109,7 @@ shared_mode_aux_obj = \
 	${common_src}global_aux.o \
 	${common_src}lookup_table.o \
 	${common_src}material_aux.o \
+	${common_src}nw_transport_aux.o \
 	${common_src}reactive_transport_aux.o
 
 # DO NOT place any object files that depend on the discretization within
@@ -150,7 +151,6 @@ chem_obj = \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
 	${common_src}reaction_surf_complex_aux.o \
-	${common_src}nw_transport_equilibrium.o \
 	${common_src}transport_constraint.o \
 	${common_src}transport_constraint_base.o \
 	${common_src}transport_constraint_rt.o \

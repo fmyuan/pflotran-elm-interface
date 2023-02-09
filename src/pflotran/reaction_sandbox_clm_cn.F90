@@ -34,7 +34,7 @@ module Reaction_Sandbox_CLM_CN_class
     PetscInt :: C_species_id
     PetscInt :: N_species_id
     type(pool_type), pointer :: pools
-    type(clm_cn_reaction_rt_type), pointer :: reactions
+    type(clm_cn_reaction_type), pointer :: reactions
   contains
     procedure, public :: ReadInput => CLM_CN_Read
     procedure, public :: Setup => CLM_CN_Setup
@@ -48,14 +48,14 @@ module Reaction_Sandbox_CLM_CN_class
     type(pool_type), pointer :: next
   end type pool_type
 
-  type :: clm_cn_reaction_rt_type
+  type :: clm_cn_reaction_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     character(len=MAXWORDLENGTH) :: downstream_pool_name
     PetscReal :: rate_constant
     PetscReal :: respiration_fraction
     PetscReal :: inhibition_constant
-    type(clm_cn_reaction_rt_type), pointer :: next
-  end type clm_cn_reaction_rt_type
+    type(clm_cn_reaction_type), pointer :: next
+  end type clm_cn_reaction_type
 
   public :: CLM_CN_Create
 
@@ -117,7 +117,7 @@ subroutine CLM_CN_Read(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
 
   type(pool_type), pointer :: new_pool, prev_pool
-  type(clm_cn_reaction_rt_type), pointer :: new_reaction, prev_reaction
+  type(clm_cn_reaction_type), pointer :: new_reaction, prev_reaction
 
   PetscReal :: rate_constant, turnover_time
 
@@ -208,31 +208,21 @@ subroutine CLM_CN_Read(this,input,option)
               call InputErrorMsg(input,option,'downstream pool name', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
             case('RATE_CONSTANT')
+              internal_units = 'mol/L-s|1/s|L/mol-s'
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              internal_units = 'unitless/sec'
-              if (InputError(input)) then
-                input%err_buf = 'CLM-CN RATE CONSTANT UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,rate_constant, &
+                              internal_units,'CHEMISTRY,REACTION_SANDBOX,&
+                              &CLM-CN,REACTION,RATE_CONSTANT',option)
             case('TURNOVER_TIME')
+              internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              internal_units = 'sec'
-              if (InputError(input)) then
-                input%err_buf = 'CLM-CN TURNOVER TIME UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,turnover_time, &
+                              internal_units,'CHEMISTRY,REACTION_SANDBOX,&
+                              &CLM-CN,REACTION,TURNOVER_TIME',option)
             case('RESPIRATION_FRACTION')
               call InputReadDouble(input,option, &
                                    new_reaction%respiration_fraction)
@@ -345,7 +335,7 @@ subroutine CLM_CN_Map(this,reaction,option)
   PetscInt :: icount
 
   type(pool_type), pointer :: cur_pool
-  type(clm_cn_reaction_rt_type), pointer :: cur_rxn
+  type(clm_cn_reaction_type), pointer :: cur_rxn
 
   ! count # pools
   icount = 0
@@ -814,7 +804,7 @@ subroutine CLM_CN_Destroy(this)
   class(reaction_sandbox_clm_cn_type) :: this
 
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(clm_cn_reaction_rt_type), pointer :: cur_reaction, prev_reaction
+  type(clm_cn_reaction_type), pointer :: cur_reaction, prev_reaction
 
   cur_pool => this%pools
   do

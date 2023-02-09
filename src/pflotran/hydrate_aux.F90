@@ -149,12 +149,12 @@ module Hydrate_Aux_module
 
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
 
-  PetscInt, public :: hydrate_perm_scaling_function = 0
+  PetscInt, public :: hydrate_perm_scaling_function = 1
   PetscInt, public :: hydrate_phase_boundary = 1
   PetscInt, public :: hydrate_henrys_constant = 1
   PetscInt, public :: hydrate_tcond = 2
-  PetscBool, public :: hydrate_perm_scaling = PETSC_FALSE
-  PetscBool, public :: hydrate_eff_sat_scaling = PETSC_FALSE
+  PetscBool, public :: hydrate_perm_scaling = PETSC_TRUE
+  PetscBool, public :: hydrate_eff_sat_scaling = PETSC_TRUE
   PetscBool, public :: hydrate_with_gibbs_thomson = PETSC_FALSE
   PetscBool, public :: hydrate_gt_3phase = PETSC_FALSE
   PetscBool, public :: hydrate_adjust_ghsz_solubility = PETSC_FALSE
@@ -176,6 +176,7 @@ module Hydrate_Aux_module
     PetscReal, pointer :: kr(:)
     PetscReal, pointer :: mobility(:) ! relative perm / kinematic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
+    PetscReal :: effective_permeability
     PetscReal :: perm_base
     PetscReal :: v_sed
     PetscReal :: srl
@@ -456,6 +457,7 @@ subroutine HydrateAuxVarInit(auxvar,allocate_derivative,option)
   auxvar%istate_store = NULL_STATE
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
+  auxvar%effective_permeability = -999.d0
   auxvar%perm_base = -999.9d0
   auxvar%v_sed = 0.d0
   auxvar%srl = 0.d0
@@ -585,6 +587,7 @@ subroutine HydrateAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%srl = auxvar%srl
   auxvar2%srg = auxvar%srg
   auxvar2%effective_porosity = auxvar%effective_porosity
+  auxvar2%effective_permeability = auxvar%effective_permeability
   auxvar2%pert = auxvar%pert
 
 end subroutine HydrateAuxVarCopy
@@ -1407,21 +1410,21 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     if (option%iflag /= HYDRATE_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = hyd_auxvar%effective_porosity
     endif
-    solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
-
-    if (hydrate_perm_scaling) then
-      select case (hydrate_perm_scaling_function)
-        case(1) ! Dai and Seol, 2014
-          if (hyd_auxvar%perm_base < -999.d0) then
-            hyd_auxvar%perm_base = material_auxvar%permeability(1)
-          endif
-          material_auxvar%permeability(:) = hyd_auxvar%perm_base * &
-                      (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2
-        case default
-      end select
-    endif
-
   endif
+
+  solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+
+  if (hydrate_perm_scaling) then
+    select case (hydrate_perm_scaling_function)
+      case(1) ! Dai and Seol, 2014
+        hyd_auxvar%effective_permeability = max(1.d-5, &
+                    (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2)
+      case default
+    end select
+  else
+    hyd_auxvar%effective_permeability = 1.d0
+  endif
+
   if (associated(hyd_auxvar%d)) then
     hyd_auxvar%d%por_p = dpor_dp
   endif

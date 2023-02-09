@@ -95,11 +95,29 @@ MATERIAL_PROPERTY soil1
 
 END
 
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.5d0
+  TORTUOSITY 0.6d0
+  ROCK_DENSITY 2700.d0 #kg/m3
+  LONGITUDINAL_DISPERSIVITY 0.4 #m
+
+  SECONDARY_CONTINUUM
+    TYPE SLAB
+    LENGTH 1 #half distance between fractures - BC location in the matrix
+    NUM_CELLS 5 #in secondary continuum (matrix)
+    EPSILON 1.0 #fracture volume fraction (b/(L+b))
+    LIQUID_DIFFUSION_COEFFICIENT 1.6d-10  #effective diffusion coefficient, includes tortuosity
+    POROSITY 0.01 #diffusion coefficient and porosity are multiplied, no tortuosity in eqn
+   /
+
+END
+
 #=========================== times ============================================
 TIME
-  FINAL_TIME 101.d0 d
+  FINAL_TIME 1.d0 d
   INITIAL_TIMESTEP_SIZE 0.006d0 d
-  MAXIMUM_TIMESTEP_SIZE 0.5d0 d 
+  MAXIMUM_TIMESTEP_SIZE 5.d-1 d 
 END
 
 #=========================== regions ==========================================
@@ -125,6 +143,20 @@ REGION east
     1.d0 1.d20 1.d20
   /
 END
+
+REGION m1
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d-1 1.d0 1.d0
+  /
+/
+
+REGION m2
+  COORDINATES
+    5.d-1 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+/
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION background_conc
@@ -174,8 +206,13 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  REGION all
+  REGION m1
   MATERIAL soil1
+END
+
+STRATA
+  REGION m2
+  MATERIAL soil2
 END
 
 SECONDARY_CONSTRAINT sec

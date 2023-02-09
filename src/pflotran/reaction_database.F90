@@ -1118,14 +1118,52 @@ subroutine BasisInit(reaction,option)
   enddo
 
   if (icount /= ncomp_secondary) then
+    call PrintMsgNoAdvance(option,new_line('a') // 'Species read from the &
+      &reaction database with reactions associated with them in the &
+      &database:')
+    cur_pri_aq_spec => reaction%primary_species_list
+    do
+      if (.not.associated(cur_pri_aq_spec)) exit
+      if (associated(cur_pri_aq_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_pri_aq_spec%name))
+      endif
+      cur_pri_aq_spec => cur_pri_aq_spec%next
+    enddo
+    cur_sec_aq_spec => reaction%secondary_species_list
+    do
+      if (.not.associated(cur_sec_aq_spec)) exit
+      if (associated(cur_sec_aq_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_sec_aq_spec%name))
+      endif
+      cur_sec_aq_spec => cur_sec_aq_spec%next
+    enddo
+    cur_gas_spec => reaction%gas%list
+    do
+      if (.not.associated(cur_gas_spec)) exit
+      if (associated(cur_gas_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_gas_spec%name))
+      endif
+      cur_gas_spec => cur_gas_spec%next
+    enddo
+    call PrintMsg(option,'')
+    option%io_buffer = 'The number of species read from the reaction &
+      &database with associated reactions in the database (' // &
+      StringWrite(icount) // ') does not match the number of secondary &
+      &aqueous species and gases in the problem (' // &
+      StringWrite(ncomp_secondary) // ').'
     if (icount < ncomp_secondary) then
-      option%io_buffer = 'Too few reactions read from database for &
-        &number of secondary species defined.'
+      option%io_buffer = trim(option%io_buffer) // ' Since the number of &
+        &species with associated reactions is lower, it is likely that &
+        &there is a missing secondary aqueous species or gas.'
     else
-      option%io_buffer = 'Too many reactions read from database for &
-        &number of secondary species defined.  Perhaps &
-        &DECOUPLED_EQUILIBRIUM_REACTIONS need to be defined?'
+      option%io_buffer = trim(option%io_buffer) // ' Since the number of &
+        &species with associated reactions is larger, it is likely that &
+        &there is a species from the database with a reaction associated &
+        &and no corresponding secondary aqueous or gas species. In that &
+        &case, a DECOUPLED_EQUILIBRIUM_REACTIONS block is likely needed.'
     endif
+    option%io_buffer = trim(option%io_buffer) // &
+      ' One or more of the species above is the problem.'
     call PrintErrMsg(option)
   endif
 

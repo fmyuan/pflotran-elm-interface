@@ -250,7 +250,7 @@ subroutine UnitConversionFactors(this,option)
 
   !covert pressure
   this%press_unit_conv_factor = UnitsConvertToInternal(this%press_user_units, &
-                                  this%press_internal_units, option)
+                                  this%press_internal_units,'',option)
 
   !no temperature conversion - currently allowed only C
 

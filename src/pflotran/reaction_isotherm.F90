@@ -251,11 +251,11 @@ subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
   if (len_trim(kd_units) > 0) then
     ierr = 1
     internal_units = 'kg/m^3'
-    Kd = Kd * UnitsConvertToInternal(kd_units,internal_units,option,ierr)
+    Kd = Kd * UnitsConvertToInternal(kd_units,internal_units,'',option,ierr)
     if (ierr < 0) then
       ierr = 1
       internal_units = 'L/kg'
-      Kd = Kd * UnitsConvertToInternal(kd_units,internal_units,option,ierr)
+      Kd = Kd * UnitsConvertToInternal(kd_units,internal_units,'',option,ierr)
       if (ierr < 0) then
         option%io_buffer = 'Unrecognized kd_units: ' // trim(kd_units)
         call PrintErrMsg(option)

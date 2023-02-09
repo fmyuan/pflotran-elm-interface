@@ -35,7 +35,6 @@
         7:         1
         9:         1
 -- SOLUTION: Transport --
-   Time (seconds):   6.9972486000211E-02
    Time Steps:          123
    Newton Iterations:          123
    Linear Solver Iterations:          123
