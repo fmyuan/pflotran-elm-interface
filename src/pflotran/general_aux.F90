@@ -2149,12 +2149,13 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(apid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
       if (.not.general_soluble_matrix) then
-        gen_auxvar%sat(gid) = x(GENERAL_PRECIPITATE_SAT_DOF)
-        gen_auxvar%sat(pid) = 1.d0 - gen_auxvar%sat(gid)
+        gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
+        gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(gid)
       else
         gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
         material_auxvar%porosity = gen_auxvar%effective_porosity
         gen_auxvar%sat(pid) = 0.d0
+        gen_auxvar%sat(gid) = 1.d0
       endif
 
       gen_auxvar%sat(lid) = 0.d0
@@ -2180,7 +2181,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
           gen_auxvar%pres(spid) = GENERAL_IMMISCIBLE_VALUE
         endif
         gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-        gen_auxvar%pres(apid) = gen_auxvar%pres(gid) - gen_auxvar%pres(vpid)
+!        gen_auxvar%pres(apid) = gen_auxvar%pres(gid) - gen_auxvar%pres(vpid)
         if (associated(gen_auxvar%d)) then
           dpair_dT = -1.d0*gen_auxvar%d%psat_T
           dpair_dpgas = 1.d0
@@ -2195,8 +2196,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                                            gen_auxvar%pres(spid),dummy, &
                                            guess,ierr)
       endif
-
-      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
 
       call characteristic_curves%saturation_function% &
              CapillaryPressure(gen_auxvar%sat(pid), &
@@ -3639,9 +3638,9 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
              !xmol(acid,lid))*(1.d0 + epsilon)
         x(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0-epsilon)
         if (.not. general_soluble_matrix) then
-          x(GENERAL_PRECIPITATE_SAT_INDEX) = 1.d0
+          x(GENERAL_PRECIPITATE_SAT_DOF) = 1.d0
         elseif (general_soluble_matrix) then
-          x(GENERAL_POROSITY_INDEX) = 0.d0
+          x(GENERAL_POROSITY_DOF) = 0.d0
         endif
       case(LP_STATE)
         x(GENERAL_LIQUID_PRESSURE_DOF) = gen_auxvar%pres(lid) * (1.d0 - epsilon)
@@ -3650,18 +3649,18 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
         x(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0-epsilon)
 
         if (.not. general_soluble_matrix) then
-          x(GENERAL_PRECIPITATE_SAT_DOF) = gen_auxvar%sat(pid)
+          x(GENERAL_PRECIPITATE_SAT_DOF) = gen_auxvar%sat(pid)*(1.d0-epsilon)
         elseif (general_soluble_matrix) then
-          x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity
+          x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity*(1.d0-epsilon)
         endif
       case(GP_STATE)
         x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)*(1.d0 - epsilon)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(gid)
+        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%pres(apid)
         x(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0-epsilon)
         if (.not. general_soluble_matrix) then
-          x(GENERAL_PRECIPITATE_SAT_DOF) = gen_auxvar%pres(apid)*(1.d0-epsilon)
+          x(GENERAL_PRECIPITATE_SAT_DOF) = gen_auxvar%sat(gid)*(1.d0-epsilon)
         elseif (general_soluble_matrix) then
-          x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity
+          x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity*(1.d0-epsilon)
         endif
       case(LGP_STATE)
         if (.not. general_soluble_matrix) then
@@ -4554,6 +4553,24 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
       else
         pert(GENERAL_PRECIPITATE_SAT_DOF) = perturbation_tolerance
       endif
+    case(GP_STATE)
+       x(GENERAL_GAS_PRESSURE_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+           gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
+       else
+         x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+           gen_auxvar(ZERO_INTEGER)%xmol(option%water_id,option%air_id)
+       endif
+       if (general_soluble_matrix) then
+         x(GENERAL_POROSITY_DOF) = gen_auxvar(ZERO_INTEGER)%effective_porosity
+       elseif (.not.general_soluble_matrix) then
+         x(GENERAL_POROSITY_DOF) = gen_auxvar(ZERO_INTEGER)%sat(option%precipitate_phase)
+       endif
+
+       x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+
     case(LGP_STATE)
       if (x(GENERAL_PRECIPITATE_SAT_DOF) > 0.50) THEN
          pert(GENERAL_PRECIPITATE_SAT_DOF) = -1.d0 * perturbation_tolerance
