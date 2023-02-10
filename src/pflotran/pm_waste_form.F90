@@ -544,6 +544,7 @@ module PM_Waste_Form_class
     PetscReal :: spacer_loss_ratio  ! metal loss ratio from oxide formation
     PetscReal :: spacer_thickness ! initial thickness of metal
     PetscReal :: spacer_coeff  ! empirical coefficient of Arrhenius term
+    PetscReal :: spacer_rad_factor  ! irradiation factor for degradation rate
     PetscReal :: spacer_activation_energy  ! activation energy
     class(spacer_mechanism_base_type), pointer :: next
   contains
@@ -896,6 +897,7 @@ function PMWFSpacerMechCreate()
 
   spc%mech_name = ''
   spc%threshold_sat = 0.0d0
+  spc%spacer_rad_factor = 1.0d0
   spc%alteration_rate = UNINITIALIZED_DOUBLE
   spc%spacer_loss_ratio = UNINITIALIZED_DOUBLE
   spc%spacer_thickness = UNINITIALIZED_DOUBLE
@@ -2399,6 +2401,11 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
                                           new_sp_mech%spacer_coeff, &
                                           'kg/m^2-s','C',option)
         !-----------------------------
+          case('RAD_FACTOR')
+            call InputReadDouble(input,option,new_sp_mech%spacer_rad_factor)
+            call InputErrorMsg(input,option,'irradiation factor for grid &
+                               &spacer degradation rate',error_string)
+        !-----------------------------
           case('Q')
             call InputReadDouble(input,option, &
                                  new_sp_mech%spacer_activation_energy)
@@ -2427,6 +2434,13 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
       if (Uninitialized(new_sp_mech%spacer_loss_ratio)) then
         option%io_buffer = 'ERROR: Metal loss ratio for spacer grid must be &
                            &specified for spacer grid degradation mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (new_sp_mech%spacer_rad_factor <= 0.d0) then
+        option%io_buffer = 'ERROR: Irradiation factor for spacer grid &
+                           &degradation rate must be greater than zero in the &
+                           &spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -6200,6 +6214,12 @@ subroutine SpacerMechInputRecord(this)
       write(id,'(a)') trim(adjustl(word)) // ' J/mol'
     endif
 
+    if (Initialized(cur_sp_mech%spacer_rad_factor)) then
+      write(id,'(a29)',advance='no') 'grid spc. rad factor: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_rad_factor
+      write(id,'(a)') trim(adjustl(word))
+    endif
+
     if (Initialized(cur_sp_mech%threshold_sat)) then
       write(id,'(a29)',advance='no') 'threshold saturation: '
       write(word,'(es12.5)') cur_sp_mech%threshold_sat
@@ -6554,6 +6574,7 @@ subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
   ! Modify rate with metal loss ratio and saturation factor [kg/s]
   waste_form%spacer_vitality_rate = waste_form%spacer_vitality_rate* &
                                     this%spacer_loss_ratio* &
+                                    this%spacer_rad_factor* &
                                     this%alteration_rate
 
   ! Change in spacer vitality [kg/kg]

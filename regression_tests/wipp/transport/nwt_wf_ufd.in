@@ -337,6 +337,7 @@ skip
     EXPOSURE_LEVEL   9.93317d-01
     C                3.47000d+07 mg/day-dm^2
     Q                2.27570d+04 cal/mol
+    RAD_FACTOR       1.00000d+00
   /
 noskip
 
