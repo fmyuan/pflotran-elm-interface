@@ -2779,7 +2779,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       !geh: we should read in the mole fraction for both phases as the
       !     enthalpy, etc. applies to phase, not pure component.
       xmol(iphase) = 1.d0
-      ! DF: if liquid flux is set to 0, SOLUTE_FRACTION becomes a dirichlet BC
+      !     if liquid flux is set to 0, SOLUTE_FRACTION becomes a dirichlet BC
       !     if liquid flux is non-zero, SOLUTE_FRACTION becomes mole fraction of flux fluid
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
@@ -3380,7 +3380,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! but gas phase diffusion only occurs if the internal cell has a gas
   ! phase.
   
-  !DF: This checks for a dirichlet condition on either solute
+  ! This checks for a dirichlet condition on either solute
   if (option%nflowdof == 4) then
     if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
         ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
@@ -3436,7 +3436,11 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       delta_X_whatever = delta_xmol
       delta_X_whatever_dxmoldn = -1.d0
     else ! delta of mass fraction
-      !DF: 4th dof not implemented here.
+      ! 4th dof not implemented here.
+      if (option%nflowdof == 4) then
+        option%io_buffer = 'Mass-based flux not implented for general mode with 4 dof.'
+        call PrintErrMsg(option)
+      endif
       xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
       xmol_air_dn = gen_auxvar_dn%xmol(air_comp_id,iphase)
       tempreal = (xmol_air_up*fmw_comp(2) + (1.d0-xmol_air_up)*fmw_comp(1))
@@ -4375,40 +4379,10 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                                     gen_auxvar_ss%den(solute_comp_id)
     Res(solute_comp_id) = qsrc_mol
     ! DF: no analytical derivative for the solute phase
-    ! if (analytical_derivatives) then
-    !   Jg = 0.d0
-    !   select case(global_auxvar%istate)
-    !     case(LIQUID_STATE)
-    !       if (dabs(Res(solute_comp_id)) > 1.d-40 .and. dden_bool > 0.d0) then
-    !         option%io_buffer = 'Volumetric air injection not set up for &
-    !           &liquid state in GeneralAuxVarComputeAndSrcSink as there is &
-    !           &no air density.'
-    !         call PrintErrMsg(option)
-    !       endif
-    !       ! derivative wrt liquid pressure
-    !       ! derivative wrt air mole fraction
-    !       ! derivative wrt temperature
-    !     case(GAS_STATE)
-    !       ! derivative wrt gas pressure
-    !       Jg(2,1) = dden_bool * qsrc(air_comp_id) * &
-    !                 gen_auxvar_ss%d%deng_pg
-    !       ! derivative wrt air pressure
-    !       Jg(2,2) = dden_bool * qsrc(air_comp_id) * &
-    !                 gen_auxvar_ss%d%deng_pa
-    !       ! derivative wrt temperature
-    !       Jg(2,3) = dden_bool * qsrc(air_comp_id) * &
-    !                 gen_auxvar_ss%d%deng_T
-    !     case(TWO_PHASE_STATE)
-    !       ! derivative wrt gas pressure
-    !       Jg(2,1) = dden_bool * qsrc(air_comp_id) * &
-    !                 gen_auxvar_ss%d%deng_pg
-    !       ! derivative wrt gas saturation
-    !       ! derivative wrt temperature
-    !       Jg(2,3) = dden_bool * qsrc(air_comp_id) * &
-    !                 gen_auxvar_ss%d%deng_T
-    !   end select
-    !   J = J + Jg
-    ! endif
+    if (analytical_derivatives) then
+      option%io_buffer = 'Analytical derivatives not implemented in general mode with 4 dof.'
+      call PrintErrMsg(option)
+    endif
 #endif
     !endif
 
@@ -4421,36 +4395,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(solute_comp_id) = qsrc_mol
       ss_flow_vol_flux(solute_comp_id) = qsrc_mol / &
                                       gen_auxvar_ss%den(solute_comp_id)
-      ! if (analytical_derivatives) then
-      !   !Jg = 0.d0
-      !   select case(global_auxvar%istate)
-      !     case(LIQUID_STATE)
-      !       ! derivative wrt liquid pressure
-      !       ! derivative wrt air mole fraction
-      !       Jg(2,2) = Jg(2,2) + Res(wat_comp_id)
-      !       ! derivative wrt temperature
-      !     case(GAS_STATE)
-      !       ! derivative wrt gas pressure
-      !       ! derivative wrt air pressure
-      !       ! derivative wrt temperature
-      !     case(TWO_PHASE_STATE)
-      !       ! derivative wrt gas pressure
-      !       Jg(2,1) = Jg(2,1) + &
-      !                 dden_bool * qsrc(wat_comp_id) * &
-      !                 gen_auxvar_ss%d%denl_pl * &
-      !                 gen_auxvar_ss%xmol(air_comp_id,wat_comp_id)+ &
-      !                 Res(wat_comp_id) * gen_auxvar_ss%d%xmol_p(2,1)
-      !       ! derivative wrt gas saturation
-      !       ! derivative wrt temperature
-      !       Jg(2,3) = Jg(2,3) + &
-      !                 dden_bool * qsrc(wat_comp_id) * &
-      !                 gen_auxvar_ss%d%denl_T * &
-      !                 gen_auxvar_ss%xmol(air_comp_id,wat_comp_id)+ &
-      !                 Res(wat_comp_id) * gen_auxvar_ss%d%xmol_T(2,1)
-      !   end select
-      !   J = J + Jg
-      ! endif
-    endif!DF: end solute
+    endif
 endif
 
   ! energy units: MJ/sec
@@ -4496,7 +4441,6 @@ endif
       endif
       if (option%nflowdof == 4) then
         if (dabs(qsrc(solute_comp_id)) > 1.d-40) then
-           ! DF: Need a second look at this.
            ! this is pure air, we use the enthalpy of air, NOT the air/water
            ! mixture in gas
            ! air enthalpy is only a function of temperature
@@ -4507,15 +4451,9 @@ endif
 
            internal_energy = gen_auxvar_ss%u(solute_comp_id)
            enthalpy = gen_auxvar_ss%h(solute_comp_id)
-           ! enthalpy units: MJ/kmol                       ! air component mass
+           
            Res(energy_id) = Res(energy_id) + Res(solute_comp_id) * enthalpy
-           if (analytical_derivatives) then
-              Je = 0.d0
-              Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
-              Je(3,2) = Jg(2,2) * enthalpy
-              Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
-           endif
-           J = J + Je
+           
         endif
       endif
     endif

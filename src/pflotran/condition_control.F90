@@ -457,9 +457,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   endif
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                     general%temperature%dataset%rarray(1)
-                case(P_STATE)
                 case(LP_STATE)
-                  !DF: fix general_2ph_energy_dof
                   xx_p(ibegin+GENERAL_LIQUID_PRESSURE_DOF) = &
                        general%liquid_pressure%dataset%rarray(1)
                   if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then

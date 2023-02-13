@@ -830,7 +830,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
               end select
             enddo
           case(TWO_PHASE_STATE,LGP_STATE)
-            !DF: conditions for LGP_STATE need to be filled out
             do idof = 1, option%nflowdof
               select case(boundary_condition%flow_bc_type(idof))
                 case(HYDROSTATIC_BC)
@@ -1073,7 +1072,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
         endif
       elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
         global_auxvars_ss(sum_connection)%istate = GAS_STATE
-      else
+      else!DF: this needs to be looked at closer
+
         if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
           global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
         elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
@@ -1387,18 +1387,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                              general_analytical_derivatives, &
                              local_id == general_debug_cell_id)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
-    if (general_set_porosity) then
-       r_p(3) = r_p(3)+((material_auxvars(ghosted_id)%porosity - &
-                         gen_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity)*&
-            PRECIPITATE_DENSITY*material_auxvars(ghosted_id)%volume/option%flow_dt)
-       r_p(4) = r_p(4)+(material_auxvars(ghosted_id)%porosity - &
-            gen_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity)*&
-            material_auxvars(ghosted_id)%soil_particle_density*0.000830*&
-            gen_auxvars(ZERO_INTEGER,ghosted_id)%temp*&
-            material_auxvars(ghosted_id)%volume/&
-            option%flow_dt
-       !DF: soil_heat_capacity temporarily hard-coded, not in material_auxvar
-    endif
     accum_p2(local_start:local_end) = Res(:)
   enddo
   call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
@@ -1598,11 +1586,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-  ! if (general_set_porosity) then
-  !    r_p(3) = r_p(3)+&
-  !        ((material_auxvars(ghosted_id)%porosity - gen_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity)*&
-  !        PRECIPITATE_DENSITY*material_auxvars(ghosted_id)%volume/option%flow_dt)
-  ! endif
+
   if (patch%aux%General%inactive_cells_exist) then
     do i=1,patch%aux%General%matrix_zeroing%n_inactive_rows
       r_p(patch%aux%General%matrix_zeroing%inactive_rows_local(i)) = 0.d0
