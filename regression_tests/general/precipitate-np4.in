@@ -1,0 +1,243 @@
+#Description:
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        NUMBER_OF_EQUATIONS 4
+        RESTRICT_STATE_CHANGE
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  MAX_STEPS -1
+    SATURATION_CHANGE_GOVERNOR 1.d0
+    CONCENTRATION_CHANGE_GOVERNOR 0.5d0
+    CFL_GOVERNOR 1.
+  /
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 50
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    4
+  /
+END
+
+#=========================== flow mode ========================================
+
+#=========================== debug settings ===================================
+#USE_TOUCH_OPTIONS
+
+#DEBUG
+#MATVIEW_JACOBIAN
+#VECVIEW_RESIDUAL
+#VECVIEW_SOLUTION
+#/
+
+#=========================== time stepper options =============================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 20 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+/
+
+#=========================== solver options ===================================
+
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+  SOLUTE_DIFFUSION_COEFFICIENT 1.d-9
+/
+
+EOS WATER
+  DENSITY BATZLE_AND_WANG
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.d-3 kg/L
+  THERMAL_CONDUCTIVITY_DRY 0.5d-6 MW/m-C
+  THERMAL_CONDUCTIVITY_WET 2.d-6 MW/m-C
+  HEAT_CAPACITY 830.d-6 MJ/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+/
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LOOP_INVARIANT
+    UNSATURATED_EXTENSION ECPC
+    LIQUID_RESIDUAL_SATURATION 0.2d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d9
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.2d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.2d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+    M 0.5d0
+  /
+/
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC TIME 10. y
+#  FORMAT TECPLOT POINT
+#  FORMAT HDF5
+  VELOCITY_AT_CENTER
+  MASS_BALANCE
+  VARIABLES
+     TEMPERATURE
+     LIQUID_PRESSURE
+     GAS_SATURATION
+     LIQUID_MOBILITY
+     GAS_MOBILITY
+     PRECIPITATE_SATURATION
+     LIQUID_MOLE_FRACTIONS
+  /
+/
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 100. y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 10 y
+/
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+/
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+/
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+/
+
+REGION middle
+  COORDINATE 2.5d0 0.5d0 0.5d0
+/
+
+#=========================== observation points ===============================
+OBSERVATION 
+#  REGION middle
+  REGION east
+  VELOCITY
+/
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    SOLUTE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 111325.d0
+  MOLE_FRACTION 1.d-10
+  SOLUTE_FRACTION 9.93d-2
+  TEMPERATURE 25.d0
+/
+
+FLOW_CONDITION LP_boundary
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    PRECIPITATE_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 111325.D0
+  MOLE_FRACTION 1.D-10
+  PRECIPITATE_SATURATION 2.D-1
+  TEMPERATURE 25.D0
+/
+
+FLOW_CONDITION cool
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    RATE mass_rate
+  /
+  RATE 0.0 0.0 1.d-9 0.d0 kg/s kg/s kg/s W
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+/
+BOUNDARY_CONDITION
+  FLOW_CONDITION LP_boundary
+  REGION east
+/
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION LP_boundary
+  REGION west
+/
+
+#skip
+SOURCE_SINK precipitate
+  FLOW_CONDITION cool
+  REGION middle
+/
+#noskip
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+END_SUBSURFACE
