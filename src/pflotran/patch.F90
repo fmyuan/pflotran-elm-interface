@@ -2372,6 +2372,24 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
              'PatchUpdateCouplerAuxVarsG')
     end select
   endif
+  if (associated(general%precipitate_saturation)) then
+    coupler%flow_bc_type(GENERAL_SOLUTE_EQUATION_INDEX) = DIRICHLET_BC
+    select type(selector => general%precipitate_saturation%dataset)
+      class is(dataset_ascii_type)
+        coupler%flow_aux_real_var(FOUR_INTEGER,1:num_connections) = &
+                                             general%precipitate_saturation%dataset%rarray(1)
+        dof4 = PETSC_TRUE
+     class is(dataset_gridded_hdf5_type)
+        call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
+        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
+             FOUR_INTEGER)
+        dof4 = PETSC_TRUE
+     class default
+        call PrintMsg(option,'general%precipitate_saturaiton%dataset')
+        call DatasetUnknownClass(selector,option, &
+             'PatchUpdateCouplerAuxVarsG')
+    end select
+  endif
   if (associated(general%rate)) then
     select case(general%rate%itype)
       case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
