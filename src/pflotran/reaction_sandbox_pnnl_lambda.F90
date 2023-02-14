@@ -121,7 +121,7 @@ subroutine LambdaRead(this,input,option)
       case('MU_MAX')
         call InputReadDouble(input,option,this%mu_max)
         call InputErrorMsg(input,option,'mu_max',error_string)
-        call InputReadAndConvertUnits(input,this%mu_max,'mol/L-sec',&
+        call InputReadAndConvertUnits(input,this%mu_max,'1/sec|mol/mol-sec',&
                         trim(error_string)//',mu_max',option)
 
       case('VH')

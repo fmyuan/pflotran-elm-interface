@@ -100,30 +100,18 @@ subroutine EquilibrateRead(this,input,option)
         call InputReadDouble(input,option,this%rate_constant)
         call InputErrorMsg(input,option,word, &
                            'CHEMISTRY,REACTION_SANDBOX,EQUILIBRATE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (InputError(input)) then
-          input%err_buf = 'REACTION_SANDBOX,EQUILIBRATE,RATE_CONSTANT UNITS'
-          call InputDefaultMsg(input,option)
-        else
-          ! If units exist, convert to internal units of 1/s.
-          internal_units = 'unitless/sec'
-          this%rate_constant = this%rate_constant * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        internal_units = 'unitless/sec'
+        call InputReadAndConvertUnits(input,this%rate_constant, &
+                                      internal_units,'REACTION_SANDBOX,&
+                                      &EQUILIBRATE,RATE_CONSTANT',option)
       case('HALF_LIFE')
         call InputReadDouble(input,option,half_life)
         call InputErrorMsg(input,option,word, &
                            'CHEMISTRY,REACTION_SANDBOX,EQUILIBRATE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (InputError(input)) then
-          input%err_buf = 'REACTION_SANDBOX,EQUILIBRATE,HALF_LIFE UNITS'
-          call InputDefaultMsg(input,option)
-        else
-          ! If units exist, convert to internal units of sec.
-          internal_units = 'sec'
-          half_life = half_life * &
-            UnitsConvertToInternal(word,internal_units,option)
-        endif
+        internal_units = 'sec'
+        call InputReadAndConvertUnits(input,half_life,internal_units, &
+                                      'REACTION_SANDBOX,EQUILIBRATE,&
+                                      &HALF_LIFE',option)
         this%rate_constant = -1.d0*log(0.5d0)/half_life
       case default
         call InputKeywordUnrecognized(input,word, &

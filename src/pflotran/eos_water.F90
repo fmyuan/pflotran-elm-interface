@@ -608,6 +608,8 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
       EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
     case('SPARROW')
       EOSWaterSaturationPressureExtPtr => EOSWaterSatPressSparrowExt
+    case('HUANG-ICE','ICE')
+      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIce
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSaturationPressure().'
@@ -636,7 +638,6 @@ subroutine EOSWaterSetSteamDensity(keyword,aux)
       EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIFC67
     case('IF97')
       EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIF97
-      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIF97
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSteamDensity().'
@@ -1463,6 +1464,44 @@ subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
   endif
 
 end subroutine EOSWaterSatPresWagnerPruss
+
+subroutine EOSWaterSaturationPressureIce(T, calculate_derivatives, &
+                                      PS, dPS_dT, ierr)
+  !
+  ! Calculates the saturation pressure of water as a function of temperature
+  ! above and below the freezing point of water based on Huang, J. (2018). 
+  ! A simple accurate formula for calculating saturation vapor pressure of 
+  ! water and ice. Journal of Applied Meteorology and Climatology, 57(6), 
+  ! 1265-1272.
+  !
+  ! Author: Michael Nole
+  ! Date: 12/07/2022
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  if (T > 0.d0) then
+    PS = exp(34.494d0 - 4924.99d0/(T+237.1d0))/(T+105.d0)**1.57d0
+    if (calculate_derivatives) then
+      dPS_dT = -1.57d0*(T+105.d0)**(-2.57d0)*exp(34.494d0-4924.99d0/(T+237.1d0))
+      dPS_dT = dPS_dT +(T+105.d0)**(-1.57d0)*exp(34.494d0-4924.99d0/ &
+               (T+237.1d0)) * 4924.99d0*(T+237.1d0)**(-2.d0)
+    endif
+  else
+    PS = exp(43.494d0 - 6545.8d0/(T+278.d0))/(T+868.d0)**2
+    if (calculate_derivatives) then
+      dPS_dT = -2.d0*(T+868.d0)**(-3.d0)*exp(43.494d0 - 6545.8d0/(T+278.d0))
+      dPS_dT = dPS_dT + (T+868.d0)**(-2.d0)*exp(43.494d0 - 6545.8d0/ &
+               (T+278.d0))*6545.8d0*(T+278.d0)**(-2.d0)
+    endif
+  endif
+!print *, T
+!print *, PS
+end subroutine EOSWaterSaturationPressureIce
 
 ! ************************************************************************** !
 
@@ -4549,6 +4588,9 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
   elseif (associated(EOSWaterSaturationPressurePtr, &
                      EOSWaterSatPresWagnerPruss)) then
     eos_saturation_pressure_name = 'WagnerAndPruss'
+  elseif (associated(EOSWaterSaturationPressurePtr, &
+                     EOSWaterSaturationPressureIce)) then
+    eos_saturation_pressure_name = 'Huang-Ice'
   else
     eos_saturation_pressure_name = 'Unknown'
   endif

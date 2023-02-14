@@ -1330,7 +1330,8 @@ subroutine CheckpointRead(input,option,waypoint_list)
                                 'CHECKPOINT,PERIODIC,TIME')
             internal_units = 'sec'
             units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,'CHECKPOINT,PERIODIC,TIME', &
+                                option)
             checkpoint_option%tconv = 1.d0/units_conversion
             checkpoint_option%tunit = trim(word)
             checkpoint_option%periodic_time_incr = temp_real*units_conversion
@@ -1348,7 +1349,8 @@ subroutine CheckpointRead(input,option,waypoint_list)
                             'CHECKPOINT,TIMES')
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units, &
-                                                  option)
+                                            'CHECKPOINT,TIMES,TIME_UNITS', &
+                                            option)
         checkpoint_option%tconv = 1.d0/units_conversion
         checkpoint_option%tunit = trim(word)
 !geh: this needs to be tested to verify that the upper version replicates
@@ -1408,7 +1410,8 @@ subroutine CheckpointRead(input,option,waypoint_list)
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     units_conversion = UnitsConvertToInternal(default_time_units, &
-                                              internal_units,option)
+                                              internal_units, &
+                                              'CHECKPOINT,TIME_UNITS',option)
     checkpoint_option%tconv = 1.d0/units_conversion
     checkpoint_option%tunit = trim(default_time_units)
   endif

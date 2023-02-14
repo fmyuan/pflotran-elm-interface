@@ -22,6 +22,7 @@ module General_Aux_module
   PetscInt, public :: general_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: general_damping_factor = 0.6d0
   PetscInt, public :: general_debug_cell_id = UNINITIALIZED_INTEGER
+  PetscReal, public :: non_darcy_A = 4.0d-12 ! values from Liu (2014) Eqn 11
   PetscReal, public :: non_darcy_B = -0.78d0
   PetscReal, public :: PRECIPITATE_DENSITY_KG = 2.170D3 !kg/m^3
   PetscReal, public :: PRECIPITATE_DENSITY = 37.132101d0 !mol/L

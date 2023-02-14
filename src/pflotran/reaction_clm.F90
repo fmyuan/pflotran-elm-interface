@@ -279,7 +279,7 @@ module CLM_Rxn_Decomp_class
     PetscBool :: is_NO3_aqueous
 
     type(pool_type), pointer :: pools
-    type(clmdec_reaction_rt_type), pointer :: reactions
+    type(clmdec_reaction_type), pointer :: reactions
   contains
     procedure, public :: ReadInput => CLMDec_Read
     procedure, public :: Setup => CLMDec_Setup
@@ -294,12 +294,12 @@ module CLM_Rxn_Decomp_class
     type(pool_type), pointer :: next
   end type pool_type
 
-  type :: clmdec_reaction_rt_type
+  type :: clmdec_reaction_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
-    type(clmdec_reaction_rt_type), pointer :: next
-  end type clmdec_reaction_rt_type
+    type(clmdec_reaction_type), pointer :: next
+  end type clmdec_reaction_type
 
   public :: CLMDec_Create
 
@@ -407,7 +407,7 @@ subroutine CLMDec_Read(this,input,option)
 
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
-  type(clmdec_reaction_rt_type), pointer :: new_reaction, prev_reaction
+  type(clmdec_reaction_type), pointer :: new_reaction, prev_reaction
 
   PetscReal :: rate_constant, turnover_time
   PetscReal :: temp_real
@@ -610,27 +610,19 @@ subroutine CLMDec_Read(this,input,option)
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,CLM_RXN,CLMDec,')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (InputError(input)) then
-                input%err_buf = 'CLMDec RATE CONSTANT UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,rate_constant, &
+                                            internal_units, &
+                                            'CHEMISTRY,CLM_RXN,CLMDec,&
+                                            &RATE_CONSTANT',option)
             case('TURNOVER_TIME')
               internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,CLM_RXN,CLMDec')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (InputError(input)) then
-                input%err_buf = 'CLMDec TURNOVER TIME UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,internal_units,option)
-              endif
+              call InputReadAndConvertUnits(input,turnover_time, &
+                                            internal_units, &
+                                            'CHEMISTRY,CLM_RXN,CLMDec,&
+                                            &TURNOVER_TIME',option)
             case default
               call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)
@@ -696,7 +688,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   PetscReal :: stoich_c, stoich_n
 
   type(pool_type), pointer :: cur_pool
-  type(clmdec_reaction_rt_type), pointer :: cur_rxn
+  type(clmdec_reaction_type), pointer :: cur_rxn
 
   ! count # pools
   icount = 0
@@ -2926,7 +2918,7 @@ subroutine CLMDec_Destroy(this)
   class(clm_rxn_clmdec_type) :: this
 
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(clmdec_reaction_rt_type), pointer :: cur_reaction, prev_reaction
+  type(clmdec_reaction_type), pointer :: cur_reaction, prev_reaction
 
   cur_pool => this%pools
   do

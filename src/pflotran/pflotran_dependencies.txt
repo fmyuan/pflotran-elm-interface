@@ -2427,6 +2427,7 @@ pmc_subsurface.o : \
   pm_base.o \
   pm_base_pointer.o \
   pm_general.o \
+  pm_hydrate.o \
   pm_nwt.o \
   pm_richards.o \
   pm_rt.o \
@@ -2506,40 +2507,6 @@ preconditioner_cpr.o : \
   option.o \
   pflotran_constants.o \
   string.o
-ifdef PFLOTRAN_RXN_FLAG
-reaction.o : \
-  generic.o \
-  global_aux.o \
-  input_aux.o \
-  material_aux.o \
-  option.o \
-  output_aux.o \
-  pflotran_constants.o \
-  reaction_aux.o \
-  reaction_clm.o \
-  reaction_gas.o \
-  reaction_gas_aux.o \
-  reaction_immobile.o \
-  reaction_immobile_aux.o \
-  reaction_isotherm.o \
-  reaction_isotherm_aux.o \
-  reaction_microbial.o \
-  reaction_microbial_aux.o \
-  reaction_mineral.o \
-  reaction_mineral_aux.o \
-  reaction_redox.o \
-  reaction_sandbox.o \
-  reaction_solid_solution.o \
-  reaction_solid_solution_aux.o \
-  reaction_surf_complex.o \
-  reaction_surf_complex_aux.o \
-  reactive_transport_aux.o \
-  string.o \
-  transport_constraint_rt.o \
-  units.o \
-  utility.o \
-  variables.o
-else
 reaction.o : \
   co2_span_wagner.o \
   co2eos.o \
@@ -2575,7 +2542,6 @@ reaction.o : \
   units.o \
   utility.o \
   variables.o
-endif
 reaction_aux.o : \
   generic.o \
   input_aux.o \

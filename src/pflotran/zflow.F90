@@ -503,13 +503,18 @@ subroutine ZFlowUpdateAuxVars(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
+  type(zflow_auxvar_type), pointer :: zflow_auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
+  PetscInt :: dof_index
   PetscInt :: ghosted_start, ghosted_end, ghosted_offset
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -523,8 +528,10 @@ subroutine ZFlowUpdateAuxVars(realization)
 
   zflow_auxvars => patch%aux%ZFlow%auxvars
   zflow_auxvars_bc => patch%aux%ZFlow%auxvars_bc
+  zflow_auxvars_ss => patch%aux%ZFlow%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -607,6 +614,30 @@ subroutine ZFlowUpdateAuxVars(realization)
                               PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
+  enddo
+
+  source_sink => patch%source_sink_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(source_sink)) exit
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      call ZFlowAuxVarCopy(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                           zflow_auxvars_ss(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_ss(sum_connection),option)
+      ! override concentration from grid cells
+      if (zflow_sol_tran_eq > 0) then
+        dof_index = source_sink%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
+        zflow_auxvars_ss(sum_connection)%conc = &
+          source_sink%flow_aux_real_var(dof_index,iconn)
+      endif
+    enddo
+    source_sink => source_sink%next
   enddo
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -1190,6 +1221,13 @@ subroutine ZFlowSetPlotVariables(realization,list)
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
                                  LIQUID_SATURATION)
+
+    if (zflow_sol_tran_eq > 0) then
+      name = 'Solute Concentration'
+      units = 'M'
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                   SOLUTE_CONCENTRATION)
+    endif
   endif
 
 end subroutine ZFlowSetPlotVariables

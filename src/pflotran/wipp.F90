@@ -582,7 +582,8 @@ subroutine CreepClosureRead(this,input,option)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         call StringToUpper(word)
         time_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,'CREEP_CLOSURE,TIME_UNITS', &
+                                option)
       case('TIME')
         if (Uninitialized(this%num_times) .or. &
             Uninitialized(this%num_values_per_time)) then

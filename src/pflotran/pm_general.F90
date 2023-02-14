@@ -370,10 +370,14 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_isothermal = PETSC_TRUE
       case('NON_DARCY_FLOW')
         general_non_darcy_flow = PETSC_TRUE
+      case('NON_DARCY_FLOW_A')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        non_darcy_A = tempreal
       case('NON_DARCY_FLOW_B')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-         non_darcy_B = tempreal
+        non_darcy_B = tempreal
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
         !heeho: assuming liquid component is index 1
         call InputReadDouble(input,option,fmw_comp(1))
