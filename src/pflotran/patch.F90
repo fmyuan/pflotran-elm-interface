@@ -2385,7 +2385,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
              FOUR_INTEGER)
         dof4 = PETSC_TRUE
      class default
-        call PrintMsg(option,'general%precipitate_saturaiton%dataset')
+        call PrintMsg(option,'general%precipitate_saturation%dataset')
         call DatasetUnknownClass(selector,option, &
              'PatchUpdateCouplerAuxVarsG')
     end select
