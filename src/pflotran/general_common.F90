@@ -2580,6 +2580,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: delta_X_whatever_dxmoldn
   PetscReal :: dxmass_air_dn_dxmol_air_dn
   PetscReal :: dtot_mole_flux_dstpd, dtot_mole_flux_ddeltaX
+  PetscReal :: dtot_mole_flux_ddeltaS
   PetscReal :: dtot_mole_flux_dstpd1, dtot_mole_flux_ddenave1
   PetscReal :: dtot_mole_flux_ddenave
   PetscReal :: diffusion_scale
@@ -3457,17 +3458,20 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
+    dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
+                             general_parameter%solute_diffusion_coefficient * &
+                             area
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
     if (option%nflowdof == 4) then
-      tot_mole_flux1 = dtot_mole_flux_ddeltaX * delta_xsmol
+      tot_mole_flux1 = dtot_mole_flux_ddeltaS * delta_xsmol
       dtot_mole_flux_dstpd1 = tot_mole_flux1 / stpd_ave_over_dist
       dtot_mole_flux_ddenave1 = tot_mole_flux1 / density_ave
       Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
-      Res(solute_comp_id) = Res(air_comp_id) + tot_mole_flux1
+      Res(solute_comp_id) = Res(solute_comp_id) + tot_mole_flux1
     endif
 
     if (analytical_derivatives) then

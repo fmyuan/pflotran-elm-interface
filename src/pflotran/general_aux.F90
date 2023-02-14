@@ -2472,6 +2472,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,liq_comp, &
                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
     endif
+    gen_auxvar%den(lid) = gen_auxvar%den_kg(lid) /(FMWH2O*gen_auxvar%xmol(acid,lid)+&
+                   FMWAIR*gen_auxvar%xmol(acid,lid)+FMWNACL*gen_auxvar%xmol(sid,lid))
   ! endif
   if (associated(gen_auxvar%d)) then
     call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,hw,hw_dp,hw_dT,ierr)
