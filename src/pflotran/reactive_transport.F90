@@ -534,6 +534,10 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
     liquid_saturation = global_auxvars(ghosted_id)%sat(1)
     porosity = material_auxvars(ghosted_id)%porosity
     volume = material_auxvars(ghosted_id)%volume ! [m^3]
+    if (option%use_sc) then
+      volume = material_auxvars(ghosted_id)%volume * &
+          material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+    endif
 
     ! aqueous (sum_mol_aq)
     sum_mol_aq(1:naqcomp) = sum_mol_aq(1:naqcomp) + &
