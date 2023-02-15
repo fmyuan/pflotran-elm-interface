@@ -328,7 +328,7 @@ subroutine PMRTSetup(this)
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
 
   if (this%option%nflowdof > 0) then
-    this%option%flow%store_state_variables = PETSC_TRUE
+    this%option%flow%store_state_variables_in_global = PETSC_TRUE
   endif
 
   ! pass down flags from PMRT class

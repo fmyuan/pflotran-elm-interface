@@ -676,7 +676,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  if (this%option%flow%store_state_variables) then
+  if (this%option%flow%store_state_variables_in_global) then
     ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
     if (this%store_porosity_for_transport) then
@@ -946,7 +946,7 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  if (this%option%flow%store_state_variables) then
+  if (this%option%flow%store_state_variables_in_global) then
     ! store final saturations, etc. for transport
     call GlobalUpdateAuxVars(this%realization,TIME_TpDT,this%option%time)
     if (this%store_porosity_for_transport) then

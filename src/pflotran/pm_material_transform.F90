@@ -372,7 +372,7 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
 
   option%io_buffer = 'pflotran card:: MATERIAL_TRANSFORM_GENERAL'
   call PrintMsg(option)
-  option%flow%store_state_variables = PETSC_TRUE
+  option%flow%store_state_variables_in_global = PETSC_TRUE
   
   input%ierr = 0
 
