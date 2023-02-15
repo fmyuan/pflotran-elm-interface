@@ -1752,7 +1752,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
               &one parameter.'
             call PrintErrMsg(option)
           endif
-          if (option%comm%rank == option%comm%io_rank) then
+          if (OptionIsIORank(option)) then
             tempreal = -measurements(imeasurement)%dobs_dparam
             iparameter = 1
             call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
@@ -1861,7 +1861,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
                        ndof_vec2,ierr);CHKERRQ(ierr)
           call VecDot(ndof_vec2,lambda(imeasurement), &
                       tempreal,ierr);CHKERRQ(ierr)
-          if (option%comm%rank == option%comm%io_rank) then
+          if (OptionIsIORank(option)) then
             call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
                              imeasurement-1,tempreal,ADD_VALUES, &
                              ierr);CHKERRQ(ierr)

@@ -437,13 +437,13 @@ contains
 
           ! Otherwise communicate data to other ranks
           call MPI_Send(nread,1,MPI_INTEGER,irank,option%myrank, &
-                        option%comm%communicator,ierr);CHKERRQ(ierr)
+                        option%mycomm,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_row_tmp,nread,MPI_INTEGER,irank,option%myrank, &
-                        option%comm%communicator,ierr);CHKERRQ(ierr)
+                        option%mycomm,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_col_tmp,nread,MPI_INTEGER,irank,option%myrank, &
-                        option%comm%communicator,ierr);CHKERRQ(ierr)
+                        option%mycomm,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_tmp,nread,MPI_DOUBLE_PRECISION,irank, &
-                        option%myrank,option%comm%communicator, &
+                        option%myrank,option%mycomm, &
                         ierr);CHKERRQ(ierr)
 
         endif
@@ -460,7 +460,7 @@ contains
 
       ! Get the number of data
       call MPI_Recv(map%s2d_nwts,1,MPI_INTEGER,option%comm%io_rank, &
-                    MPI_ANY_TAG,option%comm%communicator,status_mpi, &
+                    MPI_ANY_TAG,option%mycomm,status_mpi, &
                     ierr);CHKERRQ(ierr)
 
       ! Allocate memory
@@ -470,13 +470,13 @@ contains
 
       call MPI_Recv(map%s2d_icsr,map%s2d_nwts,MPI_INTEGER, &
                     option%comm%io_rank,MPI_ANY_TAG, &
-                    option%comm%communicator,status_mpi,ierr);CHKERRQ(ierr)
+                    option%mycomm,status_mpi,ierr);CHKERRQ(ierr)
       call MPI_Recv(map%s2d_jcsr,map%s2d_nwts,MPI_INTEGER, &
                     option%comm%io_rank,MPI_ANY_TAG, &
-                    option%comm%communicator,status_mpi,ierr);CHKERRQ(ierr)
+                    option%mycomm,status_mpi,ierr);CHKERRQ(ierr)
       call MPI_Recv(map%s2d_wts,map%s2d_nwts,MPI_DOUBLE_PRECISION, &
                     option%comm%io_rank,MPI_ANY_TAG, &
-                    option%comm%communicator,status_mpi,ierr);CHKERRQ(ierr)
+                    option%mycomm,status_mpi,ierr);CHKERRQ(ierr)
 
     endif
 
@@ -488,7 +488,7 @@ contains
   temp_int_array(5) = map%pflotran_nlev_mapped
 
   call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER, &
-                 option%comm%io_rank,option%comm%communicator, &
+                 option%comm%io_rank,option%mycomm, &
                  ierr);CHKERRQ(ierr)
 
   map%clm_nlevsoi = temp_int_array(1)
@@ -568,8 +568,7 @@ contains
     call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 
 #ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(prop_id,option%comm%communicator, &
-                            MPI_INFO_NULL,hdf5_err)
+    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
 
     ! Open the file collectively
@@ -617,9 +616,9 @@ contains
     istart = 0
     iend   = 0
     call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    option%comm%communicator,ierr);CHKERRQ(ierr)
+                    option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%comm%communicator,ierr);CHKERRQ(ierr)
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -691,9 +690,9 @@ contains
     istart = 0
     iend   = 0
     call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    option%comm%communicator,ierr);CHKERRQ(ierr)
+                    option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%comm%communicator,ierr);CHKERRQ(ierr)
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -762,9 +761,9 @@ contains
     istart = 0
     iend   = 0
     call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    option%comm%communicator,ierr);CHKERRQ(ierr)
+                    option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%comm%communicator,ierr);CHKERRQ(ierr)
+                  option%mycomm,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart

@@ -204,8 +204,7 @@ function DriverPrintToScreen(driver)
 
   PetscBool :: DriverPrintToScreen
 
-  if (driver%comm%rank == driver%comm%io_rank .and. &
-      driver%print_to_screen) then
+  if (CommIsIORank(driver%comm) .and. driver%print_to_screen) then
     DriverPrintToScreen = PETSC_TRUE
   else
     DriverPrintToScreen = PETSC_FALSE
@@ -226,8 +225,7 @@ function DriverPrintToFile(driver)
 
   PetscBool :: DriverPrintToFile
 
-  if (driver%comm%rank == driver%comm%io_rank .and. &
-      driver%print_to_file) then
+  if (CommIsIORank(driver%comm) .and. driver%print_to_file) then
     DriverPrintToFile = PETSC_TRUE
   else
     DriverPrintToFile = PETSC_FALSE
@@ -248,7 +246,7 @@ function DriverIsIORank(driver)
 
   PetscBool :: DriverIsIORank
 
-  DriverIsIORank = (driver%comm%rank == driver%comm%io_rank)
+  DriverIsIORank = CommIsIORank(driver%comm)
 
 end function DriverIsIORank
 
