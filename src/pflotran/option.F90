@@ -219,8 +219,8 @@ module Option_module
 
   public :: OptionCreate, &
             OptionSetDriver, &
+            OptionSetComm, &
             OptionSetInversionOption, &
-            OptionUpdateComm, &
             OptionCheckCommandLine, &
             PrintErrMsg, &
             PrintErrMsgToDev, &
@@ -323,13 +323,6 @@ subroutine OptionSetDriver(option,driver)
   class(driver_type), pointer :: driver
 
   option%driver => driver
-  option%comm => driver%comm
-  call OptionUpdateComm(option)
-  if (option%comm%start_time < 1.d-40) then
-    option%io_buffer = 'option%comm%start_time not set. WALLCLOCK_STOP &
-      &will not function properly.'
-    call PrintErrMsg(option)
-  endif
   option%print_screen_flag = driver%PrintToScreen()
   option%print_file_flag = PETSC_FALSE
 
@@ -337,7 +330,7 @@ end subroutine OptionSetDriver
 
 ! ************************************************************************** !
 
-subroutine OptionUpdateComm(option)
+subroutine OptionSetComm(option,comm)
 
   ! If the MPI communicator is split, we need to update the values local
   ! values in option
@@ -347,11 +340,14 @@ subroutine OptionUpdateComm(option)
   implicit none
 
   type(option_type) :: option
+  type(comm_type), pointer :: comm
 
-  option%mycomm          = option%comm%mycomm
-  option%myrank          = option%comm%myrank
+  call CommResetStartTime(comm)
+  option%comm => comm
+  option%mycomm = comm%communicator
+  option%myrank = comm%rank
 
-end subroutine OptionUpdateComm
+end subroutine OptionSetComm
 
 ! ************************************************************************** !
 
@@ -1153,10 +1149,10 @@ function OptionCheckTouch(option,filename)
 
   OptionCheckTouch = PETSC_FALSE
 
-  is_io_rank = option%driver%IsIORank()
+  is_io_rank = CommIsIORank(option%comm)
 
   if (is_io_rank) open(unit=fid,file=trim(filename),status='old',iostat=ios)
-  call MPI_Bcast(ios,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(ios,ONE_INTEGER_MPI,MPIU_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
 
   if (ios == 0) then
@@ -1268,7 +1264,7 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
 
   call MPI_Allreduce(value,temp_real,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                      MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-  mean = temp_real / dble(option%comm%mycommsize)
+  mean = temp_real / dble(option%comm%size)
 
   if (calculate_variance) then
     temp_real = value-mean
@@ -1276,7 +1272,7 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
     call MPI_Allreduce(temp_real,variance,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
                        ierr);CHKERRQ(ierr)
-    variance = variance / dble(option%comm%mycommsize)
+    variance = variance / dble(option%comm%size)
   endif
 
 end subroutine OptionMeanVariance
@@ -1296,7 +1292,7 @@ function OptionIsIORank1(option)
 
   PetscBool :: OptionIsIORank1
 
-  OptionIsIORank1 = option%driver%IsIORank()
+  OptionIsIORank1 = CommIsIORank(option%comm)
 
 end function OptionIsIORank1
 
@@ -1317,7 +1313,7 @@ function OptionIsIORank2(option,irank)
 
   PetscBool :: OptionIsIORank2
 
-  OptionIsIORank2 = (irank == option%driver%io_rank)
+  OptionIsIORank2 = CommIsIORank(option%comm,irank)
 
 end function OptionIsIORank2
 
@@ -1394,10 +1390,10 @@ subroutine OptionDestroy(option)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
   call OptionCheckpointDestroy(option%checkpoint)
-  ! never destroy the driver as it was created elsewhere
-  nullify(option%inversion)
-  nullify(option%driver)
   nullify(option%comm)
+  nullify(option%inversion)
+  ! never destroy the driver as it was created elsewhere
+  nullify(option%driver)
 
   ! all the below should be placed somewhere other than option.F90
 

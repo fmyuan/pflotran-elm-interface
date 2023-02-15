@@ -3540,7 +3540,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
           print *, '  residual: ' // trim(StringWrite(residual))
           print *, '  new solution: ' // trim(StringWrite(new_solution))
           print *, '  Grid cell: ' // trim(StringWrite(natural_id))
-          if (option%comm%mycommsize > 1) then
+          if (option%comm%size > 1) then
             print *, '  Process rank: ' // trim(StringWrite(option%myrank))
           endif
         endif

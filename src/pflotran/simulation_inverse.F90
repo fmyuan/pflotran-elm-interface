@@ -158,6 +158,7 @@ subroutine SimulationInverseInitializeRun(this)
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
+  call OptionSetComm(option,this%driver%comm)
   call SimulationBaseInitializeRun(this)
   call OptionDestroy(option)
 
@@ -196,7 +197,7 @@ subroutine SimulationInverseFinalizeRun(this)
 
   call this%inversion%Finalize()
   call SimulationBaseFinalizeRun(this)
-  if (this%driver%comm%global_rank == this%driver%io_rank) then
+  if (this%driver%IsIORank()) then
     call SimulationBaseWriteTimes(this,this%driver%fid_out)
   endif
 

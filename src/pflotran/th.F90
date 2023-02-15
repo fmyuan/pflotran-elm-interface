@@ -5778,10 +5778,10 @@ function THInitGuessCheck(xx, option)
   endif
 
    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
-   if (option%comm%mycommsize>1)then
+   if (option%comm%size>1)then
       call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                          option%mycomm,ierr);CHKERRQ(ierr)
-      if (ipass0 < option%comm%mycommsize) ipass=-1
+      if (ipass0 < option%comm%size) ipass=-1
    endif
    THInitGuessCheck = ipass
 

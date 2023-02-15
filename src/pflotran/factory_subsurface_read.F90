@@ -734,12 +734,12 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
             call PrintMsg(option)
           endif
 
-          if (option%comm%mycommsize /= grid%structured_grid%npx * &
+          if (option%comm%size /= grid%structured_grid%npx * &
                                  grid%structured_grid%npy * &
                                  grid%structured_grid%npz) then
             write(option%io_buffer,*) 'Incorrect number of processors &
               &specified: ',grid%structured_grid%npx*grid%structured_grid%npy* &
-              grid%structured_grid%npz,' commsize = ',option%comm%mycommsize
+              grid%structured_grid%npz,' commsize = ',option%comm%size
             call PrintErrMsg(option)
           endif
         endif
@@ -2062,7 +2062,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                                'OUTPUT,FORMAT,TECPLOT',option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                      .and. option%comm%mycommsize > 1) then
+                      .and. option%comm%size > 1) then
                     output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
                   endif
                   if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then

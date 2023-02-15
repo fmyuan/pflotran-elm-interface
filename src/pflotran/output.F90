@@ -482,7 +482,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 call InputKeywordUnrecognized(input,word,string,option)
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                 .and. option%comm%mycommsize > 1) then
+                 .and. option%comm%size > 1) then
               option%io_buffer = 'TECPLOT POINT format not supported in &
                 &parallel. Switching to TECPLOT BLOCK.'
               call PrintMsg(option)

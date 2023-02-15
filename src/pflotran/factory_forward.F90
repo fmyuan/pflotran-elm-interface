@@ -641,6 +641,7 @@ recursive subroutine FactoryForwardPrerequisite(outer_simulation)
 
   option => OptionCreate(outer_option)
   call OptionSetDriver(option,driver)
+  call OptionSetComm(option,driver%comm)
   simulation => SimSubsurfCreate(driver,option)
   if (associated(inversion_option)) then
     option%group_prefix = inversion_option%iteration_prefix

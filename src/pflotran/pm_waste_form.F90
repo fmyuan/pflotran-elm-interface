@@ -794,7 +794,7 @@ function PMWFMechanismFMDMSurrogateCreate(option)
 
   surrfmdm%temp = UNINITIALIZED_DOUBLE
   surrfmdm%dose_rate = UNINITIALIZED_DOUBLE
-  
+
   allocate(surrfmdm%mapping_surrfmdm_to_pflotran(surrfmdm%num_concentrations))
   surrfmdm%mapping_surrfmdm_to_pflotran = UNINITIALIZED_INTEGER
 
@@ -2771,7 +2771,7 @@ subroutine PMWFSetup(this)
   ! point the waste form region to the desired region
   call PMWFAssociateRegion(this,this%realization%patch%region_list)
 
-  allocate(ranks(option%comm%mycommsize))
+  allocate(ranks(option%comm%size))
 
   waste_form_id = 0
   nullify(prev_waste_form)
@@ -2831,12 +2831,12 @@ subroutine PMWFSetup(this)
       cur_waste_form%id = 0
       ranks(option%myrank+1) = 0
     endif
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%size,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_form%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%comm%mycommsize
+    do i = 1,option%comm%size
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_form%rank_list(j) = (i - 1)  ! (world ranks)
@@ -4673,7 +4673,7 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
 
   ! store for output
   this%temp = avg_temp_global
-  
+
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
@@ -4846,7 +4846,7 @@ subroutine PMWFOutput(this)
 ! option: pointer to option object
 ! output_option: pointer to output option object
 ! cur_waste_form: pointer to curent waste form object
-! cwfm: pointer to current waste form mechanism object  
+! cwfm: pointer to current waste form mechanism object
 ! grid: pointer to grid object
 ! filename: filename string
 ! fid: [-] file id number
@@ -4897,7 +4897,7 @@ subroutine PMWFOutput(this)
       write(fid,100,advance="no") cur_waste_form%spacer_vitality_rate, &
                                   cur_waste_form%spacer_vitality
     endif
-    cwfm => cur_waste_form%mechanism    
+    cwfm => cur_waste_form%mechanism
     select type(cwfm => cur_waste_form%mechanism)
       type is(wf_mechanism_fmdm_surrogate_type)
          write(fid,100,advance="no") cwfm%temp, &
@@ -5120,7 +5120,7 @@ subroutine PMWFOutputHeader(this)
         units_string = 'mol/L'
         call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                  icolumn)
-    end select   
+    end select
     cur_waste_form => cur_waste_form%next
   enddo
 
@@ -8564,7 +8564,7 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
 
   ! store for output
   this%dose_rate = dose_rate(yTme,this%decay_time,this%burnup)
-  
+
   ! features
   f(1) = current_temp_C + 273.15d0
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
@@ -8795,7 +8795,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   decay_time = this%decay_time
   burnup = this%burnup
   nn = this%num_nearest_neighbor
-  
+
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
   ! store for output

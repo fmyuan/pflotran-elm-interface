@@ -479,8 +479,8 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   allocate(max_dims_h5(ndims_hdf5))
   call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
 
-  nids_local=int(dims_h5(2)/option%comm%mycommsize)
-  remainder =int(dims_h5(2))-nids_local*option%comm%mycommsize
+  nids_local=int(dims_h5(2)/option%comm%size)
+  remainder =int(dims_h5(2))-nids_local*option%comm%size
   if (option%myrank<remainder) nids_local=nids_local+1
 
   ! Find istart and iend

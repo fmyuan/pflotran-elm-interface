@@ -283,8 +283,6 @@ subroutine GeomechanicsSimulationDestroy(simulation)
 
   class(simulation_geomechanics_type), pointer :: simulation
 
-  call PrintMsg(simulation%option,'GeomehanicsSimulationDestroy()')
-
   if (.not.associated(simulation)) return
 
   call simulation%Strip()
