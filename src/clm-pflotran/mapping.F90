@@ -366,14 +366,14 @@ contains
       enddo
       call InputPopBlock(input,option)
 
-      nwts_tmp = nwts/option%comm%mycommsize
-      remainder= nwts - nwts_tmp*option%comm%mycommsize
+      nwts_tmp = nwts/option%comm%size
+      remainder= nwts - nwts_tmp*option%comm%size
 
       allocate(wts_row_tmp(nwts_tmp + 1))
       allocate(wts_col_tmp(nwts_tmp + 1))
       allocate(wts_tmp(    nwts_tmp + 1))
 
-      do irank = 0,option%comm%mycommsize-1
+      do irank = 0,option%comm%size-1
 
         ! Determine the number of row to be read
         nread = nwts_tmp
@@ -436,14 +436,15 @@ contains
         else
 
           ! Otherwise communicate data to other ranks
-          call MPI_Send(nread,1,MPI_INTEGER,irank,option%myrank,option%mycomm, &
-                        ierr);CHKERRQ(ierr)
+          call MPI_Send(nread,1,MPI_INTEGER,irank,option%myrank, &
+                        option%comm%communicator,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_row_tmp,nread,MPI_INTEGER,irank,option%myrank, &
-                        option%mycomm,ierr);CHKERRQ(ierr)
+                        option%comm%communicator,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_col_tmp,nread,MPI_INTEGER,irank,option%myrank, &
-                        option%mycomm,ierr);CHKERRQ(ierr)
+                        option%comm%communicator,ierr);CHKERRQ(ierr)
           call MPI_Send(wts_tmp,nread,MPI_DOUBLE_PRECISION,irank, &
-                        option%myrank,option%mycomm,ierr);CHKERRQ(ierr)
+                        option%myrank,option%comm%communicator, &
+                        ierr);CHKERRQ(ierr)
 
         endif
 
@@ -458,8 +459,9 @@ contains
       ! Other ranks receive data from io_rank
 
       ! Get the number of data
-      call MPI_Recv(map%s2d_nwts,1,MPI_INTEGER,option%driver%io_rank, &
-                    MPI_ANY_TAG,option%mycomm,status_mpi,ierr);CHKERRQ(ierr)
+      call MPI_Recv(map%s2d_nwts,1,MPI_INTEGER,option%comm%io_rank, &
+                    MPI_ANY_TAG,option%comm%communicator,status_mpi, &
+                    ierr);CHKERRQ(ierr)
 
       ! Allocate memory
       allocate(map%s2d_icsr(map%s2d_nwts))
@@ -467,14 +469,14 @@ contains
       allocate(map%s2d_wts( map%s2d_nwts))
 
       call MPI_Recv(map%s2d_icsr,map%s2d_nwts,MPI_INTEGER, &
-                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
-                    status_mpi,ierr);CHKERRQ(ierr)
+                    option%comm%io_rank,MPI_ANY_TAG, &
+                    option%comm%communicator,status_mpi,ierr);CHKERRQ(ierr)
       call MPI_Recv(map%s2d_jcsr,map%s2d_nwts,MPI_INTEGER, &
-                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
-                    status_mpi,ierr);CHKERRQ(ierr)
+                    option%comm%io_rank,MPI_ANY_TAG, &
+                    option%comm%communicator,status_mpi,ierr);CHKERRQ(ierr)
       call MPI_Recv(map%s2d_wts,map%s2d_nwts,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
-                    status_mpi,ierr);CHKERRQ(ierr)
+                    option%comm%io_rank,MPI_ANY_TAG, &
+                    option%comm%communicator,status_mpi,ierr);CHKERRQ(ierr)
 
     endif
 
@@ -486,7 +488,8 @@ contains
   temp_int_array(5) = map%pflotran_nlev_mapped
 
   call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                 option%comm%io_rank,option%comm%communicator, &
+                 ierr);CHKERRQ(ierr)
 
   map%clm_nlevsoi = temp_int_array(1)
   map%clm_nlevgrnd = temp_int_array(2)
@@ -565,7 +568,8 @@ contains
     call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 
 #ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
+    call h5pset_fapl_mpio_f(prop_id,option%comm%communicator, &
+                            MPI_INFO_NULL,hdf5_err)
 #endif
 
     ! Open the file collectively
@@ -600,8 +604,8 @@ contains
                                      hdf5_err)
 
     ! Determine the number of cells each that will be saved on each processor
-    map%s2d_nwts=INT(dims_h5(1))/option%comm%mycommsize
-    remainder=INT(dims_h5(1))-map%s2d_nwts*option%comm%mycommsize
+    map%s2d_nwts=INT(dims_h5(1))/option%comm%size
+    remainder=INT(dims_h5(1))-map%s2d_nwts*option%comm%size
     if (option%myrank < remainder) map%s2d_nwts=map%s2d_nwts + 1
 
     ! allocate array to store vertices for each cell
@@ -613,9 +617,9 @@ contains
     istart = 0
     iend   = 0
     call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    option%mycomm,ierr);CHKERRQ(ierr)
+                    option%comm%communicator,ierr);CHKERRQ(ierr)
     call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%mycomm,ierr);CHKERRQ(ierr)
+                  option%comm%communicator,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -679,17 +683,17 @@ contains
                                      hdf5_err)
 
     ! Determine the number of cells each that will be saved on each processor
-    map%s2d_nwts=INT(dims_h5(1))/option%comm%mycommsize
-    remainder=INT(dims_h5(1))-map%s2d_nwts*option%comm%mycommsize
+    map%s2d_nwts=INT(dims_h5(1))/option%comm%size
+    remainder=INT(dims_h5(1))-map%s2d_nwts*option%comm%size
     if (option%myrank < remainder) map%s2d_nwts=map%s2d_nwts + 1
 
     ! Find istart and iend
     istart = 0
     iend   = 0
     call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    option%mycomm,ierr);CHKERRQ(ierr)
+                    option%comm%communicator,ierr);CHKERRQ(ierr)
     call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%mycomm,ierr);CHKERRQ(ierr)
+                  option%comm%communicator,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
@@ -750,17 +754,17 @@ contains
                                      hdf5_err)
 
     ! Determine the number of cells each that will be saved on each processor
-    map%s2d_nwts=INT(dims_h5(1))/option%comm%mycommsize
-    remainder=INT(dims_h5(1))-map%s2d_nwts*option%comm%mycommsize
+    map%s2d_nwts=INT(dims_h5(1))/option%comm%size
+    remainder=INT(dims_h5(1))-map%s2d_nwts*option%comm%size
     if (option%myrank < remainder) map%s2d_nwts=map%s2d_nwts + 1
 
     ! Find istart and iend
     istart = 0
     iend   = 0
     call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    option%mycomm,ierr);CHKERRQ(ierr)
+                    option%comm%communicator,ierr);CHKERRQ(ierr)
     call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%mycomm,ierr);CHKERRQ(ierr)
+                  option%comm%communicator,ierr);CHKERRQ(ierr)
 
     ! Determine the length and offset of data to be read by each processor
     length(1) = iend-istart
