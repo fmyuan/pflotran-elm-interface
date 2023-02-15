@@ -8,6 +8,7 @@ SIMULATION
       OPTIONS
         NUMBER_OF_EQUATIONS 4
         SOLUBLE_MATRIX
+        SOLUTE SALT
       /
     /
   /

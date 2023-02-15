@@ -8,6 +8,7 @@ SIMULATION
       OPTIONS
         NUMBER_OF_EQUATIONS 4
         RESTRICT_STATE_CHANGE
+        SOLUTE SALT
       /
     /
   /

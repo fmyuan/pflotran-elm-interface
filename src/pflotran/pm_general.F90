@@ -19,6 +19,7 @@ module PM_General_class
   PetscInt, pointer :: general_max_states
   PetscInt, pointer :: max_change_index
   PetscBool, public :: general_g_state_air_mass_dof = PETSC_FALSE
+  PetscBool, public :: general_set_solute = PETSC_FALSE
 
   PetscBool, public :: transient_porosity
 
@@ -191,6 +192,10 @@ subroutine PMGeneralSetFlowMode(pm,option)
     option%precipitate_phase = 3
     general_max_states = 7
     max_change_index = 7
+    if (.not.general_set_solute) then
+      option%io_buffer = 'Solute must be acknowledged in the OPTIONS block of GENERAL MODE.'
+      call PrintErrMsg(option)
+    endif
   else
     write(option%io_buffer,*) option%nflowdof
     option%io_buffer = trim(adjustl(option%io_buffer)) // &
@@ -418,23 +423,11 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_update_permeability = PETSC_TRUE
         call InputReadDouble(input,option,permeability_func_porosity_exp)
         call InputErrorMsg(input,option,keyword,error_string)
-      ! This belongs somewhere else
-      ! case('SOLUBILITY_FUNCTION')
-      !   call InputReadWord(input,option,word,PETSC_TRUE)
-      !   call InputErrorMsg(input,option,'solubility_function',error_string)
-      !   call StringToUpper(word)
-      !   select case(word)
-      !     case('SPARROW')
-      !       solubility_function = 1
-      !     case('LANGER')
-      !       solubility_function = 2
-      !     case default
-      !       call InputKeywordUnrecognized(input,word,&
-      !                                     'SOLUBILITY_FUNCTION',option)
-      !  end select
       case('SOLUTE')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'solute',error_string)
+        call GeneralAuxSetSolute(word,option)
+        general_set_solute = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select

@@ -13,6 +13,7 @@ SIMULATION
 	  NUMBER_OF_EQUATIONS 4
           # this allows the porosity to change due to dissolution and precipitation of salt too (solved for implicitly)
 	  SOLUBLE_MATRIX
+          SOLUTE SALT
         / 
       /
     /

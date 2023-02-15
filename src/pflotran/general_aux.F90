@@ -39,6 +39,8 @@ module General_Aux_module
   PetscInt, public :: general_sub_newton_iter_num = 0
   PetscInt, public :: general_newtontrdc_prev_iter_num = 0
 
+
+
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: general_allow_state_change = PETSC_TRUE
   PetscBool, public :: general_state_changed = PETSC_FALSE
@@ -523,6 +525,7 @@ subroutine GeneralAuxSetEnergyDOF(energy_keyword,option)
 end subroutine GeneralAuxSetEnergyDOF
 
 ! ************************************************************************** !
+
 subroutine GeneralAuxSetAirMassDOF(air_mass_keyword,option)
   !
   !Sets the gas phase primary variable for the air mass equation based on
@@ -549,6 +552,7 @@ subroutine GeneralAuxSetAirMassDOF(air_mass_keyword,option)
   end select
 
 end subroutine GeneralAuxSetAirMassDOF
+
 ! ************************************************************************** !
 
 subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
@@ -2832,11 +2836,14 @@ subroutine GeneralAuxSetSolute(solute,option)
       option%flow%density_depends_on_salinity = PETSC_TRUE
       PRECIPITATE_DENSITY_KG = 2.170d3 !kg/m^3
       PRECIPITATE_DENSITY = 37.132101d0 !mol/L
-    case default
-      ! default solute is NaCl
+    case('SALT')
       option%flow%density_depends_on_salinity = PETSC_TRUE
       PRECIPITATE_DENSITY_KG = 2.170d3 !kg/m^3
       PRECIPITATE_DENSITY = 37.132101d0 !mol/L
+    case default
+      option%io_buffer = 'Solute ' //trim(solute) // &
+                        'not recognized in General mode'
+      call PrintErrMsg(option)
   end select
 
 end subroutine GeneralAuxSetSolute
