@@ -596,10 +596,10 @@ function MphaseInitGuessCheck(realization)
   enddo
 
   call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                        option%mycomm,ierr);CHKERRQ(ierr)
-    if (ipass0 < option%comm%mycommsize) ipass=-1
+    if (ipass0 < option%comm%size) ipass=-1
   endif
   MphaseInitGuessCheck = ipass
 
@@ -759,10 +759,10 @@ subroutine MPhaseUpdateReason(reason, realization)
 
   call MPI_Barrier(realization%option%mycomm,ierr);CHKERRQ(ierr)
 
-  if (realization%option%comm%mycommsize > 1) then
+  if (realization%option%comm%size > 1) then
     call MPI_Allreduce(re,re0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                        realization%option%mycomm,ierr);CHKERRQ(ierr)
-    if (re0<realization%option%comm%mycommsize) re=0
+    if (re0<realization%option%comm%size) re=0
   endif
   reason=re
 
@@ -2714,7 +2714,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
       if (Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle     
+          soil_properties(epsilon_index)),1.d0)) cycle
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
 

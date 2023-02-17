@@ -606,7 +606,7 @@ subroutine SimSubsurfOverwriteInvParameters(this)
       if (inversion_aux%qoi_is_full_vector) then
         call VecZeroEntries(inversion_aux%dist_parameter_vec, &
                             ierr);CHKERRQ(ierr)
-        if (this%driver%comm%myrank == 0) then
+        if (this%driver%comm%rank == 0) then
           call VecSetValue(inversion_aux%dist_parameter_vec, &
                            perturbation%idof_pert-1, &
                            perturbation%tolerance,INSERT_VALUES, &
@@ -915,11 +915,10 @@ subroutine SimSubsurfStrip(this)
 #endif
 
   call SimulationBaseStrip(this)
-
   call SimAuxDestroy(this%sim_aux)
   call OutputOptionDestroy(this%output_option)
   if (associated(this%process_model_coupler_list)) then
-call this%process_model_coupler_list%Destroy()
+    call this%process_model_coupler_list%Destroy()
     ! destroy does not currently destroy; it strips
     deallocate(this%process_model_coupler_list)
     nullify(this%process_model_coupler_list)

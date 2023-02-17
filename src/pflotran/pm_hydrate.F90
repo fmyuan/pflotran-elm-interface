@@ -309,7 +309,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
                  'HYDRATE_HENRYS_CONSTANT',option)
         end select
       case('NO_EFFECTIVE_SATURATION_SCALING')
-        ! This turns off normalizing the liquid and gas saturations by the 
+        ! This turns off normalizing the liquid and gas saturations by the
         ! sum of mobile phases when computing relative permeabilities.
         hydrate_eff_sat_scaling = PETSC_FALSE
       case('WITH_GIBBS_THOMSON')
@@ -1733,7 +1733,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
                  trim(state_string(istate)) // ', ' // dof_string(idof,istate)
               endif
-              if (option%comm%mycommsize == 1) then
+              if (option%comm%size == 1) then
                 string = trim(string) // ' (' // &
                   trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
                   // ')'
