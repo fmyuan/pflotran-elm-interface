@@ -654,7 +654,6 @@ subroutine PrintErrMsg2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool :: petsc_initialized
   PetscBool, parameter :: byrank = PETSC_FALSE
 
   call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
@@ -776,7 +775,6 @@ subroutine PrintErrMsgNoStopByRank2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  character(len=MAXWORDLENGTH) :: word
   PetscBool, parameter :: blocking = PETSC_FALSE ! keeps it from stopping
   PetscBool, parameter :: byrank = PETSC_TRUE
 
