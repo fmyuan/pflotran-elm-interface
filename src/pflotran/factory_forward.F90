@@ -54,7 +54,7 @@ recursive subroutine FactoryForwardInitialize(simulation,input_filename,option)
 
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.out'
   if (OptionPrintToFile(option)) then
-    option%fid_out = FORWARD_OUT_UNIT
+    if (option%fid_out <= 0) option%fid_out = FORWARD_OUT_UNIT
     open(option%fid_out, file=filename, action="write", status="unknown")
   endif
 

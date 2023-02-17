@@ -289,6 +289,8 @@ function OptionCreate2(outer_option)
   ! Author: Glenn Hammond
   ! Date: 11/21/22
   !
+  use String_module
+
   implicit none
 
   type(option_type), pointer :: outer_option
@@ -299,6 +301,11 @@ function OptionCreate2(outer_option)
 
   option => OptionCreate()
   if (associated(outer_option)) then
+    if (outer_option%fid_out <= 0) then
+      option%io_buffer = 'outer_option%fid_out not set properly in &
+        &OptionCreate2: (' // StringWrite(option%fid_out) // ').'
+      call PrintErrMsg(outer_option)
+    endif
     option%fid_out = outer_option%fid_out + 1
     option%group_prefix = outer_option%group_prefix
     if (option%fid_out > MAX_OUT_UNIT) then
