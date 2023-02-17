@@ -155,10 +155,33 @@ subroutine SimulationInverseInitializeRun(this)
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
+  type(comm_type), pointer :: newcomm
+  PetscInt :: num_groups
+  PetscErrorCode :: ierr
+
+  ! create process groups here
+  nullify(newcomm)
+  num_groups = 1
+  if (this%driver%comm%size > 1) then
+    num_groups = 2
+  endif
+  call CommCreateProcessGroups(this%driver%comm,num_groups,PETSC_TRUE, &
+                               this%inversion%inversion_option%invcomm,ierr)
+  if (this%inversion%inversion_option%invcomm%group_id > 1) then
+    call CommDestroy(this%inversion%inversion_option%invcomm)
+  endif
+  if (ierr /= 0) then
+    call this%driver%PrintErrMsg('Unevenly sized MPI comm groups.')
+  endif
+  call CommCreateProcessGroups(this%driver%comm,num_groups,PETSC_TRUE, &
+                               this%inversion%inversion_option%forcomm,ierr)
+  if (this%inversion%inversion_option%forcomm%group_id > 1) then
+    call CommDestroy(this%inversion%inversion_option%forcomm)
+  endif
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
-  call OptionSetComm(option,this%driver%comm)
+  call OptionSetComm(option,this%driver%comm) ! doesn't matter which comm
   call SimulationBaseInitializeRun(this)
   call OptionDestroy(option)
 

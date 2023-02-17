@@ -136,6 +136,12 @@ subroutine InversionBaseStep(this)
 
   type(option_type), pointer :: option
 
+  if (.not.associated(this%inversion_option%invcomm) .and. &
+      .not.associated(this%inversion_option%forcomm)) then
+    this%converged = PETSC_TRUE
+    return
+  endif
+
   call this%InitializeForwardRun(option)
   call this%SetupForwardRunLinkage()
   call this%ConnectToForwardRun()

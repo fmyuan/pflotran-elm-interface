@@ -240,6 +240,8 @@ subroutine CommDestroy(comm)
 
   type(comm_type), pointer :: comm
 
+  if (.not.associated(comm)) return
+
   call CommStrip(comm)
 
   deallocate(comm)

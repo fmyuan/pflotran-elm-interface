@@ -4,6 +4,7 @@ module Inversion_Aux_module
   use petscmat
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_module
+  use Communicator_Aux_module
   use Driver_class
   use Inversion_Coupled_Aux_module
   use Inversion_Measurement_Aux_module
@@ -30,6 +31,7 @@ module Inversion_Aux_module
     class(driver_type), pointer :: driver
     type(material_property_ptr_type), pointer :: material_property_array(:)
     type(characteristic_curves_ptr_type), pointer :: cc_array(:)
+    type(comm_type), pointer :: comm
     PetscBool :: qoi_is_full_vector
     PetscBool :: startup_phase
     Vec :: solution ! solely a pointer
@@ -106,6 +108,7 @@ function InversionAuxCreate(driver)
   aux%solution = PETSC_NULL_VEC
 
   aux%driver => driver
+  nullify(aux%comm)
   nullify(aux%material_property_array)
   nullify(aux%cc_array)
   aux%qoi_is_full_vector = PETSC_FALSE
@@ -693,6 +696,7 @@ subroutine InversionAuxDestroy(aux)
   endif
 
   ! nullify objects owned by other objects
+  nullify(aux%comm)
   nullify(aux%driver)
   nullify(aux%material_property_array)
   nullify(aux%cc_array)

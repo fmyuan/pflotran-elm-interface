@@ -473,7 +473,7 @@ subroutine InvSubsurfInitForwardRun(this,option)
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
-  call OptionSetComm(option,this%driver%comm)
+  call OptionSetComm(option,this%inversion_option%forcomm)
   call OptionSetInversionOption(option,this%inversion_option)
   this%inversion_option%perturbation_run = PETSC_FALSE
   if (associated(this%inversion_aux%perturbation)) then
@@ -534,6 +534,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   ! Author: Glenn Hammond
   ! Date: 06/04/21
   !
+  use Communicator_Aux_module
   use Connection_module
   use Coupler_module
   use Discretization_module
@@ -553,6 +554,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
   type(patch_type), pointer :: patch
   type(material_property_type), pointer :: material_property
+  type(comm_type), pointer :: invcomm
+  type(comm_type), pointer :: forcomm
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: iflag
   PetscInt :: i
@@ -578,6 +581,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   patch => this%realization%patch
   this%inversion_aux%material_property_array => patch%material_property_array
   this%inversion_aux%cc_array => patch%characteristic_curves_array
+  invcomm => this%inversion_option%invcomm
+  forcomm => this%inversion_option%forcomm
 
   if (this%inversion_aux%measurement_vec == PETSC_NULL_VEC) then
     ! perturbation can be problematic with certain flow/transport configurations
@@ -690,7 +695,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     ! JsensitivityT is the transpose of the sensitivity Jacobian
     ! with num measurement columns and num parameter rows
-    call MatCreateDense(this%driver%comm%communicator, &
+    call MatCreateDense(invcomm%communicator, &
                         this%num_parameters_local,PETSC_DECIDE, &
                         num_parameters,num_measurements, &
                         PETSC_NULL_SCALAR,this%inversion_aux%JsensitivityT, &
@@ -718,7 +723,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     int_array(2) = num_measurements_local
     int_array2(:) = 0
     call MPI_Exscan(int_array,int_array2,TWO_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    this%driver%comm%communicator,ierr);CHKERRQ(ierr)
+                    invcomm%communicator,ierr);CHKERRQ(ierr)
     this%parameter_offset = int_array2(1)
     this%dist_measurement_offset = int_array2(2)
     deallocate(int_array,int_array2)
@@ -735,7 +740,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       int_array = this%parameter_offset + int_array - 1
       call DiscretAOApplicationToPetsc(this%realization%discretization, &
                                        int_array)
-      call ISCreateGeneral(this%driver%comm%communicator,size(int_array),int_array, &
+      call ISCreateGeneral(invcomm%communicator,size(int_array),int_array, &
                            PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
       deallocate(int_array)
       call VecScatterCreate(this%realization%field%work,is_petsc, &
@@ -751,7 +756,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       call VecDuplicate(this%inversion_aux%parameter_vec, &
                         this%inversion_aux%del_parameter_vec, &
                         ierr);CHKERRQ(ierr)
-      call ISCreateStride(this%driver%comm%communicator,num_parameters,ZERO_INTEGER, &
+      call ISCreateStride(invcomm%communicator,num_parameters,ZERO_INTEGER, &
                           ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
       call VecScatterCreate(this%inversion_aux%parameter_vec,is_parameter, &
                             this%inversion_aux%dist_parameter_vec, &
@@ -820,7 +825,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     enddo
     ! ensure that cell and ert measurement ids are within bounds
     call MPI_Allreduce(MPI_IN_PLACE,max_int,TWO_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,this%driver%comm%communicator,ierr);CHKERRQ(ierr)
+                       MPI_MAX,invcomm%communicator,ierr);CHKERRQ(ierr)
     if (associated(this%realization%survey)) then
       if (max_int(1) > size(this%realization%survey%dsim)) then
         call this%driver%PrintErrMsg('The ERT_MEASUREMENT_ID assigned to a &
@@ -838,7 +843,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! ensure that all cell ids have been found
     mpi_int = num_measurements
     call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
-                      this%driver%comm%communicator,ierr);CHKERRQ(ierr)
+                       invcomm%communicator,ierr);CHKERRQ(ierr)
     i = maxval(int_array)
     do i = 1, num_measurements
       if (int_array(i) > 0) then
@@ -881,7 +886,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! find local measurements
     temp_int = 0
     call MPI_Exscan(patch%grid%nlmax,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                    MPI_SUM,this%driver%comm%communicator,ierr);CHKERRQ(ierr)
+                    MPI_SUM,forcomm%communicator,ierr);CHKERRQ(ierr)
     ! Exscan does not include the temp_int from this rank
     ! local ids are between temp_int and temp_int + grid%nlmax
     ! (0 < id <= grid%nlmax on process 0; it is zero-based)
@@ -934,7 +939,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     enddo
 
     ! map measurement vec to distributed measurement vec
-    call ISCreateStride(this%driver%comm%communicator,num_measurements,ZERO_INTEGER, &
+    call ISCreateStride(invcomm%communicator,num_measurements,ZERO_INTEGER, &
                         ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
     call VecScatterCreate(this%inversion_aux%measurement_vec,is_measure, &
                           this%inversion_aux%dist_measurement_vec, &
