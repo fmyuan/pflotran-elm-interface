@@ -1,0 +1,252 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW 
+      MODE GENERAL
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        NO_STATE_TRANSITION_OUTPUT
+        CHECK_MAX_DPL_LIQ_STATE_ONLY
+      END
+    END
+    MATERIAL_TRANSFORM mt
+    END
+  END
+END
+
+SUBSURFACE
+
+#=========================== regression ======================================
+REGRESSION
+  CELLS_PER_PROCESS 1
+  CELL_IDS
+    1
+    3
+    5
+    7
+    9
+  /
+END
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  TIMESTEPPER
+    INITIAL_TIMESTEP_SIZE 0.1 sec
+    MAXIMUM_TIMESTEP_SIZE 1.0D+5 sec
+    PRESSURE_CHANGE_GOVERNOR 5.0E+6 
+  END
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    RESIDUAL_INF_TOL 1.0E-6 # 1.0E-5 default
+    REL_UPDATE_INF_TOL 1.0E-4 # 1.0E-3 default
+    MAXIMUM_NUMBER_OF_ITERATIONS 15
+    SNES_TYPE NTR
+    NTR_OPTIONS
+      AUTO_SCALE FALSE
+    END
+  END
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+    RTOL 1.0D-8
+  END
+END
+
+#=========================== discretization ===================================
+GRID
+  # m=0 CARTESIAN, m=1 CYLINDRICAL, m=2 SPHERICAL
+  TYPE STRUCTURED CYLINDRICAL
+  GRAVITY 0.0D+0 0.0D+0 0.0D+0
+  ORIGIN 0.03 0.0 0.0
+  NXYZ 10 1 1
+  DXYZ
+    2.
+    1.
+    1.
+  /
+END
+
+EOS WATER
+  DENSITY IF97
+  VISCOSITY DEFAULT
+  ENTHALPY IF97
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.0D-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.0D-5
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY formation
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.001
+  TORTUOSITY 1.0D+0
+  #SOIL_COMPRESSIBILITY 1.0E-7
+  #SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  THERMAL_CONDUCTIVITY_DRY 2.0
+  THERMAL_CONDUCTIVITY_WET 2.0
+  HEAT_CAPACITY 800.0
+  ROCK_DENSITY 2200.0
+  PERMEABILITY
+    PERM_ISO 1.0E-18
+  END
+  MATERIAL_TRANSFORM bf
+END
+
+MATERIAL_PROPERTY bh_wall
+  ID 2
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.001
+  TORTUOSITY 1.0D+0
+  #SOIL_COMPRESSIBILITY 1.0E-7
+  #SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  THERMAL_CONDUCTIVITY_DRY 2.0
+  THERMAL_CONDUCTIVITY_WET 2.0
+  HEAT_CAPACITY 800.0
+  ROCK_DENSITY 2200.0
+  PERMEABILITY
+    PERM_ISO 1.0E-18
+  END
+END
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1
+    ALPHA 1.d-5
+    M 0.5
+    #MAX_CAPILLARY_PRESSURE 1.d6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.1
+    M 0.5
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.1
+    GAS_RESIDUAL_SATURATION 0.001
+    M 0.5
+  /
+/
+
+#=========================== output options ===================================
+
+OUTPUT
+  SNAPSHOT_FILE
+    VARIABLES
+      LIQUID_PRESSURE
+      PERMEABILITY
+      TEMPERATURE
+    /
+  END
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 3.1E+5 sec  
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.0    0.0 0.0
+    1.d20  1.0 1.0
+  /
+/
+
+REGION borehole_wall_REG
+  BLOCK 1 1  1 1  1 1
+  FACE WEST
+END
+
+REGION heated_REG
+  COORDINATES
+    10.0 -100.0 -100.0
+    20.0 +100.0 +100.0
+  END
+END
+
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial_uniform
+  TYPE
+    TEMPERATURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+  END
+  TEMPERATURE 27.0 C
+  LIQUID_PRESSURE 12.0D+6 Pa
+  MOLE_FRACTION 1.0E-8
+END
+
+FLOW_CONDITION borehole_typeI_liq_FC
+  TYPE
+    TEMPERATURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+  END
+  TEMPERATURE 27.0 C
+  LIQUID_PRESSURE 101325.0 Pa
+  MOLE_FRACTION 1.0E-8
+END
+
+FLOW_CONDITION heated_FC
+  TYPE
+    RATE SCALED_MASS_RATE VOLUME
+  END
+  #RATE 0.0 0.0 10000.0 kg/s kg/s W
+  RATE LIST
+    TIME_UNITS s
+    DATA_UNITS kg/s kg/s W
+    0.0    0.0 0.0 100000.0
+    1.0E+4 0.0 0.0 0.0
+  END
+END
+
+SOURCE_SINK
+  FLOW_CONDITION heated_FC
+  REGION heated_REG
+END
+
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION uniform_ic
+  FLOW_CONDITION initial_uniform
+  REGION all
+END
+
+BOUNDARY_CONDITION borehole_typeI_BC
+  FLOW_CONDITION borehole_typeI_liq_FC
+  REGION borehole_wall_REG
+END
+
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL formation
+  REGION all
+END
+
+STRATA
+  MATERIAL bh_wall
+  REGION borehole_wall_REG
+END
+
+END_SUBSURFACE
+
+MATERIAL_TRANSFORM_GENERAL
+  MATERIAL_TRANSFORM bf
+    BATS_FUNCTION
+      B_COEFFICIENTS -1.01 0.002 1.001
+    END
+  END
+END

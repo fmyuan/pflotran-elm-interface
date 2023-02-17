@@ -256,8 +256,7 @@ subroutine PMMaterialTransformSetup(this)
   material_auxvars => patch%aux%Material%auxvars
   global_auxvars => patch%aux%Global%auxvars
   allocate(m_transform_auxvars(grid%ngmax))
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
+  do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
