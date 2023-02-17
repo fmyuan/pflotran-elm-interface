@@ -300,6 +300,7 @@ function OptionCreate2(outer_option)
   type(option_type), pointer :: option
 
   option => OptionCreate()
+  call PrintInitFlags(option%print_flags,outer_option%print_flags)
   if (associated(outer_option)) then
     if (outer_option%fid_out <= 0) then
       option%io_buffer = 'outer_option%fid_out not set properly in &
@@ -383,6 +384,7 @@ subroutine OptionInitAll(option)
   ! These variables should only be initialized once at the beginning of a
   ! PFLOTRAN run (regardless of whether stochastic)
 
+  call PrintInitFlags(option%print_flags)
   call OptionFlowInitAll(option%flow)
   call OptionTransportInitAll(option%transport)
 
@@ -401,7 +403,6 @@ subroutine OptionInitAll(option)
   option%error_while_nonblocking = PETSC_FALSE
 
   option%input_record = PETSC_FALSE
-  call PrintInitFlags(option%print_flags)
   option%verbosity = 0
   option%keyword_logging = PETSC_TRUE
   option%keyword_logging_screen_output = PETSC_FALSE
@@ -1365,6 +1366,7 @@ subroutine OptionDestroy(option)
 
   type(option_type), pointer :: option
 
+  call PrintDestroyFlags(option%print_flags)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
