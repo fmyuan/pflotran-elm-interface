@@ -29,6 +29,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   use HDF5_Aux_module
   use Input_Aux_module
   use Option_module
+  use Print_module
   use Logging_module
   use String_module
   use Simulation_Base_class
@@ -41,6 +42,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
   PetscBool :: option_found
+  PetscBool :: temp_bool
 
   call CommInitPetsc(driver%comm)
   option => OptionCreate()
@@ -57,12 +59,18 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
                                  input_prefix_option_found,option)
 
   string = '-screen_output'
-  call InputGetCommandLineTruth(string,driver%print_to_screen, &
+  call InputGetCommandLineTruth(string,temp_bool, &
                                 option_found,option)
+  if (option_found) then
+    call PrintSetPrintToScreenFlag(driver%print_flags,temp_bool)
+  endif
 
   string = '-file_output'
-  call InputGetCommandLineTruth(string,driver%print_to_file, &
+  call InputGetCommandLineTruth(string,temp_bool, &
                                 option_found,option)
+  if (option_found) then
+    call PrintSetPrintToFileFlag(driver%print_flags,temp_bool)
+  endif
 
   if (pflotranin_option_found .and. input_prefix_option_found) then
     call driver%PrintErrMsg('Cannot specify both "-pflotranin" and &

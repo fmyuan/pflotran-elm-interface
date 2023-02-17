@@ -10,6 +10,7 @@ module Option_module
   use Option_Transport_module
   use Option_Geophysics_module
   use Option_Inversion_module
+  use Print_module
 
   implicit none
 
@@ -17,6 +18,7 @@ module Option_module
 
   type, public :: option_type
 
+    type(print_flags_type), pointer :: print_flags
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
@@ -86,11 +88,6 @@ module Option_module
     PetscInt :: ierror
     PetscInt :: status
     PetscBool :: input_record
-    ! these flags are for printing outside of time step loop
-    ! these flags are for printing within time step loop where printing may
-    ! need to be temporarily turned off to accommodate periodic screen outout.
-    PetscBool :: print_screen_flag
-    PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
     PetscBool :: keyword_logging
     PetscBool :: keyword_logging_screen_output
@@ -264,6 +261,7 @@ function OptionCreate1()
   type(option_type), pointer :: option
 
   allocate(option)
+  option%print_flags => PrintCreateFlags()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
@@ -323,8 +321,7 @@ subroutine OptionSetDriver(option,driver)
   class(driver_type), pointer :: driver
 
   option%driver => driver
-  option%print_screen_flag = driver%PrintToScreen()
-  option%print_file_flag = PETSC_FALSE
+  call PrintInitFlags(option%print_flags,driver%print_flags)
 
 end subroutine OptionSetDriver
 
@@ -397,8 +394,7 @@ subroutine OptionInitAll(option)
   option%error_while_nonblocking = PETSC_FALSE
 
   option%input_record = PETSC_FALSE
-  option%print_screen_flag = PETSC_FALSE
-  option%print_file_flag = PETSC_FALSE
+  call PrintInitFlags(option%print_flags)
   option%verbosity = 0
   option%keyword_logging = PETSC_TRUE
   option%keyword_logging_screen_output = PETSC_FALSE
@@ -435,8 +431,7 @@ subroutine OptionInitRealization(option)
   call OptionFlowInitRealization(option%flow)
   call OptionTransportInitRealization(option%transport)
 
-
-  option%fid_out = FORWARD_OUT_UNIT
+  option%fid_out = 0
   option%fid_inputrecord = INPUT_RECORD_UNIT
 
   option%iflag = 0
@@ -652,27 +647,12 @@ subroutine PrintErrMsg2(option,string)
   character(len=*) :: string
 
   PetscBool :: petsc_initialized
-  PetscErrorCode :: ierr
+  PetscBool, parameter :: byrank = PETSC_FALSE
 
-  if (OptionPrintToScreen(option)) then
-    print *
-    print *, 'ERROR: ' // trim(string)
-    print *
-    print *, 'Stopping!'
-  endif
-  if (option%blocking) then
-    call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
-    call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
-    if (petsc_initialized) then
-      call PetscFinalize(ierr);CHKERRQ(ierr)
-    endif
-    select case(option%driver%exit_code)
-      case(EXIT_FAILURE)
-        call exit(option%driver%exit_code)
-      case default
-        call exit(EXIT_USER_ERROR)
-    end select
-  else
+  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
+                         string,option%driver%exit_code,option%blocking, &
+                         byrank)
+  if (.not.option%blocking) then
     option%error_while_nonblocking = PETSC_TRUE
   endif
 
@@ -745,21 +725,11 @@ subroutine PrintErrMsgByRank2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  character(len=MAXWORDLENGTH) :: word
+  PetscBool, parameter :: byrank = PETSC_TRUE
 
-  if (option%driver%PrintToScreen()) then
-    write(word,*) option%myrank
-    print *
-    print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
-    print *
-    print *, 'Stopping!'
-  endif
-  select case(option%driver%exit_code)
-    case(EXIT_FAILURE)
-      call exit(option%driver%exit_code)
-    case default
-      call exit(EXIT_USER_ERROR)
-  end select
+  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
+                         string,option%driver%exit_code,option%blocking, &
+                         byrank)
 
 end subroutine PrintErrMsgByRank2
 
@@ -799,13 +769,11 @@ subroutine PrintErrMsgNoStopByRank2(option,string)
   character(len=*) :: string
 
   character(len=MAXWORDLENGTH) :: word
+  PetscBool, parameter :: blocking = PETSC_FALSE ! keeps it from stopping
+  PetscBool, parameter :: byrank = PETSC_TRUE
 
-  if (option%driver%PrintToScreen()) then
-    write(word,*) option%myrank
-    print *
-    print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
-    print *
-  endif
+  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
+                         string,option%driver%exit_code,blocking,byrank)
 
 end subroutine PrintErrMsgNoStopByRank2
 
@@ -900,7 +868,13 @@ subroutine PrintWrnMsg2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  if (OptionPrintToScreen(option)) print *, 'WARNING: ' // trim(string)
+  character(len=:), allocatable :: local_string
+  PetscBool, parameter :: advance_ = PETSC_TRUE
+  PetscBool, parameter :: byrank = PETSC_FALSE
+
+  local_string = ' WARNING: ' // trim(string)
+  call PrintMessage(option%print_flags,option%comm,option%fid_out, &
+                    local_string,advance_,byrank)
 
 end subroutine PrintWrnMsg2
 
@@ -917,10 +891,8 @@ subroutine PrintMsgNoAdvance1(option)
 
   type(option_type) :: option
 
-  PetscBool, parameter :: advance_ = PETSC_FALSE
 
-  call DriverPrintMessage(option%driver,option%fid_out,option%io_buffer, &
-                          advance_)
+  call PrintMsgNoAdvance2(option,option%io_buffer)
 
 end subroutine PrintMsgNoAdvance1
 
@@ -939,8 +911,10 @@ subroutine PrintMsgNoAdvance2(option,string)
   character(len=*) :: string
 
   PetscBool, parameter :: advance_ = PETSC_FALSE
+  PetscBool, parameter :: byrank = PETSC_FALSE
 
-  call DriverPrintMessage(option%driver,option%fid_out,string,advance_)
+  call PrintMessage(option%print_flags,option%comm,option%fid_out, &
+                    string,advance_,byrank)
 
 end subroutine PrintMsgNoAdvance2
 
@@ -957,10 +931,7 @@ subroutine PrintMsg1(option)
 
   type(option_type) :: option
 
-  PetscBool, parameter :: advance_ = PETSC_TRUE
-
-  call DriverPrintMessage(option%driver,option%fid_out,option%io_buffer, &
-                          advance_)
+  call PrintMsg2(option,option%io_buffer)
 
 end subroutine PrintMsg1
 
@@ -980,7 +951,7 @@ subroutine PrintMsg2(option,string)
 
   PetscBool, parameter :: advance_ = PETSC_TRUE
 
-  call DriverPrintMessage(option%driver,option%fid_out,string,advance_)
+  call PrintMsg3(option,string,advance_)
 
 end subroutine PrintMsg2
 
@@ -999,8 +970,10 @@ subroutine PrintMsg3(option,string,advance_)
   character(len=*) :: string
   PetscBool :: advance_
 
-  ! note that these flags can be toggled off specific time steps
-  call DriverPrintMessage(option%driver,option%fid_out,string,advance_)
+  PetscBool, parameter :: byrank = PETSC_FALSE
+
+  call PrintMessage(option%print_flags,option%comm,option%fid_out, &
+                    string,advance_,byrank)
 
 end subroutine PrintMsg3
 
@@ -1017,7 +990,9 @@ subroutine PrintMsgAnyRank1(option)
 
   type(option_type) :: option
 
-  if (option%driver%PrintToScreen()) call PrintMsgAnyRank2(option%io_buffer)
+  if (option%print_flags%print_to_screen) then
+    call PrintMsgAnyRank2(option%io_buffer)
+  endif
 
 end subroutine PrintMsgAnyRank1
 
@@ -1071,12 +1046,11 @@ subroutine PrintMsgByRank2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  character(len=MAXWORDLENGTH) :: word
+  PetscBool, parameter :: advance_ = PETSC_TRUE
+  PetscBool, parameter :: byrank = PETSC_TRUE
 
-  if (option%driver%PrintToScreen()) then
-    write(word,*) option%myrank
-    print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
-  endif
+  call PrintMessage(option%print_flags,option%comm,option%fid_out, &
+                    string,advance_,byrank)
 
 end subroutine PrintMsgByRank2
 
@@ -1089,6 +1063,7 @@ subroutine PrintMsgByCell(option,cell_id,string)
   ! Author: Glenn Hammond
   ! Date: 11/14/07
   !
+  use String_module
 
   implicit none
 
@@ -1096,11 +1071,8 @@ subroutine PrintMsgByCell(option,cell_id,string)
   PetscInt :: cell_id
   character(len=*) :: string
 
-  character(len=MAXWORDLENGTH) :: word
-
-  write(word,*) cell_id
-  word = adjustl(word)
-  option%io_buffer = trim(string) // ' for cell ' // trim(word) // '.'
+  option%io_buffer = trim(string) // ' for cell ' // &
+                     StringWrite(cell_id) // '.'
   call PrintMsgByRank(option)
 
 end subroutine PrintMsgByCell
@@ -1178,7 +1150,7 @@ function OptionPrintToScreen(option)
 
   PetscBool :: OptionPrintToScreen
 
-  OptionPrintToScreen = option%driver%PrintToScreen()
+  OptionPrintToScreen = PrintToScreen(option%print_flags,option%comm)
 
 end function OptionPrintToScreen
 
@@ -1198,7 +1170,7 @@ function OptionPrintToFile(option)
 
   PetscBool :: OptionPrintToFile
 
-  OptionPrintToFile = option%driver%PrintToFile()
+  OptionPrintToFile = PrintToFile(option%print_flags,option%comm)
 
 end function OptionPrintToFile
 
@@ -1341,10 +1313,10 @@ subroutine OptionPrintPFLOTRANHeader(option)
     string = '(/,' // trim(string) // ',/,"  '// &
              trim(version) // &
              '",/,' // trim(string) // ',/)'
-    if (option%driver%PrintToScreen()) then
+    if (OptionPrintToScreen(option)) then
       write(*,string)
     endif
-    if (option%driver%PrintToFile()) then
+    if (OptionPrintToFile(option)) then
       write(option%fid_out,string)
     endif
   endif

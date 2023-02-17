@@ -312,9 +312,11 @@ dm_kludge.o : \
   pflotran_constants.o
 driver.o : \
   communicator_aux.o \
-  pflotran_constants.o
+  pflotran_constants.o \
+  print.o
 eos.o : \
   co2_span_wagner.o \
+  communicator_aux.o \
   eos_database.o \
   eos_gas.o \
   eos_water.o \
@@ -387,6 +389,7 @@ factory_forward.o : \
   pm_base.o \
   pm_geomechanics_force.o \
   pmc_base.o \
+  print.o \
   realization_subsurface.o \
   simulation_base.o \
   simulation_geomechanics.o \
@@ -449,6 +452,7 @@ factory_pflotran.o : \
   logging.o \
   option.o \
   pflotran_constants.o \
+  print.o \
   simulation_base.o \
   simulation_geomechanics.o \
   simulation_inverse.o \
@@ -612,6 +616,7 @@ factory_subsurface_read.o : \
   pmc_geophysics.o \
   pmc_subsurface.o \
   pmc_subsurface_osrt.o \
+  print.o \
   reaction.o \
   reaction_aux.o \
   reaction_mineral.o \
@@ -1406,6 +1411,7 @@ mphase.o : \
   realization_subsurface.o \
   secondary_continuum.o \
   secondary_continuum_aux.o \
+  utility.o \
   variables.o
 mphase_aux.o : \
   co2_span_wagner.o \
@@ -1483,7 +1489,9 @@ option.o : \
   option_geophysics.o \
   option_inversion.o \
   option_transport.o \
-  pflotran_constants.o
+  pflotran_constants.o \
+  print.o \
+  string.o
 option_checkpoint.o : \
   pflotran_constants.o
 option_flow.o : \
@@ -1517,6 +1525,7 @@ output.o : \
   output_vtk.o \
   patch.o \
   pflotran_constants.o \
+  print.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
@@ -2360,6 +2369,7 @@ pmc_base.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
+  print.o \
   simulation_aux.o \
   solver.o \
   string.o \
@@ -2505,6 +2515,10 @@ pnf_aux.o : \
   utility.o
 preconditioner_cpr.o : \
   option.o \
+  pflotran_constants.o \
+  string.o
+print.o : \
+  communicator_aux.o \
   pflotran_constants.o \
   string.o
 reaction.o : \
@@ -2949,7 +2963,8 @@ reactive_transport.o : \
   string.o \
   transport.o \
   transport_constraint_rt.o \
-  transport_np.o
+  transport_np.o \
+  utility.o
 reactive_transport_aux.o : \
   matrix_block_aux.o \
   matrix_zeroing.o \
