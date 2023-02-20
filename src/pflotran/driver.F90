@@ -20,7 +20,6 @@ module Driver_class
     PetscInt :: fid_out
     PetscBool :: print_to_screen
     PetscBool :: print_to_file
-    PetscMPIInt :: io_rank
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
                                            ! at end of simulation
     PetscInt :: status
@@ -69,7 +68,6 @@ function DriverCreate()
   driver%print_to_screen = PETSC_TRUE
   driver%print_to_file = PETSC_TRUE
   driver%exit_code = 0
-  driver%io_rank = 0
   driver%status = 0
 
   DriverCreate => driver
@@ -113,7 +111,7 @@ subroutine DriverPrintErrorMessage(driver,string)
     print *
     print *, 'Stopping!'
   endif
-  call MPI_Barrier(driver%comm%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Barrier(driver%comm%communicator,ierr);CHKERRQ(ierr)
   call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
   if (petsc_initialized) then
     call PetscFinalize(ierr);CHKERRQ(ierr)
@@ -206,7 +204,7 @@ function DriverPrintToScreen(driver)
 
   PetscBool :: DriverPrintToScreen
 
-  if (driver%comm%myrank == driver%io_rank .and. driver%print_to_screen) then
+  if (CommIsIORank(driver%comm) .and. driver%print_to_screen) then
     DriverPrintToScreen = PETSC_TRUE
   else
     DriverPrintToScreen = PETSC_FALSE
@@ -227,7 +225,7 @@ function DriverPrintToFile(driver)
 
   PetscBool :: DriverPrintToFile
 
-  if (driver%comm%myrank == driver%io_rank .and. driver%print_to_file) then
+  if (CommIsIORank(driver%comm) .and. driver%print_to_file) then
     DriverPrintToFile = PETSC_TRUE
   else
     DriverPrintToFile = PETSC_FALSE
@@ -248,7 +246,7 @@ function DriverIsIORank(driver)
 
   PetscBool :: DriverIsIORank
 
-  DriverIsIORank = (driver%comm%myrank == driver%io_rank)
+  DriverIsIORank = CommIsIORank(driver%comm)
 
 end function DriverIsIORank
 

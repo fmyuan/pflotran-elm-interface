@@ -210,7 +210,8 @@ function InversionMeasurementAuxRead(input,error_string,option)
         if (input%ierr /= 0) word = 'sec'
         new_measurement%time_units = trim(word)
         internal_units = 'sec'
-        units_conversion = UnitsConvertToInternal(word,internal_units,option)
+        units_conversion = UnitsConvertToInternal(word,internal_units, &
+                                                  'MEASUREMENT TIME',option)
         new_measurement%time = new_measurement%time*units_conversion
       case('CELL_ID','ERT_MEASUREMENT_ID')
         call InputReadInt(input,option,new_measurement%cell_id)
@@ -247,8 +248,12 @@ function InversionMeasurementAuxRead(input,error_string,option)
     call PrintErrMsg(option)
   endif
   if (UnInitialized(new_measurement%weight)) then
-    sd = 0.05 * new_measurement%value
-    new_measurement%weight = 1 / sd
+    if (new_measurement%value /= 0.d0) then
+      sd = 0.05 * new_measurement%value
+      new_measurement%weight = 1 / sd
+    else
+      new_measurement%weight = 1.d-16
+    endif
   endif
 
   InversionMeasurementAuxRead => new_measurement
@@ -418,17 +423,20 @@ subroutine InversionMeasurementPrintConcise(measurement,optional_string, &
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
-  PetscErrorCode :: ierr
 
   if (OptionPrintToScreen(option)) then
     word = 'sec'
     option%io_buffer = 'Measurement #' // &
-        trim(StringWrite(measurement%id)) // &
+        trim(StringWrite(measurement%id))
+    if (len_trim(measurement%time_units) > 0) then
+      option%io_buffer = trim(option%io_buffer) // &
       ', Time: ' // &
-        trim(StringWrite(measurement%time / &
-                         UnitsConvertToInternal(measurement%time_units,word, &
-                                                option,ierr))) // ' ' // &
-        trim(measurement%time_units) // &
+        trim(StringWrite(measurement%time * &
+                         UnitsConvertToExternal(measurement%time_units,word, &
+                                                option))) // ' ' // &
+        trim(measurement%time_units)
+    endif
+    option%io_buffer = trim(option%io_buffer) // &
       ', Var: ' // &
         trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option)) // &
       ', Cell: ' // trim(StringWrite(measurement%cell_id)) // &
@@ -461,16 +469,17 @@ subroutine InversionMeasurementPrint(measurement,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
-  PetscErrorCode :: ierr
 
   if (OptionPrintToScreen(option)) then
     print *, 'Measurement: ' // trim(StringWrite(measurement%id))
     word = 'sec'
-    print *, '                Time: ' // &
-      trim(StringWrite(measurement%time / &
-                       UnitsConvertToInternal(measurement%time_units,word, &
-                                              option,ierr))) // ' ' // &
-      measurement%time_units
+    if (len_trim(measurement%time_units) > 0) then
+      print *, '                Time: ' // &
+        trim(StringWrite(measurement%time * &
+                        UnitsConvertToExternal(measurement%time_units,word, &
+                                                option))) // ' ' // &
+        measurement%time_units
+    endif
     print *, '             Cell ID: ' // trim(StringWrite(measurement%cell_id))
     print *, '            Variable: ' // &
       trim(InvMeasAuxObsVarIDToString(measurement%iobs_var,option))
@@ -550,7 +559,6 @@ function InvMeasAnnounceToString(measurement,rvalue,option)
 
   character(len=MAXWORDLENGTH), parameter :: word = 'sec'
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
 
   string = 'Measurement #' // trim(StringWrite(measurement%id)) // &
     ' at Cell ID ' // trim(StringWrite(measurement%cell_id))
@@ -566,11 +574,13 @@ function InvMeasAnnounceToString(measurement,rvalue,option)
     string = trim(string) // '" recorded as ' // &
       trim(StringWrite('(es22.14)',rvalue))
   endif
-  string = trim(string) // ' at ' // &
-           trim(StringWrite(measurement%time / &
-                      UnitsConvertToInternal(measurement%time_units,word, &
-                                             option,ierr))) // ' ' // &
-           measurement%time_units
+  if (len_trim(measurement%time_units) > 0) then
+    string = trim(string) // ' at ' // &
+             trim(StringWrite(measurement%time * &
+                        UnitsConvertToExternal(measurement%time_units,word, &
+                                               option))) // ' ' // &
+             measurement%time_units
+  endif
   InvMeasAnnounceToString = string
 
 end function InvMeasAnnounceToString

@@ -1387,7 +1387,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       if (OptionPrintToScreen(option)) then
         write(*,'(/," Requested processors and decomposition = ", &
                  & i5,", npx,y,z= ",3i4)') &
-            option%comm%mycommsize,grid%structured_grid%npx, &
+            option%comm%size,grid%structured_grid%npx, &
             grid%structured_grid%npy,grid%structured_grid%npz
         write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
@@ -1396,7 +1396,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors and decomposition = ", &
                              & i5,", npx,y,z= ",3i4)') &
-            option%comm%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
+            option%comm%size,grid%structured_grid%npx,grid%structured_grid%npy, &
             grid%structured_grid%npz
         write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
@@ -1404,11 +1404,11 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       endif
     case default
       if (OptionPrintToScreen(option)) then
-        write(*,'(/," Requested processors = ",i5)') option%comm%mycommsize
+        write(*,'(/," Requested processors = ",i5)') option%comm%size
       endif
       if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors = ",i5)') &
-          option%comm%mycommsize
+          option%comm%size
       endif
   end select
 

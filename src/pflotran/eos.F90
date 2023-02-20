@@ -41,6 +41,7 @@ subroutine EOSRead(input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Communicator_Aux_module
 
   implicit none
 
@@ -264,7 +265,7 @@ subroutine EOSRead(input,option)
             call StringToUpper(word)
             call EOSWaterSetSalinity(input,trim(word),option)
           case('TEST')
-            if (option%comm%global_rank == 0) then
+            if (CommIsIORank(option%comm)) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,WATER,TEST')
@@ -486,7 +487,7 @@ subroutine EOSRead(input,option)
                                               option)
             end select
           case('TEST')
-            if (option%comm%global_rank == 0) then
+            if (CommIsIORank(option%comm)) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,GAS,TEST')

@@ -98,16 +98,15 @@ subroutine WIPPWellRead(this,input,option)
     select case(trim(word))
       case('WELL_PRESSURE')
         call InputReadDouble(input,option,this%well_pressure)
-        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,WIPP,WELL')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
-          internal_units = 'Pa'
-          this%well_pressure = this%well_pressure * &
-               UnitsConvertToInternal(word,internal_units,option)
-        endif
+        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,WIPP')
+        internal_units = 'Pa'
+        call InputReadAndConvertUnits(input,this%well_pressure, &
+                                      internal_units,'SOURCE_SINK_SANDBOX,&
+                                      &WIPP,WELL_PRESSURE',option)
       case('WELL_PRODUCTIVITY_INDEX')
         call InputReadDouble(input,option,this%productivity_index)
-        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,WIPP,WELL')
+        call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,WIPP,&
+                           &WELL_PRODUCTIVITY_INDEX')
       case default
         call InputKeywordUnrecognized(input,word,'SRCSINK_SANDBOX,WIPP',option)
     end select

@@ -166,7 +166,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
     call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 #ifdef HDF5_BROADCAST
   endif
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     int_mpi = num_reals_in_dataset
     call MPI_Bcast(real_array,int_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
                    option%mycomm,ierr);CHKERRQ(ierr)
@@ -238,9 +238,9 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   ! Get size of each dimension
   call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
 
-  data_dims(1) = dataset_dims(1)/option%comm%mycommsize
+  data_dims(1) = dataset_dims(1)/option%comm%size
 
-  remainder = dataset_dims(1) - data_dims(1)*option%comm%mycommsize
+  remainder = dataset_dims(1) - data_dims(1)*option%comm%size
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
 
 
@@ -665,7 +665,7 @@ subroutine HDF5ReadDbase(filename,option)
       call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 #ifdef HDF5_BROADCAST
       endif
-      if (option%comm%mycommsize > 1) then
+      if (option%comm%size > 1) then
         int_mpi = num_values_in_dataset
         if (class_id == H5T_INTEGER_F) then
           call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER,option%io_rank, &
@@ -1243,7 +1243,7 @@ subroutine HDF5FileOpen(filename,file_id,create,driver)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,driver%comm%mycomm,MPI_INFO_NULL,hdf5_err)
+  call h5pset_fapl_mpio_f(prop_id,driver%comm%communicator,MPI_INFO_NULL,hdf5_err)
 #endif
   hdf5_err = 0
   if (create) then

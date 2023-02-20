@@ -50,7 +50,6 @@ subroutine UGridRead(unstructured_grid,filename,option)
   ! Author: Glenn Hammond
   ! Date: 09/30/09
   !
-
   use Input_Aux_module
   use Option_module
   use String_module
@@ -119,10 +118,10 @@ subroutine UGridRead(unstructured_grid,filename,option)
   call InputErrorMsg(input,option,'number of vertices',hint)
 
   ! divide cells across ranks
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -138,7 +137,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_int_array = UNINITIALIZED_INTEGER
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -206,7 +205,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
 #endif
     int_mpi = num_cells_local*unstructured_grid%max_nvert_per_cell
     call MPI_Recv(unstructured_grid%cell_vertices,int_mpi,MPIU_INTEGER, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -215,10 +214,10 @@ subroutine UGridRead(unstructured_grid,filename,option)
 
   ! divide vertices across ranks
   num_vertices_local = unstructured_grid%num_vertices_global/ &
-                                         option%comm%mycommsize
+                                         option%comm%size
   num_vertices_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                  num_vertices_local + 1
 
@@ -230,7 +229,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       num_to_read = num_vertices_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
       do ivertex = 1, num_to_read
@@ -242,7 +241,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
         enddo
       enddo
 
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
         vertex_coordinates(:,1:num_vertices_local) = &
           temp_real_array(:,1:num_vertices_local)
       else
@@ -255,7 +254,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
   else
     int_mpi = num_vertices_local*3
     call MPI_Recv(vertex_coordinates,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -357,10 +356,10 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   call InputErrorMsg(input,option,'number of vertices',hint)
 
   ! divide cells across ranks
-  !num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  !num_cells_local = unstructured_grid%nmax/option%comm%size
   !num_cells_local_save = num_cells_local
   !remainder = unstructured_grid%nmax - &
-  !            num_cells_local*option%comm%mycommsize
+  !            num_cells_local*option%comm%size
   !if (option%myrank < remainder) num_cells_local = &
   !                               num_cells_local + 1
 
@@ -409,10 +408,10 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 
   ! divide vertices across ranks
   num_vertices_local = unstructured_grid%num_vertices_global/ &
-                                         option%comm%mycommsize
+                                         option%comm%size
   num_vertices_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                  num_vertices_local + 1
 
@@ -424,7 +423,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       num_to_read = num_vertices_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
       do ivertex = 1, num_to_read
@@ -436,7 +435,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
         enddo
       enddo
 
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
         vertex_coordinates(:,1:num_vertices_local) = &
           temp_real_array(:,1:num_vertices_local)
       else
@@ -449,7 +448,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   else
     int_mpi = num_vertices_local*3
     call MPI_Recv(vertex_coordinates,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -482,10 +481,10 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   call InputErrorMsg(input,option,'number of cells',hint)
 
   ! divide cells across ranks
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -501,7 +500,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_int_array = UNINITIALIZED_INTEGER
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -526,7 +525,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
       enddo
 
       ! if the faces reside on io_rank
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
 #if UGRID_DEBUG
         write(string,*) num_cells_local
         string = trim(adjustl(string)) // ' cells stored on p0'
@@ -560,7 +559,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 #endif
     int_mpi = num_cells_local*unstructured_grid%max_nvert_per_cell
     call MPI_Recv(unstructured_grid%cell_vertices,int_mpi,MPIU_INTEGER, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -668,10 +667,10 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 
   ! Determine the number of cells each that will be saved on each processor
   unstructured_grid%nmax = INT(dims_h5(2))
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                   num_cells_local + 1
 
@@ -764,10 +763,10 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   unstructured_grid%num_vertices_global = INT(dims_h5(2))
   num_vertices_local  = &
                                        unstructured_grid%num_vertices_global/ &
-                                       option%comm%mycommsize
+                                       option%comm%size
   num_cells_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                   num_vertices_local + 1
 
@@ -934,10 +933,10 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
   ! Determine the number of cells each that will be saved on each processor
   unstructured_grid%nmax = INT(dims_h5(2))
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                   num_cells_local + 1
 
@@ -1050,10 +1049,10 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   unstructured_grid%num_vertices_global = INT(dims_h5(2))
   num_vertices_local  = &
                                        unstructured_grid%num_vertices_global/ &
-                                       option%comm%mycommsize
+                                       option%comm%size
   num_cells_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                   num_vertices_local + 1
 
@@ -1189,7 +1188,7 @@ subroutine UGridDecompose(unstructured_grid,option)
 !  cell distribution across processors (size = num_cores + 1)
 !  core i owns cells cell_distribution(i):cell_distribution(i+1), note
 !  the zero-based indexing
-!  allocate(cell_distribution(option%comm%mycommsize+1))
+!  allocate(cell_distribution(option%comm%size+1))
 !  call MPI_Scan(unstructured_grid%nlmax,
 !  cell_distribution(1) = 0
 !  cell_distribution(2:) = unstructured_grid%num_cells
@@ -3621,7 +3620,7 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     ! From the MPI-Matrix get the local-matrix
     call MatMPIAIJGetLocalMat(Mat_face,MAT_INITIAL_MATRIX,Mat_face_loc, &
                               ierr);CHKERRQ(ierr)
@@ -3679,7 +3678,7 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
     endif
   enddo
 
-  if (option%comm%mycommsize>1) then
+  if (option%comm%size>1) then
     call MatSeqAIJRestoreArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
     call MatDestroy(Mat_face_loc,ierr);CHKERRQ(ierr)
   else
@@ -3919,7 +3918,7 @@ subroutine UGridGrowStencilSupport(unstructured_grid,stencil_width, &
 
   ! There are no ghost cells when running with a single processor, so get out
   ! of here
-  if (option%comm%mycommsize==1) return
+  if (option%comm%size==1) return
 
   allocate(real_arrayV(unstructured_grid%max_nvert_per_cell))
   allocate(int_arrayV(unstructured_grid%max_nvert_per_cell))
@@ -4155,7 +4154,7 @@ subroutine UGridFindCellIDsAfterGrowingStencilWidthByOne(Mat_vert_to_cell, &
                     ierr);CHKERRQ(ierr)
   call MatDestroy(Mat_proc_to_cell,ierr);CHKERRQ(ierr)
 
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     ! From the MPI-Matrix get the local-matrix
     call MatMPIAIJGetLocalMat(Mat_cell_to_proc,MAT_INITIAL_MATRIX, &
                               Mat_cell_to_proc_loc,ierr);CHKERRQ(ierr)

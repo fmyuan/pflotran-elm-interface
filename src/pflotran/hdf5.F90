@@ -102,9 +102,9 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
                                       hdf5_err)
   ! divide across all processes
   temp_int = int(num_integers_in_file)
-  read_block_size = temp_int / option%comm%mycommsize
-  remainder = temp_int - read_block_size*option%comm%mycommsize
-  if (option%myrank < temp_int - read_block_size*option%comm%mycommsize) &
+  read_block_size = temp_int / option%comm%size
+  remainder = temp_int - read_block_size*option%comm%size
+  if (option%myrank < temp_int - read_block_size*option%comm%size) &
     read_block_size = read_block_size + 1
   if (local_size > 0 .and. local_size /= read_block_size) then
     write(string,*) local_size, read_block_size
@@ -878,8 +878,8 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   region%sideset => RegionCreateSideset()
   sideset => region%sideset
 
-  sideset%nfaces = int(dims_h5(2)/option%comm%mycommsize)
-  remainder = int(dims_h5(2)) - sideset%nfaces*option%comm%mycommsize
+  sideset%nfaces = int(dims_h5(2)/option%comm%size)
+  remainder = int(dims_h5(2)) - sideset%nfaces*option%comm%size
   if (option%myrank < remainder) sideset%nfaces = sideset%nfaces + 1
 
   ! Find istart and iend

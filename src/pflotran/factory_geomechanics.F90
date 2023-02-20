@@ -515,7 +515,6 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   character(len=MAXWORDLENGTH) :: card
   character(len=1) :: backslash
 
-  PetscReal :: temp_real
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
   input%ierr = 0
@@ -637,16 +636,14 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           call InputErrorMsg(input,option,'word','GEOMECHANICS_TIME')
           select case(trim(word))
             case('COUPLING_TIMESTEP_SIZE')
-              internal_units = 'sec'
-              call InputReadDouble(input,option,temp_real)
+              call InputReadDouble(input,option,geomech_realization%dt_coupling)
               call InputErrorMsg(input,option, &
                                  'Coupling Timestep Size','GEOMECHANICS_TIME')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option, &
-                        'Coupling Timestep Size Time Units','GEOMECHANICS_TIME')
-              geomech_realization%dt_coupling = &
-                            temp_real*UnitsConvertToInternal(word, &
-                            internal_units,option)
+              internal_units = 'sec'
+              call InputReadAndConvertUnits(input, &
+                                            geomech_realization%dt_coupling, &
+                                            internal_units,'GEOMECHANICS_TIME,&
+                                            &COUPLING_TIMESTEP_SIZE',option)
             case default
               call InputKeywordUnrecognized(input,word, &
                                             'GEOMECHANICS_TIME',option)

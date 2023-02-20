@@ -530,11 +530,11 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   if (associated(this%rbuffer)) then
     mpi_int = size(this%rbuffer)
     call MPI_Bcast(this%rbuffer,mpi_int,MPI_DOUBLE_PRECISION, &
-                   option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                   option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   else
     mpi_int = size(this%rarray)
     call MPI_Bcast(this%rarray,mpi_int,MPI_DOUBLE_PRECISION, &
-                   option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                   option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   endif
 #endif
 

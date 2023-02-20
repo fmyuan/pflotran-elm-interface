@@ -109,16 +109,16 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   num_cells = temp_int
   explicit_grid%num_cells_global = num_cells
 
    ! divide cells across ranks
-  num_cells_local = num_cells/option%comm%mycommsize
+  num_cells_local = num_cells/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = num_cells - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -139,7 +139,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(5,num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -160,7 +160,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
       enddo
 
       ! if the cells reside on io_rank
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
 #if UGRID_DEBUG
         write(string,*) num_cells_local
         string = trim(adjustl(string)) // ' cells stored on p0'
@@ -199,7 +199,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     allocate(temp_real_array(5,num_cells_local))
     int_mpi = num_cells_local*5
     call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
     do icell = 1, num_cells_local
       explicit_grid%cell_ids(icell) = int(temp_real_array(1,icell))
@@ -235,15 +235,15 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   num_connections = temp_int
 
    ! divide cells across ranks
-  num_connections_local = num_connections/option%comm%mycommsize
+  num_connections_local = num_connections/option%comm%size
   num_connections_local_save = num_connections_local
   remainder = num_connections - &
-              num_connections_local*option%comm%mycommsize
+              num_connections_local*option%comm%size
   if (option%myrank < remainder) num_connections_local = &
                                  num_connections_local + 1
 
@@ -264,7 +264,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(6,num_connections_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = num_connections_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -288,7 +288,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
       enddo
 
       ! if the cells reside on io_rank
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
 #if UGRID_DEBUG
         write(string,*) num_connections_local
         string = trim(adjustl(string)) // ' connections stored on p0'
@@ -328,7 +328,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     allocate(temp_real_array(6,num_connections_local))
     int_mpi = num_connections_local*6
     call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
     do iconn = 1, num_connections_local
       explicit_grid%connections(1,iconn) = int(temp_real_array(1,iconn))
@@ -534,10 +534,10 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   ! Determine the number of cells each that will be saved on each processor
   num_cells = INT(dims_h5(1))
   explicit_grid%num_cells_global = num_cells
-  num_cells_local = num_cells/option%comm%mycommsize
+  num_cells_local = num_cells/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = num_cells - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                   num_cells_local + 1
 
@@ -693,10 +693,10 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
 
   ! Determine the number of cells each that will be saved on each processor
   num_connections = INT(dims_h5(2))
-  num_connections_local = num_connections/option%comm%mycommsize
+  num_connections_local = num_connections/option%comm%size
   num_connections_local_save = num_connections_local
   remainder = num_connections - &
-              num_connections_local*option%comm%mycommsize
+              num_connections_local*option%comm%size
   if (option%myrank < remainder) num_connections_local = &
                                   num_connections_local + 1
 
@@ -1034,7 +1034,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   !call MatDestroy(M_mat,ierr)
 
   ! Alternate method of creating Adj_mat
-  if (option%comm%mycommsize>1) then
+  if (option%comm%size>1) then
     call MatMPIAIJGetLocalMat(M_mat,MAT_INITIAL_MATRIX,M_mat_loc, &
                               ierr);CHKERRQ(ierr)
     call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
@@ -1061,7 +1061,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
                        local_connections,PETSC_NULL_INTEGER,Adj_mat, &
                        ierr);CHKERRQ(ierr)
 
-  if (option%comm%mycommsize>1) then
+  if (option%comm%size>1) then
     call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                             num_rows,ia_ptr,ja_ptr,success, &
                             ierr);CHKERRQ(ierr)
@@ -1101,7 +1101,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   !call MatDestroy(M_mat,ierr)
 
   ! Alternate method of creating Dual_mat
-  if (option%comm%mycommsize>1) then
+  if (option%comm%size>1) then
     call MatMPIAIJGetLocalMat(M_mat,MAT_INITIAL_MATRIX,M_mat_loc, &
                               ierr);CHKERRQ(ierr)
     call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
@@ -1127,7 +1127,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
                        local_connection_offsets2,local_connections2, &
                        PETSC_NULL_INTEGER,Dual_mat,ierr);CHKERRQ(ierr)
 
-  if (option%comm%mycommsize>1) then
+  if (option%comm%size>1) then
     call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                             num_rows,ia_ptr,ja_ptr,success, &
                             ierr);CHKERRQ(ierr)

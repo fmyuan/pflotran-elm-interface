@@ -45,6 +45,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   call CommInitPetsc(driver%comm)
   option => OptionCreate()
   call OptionSetDriver(option,driver)
+  call OptionSetComm(option,driver%comm)
 
   ! check for non-default input filename
   driver%input_filename = 'pflotran.in'
@@ -116,6 +117,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
 
   option => OptionCreate()
   call OptionSetDriver(option,driver)
+  call OptionSetComm(option,driver%comm)
   input => InputCreate(IN_UNIT,driver%input_filename,option)
   string = 'SIMULATION_TYPE'
   call InputFindStringInFile(input,option,string)
@@ -131,7 +133,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
     case('MULTIREALIZATION','INVERSE')
       driver%fid_out = DRIVER_OUT_UNIT
       string = trim(driver%global_prefix) // '.out'
-      if (driver%comm%myrank == driver%io_rank .and. driver%print_to_file) then
+      if (driver%PrintToFile()) then
         open(driver%fid_out, file=string, action="write", status="unknown")
       endif
   end select
@@ -195,7 +197,7 @@ subroutine FactoryPFLOTRANFinalize(driver)
 
   PetscErrorCode :: ierr
 
-  call MPI_Barrier(driver%comm%global_comm,ierr);CHKERRQ(ierr)
+  call MPI_Barrier(driver%comm%communicator,ierr);CHKERRQ(ierr)
   call LoggingDestroy() ! can only be called once, even for mult-realization
   call HDF5Finalize()
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS,'-options_left','no', &
