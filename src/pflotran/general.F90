@@ -1072,8 +1072,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
         endif
       elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
         global_auxvars_ss(sum_connection)%istate = GAS_STATE
-      else!DF: this needs to be looked at closer
-
+      else
         if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
           global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
         elseif (option%nflowdof == 4 .and. general_soluble_matrix) then

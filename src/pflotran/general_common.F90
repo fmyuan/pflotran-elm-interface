@@ -4388,7 +4388,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     ss_flow_vol_flux(solute_comp_id) = qsrc_mol / &
                                     gen_auxvar_ss%den(solute_comp_id)
     Res(solute_comp_id) = qsrc_mol
-    ! DF: no analytical derivative for the solute phase
+    ! No analytical derivative for the solute phase
     if (analytical_derivatives) then
       option%io_buffer = 'Analytical derivatives not implemented in general mode with 4 dof.'
       call PrintErrMsg(option)

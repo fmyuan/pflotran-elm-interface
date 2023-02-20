@@ -358,11 +358,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call GeneralAuxSetAirMassDOF(word,option)
-        !DF:Set a flag attached to pm general
         general_g_state_air_mass_dof = PETSC_TRUE
-        ! move this to PMGeneralSetFlowMode
-        ! this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
-        ! this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         general_harmonic_diff_density = PETSC_TRUE
       case('NEWTONTRDC_HOLD_INNER_ITERATIONS',&
