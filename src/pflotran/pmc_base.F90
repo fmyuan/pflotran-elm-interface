@@ -880,6 +880,7 @@ subroutine SetOutputFlags(this)
 
   use Option_module
   use Output_Aux_module
+  use Print_module
 
   implicit none
 
@@ -891,20 +892,19 @@ subroutine SetOutputFlags(this)
 
   if (OptionPrintToScreen(this%option) .and. output_option%screen_imod > 0) then
     if (mod(this%timestepper%steps,output_option%screen_imod) == 0) then
-      this%option%print_screen_flag = PETSC_TRUE
+      call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_TRUE)
     else
-      this%option%print_screen_flag = PETSC_FALSE
+      call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_FALSE)
     endif
   else
-    this%option%print_screen_flag = PETSC_FALSE
+    call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_FALSE)
   endif
 
   if (OptionPrintToFile(this%option) .and. &
       mod(this%timestepper%steps,output_option%output_file_imod) == 0) then
-    this%option%print_file_flag = PETSC_TRUE
+    call PrintSetPrintToFileFlag(this%option%print_flags,PETSC_TRUE)
   else
-    this%option%print_file_flag = PETSC_FALSE
-
+    call PrintSetPrintToFileFlag(this%option%print_flags,PETSC_FALSE)
   endif
 
 end subroutine SetOutputFlags

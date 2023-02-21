@@ -1362,22 +1362,14 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
 
   call VecRestoreArrayF90(volume,volume_p,ierr);CHKERRQ(ierr)
 
-  if (option%driver%print_to_screen .and. &
-      option%comm%size > 1 .and. &
-      option%comm%size <= 16) then
-    write(*,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
+  if (option%comm%size > 1 .and. option%comm%size <= 16) then
+    write(option%io_buffer,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
       & ", nxs,e = ",2i4,", nys,e = ",2i4,", nzs,e = ",2i4)') &
       option%myrank,structured_grid%nlmax,structured_grid%nlx, &
         structured_grid%nly,structured_grid%nlz,structured_grid%lxs, &
         structured_grid%lxe,structured_grid%lys,structured_grid%lye, &
         structured_grid%lzs,structured_grid%lze
-
-    write(*,'(" rank= ",i3,", ngmax= ",i6,", ngx,y,z= ",3i4, &
-      & ", ngxs,e= ",2i4,", ngys,e= ",2i4,", ngzs,e= ",2i4)') &
-      option%myrank,structured_grid%ngmax,structured_grid%ngx, &
-        structured_grid%ngy,structured_grid%ngz,structured_grid%gxs, &
-        structured_grid%gxe,structured_grid%gys,structured_grid%gye, &
-        structured_grid%gzs,structured_grid%gze
+    call PrintMsgAnyRank(option)
   endif
 
 end subroutine StructGridComputeVolumes

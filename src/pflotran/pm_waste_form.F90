@@ -4136,7 +4136,7 @@ subroutine PMWFSolve(this,time,ierr)
                      MPI_INTEGER,MPI_SUM,this%realization%option%mycomm, &
                      ierr);CHKERRQ(ierr)
   if ((fmdm_count_global > 0) .and. &
-      this%realization%option%print_screen_flag) then
+      OptionPrintToScreen(this%realization%option)) then
     write(word,'(i5)') fmdm_count_global
   ! ** START (this can be removed after FMDM profiling is finished) **
     write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'

@@ -87,6 +87,7 @@ subroutine OutputFileRead(input,realization,output_option, &
   use Grid_module
   use Patch_module
   use Region_module
+  use Print_module
 
   implicit none
 
@@ -379,7 +380,8 @@ subroutine OutputFileRead(input,realization,output_option, &
         call StringToUpper(word)
         select case(trim(word))
           case('OFF')
-            option%driver%print_to_screen = PETSC_FALSE
+            call PrintSetPrintToScreenFlag(option%driver%print_flags, &
+                                           PETSC_FALSE)
           case('PERIODIC')
             string = trim(string) // ',PERIODIC'
             call InputReadInt(input,option,output_option%screen_imod)
