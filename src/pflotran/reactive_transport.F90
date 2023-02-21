@@ -533,10 +533,11 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
     if (patch%imat(ghosted_id) <= 0) cycle
     liquid_saturation = global_auxvars(ghosted_id)%sat(1)
     porosity = material_auxvars(ghosted_id)%porosity
-    volume = material_auxvars(ghosted_id)%volume ! [m^3]
     if (option%use_sc) then
       volume = material_auxvars(ghosted_id)%volume * &
           material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+    else
+      volume = material_auxvars(ghosted_id)%volume ! [m^3]
     endif
 
     ! aqueous (sum_mol_aq)
