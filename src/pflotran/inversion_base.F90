@@ -135,12 +135,9 @@ subroutine InversionBaseStep(this)
   class(inversion_base_type) :: this
 
   type(option_type), pointer :: option
+  PetscBool :: invflag
 
-  if (.not.associated(this%inversion_option%invcomm) .and. &
-      .not.associated(this%inversion_option%forcomm)) then
-    this%converged = PETSC_TRUE
-    return
-  endif
+  invflag = associated(this%inversion_option%invcomm)
 
   call this%InitializeForwardRun(option)
   call this%SetupForwardRunLinkage()
@@ -151,9 +148,11 @@ subroutine InversionBaseStep(this)
   call this%Checkpoint()
   if (.not.this%converged) then
     call this%CalculateSensitivity()
-    call this%ScaleSensitivity()
-    call this%CalculateUpdate()
-    call this%UpdateRegularizationParameters()
+    if (invflag) then
+      call this%ScaleSensitivity()
+      call this%CalculateUpdate()
+      call this%UpdateRegularizationParameters()
+    endif
   endif
   call this%DestroyForwardRun()
 

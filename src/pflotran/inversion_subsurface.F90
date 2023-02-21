@@ -418,6 +418,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('COUPLED_FLOW_AND_ERT')
       this%inversion_option%coupled_flow_ert = PETSC_TRUE
+    case('SPLIT_COMMUNICATORS')
+      this%inversion_option%split_comms = PETSC_TRUE
     case('PERTURBATION')
       string = trim(error_string)//keyword
       input%ierr = 0
@@ -693,6 +695,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       this%inversion_aux%coupled_aux => InversionCoupledAuxCreate()
     endif
 
+if (associated(invcomm)) then
     ! JsensitivityT is the transpose of the sensitivity Jacobian
     ! with num measurement columns and num parameter rows
     call MatCreateDense(invcomm%communicator, &
@@ -727,10 +730,18 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     this%parameter_offset = int_array2(1)
     this%dist_measurement_offset = int_array2(2)
     deallocate(int_array,int_array2)
+endif
+
     call VecCreateSeq(PETSC_COMM_SELF,num_measurements, &
                       this%inversion_aux%measurement_vec, &
                       ierr);CHKERRQ(ierr)
+    if (.not.this%inversion_aux%qoi_is_full_vector) then
+      call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
+                        this%inversion_aux%parameter_vec, &
+                        ierr);CHKERRQ(ierr)
+    endif
 
+if (associated(invcomm)) then
     if (this%inversion_aux%qoi_is_full_vector) then
       ! is_parameter should mirror the natural vec
       allocate(int_array(this%num_parameters_local))
@@ -750,9 +761,10 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                             ierr);CHKERRQ(ierr)
       call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
     else
-      call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
-                        this%inversion_aux%parameter_vec, &
-                        ierr);CHKERRQ(ierr)
+      ! moved outside earlier, outside of conditional
+!      call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
+!                        this%inversion_aux%parameter_vec, &
+!                        ierr);CHKERRQ(ierr)
       call VecDuplicate(this%inversion_aux%parameter_vec, &
                         this%inversion_aux%del_parameter_vec, &
                         ierr);CHKERRQ(ierr)
@@ -765,6 +777,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                             ierr);CHKERRQ(ierr)
       call ISDestroy(is_parameter,ierr)
     endif
+endif
 
     do i = 1, num_measurements
       iflag = PETSC_FALSE
@@ -825,7 +838,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     enddo
     ! ensure that cell and ert measurement ids are within bounds
     call MPI_Allreduce(MPI_IN_PLACE,max_int,TWO_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,invcomm%communicator,ierr);CHKERRQ(ierr)
+                       MPI_MAX,forcomm%communicator,ierr);CHKERRQ(ierr)
     if (associated(this%realization%survey)) then
       if (max_int(1) > size(this%realization%survey%dsim)) then
         call this%driver%PrintErrMsg('The ERT_MEASUREMENT_ID assigned to a &
@@ -843,7 +856,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! ensure that all cell ids have been found
     mpi_int = num_measurements
     call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
-                       invcomm%communicator,ierr);CHKERRQ(ierr)
+                       forcomm%communicator,ierr);CHKERRQ(ierr)
     i = maxval(int_array)
     do i = 1, num_measurements
       if (int_array(i) > 0) then
@@ -938,6 +951,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       endif
     enddo
 
+if (associated(invcomm)) then
     ! map measurement vec to distributed measurement vec
     call ISCreateStride(invcomm%communicator,num_measurements,ZERO_INTEGER, &
                         ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
@@ -947,6 +961,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                           this%inversion_aux%scatter_measure_to_dist_measure, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_measure,ierr)
+endif
 
     this%inversion_aux%measurements => this%inversion_aux%measurements
     this%inversion_aux%measurement_vec = this%inversion_aux%measurement_vec
@@ -1964,7 +1979,8 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   enddo
 
   ! Build coupled J once partial Js are calculated
-  if (this%inversion_option%coupled_flow_ert) then
+  if (associated(this%inversion_option%invcomm) .and. &
+      this%inversion_option%coupled_flow_ert) then
     ! destroy last from loop above (we are not calculating Jsense)
     call this%DestroyForwardRun()
     ! -1 is a non-perturbed forward run after perturbation is complete
@@ -1991,10 +2007,12 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call VecCopy(this%inversion_aux%perturbation%base_measurement_vec, &
                  this%inversion_aux%measurement_vec,ierr);CHKERRQ(ierr)
   endif
+if (associated(this%inversion_option%invcomm)) then
   call InvAuxScatMeasToDistMeas(this%inversion_aux, &
                                 this%inversion_aux%measurement_vec, &
                                 this%inversion_aux%dist_measurement_vec, &
                                 INVAUX_SCATFORWARD)
+endif
 
   ! reset parameters to base copy
   if (this%inversion_aux%qoi_is_full_vector) then

@@ -14,6 +14,7 @@ module Option_Inversion_module
   type, public :: inversion_option_type
     type(comm_type), pointer :: invcomm
     type(comm_type), pointer :: forcomm
+    PetscBool :: split_comms
     PetscBool :: use_perturbation
     PetscBool :: perturbation_run
     PetscBool :: coupled_flow_ert
@@ -76,6 +77,8 @@ subroutine OptionInversionInit(option)
 
   nullify(option%invcomm)
   nullify(option%forcomm)
+  option%split_comms = PETSC_FALSE
+
   option%use_perturbation = PETSC_FALSE
   option%perturbation_run = PETSC_FALSE
   option%coupled_flow_ert = PETSC_FALSE

@@ -846,10 +846,17 @@ subroutine InversionZFlowCheckConvergence(this)
 
   class(inversion_zflow_type) :: this
 
+  PetscErrorCode :: ierr
+
   this%converged = PETSC_FALSE
-  call this%EvaluateCostFunction()
-  if ((this%current_chi2 <= this%target_chi2) .or. &
-      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  if (associated(this%inversion_option%invcomm)) then
+    call this%EvaluateCostFunction()
+    if ((this%current_chi2 <= this%target_chi2) .or. &
+        (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  endif
+  call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
+                 MPI_LOGICAL,this%driver%comm%io_rank, &
+                 this%driver%comm%communicator,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowCheckConvergence
 
@@ -989,7 +996,8 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
     this%phi_model = this%beta * dot_product(model_vector,model_vector)
     call MPI_Allreduce(MPI_IN_PLACE,this%phi_model,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
     deallocate(model_vector)
 
@@ -1303,7 +1311,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
   gamma = dot_product(this%s,this%s)
   call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+                     MPI_SUM,this%inversion_option%invcomm%communicator, &
+                     ierr);CHKERRQ(ierr)
 
   norms0 = sqrt(gamma)
   xmax = 0.d0
@@ -1325,7 +1334,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
     if (this%inversion_aux%qoi_is_full_vector) &
       call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
-                         MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                         MPI_DOUBLE_PRECISION,MPI_SUM, &
+                         this%inversion_option%invcomm%communicator, &
                          ierr);CHKERRQ(ierr)
     delta = delta1 + delta2
 
@@ -1343,7 +1353,8 @@ subroutine InversionZFlowCGLSSolve(this)
     gamma1 = gamma
     gamma = dot_product(this%s,this%s)
     call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
 
     norms = sqrt(gamma)
@@ -1352,7 +1363,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
     normx = dot_product(this%del_param,this%del_param)
     call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
     normx = sqrt(normx)
     if (xmax < normx) xmax = normx
@@ -1883,7 +1895,8 @@ subroutine InversionZFlowAllocateWm(this)
 
     this%num_constraints_local = num_constraints
     call MPI_Allreduce(num_constraints,this%num_constraints_total, &
-                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
     allocate(this%Wm(num_constraints))
     allocate(this%rblock(num_constraints,THREE_INTEGER))
