@@ -1368,6 +1368,7 @@ material_aux.o : \
   utility.o \
   variables.o
 material_transform.o : \
+  global_aux.o \
   input_aux.o \
   material_aux.o \
   option.o \
@@ -1934,6 +1935,7 @@ pm_inversion.o : \
 pm_material_transform.o : \
   discretization.o \
   field.o \
+  global.o \
   global_aux.o \
   grid.o \
   hdf5.o \

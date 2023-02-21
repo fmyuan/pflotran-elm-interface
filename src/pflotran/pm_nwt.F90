@@ -462,6 +462,9 @@ subroutine PMNWTSetup(this)
 
   reaction_nw => this%realization%reaction_nw
 
+  if (this%option%nflowdof > 0) then
+    this%option%flow%store_state_variables_in_global = PETSC_TRUE
+  endif
   this%params%nphase = reaction_nw%params%nphase
   this%params%ncomp = reaction_nw%params%ncomp
   this%params%nspecies = reaction_nw%params%nspecies
