@@ -481,6 +481,10 @@ subroutine InvSubsurfInitForwardRun(this,option)
   if (associated(this%inversion_aux%perturbation)) then
     this%inversion_option%perturbation_run = &
       (this%inversion_aux%perturbation%idof_pert /= 0)
+  else if (this%inversion_option%split_comms) then
+    option%io_buffer = 'The splitting of inversion communicators is only &
+      &allowed for perturbation inversion runs.'
+    call PrintErrMsg(option)
   endif
   ! this %iteration may be overwritten in InvSubsurfRestartParameters
   call InvSubsurfRestartIteration(this)
