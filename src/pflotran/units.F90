@@ -15,7 +15,8 @@ contains
 
 ! ************************************************************************** !
 
-function UnitsConvertToInternal(units,internal_units,option,ierr)
+function UnitsConvertToInternal(units,internal_units,keyword_string, &
+                                option,ierr)
   !
   ! Converts given units to pflotran internal units
   !
@@ -30,6 +31,7 @@ function UnitsConvertToInternal(units,internal_units,option,ierr)
 
   character(len=*) :: units
   character(len=MAXWORDLENGTH) :: internal_units
+  character(len=*) :: keyword_string
   type(option_type) :: option
   PetscErrorCode, optional :: ierr
 
@@ -77,6 +79,10 @@ function UnitsConvertToInternal(units,internal_units,option,ierr)
       ierr = -1
       return
     else
+      option%io_buffer = new_line('a') // &
+                         'Location of units conversion error: ' // &
+                         trim(keyword_string)
+      call PrintMsg(option)
       option%io_buffer = error_msg
       call PrintErrMsg(option)
     endif
@@ -623,8 +629,8 @@ function UnitsConvertToExternal(units,internal_units,option)
 
   PetscReal :: UnitsConvertToExternal
 
-  UnitsConvertToExternal = 1.d0/UnitsConvertToInternal(units, &
-                                                       internal_units,option)
+  UnitsConvertToExternal = 1.d0/UnitsConvertToInternal(units,internal_units, &
+                                          'UnitsConvertToExternal',option)
 
 end function UnitsConvertToExternal
 

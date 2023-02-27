@@ -1118,14 +1118,52 @@ subroutine BasisInit(reaction,option)
   enddo
 
   if (icount /= ncomp_secondary) then
+    call PrintMsgNoAdvance(option,new_line('a') // 'Species read from the &
+      &reaction database with reactions associated with them in the &
+      &database:')
+    cur_pri_aq_spec => reaction%primary_species_list
+    do
+      if (.not.associated(cur_pri_aq_spec)) exit
+      if (associated(cur_pri_aq_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_pri_aq_spec%name))
+      endif
+      cur_pri_aq_spec => cur_pri_aq_spec%next
+    enddo
+    cur_sec_aq_spec => reaction%secondary_species_list
+    do
+      if (.not.associated(cur_sec_aq_spec)) exit
+      if (associated(cur_sec_aq_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_sec_aq_spec%name))
+      endif
+      cur_sec_aq_spec => cur_sec_aq_spec%next
+    enddo
+    cur_gas_spec => reaction%gas%list
+    do
+      if (.not.associated(cur_gas_spec)) exit
+      if (associated(cur_gas_spec%dbaserxn)) then
+        call PrintMsgNoAdvance(option,' ' // trim(cur_gas_spec%name))
+      endif
+      cur_gas_spec => cur_gas_spec%next
+    enddo
+    call PrintMsg(option,'')
+    option%io_buffer = 'The number of species read from the reaction &
+      &database with associated reactions in the database (' // &
+      StringWrite(icount) // ') does not match the number of secondary &
+      &aqueous species and gases in the problem (' // &
+      StringWrite(ncomp_secondary) // ').'
     if (icount < ncomp_secondary) then
-      option%io_buffer = 'Too few reactions read from database for &
-        &number of secondary species defined.'
+      option%io_buffer = trim(option%io_buffer) // ' Since the number of &
+        &species with associated reactions is lower, it is likely that &
+        &there is a missing secondary aqueous species or gas.'
     else
-      option%io_buffer = 'Too many reactions read from database for &
-        &number of secondary species defined.  Perhaps &
-        &DECOUPLED_EQUILIBRIUM_REACTIONS need to be defined?'
+      option%io_buffer = trim(option%io_buffer) // ' Since the number of &
+        &species with associated reactions is larger, it is likely that &
+        &there is a species from the database with a reaction associated &
+        &and no corresponding secondary aqueous or gas species. In that &
+        &case, a DECOUPLED_EQUILIBRIUM_REACTIONS block is likely needed.'
     endif
+    option%io_buffer = trim(option%io_buffer) // &
+      ' One or more of the species above is the problem.'
     call PrintErrMsg(option)
   endif
 
@@ -3217,20 +3255,28 @@ subroutine BasisInit(reaction,option)
       enddo
 
       if (associated(cur_microbial_rxn%biomass)) then
-        ! check for biomass species in global immobile list
+        ! try aqueous
         temp_int = &
-          StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
-                                immobile%names)
+          GetPrimarySpeciesIDFromName(cur_microbial_rxn%biomass%species_name, &
+                                      reaction,PETSC_FALSE,option)
+        ! temp_int will be UNINITIALIZED_INTEGER if not found
+        if (Uninitialized(temp_int)) then
+          ! check for biomass species in global immobile list
+          temp_int = &
+            StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
+                                  immobile%names)
+          ! temp_int will be zero if not found
+          temp_int = -temp_int ! toggle to negative index for immobile
+        endif
         if (temp_int == 0) then
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
-            ' not found among immobile species.'
+            ' not found among the primary aqueous or immobile species.'
           call PrintErrMsg(option)
-        else
-          microbial%biomassid(irxn) = temp_int
-          microbial%biomass_yield(irxn) = &
-            cur_microbial_rxn%biomass%yield
         endif
+        microbial%biomassid(irxn) = temp_int
+        microbial%biomass_yield(irxn) = &
+          cur_microbial_rxn%biomass%yield
         ! check for biomass species in microbial reaction
         temp_int = &
           StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
@@ -3238,7 +3284,17 @@ subroutine BasisInit(reaction,option)
         if (temp_int /= 0) then
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
-            ' should not be included in microbial reaction.'
+            ' should not be included in microbial reaction mass action &
+            &expression.'
+          if (microbial%biomassid(irxn) > 0) then
+            option%io_buffer = trim(option%io_buffer) // ' Mobile biomass &
+              &growth and decay is specified through a BIOMASS &
+              &YIELD and a first-order aqueous GENERAL_REACTION, respectively.'
+          else
+            option%io_buffer = trim(option%io_buffer) // ' Immobile biomass &
+              &growth and decay is specified through a BIOMASS &
+              &YIELD and an IMMOBLE_DECAY_REACTION, respectively.'
+          endif
           call PrintErrMsg(option)
         endif
       endif

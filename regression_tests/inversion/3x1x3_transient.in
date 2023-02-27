@@ -1,5 +1,3 @@
-#Description: 1D variably saturated flow problem
-
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS

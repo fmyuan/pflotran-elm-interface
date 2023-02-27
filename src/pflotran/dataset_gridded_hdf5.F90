@@ -227,14 +227,14 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 !  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 !  endif
 #endif
-  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(this%filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option)
+  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option%driver)
 
   ! only want to read on first time through
   if (this%data_dim == DIM_NULL) then

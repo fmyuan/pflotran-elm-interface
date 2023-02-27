@@ -285,17 +285,13 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
     case('INITIAL_TIMESTEP_SIZE')
       call InputReadDouble(input,option,this%dt_init)
       call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
-      this%dt_init = this%dt_init* &
-                     UnitsConvertToInternal(word,internal_units,option)
+      call InputReadAndConvertUnits(input,this%dt_init,internal_units, &
+                                    keyword,option)
     case('MINIMUM_TIMESTEP_SIZE')
       call InputReadDouble(input,option,this%dt_min)
       call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
-      this%dt_min = this%dt_min* &
-                    UnitsConvertToInternal(word,internal_units,option)
+      call InputReadAndConvertUnits(input,this%dt_min,internal_units, &
+                                    keyword,option)
     case('TIMESTEP_REDUCTION_FACTOR')
       call InputReadDouble(input,option,this%time_step_reduction_factor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -320,10 +316,8 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
       waypoint => WaypointCreate()
       call InputReadDouble(input,option,waypoint%dt_max)
       call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
-      waypoint%dt_max = waypoint%dt_max* &
-                        UnitsConvertToInternal(word,internal_units,option)
+      call InputReadAndConvertUnits(input,waypoint%dt_max,internal_units, &
+                                    keyword,option)
       call InputReadCard(input,option,word)
       if (input%ierr == 0) then
         call StringToUpper(word)
@@ -331,11 +325,8 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
           call InputReadDouble(input,option,waypoint%time)
           call InputErrorMsg(input,option,trim(keyword)//' "AT" Time', &
                              error_string)
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time Units', &
-                             error_string)
-          waypoint%time = waypoint%time* &
-                          UnitsConvertToInternal(word,internal_units,option)
+          call InputReadAndConvertUnits(input,waypoint%time,internal_units, &
+                                        trim(keyword)//' "AT" Time',option)
         else
           option%io_buffer = 'Keyword under "MAXIMUM_TIMESTEP_SIZE" &
                              &after maximum timestep size should &
@@ -792,7 +783,9 @@ subroutine TimestepperBaseCutDT(this,process_model,icut,stop_flag, &
     trim(StringWrite('(1pe12.5)', &
          option%time/process_model%output_option%tconv)) // &
     ' dt= ' // &
-    trim(StringWrite('(1pe12.5)',this%dt/process_model%output_option%tconv))
+    trim(StringWrite('(1pe12.5)',&
+         this%dt/process_model%output_option%tconv)) // &
+    ' [' // trim(process_model%output_option%tunit) // ']'
   call PrintMsg(option)
 
 end subroutine TimestepperBaseCutDT

@@ -509,7 +509,8 @@ recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
     call PrintErrMsg(this%option)
   else
     if (.not.skip_restart) then
-      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
+                         this%option%driver)
     endif
   endif
 
@@ -538,7 +539,8 @@ recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
     cur_pm => this%pm_list
     do
       if (.not.associated(cur_pm)) exit
-      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id, &
+                         this%option%driver)
       call cur_pm%RestartHDF5(h5_pm_grp_id)
       call h5gclose_f(h5_pm_grp_id, hdf5_err)
       cur_pm => cur_pm%next

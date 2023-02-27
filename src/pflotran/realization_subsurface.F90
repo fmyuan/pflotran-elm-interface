@@ -94,7 +94,8 @@ private
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
             RealizationLimitDTByCFL, &
-            RealizationReadGeopSurveyFile
+            RealizationReadGeopSurveyFile, &
+            RealizationCheckConsistency
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -2896,6 +2897,102 @@ subroutine RealizationReadGeopSurveyFile(realization)
   call InputDestroy(input_tmp)
 
 end subroutine RealizationReadGeopSurveyFile
+
+! ************************************************************************** !
+
+subroutine RealizationCheckConsistency(r1,r2)
+  !
+  ! Checks to ensure that two separate realizations have the same
+  ! sized objects (used in inversion calculations to ensure that the
+  ! prerequisite have the same sized data structures as the main
+  ! forward run)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/02/22
+  !
+  use String_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: r1, r2
+
+  type(option_type), pointer :: o1, o2
+  PetscBool :: error_found
+  character(len=MAXSTRINGLENGTH) :: s
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  o1 => r1%option
+  o2 => r2%option
+
+  s = new_line('a') // &
+      'Checking consistency of outer and prerequisite realizations:' // &
+      new_line('a')
+  call PrintMsg(o1,s)
+
+  error_found = PETSC_FALSE
+  s = 'Grid type'
+  if (IntegersDiffer(r1%patch%grid%itype,r2%patch%grid%itype,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of grid cells'
+  if (IntegersDiffer(r1%patch%grid%nmax,r2%patch%grid%nmax,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Material IDs differ'
+  i = min(size(r1%patch%imat),size(r2%patch%imat))
+  i = maxval(abs(r1%patch%imat(1:i)-r2%patch%imat(1:i)))
+  call MPI_Allreduce(MPI_IN_PLACE,i,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_MAX,o1%mycomm,ierr);CHKERRQ(ierr)
+  if (i > 0) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of material properties'
+  if (IntegersDiffer(size(r1%patch%material_property_array), &
+                     size(r2%patch%material_property_array),s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of characteristic curves'
+  if (IntegersDiffer(size(r1%patch%characteristic_curves_array), &
+                     size(r2%patch%characteristic_curves_array),s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of flow degrees of freedom'
+  if (IntegersDiffer(o1%nflowdof,o2%nflowdof,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of transport degrees of freedom'
+  if (IntegersDiffer(o1%ntrandof,o2%ntrandof,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+
+  if (error_found) then
+    call PrintErrMsg(o1,'Inconsistent realizations.')
+  endif
+  call PrintMsg(o1,'Realizations are consistent.')
+
+contains
+
+  function IntegersDiffer(i1,i2,error_string)
+    PetscInt :: i1, i2
+    character(*) :: error_string
+    PetscBool :: IntegersDiffer
+    IntegersDiffer = (i1 /= i2)
+    if (IntegersDiffer) then
+      error_string = trim(error_string) // ' differ: ' // &
+                     trim(StringWrite(i1)) // ' vs ' // &
+                     trim(StringWrite(i2))
+    endif
+  end function IntegersDiffer
+
+end subroutine RealizationCheckConsistency
 
 ! ************************************************************************** !
 

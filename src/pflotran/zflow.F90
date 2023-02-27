@@ -255,6 +255,11 @@ subroutine ZFlowSetup(realization)
   zflow_ts_count = 0
   zflow_ts_cut_count = 0
   zflow_ni_count = 0
+  if (Initialized(zflow_debug_cell_id) .and. &
+      option%comm%mycommsize > 1) then
+    option%io_buffer = 'Cannot debug cells in parallel.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine ZFlowSetup
 
@@ -498,13 +503,18 @@ subroutine ZFlowUpdateAuxVars(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
+  type(zflow_auxvar_type), pointer :: zflow_auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
+  PetscInt :: dof_index
   PetscInt :: ghosted_start, ghosted_end, ghosted_offset
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -518,8 +528,10 @@ subroutine ZFlowUpdateAuxVars(realization)
 
   zflow_auxvars => patch%aux%ZFlow%auxvars
   zflow_auxvars_bc => patch%aux%ZFlow%auxvars_bc
+  zflow_auxvars_ss => patch%aux%ZFlow%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -602,6 +614,30 @@ subroutine ZFlowUpdateAuxVars(realization)
                               PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
+  enddo
+
+  source_sink => patch%source_sink_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(source_sink)) exit
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      call ZFlowAuxVarCopy(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                           zflow_auxvars_ss(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_ss(sum_connection),option)
+      ! override concentration from grid cells
+      if (zflow_sol_tran_eq > 0) then
+        dof_index = source_sink%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
+        zflow_auxvars_ss(sum_connection)%conc = &
+          source_sink%flow_aux_real_var(dof_index,iconn)
+      endif
+    enddo
+    source_sink => source_sink%next
   enddo
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -696,7 +732,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
     call PetUtilVecSVBL(accum_p,local_id,Res,ndof,PETSC_TRUE)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
-      patch%aux%inversion_forward_aux%last%dRes_du_k(:,:,local_id) = &
+      patch%aux%inversion_aux%last_forward_ts_aux%dRes_du_k(:,:,local_id) = &
         -Jdum(1:ndof,1:ndof)
     endif
   enddo
@@ -813,9 +849,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   store_adjoint = PETSC_FALSE
   MatdResdparam = PETSC_NULL_MAT
   call MatZeroEntries(A,ierr);CHKERRQ(ierr)
-  if (associated(patch%aux%inversion_forward_aux)) then
-    if (patch%aux%inversion_forward_aux%store_adjoint) then
-      MatdResdparam = patch%aux%inversion_forward_aux%last%dResdparam
+  if (associated(patch%aux%inversion_aux)) then
+    if (patch%aux%inversion_aux%store_adjoint) then
+      MatdResdparam = patch%aux%inversion_aux%last_forward_ts_aux%dResdparam
       if (MatdResdparam /= PETSC_NULL_MAT) then
         store_adjoint = PETSC_TRUE
         call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)
@@ -925,7 +961,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(:,iconn), &
                               zflow_parameter,option,v_darcy, &
-                              Res,Jup,Jdn,dResdparamup,dResdparamdn)
+                              Res,Jup,Jdn,dResdparamup,dResdparamdn, &
+                              (local_id_up == zflow_debug_cell_id .or. &
+                               local_id_dn == zflow_debug_cell_id))
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
           patch%internal_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)
@@ -998,7 +1036,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
                                 zflow_parameter,option, &
-                                v_darcy,Res,Jdn,dResdparamdn)
+                                v_darcy,Res,Jdn,dResdparamdn, &
+                                local_id == zflow_debug_cell_id)
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
           patch%boundary_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)

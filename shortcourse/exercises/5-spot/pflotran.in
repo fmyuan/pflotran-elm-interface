@@ -204,10 +204,10 @@ COORDINATES
 # == flow conditions ==========================================================
 FLOW_CONDITION Initial
 TYPE
-PRESSURE HYDROSTATIC
+LIQUID_PRESSURE HYDROSTATIC
 /
 DATUM 0.d0 0.d0 15.d0
-PRESSURE 101325.d0
+LIQUID_PRESSURE 101325.d0
 /
 
 FLOW_CONDITION injection

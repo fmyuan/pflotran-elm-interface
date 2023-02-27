@@ -632,7 +632,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 #endif
 
   ! Open the file collectively
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id, hdf5_err)
 
   !
@@ -898,7 +898,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 #endif
 
   ! Open the file collectively
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id, hdf5_err)
 
   !

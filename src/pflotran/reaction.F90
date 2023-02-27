@@ -431,26 +431,16 @@ subroutine ReactionReadPass1(reaction,input,option)
               call InputReadDouble(input,option,general_rxn%forward_rate)
               call InputErrorMsg(input,option,'forward rate', &
                                  'CHEMISTRY,GENERAL_REACTION')
-              ! throw error if units exist after rate
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
-                option%io_buffer = 'Units conversion not supported for &
-                  &GENERAL_REACTION FORWARD_RATE. Please assume the &
-                  &documented units.'
-                call PrintErrMsg(option)
-              endif
+              call InputReadAndConvertUnits(input,general_rxn%forward_rate, &
+                     'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
             case('BACKWARD_RATE')
               call InputReadDouble(input,option,general_rxn%backward_rate)
               call InputErrorMsg(input,option,'backward rate', &
                                  'CHEMISTRY,GENERAL_REACTION')
-              ! throw error if units exist after rate
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
-                option%io_buffer = 'Units conversion not supported for &
-                  &GENERAL_REACTION BACKWARD_RATE. Please assume the &
-                  &documented units.'
-                call PrintErrMsg(option)
-              endif
+              call InputReadAndConvertUnits(input,general_rxn%backward_rate, &
+                     'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -788,6 +778,8 @@ subroutine ReactionReadPass1(reaction,input,option)
         enddo
       case('NO_BDOT')
         reaction%act_coef_use_bdot = PETSC_FALSE
+      case('CALCULATE_INITIAL_POROSITY')
+        reaction%calculate_initial_porosity = PETSC_TRUE
       case('UPDATE_POROSITY')
         reaction%update_porosity = PETSC_TRUE
         option%flow%transient_porosity = PETSC_TRUE
@@ -3368,6 +3360,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: ierror
 
   PetscReal :: residual(reaction%ncomp)
+  PetscReal :: initial_total(reaction%ncomp)
   PetscReal :: dummy_res(reaction%ncomp)
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   PetscReal :: dummy_J(reaction%ncomp,reaction%ncomp)
@@ -3424,12 +3417,12 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
                            option,fixed_accum)
   endif
 
-!TODO(geh): activity coefficient will be updated earlier. otherwise, they
-!           will be repeatedly updated due to time step cut
-!  ! now update activity coefficients
-!  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-!    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-!  endif
+  ! store initial concentrations for error reporting
+  initial_total(1:naqcomp) = rt_auxvar%total(:,1)
+  if (nimmobile > 0) then
+    initial_total(immobile_start:immobile_end) = &
+      tran_xx(immobile_start:immobile_end)
+  endif
 
   ! initialize guesses to stored solution
   rt_auxvar%pri_molal(:) = tran_xx(1:naqcomp)
@@ -3542,13 +3535,13 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
         if (verbose_output) then
           print *, 'Maximum iterations in RReact: stop: ' // &
                    trim(StringWrite(num_iterations))
-          print *, 'Maximum iterations in RReact: residual: ' // &
-                   trim(StringWrite(residual))
-          print *, 'Maximum iterations in RReact: new solution: ' // &
-                   trim(StringWrite(new_solution))
-          print *, 'Grid cell: ' // trim(StringWrite(natural_id))
+          print *, '  initial total: ' // trim(StringWrite(initial_total))
+          print *, '  initial primary: ' // trim(StringWrite(tran_xx))
+          print *, '  residual: ' // trim(StringWrite(residual))
+          print *, '  new solution: ' // trim(StringWrite(new_solution))
+          print *, '  Grid cell: ' // trim(StringWrite(natural_id))
           if (option%comm%mycommsize > 1) then
-            print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+            print *, '  Process rank: ' // trim(StringWrite(option%myrank))
           endif
         endif
         num_iterations_ = num_iterations

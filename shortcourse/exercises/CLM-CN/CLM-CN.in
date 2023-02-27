@@ -14,9 +14,15 @@ SUBSURFACE
 
 
 #=========================== useful tranport parameters =======================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0 
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
 
-REFERENCE_DENSITY 1.d3
+#=========================== equation of state ================================
+EOS WATER
+  DENSITY CONSTANT 1.d3
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -101,7 +107,8 @@ CHEMISTRY
 #  LOG_FORMULATION
   DATABASE ./CLM-CN_database.dat
   OUTPUT
-    all
+    TOTAL
+    ALL
   /
 END
 

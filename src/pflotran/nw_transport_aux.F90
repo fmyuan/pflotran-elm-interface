@@ -31,6 +31,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
+    PetscInt, pointer :: constraint_type(:)
     type(nwt_well_aux_type) :: well
   end type nw_transport_auxvar_type
 
@@ -230,6 +231,8 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   auxvar%mnrl_eq_conc = 0.d0
   allocate(auxvar%mnrl_vol_frac(nspecies))
   auxvar%mnrl_vol_frac = 0.d0
+  allocate(auxvar%constraint_type(nspecies))
+  auxvar%constraint_type = 0
 
   allocate(auxvar%well%AQ_conc(nspecies))
   auxvar%well%AQ_conc = UNINITIALIZED_DOUBLE

@@ -730,6 +730,65 @@ end subroutine FlowSubConditionVerify
 
 ! ************************************************************************** !
 
+subroutine FlowConditionVerify(option, condition)
+  !
+  ! Verifies the data in a flow condition
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/29/22
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  type(flow_condition_type) :: condition
+
+  type(flow_sub_condition_type), pointer :: liquid_pressure
+  PetscBool :: gradient_found
+  PetscBool :: pressure_is_hydrostatic
+  PetscInt :: i
+
+  nullify(liquid_pressure)
+  if (associated(condition%general)) then
+    liquid_pressure => condition%general%liquid_pressure
+  else if (associated(condition%hydrate)) then
+    liquid_pressure => condition%hydrate%liquid_pressure
+  else
+    liquid_pressure => condition%pressure
+  endif
+
+  gradient_found = PETSC_FALSE
+  do i = 1, size(condition%sub_condition_ptr)
+    if (associated(condition%sub_condition_ptr(i)%ptr%gradient)) then
+      gradient_found = PETSC_TRUE
+      exit
+    endif
+  enddo
+
+  pressure_is_hydrostatic = PETSC_FALSE
+  if (associated(liquid_pressure)) then
+    select case(liquid_pressure%itype)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        pressure_is_hydrostatic = PETSC_TRUE
+    end select
+  endif
+
+  ! ensure that gradient and datum have not been assigned unless the
+  ! type is HYDROSTATIC
+  if ((gradient_found .or. associated(condition%datum)) .and. &
+       .not.pressure_is_hydrostatic) then
+    option%io_buffer = 'A DATUM and/or GRADIENT may only be assigned &
+      &to flow conditions where LIQUID_PRESSURE is of type HYDROSTATIC(_XXX). &
+      &Please remove these keywords from FLOW_CONDITION "' // &
+      trim(condition%name) // '".'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine FlowConditionVerify
+
+! ************************************************************************** !
+
 subroutine FlowConditionRead(condition,input,option)
   !
   ! Reads a condition from the input file
@@ -895,7 +954,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(trim(word))
-            case('LIQUID_PRESSURE','PRESSURE')
+            case('LIQUID_PRESSURE')
               sub_condition_ptr => pressure
             case('RATE')
               sub_condition_ptr => rate
@@ -903,11 +962,11 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => energy_rate
             case('WELL')
               sub_condition_ptr => well
-            case('LIQUID_FLUX','FLUX')
+            case('LIQUID_FLUX')
               sub_condition_ptr => flux
             case('ENERGY_FLUX')
               sub_condition_ptr => energy_flux
-            case('LIQUID_SATURATION','SATURATION')
+            case('LIQUID_SATURATION')
               sub_condition_ptr => saturation
             case('TEMPERATURE')
               sub_condition_ptr => temperature
@@ -915,9 +974,8 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => concentration
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
-! uncomment after release of v4.0
-!            case('PRESSURE','SATURATION','FLUX')
-!              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
+            case('PRESSURE','SATURATION','FLUX')
+              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
             case default
               call InputKeywordUnrecognized(input,word,'condition,type',option)
           end select
@@ -1060,7 +1118,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           select case(trim(word))
-            case('LIQUID_PRESSURE','PRESSURE')
+            case('LIQUID_PRESSURE')
               sub_condition_ptr => pressure
               internal_units = 'Pa/meter'
             case('RATE')
@@ -1072,10 +1130,10 @@ subroutine FlowConditionRead(condition,input,option)
             case('WELL')
               sub_condition_ptr => well
               internal_units = 'Pa/meter'
-            case('LIQUID_FLUX','FLUX')
+            case('LIQUID_FLUX')
               sub_condition_ptr => flux
               internal_units = 'm/sec-m|unitless/sec'
-            case('LIQUID_SATURATION','SATURATION')
+            case('LIQUID_SATURATION')
               sub_condition_ptr => saturation
               internal_units = 'unitless/meter'
             case('TEMPERATURE')
@@ -1087,9 +1145,8 @@ subroutine FlowConditionRead(condition,input,option)
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
               internal_units = 'kJ/mol-meter'
-! uncomment after release of v4.0
-!            case('PRESSURE','SATURATION','FLUX')
-!              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
+            case('PRESSURE','SATURATION','FLUX')
+              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
             case default
               call InputKeywordUnrecognized(input,word, &
                      'FLOW CONDITION,GRADIENT,TYPE',option)
@@ -1116,7 +1173,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  enthalpy%dataset, &
                                  enthalpy%units,internal_units)
-      case('LIQUID_PRESSURE','PRESSURE')
+      case('LIQUID_PRESSURE')
         internal_units = 'Pa'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
@@ -1146,7 +1203,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  well%dataset, &
                                  well%units,internal_units)
-      case('LIQUID_FLUX','FLUX')
+      case('LIQUID_FLUX')
         internal_units = 'meter/sec'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
@@ -1156,7 +1213,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  concentration%dataset, &
                                  concentration%units,internal_units)
-      case('LIQUID_SATURATION','SATURATION')
+      case('LIQUID_SATURATION')
         internal_units = 'unitless'
         call ConditionReadValues(input,option,word, &
                                  saturation%dataset, &
@@ -1164,9 +1221,8 @@ subroutine FlowConditionRead(condition,input,option)
       case('CONDUCTANCE')
         call InputReadDouble(input,option,pressure%aux_real(1))
         call InputErrorMsg(input,option,'CONDUCTANCE','CONDITION')
-! uncomment after release of v4.0
-!      case('PRESSURE','SATURATION','FLUX')
-!        call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
+      case('PRESSURE','SATURATION','FLUX')
+        call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
       case default
         call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
@@ -1302,22 +1358,18 @@ subroutine FlowConditionRead(condition,input,option)
                               PETSC_TRUE)
 
   select case(option%iflowmode)
-    case default
-      option%io_buffer = 'The flow mode not supported in original &
-        &FlowConditionRead.'
-      call PrintMsg(option)
     case(G_MODE)
       option%io_buffer = 'General mode not supported in original &
         &FlowConditionRead.'
-      call PrintMsg(option)
+      call PrintErrMsg(option)
     case(H_MODE)
       option%io_buffer = 'Hydrate mode not supported in original &
         &FlowConditionRead.'
-      call PrintMsg(option)
+      call PrintErrMsg(option)
     case(WF_MODE)
       option%io_buffer = 'WIPP Flow mode not supported in original &
         &FlowConditionRead.'
-      call PrintMsg(option)
+      call PrintErrMsg(option)
     case(MPH_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well) .and. .not.associated(saturation)) then
@@ -1635,10 +1687,16 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(saturation)) call FlowSubConditionDestroy(saturation)
       if (associated(temperature)) call FlowSubConditionDestroy(temperature)
       if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
+    case default
+      option%io_buffer = 'The NULL flow mode not supported in original &
+        &FlowConditionRead.'
+      call PrintErrMsg(option)
 
   end select
 
   condition%default_time_storage => default_time_storage
+
+  call FlowConditionVerify(option,condition)
 
   call PetscLogEventEnd(logging%event_flow_condition_read,ierr);CHKERRQ(ierr)
 
@@ -2175,6 +2233,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   enddo
 
   condition%default_time_storage => default_time_storage
+
+  call FlowConditionVerify(option,condition)
 
   call PetscLogEventEnd(logging%event_flow_condition_read,ierr);CHKERRQ(ierr)
 
@@ -2771,6 +2831,8 @@ subroutine FlowConditionHydrateRead(condition,input,option)
 
   condition%default_time_storage => default_time_storage
 
+  call FlowConditionVerify(option,condition)
+
   call PetscLogEventEnd(logging%event_flow_condition_read,ierr);CHKERRQ(ierr)
 
 end subroutine FlowConditionHydrateRead
@@ -2959,7 +3021,8 @@ subroutine TranConditionRead(condition,constraint_list, &
           case('s','sec','min','m','hr','h','d','day','y','yr')
             default_time_units = trim(word)
           case default
-            option%io_buffer = 'Units "' // trim(word) // '" not recognized.'
+            option%io_buffer = 'Units "' // trim(word) // '" not recognized &
+              &in TRANSPORT_CONDITION "' // trim(condition%name) // '".'
             call PrintErrMsg(option)
         end select
       case('CONSTRAINT_LIST')
@@ -2996,7 +3059,8 @@ subroutine TranConditionRead(condition,constraint_list, &
             internal_units = 'sec'
             constraint_coupler%time = constraint_coupler%time* &
               UnitsConvertToInternal(constraint_coupler%time_units, &
-                                     internal_units,option)
+                                     internal_units, &
+                                     'CONSTRAINT_LIST,TIME_UNITS',option)
           endif
           ! add to end of list
           if (.not.associated(condition%constraint_coupler_list)) then
@@ -3062,6 +3126,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
+                                        'TRANSPORT_CONDITION,TIME_UNITS', &
                                         option)
     cur_constraint_coupler => condition%constraint_coupler_list
     do
@@ -3252,7 +3317,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
 #ifndef SERIAL_HDF5
         call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-        call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
+        call HDF5FileOpenReadOnly(filename,file_id,prop_id,option)
         call h5pclose_f(prop_id,hdf5_err)
 
         hdf5_path = trim(hdf5_path) // trim(realization_word)

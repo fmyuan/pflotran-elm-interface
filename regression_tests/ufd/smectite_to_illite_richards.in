@@ -317,9 +317,9 @@ REFERENCE_TEMPERATURE 2.60d+2 C
 #============================= flow conditions ================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 5.00000d+6 Pa
+  LIQUID_PRESSURE 5.00000d+6 Pa
 END
 
 #=========================== transport conditions =============================

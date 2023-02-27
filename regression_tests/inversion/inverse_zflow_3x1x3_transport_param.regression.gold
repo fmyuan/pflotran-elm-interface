@@ -34,7 +34,6 @@
         4:         1
         7:         1
 -- SOLUTION: Flow --
-   Time (seconds):   9.8624229431152E-03
    Time Steps:           26
    Newton Iterations:           27
    Linear Solver Iterations:           27

@@ -289,14 +289,14 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 !#ifndef SERIAL_HDF5
 !    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 !#endif
-    call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
+    call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
     h5fopen_err = hdf5_err
     call h5pclose_f(prop_id,hdf5_err)
 
     if (h5fopen_err == 0) then
       option%io_buffer = 'Opening hdf5 group: ' // trim(dataset_name)
       call PrintMsg(option)
-      call HDF5GroupOpen(file_id,dataset_name,grp_id,option)
+      call HDF5GroupOpen(file_id,dataset_name,grp_id,option%driver)
       attribute_name = "Time Units"
       call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
       if (attribute_exists) then
@@ -381,7 +381,8 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     call h5fclose_f(file_id,hdf5_err)
     internal_units = 'sec'
     time_storage%times = time_storage%times * &
-      UnitsConvertToInternal(time_units,internal_units,option)
+      UnitsConvertToInternal(time_units,internal_units, &
+                             trim(dataset_name)//'Time Units',option)
   endif
 
   int_mpi = int(num_times)

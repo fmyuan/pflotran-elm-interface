@@ -8,6 +8,7 @@ module Test_Characteristic_Curves_module
   use Characteristic_Curves_Common_module
   use Characteristic_Curves_WIPP_module
   use Option_module
+  use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH
 
   implicit none
 
@@ -41,6 +42,7 @@ module Test_Characteristic_Curves_module
       class(characteristic_curves_type), pointer :: cc_krp9
       class(characteristic_curves_type), pointer :: cc_krp11
       class(characteristic_curves_type), pointer :: cc_krp12
+      class(characteristic_curves_type), pointer :: cc_modbc
       procedure(runMethod), pointer :: userMethod => null()
     contains
       procedure :: setUp
@@ -69,8 +71,6 @@ contains
 ! ************************************************************************** !
 
   subroutine setUp(this)
-
-    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH
 
     implicit none
 
@@ -526,6 +526,31 @@ contains
       class is(rpf_KRP12_gas_type)
         sf%lambda = 0.20d0
         sf%Srg = 0.20d0
+    end select
+
+  ! Setting up the characteristic curve for modified Brooks Corey
+  ! relative permeability
+    this%cc_modbc => CharacteristicCurvesCreate()
+    this%cc_modbc%liq_rel_perm_function => RPFModBrooksCoreyLiqCreate()
+    this%cc_modbc%liq_rel_perm_function%Sr = 0.153d0
+    this%cc_modbc%liq_rel_perm_function%Srg = 0.d0
+    select type(rpf=>this%cc_modbc%liq_rel_perm_function)
+      class is(rpf_mod_Brooks_Corey_liq_type)
+        rpf%kr_max = 0.888d0
+        rpf%n = 3.2d0
+      class default
+        print *, 'not modified BC Liq type'
+    end select
+
+    this%cc_modbc%gas_rel_perm_function => RPFModBrooksCoreyGasCreate()
+    this%cc_modbc%gas_rel_perm_function%Sr = 0.143d0
+    this%cc_modbc%gas_rel_perm_function%Srg = 0.1d0
+    select type(rpf=>this%cc_modbc%gas_rel_perm_function)
+      class is(rpf_mod_Brooks_Corey_gas_type)
+        rpf%kr_max = 0.777d0
+        rpf%n = 2.2d0
+      class default
+        print *, 'not modified BC Gas type'
     end select
 
   end subroutine setUp
@@ -2296,6 +2321,143 @@ contains
     @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
 
   end subroutine testsf_KRP12
+
+! ************************************************************************** !
+
+  @Test
+  subroutine testcc_KRPModBrooksCorey(this)
+
+    implicit none
+
+    class(Test_Characteristic_Curves), intent(inout) :: this
+
+    PetscReal :: liquid_saturation
+    PetscReal :: relative_permeability
+    PetscReal :: value
+    PetscReal :: dkr_sat
+    PetscReal, parameter :: tolerance = 1.d-8
+    character(len=MAXSTRINGLENGTH) :: string
+
+    string = ''
+    call this%cc_modbc%liq_rel_perm_function%Verify(string,this%option)
+    call this%cc_modbc%gas_rel_perm_function%Verify(string,this%option)
+
+    liquid_saturation = 0.13d0
+    call this%cc_modbc%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey liquid relative permeability at &
+             &very low liquid saturation'
+    value = 0.d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey liquid relative permeability derivative at &
+             &very low liquid saturation'
+    value = 0.d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    call this%cc_modbc%gas_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey gas relative permeability at &
+             &very low liquid saturation'
+    value = 0.777d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey gas relative permeability derivative at &
+             &very low liquid saturation'
+    value = 0.d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    liquid_saturation = 1.d0
+    call this%cc_modbc%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey liquid relative permeability at &
+             &liquid saturation'
+    value = 0.888d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey liquid relative permeability derivative at &
+             &very low liquid saturation'
+    value = 0.d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    call this%cc_modbc%gas_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey gas relative permeability at &
+             &liquid saturation'
+    value = 0.d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey gas relative permeability derivative at &
+             &liquid saturation'
+    value = 0.d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    liquid_saturation = 0.85d0
+    call this%cc_modbc%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey liquid relative permeability at &
+             &high liquid saturation'
+    value = 0.47591669791650282d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey liquid relative permeability derivative at &
+             &high liquid saturation'
+    value = 2.1849834050685928d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    call this%cc_modbc%gas_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey gas relative permeability at &
+             &high liquid saturation'
+    value = 1.9685393179233227d-3
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey gas relative permeability derivative at &
+             &high liquid saturation'
+    value = -8.6615729988626183d-2
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    liquid_saturation = 0.2d0
+    call this%cc_modbc%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey liquid relative permeability at &
+             &low liquid saturation'
+    value = 8.5094050780208850d-5
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey liquid relative permeability derivative at &
+             &low liquid saturation'
+    value = 5.7936374999291110d-3
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    call this%cc_modbc%gas_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey gas relative permeability at &
+             &low liquid saturation'
+    value = 0.65407232230065315d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey gas relative permeability derivative at &
+             &low liquid saturation'
+    value = -2.0556558700877670d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+    ! set Srg > 0 for liquid rel perm function
+    liquid_saturation = 0.6d0
+    this%cc_modbc%liq_rel_perm_function%Srg = 0.05d0
+    call this%cc_modbc%liq_rel_perm_function% &
+         RelativePermeability(liquid_saturation,relative_permeability, &
+                              dkr_sat,this%option)
+    string = 'Modified Brooks Corey liquid relative permeability at &
+             &mid liquid saturation and Srg > 0 for liquid'
+    value = 0.13955018331922028d0
+    @assertEqual(value, relative_permeability, dabs(value)*tolerance, string)
+    string = 'Modified Brooks Corey liquid relative permeability derivative at &
+             &mid liquid saturation and Srg > 0'
+    value = 0.99901697230761743d0
+    @assertEqual(value, dkr_sat, dabs(value)*tolerance, string)
+
+  end subroutine testcc_KRPModBrooksCorey
 
 ! ************************************************************************** !
 

@@ -32,17 +32,25 @@ module PFLOTRAN_Constants_module
 
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
+
+  ! Comment on file units: There are several ranges of file units that are
+  ! reserved for nested I/O, where nested file accesses cannot use the same
+  ! file unit as outer file units. Do not use integers that lie between the
+  ! ranges specified.
+
   PetscInt, parameter, public :: STDOUT_UNIT = stdout
   PetscInt, parameter, public :: DRIVER_OUT_UNIT = 14
   PetscInt, parameter, public :: FORWARD_OUT_UNIT = 15
-  PetscInt, parameter, public :: OUTPUT_UNIT = 16
-  PetscInt, parameter, public :: IN_UNIT = 17 ! 17-MAX_IN_UNIT are reserved
-  ! If you increase MAX_IN_UNIT, you MUST ensure that no other units #
-  ! lie between IN_UNIT and MAX_IN_UNIT, as these units are reserved
-  ! for embedded input files.
-  PetscInt, parameter, public :: MAX_IN_UNIT = 25
-  PetscInt, parameter, public :: IUNIT_TEMP = 86
+  ! Before you add file UNITS between FORWARD_OUT_UNIT and MAX_OUT_UNIT, read
+  ! comment on file units above.
+  PetscInt, parameter, public :: MAX_OUT_UNIT = 17
+  PetscInt, parameter, public :: OUTPUT_UNIT = 18 ! for output data files
+  PetscInt, parameter, public :: IN_UNIT = 19 
+  ! Before you add file UNITS between IN_UNIT and MAX_IN_UNIT, read
+  ! comment on file units above.
+  PetscInt, parameter, public :: MAX_IN_UNIT = 27
   ! Units 50-59 are reserved for reservoir engineering format files
+  PetscInt, parameter, public :: IUNIT_TEMP = 86
   ! EKG_UNIT = 87
   PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000

@@ -1,0 +1,57 @@
+-- GENERIC: pH --
+      Max:   5.9871020681050E+00
+      Min:   5.9871020681050E+00
+     Mean:   5.9871020681050E+00
+        1:   5.9871020681050E+00
+-- CONCENTRATION: Total H+ --
+      Max:   1.0291956617296E-06
+      Min:   1.0291956617296E-06
+     Mean:   1.0291956617296E-06
+        1:   1.0291956617296E-06
+-- CONCENTRATION: Total Na+ --
+      Max:   9.9993177463397E-05
+      Min:   9.9993177463397E-05
+     Mean:   9.9993177463397E-05
+        1:   9.9993177463397E-05
+-- CONCENTRATION: Total Cl- --
+      Max:   1.0000796169548E-04
+      Min:   1.0000796169548E-04
+     Mean:   1.0000796169548E-04
+        1:   1.0000796169548E-04
+-- CONCENTRATION: Total NO3- --
+      Max:   1.0182652912899E-06
+      Min:   1.0182652912899E-06
+     Mean:   1.0182652912899E-06
+        1:   1.0182652912899E-06
+-- CONCENTRATION: Free H+ --
+      Max:   1.0391005979330E-06
+      Min:   1.0391005979330E-06
+     Mean:   1.0391005979330E-06
+        1:   1.0391005979330E-06
+-- CONCENTRATION: Free Na+ --
+      Max:   9.9993177463397E-05
+      Min:   9.9993177463397E-05
+     Mean:   9.9993177463397E-05
+        1:   9.9993177463397E-05
+-- CONCENTRATION: Free Cl- --
+      Max:   1.0000796169548E-04
+      Min:   1.0000796169548E-04
+     Mean:   1.0000796169548E-04
+        1:   1.0000796169548E-04
+-- CONCENTRATION: Free NO3- --
+      Max:   1.0182652912899E-06
+      Min:   1.0182652912899E-06
+     Mean:   1.0182652912899E-06
+        1:   1.0182652912899E-06
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time Steps:          187
+   Newton Iterations:          992
+   Linear Solver Iterations:          992
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.4183239155095E-04
+   Residual 2-Norm:   7.8031608958790E-18
