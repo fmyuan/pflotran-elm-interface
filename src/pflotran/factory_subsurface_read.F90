@@ -1874,7 +1874,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
               call StringToUpper(word)
               select case(trim(word))
                 case('OFF')
-                  call PrintSetPrintToFileFlag(option%driver%print_flags, &
+                  call PrintSetPrintToFileFlag(option%print_flags, &
                                                PETSC_FALSE)
                 case('PERIODIC')
                   call InputReadInt(input,option,output_option%output_file_imod)
@@ -1890,7 +1890,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
               call StringToUpper(word)
               select case(trim(word))
                 case('OFF')
-                  call PrintSetPrintToScreenFlag(option%driver%print_flags, &
+                  call PrintSetPrintToScreenFlag(option%print_flags, &
                                                  PETSC_FALSE)
                 case('PERIODIC')
                   call InputReadInt(input,option,output_option%screen_imod)

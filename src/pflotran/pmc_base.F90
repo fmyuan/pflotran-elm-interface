@@ -890,7 +890,8 @@ subroutine SetOutputFlags(this)
 
   output_option => this%pm_list%output_option
 
-  if (OptionPrintToScreen(this%option) .and. output_option%screen_imod > 0) then
+  if (this%option%driver%print_flags%print_to_screen .and. &
+      output_option%screen_imod > 0) then
     if (mod(this%timestepper%steps,output_option%screen_imod) == 0) then
       call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_TRUE)
     else
@@ -900,7 +901,7 @@ subroutine SetOutputFlags(this)
     call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_FALSE)
   endif
 
-  if (OptionPrintToFile(this%option) .and. &
+  if (this%option%driver%print_flags%print_to_file .and. &
       mod(this%timestepper%steps,output_option%output_file_imod) == 0) then
     call PrintSetPrintToFileFlag(this%option%print_flags,PETSC_TRUE)
   else
