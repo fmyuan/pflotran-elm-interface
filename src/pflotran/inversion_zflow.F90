@@ -762,9 +762,6 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
 
   call InvSubsurfSetupForwardRunLinkage(this)
 
-  call VecDuplicate(this%inversion_aux%dist_parameter_vec,this%dist_parameter_tmp_vec, &
-                    ierr);CHKERRQ(ierr)
-
   ! check to ensure that quantity of interest exists
   exists = PETSC_FALSE
   iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
@@ -795,6 +792,12 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
       &' cannot be performed with the specified process models.'
     call PrintErrMsg(this%realization%option)
   endif
+
+  if (.not.associated(this%inversion_option%invcomm)) return
+
+  call VecDuplicate(this%inversion_aux%dist_parameter_vec, &
+                    this%dist_parameter_tmp_vec, &
+                    ierr);CHKERRQ(ierr)
 
   call InversionZFlowConstrainedArraysFromList(this)
 
@@ -849,14 +852,9 @@ subroutine InversionZFlowCheckConvergence(this)
   PetscErrorCode :: ierr
 
   this%converged = PETSC_FALSE
-  if (associated(this%inversion_option%invcomm)) then
-    call this%EvaluateCostFunction()
-    if ((this%current_chi2 <= this%target_chi2) .or. &
-        (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
-  endif
-  call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
-                 MPI_LOGICAL,this%driver%comm%io_rank, &
-                 this%driver%comm%communicator,ierr);CHKERRQ(ierr)
+  call this%EvaluateCostFunction()
+  if ((this%current_chi2 <= this%target_chi2) .or. &
+      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
 
 end subroutine InversionZFlowCheckConvergence
 
@@ -2348,7 +2346,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 10/20/21
   !
-
+  use Print_module
   use String_module
 
   implicit none
@@ -2359,7 +2357,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
   PetscInt, parameter :: zeronum = 0
 
   call InvSubsurfWriteIterationInfo(this)
-  if (this%driver%PrintToScreen()) then
+  if (PrintToScreen(this%driver%print_flags,this%inversion_option%invcomm)) then
     write(*,*)
     write(*,98)
     if (this%string_color) then
@@ -2413,7 +2411,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
     write(*,98)
   endif
 
-  if (this%driver%PrintToFile()) then
+  if (PrintToFile(this%driver%print_flags,this%inversion_option%invcomm)) then
     fid = this%driver%fid_out
     write(fid,*)
     write(fid,98)

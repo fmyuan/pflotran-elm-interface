@@ -418,8 +418,9 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('COUPLED_FLOW_AND_ERT')
       this%inversion_option%coupled_flow_ert = PETSC_TRUE
-    case('SPLIT_COMMUNICATORS')
-      this%inversion_option%split_comms = PETSC_TRUE
+    case('NUM_PROCESS_GROUPS')
+      call InputReadInt(input,option,this%inversion_option%num_process_groups)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('PERTURBATION')
       string = trim(error_string)//keyword
       input%ierr = 0
@@ -481,7 +482,7 @@ subroutine InvSubsurfInitForwardRun(this,option)
   if (associated(this%inversion_aux%perturbation)) then
     this%inversion_option%perturbation_run = &
       (this%inversion_aux%perturbation%idof_pert /= 0)
-  else if (this%inversion_option%split_comms) then
+  else if (this%inversion_option%num_process_groups > 1) then
     option%io_buffer = 'The splitting of inversion communicators is only &
       &allowed for perturbation inversion runs.'
     call PrintErrMsg(option)
@@ -1395,7 +1396,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
   call InvSubsurfOutputSensitivity(this,'')
 
-  if (.not.this%inversion_aux%qoi_is_full_vector) then
+  if (associated(this%inversion_option%invcomm) .and. &
+      .not.this%inversion_aux%qoi_is_full_vector) then
     call InvAuxScatParamToDistParam(this%inversion_aux, &
                                     this%inversion_aux%parameter_vec, &
                                     this%inversion_aux%dist_parameter_vec, &
@@ -1952,13 +1954,15 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   ! destroy non-perturbed forward run
   iteration = 0
   ! InvSubsurfPerturbationFillRow performs setup on iteration 0
-  if (this%inversion_option%coupled_flow_ert) then
-    call InvSubsurfFVCalcPartialJs(this,iteration)
-  else
-    call InvSubsurfPerturbationFillRow(this,iteration)
+  if (associated(this%inversion_option%invcomm)) then
+    if (this%inversion_option%coupled_flow_ert) then
+      call InvSubsurfFVCalcPartialJs(this,iteration)
+    else
+      call InvSubsurfPerturbationFillRow(this,iteration)
+    endif
   endif
   call this%DestroyForwardRun()
-  iteration = 1
+  iteration = this%inversion_option%forcomm%group_id
   do
     if (associated(this%inversion_aux%perturbation%select_cells)) then
       this%inversion_aux%perturbation%idof_pert = &
@@ -1975,7 +1979,8 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     else
       call InvSubsurfPerturbationFillRow(this,iteration)
     endif
-    iteration = iteration + 1
+    iteration = iteration + &
+                this%inversion_option%num_process_groups
     if (iteration > this%inversion_aux%perturbation%ndof) exit
     ! the last forward run will be destroyed after any output of
     ! sensitivity matrices

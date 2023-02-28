@@ -136,16 +136,23 @@ subroutine InversionBaseStep(this)
 
   type(option_type), pointer :: option
   PetscBool :: invflag
+  PetscErrorCode :: ierr
 
   invflag = associated(this%inversion_option%invcomm)
 
   call this%InitializeForwardRun(option)
   call this%SetupForwardRunLinkage()
-  call this%ConnectToForwardRun()
-  call this%ExecuteForwardRun()
-  call this%CheckConvergence()
-  call this%WriteIterationInfo()
-  call this%Checkpoint()
+  if (associated(this%inversion_option%invcomm)) then
+    call this%ConnectToForwardRun()
+    call this%ExecuteForwardRun()
+    call this%CheckConvergence()
+    call this%WriteIterationInfo()
+    call this%Checkpoint()
+  endif
+  ! need to broadcast in the case of parallel perturbation
+  call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
+                 MPI_LOGICAL,this%driver%comm%io_rank, &
+                 this%driver%comm%communicator,ierr);CHKERRQ(ierr)
   if (.not.this%converged) then
     call this%CalculateSensitivity()
     if (invflag) then
