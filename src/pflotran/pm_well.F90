@@ -3453,21 +3453,17 @@ subroutine PMWellFinalizeTimestep(this)
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
 
-  if (.not. this%flow_quasi_implicit_coupling) then
+  call PMWellUpdateReservoirSrcSink(this)
 
-    call PMWellUpdateReservoirSrcSink(this)
-
-    call PMWellUpdateMass(this)
-
-    call PMWellMassBalance(this)
-
-  endif
+  call PMWellUpdateMass(this)
+  call PMWellMassBalance(this)
 
   if (this%print_well) then
     call PMWellOutput(this)
   endif
 
 end subroutine PMWellFinalizeTimestep
+
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSink(this)
@@ -4766,7 +4762,7 @@ subroutine PMWellSolve(this,time,ierr)
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs if the solve
            ! routines are not entered, either due to an inactive well or due
-           ! to being on a process that doesn't contain a well segment.
+           ! to being on a process that doesn't contain a well segment.          
 
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
@@ -4776,9 +4772,11 @@ subroutine PMWellSolve(this,time,ierr)
   endif
 
   if (this%flow_quasi_implicit_coupling) then
-    write(out_string,'("Quasi-implicit wellbore flow coupling is being used.")')
+    write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
+                      &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    return
+  else 
+    
   endif
 
   call PMWellSolveFlow(this,time,ierr)
@@ -5170,9 +5168,9 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
   enddo
 
-  !call PMWellPostSolveFlow(this)
+  call PMWellPostSolveFlow(this)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
-  !call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
 end subroutine PMWellSolveFlow
 
