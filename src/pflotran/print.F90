@@ -159,7 +159,7 @@ end subroutine PrintSetPrintToScreenFlag
 
 subroutine PrintSetPrintToFileFlag(print_flags,flag)
   !
-  ! Sets the toggle for printing to the screen
+  ! Sets the toggle for printing to the file
   !
   ! Author: Glenn Hammond
   ! Date: 02/16/23
@@ -167,7 +167,7 @@ subroutine PrintSetPrintToFileFlag(print_flags,flag)
   type(print_flags_type) :: print_flags
   PetscBool :: flag
 
-  print_flags%print_to_screen = flag
+  print_flags%print_to_file = flag
 
 end subroutine PrintSetPrintToFileFlag
 
