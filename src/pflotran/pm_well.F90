@@ -5550,6 +5550,8 @@ subroutine PMWellPostSolveFlow(this)
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time_converted
 
+  if (this%flow_quasi_implicit_coupling) return
+
   cur_time_converted = this%option%time/this%output_option%tconv
 
   WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," &
