@@ -700,42 +700,44 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       this%inversion_aux%coupled_aux => InversionCoupledAuxCreate()
     endif
 
-if (associated(invcomm)) then
-    ! JsensitivityT is the transpose of the sensitivity Jacobian
-    ! with num measurement columns and num parameter rows
-    call MatCreateDense(invcomm%communicator, &
-                        this%num_parameters_local,PETSC_DECIDE, &
-                        num_parameters,num_measurements, &
-                        PETSC_NULL_SCALAR,this%inversion_aux%JsensitivityT, &
-                        ierr);CHKERRQ(ierr)
-    call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-    ! cannot pass in this%inversion_aux%measurement_vec as it is initialized to
-    ! PETSC_NULL_VEC and MatCreateVecs keys off that input
-    call MatCreateVecs(this%inversion_aux%JsensitivityT,v,v2, &
-                       ierr);CHKERRQ(ierr)
-    this%inversion_aux%dist_measurement_vec = v
-    this%inversion_aux%dist_parameter_vec = v2
-    call MatGetLocalSize(this%inversion_aux%JsensitivityT,temp_int, &
-                         num_measurements_local,ierr);CHKERRQ(ierr)
-    if (this%num_parameters_local == PETSC_DECIDE) then
-      this%num_parameters_local = temp_int
+    if (associated(invcomm)) then
+      ! JsensitivityT is the transpose of the sensitivity Jacobian
+      ! with num measurement columns and num parameter rows
+      call MatCreateDense(invcomm%communicator, &
+                          this%num_parameters_local,PETSC_DECIDE, &
+                          num_parameters,num_measurements, &
+                          PETSC_NULL_SCALAR, &
+                          this%inversion_aux%JsensitivityT, &
+                          ierr);CHKERRQ(ierr)
+      call MatZeroEntries(this%inversion_aux%JsensitivityT, &
+                          ierr);CHKERRQ(ierr)
+      ! cannot pass in this%inversion_aux%measurement_vec as it is
+      ! initialized to PETSC_NULL_VEC and MatCreateVecs keys off that input
+      call MatCreateVecs(this%inversion_aux%JsensitivityT,v,v2, &
+                         ierr);CHKERRQ(ierr)
+      this%inversion_aux%dist_measurement_vec = v
+      this%inversion_aux%dist_parameter_vec = v2
+      call MatGetLocalSize(this%inversion_aux%JsensitivityT,temp_int, &
+                           num_measurements_local,ierr);CHKERRQ(ierr)
+      if (this%num_parameters_local == PETSC_DECIDE) then
+        this%num_parameters_local = temp_int
+      endif
+      if (temp_int /= this%num_parameters_local) then
+        call this%driver%PrintErrMsg('Misalignment in MatGetLocalSize ('//&
+                  trim(StringWrite(temp_int))//','//&
+                  trim(StringWrite(this%num_parameters_local))//') in &
+                  &InvSubsurfSetupForwardRunLinkage.')
+      endif
+      allocate(int_array(2),int_array2(2))
+      int_array(1) = this%num_parameters_local
+      int_array(2) = num_measurements_local
+      int_array2(:) = 0
+      call MPI_Exscan(int_array,int_array2,TWO_INTEGER_MPI,MPIU_INTEGER, &
+                      MPI_SUM,invcomm%communicator,ierr);CHKERRQ(ierr)
+      this%parameter_offset = int_array2(1)
+      this%dist_measurement_offset = int_array2(2)
+      deallocate(int_array,int_array2)
     endif
-    if (temp_int /= this%num_parameters_local) then
-      call this%driver%PrintErrMsg('Misalignment in MatGetLocalSize ('//&
-                 trim(StringWrite(temp_int))//','//&
-                 trim(StringWrite(this%num_parameters_local))//') in &
-                 &InvSubsurfSetupForwardRunLinkage.')
-    endif
-    allocate(int_array(2),int_array2(2))
-    int_array(1) = this%num_parameters_local
-    int_array(2) = num_measurements_local
-    int_array2(:) = 0
-    call MPI_Exscan(int_array,int_array2,TWO_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    invcomm%communicator,ierr);CHKERRQ(ierr)
-    this%parameter_offset = int_array2(1)
-    this%dist_measurement_offset = int_array2(2)
-    deallocate(int_array,int_array2)
-endif
 
     call VecCreateSeq(PETSC_COMM_SELF,num_measurements, &
                       this%inversion_aux%measurement_vec, &
@@ -746,43 +748,43 @@ endif
                         ierr);CHKERRQ(ierr)
     endif
 
-if (associated(invcomm)) then
-    if (this%inversion_aux%qoi_is_full_vector) then
-      ! is_parameter should mirror the natural vec
-      allocate(int_array(this%num_parameters_local))
-      do i = 1, this%num_parameters_local
-        int_array(i) = i
-      enddo
-      int_array = this%parameter_offset + int_array - 1
-      call DiscretAOApplicationToPetsc(this%realization%discretization, &
-                                       int_array)
-      call ISCreateGeneral(invcomm%communicator,size(int_array),int_array, &
-                           PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
-      deallocate(int_array)
-      call VecScatterCreate(this%realization%field%work,is_petsc, &
-                            this%inversion_aux%dist_parameter_vec, &
-                            PETSC_NULL_IS, &
-                            this%inversion_aux%scatter_global_to_dist_param, &
-                            ierr);CHKERRQ(ierr)
-      call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
-    else
-      ! moved outside earlier, outside of conditional
-!      call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
-!                        this%inversion_aux%parameter_vec, &
-!                        ierr);CHKERRQ(ierr)
-      call VecDuplicate(this%inversion_aux%parameter_vec, &
-                        this%inversion_aux%del_parameter_vec, &
-                        ierr);CHKERRQ(ierr)
-      call ISCreateStride(invcomm%communicator,num_parameters,ZERO_INTEGER, &
-                          ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
-      call VecScatterCreate(this%inversion_aux%parameter_vec,is_parameter, &
+    if (associated(invcomm)) then
+      if (this%inversion_aux%qoi_is_full_vector) then
+        ! is_parameter should mirror the natural vec
+        allocate(int_array(this%num_parameters_local))
+        do i = 1, this%num_parameters_local
+          int_array(i) = i
+        enddo
+        int_array = this%parameter_offset + int_array - 1
+        call DiscretAOApplicationToPetsc(this%realization%discretization, &
+                                         int_array)
+        call ISCreateGeneral(invcomm%communicator,size(int_array),int_array, &
+                             PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+        deallocate(int_array)
+        call VecScatterCreate(this%realization%field%work,is_petsc, &
+                          this%inversion_aux%dist_parameter_vec, &
+                          PETSC_NULL_IS, &
+                          this%inversion_aux%scatter_global_to_dist_param, &
+                          ierr);CHKERRQ(ierr)
+        call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
+      else
+        ! moved outside earlier, outside of conditional
+  !      call VecCreateSeq(PETSC_COMM_SELF,num_parameters, &
+  !                        this%inversion_aux%parameter_vec, &
+  !                        ierr);CHKERRQ(ierr)
+        call VecDuplicate(this%inversion_aux%parameter_vec, &
+                          this%inversion_aux%del_parameter_vec, &
+                          ierr);CHKERRQ(ierr)
+        call ISCreateStride(invcomm%communicator,num_parameters,ZERO_INTEGER, &
+                            ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
+        call VecScatterCreate(this%inversion_aux%parameter_vec,is_parameter, &
                             this%inversion_aux%dist_parameter_vec, &
                             PETSC_NULL_IS, &
                             this%inversion_aux%scatter_param_to_dist_param, &
-                            ierr);CHKERRQ(ierr)
-      call ISDestroy(is_parameter,ierr)
+                              ierr);CHKERRQ(ierr)
+        call ISDestroy(is_parameter,ierr)
+      endif
     endif
-endif
 
     do i = 1, num_measurements
       iflag = PETSC_FALSE
@@ -956,17 +958,17 @@ endif
       endif
     enddo
 
-if (associated(invcomm)) then
-    ! map measurement vec to distributed measurement vec
-    call ISCreateStride(invcomm%communicator,num_measurements,ZERO_INTEGER, &
-                        ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
-    call VecScatterCreate(this%inversion_aux%measurement_vec,is_measure, &
-                          this%inversion_aux%dist_measurement_vec, &
-                          PETSC_NULL_IS, &
-                          this%inversion_aux%scatter_measure_to_dist_measure, &
-                          ierr);CHKERRQ(ierr)
-    call ISDestroy(is_measure,ierr)
-endif
+    if (associated(invcomm)) then
+      ! map measurement vec to distributed measurement vec
+      call ISCreateStride(invcomm%communicator,num_measurements,ZERO_INTEGER, &
+                          ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
+      call VecScatterCreate(this%inversion_aux%measurement_vec,is_measure, &
+                        this%inversion_aux%dist_measurement_vec, &
+                        PETSC_NULL_IS, &
+                        this%inversion_aux%scatter_measure_to_dist_measure, &
+                        ierr);CHKERRQ(ierr)
+      call ISDestroy(is_measure,ierr)
+    endif
 
     this%inversion_aux%measurements => this%inversion_aux%measurements
     this%inversion_aux%measurement_vec = this%inversion_aux%measurement_vec
