@@ -312,9 +312,6 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   if (associated(pm_auxiliary)) then
     call FactSubLinkAddPMCGeneral(simulation,pm_auxiliary,'SALINITY')
   endif
-  if (associated(pm_well)) then
-    call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
-  endif
   if (associated(pm_material_transform)) then
     call FactSubLinkAddPMCMaterialTrans(simulation,pm_material_transform, &
                                         'PMC3MaterialTransform',input)
@@ -323,6 +320,10 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     select type(pm_flow)
       class is (pm_wippflo_type)
         call FactSubLinkAddPMWippSrcSink(realization,pm_flow,input)
+        if (associated(pm_well)) then
+          call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell', &
+                                     pm_flow,input)
+        endif
     end select
   endif
 
@@ -929,7 +930,8 @@ end subroutine FactSubLinkAddPMCMaterialTrans
 
 ! ************************************************************************** !
 
-subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
+subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,pm_wippflo, &
+                                 input)
   !
   ! Adds a well PMC
   !
@@ -940,6 +942,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   use PMC_Base_class
   use PMC_Third_Party_class
   use PM_Well_class
+  use PM_WIPP_Flow_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -950,6 +953,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   class(simulation_subsurface_type) :: simulation
   class(pm_well_type), pointer :: pm_well
   character(len=*) :: pmc_name
+  class(pm_wippflo_type) :: pm_wippflo
   type(input_type), pointer :: input
 
   class(pmc_third_party_type), pointer :: pmc_well
@@ -1002,6 +1006,9 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
          simulation%flow_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
   endif
+
+  ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
+  pm_wippflo%pmwell_ptr => pm_well
 
 end subroutine FactSubLinkAddPMCWell
 
