@@ -1006,6 +1006,9 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,pm_wippflo, &
          simulation%flow_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
   endif
+  
+  ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
+  pm_wippflo%pmwell_ptr => pm_well
 
   ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
   pm_wippflo%pmwell_ptr => pm_well
