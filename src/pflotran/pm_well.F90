@@ -4489,7 +4489,7 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
       call PrintMsg(this%option)
     endif
   else ! Q into well
-    Qin = well%liq%Q(isegment)*FMWH2O/rho_avg
+    Qin = 0.d0 !well%liq%Q(isegment)*FMWH2O/rho_avg
     Qout = 0.d0
     if (resr%s_l(isegment) < 1.d-40) then
       this%option%io_buffer = 'HINT: The liquid saturation is zero. &
