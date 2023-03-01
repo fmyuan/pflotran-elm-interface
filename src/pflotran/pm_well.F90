@@ -3453,21 +3453,18 @@ subroutine PMWellFinalizeTimestep(this)
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
 
-  if (.not. this%flow_quasi_implicit_coupling) then
+  call PMWellUpdateReservoirSrcSink(this)
 
-    call PMWellUpdateReservoirSrcSink(this)
+  call PMWellUpdateMass(this)
 
-    call PMWellUpdateMass(this)
-
-    call PMWellMassBalance(this)
-
-  endif
+  call PMWellMassBalance(this)
 
   if (this%print_well) then
     call PMWellOutput(this)
   endif
 
 end subroutine PMWellFinalizeTimestep
+
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSink(this)
@@ -4776,12 +4773,12 @@ subroutine PMWellSolve(this,time,ierr)
   endif
 
   if (this%flow_quasi_implicit_coupling) then
-    write(out_string,'("Quasi-implicit wellbore flow coupling is being used.")')
+    write(out_string,'(" FLOW               Quasi-implicit wellbore flow &
+                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    return
+  else
+    call PMWellSolveFlow(this,time,ierr)
   endif
-
-  call PMWellSolveFlow(this,time,ierr)
 
   if (this%transport) then
     call PMWellSolveTran(this,time,ierr)
@@ -5169,10 +5166,11 @@ subroutine PMWellSolveFlow(this,time,ierr)
     !endif
 
   enddo
-
-  !call PMWellPostSolveFlow(this)
-
-  !call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+  
+  if (.not. wippflo_well_quasi_imp_coupled) then
+    call PMWellPostSolveFlow(this)
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine PMWellSolveFlow
 
@@ -6838,6 +6836,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 end subroutine PMWellBCFlux
 
 ! ************************************************************************** !
+
 subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   !
   ! Computes the derivative of the boundary flux terms for the Jacobian,
