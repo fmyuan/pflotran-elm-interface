@@ -8612,7 +8612,6 @@ subroutine ANNReadH5File(this, option)
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
-  integer(HID_T) :: prop_id
   integer(HID_T) :: file_id
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
@@ -8621,10 +8620,8 @@ subroutine ANNReadH5File(this, option)
 
   PetscMPIInt :: hdf5_err
 
-  call h5open_f(hdf5_err)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
-  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
+  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_TRUE,'',option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
 
   dataset_name = 'input_hidden1_weights'
   call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
@@ -8690,9 +8687,8 @@ subroutine ANNReadH5File(this, option)
   call h5dclose_f(dataset_id,hdf5_err)
   deallocate(dims_h5)
 
-  call h5gclose_f(group_id,hdf5_err)
-  call h5fclose_f(file_id,hdf5_err)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5GroupClose(group_id,option)
+  call HDF5FileClose(file_id,option)
 
 end subroutine ANNReadH5File
 
@@ -8832,7 +8828,6 @@ subroutine KnnrReadH5File(this, option)
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
-  integer(HID_T) :: prop_id
   integer(HID_T) :: file_id
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
@@ -8844,14 +8839,10 @@ subroutine KnnrReadH5File(this, option)
 
   PetscMPIInt :: hdf5_err
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-
-  call HDF5FileOpenReadOnly(h5_name,file_id,prop_id,'',option)
-
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_TRUE,'',option)
 
   !hdf5groupopen
-  call HDF5GroupOpen(file_id,group_name,group_id,option%driver)
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
 
   !Get Nearest Neighbors
   call KnnrGetNearestNeighbors(this,group_id,h5_name,option)
@@ -8896,9 +8887,8 @@ subroutine KnnrReadH5File(this, option)
   deallocate(dims_h5)
   deallocate(max_dims_h5)
 
-
-  call h5gclose_f(group_id,hdf5_err)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5GroupClose(group_id,option)
+  call HDF5FileClose(file_id,option)
 
   this%table_data(1,:) = log10(this%table_data(1,:))
   this%table_data(2,:) = log10(this%table_data(2,:))

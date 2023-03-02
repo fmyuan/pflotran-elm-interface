@@ -2265,6 +2265,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   !
   use hdf5
   use HDF5_module
+  use HDF5_Aux_module
   use Output_HDF5_module
   use String_module
 
@@ -2280,9 +2281,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: prop_id
   character(len=MAXSTRINGLENGTH) :: string
-  integer :: hdf5_err
 
   if (.not.associated(this%realization)) then
     call this%driver%PrintErrMsg('InvSubsurfOutputSensitivityHDF5 must be &
@@ -2290,15 +2289,9 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   endif
 
   !HDF5 formatted output
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,this%realization%option%mycomm, &
-                          MPI_INFO_NULL,hdf5_err)
-#endif
   string = trim(filename_prefix) // '.h5'
-  call h5fcreate_f(string,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
-                   H5P_DEFAULT_F,prop_id)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpen(string,file_id,PETSC_TRUE, &
+                    this%realization%option)
 
   call OutputHDF5WriteStructCoordGroup(file_id, &
                                        this%realization%discretization, &
@@ -2309,12 +2302,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   write(string,'(''Time:'',es13.5,x,a1)') &
         this%realization%option%time/this%realization%output_option%tconv, &
         this%realization%output_option%tunit
-  call h5eset_auto_f(OFF,hdf5_err)
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
-  if (hdf5_err /= 0) then
-    call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-  endif
-  call h5eset_auto_f(ON,hdf5_err)
+  call HDF5GroupOpenOrCreate(file_id,string,grp_id,this%realization%option)
 
   num_measurement = size(this%inversion_aux%measurements)
   call VecDuplicate(this%inversion_aux%dist_measurement_vec, &
@@ -2336,7 +2324,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
                                        H5T_NATIVE_DOUBLE)
   enddo
   call VecDestroy(row_vec,ierr);CHKERRQ(ierr)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,this%driver)
   call OutputHDF5CloseFile(this%realization%option,file_id)
 
 end subroutine InvSubsurfOutputSensitivityHDF5
@@ -2502,7 +2490,7 @@ subroutine InvSubsurfRestartIteration(this)
     call this%driver%PrintMsg('Restarting at last iteration (' // &
                               trim(StringWrite(restart_iteration)) // ').')
   endif
-  call HDF5FileClose(file_id)
+  call HDF5FileClose(file_id,this%driver)
   this%restart_iteration = restart_iteration
   this%iteration = this%restart_iteration
 

@@ -3312,19 +3312,14 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
 
         option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
         call PrintMsg(option)
-        call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-        call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-        call HDF5FileOpenReadOnly(filename,file_id,prop_id,option)
-        call h5pclose_f(prop_id,hdf5_err)
+        call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
         hdf5_path = trim(hdf5_path) // trim(realization_word)
         call HDF5ReadNDimRealArray(option,file_id,hdf5_path,ndims,dims, &
                                    real_buffer)
         option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
         call PrintMsg(option)
-        call h5fclose_f(file_id,hdf5_err)
+        call HDF5FileClose(file_id,option)
 
         ! dims(1) = size of array
         ! dims(2) = number of data point in time

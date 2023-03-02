@@ -281,54 +281,42 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   if (OptionIsIORank(option)) then
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
     call PrintMsg(option)
+    ! PETSC_FALSE is because this is not collective
+    call HDF5FileOpenReadOnly(filename,file_id,PETSC_FALSE,'',option)
+    option%io_buffer = 'Opening hdf5 group: ' // trim(dataset_name)
+    call PrintMsg(option)
+    call HDF5GroupOpen(file_id,dataset_name,grp_id,option%driver)
+    attribute_name = "Time Units"
+    call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
+    if (attribute_exists) then
+      attribute_dim = 1
+      call h5tcopy_f(H5T_NATIVE_CHARACTER,atype_id,hdf5_err)
+      size_t_int = MAXWORDLENGTH
+      call h5tset_size_f(atype_id,size_t_int,hdf5_err)
+      call h5aopen_f(grp_id,attribute_name,attribute_id,hdf5_err)
+      call h5aread_f(attribute_id,atype_id,time_units,attribute_dim,hdf5_err)
+      call h5aclose_f(attribute_id,hdf5_err)
+    else
+      option%io_buffer = 'Time Units assumed to be seconds.'
+      call PrintWrnMsg(option)
+      time_units = 's'
+    endif
 
-    ! set read file access property
-    call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-    !geh: DO NOT call h5pset_fapl_mpio_f here since the attribute is only being
-    !     read by the io_rank process.
-!#ifndef SERIAL_HDF5
-!    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-!#endif
-    call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-    h5fopen_err = hdf5_err
-    call h5pclose_f(prop_id,hdf5_err)
+    ! Check whether a time array actually exists
+    string = 'Times'
+    call h5lexists_f(grp_id,string,group_exists,hdf5_err)
 
-    if (h5fopen_err == 0) then
-      option%io_buffer = 'Opening hdf5 group: ' // trim(dataset_name)
+    if (group_exists) then
+      !geh: Should check to see if "Times" dataset exists.
+      option%io_buffer = 'Opening data set: ' // trim(string)
       call PrintMsg(option)
-      call HDF5GroupOpen(file_id,dataset_name,grp_id,option%driver)
-      attribute_name = "Time Units"
-      call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
-      if (attribute_exists) then
-        attribute_dim = 1
-        call h5tcopy_f(H5T_NATIVE_CHARACTER,atype_id,hdf5_err)
-        size_t_int = MAXWORDLENGTH
-        call h5tset_size_f(atype_id,size_t_int,hdf5_err)
-        call h5aopen_f(grp_id,attribute_name,attribute_id,hdf5_err)
-        call h5aread_f(attribute_id,atype_id,time_units,attribute_dim,hdf5_err)
-        call h5aclose_f(attribute_id,hdf5_err)
-      else
-        option%io_buffer = 'Time Units assumed to be seconds.'
-        call PrintWrnMsg(option)
-        time_units = 's'
-      endif
-
-      ! Check whether a time array actually exists
-      string = 'Times'
-      call h5lexists_f(grp_id,string,group_exists,hdf5_err)
-
-      if (group_exists) then
-        !geh: Should check to see if "Times" dataset exists.
-        option%io_buffer = 'Opening data set: ' // trim(string)
-        call PrintMsg(option)
-        call h5dopen_f(grp_id,string,dataset_id,hdf5_err)
-        call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
-        call h5sget_simple_extent_npoints_f(file_space_id,num_times,hdf5_err)
-        num_times_read_by_iorank = int(num_times)
-      else
-        num_times_read_by_iorank = -1
-      endif
-    endif ! h5fopen_err == 0
+      call h5dopen_f(grp_id,string,dataset_id,hdf5_err)
+      call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+      call h5sget_simple_extent_npoints_f(file_space_id,num_times,hdf5_err)
+      num_times_read_by_iorank = int(num_times)
+    else
+      num_times_read_by_iorank = -1
+    endif
   endif
 
   ! Need to catch errors in opening the file.  Since the file is only opened

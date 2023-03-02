@@ -219,22 +219,13 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-!geh: I don't believe that we ever need this
-!  if (first_time) then
-!  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-!  endif
-#endif
-  call HDF5FileOpenReadOnly(this%filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%filename,file_id,PETSC_FALSE,'',option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option%driver)
+  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option)
 
   ! only want to read on first time through
   if (this%data_dim == DIM_NULL) then
@@ -545,10 +536,10 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 #endif
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 #ifdef BROADCAST_DATASET
   endif
 #endif

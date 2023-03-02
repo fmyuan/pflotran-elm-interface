@@ -412,6 +412,7 @@ recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
   ! Date: 09/13/22
   !
   use hdf5
+  use HDF5_Aux_module
   use PM_Base_class
 
   implicit none
@@ -424,7 +425,6 @@ recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
   integer(HID_T) :: h5_pm_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  PetscMPIInt :: hdf5_err
 
   ! if the top PMC
   if (this%is_master) then
@@ -432,8 +432,8 @@ recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
       &process model coupler'
     call PrintErrMsg(this%option)
   else
-    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_chk_grp_id, trim(this%name), &
+                         h5_pmc_grp_id, this%option)
   endif
 
   if (associated(this%timestepper)) then
@@ -444,15 +444,15 @@ recursive subroutine PMCGeophysicsCheckpointHDF5(this,h5_chk_grp_id,append_name)
   do
     if (.not.associated(cur_pm)) exit
 
-    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
-         hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
+                         this%option)
     call cur_pm%CheckpointHDF5(h5_pm_grp_id)
-    call h5gclose_f(h5_pm_grp_id, hdf5_err)
+    call HDF5GroupClose(h5_pm_grp_id,this%option)
 
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  call HDF5GroupClose(h5_pmc_grp_id,this%option)
 
   if (associated(this%child)) then
     call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
@@ -483,7 +483,6 @@ recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
   integer(HID_T) :: h5_chk_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
@@ -542,11 +541,10 @@ recursive subroutine PMCGeophysicsRestartHDF5(this,h5_chk_grp_id)
       call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id, &
                          this%option%driver)
       call cur_pm%RestartHDF5(h5_pm_grp_id)
-      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      call HDF5GroupClose(h5_pm_grp_id,this%option)
       cur_pm => cur_pm%next
     enddo
-
-    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+    call HDF5GroupClose(h5_pmc_grp_id,this%option)
   endif
 
   if (associated(this%child)) then
