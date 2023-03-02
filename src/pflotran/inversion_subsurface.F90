@@ -1975,42 +1975,41 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   class(inversion_subsurface_type) :: this
 
   type(option_type), pointer :: option
-  PetscInt :: iteration
+  PetscInt :: idof_pert
   PetscInt :: iqoi(2)
   PetscInt :: i
   PetscErrorCode :: ierr
 
   ! destroy non-perturbed forward run
-  iteration = 0
+  idof_pert = 0
   ! InvSubsurfPerturbationFillRow performs setup on iteration 0
   if (associated(this%inversion_option%invcomm)) then
     if (this%inversion_option%coupled_flow_ert) then
-      call InvSubsurfFVCalcPartialJs(this,iteration)
+      call InvSubsurfFVCalcPartialJs(this,idof_pert)
     else
-      call InvSubsurfPerturbationFillRow(this,iteration)
+      call InvSubsurfPerturbationFillRow(this,idof_pert)
     endif
   endif
   call this%DestroyForwardRun()
-  iteration = this%inversion_option%forcomm%group_id
+  idof_pert = this%inversion_option%forcomm%group_id
   do
     if (associated(this%inversion_aux%perturbation%select_cells)) then
       this%inversion_aux%perturbation%idof_pert = &
-        this%inversion_aux%perturbation%select_cells(iteration)
+        this%inversion_aux%perturbation%select_cells(idof_pert)
     else
-      this%inversion_aux%perturbation%idof_pert = iteration
+      this%inversion_aux%perturbation%idof_pert = idof_pert
     endif
     call this%InitializeForwardRun(option)
     call InvSubsurfSetupForwardRunLinkage(this) ! do not call mapped version
     call this%ConnectToForwardRun()
     call this%ExecuteForwardRun()
     if (this%inversion_option%coupled_flow_ert) then
-      call InvSubsurfFVCalcPartialJs(this,iteration)
+      call InvSubsurfFVCalcPartialJs(this,idof_pert)
     else
-      call InvSubsurfPerturbationFillRow(this,iteration)
+      call InvSubsurfPerturbationFillRow(this,idof_pert)
     endif
-    iteration = iteration + &
-                this%inversion_option%num_process_groups
-    if (iteration > this%inversion_aux%perturbation%ndof) exit
+    idof_pert = idof_pert + this%inversion_option%num_process_groups
+    if (idof_pert > this%inversion_aux%perturbation%ndof) exit
     ! the last forward run will be destroyed after any output of
     ! sensitivity matrices
     call this%DestroyForwardRun()
@@ -2082,7 +2081,7 @@ end subroutine InvSubsurfPertCalcSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfPerturbationFillRow(this,iteration)
+subroutine InvSubsurfPerturbationFillRow(this,my_dof)
   !
   ! Fills a row (actually column since we store the transpose) of the
   ! Jacobian created through perurbation
@@ -2095,17 +2094,17 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
   use String_module
 
   class(inversion_subsurface_type) :: this
-  PetscInt :: iteration
+  PetscInt :: my_dof
 
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
   PetscInt :: igroup
-  PetscInt :: idof_pert
+  PetscInt :: iparameter
   PetscInt :: num_measurements
   PetscMPIInt :: mpi_int
   PetscErrorCode :: ierr
 
-  if (this%inversion_aux%perturbation%idof_pert < 0) then
+  if (my_dof < 0) then
     call this%driver%PrintErrMsg('InvSubsurfPerturbationFillRow() called  &
       &with an idof_pert < 0')
   endif
@@ -2120,7 +2119,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
   call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
                           vec_ptr,ierr);CHKERRQ(ierr)
 
-  if (this%inversion_aux%perturbation%idof_pert == 0) then
+  if (my_dof == 0) then
     ! if parallel perturbation runs, need to broadcast the base measurement
     if (associated(this%inversion_option%forcomm_0)) then
       call VecGetArrayF90(this%inversion_aux%measurement_vec, &
@@ -2148,11 +2147,11 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
                   ierr);CHKERRQ(ierr)
   endif
 
-  if (this%inversion_aux%perturbation%idof_pert == 0) return
+  if (my_dof == 0) return
 
   if (associated(this%inversion_option%invcomm)) then
     do igroup = 1, this%inversion_option%num_process_groups
-      if (this%inversion_aux%perturbation%idof_pert + igroup - 1 > &
+      if (my_dof + igroup - 1 > &
           this%inversion_aux%perturbation%ndof) exit
       if (igroup > 1) then
         call VecGetArrayF90(this%inversion_aux%measurement_vec, &
@@ -2160,7 +2159,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
         call MPI_Probe(MPI_ANY_SOURCE,mpi_int, &
                        this%inversion_option%forcomm_0%communicator, &
                        MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
-        idof_pert = int(mpi_int)
+        iparameter = int(mpi_int)
         call MPI_Recv(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION, &
                       mpi_int,MPI_ANY_TAG, &
                       this%inversion_option%forcomm_0%communicator, &
@@ -2168,7 +2167,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
         call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
                                 vec_ptr,ierr);CHKERRQ(ierr)
       else
-        idof_pert = this%inversion_aux%perturbation%idof_pert
+        iparameter = my_dof
       endif
 
       ! don't need to use the distributed vec, but why not
@@ -2180,7 +2179,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
                           ierr);CHKERRQ(ierr)
       do i = 1, size(vec_ptr)
         call MatSetValue(this%inversion_aux%JsensitivityT, &
-                         idof_pert-1, &
+                         iparameter-1, &
                          this%dist_measurement_offset+i-1,vec_ptr(i), &
                          INSERT_VALUES,ierr);CHKERRQ(ierr)
       enddo
@@ -2190,13 +2189,12 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
 
   else ! send derivatives to process 0
     if (associated(this%inversion_option%forcomm_0) .and. &
-        this%inversion_aux%perturbation%idof_pert <= &
-        this%inversion_aux%perturbation%ndof) then
+        my_dof <= this%inversion_aux%perturbation%ndof) then
       call VecGetArrayF90(this%inversion_aux%measurement_vec, &
                           vec_ptr,ierr);CHKERRQ(ierr)
       mpi_int = 0
       call MPI_Send(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION, &
-                    mpi_int,this%inversion_aux%perturbation%idof_pert, &
+                    mpi_int,my_dof, &
                     this%inversion_option%forcomm_0%communicator, &
                     ierr);CHKERRQ(ierr)
       call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
@@ -2204,7 +2202,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
     endif
   endif
 
-  if (iteration == this%inversion_aux%perturbation%ndof) then
+  if (iparameter == this%inversion_aux%perturbation%ndof) then
     call MatAssemblyBegin(this%inversion_aux%JsensitivityT, &
                           MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(this%inversion_aux%JsensitivityT, &
@@ -2213,8 +2211,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
 
   if (.not.this%inversion_aux%qoi_is_full_vector) then
     ! revert back to base value
-    this%inversion_aux% &
-        parameters(this%inversion_aux%perturbation%idof_pert)%value = &
+    this%inversion_aux%parameters(my_dof)%value = &
       this%inversion_aux%perturbation%base_value
   endif
 
