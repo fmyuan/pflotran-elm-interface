@@ -155,28 +155,63 @@ subroutine SimulationInverseInitializeRun(this)
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
-  type(comm_type), pointer :: newcomm
+  type(comm_type), pointer :: invcomm,forcomm,forcomm_0
+  PetscInt :: num_process_groups
+  PetscMPIInt :: mpi_int_array(3)
+  PetscMPIInt :: mpi_int
+  PetscMPIInt :: temp_group
+
   PetscErrorCode :: ierr
 
+  nullify(invcomm)
+  nullify(forcomm)
+  nullify(forcomm_0)
+
+  num_process_groups = this%inversion%inversion_option%num_process_groups
+
   ! create process groups here
-  nullify(newcomm)
-  call CommCreateProcessGroups(this%driver%comm, &
-                               this%inversion%inversion_option% &
-                                 num_process_groups,PETSC_TRUE, &
-                               this%inversion%inversion_option%invcomm,ierr)
+  call CommCreateProcessGroups(this%driver%comm,num_process_groups, &
+                               PETSC_TRUE,invcomm,ierr)
   if (ierr /= 0) then
     call this%driver%PrintErrMsg('Unevenly sized MPI comm groups.')
   endif
-  if (this%inversion%inversion_option%invcomm%group_id > 1) then
-    call CommDestroy(this%inversion%inversion_option%invcomm)
+  if (invcomm%group_id > 1) then
+    call CommDestroy(invcomm)
   endif
-  call CommCreateProcessGroups(this%driver%comm, &
-                               this%inversion%inversion_option% &
-                                 num_process_groups,PETSC_TRUE, &
-                               this%inversion%inversion_option%forcomm,ierr)
-  if (this%inversion%inversion_option%forcomm%group_id > 1) then
+  call CommCreateProcessGroups(this%driver%comm,num_process_groups, &
+                               PETSC_TRUE,forcomm,ierr)
+  if (forcomm%group_id > 1) then
 !    call CommDestroy(this%inversion%inversion_option%forcomm)
   endif
+
+  if (num_process_groups > 1) then
+    forcomm_0 => CommCreate()
+    mpi_int_array(1) = 0
+    mpi_int_array(2) = this%driver%comm%size-1
+    mpi_int_array(3) = num_process_groups
+    mpi_int = 1
+    call MPI_Group_range_incl(this%driver%comm%group,1, &
+                              mpi_int_array,temp_group, &
+                              ierr);CHKERRQ(ierr)
+    mpi_int = 0
+    call MPI_Comm_create_group(this%driver%comm%communicator,temp_group, &
+                              mpi_int,forcomm_0%communicator, &
+                              ierr);CHKERRQ(ierr)
+    if (forcomm_0%communicator /= MPI_COMM_NULL) then
+      call MPI_Comm_rank(forcomm_0%communicator,forcomm_0%rank, &
+                        ierr);CHKERRQ(ierr)
+      call MPI_Comm_size(forcomm_0%communicator,forcomm_0%size, &
+                        ierr);CHKERRQ(ierr)
+      call MPI_Comm_group(forcomm_0%communicator,forcomm_0%group, &
+                          ierr);CHKERRQ(ierr)
+    else
+      call CommDestroy(forcomm_0)
+    endif
+  endif
+
+  this%inversion%inversion_option%invcomm => invcomm
+  this%inversion%inversion_option%forcomm => forcomm
+  this%inversion%inversion_option%forcomm_0 => forcomm_0
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)

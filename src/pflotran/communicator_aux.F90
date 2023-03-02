@@ -225,7 +225,8 @@ subroutine CommStrip(comm)
     comm%group = MPI_GROUP_NULL
   endif
 
-  if (comm%communicator /= PETSC_COMM_WORLD) then
+  if (comm%communicator /= PETSC_COMM_WORLD .and. &
+      comm%communicator /= MPI_COMM_NULL) then
     call MPI_Comm_free(comm%communicator,ierr);CHKERRQ(ierr)
     comm%communicator = MPI_COMM_NULL
   endif

@@ -14,6 +14,7 @@ module Option_Inversion_module
   type, public :: inversion_option_type
     type(comm_type), pointer :: invcomm
     type(comm_type), pointer :: forcomm
+    type(comm_type), pointer :: forcomm_0
     PetscInt :: num_process_groups
     PetscBool :: use_perturbation
     PetscBool :: perturbation_run
@@ -77,6 +78,7 @@ subroutine OptionInversionInit(option)
 
   nullify(option%invcomm)
   nullify(option%forcomm)
+  nullify(option%forcomm_0)
   option%num_process_groups = 1
 
   option%use_perturbation = PETSC_FALSE
@@ -115,6 +117,7 @@ subroutine OptionInversionDestroy(option)
 
   call CommDestroy(option%invcomm)
   call CommDestroy(option%forcomm)
+  call CommDestroy(option%forcomm_0)
 
   deallocate(option)
   nullify(option)
