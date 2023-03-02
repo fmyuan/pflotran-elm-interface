@@ -252,6 +252,7 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
+      this%name = 'auxiliary salinity'
     case default
       this%option%io_buffer = 'Function pointer "' // trim(string) // '" not &
         &found among available functions in PMAuxiliarySetFunctionPointer.'
