@@ -1991,6 +1991,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     endif
   endif
   call this%DestroyForwardRun()
+  ! begin by assigning perturbations based on the group id
   idof_pert = this%inversion_option%forcomm%group_id
   do
     if (associated(this%inversion_aux%perturbation%select_cells)) then
@@ -1998,6 +1999,10 @@ subroutine InvSubsurfPertCalcSensitivity(this)
         this%inversion_aux%perturbation%select_cells(idof_pert)
     else
       this%inversion_aux%perturbation%idof_pert = idof_pert
+      ! the following condition allows the perturbation forward
+      ! runs to be destroyed below.
+      if (.not. associated(this%inversion_option%invcomm) .and. &
+          idof_pert > this%inversion_aux%perturbation%ndof) exit
     endif
     call this%InitializeForwardRun(option)
     call InvSubsurfSetupForwardRunLinkage(this) ! do not call mapped version
@@ -2009,9 +2014,10 @@ subroutine InvSubsurfPertCalcSensitivity(this)
       call InvSubsurfPerturbationFillRow(this,idof_pert)
     endif
     idof_pert = idof_pert + this%inversion_option%num_process_groups
-    if (idof_pert > this%inversion_aux%perturbation%ndof) exit
+    if (associated(this%inversion_option%invcomm) .and. &
+        idof_pert > this%inversion_aux%perturbation%ndof) exit
     ! the last forward run will be destroyed after any output of
-    ! sensitivity matrices
+    ! sensitivity matrices (invcomm only)
     call this%DestroyForwardRun()
   enddo
 
