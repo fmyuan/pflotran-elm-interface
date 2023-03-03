@@ -582,6 +582,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -647,7 +648,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointWriteIntDatasetHDF5
 
@@ -665,6 +666,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -728,7 +730,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointWriteRealDatasetHDF5
 
@@ -745,6 +747,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -802,7 +805,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointReadIntDatasetHDF5
 
@@ -819,6 +822,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -873,7 +877,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointReadRealDatasetHDF5
 

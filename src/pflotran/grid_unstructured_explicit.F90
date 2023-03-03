@@ -579,7 +579,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%cell_volumes(icell) = double_buffer(icell)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(double_buffer)
   nullify(double_buffer)
   deallocate(dims_h5)
@@ -646,7 +646,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%cell_centroids(icell)%z = double_buffer_2d(3,icell)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(double_buffer_2d)
   nullify(double_buffer_2d)
   deallocate(dims_h5)
@@ -735,7 +735,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%connections(2,iconn) = int_buffer_2d(2,iconn)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(int_buffer_2d)
   nullify(int_buffer_2d)
   deallocate(dims_h5)
@@ -799,7 +799,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%face_centroids(iconn)%z = double_buffer_2d(3,iconn)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(double_buffer_2d)
   nullify(double_buffer_2d)
   deallocate(dims_h5)
@@ -864,7 +864,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%face_areas(iconn) = double_buffer(iconn)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call HDF5FileClose(file_id,option)
   deallocate(double_buffer)
   nullify(double_buffer)

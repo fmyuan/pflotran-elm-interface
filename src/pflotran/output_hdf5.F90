@@ -942,7 +942,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
                                        max_dims,hdf5_err)
       num_cells = int(dims(1))
       call h5sclose_f(file_space_id,hdf5_err)
-      call h5dclose_f(data_set_id,hdf5_err)
+      call HDF5DatasetClose(data_set_id,option)
       string = 'Domain/Vertices'
       call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
       if (hdf5_err /= 0) then
@@ -956,7 +956,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
                                        max_dims,hdf5_err)
       num_vertices = int(dims(2))
       call h5sclose_f(file_space_id,hdf5_err)
-      call h5dclose_f(data_set_id,hdf5_err)
+      call HDF5DatasetClose(data_set_id,option)
       call HDF5FileClose(file_id2,option)
       include_cell_centers = PETSC_TRUE
     else
@@ -1463,6 +1463,7 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   !
 
   use hdf5
+  use HDF5_Aux_module
   use Option_module
 
   implicit none
@@ -1510,7 +1511,7 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
      call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   endif
   call h5pclose_f(prop_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call PetscLogEventEnd(logging%event_output_coordinates_hdf5, &
@@ -1531,6 +1532,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use hdf5
+  use HDF5_Aux_module
   use Grid_module
   use Option_module
   use Grid_Unstructured_Aux_module
@@ -1666,7 +1668,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
@@ -1778,7 +1780,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call h5pclose_f(prop_id,hdf5_err)
 
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1801,6 +1803,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use hdf5
+  use HDF5_Aux_module
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -1940,7 +1943,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   deallocate(double_array)
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
@@ -2061,7 +2064,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   deallocate(int_array)
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -2169,7 +2172,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   ! YC
@@ -2225,7 +2228,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   ! ZC
@@ -2281,7 +2284,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
 
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
 
@@ -2382,6 +2385,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use hdf5
+  use HDF5_Aux_module
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -2503,7 +2507,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
 
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   deallocate(vec_x_ptr)
@@ -2613,7 +2617,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
 
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -2840,7 +2844,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
 
     call h5pclose_f(prop_id,hdf5_err)
 
-    call h5dclose_f(data_set_id,hdf5_err)
+    call HDF5DatasetClose(data_set_id,option)
     call h5sclose_f(file_space_id,hdf5_err)
 
   enddo
@@ -3035,7 +3039,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
 
       call h5pclose_f(prop_id,hdf5_err)
 
-      call h5dclose_f(data_set_id,hdf5_err)
+      call HDF5DatasetClose(data_set_id,option)
       call h5sclose_f(file_space_id,hdf5_err)
 
     enddo

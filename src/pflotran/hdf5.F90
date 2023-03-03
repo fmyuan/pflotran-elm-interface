@@ -4,7 +4,7 @@ module HDF5_module
   use petscvec
 
   use Logging_module
-
+  use HDF5_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -151,7 +151,7 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
 
   call h5pclose_f(prop_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   call PetscLogEventEnd(logging%event_read_int_array_hdf5,ierr);CHKERRQ(ierr)
 
@@ -302,7 +302,7 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
     endif
   endif
   call h5pclose_f(prop_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
   call h5sclose_f(memory_space_id,hdf5_err)
 
@@ -432,7 +432,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call h5pclose_f(prop_id,hdf5_err)
   call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   cell_id_bounds(1) = minval(indices(1:iend-istart))
   cell_id_bounds(2) = maxval(indices(1:iend-istart))
@@ -464,6 +464,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   !
   use hdf5
 
+  use HDF5_Aux_module
   use Option_module
   use Grid_module
   use Discretization_module
@@ -591,7 +592,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
@@ -921,7 +922,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   call h5pclose_f(prop_id,hdf5_err)
   call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(data_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call HDF5FileClose(file_id,option)
 
 end subroutine HDF5ReadRegionDefinedByVertex
@@ -1364,7 +1365,7 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
     call h5pclose_f(prop_id,hdf5_err)
   endif
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5WriteDataSetFromVec
@@ -1502,7 +1503,7 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
     call h5pclose_f(prop_id,hdf5_err)
   endif
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5ReadDataSetInVec

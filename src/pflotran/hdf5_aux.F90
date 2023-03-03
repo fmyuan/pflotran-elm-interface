@@ -85,6 +85,16 @@ module HDF5_Aux_module
     module procedure :: HDF5GroupClose2
   end interface
 
+  interface HDF5DatasetOpen
+    module procedure :: HDF5DatasetOpen1
+    module procedure :: HDF5DatasetOpen2
+  end interface
+
+  interface HDF5DatasetClose
+    module procedure :: HDF5DatasetClose1
+    module procedure :: HDF5DatasetClose2
+  end interface
+
   public :: HDF5ReadNDimRealArray, &
             HDF5GroupExists, &
             HDF5DatasetExists, &
@@ -217,7 +227,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   deallocate(dims_h5)
   deallocate(max_dims_h5)
@@ -634,7 +644,7 @@ end function HDF5DatasetExists
 
 ! ************************************************************************** !
 
-subroutine HDF5DatasetOpen(parent_id,dataset_name,dataset_id,option)
+subroutine HDF5DatasetOpen1(parent_id,dataset_name,dataset_id,option)
   !
   ! Opens an HDF5 dataset
   !
@@ -650,23 +660,44 @@ subroutine HDF5DatasetOpen(parent_id,dataset_name,dataset_id,option)
   integer(HID_T) :: dataset_id
   type(option_type) :: option
 
+  call HDF5DatasetOpen(parent_id,dataset_name,dataset_id,option%driver)
+
+end subroutine HDF5DatasetOpen1
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetOpen2(parent_id,dataset_name,dataset_id,driver)
+  !
+  ! Opens an HDF5 dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: dataset_name
+  integer(HID_T) :: dataset_id
+  class(driver_type) :: driver
+
   character(len=MAXSTRINGLENGTH) :: string
   integer :: hdf5_err
 
   string = trim(dataset_name)
   call h5dopen_f(parent_id,string,dataset_id,hdf5_err)
   if (hdf5_err < 0) then
-    option%io_buffer = 'HDF5 Dataset ' // trim(dataset_name) // &
+    call driver%PrintErrMsg('HDF5 Dataset ' // trim(dataset_name) // &
       ' could not be opened within ' // &
-      trim(HDF5ObjectGetNameTypeString(parent_id,option%driver))  // '.'
-    call PrintErrMsg(option)
+      trim(HDF5ObjectGetNameTypeString(parent_id,driver))  // '.')
   endif
 
-end subroutine HDF5DatasetOpen
+end subroutine HDF5DatasetOpen2
 
 ! ************************************************************************** !
 
-subroutine HDF5DatasetClose(dataset_id,option)
+subroutine HDF5DatasetClose1(dataset_id,option)
   !
   ! Closes an HDF5 dataset
   !
@@ -680,12 +711,32 @@ subroutine HDF5DatasetClose(dataset_id,option)
   integer(HID_T) :: dataset_id
   type(option_type) :: option
 
+  call HDF5DatasetClose(dataset_id,option%driver)
+
+end subroutine HDF5DatasetClose1
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetClose2(dataset_id,driver)
+  !
+  ! Closes an HDF5 dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: dataset_id
+  class(driver_type) :: driver
+
   integer :: hdf5_err
 
   call h5dclose_f(dataset_id,hdf5_err)
-  call HDF5CloseCheckError(hdf5_err,dataset_id,option%driver)
+  call HDF5CloseCheckError(hdf5_err,dataset_id,driver)
 
-end subroutine HDF5DatasetClose
+end subroutine HDF5DatasetClose2
 
 ! ************************************************************************** !
 
@@ -799,7 +850,7 @@ subroutine HDF5ReadDbase(filename,option)
         call PrintErrMsg(option)
       endif
       call h5tclose_f(datatype_id, hdf5_err)
-      call h5dclose_f(dataset_id,hdf5_err)
+      call HDF5DatasetClose(dataset_id,option)
     endif
   enddo
   allocate(dbase)
@@ -936,7 +987,7 @@ subroutine HDF5ReadDbase(filename,option)
       call h5pclose_f(prop_id,hdf5_err)
       if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
       call h5sclose_f(file_space_id,hdf5_err)
-      call h5dclose_f(dataset_id,hdf5_err)
+      call HDF5DatasetClose(dataset_id,option)
       call StringToUpper(object_name)
       ! these conditionals must come after the bcasts above!!!
       if (class_id == H5T_INTEGER_F) then
@@ -1383,7 +1434,7 @@ subroutine HDF5DatasetReadBase(parent_id,dset_name,dset_type_expected, &
                             trim(dset_name) // &
                             '" has an error while reading data.')
   endif
-  call h5dclose_f(dset_id,hdf5_err)
+  call HDF5DatasetClose(dset_id,driver)
 
 end subroutine HDF5DatasetReadBase
 
@@ -1680,7 +1731,7 @@ end subroutine HDF5FileOpen2
 ! ************************************************************************** !
 
 subroutine HDF5FileOpenReadOnly(filename,file_id,is_collective, &
-                                error_string,option)
+                                error_string,option,hdfopen_err)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -1695,6 +1746,7 @@ subroutine HDF5FileOpenReadOnly(filename,file_id,is_collective, &
   PetscBool :: is_collective
   character(len=*) :: error_string
   type(option_type) :: option
+  integer, optional :: hdfopen_err
 
   integer(HID_T) :: prop_id
   PetscMPIInt, parameter :: ON=1, OFF=0
@@ -1711,7 +1763,11 @@ subroutine HDF5FileOpenReadOnly(filename,file_id,is_collective, &
   call h5eset_auto_f(OFF, hdf5_err2)
   string = trim(filename)
   call h5fopen_f(filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
-  if (hdf5_err /= 0) then
+  ! for non-collective operations, error handing may need to be
+  ! handled externally
+  if (.not.is_collective .and. present(hdfopen_err)) then
+    hdfopen_err = hdf5_err
+  else if (hdf5_err /= 0) then
     option%io_buffer = 'HDF5 '
     if (len_trim(error_string) > 0) then
       option%io_buffer = trim(error_string)

@@ -1415,6 +1415,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   !
 
   use hdf5
+  use HDF5_Aux_module
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use Geomechanics_Realization_class
   use Geomechanics_Grid_module
@@ -1550,7 +1551,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   deallocate(double_array)
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
@@ -1689,7 +1690,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   deallocate(int_array)
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)

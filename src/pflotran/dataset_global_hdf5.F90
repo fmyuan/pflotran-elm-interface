@@ -331,7 +331,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   string = trim(this%hdf5_dataset_name) // '/Data'
   option%io_buffer = 'Closing data set: ' // trim(string)
   call PrintMsg(option)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call HDF5FileClose(file_id,option)

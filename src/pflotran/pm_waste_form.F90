@@ -8620,7 +8620,7 @@ subroutine ANNReadH5File(this, option)
 
   PetscMPIInt :: hdf5_err
 
-  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_TRUE,'',option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_FALSE,'',option)
   call HDF5GroupOpen(file_id,group_name,group_id,option)
 
   dataset_name = 'input_hidden1_weights'
@@ -8628,7 +8628,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_weights, dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'input_hidden1_bias'
@@ -8636,7 +8636,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_bias,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden1_hidden2_weights'
@@ -8644,7 +8644,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_weights, dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden1_hidden2_bias'
@@ -8652,7 +8652,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_bias, dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden2_output_weights'
@@ -8660,7 +8660,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_weights,dims_h5, &
                    hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden2_output_bias'
@@ -8668,7 +8668,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_bias,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'scaler_offsets'
@@ -8676,7 +8676,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_offsets,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'scaler_scales'
@@ -8684,7 +8684,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_scales,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   call HDF5GroupClose(group_id,option)
@@ -8839,7 +8839,7 @@ subroutine KnnrReadH5File(this, option)
 
   PetscMPIInt :: hdf5_err
 
-  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_TRUE,'',option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_FALSE,'',option)
 
   !hdf5groupopen
   call HDF5GroupOpen(file_id,group_name,group_id,option)
@@ -8873,7 +8873,7 @@ subroutine KnnrReadH5File(this, option)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(1,:), dims_h5, &
                    hdf5_err)
 
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
   dataset_name = 'Env_CO3_2n'
   call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,2)
@@ -8903,6 +8903,7 @@ end subroutine KnnrReadH5File
 subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -8930,7 +8931,7 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
      call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, this%num_nearest_neighbor, dims_h5, &
        hdf5_err)
 
-     call h5dclose_f(dataset_id,hdf5_err)
+     call HDF5DatasetClose(dataset_id,option)
   endif
 
 end subroutine KnnrGetNearestNeighbors
@@ -8940,6 +8941,7 @@ end subroutine KnnrGetNearestNeighbors
 subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i)
 
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -8972,8 +8974,7 @@ subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(i,:), dims_h5, &
        hdf5_err)
 
-  call h5dclose_f(dataset_id,hdf5_err)
-
+  call HDF5DatasetClose(dataset_id,option)
 
 end subroutine KnnrReadH5Dataset
 
