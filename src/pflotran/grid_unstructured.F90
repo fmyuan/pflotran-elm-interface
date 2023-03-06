@@ -623,16 +623,8 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T) :: offset(2), length(2)
   integer :: ndims_h5
 
-  ! Setup file access property with parallel I/O access
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-
   ! Open the file collectively
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   !
   ! Regions/top
@@ -726,7 +718,8 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
     enddo
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   deallocate(int_buffer)
   nullify(int_buffer)
@@ -738,7 +731,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   !
 
   ! Open dataset
-  call h5dopen_f(file_id, "Domain/Vertices", data_set_id, hdf5_err)
+  call HDF5DatasetOpen(file_id,"Domain/Vertices",data_set_id,option)
 
   ! Get dataset's dataspace
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
@@ -808,10 +801,9 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   ! Read the dataset collectively
   call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
                  dims_h5, hdf5_err, memory_space_id, data_space_id)
-
-  call h5dclose_f(data_set_id, hdf5_err)
-  !call h5gclose_f(grp_id, hdf5_err)
-  call h5fclose_f(file_id, hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
+  call HDF5FileClose(file_id,option)
 
 
   ! fill the vertices data structure
@@ -889,16 +881,8 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T) :: offset(2), length(2)
   integer :: ndims_h5
 
-  ! Setup file access property with parallel I/O access
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-
   ! Open the file collectively
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   !
   ! Domain/Cells
@@ -1012,7 +996,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
     enddo
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   deallocate(int_buffer)
   nullify(int_buffer)
@@ -1096,10 +1080,8 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
                  dims_h5, hdf5_err, memory_space_id, data_space_id)
 
-  call h5dclose_f(data_set_id, hdf5_err)
-  !call h5gclose_f(grp_id, hdf5_err)
-  call h5fclose_f(file_id, hdf5_err)
-
+  call HDF5DatasetClose(data_set_id,option)
+  call HDF5FileClose(file_id,option)
 
   ! fill the vertices data structure
   allocate(unstructured_grid%vertices(num_vertices_local))

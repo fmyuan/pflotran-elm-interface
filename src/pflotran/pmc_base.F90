@@ -1287,6 +1287,7 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   use Checkpoint_module, only : CheckpointOpenFileForWriteHDF5, &
                                 CheckPointWriteCompatibilityHDF5
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -1304,7 +1305,6 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
-  PetscMPIInt :: hdf5_err
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -1318,12 +1318,12 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
                                         append_name, this%option)
     call CheckPointWriteCompatibilityHDF5(h5_chk_grp_id, &
                                           this%option)
-    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     h5_pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_chk_grp_id,trim(this%name),h5_pmc_grp_id, &
+                         this%option)
     call PMCBaseSetHeaderHDF5(this, h5_pmc_grp_id, this%option)
   else
-    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_chk_grp_id,trim(this%name),h5_pmc_grp_id, &
+                         this%option)
   endif
 
   if (associated(this%timestepper)) then
@@ -1333,16 +1333,15 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-
-    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
-         hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_pmc_grp_id,trim(cur_pm%name),h5_pm_grp_id, &
+                         this%option)
     call cur_pm%CheckpointHDF5(h5_pm_grp_id)
-    call h5gclose_f(h5_pm_grp_id, hdf5_err)
+    call HDF5GroupClose(h5_pm_grp_id,this%option)
 
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  call HDF5GroupClose(h5_pmc_grp_id,this%option)
 
   if (associated(this%child)) then
     call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
@@ -1353,8 +1352,8 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   endif
 
   if (this%is_master) then
-    call h5gclose_f(h5_chk_grp_id, hdf5_err)
-    call h5fclose_f(h5_file_id,hdf5_err)
+    call HDF5GroupClose(h5_chk_grp_id,this%option)
+    call HDF5FileClose(h5_file_id,this%option)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to write to checkpoint file: ", f10.2)') &
@@ -1389,7 +1388,6 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   class(pm_base_type), pointer :: cur_pm
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
@@ -1427,7 +1425,7 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
 
     if (.not.skip_restart) then
       call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
-                         this%option%driver)
+                         this%option)
 
       ! read pmc header
       call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
@@ -1439,7 +1437,7 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   else
     if (.not.skip_restart) then
       call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
-                         this%option%driver)
+                         this%option)
     endif
   endif
 
@@ -1487,13 +1485,13 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     do
       if (.not.associated(cur_pm)) exit
       call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id, &
-                         this%option%driver)
+                         this%option)
       call cur_pm%RestartHDF5(h5_pm_grp_id)
-      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      call HDF5GroupClose(h5_pm_grp_id,this%option)
       cur_pm => cur_pm%next
     enddo
 
-    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+    call HDF5GroupClose(h5_pmc_grp_id,this%option)
   endif
 
   if (associated(this%child)) then
@@ -1505,8 +1503,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   endif
 
   if (this%is_master) then
-    call h5gclose_f(h5_chk_grp_id, hdf5_err)
-    call h5fclose_f(h5_file_id, hdf5_err)
+    call HDF5GroupClose(h5_chk_grp_id,this%option)
+    call HDF5FileClose(h5_file_id,this%option)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to read from restart file: ", f10.2)') &

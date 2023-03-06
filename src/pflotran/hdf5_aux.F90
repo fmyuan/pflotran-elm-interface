@@ -18,7 +18,6 @@ module HDF5_Aux_module
 
   PetscErrorCode :: ierr
 
-  integer :: hdf5_err
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -51,6 +50,51 @@ module HDF5_Aux_module
     module procedure :: HDF5DatasetWriteDoubleArray1D
   end interface
 
+  interface HDF5FileOpen
+    module procedure :: HDF5FileOpen1
+    module procedure :: HDF5FileOpen2
+  end interface
+
+  interface HDF5FileTryOpen
+    module procedure :: HDF5FileTryOpen1
+    module procedure :: HDF5FileTryOpen2
+  end interface
+
+  interface HDF5FileClose
+    module procedure :: HDF5FileClose1
+    module procedure :: HDF5FileClose2
+  end interface
+
+  interface HDF5GroupCreate
+    module procedure :: HDF5GroupCreate1
+    module procedure :: HDF5GroupCreate2
+  end interface
+
+  interface HDF5GroupOpen
+    module procedure :: HDF5GroupOpen1
+    module procedure :: HDF5GroupOpen2
+  end interface
+
+  interface HDF5GroupOpenOrCreate
+    module procedure :: HDF5GroupOpenOrCreate1
+    module procedure :: HDF5GroupOpenOrCreate2
+  end interface
+
+  interface HDF5GroupClose
+    module procedure :: HDF5GroupClose1
+    module procedure :: HDF5GroupClose2
+  end interface
+
+  interface HDF5DatasetOpen
+    module procedure :: HDF5DatasetOpen1
+    module procedure :: HDF5DatasetOpen2
+  end interface
+
+  interface HDF5DatasetClose
+    module procedure :: HDF5DatasetClose1
+    module procedure :: HDF5DatasetClose2
+  end interface
+
   public :: HDF5ReadNDimRealArray, &
             HDF5GroupExists, &
             HDF5DatasetExists, &
@@ -61,9 +105,15 @@ module HDF5_Aux_module
             HDF5DatasetRead, &
             HDF5DatasetWrite, &
             HDF5FileOpen, &
+            HDF5FileTryOpen, &
             HDF5FileOpenReadOnly, &
             HDF5FileClose, &
             HDF5GroupOpen, &
+            HDF5GroupCreate, &
+            HDF5GroupOpenOrCreate, &
+            HDF5GroupClose, &
+            HDF5DatasetOpen, &
+            HDF5DatasetClose, &
             HDF5Init, &
             HDF5Finalize
 
@@ -123,6 +173,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   integer(HSIZE_T) :: num_reals_in_dataset
   PetscInt :: temp_int, i
   integer :: ndims_hdf5
+  integer :: hdf5_err
 
   call PetscLogEventBegin(logging%event_read_ndim_real_array_hdf5, &
                           ierr);CHKERRQ(ierr)
@@ -176,7 +227,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   deallocate(dims_h5)
   deallocate(max_dims_h5)
@@ -270,14 +321,35 @@ end subroutine HDF5ReadDatasetReal1D
 
 ! ************************************************************************** !
 
-subroutine HDF5GroupOpen(parent_id,group_name,group_id,driver)
+subroutine HDF5GroupOpen1(parent_id,group_name,group_id,option)
+  !
+  ! Opens an HDF5 group with proper error messaging when not found.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/02/23
+  !
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  type(option_type) :: option
+
+  call HDF5GroupOpen(parent_id,group_name,group_id,option%driver)
+
+end subroutine HDF5GroupOpen1
+
+! ************************************************************************** !
+
+subroutine HDF5GroupOpen2(parent_id,group_name,group_id,driver)
   !
   ! Opens an HDF5 group with proper error messaging when not found.
   !
   ! Author: Glenn Hammond
   ! Date: 06/28/18
   !
-
   use Driver_class
 
   implicit none
@@ -290,13 +362,124 @@ subroutine HDF5GroupOpen(parent_id,group_name,group_id,driver)
   character(len=MAXSTRINGLENGTH) :: string
   PetscMPIInt :: hdf5_err
 
-  string = adjustl(group_name)
-  call h5gopen_f(parent_id,trim(string),group_id,hdf5_err)
+  string = trim(group_name)
+  call h5gopen_f(parent_id,string,group_id,hdf5_err)
   if (hdf5_err < 0) then
     call driver%PrintErrMsg('HDF5 Group "' // trim(string) // '" not found.')
   endif
 
-end subroutine HDF5GroupOpen
+end subroutine HDF5GroupOpen2
+
+! ************************************************************************** !
+
+subroutine HDF5GroupCreate1(parent_id,group_name,group_id,option)
+  !
+  ! Creates an HDF5 group with proper error messaging when failing
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  type(option_type) :: option
+
+  call HDF5GroupCreate(parent_id,group_name,group_id,option%driver)
+
+end subroutine HDF5GroupCreate1
+
+! ************************************************************************** !
+
+subroutine HDF5GroupCreate2(parent_id,group_name,group_id,driver)
+  !
+  ! Creates an HDF5 group with proper error messaging when failing
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  class(driver_type) :: driver
+
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err
+
+  string = trim(group_name)
+  call h5gcreate_f(parent_id,string,group_id,hdf5_err, &
+                   OBJECT_NAMELEN_DEFAULT_F)
+  if (hdf5_err < 0) then
+    if (len_trim(string) == 0) then
+      call driver%PrintErrMsg('An HDF5 Group could not be created &
+        &due to the name being blank.')
+    else
+      call driver%PrintErrMsg('HDF5 Group "' // trim(string) // &
+        '" could not be created.')
+    endif
+  endif
+
+end subroutine HDF5GroupCreate2
+
+! ************************************************************************** !
+
+subroutine HDF5GroupOpenOrCreate1(parent_id,group_name,group_id,option)
+  !
+  ! Opens an HDF5 group or creates it if it does not exist
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  type(option_type) :: option
+
+  call HDF5GroupOpenOrCreate(parent_id,group_name,group_id,option%driver)
+
+end subroutine HDF5GroupOpenOrCreate1
+
+! ************************************************************************** !
+
+subroutine HDF5GroupOpenOrCreate2(parent_id,group_name,group_id,driver)
+  !
+  ! Opens an HDF5 group or creates it if it does not exist
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  class(driver_type) :: driver
+
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err, hdf5_err2
+
+  string = trim(group_name)
+  call h5eset_auto_f(OFF,hdf5_err2)
+  call h5gopen_f(parent_id,string,group_id,hdf5_err)
+  call h5eset_auto_f(ON,hdf5_err2)
+  if (hdf5_err /= 0) then
+    call HDF5GroupCreate(parent_id,group_name,group_id,driver)
+  endif
+
+end subroutine HDF5GroupOpenOrCreate2
 
 ! ************************************************************************** !
 
@@ -317,33 +500,27 @@ function HDF5GroupExists(filename,group_name,option)
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: prop_id
   PetscMPIInt, parameter :: ON=1, OFF=0
   PetscBool :: group_exists
+  integer :: hdf5_err, hdf5_err2
 
   PetscBool :: HDF5GroupExists
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
   ! open the file
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   option%io_buffer = 'Testing group: ' // trim(group_name)
   call PrintMsg(option)
   ! I turn off error messaging since if the group does not exist, an error
   ! will be printed, but the user does not need to see this.
-  call h5eset_auto_f(OFF,hdf5_err)
+  call h5eset_auto_f(OFF,hdf5_err2)
   call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
   group_exists = .not.(hdf5_err < 0)
-  call h5eset_auto_f(ON,hdf5_err)
+  call h5eset_auto_f(ON,hdf5_err2)
 
   if (group_exists) then
     HDF5GroupExists = PETSC_TRUE
-    call h5gclose_f(grp_id,hdf5_err)
+    call HDF5GroupClose(grp_id,option)
     option%io_buffer = 'Group "' // trim(group_name) // '" in HDF5 file "' // &
       trim(filename) // '" found in file.'
   else
@@ -354,9 +531,52 @@ function HDF5GroupExists(filename,group_name,option)
   endif
   call PrintMsg(option)
 
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
 end function HDF5GroupExists
+
+! ************************************************************************** !
+
+subroutine HDF5GroupClose1(group_id,option)
+  !
+  ! Closes an HDF5 group with proper error messaging when it fails.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: group_id
+  type(option_type) :: option
+
+  call HDF5GroupClose(group_id,option%driver)
+
+end subroutine HDF5GroupClose1
+
+! ************************************************************************** !
+
+subroutine HDF5GroupClose2(group_id,driver)
+  !
+  ! Closes an HDF5 group with proper error messaging when it fails.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: group_id
+  class(driver_type) :: driver
+
+  integer :: hdf5_err
+
+  call h5gclose_f(group_id,hdf5_err)
+  call HDF5CloseCheckError(hdf5_err,group_id,driver)
+
+end subroutine HDF5GroupClose2
 
 ! ************************************************************************** !
 
@@ -379,11 +599,11 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   character(len=MAXWORDLENGTH) :: group_name_local
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: prop_id
   integer(HID_T) :: dataset_id
   PetscMPIInt, parameter :: ON=1, OFF=0
   PetscBool :: group_exists
   PetscBool :: dataset_exists
+  integer :: hdf5_err, hdf5_err2
 
   PetscBool :: HDF5DatasetExists
 
@@ -393,41 +613,130 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
     group_name_local = trim(group_name) // "/" // CHAR(0)
   endif
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  ! open the file
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   ! I turn off error messaging since if the group does not exist, an error
   ! will be printed, but the user does not need to see this.
-  call h5eset_auto_f(OFF,hdf5_err)
+  call h5eset_auto_f(OFF,hdf5_err2)
   call h5gopen_f(file_id,group_name_local,grp_id,hdf5_err)
   group_exists = .not.(hdf5_err < 0)
-  call h5eset_auto_f(ON,hdf5_err)
+  call h5eset_auto_f(ON,hdf5_err2)
 
   if (.not.group_exists) then
     HDF5DatasetExists = PETSC_FALSE
   endif
 
-  call h5dopen_f(grp_id,dataset_name,dataset_id,hdf5_err)
+  call HDF5DatasetOpen(grp_id,dataset_name,dataset_id,option)
   dataset_exists = .not.(hdf5_err < 0)
 
   if (.not.dataset_exists) then
     HDF5DatasetExists = PETSC_FALSE
   else
     HDF5DatasetExists = PETSC_TRUE
-    call h5dclose_f(dataset_id,hdf5_err)
+    call HDF5DatasetClose(dataset_id,option)
   endif
 
-  if (group_exists) call h5gclose_f(grp_id,hdf5_err)
+  if (group_exists) call HDF5GroupClose(grp_id,option)
 
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
 end function HDF5DatasetExists
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetOpen1(parent_id,dataset_name,dataset_id,option)
+  !
+  ! Opens an HDF5 dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: dataset_name
+  integer(HID_T) :: dataset_id
+  type(option_type) :: option
+
+  call HDF5DatasetOpen(parent_id,dataset_name,dataset_id,option%driver)
+
+end subroutine HDF5DatasetOpen1
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetOpen2(parent_id,dataset_name,dataset_id,driver)
+  !
+  ! Opens an HDF5 dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  character(len=*) :: dataset_name
+  integer(HID_T) :: dataset_id
+  class(driver_type) :: driver
+
+  character(len=MAXSTRINGLENGTH) :: string
+  integer :: hdf5_err
+
+  string = trim(dataset_name)
+  call h5dopen_f(parent_id,string,dataset_id,hdf5_err)
+  if (hdf5_err < 0) then
+    call driver%PrintErrMsg('HDF5 Dataset ' // trim(dataset_name) // &
+      ' could not be opened within ' // &
+      trim(HDF5ObjectGetNameTypeString(parent_id,driver))  // '.')
+  endif
+
+end subroutine HDF5DatasetOpen2
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetClose1(dataset_id,option)
+  !
+  ! Closes an HDF5 dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: dataset_id
+  type(option_type) :: option
+
+  call HDF5DatasetClose(dataset_id,option%driver)
+
+end subroutine HDF5DatasetClose1
+
+! ************************************************************************** !
+
+subroutine HDF5DatasetClose2(dataset_id,driver)
+  !
+  ! Closes an HDF5 dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  implicit none
+
+  integer(HID_T) :: dataset_id
+  class(driver_type) :: driver
+
+  integer :: hdf5_err
+
+  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5CloseCheckError(hdf5_err,dataset_id,driver)
+
+end subroutine HDF5DatasetClose2
 
 ! ************************************************************************** !
 
@@ -507,12 +816,7 @@ subroutine HDF5ReadDbase(filename,option)
 
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
   call h5gn_members_f(file_id, '.',num_objects, hdf5_err)
   num_ints = 0
   num_reals = 0
@@ -546,7 +850,7 @@ subroutine HDF5ReadDbase(filename,option)
         call PrintErrMsg(option)
       endif
       call h5tclose_f(datatype_id, hdf5_err)
-      call h5dclose_f(dataset_id,hdf5_err)
+      call HDF5DatasetClose(dataset_id,option)
     endif
   enddo
   allocate(dbase)
@@ -683,7 +987,7 @@ subroutine HDF5ReadDbase(filename,option)
       call h5pclose_f(prop_id,hdf5_err)
       if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
       call h5sclose_f(file_space_id,hdf5_err)
-      call h5dclose_f(dataset_id,hdf5_err)
+      call HDF5DatasetClose(dataset_id,option)
       call StringToUpper(object_name)
       ! these conditionals must come after the bcasts above!!!
       if (class_id == H5T_INTEGER_F) then
@@ -703,7 +1007,7 @@ subroutine HDF5ReadDbase(filename,option)
       endif
     endif
   enddo
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
 end subroutine HDF5ReadDbase
 
@@ -1130,7 +1434,7 @@ subroutine HDF5DatasetReadBase(parent_id,dset_name,dset_type_expected, &
                             trim(dset_name) // &
                             '" has an error while reading data.')
   endif
-  call h5dclose_f(dset_id,hdf5_err)
+  call HDF5DatasetClose(dset_id,driver)
 
 end subroutine HDF5DatasetReadBase
 
@@ -1159,6 +1463,82 @@ subroutine HDF5DatasetWriteInteger(loc_id,dset_name,buf,driver)
                             ptr,'single PetscInt',driver)
 
 end subroutine HDF5DatasetWriteInteger
+
+! ************************************************************************** !
+
+function HDF5ObjectGetNameTypeString(loc_id,driver)
+  !
+  ! Returns the type and name of an object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/03/23
+  !
+  use Driver_class
+
+  integer(HID_T), intent(in) :: loc_id
+  class(driver_type) :: driver
+
+  character(len=MAXSTRINGLENGTH) :: HDF5ObjectGetNameTypeString
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word
+  integer :: itype
+  integer(SIZE_T) :: buf_size, name_size
+  integer :: hdf5_err
+
+  buf_size = len(string)-1
+  call h5iget_name_f(loc_id,string,buf_size,name_size,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Error getting name of HDF5 object')
+  endif
+  call h5iget_type_f(loc_id,itype,hdf5_err)
+  if (hdf5_err /= 0) then
+    call driver%PrintErrMsg('Error getting type of HDF5 object')
+  endif
+  ! cannot use a select case here
+  if (itype == H5I_FILE_F) then
+    word = 'File'
+  else if (itype == H5I_GROUP_F) then
+    word = 'Group'
+  else if (itype == H5I_DATATYPE_F) then
+    word = 'Datatype'
+  else if (itype == H5I_DATASPACE_F) then
+    word = 'Dataspace'
+  else if (itype == H5I_DATASET_F) then
+    word = 'Dataset'
+  else if (itype == H5I_ATTR_F) then
+    word = 'Attribute'
+  else
+    word = 'Unknown object'
+  endif
+
+  HDF5ObjectGetNameTypeString = trim(word) // ' "' // trim(string)
+  HDF5ObjectGetNameTypeString = trim(HDF5ObjectGetNameTypeString) // '"'
+
+end function HDF5ObjectGetNameTypeString
+
+! ************************************************************************** !
+
+subroutine HDF5CloseCheckError(hdf5_err,obj_id,driver)
+  !
+  ! Checks status of error flag and prints an message if an error
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/03/23
+  !
+  use Driver_class
+
+  integer :: hdf5_err
+  integer(HID_T), intent(in) :: obj_id
+  class(driver_type) :: driver
+
+  if (hdf5_err < 0) then
+    call driver%PrintErrMsg('HDF5 ' // &
+      trim(HDF5ObjectGetNameTypeString(obj_id,driver)) // &
+      ' could not be closed.')
+  endif
+
+end subroutine HDF5CloseCheckError
 
 ! ************************************************************************** !
 
@@ -1221,7 +1601,84 @@ end subroutine HDF5DatasetWriteBase
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpen(filename,file_id,create,driver)
+subroutine HDF5FileTryOpen1(filename,file_id,failed,option)
+  !
+  ! Attempts to open an HDF5 file. If it fails, it sets the failed flag
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  character(len=*) :: filename  ! must be of variable length
+  integer(HID_T) :: file_id
+  PetscBool :: failed
+  type(option_type) :: option
+
+  call HDF5FileTryOpen(filename,file_id,failed,option%driver)
+
+end subroutine HDF5FileTryOpen1
+
+! ************************************************************************** !
+
+subroutine HDF5FileTryOpen2(filename,file_id,failed,driver)
+  !
+  ! Attempts to open an HDF5 file. If it fails, it sets the failed flag
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Driver_class
+
+  character(len=*) :: filename  ! must be of variable length
+  integer(HID_T) :: file_id
+  PetscBool :: failed
+  class(driver_type) :: driver
+
+  character(len=MAXSTRINGLENGTH) :: string
+  integer(HID_T) :: prop_id
+  PetscMPIInt, parameter :: ON=1, OFF=0
+  integer :: hdf5_err, hdf5_err2
+
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_fapl_mpio_f(prop_id,driver%comm%communicator, &
+                          MPI_INFO_NULL,hdf5_err)
+#endif
+  hdf5_err = 0
+  call h5eset_auto_f(OFF,hdf5_err2)
+  string = trim(filename)
+  call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+  if (hdf5_err /= 0) failed = PETSC_TRUE
+  call h5eset_auto_f(ON,hdf5_err2)
+  call h5pclose_f(prop_id,hdf5_err)
+
+end subroutine HDF5FileTryOpen2
+
+! ************************************************************************** !
+
+subroutine HDF5FileOpen1(filename,file_id,create,option)
+  !
+  ! Opens an HDF5 file.  This wrapper provides error messaging if the file
+  ! does not exist.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Option_module
+
+  character(len=*) :: filename  ! must be of variable length
+  integer(HID_T) :: file_id
+  PetscBool :: create
+  type(option_type) :: option
+
+  call HDF5FileOpen(filename,file_id,create,option%driver)
+
+end subroutine HDF5FileOpen1
+
+! ************************************************************************** !
+
+subroutine HDF5FileOpen2(filename,file_id,create,driver)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -1240,20 +1697,22 @@ subroutine HDF5FileOpen(filename,file_id,create,driver)
   PetscMPIInt, parameter :: ON=1, OFF=0
   integer :: hdf5_err, hdf5_err2
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,driver%comm%communicator,MPI_INFO_NULL,hdf5_err)
 #endif
   hdf5_err = 0
+  string = trim(filename)
   if (create) then
     call h5eset_auto_f(OFF, hdf5_err2)
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+    call h5fcreate_f(string,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
                      H5P_DEFAULT_F,prop_id)
     call h5eset_auto_f(ON, hdf5_err2)
   else
     call h5eset_auto_f(OFF, hdf5_err2)
-    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    call h5fopen_f(string,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
     call h5eset_auto_f(ON, hdf5_err2)
   endif
   if (hdf5_err /= 0) then
@@ -1267,11 +1726,12 @@ subroutine HDF5FileOpen(filename,file_id,create,driver)
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
-end subroutine HDF5FileOpen
+end subroutine HDF5FileOpen2
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpenReadOnly(filename,file_id,prop_id,error_string,option)
+subroutine HDF5FileOpenReadOnly(filename,file_id,is_collective, &
+                                error_string,option,hdfopen_err)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -1283,16 +1743,31 @@ subroutine HDF5FileOpenReadOnly(filename,file_id,prop_id,error_string,option)
 
   character(len=*) :: filename  ! must be of variable length
   integer(HID_T) :: file_id
-  integer(HID_T) :: prop_id
+  PetscBool :: is_collective
   character(len=*) :: error_string
   type(option_type) :: option
+  integer, optional :: hdfopen_err
 
+  integer(HID_T) :: prop_id
   PetscMPIInt, parameter :: ON=1, OFF=0
-  integer :: hdf5_err
+  integer :: hdf5_err, hdf5_err2
+  character(len=MAXSTRINGLENGTH) :: string
 
-  call h5eset_auto_f(OFF, hdf5_err)
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+  if (is_collective) then
+    call h5pset_fapl_mpio_f(prop_id,option%mycomm, &
+                            MPI_INFO_NULL,hdf5_err)
+  endif
+#endif
+  call h5eset_auto_f(OFF, hdf5_err2)
+  string = trim(filename)
   call h5fopen_f(filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
-  if (hdf5_err /= 0) then
+  ! for non-collective operations, error handing may need to be
+  ! handled externally
+  if (.not.is_collective .and. present(hdfopen_err)) then
+    hdfopen_err = hdf5_err
+  else if (hdf5_err /= 0) then
     option%io_buffer = 'HDF5 '
     if (len_trim(error_string) > 0) then
       option%io_buffer = trim(error_string)
@@ -1301,25 +1776,49 @@ subroutine HDF5FileOpenReadOnly(filename,file_id,prop_id,error_string,option)
     endif
     call PrintErrMsg(option)
   endif
-  call h5eset_auto_f(ON, hdf5_err)
+  call h5eset_auto_f(ON, hdf5_err2)
+  call h5pclose_f(prop_id,hdf5_err)
 
 end subroutine HDF5FileOpenReadOnly
 
 ! ************************************************************************** !
 
-subroutine HDF5FileClose(file_id)
+subroutine HDF5FileClose1(file_id,option)
   !
   ! Closes an HDF5 file
   !
   ! Author: Glenn Hammond
   ! Date: 12/08/22
   !
+  use Option_module
+
   integer(HID_T), intent(in) :: file_id
+  type(option_type) :: option
+
+  call HDF5FileClose(file_id,option%driver)
+
+end subroutine HDF5FileClose1
+
+! ************************************************************************** !
+
+subroutine HDF5FileClose2(file_id,driver)
+  !
+  ! Closes an HDF5 file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Driver_class
+
+  integer(HID_T), intent(in) :: file_id
+  class(driver_type) :: driver
+
   integer :: hdf5_err
 
   call h5fclose_f(file_id,hdf5_err)
+  call HDF5CloseCheckError(hdf5_err,file_id,driver)
 
-end subroutine HDF5FileClose
+end subroutine HDF5FileClose2
 
 ! ************************************************************************** !
 
@@ -1330,6 +1829,8 @@ subroutine HDF5Finalize()
   ! Author: Glenn Hammond
   ! Date: 07/06/20
   !
+
+  integer :: hdf5_err
 
   call h5close_f(hdf5_err)
 

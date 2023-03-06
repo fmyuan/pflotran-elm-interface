@@ -281,18 +281,9 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   if (OptionIsIORank(option)) then
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
     call PrintMsg(option)
-
-    ! set read file access property
-    call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-    !geh: DO NOT call h5pset_fapl_mpio_f here since the attribute is only being
-    !     read by the io_rank process.
-!#ifndef SERIAL_HDF5
-!    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-!#endif
-    call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-    h5fopen_err = hdf5_err
-    call h5pclose_f(prop_id,hdf5_err)
-
+    ! PETSC_FALSE is because this is not collective
+    call HDF5FileOpenReadOnly(filename,file_id,PETSC_FALSE,'', &
+                              option,h5fopen_err)
     if (h5fopen_err == 0) then
       option%io_buffer = 'Opening hdf5 group: ' // trim(dataset_name)
       call PrintMsg(option)
@@ -321,14 +312,14 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
         !geh: Should check to see if "Times" dataset exists.
         option%io_buffer = 'Opening data set: ' // trim(string)
         call PrintMsg(option)
-        call h5dopen_f(grp_id,string,dataset_id,hdf5_err)
+        call HDF5DatasetOpen(grp_id,string,dataset_id,option)
         call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
         call h5sget_simple_extent_npoints_f(file_space_id,num_times,hdf5_err)
         num_times_read_by_iorank = int(num_times)
       else
         num_times_read_by_iorank = -1
       endif
-    endif ! h5fopen_err == 0
+    endif
   endif
 
   ! Need to catch errors in opening the file.  Since the file is only opened
@@ -372,13 +363,13 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     call h5pclose_f(prop_id,hdf5_err)
     if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
     call h5sclose_f(file_space_id,hdf5_err)
-    call h5dclose_f(dataset_id,hdf5_err)
+    call HDF5DatasetClose(dataset_id,option)
     option%io_buffer = 'Closing group: ' // trim(dataset_name)
     call PrintMsg(option)
-    call h5gclose_f(grp_id,hdf5_err)
+    call HDF5GroupClose(grp_id,option)
     option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
     call PrintMsg(option)
-    call h5fclose_f(file_id,hdf5_err)
+    call HDF5FileClose(file_id,option)
     internal_units = 'sec'
     time_storage%times = time_storage%times * &
       UnitsConvertToInternal(time_units,internal_units, &

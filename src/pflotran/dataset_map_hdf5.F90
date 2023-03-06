@@ -247,19 +247,13 @@ subroutine DatasetMapHDF5ReadData(this,option)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5FileOpenReadOnly(this%filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%filename,file_id,PETSC_TRUE,'',option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option%driver)
+  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option)
 
   time_dim = -1
   num_times = 1
@@ -386,16 +380,16 @@ subroutine DatasetMapHDF5ReadData(this,option)
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
   call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
                         ierr);CHKERRQ(ierr)
@@ -447,19 +441,13 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%map_filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5FileOpenReadOnly(this%map_filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%map_filename,file_id,PETSC_TRUE,'',option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%h5_dataset_map_name)
   call PrintMsg(option)
-  call HDF5GroupOpen(file_id,this%h5_dataset_map_name,grp_id,option%driver)
+  call HDF5GroupOpen(file_id,this%h5_dataset_map_name,grp_id,option)
 
   ! Open the "data" dataset
   dataset_name = 'Data'
@@ -536,14 +524,14 @@ subroutine DatasetMapHDF5ReadMap(this,option)
 
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
                         ierr);CHKERRQ(ierr)

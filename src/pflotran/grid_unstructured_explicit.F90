@@ -496,16 +496,8 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   ! - a group "Cells" with dataset "Centers" and "Volumes"
   ! - a group "Faces" with dataset "id_up", "id_dn", "Centers" and "Areas"
 
-  ! Setup file access property with parallel I/O access
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-
   ! Open the file collectively
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   ! Open group
   group_name = "Domain/Cells"
@@ -587,7 +579,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%cell_volumes(icell) = double_buffer(icell)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(double_buffer)
   nullify(double_buffer)
   deallocate(dims_h5)
@@ -654,7 +646,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%cell_centroids(icell)%z = double_buffer_2d(3,icell)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(double_buffer_2d)
   nullify(double_buffer_2d)
   deallocate(dims_h5)
@@ -743,7 +735,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%connections(2,iconn) = int_buffer_2d(2,iconn)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(int_buffer_2d)
   nullify(int_buffer_2d)
   deallocate(dims_h5)
@@ -807,7 +799,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%face_centroids(iconn)%z = double_buffer_2d(3,iconn)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   deallocate(double_buffer_2d)
   nullify(double_buffer_2d)
   deallocate(dims_h5)
@@ -872,8 +864,8 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
     explicit_grid%face_areas(iconn) = double_buffer(iconn)
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
-  call h5fclose_f(file_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
+  call HDF5FileClose(file_id,option)
   deallocate(double_buffer)
   nullify(double_buffer)
   deallocate(dims_h5)

@@ -511,6 +511,7 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -519,25 +520,17 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   character(len=MAXSTRINGLENGTH) :: append_name
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
-  integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
 
   filename = CheckpointFilename(append_name, option)
   filename = trim(filename) // '.h5'
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-  call h5fcreate_f(filename, H5F_ACC_TRUNC_F, file_id, hdf5_err, &
-                   H5P_DEFAULT_F, prop_id)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpen(filename,file_id,PETSC_TRUE,option)
 
   string = "Checkpoint"
-  call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5GroupCreate(file_id, string, grp_id,option)
 
   option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
   call PrintMsg(option)
@@ -563,22 +556,15 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
-  integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
   string = 'HDF5 restart file "' // trim(filename) // '" not found.'
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,string,option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,string,option)
 
   string = "Checkpoint"
-  call HDF5GroupOpen(file_id,string,grp_id,option%driver)
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 
 end subroutine CheckpointOpenFileForReadHDF5
 
@@ -596,6 +582,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -661,7 +648,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointWriteIntDatasetHDF5
 
@@ -679,6 +666,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -742,7 +730,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointWriteRealDatasetHDF5
 
@@ -759,6 +747,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -816,7 +805,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointReadIntDatasetHDF5
 
@@ -833,6 +822,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -887,7 +877,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointReadRealDatasetHDF5
 
