@@ -155,8 +155,9 @@ subroutine SimulationInverseInitializeRun(this)
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
-  type(comm_type), pointer :: invcomm,forcomm,forcomm_0
+  type(comm_type), pointer :: invcomm, forcomm, forcomm_i
   PetscInt :: num_process_groups
+  PetscInt :: num_proc_per_forcomm
   PetscMPIInt :: mpi_int_array(3)
   PetscMPIInt :: mpi_int
   PetscMPIInt :: temp_group
@@ -165,7 +166,7 @@ subroutine SimulationInverseInitializeRun(this)
 
   nullify(invcomm)
   nullify(forcomm)
-  nullify(forcomm_0)
+  nullify(forcomm_i)
 
   num_process_groups = this%inversion%inversion_option%num_process_groups
 
@@ -185,8 +186,9 @@ subroutine SimulationInverseInitializeRun(this)
   endif
 
   if (num_process_groups > 1) then
-    forcomm_0 => CommCreate()
-    mpi_int_array(1) = 0
+    forcomm_i => CommCreate()
+    num_proc_per_forcomm = this%driver%comm%size / num_process_groups
+    mpi_int_array(1) = mod(this%driver%comm%rank,num_proc_per_forcomm)
     mpi_int_array(2) = this%driver%comm%size-1
     mpi_int_array(3) = num_process_groups
     mpi_int = 1
@@ -195,23 +197,19 @@ subroutine SimulationInverseInitializeRun(this)
                               ierr);CHKERRQ(ierr)
     mpi_int = 0
     call MPI_Comm_create_group(this%driver%comm%communicator,temp_group, &
-                              mpi_int,forcomm_0%communicator, &
-                              ierr);CHKERRQ(ierr)
-    if (forcomm_0%communicator /= MPI_COMM_NULL) then
-      call MPI_Comm_rank(forcomm_0%communicator,forcomm_0%rank, &
+                               mpi_int,forcomm_i%communicator, &
+                               ierr);CHKERRQ(ierr)
+    call MPI_Comm_rank(forcomm_i%communicator,forcomm_i%rank, &
+                       ierr);CHKERRQ(ierr)
+    call MPI_Comm_size(forcomm_i%communicator,forcomm_i%size, &
+                       ierr);CHKERRQ(ierr)
+    call MPI_Comm_group(forcomm_i%communicator,forcomm_i%group, &
                         ierr);CHKERRQ(ierr)
-      call MPI_Comm_size(forcomm_0%communicator,forcomm_0%size, &
-                        ierr);CHKERRQ(ierr)
-      call MPI_Comm_group(forcomm_0%communicator,forcomm_0%group, &
-                          ierr);CHKERRQ(ierr)
-    else
-      call CommDestroy(forcomm_0)
-    endif
   endif
 
   this%inversion%inversion_option%invcomm => invcomm
   this%inversion%inversion_option%forcomm => forcomm
-  this%inversion%inversion_option%forcomm_0 => forcomm_0
+  this%inversion%inversion_option%forcomm_i => forcomm_i
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)

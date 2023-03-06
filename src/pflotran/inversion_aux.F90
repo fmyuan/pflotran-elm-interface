@@ -31,7 +31,6 @@ module Inversion_Aux_module
     class(driver_type), pointer :: driver
     type(material_property_ptr_type), pointer :: material_property_array(:)
     type(characteristic_curves_ptr_type), pointer :: cc_array(:)
-    type(comm_type), pointer :: comm
     PetscBool :: qoi_is_full_vector
     PetscBool :: startup_phase
     Vec :: solution ! solely a pointer
@@ -84,7 +83,8 @@ module Inversion_Aux_module
             InvAuxGetSetParamValueByMat, &
             InvAuxScatMeasToDistMeas, &
             InvAuxScatParamToDistParam, &
-            InvAuxScatGlobalToDistParam
+            InvAuxScatGlobalToDistParam, &
+            InvAuxBCastVecForCommI
 
 contains
 
@@ -108,7 +108,6 @@ function InversionAuxCreate(driver)
   aux%solution = PETSC_NULL_VEC
 
   aux%driver => driver
-  nullify(aux%comm)
   nullify(aux%material_property_array)
   nullify(aux%cc_array)
   aux%qoi_is_full_vector = PETSC_FALSE
@@ -599,6 +598,31 @@ end subroutine InvAuxScatMeasToDistMeas
 
 ! ************************************************************************** !
 
+subroutine InvAuxBCastVecForCommI(comm,vec,driver)
+  !
+  ! Broadcasts the contents of a Vec segment to the perturbation ranks
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/06/23
+  !
+  type(comm_type) :: comm
+  Vec :: vec
+  type(driver_type) :: driver
+
+  PetscInt :: vec_size
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetLocalSize(vec,vec_size,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call MPI_BCast(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
+                 comm%communicator,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine InvAuxBCastVecForCommI
+
+! ************************************************************************** !
+
 subroutine InversionAuxPerturbationStrip(perturbation)
   !
   ! Deallocates members of inversion perturbation
@@ -696,7 +720,6 @@ subroutine InversionAuxDestroy(aux)
   endif
 
   ! nullify objects owned by other objects
-  nullify(aux%comm)
   nullify(aux%driver)
   nullify(aux%material_property_array)
   nullify(aux%cc_array)
