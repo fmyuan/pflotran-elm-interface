@@ -298,22 +298,32 @@ function OptionCreate2(outer_option)
   type(option_type), pointer :: OptionCreate2
 
   type(option_type), pointer :: option
+  PetscInt :: fid_out
+  PetscErrorCode :: ierr
 
   option => OptionCreate()
-  call PrintInitFlags(option%print_flags,outer_option%print_flags)
   if (associated(outer_option)) then
-    if (outer_option%fid_out <= 0) then
-      option%io_buffer = 'outer_option%fid_out not set properly in &
-        &OptionCreate2: (' // StringWrite(option%fid_out) // ').'
+    call PrintInitFlags(option%print_flags,outer_option%print_flags)
+    call MPI_Allreduce(outer_option%fid_out,fid_out,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,outer_option%mycomm, &
+                       ierr);CHKERRQ(ierr)
+    if (fid_out <= 0) then
+      outer_option%io_buffer = 'outer_option%fid_out not set properly in &
+        &OptionCreate2: (' // StringWrite(outer_option%fid_out) // ').'
       call PrintErrMsg(outer_option)
     endif
-    option%fid_out = outer_option%fid_out + 1
-    option%group_prefix = outer_option%group_prefix
-    if (option%fid_out > MAX_OUT_UNIT) then
+    if (fid_out + 1 > MAX_OUT_UNIT) then
       option%io_buffer = 'The maximum output file id (MAX_OUT_UNIT) has been &
         &exceeded. Please increase MAX_OUT_UNIT in pflotran_constants.F90.'
       call PrintErrMsg(option)
     endif
+    if (outer_option%fid_out > 0) then
+      option%fid_out = outer_option%fid_out + 1
+    endif
+    option%group_prefix = outer_option%group_prefix
+  else
+    option%io_buffer = 'outer_option not associated in OptionCreate2.'
+    call PrintErrMsg(option)
   endif
   OptionCreate2 => option
 
@@ -1313,18 +1323,16 @@ subroutine OptionPrintPFLOTRANHeader(option)
   character(len=MAXSTRINGLENGTH) :: string
 
   version = GetVersion()
-  if (option%driver%IsIORank()) then
-    write(string,*) len_trim(version)+4
-    string = trim(adjustl(string)) // '("=")'
-    string = '(/,' // trim(string) // ',/,"  '// &
-             trim(version) // &
-             '",/,' // trim(string) // ',/)'
-    if (OptionPrintToScreen(option)) then
-      write(*,string)
-    endif
-    if (OptionPrintToFile(option)) then
-      write(option%fid_out,string)
-    endif
+  write(string,*) len_trim(version)+4
+  string = trim(adjustl(string)) // '("=")'
+  string = '(/,' // trim(string) // ',/,"  '// &
+           trim(version) // &
+           '",/,' // trim(string) // ',/)'
+  if (OptionPrintToScreen(option)) then
+    write(*,string)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,string)
   endif
 
 end subroutine OptionPrintPFLOTRANHeader
