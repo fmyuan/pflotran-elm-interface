@@ -3494,7 +3494,7 @@ subroutine PMWFInitializeTimestep(this)
              1.d3) / &                               ! [kg-matrix] -> [g-matrix]
              ! [kg-water]
             (material_auxvars(ghosted_id)%porosity * &         ! [-]
-             global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [-]
+             (global_auxvars(ghosted_id)%sat(LIQUID_PHASE)+1.d-20) * &  ! [-]
              material_auxvars(ghosted_id)%volume * &           ! [m^3]
              global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE))  ! [kg/m^3-water]
           idof = cwfm%rad_species_list(k)%ispecies + &
