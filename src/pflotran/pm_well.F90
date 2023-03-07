@@ -3280,8 +3280,6 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
-!  print *, ' '
-
   option => this%option
   well_comm => this%well_comm 
 
@@ -7076,9 +7074,11 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
   class(sat_func_base_type), pointer :: saturation_function
   type(strata_type), pointer :: strata
   PetscInt :: i,nsegments
-  PetscReal :: t,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
+  PetscReal :: T,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
   PetscReal :: Pc,dpc_dsatl,krl,dkrl_dsatl,krg,dkrg_dsatl
   PetscErrorCode :: ierr
+
+  T = option%flow%reference_temperature
 
   if (this%well_comm%comm == MPI_COMM_NULL) return
 
@@ -7145,18 +7145,18 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
     well%gas%kr(i) = krg
 
     !Density
-    call EOSWaterDensityBRAGFLO(t,well%pl(i),PETSC_FALSE, &
+    call EOSWaterDensityBRAGFLO(T,well%pl(i),PETSC_FALSE, &
                                 dw,dwmol,dwp,dwt,ierr)
-    call EOSGasDensity(t,well%pg(i),dg,ierr)
+    call EOSGasDensity(T,well%pg(i),dg,ierr)
 
     well%liq%rho(i) = dw
     !No water vapor in WIPP_Darcy mode
     well%gas%rho(i) = dg
 
     !Viscosity
-    call EOSWaterSaturationPressure(t,Psat,ierr)
-    call EOSWaterViscosity(t,well%pl(i),Psat,visl,ierr)
-    call EOSGasViscosity(t,well%pg(i),well%pg(i),dg,visg,ierr)
+    call EOSWaterSaturationPressure(T,Psat,ierr)
+    call EOSWaterViscosity(T,well%pl(i),Psat,visl,ierr)
+    call EOSGasViscosity(T,well%pg(i),well%pg(i),dg,visg,ierr)
 
     well%liq%visc(i) = visl
     well%gas%visc(i) = visg
