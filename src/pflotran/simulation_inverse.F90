@@ -157,10 +157,7 @@ subroutine SimulationInverseInitializeRun(this)
   type(option_type), pointer :: option
   type(comm_type), pointer :: invcomm, forcomm, forcomm_i
   PetscInt :: num_process_groups
-  PetscInt :: num_proc_per_forcomm
-  PetscMPIInt :: mpi_int_array(3)
-  PetscMPIInt :: mpi_int
-  PetscMPIInt :: temp_group
+  PetscMPIInt :: mycolor_mpi, mykey_mpi
 
   PetscErrorCode :: ierr
 
@@ -187,18 +184,14 @@ subroutine SimulationInverseInitializeRun(this)
 
   if (num_process_groups > 1) then
     forcomm_i => CommCreate()
-    num_proc_per_forcomm = this%driver%comm%size / num_process_groups
-    mpi_int_array(1) = mod(this%driver%comm%rank,num_proc_per_forcomm)
-    mpi_int_array(2) = this%driver%comm%size-1
-    mpi_int_array(3) = num_process_groups
-    mpi_int = 1
-    call MPI_Group_range_incl(this%driver%comm%group,1, &
-                              mpi_int_array,temp_group, &
-                              ierr);CHKERRQ(ierr)
-    mpi_int = 0
-    call MPI_Comm_create_group(this%driver%comm%communicator,temp_group, &
-                               mpi_int,forcomm_i%communicator, &
-                               ierr);CHKERRQ(ierr)
+    if (forcomm%size == 1) then
+      mycolor_mpi = this%driver%comm%rank
+    else
+      mycolor_mpi = mod(this%driver%comm%rank,forcomm%size)
+    endif
+    mykey_mpi = int(this%driver%comm%rank/forcomm%size)
+    call MPI_Comm_split(this%driver%comm%communicator,mycolor_mpi,mykey_mpi, &
+                        forcomm_i%communicator,ierr);CHKERRQ(ierr)
     call MPI_Comm_rank(forcomm_i%communicator,forcomm_i%rank, &
                        ierr);CHKERRQ(ierr)
     call MPI_Comm_size(forcomm_i%communicator,forcomm_i%size, &
