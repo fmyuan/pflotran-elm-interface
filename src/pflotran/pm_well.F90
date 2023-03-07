@@ -402,293 +402,320 @@ function PMWellCreate()
   implicit none
 
   class(pm_well_type), pointer :: PMWellCreate
+  class(pm_well_type), pointer :: this
 
-  allocate(PMWellCreate)
-  call PMBaseInit(PMWellCreate)
+  allocate(this)
+  call PMBaseInit(this)
 
-  PMWellCreate%header = 'WELLBORE MODEL'
+  this%header = 'WELLBORE MODEL'
 
-  nullify(PMWellCreate%realization)
-  PMWellCreate%min_dt_flow = 1.d-15
-  PMWellCreate%min_dt_tran = 1.d-15
-  PMWellCreate%bh_zero_value = 1.d-40
-  PMWellCreate%intrusion_time_start = UNINITIALIZED_DOUBLE
-  PMWellCreate%nphase = 0
-  PMWellCreate%nspecies = 0
-  PMWellCreate%transport = PETSC_FALSE
-  PMWellCreate%ss_check = PETSC_FALSE
-  PMWellCreate%well_on = PETSC_TRUE
-  PMWellCreate%well_force_ts_cut = 0
-  PMWellCreate%flow_quasi_implicit_coupling = PETSC_FALSE
-  PMWellCreate%print_well = PETSC_FALSE
-
-  nullify(PMWellCreate%pert)
-  nullify(PMWellCreate%srcsink_brine)
-  nullify(PMWellCreate%srcsink_gas)
-
-  ! create the well grid object:
-  allocate(PMWellCreate%well_grid)
-  PMWellCreate%well_grid%nsegments = UNINITIALIZED_INTEGER
-  PMWellCreate%well_grid%nconnections = UNINITIALIZED_INTEGER
-  nullify(PMWellCreate%well_grid%dh)
-  nullify(PMWellCreate%well_grid%h)
-  nullify(PMWellCreate%well_grid%h_local_id)
-  nullify(PMWellCreate%well_grid%h_ghosted_id)
-  nullify(PMWellCreate%well_grid%h_global_id)
-  nullify(PMWellCreate%well_grid%h_rank_id)
-  nullify(PMWellCreate%well_grid%strata_id)
-  PMWellCreate%well_grid%tophole(:) = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_grid%bottomhole(:) = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_grid%xy_span_multiplier = 10
-  PMWellCreate%well_grid%match_reservoir = PETSC_FALSE
-  PMWellCreate%well_grid%dz_peck = 1.0d-2
-  PMWellCreate%well_grid%min_dz = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_grid%well_res_ratio = 1
-  nullify(PMWellCreate%well_grid%z_list)
-  nullify(PMWellCreate%well_grid%l_list)
-
-  ! create the well object:
-  allocate(PMWellCreate%well)
-  nullify(PMWellCreate%well%mass_balance_liq)
-  nullify(PMWellCreate%well%area)
-  nullify(PMWellCreate%well%diameter)
-  nullify(PMWellCreate%well%volume)
-  nullify(PMWellCreate%well%f)
-  nullify(PMWellCreate%well%WI_base)
-  nullify(PMWellCreate%well%WI)
-  nullify(PMWellCreate%well%r0)
-  nullify(PMWellCreate%well%pl)
-  nullify(PMWellCreate%well%pg)
-  PMWellCreate%well%output_pl = PETSC_FALSE
-  PMWellCreate%well%output_pg = PETSC_FALSE
-  nullify(PMWellCreate%well%ql)
-  nullify(PMWellCreate%well%qg)
-  nullify(PMWellCreate%well%ql_bc)
-  nullify(PMWellCreate%well%qg_bc)
-  nullify(PMWellCreate%well%ql_kmol)
-  nullify(PMWellCreate%well%qg_kmol)
-  nullify(PMWellCreate%well%ql_kmol_bc)
-  nullify(PMWellCreate%well%qg_kmol_bc)
-  nullify(PMWellCreate%well%liq_cum_mass)
-  nullify(PMWellCreate%well%liq_mass)
-  nullify(PMWellCreate%well%species_names)
-  nullify(PMWellCreate%well%species_parent_id)
-  nullify(PMWellCreate%well%species_radioactive)
-  nullify(PMWellCreate%well%species_decay_rate)
-  nullify(PMWellCreate%well%species_parent_decay_rate)
-  nullify(PMWellCreate%well%aqueous_conc)
-  nullify(PMWellCreate%well%aqueous_mass)
-  PMWellCreate%well%output_aqc = PETSC_FALSE
-  PMWellCreate%well%output_aqm = PETSC_FALSE
-  nullify(PMWellCreate%well%aqueous_conc_th)
-  nullify(PMWellCreate%well%ccid)
-  nullify(PMWellCreate%well%permeability)
-  nullify(PMWellCreate%well%phi)
-  PMWellCreate%well%bh_p_set_by_reservoir = PETSC_FALSE
-  PMWellCreate%well%bh_sg_set_by_reservoir = PETSC_FALSE
-  PMWellCreate%well%bh_p = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%th_p = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%bh_sg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%th_sg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%bh_ql = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%bh_qg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%th_ql = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%th_qg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well%tran_condition_name = ''
-
-  ! create the well_pert object:
-  allocate(PMWellCreate%well_pert(TWO_INTEGER))
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%mass_balance_liq)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%area)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%diameter)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%volume)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%f)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%WI_base)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%WI)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%r0)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%pl)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%pg)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_bc)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_bc)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_kmol)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_kmol)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_kmol_bc)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_kmol_bc)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%liq_cum_mass)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%liq_mass)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_conc)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_mass)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ccid)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%phi)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%mass_balance_liq)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%area)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%diameter)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%volume)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%f)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%WI_base)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%WI)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%r0)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%pl)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%pg)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_bc)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_bc)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_kmol)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_kmol)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_kmol_bc)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_kmol_bc)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%liq_cum_mass)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%liq_mass)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%aqueous_conc)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%aqueous_mass)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ccid)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%permeability)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%phi)
-  PMWellCreate%well_pert(:)%bh_p_set_by_reservoir = PETSC_FALSE
-  PMWellCreate%well_pert(:)%bh_sg_set_by_reservoir = PETSC_FALSE
-  PMWellCreate%well_pert(:)%bh_p = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%th_p = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%bh_sg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%th_sg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%bh_ql = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%bh_qg = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%th_ql = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(:)%th_qg = UNINITIALIZED_DOUBLE
-
-  ! create the reservoir object:
-  allocate(PMWellCreate%reservoir)
-  nullify(PMWellCreate%reservoir%p_l)
-  nullify(PMWellCreate%reservoir%p_g)
-  nullify(PMWellCreate%reservoir%s_l)
-  nullify(PMWellCreate%reservoir%s_g)
-  nullify(PMWellCreate%reservoir%mobility_l)
-  nullify(PMWellCreate%reservoir%mobility_g)
-  nullify(PMWellCreate%reservoir%kr_l)
-  nullify(PMWellCreate%reservoir%kr_g)
-  nullify(PMWellCreate%reservoir%rho_l)
-  nullify(PMWellCreate%reservoir%rho_g)
-  nullify(PMWellCreate%reservoir%visc_l)
-  nullify(PMWellCreate%reservoir%visc_g)
-  nullify(PMWellCreate%reservoir%e_por)
-  nullify(PMWellCreate%reservoir%aqueous_conc)
-  nullify(PMWellCreate%reservoir%aqueous_mass)
-  nullify(PMWellCreate%reservoir%kx)
-  nullify(PMWellCreate%reservoir%ky)
-  nullify(PMWellCreate%reservoir%kz)
-  nullify(PMWellCreate%reservoir%dx)
-  nullify(PMWellCreate%reservoir%dy)
-  nullify(PMWellCreate%reservoir%dz)
-  nullify(PMWellCreate%reservoir%volume)
-
-
-  ! create the fluid/liq objects:
-  allocate(PMWellCreate%well%liq)
-  PMWellCreate%well%liq%ifluid = 1
-  nullify(PMWellCreate%well%liq%kr)
-  PMWellCreate%well%liq%rho0 = UNINITIALIZED_DOUBLE
-  nullify(PMWellCreate%well%liq%rho)
-  nullify(PMWellCreate%well%liq%visc)
-  nullify(PMWellCreate%well%liq%s)
-  nullify(PMWellCreate%well%liq%Q)
-  PMWellCreate%well%liq%output_Q = PETSC_FALSE
-  allocate(PMWellCreate%well_pert(ONE_INTEGER)%liq)
-  allocate(PMWellCreate%well_pert(TWO_INTEGER)%liq)
-  PMWellCreate%well_pert(ONE_INTEGER)%liq%ifluid = 1
-  PMWellCreate%well_pert(TWO_INTEGER)%liq%ifluid = 1
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%liq%kr)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%liq%kr)
-  PMWellCreate%well_pert(ONE_INTEGER)%liq%rho0 = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(TWO_INTEGER)%liq%rho0 = UNINITIALIZED_DOUBLE
-
-  ! create the fluid/gas objects:
-  allocate(PMWellCreate%well%gas)
-  PMWellCreate%well%gas%ifluid = 2
-  nullify(PMWellCreate%well%gas%kr)
-  PMWellCreate%well%gas%rho0 = UNINITIALIZED_DOUBLE
-  nullify(PMWellCreate%well%gas%rho)
-  nullify(PMWellCreate%well%gas%visc)
-  nullify(PMWellCreate%well%gas%s)
-  nullify(PMWellCreate%well%gas%Q)
-  PMWellCreate%well%gas%output_Q = PETSC_FALSE
-  allocate(PMWellCreate%well_pert(ONE_INTEGER)%gas)
-  allocate(PMWellCreate%well_pert(TWO_INTEGER)%gas)
-  PMWellCreate%well_pert(ONE_INTEGER)%gas%ifluid = 2
-  PMWellCreate%well_pert(TWO_INTEGER)%gas%ifluid = 2
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%gas%kr)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%gas%kr)
-  PMWellCreate%well_pert(ONE_INTEGER)%gas%rho0 = UNINITIALIZED_DOUBLE
-  PMWellCreate%well_pert(TWO_INTEGER)%gas%rho0 = UNINITIALIZED_DOUBLE
-
-  ! create the well flow solution object:
-  allocate(PMWellCreate%flow_soln)
-  nullify(PMWellCreate%flow_soln%prev_soln%pl)
-  nullify(PMWellCreate%flow_soln%prev_soln%sg)
-  nullify(PMWellCreate%flow_soln%residual)
-  nullify(PMWellCreate%flow_soln%Jacobian)
-  nullify(PMWellCreate%flow_soln%update)
-  PMWellCreate%flow_soln%ndof = UNINITIALIZED_INTEGER
-  PMWellCreate%flow_soln%bh_p = PETSC_FALSE
-  PMWellCreate%flow_soln%th_p = PETSC_FALSE
-  PMWellCreate%flow_soln%bh_q = PETSC_FALSE
-  PMWellCreate%flow_soln%th_q = PETSC_FALSE
-  PMWellCreate%flow_soln%not_converged = PETSC_TRUE
-  PMWellCreate%flow_soln%converged = PETSC_FALSE
-  PMWellCreate%flow_soln%cut_timestep = PETSC_FALSE
-  PMWellCreate%flow_soln%max_iter = 8
-  PMWellCreate%flow_soln%max_ts_cut = 20
-  PMWellCreate%flow_soln%ts_cut_factor = 2.0d0
-  PMWellCreate%flow_soln%ts_ramp_factor = 1.1d0
-  PMWellCreate%flow_soln%itol_abs_res = 1.0d-8
-  PMWellCreate%flow_soln%itol_scaled_res = 1.0d-5
-  PMWellCreate%flow_soln%itol_abs_update_p = 1.0d0
-  PMWellCreate%flow_soln%itol_abs_update_s = 1.0d-5
-  PMWellCreate%flow_soln%itol_rel_update_p = 1.0d-4
-  PMWellCreate%flow_soln%itol_rel_update_s = 1.0d-4
-  PMWellCreate%flow_soln%n_steps = 0
-  PMWellCreate%flow_soln%n_newton = 0
-
-  ! create the well transport solution object:
-  allocate(PMWellCreate%tran_soln)
-  nullify(PMWellCreate%tran_soln%prev_soln%aqueous_conc)
-  nullify(PMWellCreate%tran_soln%prev_soln%aqueous_mass)
-  nullify(PMWellCreate%tran_soln%residual)
-  nullify(PMWellCreate%tran_soln%Jacobian)
-  nullify(PMWellCreate%tran_soln%update)
-  PMWellCreate%tran_soln%ndof = UNINITIALIZED_INTEGER
-  PMWellCreate%tran_soln%not_converged = PETSC_TRUE
-  PMWellCreate%tran_soln%converged = PETSC_FALSE
-  PMWellCreate%tran_soln%cut_timestep = PETSC_FALSE
-  PMWellCreate%tran_soln%max_iter = 8
-  PMWellCreate%tran_soln%max_ts_cut = 20
-  PMWellCreate%tran_soln%ts_cut_factor = 2.0d0
-  PMWellCreate%tran_soln%ts_ramp_factor = 1.1d0
-  PMWellCreate%tran_soln%itol_abs_res = 1.0d-8
-  PMWellCreate%tran_soln%itol_scaled_res = 1.0d-4
-  PMWellCreate%tran_soln%itol_abs_update = 1.0d0
-  PMWellCreate%tran_soln%itol_rel_update = 1.0d-1
-  PMWellCreate%tran_soln%n_steps = 0
-  PMWellCreate%tran_soln%n_newton = 0
+  nullify(this%realization)
+  call PMWellGridCreate(this)
+  allocate(this%well)
+  call PMWellVarCreate(this%well)
+  allocate(this%well_pert(TWO_INTEGER))
+  call PMWellVarCreate(this%well_pert(ONE_INTEGER))
+  call PMWellVarCreate(this%well_pert(TWO_INTEGER))
+  call PMWellResCreate(this)
+  call PMWellFlowCreate(this)
+  call PMWellTranCreate(this)
 
   ! strata list specific to well
-  allocate(PMWellCreate%strata_list)
-  nullify(PMWellCreate%strata_list%first)
-  nullify(PMWellCreate%strata_list%last)
-  nullify(PMWellCreate%strata_list%array)
-  PMWellCreate%strata_list%num_strata = 0 
+  allocate(this%strata_list)
+  nullify(this%strata_list%first)
+  nullify(this%strata_list%last)
+  nullify(this%strata_list%array)
+  this%strata_list%num_strata = 0
 
-  allocate(PMWellCreate%well_comm)
-  nullify(PMWellCreate%well_comm%petsc_rank_list)
-  PMWellCreate%well_comm%petsc_rank = UNINITIALIZED_INTEGER
-  PMWellCreate%well_comm%rank = UNINITIALIZED_INTEGER
-  PMWellCreate%well_comm%comm = UNINITIALIZED_INTEGER
-  PMWellCreate%well_comm%group = UNINITIALIZED_INTEGER
-  PMWellCreate%well_comm%commsize = UNINITIALIZED_INTEGER
+  allocate(this%well_comm)
+  nullify(this%well_comm%petsc_rank_list)
+  this%well_comm%petsc_rank = 0
+  this%well_comm%comm = 0
+  this%well_comm%group = 0
+  this%well_comm%rank = 0
+  this%well_comm%commsize = 0
+
+  nullify(this%pert)
+  nullify(this%srcsink_brine)
+  nullify(this%srcsink_gas)
+
+  this%nphase = 0
+  this%nspecies = 0
+  this%intrusion_time_start = UNINITIALIZED_DOUBLE
+  this%bh_zero_value = 1.d-40
+  this%dt_flow = 0.d0
+  this%dt_tran = 0.d0
+  this%min_dt_flow = 1.d-15
+  this%min_dt_tran = 1.d-15
+  this%cumulative_dt_flow = 0.d0
+  this%cumulative_dt_tran = 0.d0
+  this%transport = PETSC_FALSE
+  this%ss_check = PETSC_FALSE
+  this%well_on = PETSC_TRUE
+  this%well_force_ts_cut = 0
+  this%flow_quasi_implicit_coupling = PETSC_FALSE
+  this%print_well = PETSC_FALSE
+  this%print_output = PETSC_FALSE
+
+  PMWellCreate => this
 
 end function PMWellCreate
+
+! ************************************************************************** !
+
+subroutine PMWellGridCreate(this)
+  !
+  ! Creates grid variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/04/2023
+
+  implicit none
+
+  class(pm_well_type), pointer :: this
+
+  ! create the well grid object:
+  allocate(this%well_grid)
+  this%well_grid%nsegments = UNINITIALIZED_INTEGER
+  this%well_grid%nconnections = UNINITIALIZED_INTEGER
+  nullify(this%well_grid%dh)
+  nullify(this%well_grid%res_dz)
+  nullify(this%well_grid%h)
+  nullify(this%well_grid%h_local_id)
+  nullify(this%well_grid%h_ghosted_id)
+  nullify(this%well_grid%h_global_id)
+  nullify(this%well_grid%h_rank_id)
+  nullify(this%well_grid%strata_id)
+  this%well_grid%tophole(:) = UNINITIALIZED_DOUBLE
+  this%well_grid%bottomhole(:) = UNINITIALIZED_DOUBLE
+  this%well_grid%xy_span_multiplier = 10
+  this%well_grid%match_reservoir = PETSC_FALSE
+  this%well_grid%dz_peck = 1.0d-2
+  this%well_grid%min_dz = UNINITIALIZED_DOUBLE
+  this%well_grid%well_res_ratio = 1
+  nullify(this%well_grid%z_list)
+  nullify(this%well_grid%l_list)
+
+end subroutine PMWellGridCreate
+
+! ************************************************************************** !
+
+subroutine PMWellFlowCreate(this)
+  !
+  ! Creates flow variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/04/2023
+
+  implicit none
+
+  class(pm_well_type), pointer :: this
+
+  ! create the well flow solution object:
+  allocate(this%flow_soln)
+
+  this%flow_soln%ndof = UNINITIALIZED_INTEGER
+
+  nullify(this%flow_soln%residual)
+  nullify(this%flow_soln%Jacobian)
+  nullify(this%flow_soln%update)
+
+  this%flow_soln%not_converged = PETSC_TRUE
+  this%flow_soln%converged = PETSC_FALSE
+  this%flow_soln%cut_timestep = PETSC_FALSE
+
+  this%flow_soln%max_iter = 8
+  this%flow_soln%max_ts_cut = 20
+  this%flow_soln%ts_cut_factor = 2.0d0
+  this%flow_soln%ts_ramp_factor = 1.1d0
+  this%flow_soln%itol_abs_res = 1.0d-8
+  this%flow_soln%itol_scaled_res = 1.0d-5
+  this%flow_soln%n_steps = 0
+  this%flow_soln%n_newton = 0
+
+  nullify(this%flow_soln%prev_soln%pl)
+  nullify(this%flow_soln%prev_soln%sg)
+
+  this%flow_soln%bh_p = PETSC_FALSE
+  this%flow_soln%th_p = PETSC_FALSE
+  this%flow_soln%bh_q = PETSC_FALSE
+  this%flow_soln%th_q = PETSC_FALSE
+  this%flow_soln%itol_abs_update_p = 1.0d0
+  this%flow_soln%itol_abs_update_s = 1.0d-5
+  this%flow_soln%itol_rel_update_p = 1.0d-4
+  this%flow_soln%itol_rel_update_s = 1.0d-4
+
+end subroutine PMWellFlowCreate
+
+! ************************************************************************** !
+
+subroutine PMWellTranCreate(this)
+  !
+  ! Creates transport variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/04/2023
+
+  implicit none
+
+  class(pm_well_type), pointer :: this
+
+  ! create the well transport solution object:
+  allocate(this%tran_soln)
+  nullify(this%tran_soln%prev_soln%aqueous_conc)
+  nullify(this%tran_soln%prev_soln%aqueous_mass)
+
+  this%tran_soln%ndof = UNINITIALIZED_INTEGER
+  nullify(this%tran_soln%residual)
+  nullify(this%tran_soln%Jacobian)
+  nullify(this%tran_soln%update)
+
+  this%tran_soln%not_converged = PETSC_TRUE
+  this%tran_soln%converged = PETSC_FALSE
+  this%tran_soln%cut_timestep = PETSC_FALSE
+  this%tran_soln%max_iter = 8
+  this%tran_soln%max_ts_cut = 20
+  this%tran_soln%ts_cut_factor = 2.0d0
+  this%tran_soln%ts_ramp_factor = 1.1d0
+  this%tran_soln%itol_abs_res = 1.0d-8
+  this%tran_soln%itol_scaled_res = 1.0d-4
+  this%tran_soln%n_steps = 0
+  this%tran_soln%n_newton = 0
+
+  this%tran_soln%itol_abs_update = 1.0d0
+  this%tran_soln%itol_rel_update = 1.0d-1
+
+end subroutine PMWellTranCreate
+
+! ************************************************************************** !
+
+subroutine PMWellResCreate(this)
+  !
+  ! Creates reservoir variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/04/2023
+
+  implicit none
+
+  class(pm_well_type), pointer :: this
+
+  ! create the reservoir object:
+  allocate(this%reservoir)
+  nullify(this%reservoir%p_l)
+  nullify(this%reservoir%p_g)
+  nullify(this%reservoir%s_l)
+  nullify(this%reservoir%s_g)
+  nullify(this%reservoir%mobility_l)
+  nullify(this%reservoir%mobility_g)
+  nullify(this%reservoir%kr_l)
+  nullify(this%reservoir%kr_g)
+  nullify(this%reservoir%rho_l)
+  nullify(this%reservoir%rho_g)
+  nullify(this%reservoir%visc_l)
+  nullify(this%reservoir%visc_g)
+  nullify(this%reservoir%e_por)
+  nullify(this%reservoir%aqueous_conc)
+  nullify(this%reservoir%aqueous_mass)
+  nullify(this%reservoir%kx)
+  nullify(this%reservoir%ky)
+  nullify(this%reservoir%kz)
+  nullify(this%reservoir%dx)
+  nullify(this%reservoir%dy)
+  nullify(this%reservoir%dz)
+  nullify(this%reservoir%volume)
+
+end subroutine PMWellResCreate
+
+! ************************************************************************** !
+
+subroutine PMWellVarCreate(well)
+  !
+  ! Creates well variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/04/2023
+
+  implicit none
+
+  type(well_type) :: well
+
+  ! create the well_pert object:
+  well%well_model_type = ''
+  nullify(well%mass_balance_liq)
+  nullify(well%liq)
+  nullify(well%gas)
+  nullify(well%area)
+  nullify(well%diameter)
+  nullify(well%volume)
+  nullify(well%f)
+  nullify(well%WI_base)
+  nullify(well%WI)
+  nullify(well%r0)
+  well%WI_model = PEACEMAN_ISO
+  nullify(well%pl)
+  nullify(well%pg)
+  well%output_pl = PETSC_FALSE
+  well%output_pg = PETSC_FALSE
+  nullify(well%ql)
+  nullify(well%qg)
+  nullify(well%ql_bc)
+  nullify(well%qg_bc)
+  nullify(well%ql_kmol)
+  nullify(well%qg_kmol)
+  nullify(well%ql_kmol_bc)
+  nullify(well%qg_kmol_bc)
+  nullify(well%liq_cum_mass)
+  nullify(well%liq_mass)
+  nullify(well%species_names)
+  nullify(well%species_parent_id)
+  nullify(well%species_radioactive)
+  nullify(well%species_decay_rate)
+  nullify(well%species_parent_decay_rate)
+  nullify(well%aqueous_conc)
+  nullify(well%aqueous_mass)
+  well%output_aqc = PETSC_FALSE
+  well%output_aqm = PETSC_FALSE
+  nullify(well%aqueous_conc_th)
+  well%bh_p_set_by_reservoir = PETSC_FALSE
+  well%bh_sg_set_by_reservoir = PETSC_FALSE
+  well%bh_p = UNINITIALIZED_DOUBLE
+  well%th_p = UNINITIALIZED_DOUBLE
+  well%bh_sg = UNINITIALIZED_DOUBLE
+  well%th_sg = UNINITIALIZED_DOUBLE
+  well%bh_ql = UNINITIALIZED_DOUBLE
+  well%bh_qg = UNINITIALIZED_DOUBLE
+  well%th_ql = UNINITIALIZED_DOUBLE
+  well%th_qg = UNINITIALIZED_DOUBLE
+  well%tran_condition_name = ''
+  nullify(well%ccid)
+  nullify(well%permeability)
+  nullify(well%phi)
+
+  ! create the fluid/liquid objects:
+  allocate(well%liq)
+  well%liq%ifluid = 1
+  nullify(well%liq%kr)
+  well%liq%rho0 = UNINITIALIZED_DOUBLE
+  nullify(well%liq%rho)
+  nullify(well%liq%visc)
+  nullify(well%liq%s)
+  nullify(well%liq%Q)
+  well%liq%output_Q = PETSC_FALSE
+
+  ! create the fluid/gas objects:
+  allocate(well%gas)
+  well%gas%ifluid = 2
+  nullify(well%gas%kr)
+  well%gas%rho0 = UNINITIALIZED_DOUBLE
+  nullify(well%gas%rho)
+  nullify(well%gas%visc)
+  nullify(well%gas%s)
+  nullify(well%gas%Q)
+  well%gas%output_Q = PETSC_FALSE
+
+
+end subroutine PMWellVarCreate
 
 ! ************************************************************************** !
 
@@ -726,10 +753,10 @@ subroutine PMWellSetup(this)
   type(point3d_type) :: dummy_h
   class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscInt, pointer :: h_global_id_unique(:)
-  PetscInt, pointer :: h_rank_id_unique(:)
-  PetscInt, pointer :: h_all_rank_id(:)
-  PetscInt, pointer :: h_all_global_id(:)
+  PetscInt, allocatable :: h_global_id_unique(:)
+  PetscInt, allocatable :: h_rank_id_unique(:)
+  PetscInt, allocatable :: h_all_rank_id(:)
+  PetscInt, allocatable :: h_all_global_id(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -739,7 +766,7 @@ subroutine PMWellSetup(this)
   PetscReal :: temp_real, temp_real2
   PetscReal :: cum_z, z_dum
   PetscReal :: face_dn, face_up
-  PetscReal, allocatable :: temp_z_list(:), temp_l_list(:)
+  PetscReal, allocatable :: temp_z_list(:)
   PetscReal, allocatable :: temp_repeated_list(:)
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
   PetscInt :: repeated
@@ -873,12 +900,13 @@ subroutine PMWellSetup(this)
     nsegments = well_grid%nsegments
 
     allocate(well_grid%dh(nsegments))
+    allocate(well_grid%res_dz(nsegments))
     allocate(well_grid%h(nsegments))
     allocate(well_grid%h_local_id(nsegments))
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
-    allocate(well_grid%res_dz(nsegments))
+    allocate(well_grid%strata_id(nsegments))
 
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
@@ -946,12 +974,14 @@ subroutine PMWellSetup(this)
     nsegments = well_grid%nsegments
 
     allocate(well_grid%dh(nsegments))
+    allocate(well_grid%res_dz(nsegments))
     allocate(well_grid%h(nsegments))
     allocate(well_grid%h_local_id(nsegments))
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
-    allocate(well_grid%res_dz(nsegments))
+    allocate(well_grid%strata_id(nsegments))
+
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
@@ -1030,11 +1060,14 @@ subroutine PMWellSetup(this)
     nsegments = well_grid%nsegments
 
     allocate(well_grid%dh(nsegments))
+    allocate(well_grid%res_dz(nsegments))
     allocate(well_grid%h(nsegments))
     allocate(well_grid%h_local_id(nsegments))
     allocate(well_grid%h_ghosted_id(nsegments))
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
+    allocate(well_grid%strata_id(nsegments))
+
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
@@ -1126,13 +1159,13 @@ subroutine PMWellSetup(this)
      dz_list(nsegments_save+1:nsegments) = dz
 
      allocate(well_grid%dh(nsegments))
-     allocate(well_grid%h(nsegments))
      allocate(well_grid%res_dz(nsegments))
+     allocate(well_grid%h(nsegments))
      allocate(well_grid%h_local_id(nsegments))
      allocate(well_grid%h_ghosted_id(nsegments))
      allocate(well_grid%h_global_id(nsegments))
-     allocate(well_grid%strata_id(nsegments))
      allocate(well_grid%h_rank_id(nsegments))
+     allocate(well_grid%strata_id(nsegments))
 
      well_grid%h_rank_id(:) = 0
      well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
@@ -1289,6 +1322,11 @@ subroutine PMWellSetup(this)
   enddo
   write(string,'(I0.5)') count1
 
+  deallocate(h_global_id_unique)
+  deallocate(h_rank_id_unique)
+  deallocate(h_all_rank_id)
+  deallocate(h_all_global_id)
+
   ! Next, sum up how many grid cells the well passes thru.
   ! Note: This count assumes that the well is vertical and the top and
   !       bottom surfaces do not slope or undulate.
@@ -1396,21 +1434,6 @@ subroutine PMWellSetup(this)
       write(*,*) well_grid%dh
     endif
   endif
-
-  allocate(this%well%ccid(nsegments))
-  allocate(this%well%permeability(nsegments))
-  allocate(this%well%phi(nsegments))
-
-  allocate(this%well%area(nsegments))
-  this%well%area = 3.14159*(this%well%diameter/2.d0)*(this%well%diameter/2.d0)
-
-  allocate(this%well%volume(nsegments))
-  this%well%volume = this%well%area*well_grid%dh
-
-  allocate(this%well%liq%visc(nsegments))
-  allocate(this%well%gas%visc(nsegments))
-
-  allocate(this%well%mass_balance_liq(nsegments))
 
   this%flow_soln%ndof = this%nphase
 
@@ -2670,143 +2693,47 @@ recursive subroutine PMWellInitializeRun(this)
 
   call PMWellUpdateStrata(this,curr_time)
 
-  allocate(this%flow_soln%residual(nsegments*this%flow_soln%ndof))
-  allocate(this%flow_soln%update(nsegments*this%flow_soln%ndof))
-  this%flow_soln%residual(:) = UNINITIALIZED_DOUBLE
-  this%flow_soln%update(:) = UNINITIALIZED_DOUBLE
-
-  allocate(this%flow_soln%Jacobian(this%nphase*nsegments,this%nphase*nsegments))
-  do i = 1,this%nphase*nsegments
-    do j = 1,this%nphase*nsegments
-      this%flow_soln%Jacobian(i,j) = UNINITIALIZED_DOUBLE
-    enddo
+  do k = 1,2
+    allocate(this%well_pert(k)%diameter(nsegments))
+    allocate(this%well_pert(k)%WI_base(nsegments))
+    allocate(this%well_pert(k)%f(nsegments))
+    this%well_pert(k)%diameter = this%well%diameter
+    this%well_pert(k)%WI_base = this%well%WI_base
+    this%well_pert(k)%f = this%well%f
+    this%well_pert(k)%well_model_type = this%well%well_model_type
   enddo
 
-  allocate(this%flow_soln%prev_soln%pl(nsegments))
-  allocate(this%flow_soln%prev_soln%sg(nsegments))
+  call PMWellInitWellVars(this%well,this%well_grid,this%transport, &
+                          nsegments,this%nspecies)
+  call PMWellInitFluidVars(this%well,nsegments, &
+                           this%option%flow%reference_density)
+  call PMWellInitWellVars(this%well_pert(ONE_INTEGER),this%well_grid, &
+                          this%transport,nsegments,this%nspecies)
+  call PMWellInitFluidVars(this%well_pert(ONE_INTEGER),nsegments, &
+                           this%option%flow%reference_density)
+  call PMWellInitWellVars(this%well_pert(TWO_INTEGER),this%well_grid, &
+                          this%transport,nsegments,this%nspecies)
+  call PMWellInitFluidVars(this%well_pert(TWO_INTEGER),nsegments, &
+                           this%option%flow%reference_density)
 
+  call PMWellInitRes(this%reservoir,nsegments)
+  call PMWellInitFlowSoln(this%flow_soln,this%nphase,nsegments)
   if (this%transport) then
-    allocate(this%tran_soln%residual(nsegments*this%tran_soln%ndof))
-    allocate(this%tran_soln%update(nsegments*this%tran_soln%ndof))
-    this%tran_soln%residual(:) = UNINITIALIZED_DOUBLE
-    this%tran_soln%update(:) = UNINITIALIZED_DOUBLE
-
-    allocate(this%tran_soln%Jacobian(this%nspecies*nsegments, &
-                                     this%nspecies*nsegments))
-    this%tran_soln%Jacobian = UNINITIALIZED_DOUBLE
-
-    allocate(this%tran_soln%prev_soln%aqueous_conc(this%nspecies, &
-                                                   this%well_grid%nsegments))
-    allocate(this%tran_soln%prev_soln%aqueous_mass(this%nspecies, &
-                                                   this%well_grid%nsegments))
+    call PMWellInitTranSoln(this%tran_soln,this%nspecies,nsegments)
   endif
 
-  allocate(this%well%WI(nsegments))
-  allocate(this%well%r0(nsegments))
-  allocate(this%well%pl(nsegments))
-  allocate(this%well%pg(nsegments))
-  allocate(this%well%ql(nsegments-1))
-  allocate(this%well%qg(nsegments-1))
-  allocate(this%well%ql_bc(2))
-  allocate(this%well%qg_bc(2))
-  allocate(this%well%ql_kmol(nsegments-1))
-  allocate(this%well%qg_kmol(nsegments-1))
-  allocate(this%well%ql_kmol_bc(2))
-  allocate(this%well%qg_kmol_bc(2))
-  allocate(this%well%liq_cum_mass(nsegments))
-  allocate(this%well%liq_mass(nsegments))
-  this%well%liq_cum_mass = 0.d0 
-  this%well%liq_mass = 0.d0
-  
-  if (this%transport) then
-    allocate(this%well%aqueous_conc(this%nspecies,nsegments))
-    allocate(this%well%aqueous_mass(this%nspecies,nsegments))
-    allocate(this%well%aqueous_conc_th(this%nspecies))
-  endif
-
-  allocate(this%pert(nsegments,this%nphase))
-  this%pert = 0.d0
-
-  allocate(this%well%liq%s(nsegments))
-  this%well%liq%rho0 = this%option%flow%reference_density(1)
-  allocate(this%well%liq%rho(nsegments))
-  this%well%liq%rho(:) = this%well%liq%rho0
-  allocate(this%well%liq%visc(nsegments))
-  allocate(this%well%liq%Q(nsegments))
-  allocate(this%well%liq%kr(nsegments))
-  allocate(this%well%gas%s(nsegments))
-  this%well%gas%rho0 = this%option%flow%reference_density(2)
-  allocate(this%well%gas%rho(nsegments))
-  this%well%gas%rho(:) = this%well%gas%rho0
-  allocate(this%well%gas%visc(nsegments))
-  allocate(this%well%gas%Q(nsegments))
-  allocate(this%well%gas%kr(nsegments))
 
   ! Initialize perturbations
   allocate(this%pert(nsegments,this%nphase))
   this%pert = 0.d0
 
-  ! Initialize stored aux variables at well perturbations
-  do k = 1,this%nphase
-    this%well_pert(k)%well_model_type = this%well%well_model_type
-    this%well_pert(k)%wi_model = this%well%wi_model
-
-    allocate(this%well_pert(k)%WI(nsegments))
-    allocate(this%well_pert(k)%r0(nsegments))
-    allocate(this%well_pert(k)%pl(nsegments))
-    allocate(this%well_pert(k)%pg(nsegments))
-    allocate(this%well_pert(k)%diameter(nsegments))
-    allocate(this%well_pert(k)%WI_base(nsegments))
-    allocate(this%well_pert(k)%ccid(nsegments))
-    allocate(this%well_pert(k)%permeability(nsegments))
-    allocate(this%well_pert(k)%phi(nsegments))
-    allocate(this%well_pert(k)%f(nsegments))
-    allocate(this%well_pert(k)%area(nsegments))
-    allocate(this%well_pert(k)%volume(nsegments))
-    allocate(this%well_pert(k)%liq%visc(nsegments))
-    allocate(this%well_pert(k)%gas%visc(nsegments))
-    allocate(this%well_pert(k)%liq%s(nsegments))
-    allocate(this%well_pert(k)%gas%s(nsegments))
-    allocate(this%well_pert(k)%liq%rho(nsegments))
-    allocate(this%well_pert(k)%gas%rho(nsegments))
-    allocate(this%well_pert(k)%liq%Q(nsegments))
-    allocate(this%well_pert(k)%gas%Q(nsegments))
-    allocate(this%well_pert(k)%liq%kr(nsegments))
-    allocate(this%well_pert(k)%gas%kr(nsegments))
-
-    this%well_pert(k)%liq%rho0 = this%option%flow%reference_density(1)
-    this%well_pert(k)%gas%rho0 = this%option%flow%reference_density(2)
-  enddo
-
-  allocate(this%reservoir%p_l(nsegments))
-  allocate(this%reservoir%p_g(nsegments))
-  allocate(this%reservoir%s_l(nsegments))
-  allocate(this%reservoir%s_g(nsegments))
-  allocate(this%reservoir%mobility_l(nsegments))
-  allocate(this%reservoir%mobility_g(nsegments))
-  allocate(this%reservoir%kr_l(nsegments))
-  allocate(this%reservoir%kr_g(nsegments))
-  allocate(this%reservoir%rho_l(nsegments))
-  allocate(this%reservoir%rho_g(nsegments))
-  allocate(this%reservoir%visc_l(nsegments))
-  allocate(this%reservoir%visc_g(nsegments))
-  allocate(this%reservoir%e_por(nsegments))
-  allocate(this%reservoir%kx(nsegments))
-  allocate(this%reservoir%ky(nsegments))
-  allocate(this%reservoir%kz(nsegments))
-  allocate(this%reservoir%dx(nsegments))
-  allocate(this%reservoir%dy(nsegments))
-  allocate(this%reservoir%dz(nsegments))
-  allocate(this%reservoir%volume(nsegments))
 
   if (this%transport) then
     allocate(this%reservoir%aqueous_conc(this%nspecies, &
                                          this%well_grid%nsegments))
     allocate(this%reservoir%aqueous_mass(this%nspecies, &
                                          this%well_grid%nsegments))
-  endif
 
-  if (this%transport) then
     allocate(this%well%species_names(this%nspecies))
     allocate(this%well%species_parent_id(this%nspecies))
     allocate(this%well%species_radioactive(this%nspecies))
@@ -2846,9 +2773,7 @@ recursive subroutine PMWellInitializeRun(this)
       endif
       species => species%next
     enddo
-  endif
 
-  if (this%transport) then
     tran_condition => this%realization%transport_conditions%first
     do
       if (.not.associated(tran_condition)) exit
@@ -2892,6 +2817,187 @@ recursive subroutine PMWellInitializeRun(this)
   endif
 
 end subroutine PMWellInitializeRun
+
+! ************************************************************************** !
+
+subroutine PMWellInitWellVars(well,well_grid,with_transport,nsegments,nspecies)
+  !
+  ! Initializes well variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/06/2023
+
+  implicit none
+
+  type(well_type) :: well
+  type(well_grid_type), pointer :: well_grid
+  PetscBool :: with_transport
+  PetscInt :: nsegments
+  PetscInt :: nspecies
+
+  allocate(well%WI(nsegments))
+  allocate(well%r0(nsegments))
+  allocate(well%pl(nsegments))
+  allocate(well%pg(nsegments))
+  allocate(well%ql(nsegments-1))
+  allocate(well%qg(nsegments-1))
+  allocate(well%ql_bc(2))
+  allocate(well%qg_bc(2))
+  allocate(well%ql_kmol(nsegments-1))
+  allocate(well%qg_kmol(nsegments-1))
+  allocate(well%ql_kmol_bc(2))
+  allocate(well%qg_kmol_bc(2))
+  allocate(well%liq_cum_mass(nsegments))
+  allocate(well%liq_mass(nsegments))
+  well%liq_cum_mass = 0.d0
+  well%liq_mass = 0.d0
+
+  allocate(well%ccid(nsegments))
+  allocate(well%permeability(nsegments))
+  allocate(well%phi(nsegments))
+
+  allocate(well%area(nsegments))
+  well%area = 3.14159*(well%diameter/2.d0)*(well%diameter/2.d0)
+
+  allocate(well%volume(nsegments))
+  well%volume = well%area*well_grid%dh
+
+  allocate(well%mass_balance_liq(nsegments))
+
+  if (with_transport) then
+    allocate(well%aqueous_conc(nspecies,nsegments))
+    allocate(well%aqueous_mass(nspecies,nsegments))
+    allocate(well%aqueous_conc_th(nspecies))
+  endif
+
+end subroutine PMWellInitWellVars
+
+! ************************************************************************** !
+
+subroutine PMWellInitFluidVars(well,nsegments,reference_density)
+  !
+  ! Initializes fluid variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/06/2023
+
+  implicit none
+
+  type(well_type) :: well
+  PetscInt :: nsegments
+  PetscReal :: reference_density(MAX_PHASE)
+
+  allocate(well%liq%s(nsegments))
+  well%liq%rho0 = reference_density(1)
+  allocate(well%liq%rho(nsegments))
+  well%liq%rho(:) = well%liq%rho0
+  allocate(well%liq%visc(nsegments))
+  allocate(well%liq%Q(nsegments))
+  allocate(well%liq%kr(nsegments))
+  allocate(well%gas%s(nsegments))
+  well%gas%rho0 = reference_density(2)
+  allocate(well%gas%rho(nsegments))
+  well%gas%rho(:) = well%gas%rho0
+  allocate(well%gas%visc(nsegments))
+  allocate(well%gas%Q(nsegments))
+  allocate(well%gas%kr(nsegments))
+
+end subroutine PMWellInitFluidVars
+
+! ************************************************************************** !
+
+subroutine PMWellInitRes(reservoir,nsegments)
+  !
+  ! Initializes well variables.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/06/2023
+
+  type(well_reservoir_type) :: reservoir
+  PetscInt :: nsegments
+
+  allocate(reservoir%p_l(nsegments))
+  allocate(reservoir%p_g(nsegments))
+  allocate(reservoir%s_l(nsegments))
+  allocate(reservoir%s_g(nsegments))
+  allocate(reservoir%mobility_l(nsegments))
+  allocate(reservoir%mobility_g(nsegments))
+  allocate(reservoir%kr_l(nsegments))
+  allocate(reservoir%kr_g(nsegments))
+  allocate(reservoir%rho_l(nsegments))
+  allocate(reservoir%rho_g(nsegments))
+  allocate(reservoir%visc_l(nsegments))
+  allocate(reservoir%visc_g(nsegments))
+  allocate(reservoir%e_por(nsegments))
+  allocate(reservoir%kx(nsegments))
+  allocate(reservoir%ky(nsegments))
+  allocate(reservoir%kz(nsegments))
+  allocate(reservoir%dx(nsegments))
+  allocate(reservoir%dy(nsegments))
+  allocate(reservoir%dz(nsegments))
+  allocate(reservoir%volume(nsegments))
+
+end subroutine PMWellInitRes
+
+! ************************************************************************** !
+
+subroutine PMWellInitFlowSoln(flow_soln,nphase,nsegments)
+  !
+  ! Initializes flow solution.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/06/2023
+
+  type(well_soln_flow_type) :: flow_soln
+  PetscInt :: nphase
+  PetscInt :: nsegments
+
+  PetscInt :: i,j
+
+  allocate(flow_soln%residual(nsegments*flow_soln%ndof))
+  allocate(flow_soln%update(nsegments*flow_soln%ndof))
+  flow_soln%residual(:) = UNINITIALIZED_DOUBLE
+  flow_soln%update(:) = UNINITIALIZED_DOUBLE
+
+  allocate(flow_soln%Jacobian(nphase*nsegments,nphase*nsegments))
+  do i = 1,nphase*nsegments
+    do j = 1,nphase*nsegments
+      flow_soln%Jacobian(i,j) = UNINITIALIZED_DOUBLE
+    enddo
+  enddo
+
+  allocate(flow_soln%prev_soln%pl(nsegments))
+  allocate(flow_soln%prev_soln%sg(nsegments))
+
+end subroutine PMWellInitFlowSoln
+
+! ************************************************************************** !
+
+subroutine PMWellInitTranSoln(tran_soln,nspecies,nsegments)
+  !
+  ! Initializes transport solution.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/06/2023
+
+  type(well_soln_tran_type) :: tran_soln
+  PetscInt :: nspecies
+  PetscInt :: nsegments
+
+
+  allocate(tran_soln%residual(nsegments*tran_soln%ndof))
+  allocate(tran_soln%update(nsegments*tran_soln%ndof))
+  tran_soln%residual(:) = UNINITIALIZED_DOUBLE
+  tran_soln%update(:) = UNINITIALIZED_DOUBLE
+
+  allocate(tran_soln%Jacobian(nspecies*nsegments, &
+                              nspecies*nsegments))
+  tran_soln%Jacobian = UNINITIALIZED_DOUBLE
+
+  allocate(tran_soln%prev_soln%aqueous_conc(nspecies,nsegments))
+  allocate(tran_soln%prev_soln%aqueous_mass(nspecies,nsegments))
+
+end subroutine PMWellInitTranSoln
 
 ! ************************************************************************** !
 
@@ -3173,6 +3279,8 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   PetscInt :: k, indx
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
+
+!  print *, ' '
 
   option => this%option
   well_comm => this%well_comm 
