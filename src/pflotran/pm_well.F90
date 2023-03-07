@@ -6718,6 +6718,17 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
               call sat_func% &
                    CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
             endif
+          class is (sat_func_KRP5_type)
+            if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            endif
           class default
             call sat_func% &
                CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
@@ -6869,6 +6880,17 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
             else
               call sat_func% &
                    CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
+            endif
+          class is (sat_func_KRP5_type)
+            if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
             endif
           class default
             call sat_func% &
@@ -7129,6 +7151,17 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
           call sat_func% &
                CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
         endif
+      class is (sat_func_KRP5_type)
+            if (.not. option%flow%pct_updated) then
+              sat_func%pct = sat_func%pct_a * well%permeability(1) ** &
+                             sat_func%pct_exp
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            endif
       class default
         call sat_func% &
                CapillaryPressure(well%liq%s(i),Pc,dpc_dsatl,option)
