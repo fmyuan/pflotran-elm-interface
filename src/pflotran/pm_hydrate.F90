@@ -308,6 +308,25 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_HENRYS_CONSTANT',option)
         end select
+      case('GAS')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hydrate mode gas')
+        call StringToUpper(word)
+        select case(word)
+          case('AIR')
+            hydrate_gas_air = PETSC_TRUE
+            hydrate_gas_methane = PETSC_FALSE
+            hydrate_fmw_comp(2) = FMWAIR
+          case('METHANE')
+            hydrate_gas_methane = PETSC_TRUE
+            hydrate_fmw_comp(2) = FMWCH4
+          case('CH4')
+            hydrate_gas_methane = PETSC_TRUE
+            hydrate_fmw_comp(2) = FMWCH4
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE_GAS',option)
+        end select
       case('NO_EFFECTIVE_SATURATION_SCALING')
         ! This turns off normalizing the liquid and gas saturations by the
         ! sum of mobile phases when computing relative permeabilities.
