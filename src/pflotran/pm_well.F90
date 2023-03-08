@@ -301,6 +301,8 @@ module PM_Well_class
   type, extends(well_soln_base_type) :: well_soln_flow_type
     ! Previously converged flow solution
     type(well_flow_save_type) :: prev_soln
+    ! flow solution at the end of a WIPP_FLOW timestep
+    type(well_flow_save_type) :: soln_save
     ! flag for bottom of hole pressure BC
     PetscBool :: bh_p
     ! flag for top of hole pressure BC
@@ -363,7 +365,7 @@ module PM_Well_class
     PetscBool :: ss_check
     PetscBool :: well_on          !Turns the well on, regardless of other checks
     PetscInt :: well_force_ts_cut
-    PetscBool :: flow_quasi_implicit_coupling
+    PetscBool :: update_for_wippflo_qi_coupling
     PetscBool :: print_well
     PetscBool :: print_output
   contains
@@ -454,7 +456,7 @@ function PMWellCreate()
   this%ss_check = PETSC_FALSE
   this%well_on = PETSC_TRUE
   this%well_force_ts_cut = 0
-  this%flow_quasi_implicit_coupling = PETSC_FALSE
+  this%update_for_wippflo_qi_coupling = PETSC_FALSE
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
 
@@ -536,6 +538,8 @@ subroutine PMWellFlowCreate(this)
 
   nullify(this%flow_soln%prev_soln%pl)
   nullify(this%flow_soln%prev_soln%sg)
+  nullify(this%flow_soln%soln_save%pl)
+  nullify(this%flow_soln%soln_save%sg)
 
   this%flow_soln%bh_p = PETSC_FALSE
   this%flow_soln%th_p = PETSC_FALSE
@@ -1582,10 +1586,6 @@ subroutine PMWellReadPMBlock(this,input)
         call InputReadDouble(input,option,this%bh_zero_value)
         call InputErrorMsg(input,option,'WIPP_INTRUSION_ZERO_VALUE', &
                            error_string)
-        cycle
-    !-------------------------------------
-      case('FLOW_QUASI_IMPLICIT_COUPLING')
-        this%flow_quasi_implicit_coupling = PETSC_TRUE
         cycle
     !-------------------------------------
     end select
@@ -2969,6 +2969,8 @@ subroutine PMWellInitFlowSoln(flow_soln,nphase,nsegments)
 
   allocate(flow_soln%prev_soln%pl(nsegments))
   allocate(flow_soln%prev_soln%sg(nsegments))
+  allocate(flow_soln%soln_save%pl(nsegments))
+  allocate(flow_soln%soln_save%sg(nsegments))
 
 end subroutine PMWellInitFlowSoln
 
@@ -3128,6 +3130,8 @@ subroutine PMWellInitializeWellFlow(this)
 
   this%flow_soln%prev_soln%pl = this%well%pl
   this%flow_soln%prev_soln%sg = this%well%gas%s
+  this%flow_soln%soln_save%pl = this%well%pl
+  this%flow_soln%soln_save%sg = this%well%gas%s
 
   ! Link well material properties
   if (this%well_comm%comm /= MPI_COMM_NULL) then
@@ -3578,6 +3582,12 @@ subroutine PMWellFinalizeTimestep(this)
 
   PetscReal :: curr_time
 
+  if (this%update_for_wippflo_qi_coupling) then
+    this%flow_soln%soln_save%pl = this%well%pl
+    this%flow_soln%soln_save%sg = this%well%gas%s
+    return
+  endif
+
   curr_time = this%option%time - this%option%flow_dt
 
   if (Initialized(this%intrusion_time_start) .and. &
@@ -3732,14 +3742,20 @@ subroutine PMWellUpdateRates(this,k,ierr)
 
   this%print_output = PETSC_FALSE
   call PMWellUpdateReservoir(this,k)
-  call PMWellInitializeWellFlow(this)
+  if (initialize_well_flow) then
+    call PMWellInitializeWellFlow(this)
+  else
+    this%well%pl = this%flow_soln%soln_save%pl
+    this%well%gas%s = this%flow_soln%soln_save%sg
+  endif
+
   call PMWellCopyWell(this%well,this%well_pert(ONE_INTEGER))
   call PMWellCopyWell(this%well,this%well_pert(TWO_INTEGER))
   call PMWellUpdatePropertiesFlow(this,this%well,&
                         this%realization%patch%characteristic_curves_array,&
                         this%realization%option)
   this%dt_flow = this%realization%option%flow_dt
-  call PMWellSolveFlow(this,time,ierr)
+  call PMWellSolveFlow(this,ierr)
   this%print_output = PETSC_TRUE  
 
   this%srcsink_brine(k,:) = -1.d0 * this%well%liq%Q(:)! [kmol/s]   
@@ -4903,12 +4919,12 @@ subroutine PMWellSolve(this,time,ierr)
     return
   endif
 
-  if (this%flow_quasi_implicit_coupling) then
+  if (this%update_for_wippflo_qi_coupling) then
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
   else 
-    call PMWellSolveFlow(this,time,ierr)
+    call PMWellSolveFlow(this,ierr)
   endif
 
   if (this%transport) then
@@ -4919,7 +4935,7 @@ end subroutine PMWellSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellSolveFlow(this,time,ierr)
+subroutine PMWellSolveFlow(this,ierr)
   !
   ! Author: Michael Nole
   ! Date: 12/01/2021
@@ -4927,7 +4943,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
   implicit none
 
   class(pm_well_type) :: this
-  PetscReal :: time
   PetscErrorCode :: ierr
 
   type(well_soln_flow_type), pointer :: flow_soln
@@ -5681,7 +5696,7 @@ subroutine PMWellPostSolveFlow(this)
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time_converted
 
-  if (this%flow_quasi_implicit_coupling) return
+  if (this%update_for_wippflo_qi_coupling) return
 
   cur_time_converted = this%option%time/this%output_option%tconv
 
