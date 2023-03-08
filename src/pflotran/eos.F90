@@ -122,9 +122,12 @@ subroutine EOSRead(input,option)
                 call InputErrorMsg(input,option,'REFERENCE_PRESSURE', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
                 call InputReadDouble(input,option,temparray(3))
-                call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
+                call InputErrorMsg(input,option,'REFERENCE_TEMPERATURE', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
                 call InputReadDouble(input,option,temparray(4))
+                call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
+                                   'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
+                call InputReadDouble(input,option,temparray(5))
                 call InputErrorMsg(input,option,'THERMAL_EXPANSION', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
               case('LINEAR')
