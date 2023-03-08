@@ -39,7 +39,8 @@ module PM_Well_class
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-  PetscBool :: initialize_well = PETSC_TRUE
+  PetscBool :: initialize_well_flow = PETSC_TRUE
+  PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal, parameter :: gravity = -9.80665d0 ! [m/s2]
 
   PetscInt, parameter :: PEACEMAN_ISO = 1
@@ -3048,9 +3049,13 @@ subroutine PMWellInitializeTimestep(this)
 
   call PMWellUpdateStrata(this,curr_time)
 
-  if (initialize_well) then
+  if (initialize_well_flow) then
     ! enter here if its the very first timestep
-    call PMWellInitializeWell(this)
+    call PMWellInitializeWellFlow(this)
+  endif
+  if (initialize_well_tran) then
+    ! enter here if its the very first timestep
+    call PMWellInitializeWellTran(this)
   endif
 
   call PMWellCopyWell(this%well,this%well_pert(ONE_INTEGER))
@@ -3077,9 +3082,9 @@ end subroutine PMWellInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMWellInitializeWell(this)
+subroutine PMWellInitializeWellFlow(this)
 !
-! Initializes the well for the first time step.
+! Initializes the well for the first time step for flow.
 !
 ! Author: Jennifer M. Frederick
 ! Date: 02/23/2022
@@ -3087,9 +3092,10 @@ subroutine PMWellInitializeWell(this)
   implicit none
 
   class(pm_well_type) :: this
-  type(strata_type), pointer :: strata
 
+  type(strata_type), pointer :: strata
   PetscInt :: k
+
 
   ! set initial flow parameters to the reservoir flow parameters
   this%well%pl = this%reservoir%p_l
@@ -3150,6 +3156,25 @@ subroutine PMWellInitializeWell(this)
     this%well_pert(k)%r0(:) = this%well%r0(:)
   enddo
 
+  initialize_well_flow = PETSC_FALSE
+
+end subroutine PMWellInitializeWellFlow
+
+! ************************************************************************** !
+
+subroutine PMWellInitializeWellTran(this)
+!
+! Initializes the well for the first time step for transport.
+!
+! Author: Jennifer M. Frederick
+! Date: 02/23/2022
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  PetscInt :: k
+
   ! set initial transport parameters to the reservoir transport parameters
   if (this%transport) then
     if (Initialized(this%intrusion_time_start)) then
@@ -3172,9 +3197,9 @@ subroutine PMWellInitializeWell(this)
     this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
   endif
 
-  initialize_well = PETSC_FALSE
+  initialize_well_tran = PETSC_FALSE
 
-end subroutine PMWellInitializeWell
+end subroutine PMWellInitializeWellTran
 
 ! ************************************************************************** !
 
@@ -3707,7 +3732,7 @@ subroutine PMWellUpdateRates(this,k,ierr)
 
   this%print_output = PETSC_FALSE
   call PMWellUpdateReservoir(this,k)
-  call PMWellInitializeWell(this)
+  call PMWellInitializeWellFlow(this)
   call PMWellCopyWell(this%well,this%well_pert(ONE_INTEGER))
   call PMWellCopyWell(this%well,this%well_pert(TWO_INTEGER))
   call PMWellUpdatePropertiesFlow(this,this%well,&
