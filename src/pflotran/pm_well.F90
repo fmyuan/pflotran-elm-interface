@@ -4923,6 +4923,7 @@ subroutine PMWellSolve(this,time,ierr)
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
+    this%update_for_wippflo_qi_coupling = PETSC_FALSE
   else 
     call PMWellSolveFlow(this,ierr)
   endif
@@ -5695,8 +5696,6 @@ subroutine PMWellPostSolveFlow(this)
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time_converted
-
-  if (this%update_for_wippflo_qi_coupling) return
 
   cur_time_converted = this%option%time/this%output_option%tconv
 

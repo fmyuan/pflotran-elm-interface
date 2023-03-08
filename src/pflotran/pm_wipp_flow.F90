@@ -1089,7 +1089,6 @@ subroutine PMWIPPFloFinalizeTimestep(this)
   if (associated(this%pmwell_ptr)) then
     this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_TRUE
     call this%pmwell_ptr%FinalizeTimestep()
-    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_FALSE 
   endif
   call PMSubsurfaceFlowFinalizeTimestep(this)
 
