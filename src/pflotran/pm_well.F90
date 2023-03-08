@@ -3039,6 +3039,8 @@ subroutine PMWellInitializeTimestep(this)
   PetscInt :: k
   PetscReal :: curr_time
 
+  if (this%update_for_wippflo_qi_coupling) return
+
   curr_time = this%option%time - this%option%flow_dt
 
   if (Initialized(this%intrusion_time_start) .and. &
