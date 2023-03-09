@@ -271,7 +271,9 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: molality_to_molarity
   PetscReal :: vh_L, sumkin, Biomass_mod
   PetscReal :: nh4_inhibition, tempreal, threshold_f
+  PetscReal :: C_reactant_inhibit
 
+  PetscReal :: Reactant_inhibition(this%n_species)
   PetscReal :: C_aq(this%n_species)
   PetscReal :: rkin(this%n_rxn)
   PetscReal :: R(this%n_rxn)
@@ -295,13 +297,13 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   do irxn = 1, this%n_rxn
     i_carbon = this%i_donor(irxn)
+
     rkin(irxn) = this%mu_max * &
                  exp(-(ABS(this%stoich(i_carbon,irxn)) / &
                    (vh_L * C_aq(i_carbon)))) * &
                  exp(-(ABS(this%stoich(this%i_o2,irxn)) / &
                    (vh_L * C_aq(this%i_o2))))  ![1/sec]
   enddo
-
   ! Cybernetic Formulation
   ! Relative contribution, ui (unitless)
   sumkin = 0.d0
@@ -317,6 +319,14 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   tempreal = (C_aq(this%i_nh4) - this%nh4_inhibit) * threshold_f
   nh4_inhibition = 0.5d0 + atan(tempreal)/PI
 
+  ! Reactant inhibition (Threshold)
+  C_reactant_inhibit = 1.d-18
+
+  do icomp = 1, this%n_species
+    tempreal = (C_aq(icomp) - C_reactant_inhibit) * threshold_f
+    Reactant_inhibition(icomp) = 0.5d0 + atan(tempreal)/PI
+  enddo
+
   ! Reactions are modulated by biomass concentration
   ! Biomass is moduluated by a carrying capacity (CC)
   Biomass_mod = C_aq(this%i_biomass) * (1 - C_aq(this%i_biomass) / this%cc)
@@ -325,8 +335,17 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   Rate = 0.d0
 
   do irxn = 1, this%n_rxn
-    if (this%stoich(this%i_nh4,irxn) < 0.d0) then
-      R(irxn) = R(irxn) * nh4_inhibition
+    do icomp = 1, this%n_species
+      if (this%stoich(icomp,irxn) < 0.d0) then
+        if (icomp == this%i_nh4) then
+          R(irxn) = R(irxn) * nh4_inhibition
+        else
+          R(irxn) = R(irxn) * Reactant_inhibition(icomp)
+        endif
+      endif
+    enddo
+    if (C_aq(this%i_biomass) > this%cc) then
+      R(irxn) = 0
     endif
     Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
   enddo
