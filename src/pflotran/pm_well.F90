@@ -760,7 +760,6 @@ subroutine PMWellSetup(this)
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
   class(realization_subsurface_type), pointer :: realization
-  class(dataset_ascii_type), pointer :: dataset_ascii
   type(point3d_type) :: dummy_h
   class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -776,22 +775,21 @@ subroutine PMWellSetup(this)
   PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real, temp_real2
   PetscReal :: cum_z, z_dum
-  PetscReal :: face_dn, face_up
   PetscInt, allocatable :: temp_id_list(:)
   PetscReal, allocatable :: temp_z_list(:)
   PetscInt, allocatable :: temp_repeated_list(:)
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
   PetscInt :: repeated
-  PetscReal :: dz_list(10000), res_dz_list(10000)
+  PetscInt :: num_entries
+  PetscReal, allocatable :: dz_list(:), res_dz_list(:)
   PetscReal :: min_dz, dz, z
-  PetscInt :: cell_id_list(10000)
-  PetscInt :: local_id, ghosted_id
+  PetscInt, allocatable :: cell_id_list(:)
+  PetscInt :: local_id
   PetscInt :: local_id_well, local_id_res, res_cell_count
   PetscInt :: nsegments, nsegments_save
   PetscInt :: max_val, min_val
   PetscInt :: k, i, j
   PetscInt :: count1, count2_local, count2_global
-  PetscMPIInt :: mycolor_mpi, mykey_mpi
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
   PetscBool :: res_grid_cell_within_well_z
   PetscBool :: res_grid_cell_within_well_y
@@ -802,6 +800,11 @@ subroutine PMWellSetup(this)
   realization => this%realization
   res_grid => realization%patch%grid
   well_grid => this%well_grid
+
+  num_entries = 10000
+  allocate(dz_list(num_entries))
+  allocate(res_dz_list(num_entries))
+  allocate(cell_id_list(num_entries))
 
   option%io_buffer = ' '
   call PrintMsg(option)
@@ -2680,9 +2683,8 @@ recursive subroutine PMWellInitializeRun(this)
   type(tran_condition_type), pointer :: tran_condition
   class(tran_constraint_base_type), pointer :: cur_constraint
   type(output_variable_list_type), pointer :: output_var_list
-  PetscInt :: nsegments, k, i, j
+  PetscInt :: nsegments, k
   PetscReal :: curr_time
-  PetscErrorCode :: ierr
 
   curr_time = this%option%time
   nsegments = this%well_grid%nsegments
@@ -3049,7 +3051,6 @@ subroutine PMWellInitializeTimestep(this)
 
   class(pm_well_type) :: this
 
-  PetscInt :: k
   PetscReal :: curr_time
 
   if (this%update_for_wippflo_qi_coupling) return
@@ -3741,7 +3742,6 @@ subroutine PMWellUpdateRates(this,k,ierr)
   PetscErrorCode :: ierr
   PetscInt :: k
 
-  PetscInt :: max_index
   PetscReal :: time
 
   time = this%realization%option%time
@@ -4236,7 +4236,7 @@ subroutine PMWellResidualTranFlux(this)
   PetscInt :: offset, istart, iend
   PetscInt :: n_up, n_dn
   PetscReal :: area_up, area_dn
-  PetscReal :: q_up, q_dn, q_test
+  PetscReal :: q_up, q_dn
   PetscReal :: conc
   PetscReal :: diffusion
   PetscReal :: Res(this%nspecies)
@@ -4414,7 +4414,6 @@ subroutine PMWellJacobianFlow(this)
   PetscInt :: local_id
   PetscInt :: iconn
   PetscInt :: local_id_up, local_id_dn
-  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: i,k
   Vec, parameter :: null_vec = tVec(0)
   PetscReal :: Jup(this%nphase,this%nphase), &
@@ -4697,7 +4696,7 @@ subroutine PMWellJacTranFlux(this,Jblock,isegment)
   PetscReal :: J_up, J_dn
   PetscReal :: area_up, area_dn
   PetscReal :: sat_up, sat_dn, por_up, por_dn
-  PetscReal :: u_up, u_dn, q_test
+  PetscReal :: u_up, u_dn
 
   ! units of Jac = [m^3-bulk/sec]
   ! area in [m2-bulk]
@@ -4978,7 +4977,6 @@ subroutine PMWellSolveFlow(this,ierr)
   PetscBool :: steady_state, upwind
   PetscReal :: ss_check_p(this%well_grid%nsegments,2), &
                ss_check_s(this%well_grid%nsegments,2)
-  PetscReal :: dpdt(this%well_grid%nsegments), dsdt(this%well_grid%nsegments)
   PetscReal :: den_kg_ave, mobility, delta_pressure, perm_factor, dx, well_perm
   PetscReal :: gravity_term, area, mass_conserved_liq, mass_conserved_gas
   PetscInt :: i, j, k
@@ -5661,7 +5659,6 @@ subroutine PMWellNewtonTran(this,n_iter)
 
   PetscInt :: nm, dummy
   PetscInt :: indx(this%nspecies*this%well_grid%nsegments)
-  PetscReal :: res_fixed(this%nspecies*this%well_grid%nsegments)
 
   nm = this%nspecies * this%well_grid%nsegments
 
@@ -6461,14 +6458,13 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
 
   type(well_grid_type), pointer :: well_grid
 
-  PetscInt :: i, ghosted_id
-  PetscReal :: pres_up, pres_dn
+  PetscInt :: i
   PetscReal :: perm_rho_mu_area_ave_over_dist(2), perm_rho_mu_area_up(2), &
                perm_rho_mu_area_dn(2)
   PetscReal :: perm_up, perm_dn, dist_up, dist_dn, density_kg_ave, rel_perm
   PetscReal :: gravity_term, delta_pressure
   PetscReal :: v_darcy
-  PetscReal :: density_ave_kmol, q, tot_mole_flux
+  PetscReal :: density_ave_kmol, tot_mole_flux
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
 
@@ -7658,10 +7654,7 @@ subroutine PMWellMassBalance(this)
   type(well_type), pointer :: well
   PetscInt :: isegment, nsegments
   PetscInt :: n_up, n_dn
-  PetscReal :: area_up, area_dn 
-  PetscReal :: rho_kg_up, rho_kg_dn
   PetscReal :: mass_rate_up, mass_rate_dn
-  PetscReal :: q_up, q_dn
 
   ! q in [m3-liq/m2-bulk-sec]
   ! area in [m2-bulk]
