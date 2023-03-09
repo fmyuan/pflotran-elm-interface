@@ -297,13 +297,13 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   do irxn = 1, this%n_rxn
     i_carbon = this%i_donor(irxn)
+
     rkin(irxn) = this%mu_max * &
                  exp(-(ABS(this%stoich(i_carbon,irxn)) / &
                    (vh_L * C_aq(i_carbon)))) * &
                  exp(-(ABS(this%stoich(this%i_o2,irxn)) / &
                    (vh_L * C_aq(this%i_o2))))  ![1/sec]
   enddo
-
   ! Cybernetic Formulation
   ! Relative contribution, ui (unitless)
   sumkin = 0.d0
@@ -320,7 +320,8 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   nh4_inhibition = 0.5d0 + atan(tempreal)/PI
 
   ! Reactant inhibition (Threshold)
-  C_reactant_inhibit = 1.d-20
+  C_reactant_inhibit = 1.d-18
+
   do icomp = 1, this%n_species
     tempreal = (C_aq(icomp) - C_reactant_inhibit) * threshold_f
     Reactant_inhibition(icomp) = 0.5d0 + atan(tempreal)/PI
@@ -346,7 +347,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
     if (C_aq(this%i_biomass) > this%cc) then
       R(irxn) = 0
     endif
-      Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
+    Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
   enddo
   Rate(this%i_biomass) = Rate(this%i_biomass) - this%k_deg
   Rate(:) = Rate(:) * Biomass_mod * L_water
