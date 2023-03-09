@@ -1176,7 +1176,8 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
       cycle
     endif
     select case(cur_variable%ivar)
-      case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_AQ_CONC,WELL_AQ_MASS, &
+      case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+           WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
            WELL_LIQ_Q,WELL_GAS_Q)
         cur_variable => cur_variable%next
         cycle

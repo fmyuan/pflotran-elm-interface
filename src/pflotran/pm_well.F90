@@ -169,7 +169,11 @@ module PM_Well_class
     ! flag for output
     PetscBool :: output_pl 
     ! flag for output
-    PetscBool :: output_pg 
+    PetscBool :: output_pg
+    ! flag for output
+    PetscBool :: output_sl
+    ! flag for output
+    PetscBool :: output_sg 
     ! well liquid Darcy flux [m3/m2-s] of interior interfaces
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces
@@ -662,6 +666,8 @@ subroutine PMWellVarCreate(well)
   nullify(well%pg)
   well%output_pl = PETSC_FALSE
   well%output_pg = PETSC_FALSE
+  well%output_sl = PETSC_FALSE
+  well%output_sg = PETSC_FALSE
   nullify(well%ql)
   nullify(well%qg)
   nullify(well%ql_bc)
@@ -771,8 +777,8 @@ subroutine PMWellSetup(this)
   PetscReal :: temp_real, temp_real2
   PetscReal :: cum_z, z_dum
   PetscReal :: face_dn, face_up
-  PetscReal, allocatable :: temp_z_list(:)
-  PetscReal, allocatable :: temp_repeated_list(:)
+  PetscInt, allocatable :: temp_z_list(:)
+  PetscInt, allocatable :: temp_repeated_list(:)
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
   PetscInt :: repeated
   PetscReal :: dz_list(10000), res_dz_list(10000)
@@ -2541,6 +2547,12 @@ subroutine PMWellReadWellOutput(this,input,option,keyword,error_string, &
           case('WELL_GAS_PRESSURE')
             this%well%output_pg = PETSC_TRUE
         !-----------------------------
+          case('WELL_LIQ_SATURATION')
+            this%well%output_sl = PETSC_TRUE
+        !-----------------------------
+          case('WELL_GAS_SATURATION')
+            this%well%output_sg = PETSC_TRUE
+        !-----------------------------
           case('WELL_AQ_CONC')
             this%well%output_aqc = PETSC_TRUE
         !-----------------------------
@@ -3677,6 +3689,10 @@ subroutine PMWellUpdateReservoirSrcSink(this)
              well%pl = this%well%pl(k)
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
              well%pg = this%well%pg(k)
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%sl = this%well%liq%s(k)
+        this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
+             well%sg = this%well%gas%s(k)
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
              well%dpl = well_delta_liq
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
@@ -6464,8 +6480,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
     case('WIPP_DARCY')
-      ! This is good for either: single-phase liquid, or two-phase liquid/gas.
-      ! Vertical well, no Klinkenberg, no capillary pressure, constant mobility.
+      ! Vertical well, no Klinkenberg
 
         perm_up = well_up%permeability(iup)
         perm_dn = well_dn%permeability(idn)
@@ -6497,10 +6512,8 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         density_kg_ave = 0.5d0*(well_up%liq%rho(iup)+well_dn%liq%rho(idn))
         ! Assuming the well is always vertical and gravity is in the
         ! (-) direction
-        ! And assuming dh is the connection length
         gravity_term = density_kg_ave * gravity * &
                        0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
-        ! No capillary pressure yet.
         delta_pressure = well_up%pl(iup) - well_dn%pl(idn) + &
                          gravity_term
         up_scale = 0.d0
@@ -6534,14 +6547,11 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         Res(1) = Res(1) + tot_mole_flux
 
         ! Gas flux
-        ! Mobility may need to be non-constant?
-
         density_kg_ave = 0.5d0*(well_up%gas%rho(iup)+well_dn%gas%rho(idn))
         ! Assuming the well is always vertical and gravity is in the
         ! (-) direction
         gravity_term = density_kg_ave * gravity * &
                        0.5d0*(well_grid%dh(iup)+well_grid%dh(idn))
-        ! No capillary pressure yet.
         delta_pressure = well_up%pg(iup) - well_dn%pg(idn) + &
                          gravity_term
 
@@ -6684,7 +6694,6 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
     case('WIPP_DARCY')
-      ! This is good for either: single-phase liquid, or two-phase liquid/gas.
       ! Vertical well, no Klinkenberg.
       itop = pm_well%well_grid%nsegments
       if (pm_well%flow_soln%bh_p) then
@@ -6966,7 +6975,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
 
-        density_ave = (well%gas%rho(itop)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
+        density_ave = (well%gas%rho(itop)+boundary_rho) / &
+                      (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         ! Store boundary flux for consistency with transport
@@ -7072,8 +7082,6 @@ subroutine PMWellPerturb(pm_well)
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-10
 
-  ! I don't like how pressure and saturation are attributes of
-  ! different objects
   x(:,ONE_INTEGER) = pm_well%well%pl
   x(:,TWO_INTEGER) = pm_well%well%gas%s
 
@@ -7359,6 +7367,20 @@ subroutine PMWellSetPlotVariables(list,this)
     units = 'Pa'
     call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
                                  WELL_GAS_PRESSURE)
+  endif
+
+  if (this%well%output_sl) then
+    name = 'Well Liq. Saturation'
+    units = '-'
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                 WELL_LIQ_SATURATION)
+  endif
+
+  if (this%well%output_sg) then
+    name = 'Well Gas Saturation'
+    units = '-'
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                 WELL_GAS_SATURATION)
   endif
 
   if (this%well%output_aqc .and. this%transport) then

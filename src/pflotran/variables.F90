@@ -180,5 +180,7 @@ module Variables_module
   PetscInt, parameter, public :: WELL_AQ_MASS            = 145
   PetscInt, parameter, public :: WELL_LIQ_Q              = 146
   PetscInt, parameter, public :: WELL_GAS_Q              = 147
+  PetscInt, parameter, public :: WELL_LIQ_SATURATION       = 148
+  PetscInt, parameter, public :: WELL_GAS_SATURATION       = 149
 
 end module Variables_module

@@ -90,6 +90,8 @@ module WIPP_Flow_Aux_module
   type, public :: wippflo_well_aux_type
     PetscReal :: pl   ! liquid pressure
     PetscReal :: pg   ! gas pressure
+    PetscReal :: sl
+    PetscReal :: sg
     PetscReal :: dpl
     PetscReal :: dpg
     PetscReal :: Ql   ! liquid exchange flux
@@ -241,6 +243,8 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%mu = 0.d0
   auxvar%well%pl = UNINITIALIZED_DOUBLE
   auxvar%well%pg = UNINITIALIZED_DOUBLE
+  auxvar%well%sl = UNINITIALIZED_DOUBLE
+  auxvar%well%sg = UNINITIALIZED_DOUBLE
   auxvar%well%dpl = UNINITIALIZED_DOUBLE
   auxvar%well%dpg = UNINITIALIZED_DOUBLE
   auxvar%well%Ql = UNINITIALIZED_DOUBLE

@@ -6346,7 +6346,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         end select
       endif
     ! PM WELL (wellbore model)
-    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_AQ_CONC,WELL_AQ_MASS, &
+    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+         WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
          WELL_LIQ_Q,WELL_GAS_Q)
       select case(ivar)
         case(WELL_LIQ_PRESSURE)
@@ -6358,6 +6359,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
+          enddo
+        case(WELL_LIQ_SATURATION)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sl
+          enddo
+        case(WELL_GAS_SATURATION)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sg
           enddo
         case(WELL_AQ_CONC)
           do local_id=1,grid%nlmax
@@ -7356,7 +7367,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
     case(Z_COORDINATE)
       value = grid%z(ghosted_id)
     ! PM Well (wellbore model)
-    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_AQ_CONC,WELL_AQ_MASS, &
+    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+         WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
          WELL_LIQ_Q,WELL_GAS_Q)
       select case(ivar)
         case(WELL_LIQ_PRESSURE)
@@ -7365,6 +7377,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(WELL_GAS_PRESSURE)
           value = &
               patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
+        case(WELL_LIQ_SATURATION)
+          value = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sl
+        case(WELL_GAS_SATURATION)
+          value = &
+              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sg
         case(WELL_AQ_CONC)
           value = patch%aux%NWT%auxvars(grid%nL2G(local_id))%&
                   well%AQ_conc(isubvar)
@@ -8163,7 +8181,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       call PrintErrMsg(option, &
                        'Cannot set NATURAL_ID through PatchSetVariable()')
     ! PM Well (wellbore model)
-    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_AQ_CONC,WELL_AQ_MASS, &
+    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+         WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
          WELL_LIQ_Q,WELL_GAS_Q)
       select case(ivar)
         case(WELL_LIQ_PRESSURE)
@@ -8171,6 +8190,12 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
                            &not yet supported.')
         case(WELL_GAS_PRESSURE)
           call PrintErrMsg(option,'Setting of WELL_GAS_PRESSURE at grid cell &
+                           &not yet supported.')
+        case(WELL_LIQ_SATURATION)
+          call PrintErrMsg(option,'Setting of WELL_LIQ_SATURATION at grid cell &
+                           &not yet supported.')
+        case(WELL_GAS_SATURATION)
+          call PrintErrMsg(option,'Setting of WELL_GAS_SATURATION at grid cell &
                            &not yet supported.')
         case(WELL_AQ_CONC)
           call PrintErrMsg(option,'Setting of WELL_AQ_CONC at grid cell &
