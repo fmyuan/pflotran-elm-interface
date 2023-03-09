@@ -2335,11 +2335,11 @@ subroutine EOSWaterDensityExpPressureTemp(t,p,calculate_derivatives, &
   dwmol = dw/FMWH2O ! kmol/m^3
 
   if (calculate_derivatives) then
-     dwp = dwmol*exp_pt_water_compressibility !kmol/m^3/Pa
-     dwt = -dwmol*exp_pt_thermal_expansion
+    dwp = dwmol*exp_pt_water_compressibility !kmol/m^3/Pa
+    dwt = -dwmol*exp_pt_thermal_expansion
   else
-     dwp = UNINITIALIZED_DOUBLE
-     dwt = UNINITIALIZED_DOUBLE
+    dwp = UNINITIALIZED_DOUBLE
+    dwt = UNINITIALIZED_DOUBLE
   endif
 
 end subroutine EOSWaterDensityExpPressureTemp
