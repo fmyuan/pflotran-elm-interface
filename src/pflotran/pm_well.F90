@@ -7478,6 +7478,14 @@ subroutine PMWellOutputHeader(this)
     units_string = 'Pa'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'Well P-gas'
+    units_string = 'Pa'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Res P-gas'
+    units_string = 'Pa'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
     variable_string = 'Well S-liq'
     units_string = '-'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
@@ -7579,6 +7587,8 @@ subroutine PMWellOutput(this)
                                 this%well_grid%h(k)%z, &
                                 this%well%pl(k), &
                                 this%reservoir%p_l(k), &
+                                this%well%pg(k), &
+                                this%reservoir%p_g(k), &
                                 this%well%liq%s(k), &
                                 this%well%gas%s(k), &
                                 this%well%liq%Q(k), &
