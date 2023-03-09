@@ -6545,6 +6545,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
         delta_pressure = well_up%pg(iup) - well_dn%pg(idn) + &
                          gravity_term
 
+        up_scale = 0.d0
+        dn_scale = 0.d0
+
         upwind = delta_pressure > 0.d0
 
         ! Only upwinding the perm here, not mobility ratio
@@ -6945,7 +6948,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
         gravity_term = well%gas%rho(itop) * gravity * &
                        well_grid%dh(itop)/2.d0
-        delta_pressure = well%pg(itop) - boundary_pressure + gravity_term
+        delta_pressure = well%pg(itop) - boundary_pg + gravity_term
 
         call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
 
@@ -6987,7 +6990,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         endif
         Res(3) = Res(3) - tot_mole_flux
 
-        v_darcy = well%th_qg
+        v_darcy = -well%th_qg
 
         ! Always take well density with tophole flux bc
         density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
@@ -6995,8 +6998,8 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
         tot_mole_flux = q * density_ave
         ! Store boundary flux for consistency with transport
         if (save_flux) then
-          well%qg_bc(2) = -v_darcy
-          well%qg_kmol_bc(2) = -tot_mole_flux
+          well%qg_bc(2) = v_darcy
+          well%qg_kmol_bc(2) = tot_mole_flux
         endif
         Res(4) = Res(4) - tot_mole_flux
       endif
