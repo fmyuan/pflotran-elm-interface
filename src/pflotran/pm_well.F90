@@ -777,7 +777,8 @@ subroutine PMWellSetup(this)
   PetscReal :: temp_real, temp_real2
   PetscReal :: cum_z, z_dum
   PetscReal :: face_dn, face_up
-  PetscInt, allocatable :: temp_z_list(:)
+  PetscInt, allocatable :: temp_id_list(:)
+  PetscReal, allocatable :: temp_z_list(:)
   PetscInt, allocatable :: temp_repeated_list(:)
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
   PetscInt :: repeated
@@ -862,9 +863,9 @@ subroutine PMWellSetup(this)
       call PrintErrMsg(option)
     endif
 
-    allocate(temp_z_list(10000))
+    allocate(temp_id_list(10000))
     allocate(temp_repeated_list(10000))
-    temp_z_list = -999
+    temp_id_list = -999
     temp_repeated_list = -999
     dummy_h%x = well_grid%bottomhole(1)
     dummy_h%y = well_grid%bottomhole(2) 
@@ -887,7 +888,7 @@ subroutine PMWellSetup(this)
       if (j == 1) then
         cur_id = local_id
         k = 1
-        temp_z_list(k) = local_id
+        temp_id_list(k) = local_id
       endif 
 
       if (local_id /= cur_id) then
@@ -898,7 +899,7 @@ subroutine PMWellSetup(this)
           call PrintErrMsgToDev(option, &
                            'if reducing to less than 10,000 is not an option.')
         endif
-        temp_z_list(k) = local_id 
+        temp_id_list(k) = local_id 
         temp_repeated_list(k-1) = repeated
         repeated = 0 
         cur_id = local_id
@@ -940,7 +941,7 @@ subroutine PMWellSetup(this)
                            (well_grid%dh(k)*(0.5d0)) 
       endif
       
-      well_grid%h_local_id(k) = temp_z_list(k)
+      well_grid%h_local_id(k) = temp_id_list(k)
       well_grid%h_ghosted_id(k) = res_grid%nL2G(well_grid%h_local_id(k))
       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
     enddo
@@ -954,7 +955,7 @@ subroutine PMWellSetup(this)
     total_length = sqrt(diff_x+diff_y+diff_z)
 
     deallocate(temp_repeated_list)
-    deallocate(temp_z_list)
+    deallocate(temp_id_list)
 
   elseif (associated(well_grid%z_list) .or. associated(well_grid%l_list)) then
   !---------------------------------------------------------------------------
