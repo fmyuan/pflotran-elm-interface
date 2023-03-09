@@ -29,6 +29,7 @@ module EOS_Water_module
   PetscReal :: exp_pt_reference_pressure
   PetscReal :: exp_pt_water_compressibility
   PetscReal :: exp_pt_thermal_expansion
+  PetscReal :: exp_pt_reference_temperature
 
   ! planes for planar eos
   type(plane_type) :: water_density_tp_plane
@@ -293,6 +294,7 @@ subroutine EOSWaterInit()
   exp_p_water_compressibility = UNINITIALIZED_DOUBLE
   exp_pt_reference_density = UNINITIALIZED_DOUBLE
   exp_pt_reference_pressure = UNINITIALIZED_DOUBLE
+  exp_pt_reference_temperature = UNINITIALIZED_DOUBLE
   exp_pt_water_compressibility = UNINITIALIZED_DOUBLE
   exp_pt_thermal_expansion = UNINITIALIZED_DOUBLE
   quadratic_reference_density = UNINITIALIZED_DOUBLE
@@ -361,6 +363,7 @@ subroutine EOSWaterVerify(ierr,error_string)
   if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressureTemp) .and. &
       (Uninitialized(exp_pt_reference_density) .or. &
        Uninitialized(exp_pt_reference_pressure) .or. &
+       Uninitialized(exp_pt_reference_temperature) .or. &
        Uninitialized(exp_pt_water_compressibility) .or. &
        Uninitialized(exp_pt_thermal_expansion))) then
     error_string = trim(error_string) // &
@@ -438,8 +441,9 @@ subroutine EOSWaterSetDensity(keyword,aux)
     case('EXPONENTIAL_PRESSURE_TEMPERATURE')
       exp_pt_reference_density = aux(1)
       exp_pt_reference_pressure = aux(2)
-      exp_pt_water_compressibility = aux(3)
-      exp_pt_thermal_expansion = aux(4)
+      exp_pt_reference_temperature = aux(3)
+      exp_pt_water_compressibility = aux(4)
+      exp_pt_thermal_expansion = aux(5)
       EOSWaterDensityPtr => EOSWaterDensityExpPressureTemp
     case('LINEAR')
       linear_reference_density = aux(1)
@@ -2326,16 +2330,17 @@ subroutine EOSWaterDensityExpPressureTemp(t,p,calculate_derivatives, &
 
   ! kg/m^3
   dw = exp_pt_reference_density*(1.d0 / (exp(exp_pt_thermal_expansion* &
-       (t - 273.15d0)) * exp(exp_pt_water_compressibility* &
+       (t - exp_pt_reference_temperature)) * exp(exp_pt_water_compressibility* &
        (exp_pt_reference_pressure - p))))
   dwmol = dw/FMWH2O ! kmol/m^3
 
   if (calculate_derivatives) then
     dwp = dwmol*exp_pt_water_compressibility !kmol/m^3/Pa
+    dwt = -dwmol*exp_pt_thermal_expansion
   else
     dwp = UNINITIALIZED_DOUBLE
+    dwt = UNINITIALIZED_DOUBLE
   endif
-  dwt = 0.d0
 
 end subroutine EOSWaterDensityExpPressureTemp
 
@@ -4316,6 +4321,9 @@ subroutine EOSWaterInputRecord()
     write(id,'(a29)',advance='no') 'temp. ref. pressure: '
     write(word1,*) exp_pt_reference_pressure
     write(id,'(a)') adjustl(trim(word1)) // ' Pa'
+    write(id,'(a29)',advance='no') 'temp. ref. pressure: '
+    write(word1,*) exp_pt_reference_temperature
+    write(id,'(a)') adjustl(trim(word1)) // ' C'
     write(id,'(a29)',advance='no') 'temp. water compressibility: '
     write(word1,*) exp_pt_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'

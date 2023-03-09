@@ -77,7 +77,6 @@ module Material_module
     PetscReal :: thermal_conductivity_frozen
     PetscReal :: alpha_fr
 
-    PetscReal :: thermal_expansitivity
     PetscReal :: dispersivity(3)
     PetscReal :: tortuosity_pwr
     PetscReal :: tortuosity_func_porosity_pwr
@@ -230,7 +229,6 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE
   material_property%alpha_fr = 0.95d0
 
-  material_property%thermal_expansitivity = 0.d0
   material_property%dispersivity = 0.d0
   material_property%min_pressure = 0.d0
   material_property%max_pressure = 1.d6
@@ -450,11 +448,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
                   material_property%soil_reference_pressure_dataset, &
                   'soil reference pressure','MATERIAL_PROPERTY',option)
         endif
-      case('THERMAL_EXPANSITIVITY')
-        call InputReadDouble(input,option, &
-                             material_property%thermal_expansitivity)
-        call InputErrorMsg(input,option,'thermal expansitivity', &
-                           'MATERIAL_PROPERTY')
       case('POROSITY')
         call DatasetReadDoubleOrDataset(input,material_property%porosity, &
                                         material_property%porosity_dataset, &
