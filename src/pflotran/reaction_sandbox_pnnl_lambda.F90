@@ -320,7 +320,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   nh4_inhibition = 0.5d0 + atan(tempreal)/PI
 
   ! Reactant inhibition (Threshold)
-  C_reactant_inhibit = 1e-20
+  C_reactant_inhibit = 1.d-20
   do icomp = 1, this%n_species
     tempreal = (C_aq(icomp) - C_reactant_inhibit) * threshold_f
     Reactant_inhibition(icomp) = 0.5d0 + atan(tempreal)/PI
@@ -336,10 +336,11 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   do irxn = 1, this%n_rxn
     do icomp = 1, this%n_species
       if (this%stoich(icomp,irxn) < 0.d0) then
-        R(irxn) = R(irxn) * Reactant_inhibition(icomp)
-      endif
-      if (icomp == this%i_nh4 .AND. this%stoich(this%i_nh4,irxn) < 0.d0) then
-        R(irxn) = R(irxn) * nh4_inhibition
+        if (icomp == this%i_nh4) then
+          R(irxn) = R(irxn) * nh4_inhibition
+        else
+          R(irxn) = R(irxn) * Reactant_inhibition(icomp)
+        endif
       endif
     enddo
     if (C_aq(this%i_biomass) > this%cc) then
