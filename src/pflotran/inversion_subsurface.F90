@@ -487,6 +487,12 @@ subroutine InvSubsurfInitForwardRun(this,option)
       &allowed for perturbation inversion runs.'
     call PrintErrMsg(option)
   endif
+  if (this%inversion_option%num_process_groups > 1 .and. &
+      this%inversion_aux%qoi_is_full_vector) then
+    call this%driver%PrintErrMsg('Cannot use multiple comm groups for full &
+                                 &vector inversion.')
+  endif
+
   ! this %iteration may be overwritten in InvSubsurfRestartParameters
   call InvSubsurfRestartIteration(this)
   call InvSubsurfInitSetGroupPrefix(this,option)
@@ -1404,14 +1410,14 @@ subroutine InvSubsurfCalculateSensitivity(this)
     call InvSubsurfAdjointCalcSensitivity(this)
   endif
 
-  call InvSubsurfOutputSensitivity(this,'')
-
-  if (associated(this%inversion_option%invcomm) .and. &
-      .not.this%inversion_aux%qoi_is_full_vector) then
-    call InvAuxScatParamToDistParam(this%inversion_aux, &
-                                    this%inversion_aux%parameter_vec, &
-                                    this%inversion_aux%dist_parameter_vec, &
-                                    INVAUX_SCATFORWARD)
+  if (associated(this%inversion_option%invcomm)) then
+    call InvSubsurfOutputSensitivity(this,'')
+    if (.not.this%inversion_aux%qoi_is_full_vector) then
+      call InvAuxScatParamToDistParam(this%inversion_aux, &
+                                      this%inversion_aux%parameter_vec, &
+                                      this%inversion_aux%dist_parameter_vec, &
+                                      INVAUX_SCATFORWARD)
+    endif
   endif
 
 end subroutine InvSubsurfCalculateSensitivity
@@ -1442,17 +1448,20 @@ subroutine InvSubsurfPostProcMeasurements(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscInt :: icount
+  PetscInt :: num_measurements
+  PetscMPIInt :: mpi_int
   PetscErrorCode :: ierr
 
   option => this%realization%option
 
+  num_measurements = size(this%inversion_aux%measurements)
   ! distribute measurements to measurement objects
   call VecSet(this%inversion_aux%measurement_vec,UNINITIALIZED_DOUBLE, &
               ierr);CHKERRQ(ierr)
   call VecSet(this%inversion_aux%dist_measurement_vec,-888.d0, &
               ierr);CHKERRQ(ierr)
   icount = 0
-  do imeasurement = 1, size(this%inversion_aux%measurements)
+  do imeasurement = 1, num_measurements
     if (Initialized(this%inversion_aux%measurements(imeasurement)% &
                       local_id)) then
       icount = icount + 1
@@ -1460,6 +1469,10 @@ subroutine InvSubsurfPostProcMeasurements(this)
                        this%local_measurement_map(icount)-1, &
                        this%local_measurement_values(icount),&
                        INSERT_VALUES,ierr);CHKERRQ(ierr)
+!      print *, 'setm: ', this%inversion_option%forcomm%rank, &
+!               this%inversion_option%forcomm%group_id, &
+!               this%local_measurement_map(icount), &
+!               this%local_measurement_values(icount)
     endif
   enddo
   call VecAssemblyBegin(this%inversion_aux%dist_measurement_vec, &
@@ -1467,7 +1480,8 @@ subroutine InvSubsurfPostProcMeasurements(this)
   call VecAssemblyEnd(this%inversion_aux%dist_measurement_vec, &
                       ierr);CHKERRQ(ierr)
 
-  print *, this%driver%comm%rank, this%local_measurement_map
+!  print *, 'local_measurement_map: ', &
+!    this%inversion_option%forcomm%rank, this%local_measurement_map
 
   if (associated(this%inversion_option%invcomm)) then
     call InvAuxScatMeasToDistMeas(this%inversion_aux, &
@@ -1484,14 +1498,19 @@ subroutine InvSubsurfPostProcMeasurements(this)
     if (this%inversion_option%forcomm%rank == 0) then
       vec_ptr2(:) = vec_ptr(:)
     endif
-    call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
-                            vec_ptr2,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(this%inversion_aux%dist_measurement_vec, &
                             vec_ptr,ierr);CHKERRQ(ierr)
+    ! broadcast to perturbation ranks > 0 in forcomm
+    mpi_int = 0
+    call MPI_Bcast(vec_ptr2,num_measurements,MPI_DOUBLE_PRECISION,mpi_int, &
+                   this%inversion_option%forcomm%communicator, &
+                   ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
+                            vec_ptr2,ierr);CHKERRQ(ierr)
   endif
   call VecGetArrayF90(this%inversion_aux%measurement_vec,vec_ptr, &
                       ierr);CHKERRQ(ierr)
-  do imeasurement = 1, size(this%inversion_aux%measurements)
+  do imeasurement = 1, num_measurements
     this%inversion_aux%measurements(imeasurement)%simulated_value = &
       vec_ptr(imeasurement)
     this%inversion_aux%measurements(imeasurement)%measured = PETSC_TRUE
@@ -1516,7 +1535,7 @@ subroutine InvSubsurfPostProcMeasurements(this)
     ! be set for all uninitialized values
     call VecSet(dist_dobs_dparam_vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
     icount = 0
-    do imeasurement = 1, size(this%inversion_aux%measurements)
+    do imeasurement = 1, num_measurements
       if (Initialized(this%inversion_aux%measurements(imeasurement)% &
                         local_id)) then
         icount = icount + 1
@@ -1549,7 +1568,7 @@ subroutine InvSubsurfPostProcMeasurements(this)
                                   INVAUX_SCATREVERSE)
     call VecGetArrayF90(dobs_dunknown_vec,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(dobs_dparam_vec,vec_ptr2,ierr);CHKERRQ(ierr)
-    do imeasurement = 1, size(this%inversion_aux%measurements)
+    do imeasurement = 1, num_measurements
       this%inversion_aux%measurements(imeasurement)%dobs_dunknown = &
         vec_ptr(imeasurement)
       this%inversion_aux%measurements(imeasurement)%dobs_dparam = &
@@ -1564,7 +1583,7 @@ subroutine InvSubsurfPostProcMeasurements(this)
   endif
 
     ! ensure that all measurement have been recorded
-  do imeasurement = 1, size(this%inversion_aux%measurements)
+  do imeasurement = 1, num_measurements
     call InversionMeasurementPrintConcise(this%inversion_aux% &
                                             measurements(imeasurement), &
                                           'PostProcess',option)
@@ -1999,8 +2018,8 @@ subroutine InvSubsurfPertCalcSensitivity(this)
       this%inversion_aux%perturbation%idof_pert = idof_pert
       ! the following condition allows the perturbation forward
       ! runs to be destroyed below.
-      if (.not. associated(this%inversion_option%invcomm) .and. &
-          idof_pert > this%inversion_aux%perturbation%ndof) exit
+!      if (.not. associated(this%inversion_option%invcomm) .and. &
+!          idof_pert > this%inversion_aux%perturbation%ndof) exit
     endif
     call this%InitializeForwardRun(option)
     call InvSubsurfSetupForwardRunLinkage(this) ! do not call mapped version
@@ -2012,8 +2031,8 @@ subroutine InvSubsurfPertCalcSensitivity(this)
       call InvSubsurfPerturbationFillRow(this,idof_pert)
     endif
     idof_pert = idof_pert + this%inversion_option%num_process_groups
-    if (associated(this%inversion_option%invcomm) .and. &
-        idof_pert > this%inversion_aux%perturbation%ndof) exit
+!    if (associated(this%inversion_option%invcomm) .and. &
+    if (idof_pert > this%inversion_aux%perturbation%ndof) exit
     ! the last forward run will be destroyed after any output of
     ! sensitivity matrices (invcomm only)
     call this%DestroyForwardRun()
@@ -2096,22 +2115,27 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
   use Debug_module
   use Realization_Base_class
   use String_module
+  use Option_Inversion_module
 
   class(inversion_subsurface_type) :: this
   PetscInt :: my_dof
 
+  type(inversion_option_type), pointer :: inversion_option
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
   PetscInt :: igroup
   PetscInt :: iparameter
   PetscInt :: num_measurements
   PetscMPIInt :: mpi_int
+  PetscMPIInt :: status(MPI_STATUS_SIZE)
   PetscErrorCode :: ierr
 
   if (my_dof < 0) then
     call this%driver%PrintErrMsg('InvSubsurfPerturbationFillRow() called  &
       &with an idof_pert < 0')
   endif
+
+  inversion_option => this%inversion_option
 
   num_measurements = size(this%inversion_aux%measurements)
 
@@ -2126,25 +2150,52 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
   if (my_dof == 0) then
     ! if parallel perturbation runs, need to broadcast the base measurement
     if (associated(this%inversion_option%forcomm_i)) then
-      if (this%inversion_option%forcomm_i%rank == 0) then
-        call VecGetArrayF90(this%inversion_aux%measurement_vec, &
-                            vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(this%inversion_aux%measurement_vec, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+      if (this%inversion_option%forcomm%rank == 0) then
         mpi_int = 0
+        ! broadcast to perturbation ranks 0 (forcomm_0)
         call MPI_Bcast(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION,mpi_int, &
                       this%inversion_option%forcomm_i%communicator, &
                       ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
-                                vec_ptr,ierr);CHKERRQ(ierr)
       endif
+      if (this%inversion_option%forcomm%group_id > 1) then
+        ! broadcast among perturbation ranks > 0
+        mpi_int = 0
+        call MPI_Bcast(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION,mpi_int, &
+                       this%inversion_option%forcomm%communicator, &
+                       ierr);CHKERRQ(ierr)
+      endif
+      call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
     endif
     call VecCopy(this%inversion_aux%measurement_vec, &
                  this%inversion_aux%perturbation%base_measurement_vec, &
                  ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%inversion_aux%perturbation%base_measurement_vec, &
+                        vec_ptr,ierr);CHKERRQ(ierr)
+!    print *, 'gehbvec: ', inversion_option%forcomm%group_id, vec_ptr
+    call VecRestoreArrayF90(this%inversion_aux%perturbation%base_measurement_vec, &
+                            vec_ptr,ierr);CHKERRQ(ierr)
     if (associated(this%inversion_option%invcomm)) then
       call MatZeroEntries(this%inversion_aux%JsensitivityT, &
                           ierr);CHKERRQ(ierr)
     endif
   else
+    call VecGetArrayF90(this%inversion_aux%measurement_vec, &
+                        vec_ptr,ierr);CHKERRQ(ierr)
+!    print *, 'gehmvec: ', inversion_option%forcomm%rank, &
+!                           inversion_option%forcomm%group_id, vec_ptr
+    call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
+                            vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%inversion_aux%perturbation%base_measurement_vec, &
+                        vec_ptr,ierr);CHKERRQ(ierr)
+!    print *, 'gehbvec: ', inversion_option%forcomm%rank, &
+!                           inversion_option%forcomm%group_id, vec_ptr
+    call VecRestoreArrayF90(this%inversion_aux%perturbation%base_measurement_vec, &
+                            vec_ptr,ierr);CHKERRQ(ierr)
+!    print *, 'gehpert: ', inversion_option%forcomm%rank, &
+!                           inversion_option%forcomm%group_id, this%inversion_aux%perturbation%pert
     call VecAXPY(this%inversion_aux%measurement_vec,-1.d0, &
                  this%inversion_aux%perturbation%base_measurement_vec, &
                  ierr);CHKERRQ(ierr)
@@ -2160,21 +2211,23 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
       if (my_dof + igroup - 1 > &
           this%inversion_aux%perturbation%ndof) exit
       if (igroup > 1) then
-        if (this%inversion_option%forcomm_i%rank == 0) then
+!        if (this%inversion_option%forcomm_i%rank == 0) then
           ! receive derivatives from each groups process 0
           call VecGetArrayF90(this%inversion_aux%measurement_vec, &
                               vec_ptr,ierr);CHKERRQ(ierr)
-          call MPI_Probe(MPI_ANY_SOURCE,mpi_int, &
+          call MPI_Probe(MPI_ANY_SOURCE,MPI_ANY_TAG, &
                          this%inversion_option%forcomm_i%communicator, &
-                         MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
-          iparameter = int(mpi_int)
+                         status,ierr);CHKERRQ(ierr)
+          iparameter = status(MPI_TAG)
           call MPI_Recv(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION, &
-                        mpi_int,MPI_ANY_TAG, &
+                        status(MPI_SOURCE),MPI_ANY_TAG, &
                         this%inversion_option%forcomm_i%communicator, &
                         MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
+!          print *, 'recv: ', inversion_option%forcomm%rank, &
+!                             inversion_option%forcomm%group_id,vec_ptr
           call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
-        endif
+!        endif
       else
         iparameter = my_dof
       endif
@@ -2187,6 +2240,8 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
       call VecGetArrayF90(this%inversion_aux%dist_measurement_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       do i = 1, size(vec_ptr)
+!        print *, 'gehmat: ', inversion_option%forcomm%group_id,iparameter, &
+!                this%dist_measurement_offset+i, vec_ptr(i)
         call MatSetValue(this%inversion_aux%JsensitivityT, &
                         iparameter-1, &
                         this%dist_measurement_offset+i-1,vec_ptr(i), &
@@ -2197,7 +2252,7 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
     enddo
 
   else if (associated(this%inversion_option%forcomm_i)) then
-    if (this%inversion_option%forcomm_i%rank == 0) then
+!    if (this%inversion_option%forcomm_i%group_id == 1) then
       ! send derivatives to process 0 on group 1
       if (my_dof <= this%inversion_aux%perturbation%ndof) then
         call VecGetArrayF90(this%inversion_aux%measurement_vec, &
@@ -2207,10 +2262,12 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
                       mpi_int,my_dof, &
                       this%inversion_option%forcomm_i%communicator, &
                       ierr);CHKERRQ(ierr)
+!        print *, 'send: ', inversion_option%forcomm%rank, &
+!                            inversion_option%forcomm%group_id,vec_ptr
         call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
                                 vec_ptr,ierr);CHKERRQ(ierr)
       endif
-    endif
+ !   endif
   endif
 
   if (associated(this%inversion_option%invcomm) .and. &

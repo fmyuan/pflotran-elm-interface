@@ -159,6 +159,8 @@ subroutine SimulationInverseInitializeRun(this)
   PetscInt :: num_process_groups
   PetscMPIInt :: mycolor_mpi, mykey_mpi
 
+  PetscReal :: array(3)
+
   PetscErrorCode :: ierr
 
   nullify(invcomm)
@@ -184,12 +186,8 @@ subroutine SimulationInverseInitializeRun(this)
 
   if (num_process_groups > 1) then
     forcomm_i => CommCreate()
-    if (forcomm%size == 1) then
-      mycolor_mpi = this%driver%comm%rank
-    else
-      mycolor_mpi = mod(this%driver%comm%rank,forcomm%size)
-    endif
-    mykey_mpi = int(this%driver%comm%rank/forcomm%size)
+    mycolor_mpi = forcomm%rank
+    mykey_mpi = forcomm%group_id-1
     call MPI_Comm_split(this%driver%comm%communicator,mycolor_mpi,mykey_mpi, &
                         forcomm_i%communicator,ierr);CHKERRQ(ierr)
     call MPI_Comm_rank(forcomm_i%communicator,forcomm_i%rank, &
@@ -198,6 +196,21 @@ subroutine SimulationInverseInitializeRun(this)
                        ierr);CHKERRQ(ierr)
     call MPI_Comm_group(forcomm_i%communicator,forcomm_i%group, &
                         ierr);CHKERRQ(ierr)
+    forcomm_i%group_id = forcomm%rank + 1
+
+    array = UNINITIALIZED_DOUBLE
+#if 0
+    ierr = UNINITIALIZED_DOUBLE
+    if (associated(invcomm)) ierr = invcomm%rank
+    print *, this%driver%comm%rank, ' : ranks : ', ierr, forcomm%rank, forcomm_i%rank
+
+    if (forcomm_i%rank == 0) array = [1.,2.,3.]
+    print *, forcomm_i%rank, array
+    call MPI_Bcast(array,3,MPI_DOUBLE_PRECISION,0, &
+                   forcomm_i%communicator,ierr);CHKERRQ(ierr)
+    print *, forcomm_i%rank, array
+    stop
+#endif
   endif
 
   this%inversion%inversion_option%invcomm => invcomm

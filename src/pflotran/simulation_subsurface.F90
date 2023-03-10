@@ -580,25 +580,27 @@ subroutine SimSubsurfOverwriteInvParameters(this)
 
   if (associated(perturbation)) then
     ! on first pass, store and set thereafter
-    if (perturbation%idof_pert <= 0) then
-      if (perturbation%base_parameter_vec == PETSC_NULL_VEC) then
-        if (inversion_aux%qoi_is_full_vector) then
-          call VecDuplicate(inversion_aux%dist_parameter_vec, &
-                            perturbation%base_parameter_vec, &
-                            ierr);CHKERRQ(ierr)
-        else
-          call VecDuplicate(inversion_aux%parameter_vec, &
-                            perturbation%base_parameter_vec, &
-                            ierr);CHKERRQ(ierr)
-        endif
+    if (perturbation%base_parameter_vec == PETSC_NULL_VEC) then
+      if (inversion_aux%qoi_is_full_vector) then
+        call VecDuplicate(inversion_aux%dist_parameter_vec, &
+                          perturbation%base_parameter_vec, &
+                          ierr);CHKERRQ(ierr)
+      else
+        call VecDuplicate(inversion_aux%parameter_vec, &
+                          perturbation%base_parameter_vec, &
+                          ierr);CHKERRQ(ierr)
+        call VecCopy(inversion_aux%parameter_vec, &
+                     perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
       endif
+    endif
+    if (perturbation%idof_pert <= 0) then
       if (inversion_aux%qoi_is_full_vector) then
         call VecCopy(inversion_aux%dist_parameter_vec, &
                      perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
       else
         if (perturbation%idof_pert == 0) then
-          call VecCopy(inversion_aux%parameter_vec, &
-                       perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
+!          call VecCopy(inversion_aux%parameter_vec, &
+!                       perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
         endif
       endif
     else
