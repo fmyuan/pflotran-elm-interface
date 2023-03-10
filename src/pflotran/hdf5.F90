@@ -60,7 +60,7 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_size
@@ -178,7 +178,7 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
 
   character(len=*) :: name
   PetscReal :: array(:)
-  type(option_type) :: option
+  type(option_type), pointer :: option
   PetscInt :: nx_local, ny_local, nz_local
   PetscInt :: nx_global, ny_global, nz_global
   PetscInt :: istart_local, jstart_local, kstart_local
@@ -332,7 +332,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   implicit none
 
   type(grid_type) :: grid
-  type(option_type) :: option
+  type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: dataset_size
@@ -474,7 +474,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
 
   type(discretization_type) :: discretization
   type(grid_type) :: grid
-  type(option_type) :: option
+  type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: dataset_size

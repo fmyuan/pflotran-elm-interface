@@ -160,7 +160,7 @@ subroutine SSSandboxBaseUpdate(this,option)
   implicit none
 
   class(srcsink_sandbox_base_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   if (associated(this%cumulative_mass)) then
     this%cumulative_mass(:) = this%cumulative_mass(:) + &

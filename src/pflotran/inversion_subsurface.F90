@@ -2021,7 +2021,6 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   type(option_type), pointer :: option
   PetscInt :: idof_pert
   PetscInt :: iqoi(2)
-  PetscInt :: i
   PetscErrorCode :: ierr
 
   ! destroy non-perturbed forward run

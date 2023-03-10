@@ -543,7 +543,6 @@ subroutine SimSubsurfOverwriteInvParameters(this)
   class(realization_subsurface_type), pointer :: realization
   type(inversion_aux_type), pointer :: inversion_aux
   type(inversion_perturbation_type), pointer :: perturbation
-  PetscInt :: i
   PetscInt :: iqoi(2)
   PetscReal :: rmax, rmin
   PetscErrorCode :: ierr

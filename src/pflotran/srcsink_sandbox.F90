@@ -301,7 +301,7 @@ subroutine SSSandboxUpdate(sandbox_list,option,output_option)
   implicit none
 
   class(srcsink_sandbox_base_type), pointer :: sandbox_list
-  type(option_type) :: option
+  type(option_type), pointer :: option
   type(output_option_type) :: output_option
 
   class(srcsink_sandbox_base_type), pointer :: cur_sandbox

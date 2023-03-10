@@ -123,7 +123,7 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   class(data_mediator_dataset_type) :: data_mediator
   type(discretization_type) :: discretization
   class(dataset_base_type), pointer :: available_datasets
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   class(dataset_base_type), pointer :: dataset_base_ptr
   character(len=MAXSTRINGLENGTH) :: string
@@ -182,7 +182,7 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
 
   class(data_mediator_dataset_type) :: this
   Vec :: data_mediator_vec
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: ndof_per_cell

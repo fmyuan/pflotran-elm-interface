@@ -205,7 +205,7 @@ subroutine DownregUpdate(this,option)
   implicit none
 
   class(srcsink_sandbox_downreg_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   call DatasetUpdate(this%dataset,option)
 

@@ -188,7 +188,7 @@ subroutine DatasetMapHDF5Load(this,option)
   implicit none
 
   class(dataset_map_hdf5_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   if (DatasetCommonHDF5Load(this,option)) then
     if (.not.associated(this%mapping)) then
@@ -221,7 +221,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   implicit none
 
   class(dataset_map_hdf5_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
   integer(HID_T) :: file_space_id
@@ -415,7 +415,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   implicit none
 
   class(dataset_map_hdf5_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
   integer(HID_T) :: file_space_id

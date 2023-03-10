@@ -899,7 +899,7 @@ subroutine TimestepperBaseCheckpointHDF5(this, h5_chk_grp_id, option)
 
   class(timestepper_base_type) :: this
   integer(HID_T) :: h5_chk_grp_id
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   option%io_buffer = 'TimestepperBaseCheckpointHDF5 must be extended.'
   call PrintErrMsg(option)
@@ -922,7 +922,7 @@ subroutine TimestepperBaseRestartHDF5(this, h5_chk_grp_id, option)
 
   class(timestepper_base_type) :: this
   integer(HID_T) :: h5_chk_grp_id
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   option%io_buffer = 'TimestepperBaseRestartHDF5 must be extended.'
   call PrintErrMsg(option)

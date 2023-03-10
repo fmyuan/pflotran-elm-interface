@@ -318,7 +318,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
 
   implicit none
 
-  type(option_type), intent(inout) :: option
+  type(option_type), intent(inout), pointer :: option
   type(output_option_type), intent(in) :: output_option
   PetscInt, intent(in) :: var_list_type
   character(len=MAXSTRINGLENGTH) :: filename
@@ -392,7 +392,7 @@ subroutine OutputHDF5CloseFile(option, file_id)
 
   implicit none
 
-  type(option_type), intent(in) :: option
+  type(option_type), intent(in), pointer :: option
   integer(HID_T), intent(in) :: file_id
 
   call HDF5FileClose(file_id,option)
@@ -1202,12 +1202,11 @@ function OutputHDF5FilenameID(output_option,option,var_list_type)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/10/13
   !
-
   use Option_module
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   type(output_option_type) :: output_option
   PetscInt :: var_list_type
 
@@ -1467,7 +1466,7 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   implicit none
 
   character(len=32) :: name
-  type(option_type) :: option
+  type(option_type), pointer :: option
   PetscInt :: length
   PetscReal :: array(:)
   integer(HID_T) :: file_id
@@ -3078,7 +3077,7 @@ subroutine OutputHDF5Provenance(option, output_option, file_id)
 
   implicit none
 
-  type(option_type), intent(in) :: option
+  type(option_type), intent(in), pointer :: option
   type(output_option_type), intent(in) :: output_option
   integer(HID_T), intent(in) :: file_id
 
@@ -3121,7 +3120,7 @@ subroutine OutputHDF5Provenance_PFLOTRAN(option, provenance_id, string_type)
 
   implicit none
 
-  type(option_type), intent(in) :: option
+  type(option_type), intent(in), pointer :: option
   integer(HID_T), intent(in) :: provenance_id
   integer(HID_T), intent(in) :: string_type
 
@@ -3239,7 +3238,7 @@ subroutine OutputHDF5Provenance_PETSc(provenance_id, string_type, option)
 
   integer(HID_T), intent(in) :: provenance_id
   integer(HID_T), intent(in) :: string_type
-  type(option_type), intent(in) :: option
+  type(option_type), intent(in), pointer :: option
 
   character(len=32) :: name
   integer(HID_T) :: petsc_id
@@ -3358,7 +3357,7 @@ subroutine OutputHDF5WriteSnapShotAtts(parent_id,option)
   implicit none
 
   integer(HID_T) :: parent_id
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   integer(HID_T) :: attribute_id
   integer(HID_T) :: dataspace_id
@@ -3397,7 +3396,7 @@ subroutine OutputH5OpenFile(option, h5obj, filename, file_id)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   type(output_h5_type) :: h5obj
   character(len=MAXSTRINGLENGTH) :: filename
   integer(HID_T), intent(out) :: file_id
@@ -3433,7 +3432,7 @@ subroutine OutputH5CloseFile(option, h5file, file_id)
 
   implicit none
 
-  type(option_type), intent(in) :: option
+  type(option_type), intent(in), pointer :: option
   type(output_h5_type) :: h5file
   integer(HID_T), intent(in) :: file_id
 
@@ -3455,7 +3454,7 @@ subroutine OutputXMFOpenFile(option, filename, fid)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
 
@@ -3482,7 +3481,7 @@ subroutine OutputH5OpenGroup(option, group_name, file_id, grp_id)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: group_name
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
@@ -3506,7 +3505,7 @@ subroutine OutputH5CloseGroup(option,grp_id)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   integer(HID_T) :: grp_id
 
   call HDF5GroupClose(grp_id,option)

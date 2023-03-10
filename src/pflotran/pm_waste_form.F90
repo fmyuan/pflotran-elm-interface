@@ -766,7 +766,7 @@ function PMWFMechanismFMDMSurrogateCreate(option)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
 ! LOCAL VARIABLES:
 ! ================
@@ -1320,7 +1320,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
 ! ----------------------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
@@ -8626,7 +8626,7 @@ subroutine ANNReadH5File(this, option)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
@@ -8762,7 +8762,7 @@ subroutine KnnrInit(this,option)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
   PetscInt :: i_d, d
   PetscInt :: data_array_shape(2)
@@ -8842,7 +8842,7 @@ subroutine KnnrReadH5File(this, option)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
@@ -8928,7 +8928,7 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   integer(HID_T) :: group_id
@@ -8966,7 +8966,7 @@ subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i
 
   implicit none
 
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   integer(HID_T) :: group_id

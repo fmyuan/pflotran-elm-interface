@@ -137,7 +137,7 @@ subroutine DatasetGriddedHDF5Load(this,option)
   implicit none
 
   class(dataset_gridded_hdf5_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   if (DatasetCommonHDF5Load(this,option)) then
     call DatasetGriddedHDF5ReadData(this,option)
@@ -168,7 +168,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   implicit none
 
   class(dataset_gridded_hdf5_type) :: this
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
   integer(HID_T) :: file_space_id

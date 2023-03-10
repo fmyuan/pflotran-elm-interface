@@ -60,7 +60,7 @@ recursive subroutine DataMediatorVecUpdate(this,data_mediator_vec,option)
 
   class(data_mediator_vec_type) :: this
   Vec :: data_mediator_vec
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
   PetscErrorCode :: ierr
 
