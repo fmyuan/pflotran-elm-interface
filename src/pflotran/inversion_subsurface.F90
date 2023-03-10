@@ -1132,6 +1132,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   use Init_Subsurface_module
   use Material_module
   use String_module
+  use Timestepper_Base_class, only : TS_STOP_END_SIMULATION
   use Utility_module
   use Waypoint_module
   use ZFlow_Aux_module
@@ -1143,10 +1144,24 @@ subroutine InvSubsurfConnectToForwardRun(this)
   type(waypoint_type), pointer :: waypoint
   type(inversion_perturbation_type), pointer :: perturbation
   PetscReal, pointer :: real_array(:)
+  PetscReal, pointer :: vec_ptr(:)
+  PetscMPIInt :: mpi_int
   PetscBool :: iflag
   PetscInt :: iqoi(2)
+  PetscErrorCode :: ierr
 
   perturbation => this%inversion_aux%perturbation
+
+  ! do not connect non-perturbation runs for processes not in invcomm
+  if (associated(perturbation) .and. &
+      .not.associated(this%inversion_option%invcomm)) then
+    if (this%inversion_aux%perturbation%idof_pert <= 0) then
+      ! skip the execution of the forward run
+      this%realization%option%status = SKIP
+      this%forward_simulation%stop_flag = TS_STOP_END_SIMULATION
+      return
+    endif
+  endif
 
   ! insert measurement times into waypoint list. this must come after the
   ! simulation is initialized to obtain the final time.
@@ -1248,16 +1263,26 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                        INVAUX_SCATFORWARD)
     else
       ! load the original parameter values
-      do i = 1, size(this%inversion_aux%parameters)
-        call InvAuxCopyParameterValue(this%inversion_aux,i, &
-                                      INVAUX_GET_MATERIAL_VALUE)
-      enddo
-      call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
-                                         INVAUX_PARAMETER_VALUE, &
-                                         INVAUX_COPY_TO_VEC)
+      call InvAuxMaterialToParamVec(this%inversion_aux)
     endif
     ! must come after the copying of parameters above
     call this%RestartReadData()
+  endif
+
+  ! update parameters for parallel perturbation
+  if (this%inversion_option%num_process_groups > 1) then
+    if (associated(this%inversion_option%invcomm)) then
+      call InvAuxMaterialToParamVec(this%inversion_aux)
+    endif
+    call VecGetArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                        ierr);CHKERRQ(ierr)
+    mpi_int = size(this%inversion_aux%parameters)
+    call MPI_Bcast(vec_ptr,mpi_int,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
+                   this%inversion_option%forcomm%communicator, &
+                   ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                            ierr);CHKERRQ(ierr)
+    call InvAuxParamVecToMaterial(this%inversion_aux)
   endif
 
   call FactoryForwardPrerequisite(this%forward_simulation)
@@ -2091,13 +2116,7 @@ endif
                                  this%realization%field%work_loc, &
                                  iqoi(1),iqoi(2))
   else
-    call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
-                                       INVAUX_PARAMETER_VALUE, &
-                                       INVAUX_COPY_FROM_VEC)
-    do i = 1, size(this%inversion_aux%parameters)
-      call InvAuxCopyParameterValue(this%inversion_aux,i, &
-                                    INVAUX_OVERWRITE_MATERIAL_VALUE)
-    enddo
+    call InvAuxParamVecToMaterial(this%inversion_aux)
   endif
 
 end subroutine InvSubsurfPertCalcSensitivity

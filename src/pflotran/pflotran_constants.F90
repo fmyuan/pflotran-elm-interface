@@ -283,6 +283,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: PROCEED = 0
   PetscInt, parameter, public :: DONE = 1
   PetscInt, parameter, public :: FAIL = 2
+  PetscInt, parameter, public :: SKIP = 3
 
   ! Grid type
   PetscInt, parameter, public :: NULL_GRID = 0

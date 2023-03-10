@@ -84,7 +84,9 @@ module Inversion_Aux_module
             InvAuxScatMeasToDistMeas, &
             InvAuxScatParamToDistParam, &
             InvAuxScatGlobalToDistParam, &
-            InvAuxBCastVecForCommI
+            InvAuxBCastVecForCommI, &
+            InvAuxParamVecToMaterial, &
+            InvAuxMaterialToParamVec
 
 contains
 
@@ -427,6 +429,48 @@ subroutine InvAuxCopyParamToFromParamVec(aux,itype,idirection)
   end select
 
 end subroutine InvAuxCopyParamToFromParamVec
+
+! ************************************************************************** !
+
+subroutine InvAuxParamVecToMaterial(aux)
+  !
+  ! Copies parameter values from parameter vec to material properties
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/10/23
+
+  class(inversion_aux_type) :: aux
+
+  PetscInt :: i
+
+  call InvAuxCopyParamToFromParamVec(aux,INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_FROM_VEC)
+  do i = 1, size(aux%parameters)
+    call InvAuxCopyParameterValue(aux,i,INVAUX_OVERWRITE_MATERIAL_VALUE)
+  enddo
+
+end subroutine InvAuxParamVecToMaterial
+
+! ************************************************************************** !
+
+subroutine InvAuxMaterialToParamVec(aux)
+  !
+  ! Copies parameter values from material properties to parameter vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/10/23
+
+  class(inversion_aux_type) :: aux
+
+  PetscInt :: i
+
+  do i = 1, size(aux%parameters)
+    call InvAuxCopyParameterValue(aux,i,INVAUX_GET_MATERIAL_VALUE)
+  enddo
+  call InvAuxCopyParamToFromParamVec(aux,INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_TO_VEC)
+
+end subroutine InvAuxMaterialToParamVec
 
 ! ************************************************************************** !
 

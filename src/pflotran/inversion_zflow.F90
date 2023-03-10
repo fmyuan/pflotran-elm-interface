@@ -849,10 +849,18 @@ subroutine InversionZFlowCheckConvergence(this)
 
   class(inversion_zflow_type) :: this
 
+  PetscErrorCode :: ierr
+
   this%converged = PETSC_FALSE
-  call this%EvaluateCostFunction()
-  if ((this%current_chi2 <= this%target_chi2) .or. &
-      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  if (associated(this%inversion_option%invcomm)) then
+    call this%EvaluateCostFunction()
+    if ((this%current_chi2 <= this%target_chi2) .or. &
+        (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  endif
+  ! need to broadcast in the case of parallel perturbation
+  call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
+                 MPI_LOGICAL,this%driver%comm%io_rank, &
+                 this%driver%comm%communicator,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowCheckConvergence
 
@@ -1102,6 +1110,7 @@ subroutine InvZFlowUpdateRegularizParams(this)
   class(inversion_zflow_type) :: this
 
   if (this%iteration == this%start_iteration) return
+  if (.not.associated(this%inversion_option%invcomm)) return
 
   if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
                                                       this%min_phi_red ) then
@@ -1147,6 +1156,8 @@ subroutine InversionZFlowCalculateUpdate(this)
 
   patch => this%realization%patch
   grid => patch%grid
+
+  if (.not.associated(this%inversion_option%invcomm)) return
 
   ! simply setting a local pointer for clarity
   dist_del_param_vec = this%dist_parameter_tmp_vec
@@ -2327,10 +2338,12 @@ subroutine InvZFlowWriteIterationInfo(this)
 
   class(inversion_zflow_type) :: this
 
-  if (this%info_format == 1) then
-    call InvZFlowWriteIterationInfo2(this)
-  else
-    call InvZFlowWriteIterationInfo1(this)
+  if (associated(this%inversion_option%invcomm)) then
+    if (this%info_format == 1) then
+      call InvZFlowWriteIterationInfo2(this)
+    else
+      call InvZFlowWriteIterationInfo1(this)
+    endif
   endif
 
 end subroutine InvZFlowWriteIterationInfo
@@ -2574,6 +2587,8 @@ subroutine InversionZFlowScaleSensitivity(this)
   PetscReal, pointer :: wdvec_ptr(:)
   PetscErrorCode :: ierr
 
+  if (.not.associated(this%inversion_option%invcomm)) return
+
   num_measurement = size(this%inversion_aux%measurements)
   call VecDuplicate(this%inversion_aux%measurement_vec,wd_vec, &
                     ierr);CHKERRQ(ierr)
@@ -2624,6 +2639,7 @@ subroutine InversionZFlowCheckpoint(this)
   PetscErrorCode :: ierr
 
   if (len_trim(this%checkpoint_filename) == 0) return
+  if (.not.associated(this%inversion_option%invcomm)) return
 
   call this%driver%PrintMsg('Checkpointing inversion iteration ' // &
                             trim(StringWrite(this%iteration)) // '.')

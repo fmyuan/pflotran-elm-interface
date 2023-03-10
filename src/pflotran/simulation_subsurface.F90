@@ -567,6 +567,9 @@ subroutine SimSubsurfOverwriteInvParameters(this)
                                   realization%field%work_loc, &
                                   iqoi(1),iqoi(2))
   else
+#if 1
+    call InvAuxParamVecToMaterial(inversion_aux)
+#else
     call InvAuxCopyParamToFromParamVec(inversion_aux, &
                                        INVAUX_PARAMETER_VALUE, &
                                        INVAUX_COPY_FROM_VEC)
@@ -574,6 +577,7 @@ subroutine SimSubsurfOverwriteInvParameters(this)
       call InvAuxCopyParameterValue(inversion_aux,i, &
                                     INVAUX_OVERWRITE_MATERIAL_VALUE)
     enddo
+#endif
     ! update material auxvars
     call InitSubsurfAssignMatProperties(realization)
   endif
