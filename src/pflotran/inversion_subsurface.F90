@@ -474,6 +474,10 @@ subroutine InvSubsurfInitForwardRun(this,option)
   class(inversion_subsurface_type) :: this
   type(option_type), pointer :: option
 
+  if (this%inversion_option%forcomm%group_id > 1) then
+    this%driver%print_flags%print_to_screen = PETSC_FALSE
+  endif
+
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
   call OptionSetComm(option,this%inversion_option%forcomm)
