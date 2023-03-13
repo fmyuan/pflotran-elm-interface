@@ -1275,9 +1275,9 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   ! update parameters for parallel perturbation
   if (this%inversion_option%num_process_groups > 1) then
-    if (associated(this%inversion_option%invcomm)) then
-      call InvAuxMaterialToParamVec(this%inversion_aux)
-    endif
+    ! at this point, only the parameter_vec has the most up-to-date
+    ! values. do not call InvAuxMaterialToParamVec() as it will
+    ! overwrite parameter_vec
     call VecGetArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
                         ierr);CHKERRQ(ierr)
     mpi_int = size(this%inversion_aux%parameters)
