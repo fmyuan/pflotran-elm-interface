@@ -120,7 +120,8 @@ STANDARD_CFG = \
 	wipp/transport/wipp_regular.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-	wipp/wipp_flow/input_format/input_format.cfg 
+	wipp/wipp_flow/input_format/input_format.cfg \
+	wipp/well_model/well.cfg
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
