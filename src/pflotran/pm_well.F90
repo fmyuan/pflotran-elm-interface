@@ -6458,7 +6458,6 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
 
   type(well_grid_type), pointer :: well_grid
 
-  PetscInt :: i
   PetscReal :: perm_rho_mu_area_ave_over_dist(2), perm_rho_mu_area_up(2), &
                perm_rho_mu_area_dn(2)
   PetscReal :: perm_up, perm_dn, dist_up, dist_dn, density_kg_ave, rel_perm
