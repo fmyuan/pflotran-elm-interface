@@ -1057,12 +1057,11 @@ subroutine PMWIPPFloInitializeTimestep(this)
         this%pmwell_ptr%well_on = PETSC_TRUE
       endif
     endif
-    call this%pmwell_ptr%InitializeTimestep()
+    ! (jmf 3/13/2023) this call to InitializeTimestep() doesn't seem to be needed
+    ! since within InitializeTimestep() there was a line that always
+    ! kicks you out if quasi-implicit flow is turned on 
+    !call this%pmwell_ptr%InitializeTimestep()
   endif
-
-  !if (associated(this%pmwell_ptr)) then
-  !  call this%pmwell_ptr%InitializeTimestep()
-  !endif
 
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
