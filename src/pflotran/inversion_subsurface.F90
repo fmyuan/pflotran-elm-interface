@@ -1157,9 +1157,56 @@ subroutine InvSubsurfConnectToForwardRun(this)
   perturbation => this%inversion_aux%perturbation
 
   ! do not connect non-perturbation runs for processes not in invcomm
-  if (associated(perturbation) .and. &
-      .not.associated(this%inversion_option%invcomm)) then
-    if (this%inversion_aux%perturbation%idof_pert <= 0) then
+  if (associated(perturbation)) then
+    if (associated(this%inversion_option%invcomm) .and. &
+        this%inversion_aux%startup_phase) then
+      if (this%inversion_aux%qoi_is_full_vector) then
+        iqoi = InversionParameterIntToQOIArray( &
+                                   this%inversion_aux%parameters(1))
+        ! on first iteration of inversion, store the values
+        call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                   this%realization%field%work_loc, &
+                                   iqoi(1),iqoi(2))
+        call DiscretizationLocalToGlobal(this%realization%discretization, &
+                                       this%realization%field%work_loc, &
+                                       this%realization%field%work,ONEDOF)
+        call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                     this%realization%field%work, &
+                                     this%inversion_aux%dist_parameter_vec, &
+                                     INVAUX_SCATFORWARD)
+      else
+        ! load the original parameter values
+        call InvAuxMaterialToParamVec(this%inversion_aux)
+      endif
+      ! must come after the copying of parameters above
+      call this%RestartReadData()
+    endif
+    ! this flag can be set to false after restart has been read
+    this%inversion_aux%startup_phase = PETSC_FALSE
+    ! update parameters for parallel perturbation
+    if (this%inversion_option%num_process_groups > 1) then
+      ! at this point, only the parameter_vec has the most up-to-date
+      ! values. do not call InvAuxMaterialToParamVec() as it will
+      ! overwrite parameter_vec
+      call VecGetArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+      mpi_int = size(this%inversion_aux%parameters)
+      ! could bcast from driver%comm%rank == 0, but this is more
+      ! organized
+      if (this%inversion_option%forcomm_i%group_id == 1) then
+        call MPI_Bcast(vec_ptr,mpi_int,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
+                      this%inversion_option%forcomm_i%communicator, &
+                      ierr);CHKERRQ(ierr)
+      endif
+      call MPI_Bcast(vec_ptr,mpi_int,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
+                    this%inversion_option%forcomm%communicator, &
+                    ierr);CHKERRQ(ierr)
+      call VecRestoreArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
+      call InvAuxParamVecToMaterial(this%inversion_aux)
+    endif
+    if (.not. associated(this%inversion_option%invcomm) .and. &
+        this%inversion_aux%perturbation%idof_pert <= 0) then
       ! skip the execution of the forward run
       this%realization%option%status = SKIP
       this%forward_simulation%stop_flag = TS_STOP_END_SIMULATION
@@ -1251,44 +1298,6 @@ subroutine InvSubsurfConnectToForwardRun(this)
   this%realization%patch%aux%inversion_aux => this%inversion_aux
   call InversionAuxResetMeasurements(this%inversion_aux)
 
-  if (this%inversion_aux%startup_phase) then
-    if (this%inversion_aux%qoi_is_full_vector) then
-      iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
-      ! on first iteration of inversion, store the values
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   iqoi(1),iqoi(2))
-      call DiscretizationLocalToGlobal(this%realization%discretization, &
-                                       this%realization%field%work_loc, &
-                                       this%realization%field%work,ONEDOF)
-      call InvAuxScatGlobalToDistParam(this%inversion_aux, &
-                                       this%realization%field%work, &
-                                       this%inversion_aux%dist_parameter_vec, &
-                                       INVAUX_SCATFORWARD)
-    else
-      ! load the original parameter values
-      call InvAuxMaterialToParamVec(this%inversion_aux)
-    endif
-    ! must come after the copying of parameters above
-    call this%RestartReadData()
-  endif
-
-  ! update parameters for parallel perturbation
-  if (this%inversion_option%num_process_groups > 1) then
-    ! at this point, only the parameter_vec has the most up-to-date
-    ! values. do not call InvAuxMaterialToParamVec() as it will
-    ! overwrite parameter_vec
-    call VecGetArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
-                        ierr);CHKERRQ(ierr)
-    mpi_int = size(this%inversion_aux%parameters)
-    call MPI_Bcast(vec_ptr,mpi_int,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
-                   this%inversion_option%forcomm%communicator, &
-                   ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(this%inversion_aux%parameter_vec,vec_ptr, &
-                            ierr);CHKERRQ(ierr)
-    call InvAuxParamVecToMaterial(this%inversion_aux)
-  endif
-
   call FactoryForwardPrerequisite(this%forward_simulation)
 
   ! must come after insertion of waypoints and setting of pointers; otherwise,
@@ -1304,8 +1313,6 @@ subroutine InvSubsurfConnectToForwardRun(this)
     call InvSubsurfSetAdjointVariable(this,this%inversion_aux% &
                                              parameters(1)%iparameter)
   endif
-
-  this%inversion_aux%startup_phase = PETSC_FALSE
 
 end subroutine InvSubsurfConnectToForwardRun
 
