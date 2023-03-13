@@ -3053,13 +3053,24 @@ subroutine PMWellInitializeTimestep(this)
 
   PetscReal :: curr_time
 
-  if (this%update_for_wippflo_qi_coupling) return
-
   curr_time = this%option%time - this%option%flow_dt
+  this%dt_flow = this%realization%option%flow_dt
 
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
+
+  if (initialize_well_tran) then
+    ! enter here if its the very first timestep
+    call PMWellInitializeWellTran(this)
+  endif
+
+  if (this%transport) then
+    call PMWellUpdatePropertiesTran(this)
+    this%dt_tran = this%dt_flow
+  endif
+
+  if (this%update_for_wippflo_qi_coupling) return
 
   ! update the reservoir object with current reservoir properties
   call PMWellUpdateReservoir(this,-999)
@@ -3070,10 +3081,6 @@ subroutine PMWellInitializeTimestep(this)
   if (initialize_well_flow) then
     ! enter here if its the very first timestep
     call PMWellInitializeWellFlow(this)
-  endif
-  if (initialize_well_tran) then
-    ! enter here if its the very first timestep
-    call PMWellInitializeWellTran(this)
   endif
 
   call PMWellCopyWell(this%well,this%well_pert(ONE_INTEGER))
@@ -3089,12 +3096,6 @@ subroutine PMWellInitializeTimestep(this)
   call PMWellUpdatePropertiesFlow(this,this%well,&
                         this%realization%patch%characteristic_curves_array,&
                         this%realization%option)
-  this%dt_flow = this%realization%option%flow_dt
-
-  if (this%transport) then
-    call PMWellUpdatePropertiesTran(this)
-    this%dt_tran = this%dt_flow
-  endif
 
 end subroutine PMWellInitializeTimestep
 
