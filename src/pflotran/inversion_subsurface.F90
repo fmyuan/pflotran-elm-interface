@@ -1546,15 +1546,10 @@ subroutine InvSubsurfPostProcMeasurements(this)
     call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
                             vec_ptr2,ierr);CHKERRQ(ierr)
   endif
-  call VecGetArrayF90(this%inversion_aux%measurement_vec,vec_ptr, &
-                      ierr);CHKERRQ(ierr)
+  call InvAuxCopyMeasToFromMeasVec(this%inversion_aux,INVAUX_COPY_FROM_VEC)
   do imeasurement = 1, num_measurements
-    this%inversion_aux%measurements(imeasurement)%simulated_value = &
-      vec_ptr(imeasurement)
     this%inversion_aux%measurements(imeasurement)%measured = PETSC_TRUE
   enddo
-  call VecRestoreArrayF90(this%inversion_aux%measurement_vec,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
   if (associated(this%local_dobs_dunknown_values)) then
     ! distribute derivatives to measurement objects
     ! temporary vecs for derivatives (if they exist)
@@ -2104,12 +2099,13 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call VecCopy(this%inversion_aux%perturbation%base_measurement_vec, &
                  this%inversion_aux%measurement_vec,ierr);CHKERRQ(ierr)
   endif
-if (associated(this%inversion_option%invcomm)) then
-  call InvAuxScatMeasToDistMeas(this%inversion_aux, &
-                                this%inversion_aux%measurement_vec, &
-                                this%inversion_aux%dist_measurement_vec, &
-                                INVAUX_SCATFORWARD)
-endif
+  if (associated(this%inversion_option%invcomm)) then
+    call InvAuxScatMeasToDistMeas(this%inversion_aux, &
+                                  this%inversion_aux%measurement_vec, &
+                                  this%inversion_aux%dist_measurement_vec, &
+                                  INVAUX_SCATFORWARD)
+    call InvAuxCopyMeasToFromMeasVec(this%inversion_aux,INVAUX_COPY_FROM_VEC)
+  endif
 
   ! reset parameters to base copy
   if (this%inversion_aux%qoi_is_full_vector) then
@@ -2144,9 +2140,10 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
   ! Date: 09/24/21
   !
   use Debug_module
+  use Option_Inversion_module
+  use Inversion_Measurement_Aux_module
   use Realization_Base_class
   use String_module
-  use Option_Inversion_module
 
   class(inversion_subsurface_type) :: this
   PetscInt :: my_dof
@@ -2170,13 +2167,7 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
 
   num_measurements = size(this%inversion_aux%measurements)
 
-  call VecGetArrayF90(this%inversion_aux%measurement_vec, &
-                      vec_ptr,ierr);CHKERRQ(ierr)
-  do i = 1, num_measurements
-    vec_ptr(i) = this%inversion_aux%measurements(i)%simulated_value
-  enddo
-  call VecRestoreArrayF90(this%inversion_aux%measurement_vec, &
-                          vec_ptr,ierr);CHKERRQ(ierr)
+  call InvAuxCopyMeasToFromMeasVec(this%inversion_aux,INVAUX_COPY_TO_VEC)
 
   if (my_dof == 0) then
     ! if parallel perturbation runs, need to broadcast the base measurement

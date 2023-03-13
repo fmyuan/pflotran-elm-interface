@@ -82,6 +82,7 @@ module Inversion_Aux_module
             InvAuxGetParamValueByCell, &
             InvAuxGetSetParamValueByMat, &
             InvAuxScatMeasToDistMeas, &
+            InvAuxCopyMeasToFromMeasVec, &
             InvAuxScatParamToDistParam, &
             InvAuxScatGlobalToDistParam, &
             InvAuxBCastVecForCommI, &
@@ -639,6 +640,40 @@ subroutine InvAuxScatMeasToDistMeas(inversion_aux,measurement_vec, &
   endif
 
 end subroutine InvAuxScatMeasToDistMeas
+
+! ************************************************************************** !
+
+subroutine InvAuxCopyMeasToFromMeasVec(aux,idirection)
+  !
+  ! Copies parameter values back and forth
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/30/22
+  use Inversion_Measurement_Aux_module
+
+  class(inversion_aux_type) :: aux
+  PetscInt :: idirection
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  call VecGetArrayF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  select case(idirection)
+    case(INVAUX_COPY_FROM_VEC)
+      do i = 1, size(aux%measurements)
+        aux%measurements(i)%simulated_value = vec_ptr(i)
+      enddo
+    case(INVAUX_COPY_TO_VEC)
+      do i = 1, size(aux%measurements)
+        vec_ptr(i) = aux%measurements(i)%simulated_value
+      enddo
+    case default
+      stop 'Error: idirection in InvAuxCopyMeasToFromMeasVec,Update'
+  end select
+  call VecRestoreArrayF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine InvAuxCopyMeasToFromMeasVec
 
 ! ************************************************************************** !
 
