@@ -1156,33 +1156,34 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   perturbation => this%inversion_aux%perturbation
 
-  ! do not connect non-perturbation runs for processes not in invcomm
-  if (associated(perturbation)) then
-    if (associated(this%inversion_option%invcomm) .and. &
-        this%inversion_aux%startup_phase) then
-      if (this%inversion_aux%qoi_is_full_vector) then
-        iqoi = InversionParameterIntToQOIArray( &
-                                   this%inversion_aux%parameters(1))
-        ! on first iteration of inversion, store the values
-        call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   iqoi(1),iqoi(2))
-        call DiscretizationLocalToGlobal(this%realization%discretization, &
-                                       this%realization%field%work_loc, &
-                                       this%realization%field%work,ONEDOF)
-        call InvAuxScatGlobalToDistParam(this%inversion_aux, &
-                                     this%realization%field%work, &
-                                     this%inversion_aux%dist_parameter_vec, &
-                                     INVAUX_SCATFORWARD)
-      else
-        ! load the original parameter values
-        call InvAuxMaterialToParamVec(this%inversion_aux)
-      endif
-      ! must come after the copying of parameters above
-      call this%RestartReadData()
+  ! store the initial set of parameters
+  if (associated(this%inversion_option%invcomm) .and. &
+      this%inversion_aux%startup_phase) then
+    if (this%inversion_aux%qoi_is_full_vector) then
+      iqoi = InversionParameterIntToQOIArray( &
+                                  this%inversion_aux%parameters(1))
+      ! on first iteration of inversion, store the values
+      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                  this%realization%field%work_loc, &
+                                  iqoi(1),iqoi(2))
+      call DiscretizationLocalToGlobal(this%realization%discretization, &
+                                      this%realization%field%work_loc, &
+                                      this%realization%field%work,ONEDOF)
+      call InvAuxScatGlobalToDistParam(this%inversion_aux, &
+                                    this%realization%field%work, &
+                                    this%inversion_aux%dist_parameter_vec, &
+                                    INVAUX_SCATFORWARD)
+    else
+      ! load the original parameter values
+      call InvAuxMaterialToParamVec(this%inversion_aux)
     endif
-    ! this flag can be set to false after restart has been read
-    this%inversion_aux%startup_phase = PETSC_FALSE
+    ! must come after the copying of parameters above
+    call this%RestartReadData()
+  endif
+  ! this flag can be set to false after restart has been read
+  this%inversion_aux%startup_phase = PETSC_FALSE
+
+  if (associated(perturbation)) then
     ! update parameters for parallel perturbation
     if (this%inversion_option%num_process_groups > 1) then
       ! at this point, only the parameter_vec has the most up-to-date
@@ -1205,6 +1206,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                               ierr);CHKERRQ(ierr)
       call InvAuxParamVecToMaterial(this%inversion_aux)
     endif
+    ! do not connect non-perturbation runs for processes not in invcomm
     if (.not. associated(this%inversion_option%invcomm) .and. &
         this%inversion_aux%perturbation%idof_pert <= 0) then
       ! skip the execution of the forward run
