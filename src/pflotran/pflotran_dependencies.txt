@@ -1406,6 +1406,7 @@ mphase.o : \
   realization_subsurface.o \
   secondary_continuum.o \
   secondary_continuum_aux.o \
+  utility.o \
   variables.o
 mphase_aux.o : \
   co2_span_wagner.o \
@@ -1445,6 +1446,7 @@ nw_transport.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   realization_subsurface.o \
   string.o \
   transport_constraint_nwt.o \
@@ -1982,6 +1984,7 @@ pm_nwt.o : \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
+  pm_well.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
@@ -2953,7 +2956,8 @@ reactive_transport.o : \
   string.o \
   transport.o \
   transport_constraint_rt.o \
-  transport_np.o
+  transport_np.o \
+  utility.o
 reactive_transport_aux.o : \
   matrix_block_aux.o \
   matrix_zeroing.o \

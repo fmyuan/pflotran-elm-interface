@@ -609,7 +609,7 @@ end subroutine NWTInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine NWTResidual(snes,xx,r,realization,ierr)
+subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   !
   ! Computes the residual equation
   !
@@ -626,6 +626,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   use Logging_module
   use Debug_module
   use WIPP_Flow_Aux_module
+  use PM_Well_class
 
   implicit none
 
@@ -633,9 +634,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   class(realization_subsurface_type) :: realization
-  PetscReal, pointer :: xx_p(:), log_xx_p(:)
+  class(pm_well_type), pointer :: pmwell_ptr
   PetscErrorCode :: ierr
 
+  PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscReal, pointer :: r_p(:), fixed_accum_p(:)
   PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id, local_id_up, local_id_dn
@@ -745,6 +747,16 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   !WRITE(*,*)  '     ResAccum = ', Res(:)
   !WRITE(*,*)  '       r_p(2) = ', r_p(723), '     loc = 723'
   !WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
+
+#if 1
+  !== Well Model ==============================================
+  if (nwt_well_quasi_imp_coupled .and. associated(pmwell_ptr)) then
+    if (pmwell_ptr%well_on) then
+      ! loads the source_sink object with well model transport
+      call PMWellQISolveTran(pmwell_ptr)
+    endif
+  endif
+#endif
 
 #if 1
   !== Source/Sink Terms =======================================

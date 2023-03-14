@@ -393,7 +393,8 @@ module PM_Well_class
             PMWellReadPass2, &
             PMWellUpdateRates, &
             PMWellCalcResidualValues, &
-            PMWellCalcJacobianValues
+            PMWellCalcJacobianValues, &
+            PMWellQISolveTran
 
   contains
 
@@ -4028,6 +4029,21 @@ subroutine PMWellResidualFlow(this)
   end select
 
 end subroutine PMWellResidualFlow
+
+! ************************************************************************** !
+
+subroutine PMWellQISolveTran(this)
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 03/13/2023
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  write(*,*) 'NWTResidual() calling PMWellQISolveTran() ! yay'
+
+end subroutine PMWellQISolveTran
 
 ! ************************************************************************** !
 

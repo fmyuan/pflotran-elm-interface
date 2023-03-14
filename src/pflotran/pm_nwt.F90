@@ -987,6 +987,10 @@ subroutine PMNWTFinalizeTimestep(this)
                                   this%realization%field%porosity_tpdt)
   endif
 
+  if (associated(this%pmwell_ptr)) then
+    !call this%pmwell_ptr%FinalizeTimestep()
+  endif
+
 end subroutine PMNWTFinalizeTimestep
 
 ! ************************************************************************** !
@@ -1148,7 +1152,7 @@ subroutine PMNWTResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
-  call NWTResidual(snes,xx,r,this%realization,ierr)
+  call NWTResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMNWTResidual
 
