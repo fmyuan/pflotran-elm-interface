@@ -558,19 +558,11 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   ! Date: 02/05/13
   !
 
-  use Coupler_module
-  use Transport_Constraint_module
-  use Condition_module
-  use Global_Aux_module
   use Material_module
   use Option_module
   use Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_module
-  use Transport_Constraint_RT_module
-
-  use EOS_Water_module
 
   implicit none
 
@@ -578,15 +570,11 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   type(multicontinuum_property_type) :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
 
   PetscInt :: cell
   PetscReal :: area_per_vol
-  PetscReal :: dum1
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
-  PetscErrorCode :: ierr
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
