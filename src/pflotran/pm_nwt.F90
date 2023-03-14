@@ -245,6 +245,7 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
 !        this%temperature_dependent_diffusion = PETSC_TRUE
     !-----------------------------------------------------------
       case('QUASI_IMPLICIT_WELLBORE_COUPLING') 
+        nwt_well_quasi_imp_coupled = PETSC_TRUE
     !-----------------------------------------------------------
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
