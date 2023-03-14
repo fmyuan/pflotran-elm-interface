@@ -10,6 +10,7 @@ module PM_NWT_class
   use PFLOTRAN_Constants_module
   use NW_Transport_module
   use NW_Transport_Aux_module
+  use PM_Well_class
 
   implicit none
 
@@ -73,6 +74,7 @@ module PM_NWT_class
     class(communicator_type), pointer :: comm1
     type(pm_nwt_controls_type), pointer :: controls
     type(pm_nwt_params_type), pointer :: params
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: Setup => PMNWTSetup
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -132,6 +134,7 @@ function PMNWTCreate()
   nullify(nwt_pm%output_option)
   nullify(nwt_pm%realization)
   nullify(nwt_pm%comm1)
+  nullify(nwt_pm%pmwell_ptr)
 
   allocate(nwt_pm%controls)
   nullify(nwt_pm%controls%itol_rel_update)
@@ -236,11 +239,16 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+    !-----------------------------------------------------------
 !geh: yet to be implemented
 !      case('TEMPERATURE_DEPENDENT_DIFFUSION')
 !        this%temperature_dependent_diffusion = PETSC_TRUE
+    !-----------------------------------------------------------
+      case('QUASI_IMPLICIT_WELLBORE_COUPLING') 
+    !-----------------------------------------------------------
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
+    !-----------------------------------------------------------
     end select
   enddo
   call InputPopBlock(input,option)
