@@ -126,8 +126,6 @@ subroutine RTSetup(realization)
   class(reaction_rt_type), pointer :: reaction
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  type(coupler_type), pointer :: initial_condition
-  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(reactive_transport_param_type), pointer :: rt_parameter

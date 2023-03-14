@@ -896,7 +896,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(tran_condition_type), pointer :: tran_condition
   type(geop_condition_type), pointer :: geop_condition
   class(tran_constraint_base_type), pointer :: tran_constraint
-  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
