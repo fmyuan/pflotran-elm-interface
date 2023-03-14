@@ -549,8 +549,7 @@ end subroutine SecondaryRTTimeCut
 ! ************************************************************************** !
 
 subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
-                                 rt_sec_transport_vars, reaction, &
-                                 initial_condition,constraint,option)
+                                 rt_sec_transport_vars,reaction,option)
   !
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -578,14 +577,9 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   type(sec_transport_type) :: rt_sec_transport_vars
   type(multicontinuum_property_type) :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
-  type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
-  type(material_auxvar_type), allocatable :: material_auxvar
-  class(tran_constraint_rt_type), pointer :: constraint
-  type(flow_condition_type), pointer :: initial_flow_condition
-
 
   PetscInt :: cell
   PetscReal :: area_per_vol
@@ -596,10 +590,6 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   PetscErrorCode :: ierr
 
   num_iterations = 0
-
-  allocate(material_auxvar)
-  call MaterialAuxVarInit(material_auxvar,option)
-  material_auxvar%porosity = option%flow%reference_porosity
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
@@ -657,71 +647,6 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
            r(reaction%naqcomp*rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars% &
            updated_conc(reaction%naqcomp,rt_sec_transport_vars%ncells))
-
-
-  initial_flow_condition => initial_condition%flow_condition
-  do cell = 1, rt_sec_transport_vars%ncells
-    global_auxvar => initial_condition%tran_condition% &
-                       constraint_coupler_list%global_auxvar
-    rt_auxvar => rt_sec_transport_vars%sec_rt_auxvar(cell)
-    if (associated(initial_flow_condition)) then
-      if (associated(initial_flow_condition%pressure)) then
-        if (associated(initial_flow_condition%pressure%dataset)) then
-          global_auxvar%pres = &
-            initial_flow_condition%pressure%dataset%rarray(1)
-        else
-          global_auxvar%pres = option%flow%reference_pressure
-        endif
-      else
-        global_auxvar%pres = option%flow%reference_pressure
-      endif
-      if (associated(initial_flow_condition%temperature)) then
-        if (associated(initial_flow_condition%temperature%dataset)) then
-          global_auxvar%temp  = &
-            initial_flow_condition%temperature%dataset%rarray(1)
-        else
-          global_auxvar%temp = option%flow%reference_temperature
-        endif
-      else
-        global_auxvar%temp = option%flow%reference_temperature
-      endif
-
-      call EOSWaterDensity(global_auxvar%temp, &
-                           global_auxvar%pres(1), &
-                           global_auxvar%den_kg(1), &
-                           dum1,ierr)
-    else
-      global_auxvar%pres = option%flow%reference_pressure
-      global_auxvar%temp = option%flow%reference_temperature
-      global_auxvar%den_kg(option%liquid_phase) = &
-        option%flow%reference_density(option%liquid_phase)
-
-    endif
-    global_auxvar%sat = option%flow%reference_saturation
-
-    if (option%transport%nphase > option%nphase) then
-      ! gas phase not considered explicitly on flow side
-      global_auxvar%den_kg(option%gas_phase) = &
-        option%flow%reference_density(option%gas_phase)
-      global_auxvar%sat(option%gas_phase) = &
-        1.d0 - global_auxvar%sat(option%liquid_phase)
-    endif
-
-    !Use multicontinuum sorption
-    reaction%mc_flag = 1
-    call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
-                          material_auxvar, &
-                          reaction,constraint, &
-                          num_iterations, &
-                          PETSC_FALSE,option)
-    reaction%mc_flag = 0
-
-    rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal
-
-  enddo
-
-  call MaterialAuxVarStrip(material_auxvar)
-  deallocate(material_auxvar)
 
   rt_sec_transport_vars%sec_jac_update = PETSC_FALSE
   rt_sec_transport_vars%sec_jac = 0.d0

@@ -142,8 +142,6 @@ subroutine RTSetup(realization)
   patch => realization%patch
   grid => patch%grid
   reaction => realization%reaction
-  sec_tran_constraint => &
-    TranConstraintRTCast(realization%sec_transport_constraint)
 
   patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase)
   rt_parameter => patch%aux%RT%rt_parameter
@@ -240,7 +238,6 @@ subroutine RTSetup(realization)
 
   if (option%use_sc) then
     patch%aux%SC_RT => SecondaryAuxRTCreate(option)
-    initial_condition => patch%initial_condition_list%first
     ! Must allocate to ngmax since rt_sec_transport_vars()%epsilon is used in
     ! the calculation of effective diffusion coef in fluxes.
     allocate(rt_sec_transport_vars(grid%ngmax))
@@ -254,8 +251,7 @@ subroutine RTSetup(realization)
                                  material_auxvars(ghosted_id)% &
                                    soil_properties(half_matrix_width_index), &
                                  rt_sec_transport_vars(ghosted_id), &
-                                 reaction,initial_condition, &
-                                 sec_tran_constraint,option)
+                                 reaction,option)
     enddo
     patch%aux%SC_RT%sec_transport_vars => rt_sec_transport_vars
     do i = 1, size(patch%material_property_array)

@@ -34,9 +34,9 @@ private
     type(condition_list_type), pointer :: flow_conditions
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
+    type(tran_constraint_list_type), pointer :: sec_transport_constraints
     type(geop_condition_list_type), pointer :: geophysics_conditions
 
-    class(tran_constraint_base_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
     type(fluid_property_type), pointer :: fluid_property_array(:)
@@ -154,6 +154,8 @@ function RealizationCreate2(option)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
   call TranConstraintInitList(realization%transport_constraints)
+  allocate(realization%sec_transport_constraints)
+  call TranConstraintInitList(realization%sec_transport_constraints)
   allocate(realization%geophysics_conditions)
   call GeopConditionInitList(realization%geophysics_conditions)
 
@@ -166,7 +168,6 @@ function RealizationCreate2(option)
   nullify(realization%material_transform)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
-  nullify(realization%sec_transport_constraint)
   nullify(realization%reaction)
   nullify(realization%reaction_nw)
   nullify(realization%survey)
@@ -1356,12 +1357,17 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (option%use_sc) then
-    select type(constraint=>realization%sec_transport_constraint)
-      class is (tran_constraint_rt_type)
-        call ReactionProcessConstraint(realization%reaction, &
-                                       constraint,realization%option)
-    end select
+  if (realization%option%use_sc) then
+    cur_constraint => realization%sec_transport_constraints%first
+    do
+      if (.not.associated(cur_constraint)) exit    
+      select type(constraint=>cur_constraint)
+        class is (tran_constraint_rt_type)
+          call ReactionProcessConstraint(realization%reaction, &
+                                         constraint,realization%option)
+      end select
+      cur_constraint => cur_constraint%next
+    enddo
   endif
 
   ! tie constraints to couplers, if not already associated
@@ -3016,6 +3022,7 @@ subroutine RealizationStrip(this)
   call FlowConditionDestroyList(this%flow_conditions)
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintListDestroy(this%transport_constraints)
+  call TranConstraintListDestroy(this%sec_transport_constraints)
   call GeopConditionDestroyList(this%geophysics_conditions)
 
   if (associated(this%fluid_property_array)) &
@@ -3041,8 +3048,6 @@ subroutine RealizationStrip(this)
   ! nullify since they are pointers to reaction_base in realization_base
   nullify(this%reaction)
   nullify(this%reaction_nw)
-
-  call TranConstraintDestroy(this%sec_transport_constraint)
 
   if (associated(this%survey)) then
     call SurveyDestroy(this%survey)

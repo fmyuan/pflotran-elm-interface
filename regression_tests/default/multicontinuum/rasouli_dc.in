@@ -206,6 +206,15 @@ TRANSPORT_CONDITION sourceConcentrationCondition
     CONSTRAINT_LIST
     0.d0 sourceConcentrationConstraint
     /
+    SECONDARY_CONSTRAINT initialConcentrationConstraint
+    CONCENTRATIONS
+    H+          4.007 pH
+    Na+         1d-4 T
+    Cl-         1d-4 T
+    NO3-        1d-4 T
+    #Tracer      1d-8 T
+    /
+END
 END
 
 #TRANSPORT_CONDITION iniPimConcCondition
@@ -237,17 +246,6 @@ END
     #Tracer      1d-8 T
     #/
 #END
-
-SECONDARY_CONSTRAINT initialConcentrationConstraint
-    CONCENTRATIONS
-    H+          4.007 pH
-    Na+         1d-4 T
-    Cl-         1d-4 T
-    NO3-        1d-4 T
-    #Tracer      1d-8 T
-    /
-END
-
 
 #=========================== condition couplers ===============================
 # initial condition
