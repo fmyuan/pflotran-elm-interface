@@ -804,7 +804,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   integer(HID_T) :: grp_id, new_grp_id
   integer(HID_T) :: file_space_id
   integer(HID_T) :: data_set_id
-  integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3), max_dims(3)
 
   type(grid_type), pointer :: grid
