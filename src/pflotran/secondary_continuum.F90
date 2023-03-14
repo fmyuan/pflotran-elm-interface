@@ -586,10 +586,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   PetscReal :: dum1
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
-  PetscInt :: num_iterations
   PetscErrorCode :: ierr
-
-  num_iterations = 0
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &

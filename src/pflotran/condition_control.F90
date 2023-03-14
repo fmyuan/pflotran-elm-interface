@@ -1012,7 +1012,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
 
   PetscInt :: icell, idof, temp_int, iimmobile, cell
   PetscInt :: local_id, ghosted_id, iend, ibegin
-  PetscInt :: irxn, isite, imnrl, ikinrxn, num_iterations
+  PetscInt :: irxn, isite, imnrl, ikinrxn
   PetscReal, pointer :: xx_p(:), xx_loc_p(:), vec_p(:)
   Vec :: vec1_loc
   Vec :: vec2_loc
@@ -1059,7 +1059,6 @@ subroutine CondControlAssignRTTranInitCond(realization)
   iphase = 1
   vec1_loc = PETSC_NULL_VEC
   vec2_loc = PETSC_NULL_VEC
-  num_iterations = 0
   
   cur_patch => realization%patch_list%first
   do
@@ -1095,6 +1094,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
                                                                      sec_constraint_coupler)
           sec_tran_constraint => TranConstraintRTCast(sec_constraint_coupler%constraint)
         else
+          sec_constraint_coupler => constraint_coupler
           sec_tran_constraint => constraint
         endif   
       endif
@@ -1381,7 +1381,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
           do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
             call ReactionEquilibrateConstraint(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell), &
                                      global_auxvars(ghosted_id), material_auxvars(ghosted_id),reaction, &
-                                     sec_tran_constraint, num_iterations, PETSC_FALSE,option)
+                                     sec_tran_constraint, sec_constraint_coupler%num_iterations, PETSC_FALSE,option)
             rt_sec_transport_vars(ghosted_id)%updated_conc(:,cell) =  &
               rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal
           enddo

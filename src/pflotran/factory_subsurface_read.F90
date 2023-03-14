@@ -1377,9 +1377,9 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
       case('SECONDARY_CONSTRAINT')
         option%io_buffer = 'SECONDARY_CONSTRAINT has been moved to the &
-                            TRANSPORT_CONDITION block. If a SECONDARY_CONSTRAINT &
-                            is not specified the secondary initial conditions &
-                            are copied from the primary.'
+                            &TRANSPORT_CONDITION block. If a SECONDARY_CONSTRAINT &
+                            &is not specified the secondary initial conditions &
+                            &are copied from the primary.'
         call PrintErrMsg(option)
 
 

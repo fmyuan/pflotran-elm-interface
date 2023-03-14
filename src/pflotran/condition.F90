@@ -3126,7 +3126,7 @@ subroutine TranConditionRead(condition,constraint_list, &
             sec_constraint => TranConstraintRTCreate(option)
           case(NWT_MODE)
             option%io_buffer = 'MULTIPLE_CONTINUUM is not compatible with &
-                                NWT mode'
+                                &NWT mode'
             call PrintErrMsg(option)
         end select
         call InputReadWord(input,option,sec_constraint%name,PETSC_TRUE)
