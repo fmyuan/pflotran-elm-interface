@@ -93,7 +93,7 @@ subroutine RadonRead(this,input,option)
         call InputErrorMsg(input,option,word, &
                            'CHEMISTRY,REACTION_SANDBOX,RADON')
       case('MINERAL_NAME')
-        call InputReadWord(input,option,this%species_name,PETSC_TRUE)
+        call InputReadWord(input,option,this%mineral_name,PETSC_TRUE)
         call InputErrorMsg(input,option,word, &
                            'CHEMISTRY,REACTION_SANDBOX,RADON')
       case('RADON_GENERATION_RATE')

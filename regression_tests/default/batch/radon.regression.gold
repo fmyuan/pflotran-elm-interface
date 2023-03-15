@@ -1,0 +1,38 @@
+-- CONCENTRATION: Total Rn(aq) --
+      Max:   4.9999995951804E-04
+      Min:   4.9999995951804E-04
+     Mean:   4.9999995951804E-04
+        1:   4.9999995951804E-04
+-- CONCENTRATION: Total SiO2(aq) --
+      Max:   9.9876893493687E-05
+      Min:   9.9876893493687E-05
+     Mean:   9.9876893493687E-05
+        1:   9.9876893493687E-05
+-- PRESSURE: Active Gas Rn(g) --
+      Max:   5.5629472690750E-02
+      Min:   5.5629472690750E-02
+     Mean:   5.5629472690750E-02
+        1:   5.5629472690750E-02
+-- VOLUME_FRACTION: Quartz VF --
+      Max:   1.0000000000000E-01
+      Min:   1.0000000000000E-01
+     Mean:   1.0000000000000E-01
+        1:   1.0000000000000E-01
+-- RATE: Quartz Rate --
+      Max:  -0.0000000000000E+00
+      Min:  -0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:  -0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.7998524000632E-02
+   Time Steps:          108
+   Newton Iterations:          193
+   Linear Solver Iterations:          193
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.1132975153719E-04
+   Residual 2-Norm:   2.1175823681358E-22
