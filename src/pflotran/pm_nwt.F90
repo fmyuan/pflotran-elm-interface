@@ -770,6 +770,10 @@ subroutine PMNWTInitializeRun(this)
 
   call PMNWTUpdateSolution(this)
 
+  if (associated(this%pmwell_ptr) .and. nwt_well_quasi_imp_coupled) then
+    this%pmwell_ptr%tran_QI_coupling = PETSC_TRUE
+  endif
+
 end subroutine PMNWTInitializeRun
 
 ! ************************************************************************** !
@@ -985,10 +989,6 @@ subroutine PMNWTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
-  endif
-
-  if (associated(this%pmwell_ptr)) then
-    !call this%pmwell_ptr%FinalizeTimestep()
   endif
 
 end subroutine PMNWTFinalizeTimestep

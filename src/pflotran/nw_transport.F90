@@ -643,6 +643,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   PetscInt :: local_id, local_id_up, local_id_dn
   PetscInt :: nphase, iphase, nspecies
   PetscInt :: istart, iend, offset
+  PetscInt :: niter
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
@@ -752,8 +753,12 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   !== Well Model ==============================================
   if (nwt_well_quasi_imp_coupled .and. associated(pmwell_ptr)) then
     if (pmwell_ptr%well_on) then
-      ! loads the source_sink object with well model transport
-      call PMWellQISolveTran(pmwell_ptr)
+      if (pmwell_ptr%tran_soln%tran_time <= option%time) then
+        ! loads the source_sink object with well model transport sol'n
+        ! this should only be done during the first petsc residual call,
+        ! not both, which is the reason for the check against option%time
+        call PMWellQISolveTran(pmwell_ptr)
+      endif
     endif
   endif
 #endif
