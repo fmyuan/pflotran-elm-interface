@@ -303,10 +303,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           case(SNESNEWTONLS)
             call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
                                             this%pm_ptr,ierr);CHKERRQ(ierr)
-          case(SNESNEWTONTRDC)
-            call SNESNewtonTRDCSetPostCheck(solver%snes, &
-                                            PMCheckUpdatePostTRPtr, &
-                                            this%pm_ptr,ierr);CHKERRQ(ierr)
+!          case(SNESNEWTONTRDC)
+!            call SNESNewtonTRDCSetPostCheck(solver%snes, &
+!                                            PMCheckUpdatePostTRPtr, &
+!                                            this%pm_ptr,ierr);CHKERRQ(ierr)
         end select
         !geh: it is possible that the other side has not been set
 
@@ -344,10 +344,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           case(SNESNEWTONLS)
             call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
                                            this%pm_ptr,ierr);CHKERRQ(ierr)
-          case(SNESNEWTONTRDC)
-            call SNESNewtonTRDCSetPreCheck(solver%snes, &
-                                           PMCheckUpdatePreTRPtr, &
-                                           this%pm_ptr,ierr);CHKERRQ(ierr)
+!          case(SNESNEWTONTRDC)
+!            call SNESNewtonTRDCSetPreCheck(solver%snes, &
+!                                           PMCheckUpdatePreTRPtr, &
+!                                           this%pm_ptr,ierr);CHKERRQ(ierr)
         end select
       endif
 
@@ -467,10 +467,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
         case(SNESNEWTONLS)
           call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
                                           this%pm_ptr,ierr);CHKERRQ(ierr)
-        case(SNESNEWTONTRDC)
-          call SNESNewtonTRDCSetPostCheck(solver%snes, &
-                                          PMCheckUpdatePostTRPtr, &
-                                          this%pm_ptr,ierr);CHKERRQ(ierr)
+        case(SNESNEWTONTR)
+          call SNESNewtonTRSetPostCheck(solver%snes, &
+                                        PMCheckUpdatePostTRPtr, &
+                                        this%pm_ptr,ierr);CHKERRQ(ierr)
       end select
       if (this%pm_ptr%pm%print_EKG) then
         check_post_convergence = PETSC_TRUE
@@ -481,10 +481,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
         case(SNESNEWTONLS)
           call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
                                          this%pm_ptr,ierr);CHKERRQ(ierr)
-        case(SNESNEWTONTRDC)
-          call SNESNewtonTRDCSetPreCheck(solver%snes, &
-                                         PMCheckUpdatePreTRPtr, &
-                                         this%pm_ptr,ierr);CHKERRQ(ierr)
+        case(SNESNEWTONTR)
+          call SNESNewtonTRSetPreCheck(solver%snes, &
+                                       PMCheckUpdatePreTRPtr, &
+                                       this%pm_ptr,ierr);CHKERRQ(ierr)
       end select
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")

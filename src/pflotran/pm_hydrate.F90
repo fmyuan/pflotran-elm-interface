@@ -1614,7 +1614,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
 
-  call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
+  call SNESNewtonTRGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
   if (this%option%flow%using_newtontrdc) then
     if (hydrate_newtontrdc_prev_iter_num == it) then
