@@ -535,7 +535,13 @@ subroutine InvSubsurfInitSetGroupPrefix(this,option)
       endif
     else
       if (this%inversion_aux%perturbation%idof_pert /= 0) then
-        option%group_prefix = 'RunTmp'
+        if (this%inversion_option%num_process_groups > 1) then
+          ! prevent collisions in the RunTmp files
+          option%group_prefix = 'RunTmp-' // &
+            StringWrite(this%inversion_option%forcomm%group_id)
+        else
+          option%group_prefix = 'RunTmp'
+        endif
       endif
     endif
   endif
@@ -1156,6 +1162,72 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   perturbation => this%inversion_aux%perturbation
 
+  ! the allocation of sync_times come before the call to 
+  ! InvCoupledAllocateSolnVecs()
+  if (.not.associated(this%inversion_aux%sync_times)) then
+    ! insert measurement times into waypoint list. this must come after the
+    ! simulation is initialized to obtain the final time.
+    allocate(real_array(size(this%inversion_aux%measurements)))
+    final_time = &
+      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_subsurface)
+    iflag = PETSC_FALSE
+    do i = 1, size(this%inversion_aux%measurements)
+      if (Uninitialized(this%inversion_aux%measurements(i)%time)) then
+        this%inversion_aux%measurements(i)%time = final_time
+      endif
+      if (this%inversion_aux%measurements(i)%time > final_time) then
+        iflag = PETSC_TRUE
+      endif
+      real_array(i) = this%inversion_aux%measurements(i)%time
+    enddo
+    if (iflag) then
+      call this%driver%PrintErrMsg( &
+            'Inversion measurement times are specified beyond the end of &
+            &the final simulation time.')
+    endif
+    call UtilitySortArray(real_array)
+    sync_count = 0
+    do i = 1, size(real_array)
+      iflag = PETSC_FALSE
+      if (i == 1) then
+        iflag = PETSC_TRUE
+      else if (real_array(i) > real_array(i-1)) then
+        iflag = PETSC_TRUE
+      endif
+      if (iflag) then
+        sync_count = sync_count + 1
+        real_array(sync_count) = real_array(i)
+      endif
+    enddo
+    allocate(this%inversion_aux%sync_times(sync_count))
+    this%inversion_aux%sync_times(:) = real_array(1:sync_count)
+    deallocate(real_array)
+    nullify(real_array)
+
+    if (associated(this%inversion_aux%coupled_aux)) then
+      allocate(this%inversion_aux%coupled_aux%solutions(sync_count))
+      do i = 1, sync_count
+        call InversionCoupledSolutionInit(this%inversion_aux%coupled_aux% &
+                                            solutions(i))
+        this%inversion_aux%coupled_aux%solutions(i)%time = &
+          this%inversion_aux%sync_times(i)
+      enddo
+      ! allocate any full vector measurements
+      call InvCoupledAllocateSolnVecs(this%inversion_aux%coupled_aux, &
+                                      this%realization%field%work, &
+                                      size(this%inversion_aux%parameters))
+    endif
+  endif
+  real_array => this%inversion_aux%sync_times
+  do i = 1, size(real_array)
+    waypoint => WaypointCreate()
+    waypoint%time = real_array(i)
+    waypoint%sync = PETSC_TRUE
+    call WaypointInsertInList(waypoint, &
+                              this%forward_simulation%waypoint_list_outer)
+  enddo
+
+
   ! store the initial set of parameters
   if (associated(this%inversion_option%invcomm) .and. &
       this%inversion_aux%startup_phase) then
@@ -1215,87 +1287,6 @@ subroutine InvSubsurfConnectToForwardRun(this)
       return
     endif
   endif
-
-  ! insert measurement times into waypoint list. this must come after the
-  ! simulation is initialized to obtain the final time.
-  if (.not.associated(this%inversion_aux%sync_times)) then
-    allocate(real_array(size(this%inversion_aux%measurements)))
-    final_time = &
-      WaypointListGetFinalTime(this%forward_simulation%waypoint_list_subsurface)
-    iflag = PETSC_FALSE
-    do i = 1, size(this%inversion_aux%measurements)
-      if (Uninitialized(this%inversion_aux%measurements(i)%time)) then
-        this%inversion_aux%measurements(i)%time = final_time
-      endif
-      if (this%inversion_aux%measurements(i)%time > final_time) then
-        iflag = PETSC_TRUE
-      endif
-      real_array(i) = this%inversion_aux%measurements(i)%time
-    enddo
-    if (iflag) then
-      call this%driver%PrintErrMsg( &
-            'Inversion measurement times are specified beyond the end of &
-            &the final simulation time.')
-    endif
-    call UtilitySortArray(real_array)
-    sync_count = 0
-    do i = 1, size(real_array)
-      iflag = PETSC_FALSE
-      if (i == 1) then
-        iflag = PETSC_TRUE
-      else if (real_array(i) > real_array(i-1)) then
-        iflag = PETSC_TRUE
-      endif
-      if (iflag) then
-        sync_count = sync_count + 1
-        real_array(sync_count) = real_array(i)
-      endif
-    enddo
-    allocate(this%inversion_aux%sync_times(sync_count))
-    this%inversion_aux%sync_times(:) = real_array(1:sync_count)
-    deallocate(real_array)
-    nullify(real_array)
-
-    if (associated(this%inversion_aux%coupled_aux)) then
-      allocate(this%inversion_aux%coupled_aux%solutions(sync_count))
-      do i = 1, sync_count
-        call InversionCoupledSolutionInit(this%inversion_aux%coupled_aux% &
-                                            solutions(i))
-        this%inversion_aux%coupled_aux%solutions(i)%time = &
-          this%inversion_aux%sync_times(i)
-      enddo
-
-      ! allocate any full vector measurements
-      call InvCoupledAllocateSolnVecs(this%inversion_aux%coupled_aux, &
-                                      this%realization%field%work, &
-                                      size(this%inversion_aux%parameters))
-    endif
-
-  endif
-
-  real_array => this%inversion_aux%sync_times
-  do i = 1, size(real_array)
-    waypoint => WaypointCreate()
-    waypoint%time = real_array(i)
-    waypoint%sync = PETSC_TRUE
-    call WaypointInsertInList(waypoint, &
-                              this%forward_simulation%waypoint_list_outer)
-!                              this%forward_simulation%waypoint_list_subsurface)
-  enddo
-
-#if 0
-  ! resets the waypoint pointers to the first entry, which may have changed
-  ! due to the insertions above
-  call WaypointListFillIn(this%forward_simulation%waypoint_list_subsurface, &
-                          this%forward_simulation%option)
-  call WaypointListRemoveExtraWaypnts(this%forward_simulation% &
-                                        waypoint_list_subsurface, &
-                                      this%forward_simulation%option)
-  call WaypointListFindDuplicateTimes(this%forward_simulation% &
-                                        waypoint_list_subsurface, &
-                                      this%forward_simulation%option)
-  call FactorySubsurfSetPMCWaypointPtrs(this%forward_simulation)
-#endif
 
   this%realization%patch%aux%inversion_aux => this%inversion_aux
   call InversionAuxResetMeasurements(this%inversion_aux)
@@ -2366,15 +2357,19 @@ subroutine InvSubsurfFVCalcPartialJs(this,idof_pert)
   !
   use Communicator_Aux_module
 
+  implicit none
+
   class(inversion_subsurface_type) :: this
-  PetscInt :: idof_pert
+  PetscInt, intent(in) :: idof_pert ! preserve intent to catch errors
 
   type(inversion_coupled_soln_type), pointer :: solutions(:)
   type(comm_type), pointer :: comm
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: icomm
   PetscInt :: i
+  PetscMPIInt :: recv_rank
   PetscInt :: vec_size
+  PetscInt :: idof_pert_recv
   PetscErrorCode :: ierr
 
   if (this%inversion_aux%perturbation%idof_pert < 0) then
@@ -2406,25 +2401,30 @@ subroutine InvSubsurfFVCalcPartialJs(this,idof_pert)
     if (comm%rank == 0) then
       do icomm = 1, min(comm%size-1, &
                         this%inversion_aux%perturbation%ndof-idof_pert)
-        call MPI_Probe(icomm,mpi_int,comm%communicator, &
-                       MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
-        idof_pert = int(mpi_int)
+        recv_rank = icomm
+!        call MPI_Probe(icomm,mpi_int,comm%communicator, &
+!                       MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
         do i = 1, size(solutions)
-          call VecGetArrayF90(solutions(i)%dsaturation_dparameter(idof_pert), &
+          idof_pert_recv = idof_pert + icomm
+          call VecGetArrayF90(solutions(i)% &
+                                dsaturation_dparameter(idof_pert_recv), &
                               vec_ptr,ierr);CHKERRQ(ierr)
           call MPI_Recv(vec_ptr,vec_size,MPI_DOUBLE_PRECISION, &
-                        mpi_int,MPI_ANY_TAG,comm%communicator, &
+                        recv_rank,MPI_ANY_TAG,comm%communicator, &
                         MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(solutions(i)%dsaturation_dparameter(idof_pert), &
+          call VecRestoreArrayF90(solutions(i)% &
+                                    dsaturation_dparameter(idof_pert_recv), &
                                   vec_ptr,ierr);CHKERRQ(ierr)
           if (solutions(i)%perturbed_solute_solution /= &
               PETSC_NULL_VEC) then
-            call VecGetArrayF90(solutions(i)%dsolute_dparameter(idof_pert), &
+            call VecGetArrayF90(solutions(i)% &
+                                  dsolute_dparameter(idof_pert_recv), &
                                 vec_ptr,ierr);CHKERRQ(ierr)
             call MPI_Recv(vec_ptr,vec_size,MPI_DOUBLE_PRECISION, &
-                          mpi_int,mpi_int,comm%communicator, &
+                          recv_rank,MPI_ANY_TAG,comm%communicator, &
                           MPI_STATUS_IGNORE,ierr);CHKERRQ(ierr)
-            call VecRestoreArrayF90(solutions(i)%dsolute_dparameter(idof_pert), &
+            call VecRestoreArrayF90(solutions(i)% &
+                                      dsolute_dparameter(idof_pert_recv), &
                                     vec_ptr,ierr);CHKERRQ(ierr)
           endif
         enddo
@@ -2435,14 +2435,16 @@ subroutine InvSubsurfFVCalcPartialJs(this,idof_pert)
                             vec_ptr,ierr);CHKERRQ(ierr)
         call MPI_Send(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
                       idof_pert,comm%communicator,ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(solutions(i)%dsaturation_dparameter(idof_pert), &
+        call VecRestoreArrayF90(solutions(i)% &
+                                  dsaturation_dparameter(idof_pert), &
                                 vec_ptr,ierr);CHKERRQ(ierr)
         if (solutions(i)%perturbed_solute_solution /= &
             PETSC_NULL_VEC) then
           call VecGetArrayF90(solutions(i)%dsolute_dparameter(idof_pert), &
                               vec_ptr,ierr);CHKERRQ(ierr)
-          call MPI_Send(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
-                        idof_pert,comm%communicator,ierr);CHKERRQ(ierr)
+          call MPI_Send(vec_ptr,vec_size,MPI_DOUBLE_PRECISION, &
+                        ZERO_INTEGER_MPI,idof_pert,comm%communicator, &
+                        ierr);CHKERRQ(ierr)
           call VecGetArrayF90(solutions(i)%dsolute_dparameter(idof_pert), &
                               vec_ptr,ierr);CHKERRQ(ierr)
         endif
@@ -2451,8 +2453,7 @@ subroutine InvSubsurfFVCalcPartialJs(this,idof_pert)
   endif
   call InversionCoupledAuxReset(this%inversion_aux%coupled_aux)
 
-  if (.not.this%inversion_aux%qoi_is_full_vector .and. &
-      this%inversion_aux%perturbation%idof_pert > 0) then
+  if (.not.this%inversion_aux%qoi_is_full_vector .and. idof_pert > 0) then
     ! revert back to base value
     this%inversion_aux% &
         parameters(this%inversion_aux%perturbation%idof_pert)%value = &
