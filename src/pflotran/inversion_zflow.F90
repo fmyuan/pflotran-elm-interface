@@ -858,6 +858,8 @@ subroutine InversionZFlowCheckConvergence(this)
         (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
   endif
   ! need to broadcast in the case of parallel perturbation
+!print *, this%driver%comm%rank, ' Bcast6 all'
+!call MPI_Barrier(this%driver%comm%communicator,ierr);CHKERRQ(ierr)
   call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
                  MPI_LOGICAL,this%driver%comm%io_rank, &
                  this%driver%comm%communicator,ierr);CHKERRQ(ierr)

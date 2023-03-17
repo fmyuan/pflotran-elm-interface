@@ -534,7 +534,7 @@ subroutine InvSubsurfInitSetGroupPrefix(this,option)
         option%group_prefix = trim(option%group_prefix) // 'Final'
       endif
     else
-      if (this%inversion_aux%perturbation%idof_pert /= 0) then
+      if (this%inversion_aux%perturbation%idof_pert > 0) then
         if (this%inversion_option%num_process_groups > 1) then
           ! prevent collisions in the RunTmp files
           option%group_prefix = 'RunTmp-' // &
@@ -1257,7 +1257,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   if (associated(perturbation)) then
     ! update parameters for parallel perturbation
-    if (this%inversion_option%num_process_groups > 1) then
+    if (this%inversion_option%num_process_groups > 1 .and. &
+        this%inversion_aux%perturbation%idof_pert == 0) then
       ! at this point, only the parameter_vec has the most up-to-date
       ! values. do not call InvAuxMaterialToParamVec() as it will
       ! overwrite parameter_vec
@@ -1267,10 +1268,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
       ! could bcast from driver%comm%rank == 0, but this is more
       ! organized
       if (this%inversion_option%forcomm_i%group_id == 1) then
+!print *, this%driver%comm%rank, ' Bcast1 forcomm_i%group_id == 1'
+!call MPI_Barrier(this%inversion_option%forcomm_i%communicator,ierr);CHKERRQ(ierr)
         call MPI_Bcast(vec_ptr,mpi_int,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
                       this%inversion_option%forcomm_i%communicator, &
                       ierr);CHKERRQ(ierr)
       endif
+!call MPI_Barrier(this%inversion_option%forcomm%communicator,ierr);CHKERRQ(ierr)
+!print *, this%driver%comm%rank, ' Bcast2 all'
       call MPI_Bcast(vec_ptr,mpi_int,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
                     this%inversion_option%forcomm%communicator, &
                     ierr);CHKERRQ(ierr)
@@ -1531,6 +1536,8 @@ subroutine InvSubsurfPostProcMeasurements(this)
                             vec_ptr,ierr);CHKERRQ(ierr)
     ! broadcast to perturbation ranks > 0 in forcomm
     mpi_int = 0
+!print *, this%driver%comm%rank, ' Bcast3 group_id > 1'
+!call MPI_Barrier(this%inversion_option%forcomm%communicator,ierr);CHKERRQ(ierr)
     call MPI_Bcast(vec_ptr2,num_measurements,MPI_DOUBLE_PRECISION,mpi_int, &
                    this%inversion_option%forcomm%communicator, &
                    ierr);CHKERRQ(ierr)
@@ -2168,6 +2175,8 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
       if (this%inversion_option%forcomm%rank == 0) then
         mpi_int = 0
         ! broadcast to perturbation ranks 0 (forcomm_0)
+!print *, this%driver%comm%rank, ' Bcast4 forcomm%rank == 0'
+!call MPI_Barrier(this%inversion_option%forcomm_i%communicator,ierr);CHKERRQ(ierr)
         call MPI_Bcast(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION,mpi_int, &
                       this%inversion_option%forcomm_i%communicator, &
                       ierr);CHKERRQ(ierr)
@@ -2175,6 +2184,8 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
       if (this%inversion_option%forcomm%group_id > 1) then
         ! broadcast among perturbation ranks > 0
         mpi_int = 0
+!call MPI_Barrier(this%inversion_option%forcomm%communicator,ierr);CHKERRQ(ierr)
+!print *, this%driver%comm%rank, ' Bcast5 group_id > 1'
         call MPI_Bcast(vec_ptr,num_measurements,MPI_DOUBLE_PRECISION,mpi_int, &
                        this%inversion_option%forcomm%communicator, &
                        ierr);CHKERRQ(ierr)
@@ -2329,12 +2340,21 @@ subroutine InvSubsurfFVSetOrigSoln(this)
     enddo
   endif
   if (associated(this%inversion_option%forcomm_i)) then
+!print *, this%driver%comm%rank, ' Bcast11 all'
+!      call MPI_Barrier(this%driver%comm%communicator, &
+!                       ierr);CHKERRQ(ierr)
     do i = 1, size(solutions)
+!print *, this%driver%comm%rank, ' Bcast12 forcomm_i'
+!      call MPI_Barrier(this%inversion_option%forcomm_i%communicator, &
+!                       ierr);CHKERRQ(ierr)
       call InvAuxBCastVecForCommI(this%inversion_option%forcomm_i, &
                                   solutions(i)%original_saturation_solution, &
                                   this%driver)
       if (solutions(i)%perturbed_solute_solution /= &
           PETSC_NULL_VEC) then
+!print *, this%driver%comm%rank, ' Bcast13 forcomm_i'
+!        call MPI_Barrier(this%inversion_option%forcomm_i%communicator, &
+!                         ierr);CHKERRQ(ierr)
         call InvAuxBCastVecForCommI(this%inversion_option%forcomm_i, &
                                     solutions(i)%perturbed_solute_solution, &
                                     this%driver)
