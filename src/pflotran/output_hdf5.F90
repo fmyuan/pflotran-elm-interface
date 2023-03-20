@@ -804,7 +804,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   integer(HID_T) :: grp_id, new_grp_id
   integer(HID_T) :: file_space_id
   integer(HID_T) :: data_set_id
-  integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3), max_dims(3)
 
   type(grid_type), pointer :: grid
@@ -928,7 +927,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 !      call PrintMsg(option)
       call HDF5FileOpenReadOnly(domain_filename_path,file_id2, &
                                 PETSC_FALSE,'',option)
-      call h5pclose_f(prop_id,hdf5_err)
       string = 'Domain/Cells'
       call h5dopen_f(file_id2,string,data_set_id,hdf5_err)
       if (hdf5_err /= 0) then
