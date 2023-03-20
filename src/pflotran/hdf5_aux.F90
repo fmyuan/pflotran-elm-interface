@@ -813,6 +813,7 @@ subroutine HDF5ReadDbase(filename,option)
   PetscInt :: num_ints
   PetscInt :: num_reals
   PetscInt :: num_words
+  PetscInt :: temp_int
 
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
@@ -918,13 +919,21 @@ subroutine HDF5ReadDbase(filename,option)
                                           num_values_in_dataset,hdf5_err)
       if (option%id > 0) then
         if (option%id > num_values_in_dataset) then
-          write(word,*) num_values_in_dataset
+          temp_int = int(num_values_in_dataset)
           option%io_buffer = 'Data in DBASE_FILENAME "' // &
+            trim(filename) // '" object "' // &
             trim(object_name) // &
-            '" is too small (' // trim(adjustl(word)) // &
+            '" is too small (' // StringWrite(temp_int) // &
             ') for number of realizations.'
           call PrintErrMsg(option)
         endif
+      else if (value_index > num_values_in_dataset) then
+        write(word,*) num_values_in_dataset
+        option%io_buffer = 'Data in DBASE_FILENAME "' // &
+          trim(filename) // '" object "' // &
+          trim(object_name) // &
+          '" must have at least one value in each dataset.'
+        call PrintErrMsg(option)
       endif
       rank_mpi = 1
       offset = 0
