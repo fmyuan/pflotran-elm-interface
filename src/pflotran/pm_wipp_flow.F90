@@ -1886,9 +1886,6 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  type(coupler_type), pointer :: source_sink
-  type(connection_set_type), pointer :: cur_connection_set
-
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
   PetscInt :: liquid_equation_index
@@ -1921,9 +1918,6 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   PetscInt :: i
   PetscMPIInt :: int_mpi
   PetscBool :: cell_id_match
-
-  PetscInt :: sum_connection, local_start, local_end, iconn
-  PetscReal :: well_delta_liq, well_delta_gas
 
   grid => this%realization%patch%grid
   option => this%realization%option
