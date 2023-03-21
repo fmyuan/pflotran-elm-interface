@@ -315,16 +315,18 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   R = u * rkin ![1/sec]
 
   ! NH4 inhibition (Threshold)
-  threshold_f = 1.d8
-  tempreal = (C_aq(this%i_nh4) - this%nh4_inhibit) * threshold_f
-  nh4_inhibition = 0.5d0 + atan(tempreal)/PI
+  threshold_f = 1.d5/dabs(this%nh4_inhibit)
+  tempreal = (C_aq(this%i_nh4) - dabs(this%nh4_inhibit)) * threshold_f
+  nh4_inhibition = 0.5d0 + sign(1.d0,this%nh4_inhibit) * &
+                           atan(tempreal)/PI
 
   ! Reactant inhibition (Threshold)
   C_reactant_inhibit = 1.d-18
-
+  threshold_f = 1.d5/C_reactant_inhibit
   do icomp = 1, this%n_species
-    tempreal = (C_aq(icomp) - C_reactant_inhibit) * threshold_f
-    Reactant_inhibition(icomp) = 0.5d0 + atan(tempreal)/PI
+    tempreal = (C_aq(icomp) - dabs(C_reactant_inhibit)) * threshold_f
+    Reactant_inhibition(icomp) = 0.5d0 + sign(1.d0,C_reactant_inhibit) * &
+                                         atan(tempreal)/PI
   enddo
 
   ! Reactions are modulated by biomass concentration
@@ -354,6 +356,14 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   ! Residuals
   Residual(:) = Residual(:) - Rate(:)
+
+  if (compute_derivative) then
+    option%io_buffer = 'REACTION_SANDBOX LAMBDA must be run with &
+      &NUMERICAL_JACOBIAN listed in the NUMERICAL_METHODS TRANSPORT &
+      &NEWTON_SOLVER block as analytical derivatives are not calculated &
+      &in the sandbox evaluate routine.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine LambdaEvaluate
 
