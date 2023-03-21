@@ -1543,6 +1543,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
     J = J_pert
     call GlobalAuxVarStrip(global_auxvar_pert)
+    call MaterialAuxVarStrip(material_auxvar_pert)
   endif
 
 end subroutine THAccumDerivative
