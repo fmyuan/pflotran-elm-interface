@@ -1191,6 +1191,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
   character(len=MAXSTRINGLENGTH) :: out_string, string, rsn_string
   character(len=6) :: aR_str, sR_str, rUP_str, aUP_str
+  character(len=4) :: rsn
   Vec :: dX
   PetscReal, pointer :: dX_p(:)    ! solution update
   PetscReal, pointer :: X0_p(:)    ! previous solution
@@ -1213,10 +1214,10 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscInt :: loc_max_abs_residual
   PetscInt :: loc_max_abs_update
   PetscInt :: loc_max_rel_update
-  PetscInt :: temp_int, i 
+  PetscInt :: i 
   PetscInt :: local_id, offset, idof, index
-  PetscInt :: converged_flag
-
+  PetscBool :: converged_flag, gathered_flag
+  
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_abs_update(this%option%ntrandof, &
@@ -1248,7 +1249,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     return
   endif
 
-  converged_flag = 0
+  converged_flag = PETSC_FALSE
   idof_cnvgd_due_to_update = PETSC_FALSE
   idof_cnvgd_due_to_rel_update = PETSC_FALSE
   idof_cnvgd_due_to_abs_update = PETSC_FALSE
@@ -1369,16 +1370,17 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   if (rsn_aUP) rsn_string = trim(rsn_string) // ' aUP'
 
   if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual)) then
-    converged_flag = 1
+    converged_flag = PETSC_TRUE
   else
-    converged_flag = 0
+    converged_flag = PETSC_FALSE
   endif
 
+  gathered_flag = PETSC_FALSE
   ! get global minimum
-  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,gathered_flag,ONE_INTEGER, &
+                     MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
 
-  if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
+  if (gathered_flag) then  ! means ITOL_* tolerances were not satisfied:
     option%converged = PETSC_FALSE
     option%convergence = CONVERGENCE_KEEP_ITERATING
     reason = 0
@@ -1392,13 +1394,15 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     reason = 999
   endif
 
-  write(out_string,'(i4,a7,es10.3,a7,es10.3,a7,es10.3,a7,es10.3)') &
+  rsn = 'rsn:'
+  write(out_string,'(i4,a6,es10.3,a6,es10.3,a6,es10.3,a6,es10.3,a5,i4)') &
         it, aR_str, max_absolute_residual, sR_str, max_scaled_residual, &
-        rUP_str, max_relative_change, aUP_str, max_absolute_change
+        rUP_str, max_relative_change, aUP_str, max_absolute_change,rsn, &
+        reason
   call PrintMsg(option,out_string)
 
   if (this%controls%verbose_newton) then
-    write(out_string,'(a4,a7,i10,a7,i10,a7,i10,a7,i10)') &
+    write(out_string,'(a4,a6,i10,a6,i10,a6,i10,a6,i10)') &
         'cell', aR_str, loc_max_abs_residual, sR_str, &
         loc_max_scaled_residual, rUP_str, loc_max_rel_update, aUP_str, &
         loc_max_abs_update
@@ -1457,9 +1461,10 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type), pointer :: option
-  PetscReal :: ratio, min_ratio
+  PetscReal :: ratio, min_ratio, a, b, final_ratio
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, k
+  PetscReal,parameter :: TOL=1.0d-99
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
@@ -1486,38 +1491,72 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     ! we need to scale the update
 
     ! compute smallest ratio of C to dC
-#if 0
-    min_ratio = 1.d0/maxval(dX_p/X_p)
-#else
+
+    ! Check if X_p is non-empty
+    if (size(X_p) < 1) then
+      string = "Error: X_p array is empty in PMNWTCheckUpdatePre,pm_nwt.F90" 
+      call PrintErrMsg(option,string)
+      return
+    endif
+
+
     min_ratio = MAX_DOUBLE ! large number
     k = 0
+    final_ratio = 1.0d0
+
     do i = 1, size(X_p)
-      if (X_p(i) <= dX_p(i)) then
-        !WRITE(*,*)  ' i =', i, '  X_p(i) =', X_p(i), '  dX_p(i) =', dX_p(i)
-        ratio = abs(X_p(i)/dX_p(i))
+      a = abs(X_p(i))
+      b = abs(dX_p(i))
+      ! Check if dX_p(i) is not zero and not too small to avoid
+      ! division by zero or underflow
+      if (b > TOL) then
+        ! Compute the magnitude of the ratio using a function
+        ! that handles overflow and underflow
+        ! ratio = safe_ratio(abs(X_p(i)), abs(dX_p(i)))
+        if (a < TOL) then
+          ratio = 0.0d0 ! Return zero as the ratio
+        else
+          ! Check if b is too large to avoid overflow
+          if (b > MAX_DOUBLE / a) then
+            ratio = MAX_DOUBLE ! Return the maximum double as the ratio
+          else
+            ratio = a / b ! Return the normal ratio
+          endif
+        endif
+        ! Check if the ratio is smaller than the current minimum
         if (ratio < min_ratio) then
           min_ratio = ratio
           k = i
         endif
+      else
+        ! If dX_p(i) is zero or too small, set the ratio to zero and update k
+        ratio = 0.0d0
+        min_ratio = ratio
+        k = i
+        ! Exit the loop as the minimum ratio cannot be smaller than zero
+        exit
       endif
     enddo
-#endif
-    ratio = min_ratio
+
     !WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
 
     ! get global minimum
-    call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+    call MPI_Allreduce(min_ratio,final_ratio,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION, &
                        MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
 
+    write(string,'(a10,es10.3)') &
+        'min_ratio', min_ratio
+        call PrintMsg(option,string)
     ! scale if necessary
-    if (min_ratio < 1.d0) then
-      if (min_ratio < option%min_allowable_scale) then
-        this%controls%scaling_cut_dt = PETSC_TRUE
+    if (final_ratio < 1.d0) then
+      if (final_ratio < option%min_allowable_scale) then
         string = " *WARNING* Solution update is being scaled by " // &
                  " an extremely small value" 
         call PrintMsg(option,string)
-        string = "           to prevent negative mass. Cutting time step!"
+        string = " replacing the scale by 1.0d-10"
         call PrintMsg(option,string)
+        min_ratio = option%min_allowable_scale
       endif
       dX_p = dX_p*min_ratio
       changed = PETSC_TRUE
