@@ -1091,7 +1091,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
         rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
         if (associated(initial_condition%tran_condition%sec_constraint_coupler)) then
           sec_constraint_coupler => TranConstraintCouplerRTCast(initial_condition%tran_condition% &
-                                                                     sec_constraint_coupler)
+                                                                  sec_constraint_coupler)
           sec_tran_constraint => TranConstraintRTCast(sec_constraint_coupler%constraint)
         else
           sec_constraint_coupler => constraint_coupler

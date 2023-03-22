@@ -1354,19 +1354,6 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
- ! if (realization%option%use_sc) then
- !   cur_constraint => realization%sec_transport_constraints%first
- !   do
- !     if (.not.associated(cur_constraint)) exit    
- !     select type(constraint=>cur_constraint)
- !       class is (tran_constraint_rt_type)
- !         call ReactionProcessConstraint(realization%reaction, &
- !                                        constraint,realization%option)
- !     end select
- !     cur_constraint => cur_constraint%next
- !   enddo
- ! endif
-
   ! tie constraints to couplers, if not already associated
   cur_condition => realization%transport_conditions%first
   do
