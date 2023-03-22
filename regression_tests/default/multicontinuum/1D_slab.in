@@ -132,11 +132,7 @@ TRANSPORT_CONDITION background_conc
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /
-  SECONDARY_CONSTRAINT sec
-    CONCENTRATIONS
-    Tracer1   1.e-20  T   
-  /
-/
+  SECONDARY_CONSTRAINT initial_constraint
 END
 
 TRANSPORT_CONDITION inlet_conc

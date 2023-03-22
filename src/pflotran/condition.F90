@@ -2924,7 +2924,7 @@ end subroutine FlowConditionCommonRead
 ! ************************************************************************** !
 
 subroutine TranConditionRead(condition,constraint_list, &
-                             sec_constraint_list,reaction_base,input,option)
+                             reaction_base,input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -2950,13 +2950,11 @@ subroutine TranConditionRead(condition,constraint_list, &
 
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: constraint_list
-  type(tran_constraint_list_type) :: sec_constraint_list
   class(reaction_base_type), pointer :: reaction_base
   type(input_type), pointer :: input
   type(option_type) :: option
 
   class(tran_constraint_base_type), pointer :: constraint
-  class(tran_constraint_base_type), pointer :: sec_constraint
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   class(tran_constraint_coupler_base_type), pointer :: sec_constraint_coupler
@@ -3123,21 +3121,13 @@ subroutine TranConditionRead(condition,constraint_list, &
         select case(option%itranmode)
           case(RT_MODE)
             sec_constraint_coupler => TranConstraintCouplerRTCreate(option)
-            sec_constraint => TranConstraintRTCreate(option)
           case(NWT_MODE)
             option%io_buffer = 'MULTIPLE_CONTINUUM is not compatible with &
                                 &NWT mode'
             call PrintErrMsg(option)
         end select
-        call InputReadWord(input,option,sec_constraint%name,PETSC_TRUE)
+        call InputReadWord(input,option,sec_constraint_coupler%constraint_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'secondary constraint','name')
-        call PrintMsg(option,sec_constraint%name)
-        select type(c=>sec_constraint)
-          class is(tran_constraint_rt_type)
-             call TranConstraintRTRead(c,reaction,input,option)
-        end select
-        call TranConstraintAddToList(sec_constraint,sec_constraint_list)
-        sec_constraint_coupler%constraint => sec_constraint
         sec_constraint_coupler%time = 0.d0
         ! add to end of coupler list
         if (.not.associated(condition%sec_constraint_coupler)) then

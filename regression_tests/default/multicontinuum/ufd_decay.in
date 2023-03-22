@@ -122,14 +122,6 @@ TRANSPORT_CONDITION background_conc
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /
-  SECONDARY_CONSTRAINT sec
-  CONCENTRATIONS
-    A1   1.d-10  T
-  /
-  MINERALS
-    A1(s)   0.d0  1.d0
-  /
-END
 END
 
 TRANSPORT_CONDITION inlet_conc

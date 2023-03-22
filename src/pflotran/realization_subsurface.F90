@@ -34,7 +34,6 @@ private
     type(condition_list_type), pointer :: flow_conditions
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
-    type(tran_constraint_list_type), pointer :: sec_transport_constraints
     type(geop_condition_list_type), pointer :: geophysics_conditions
 
     type(material_property_type), pointer :: material_properties
@@ -154,8 +153,6 @@ function RealizationCreate2(option)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
   call TranConstraintInitList(realization%transport_constraints)
-  allocate(realization%sec_transport_constraints)
-  call TranConstraintInitList(realization%sec_transport_constraints)
   allocate(realization%geophysics_conditions)
   call GeopConditionInitList(realization%geophysics_conditions)
 
@@ -1357,18 +1354,18 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (realization%option%use_sc) then
-    cur_constraint => realization%sec_transport_constraints%first
-    do
-      if (.not.associated(cur_constraint)) exit    
-      select type(constraint=>cur_constraint)
-        class is (tran_constraint_rt_type)
-          call ReactionProcessConstraint(realization%reaction, &
-                                         constraint,realization%option)
-      end select
-      cur_constraint => cur_constraint%next
-    enddo
-  endif
+ ! if (realization%option%use_sc) then
+ !   cur_constraint => realization%sec_transport_constraints%first
+ !   do
+ !     if (.not.associated(cur_constraint)) exit    
+ !     select type(constraint=>cur_constraint)
+ !       class is (tran_constraint_rt_type)
+ !         call ReactionProcessConstraint(realization%reaction, &
+ !                                        constraint,realization%option)
+ !     end select
+ !     cur_constraint => cur_constraint%next
+ !   enddo
+ ! endif
 
   ! tie constraints to couplers, if not already associated
   cur_condition => realization%transport_conditions%first
@@ -1402,6 +1399,34 @@ subroutine RealProcessTranConditions(realization)
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
     enddo
+    if (option%use_sc) then
+      cur_constraint_coupler => cur_condition%sec_constraint_coupler
+      do
+        if (.not.associated(cur_constraint_coupler)) exit
+        ! if constraint exists, it was coupled during the embedded read.
+        if (.not.associated(cur_constraint_coupler%constraint)) then
+          cur_constraint => realization%transport_constraints%first
+          do
+            if (.not.associated(cur_constraint)) exit
+            if (StringCompare(cur_constraint%name, &
+                              cur_constraint_coupler%constraint_name, &
+                              MAXWORDLENGTH)) then
+              cur_constraint_coupler%constraint => cur_constraint
+              exit
+            endif
+            cur_constraint => cur_constraint%next
+          enddo
+          if (.not.associated(cur_constraint_coupler%constraint)) then
+            option%io_buffer = 'Secondary constraint "' // &
+                     trim(cur_constraint_coupler%constraint_name) // &
+                     '" not found in input file constraints.'
+            call PrintErrMsg(realization%option)
+          endif
+        endif
+        cur_constraint_coupler => cur_constraint_coupler%next
+      enddo
+    endif 
+         
 !TODO(geh) remove this?
     if (associated(cur_condition%constraint_coupler_list%next)) then
       ! there are more than one
@@ -3022,7 +3047,6 @@ subroutine RealizationStrip(this)
   call FlowConditionDestroyList(this%flow_conditions)
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintListDestroy(this%transport_constraints)
-  call TranConstraintListDestroy(this%sec_transport_constraints)
   call GeopConditionDestroyList(this%geophysics_conditions)
 
   if (associated(this%fluid_property_array)) &

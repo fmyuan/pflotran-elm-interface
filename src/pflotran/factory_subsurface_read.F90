@@ -1152,7 +1152,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call PrintMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
                                realization%transport_constraints, &
-                               realization%sec_transport_constraints, &
                                realization%reaction_base,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
