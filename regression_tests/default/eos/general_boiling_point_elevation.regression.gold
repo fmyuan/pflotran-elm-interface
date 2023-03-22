@@ -54,6 +54,7 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Flow --
+   Time (seconds):   8.0008194998982E-02
    Time Steps:           66
    Newton Iterations:          239
    Linear Solver Iterations:          239
