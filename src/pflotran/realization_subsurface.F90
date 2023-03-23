@@ -36,7 +36,6 @@ private
     type(tran_constraint_list_type), pointer :: transport_constraints
     type(geop_condition_list_type), pointer :: geophysics_conditions
 
-    class(tran_constraint_base_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
     type(fluid_property_type), pointer :: fluid_property_array(:)
@@ -166,7 +165,6 @@ function RealizationCreate2(option)
   nullify(realization%material_transform)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
-  nullify(realization%sec_transport_constraint)
   nullify(realization%reaction)
   nullify(realization%reaction_nw)
   nullify(realization%survey)
@@ -1356,14 +1354,6 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (option%use_sc) then
-    select type(constraint=>realization%sec_transport_constraint)
-      class is (tran_constraint_rt_type)
-        call ReactionProcessConstraint(realization%reaction, &
-                                       constraint,realization%option)
-    end select
-  endif
-
   ! tie constraints to couplers, if not already associated
   cur_condition => realization%transport_conditions%first
   do
@@ -1396,6 +1386,34 @@ subroutine RealProcessTranConditions(realization)
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
     enddo
+    if (option%use_sc) then
+      cur_constraint_coupler => cur_condition%sec_constraint_coupler
+      do
+        if (.not.associated(cur_constraint_coupler)) exit
+        ! if constraint exists, it was coupled during the embedded read.
+        if (.not.associated(cur_constraint_coupler%constraint)) then
+          cur_constraint => realization%transport_constraints%first
+          do
+            if (.not.associated(cur_constraint)) exit
+            if (StringCompare(cur_constraint%name, &
+                              cur_constraint_coupler%constraint_name, &
+                              MAXWORDLENGTH)) then
+              cur_constraint_coupler%constraint => cur_constraint
+              exit
+            endif
+            cur_constraint => cur_constraint%next
+          enddo
+          if (.not.associated(cur_constraint_coupler%constraint)) then
+            option%io_buffer = 'Secondary constraint "' // &
+                     trim(cur_constraint_coupler%constraint_name) // &
+                     '" not found in input file constraints.'
+            call PrintErrMsg(realization%option)
+          endif
+        endif
+        cur_constraint_coupler => cur_constraint_coupler%next
+      enddo
+    endif 
+         
 !TODO(geh) remove this?
     if (associated(cur_condition%constraint_coupler_list%next)) then
       ! there are more than one
@@ -3041,8 +3059,6 @@ subroutine RealizationStrip(this)
   ! nullify since they are pointers to reaction_base in realization_base
   nullify(this%reaction)
   nullify(this%reaction_nw)
-
-  call TranConstraintDestroy(this%sec_transport_constraint)
 
   if (associated(this%survey)) then
     call SurveyDestroy(this%survey)

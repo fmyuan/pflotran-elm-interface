@@ -896,7 +896,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(tran_condition_type), pointer :: tran_condition
   type(geop_condition_type), pointer :: geop_condition
   class(tran_constraint_base_type), pointer :: tran_constraint
-  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
@@ -1375,23 +1374,12 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
 
       case('SECONDARY_CONSTRAINT')
-        if (.not.option%use_sc) then
-          option%io_buffer = 'SECONDARY_CONSTRAINT can only be used with &
-                             &MULTIPLE_CONTINUUM keyword.'
-          call PrintErrMsg(option)
-        endif
-        if (.not.associated(reaction)) then
-          option%io_buffer = 'SECONDARY_CONSTRAINT not supported without &
-                             &CHEMISTRY.'
-          call PrintErrMsg(option)
-        endif
-        sec_tran_constraint => TranConstraintRTCreate(option)
-        call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'secondary constraint','name')
-        call PrintMsg(option,sec_tran_constraint%name)
-        call TranConstraintRTRead(sec_tran_constraint,reaction,input,option)
-        realization%sec_transport_constraint => sec_tran_constraint
-        nullify(sec_tran_constraint)
+        option%io_buffer = 'SECONDARY_CONSTRAINT has been moved to the &
+                            &TRANSPORT_CONDITION block. If a SECONDARY_CONSTRAINT &
+                            &is not specified the secondary initial conditions &
+                            &are copied from the primary.'
+        call PrintErrMsg(option)
+
 
 !......................
 
