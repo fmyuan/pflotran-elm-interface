@@ -2078,14 +2078,14 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
   PetscReal :: q10,q11,q12,q20,q21,q22,q23
   PetscReal :: dq1_dp,dq2_dp,dq1x1_dp,dq2x1_dp
   PetscReal :: dq10_dp,dq11_dp,dq12_dp,dq20_dp,dq21_dp,dq22_dp,dq23_dp,dT_h_dp
-  PetscReal :: molal,s,x
+  PetscReal :: s,x, brine_molar_mass
 
   t_c = T
   p_bar = P*Pa_to_bar
 
-  s = aux(1) !mass fraction
-  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
-  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
+  s = aux(1) !mass frac
+  brine_molar_mass = 1.d0 / (s / FMWNACL + (1.d0 - s) / FMWH2O)
+  x = s * brine_molar_mass / FMWNACL
 
   q11 = -32.1724d0 + 0.0621255d0 * p_bar  ! table 5
   q21 = -1.69513d0 - 4.52781d-4 * p_bar - 6.04279d-8  * p_bar**2
