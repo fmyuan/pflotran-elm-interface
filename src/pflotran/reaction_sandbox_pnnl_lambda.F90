@@ -352,7 +352,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
     Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
   enddo
   Rate(:) = Rate(:) * Biomass_mod * L_water
-  Rate(this%i_biomass) = Rate(this%i_biomass) - this%k_deg*(C_aq(this%i_biomass)
+  Rate(this%i_biomass) = Rate(this%i_biomass) - this%k_deg*(C_aq(this%i_biomass))
 
   ! Residuals
   Residual(:) = Residual(:) - Rate(:)
