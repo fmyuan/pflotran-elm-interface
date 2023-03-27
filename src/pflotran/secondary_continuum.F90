@@ -738,9 +738,17 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
                                epsilon,half_matrix_width, &
                                sec_heat_vars, initial_condition,option)
 
+  ! Initializes all the secondary continuum heat
+  ! transport variables
+  !
+  ! Author: Rosie Leone
+  ! Date: 03/27/23
+  
   use Material_module
   use Coupler_module
   use Option_module
+
+  implicit none
 
   type(sec_heat_type) :: sec_heat_vars
   type(multicontinuum_property_type) :: multicontinuum
@@ -2321,6 +2329,12 @@ subroutine SecondaryHeatResidual(sec_heat_vars, &
                                  therm_conductivity,dencpr, &
                                  temp_primary_node,option,res_heat)
 
+  ! Calculates the source term contribution due to secondary
+  ! continuum in the primary continuum residual
+  !
+  ! Author: Satish, Karra, LANL
+  ! Date 06/2/12
+  
   use Option_module
 
   implicit none

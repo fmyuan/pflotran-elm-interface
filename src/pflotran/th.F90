@@ -140,7 +140,7 @@ subroutine THSetupPatch(realization)
   class(cc_thermal_type), pointer :: thermal_cc
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: ghosted_id, iconn, sum_connection
+  PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscInt :: i, iphase, material_id, icct
   PetscBool :: error_found
   PetscErrorCode :: ierr
@@ -337,15 +337,16 @@ subroutine THSetupPatch(realization)
 
   if (option%use_sc) then
     initial_condition => patch%initial_condition_list%first
-    allocate(TH_sec_heat_vars(grid%ngmax))
+    allocate(TH_sec_heat_vars(grid%nlmax))
 
-    do ghosted_id = 1, grid%ngmax
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       call SecondaryHeatAuxVarInit( &
            patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
            patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
            patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
-           TH_sec_heat_vars(ghosted_id), initial_condition, option)
+           TH_sec_heat_vars(local_id), initial_condition, option)
            
     enddo
 
@@ -998,7 +999,7 @@ subroutine THUpdateSolutionPatch(realization)
       icct = patch%cct_id(ghosted_id)
       sec_dencpr = th_parameter%dencpr(icct)
 
-      call SecHeatAuxVarCompute(TH_sec_heat_vars(ghosted_id), &
+      call SecHeatAuxVarCompute(TH_sec_heat_vars(local_id), &
                                 th_parameter%ckwet(icct), &
                                 sec_dencpr,global_auxvars(ghosted_id)%temp, &
                                 option)
@@ -1057,7 +1058,6 @@ subroutine THUpdateFixedAccumPatch(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Secondary_Continuum_Aux_module
 
 
   implicit none
@@ -1071,7 +1071,6 @@ subroutine THUpdateFixedAccumPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
-  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
@@ -1090,7 +1089,6 @@ subroutine THUpdateFixedAccumPatch(realization)
   th_parameter => patch%aux%TH%th_parameter
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
-  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -1131,7 +1129,7 @@ subroutine THUpdateFixedAccumPatch(realization)
 
 
     if (option%use_sc) then
-      vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     global_auxvars(ghosted_id)%istate = iphase
@@ -3664,8 +3662,6 @@ subroutine THResidualInternalConn(r,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Secondary_Continuum_Aux_module
-  use Secondary_Continuum_module
   use Characteristic_Curves_Thermal_module
 
   implicit none
@@ -3700,7 +3696,6 @@ subroutine THResidualInternalConn(r,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   class(cc_thermal_type), pointer :: tcc_dn, tcc_up
   PetscReal :: v_darcy
 
@@ -3718,7 +3713,6 @@ subroutine THResidualInternalConn(r,realization,ierr)
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
@@ -3884,7 +3878,6 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
-  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   class(cc_thermal_type), pointer :: tcc_dn
   PetscReal :: v_darcy
 
@@ -3906,7 +3899,6 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
@@ -4065,7 +4057,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     call THAccumulation(auxvars(ghosted_id),global_auxvars(ghosted_id), &
@@ -4091,7 +4083,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
       icct = patch%cct_id(ghosted_id)
       sec_dencpr = th_parameter%dencpr(icct)
 
-      call SecondaryHeatResidual(TH_sec_heat_vars(ghosted_id), &
+      call SecondaryHeatResidual(TH_sec_heat_vars(local_id), &
                                  th_parameter%ckwet(icct), &
                                  sec_dencpr,global_auxvars(ghosted_id)%temp, &
                                  option,res_sec_heat)
@@ -4125,8 +4117,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Secondary_Continuum_Aux_module
-  use Secondary_Continuum_module
 
   implicit none
 
@@ -4156,7 +4146,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal, pointer :: mmsrc(:)
   PetscReal :: well_status
@@ -4182,7 +4171,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)

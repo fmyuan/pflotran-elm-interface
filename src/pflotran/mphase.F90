@@ -134,7 +134,7 @@ subroutine MphaseSetupPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
 
-  PetscInt :: ghosted_id, iconn, sum_connection, ipara, i
+  PetscInt :: ghosted_id, iconn, sum_connection, ipara, i, local_id
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(Mphase_auxvar_type), pointer :: auxvars_bc(:)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
@@ -191,13 +191,14 @@ subroutine MphaseSetupPatch(realization)
     initial_condition => patch%initial_condition_list%first
     allocate(mphase_sec_heat_vars(grid%nlmax))
 
-    do ghosted_id = 1, grid%ngmax
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       call SecondaryHeatAuxVarInit( &
            patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
            patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
            patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
-           mphase_sec_heat_vars(ghosted_id), initial_condition, option)
+           mphase_sec_heat_vars(local_id), initial_condition, option)
            
     enddo
 
@@ -1164,7 +1165,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
-      call SecHeatAuxVarCompute(mphase_sec_heat_vars(ghosted_id), &
+      call SecHeatAuxVarCompute(mphase_sec_heat_vars(local_id), &
                                 mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                                 sec_dencpr, &
                                 auxvars(ghosted_id)%auxvar_elem(0)%temp,option)
@@ -1218,7 +1219,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Secondary_Continuum_Aux_module
   use Material_Aux_module
 
   implicit none
@@ -1232,7 +1232,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   type(mphase_parameter_type), pointer :: mphase_parameter
   type(mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend !, iphase
@@ -1253,7 +1252,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   mphase_parameter => patch%aux%Mphase%mphase_parameter
   auxvars => patch%aux%Mphase%auxvars
   global_auxvars => patch%aux%Global%auxvars
-  mphase_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -1271,7 +1269,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = mphase_sec_heat_vars(local_id)%epsilon
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     if (.not.associated(mphase_parameter%dencpr)) print *,'no para'
@@ -2624,7 +2622,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = mphase_sec_heat_vars(local_id)%epsilon
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     call MphaseAccumulation(auxvars(ghosted_id)%auxvar_elem(0), &
@@ -2656,7 +2654,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
-      call SecondaryHeatResidual(mphase_sec_heat_vars(ghosted_id), &
+      call SecondaryHeatResidual(mphase_sec_heat_vars(local_id), &
                                  mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                                  sec_dencpr, auxvars(ghosted_id)%auxvar_elem(0)%temp, &
                                  option,res_sec_heat)
