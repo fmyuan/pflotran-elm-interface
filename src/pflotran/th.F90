@@ -139,10 +139,9 @@ subroutine THSetupPatch(realization)
   type(coupler_type), pointer :: initial_condition
   class(cc_thermal_type), pointer :: thermal_cc
   character(len=MAXWORDLENGTH) :: word
-  PetscReal :: area_per_vol
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: i, iphase, local_id, material_id, icct
+  PetscInt :: i, iphase, material_id, icct
   PetscBool :: error_found
   PetscErrorCode :: ierr
 
@@ -966,7 +965,6 @@ subroutine THUpdateSolutionPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
 
-  PetscInt :: istart, iend
   PetscInt :: local_id, ghosted_id
   ! secondary continuum variables
   PetscReal :: sec_dencpr

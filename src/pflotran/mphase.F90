@@ -140,8 +140,6 @@ subroutine MphaseSetupPatch(realization)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
-  PetscReal :: area_per_vol
-  PetscInt :: local_id
 
   option => realization%option
   patch => realization%patch
@@ -1130,7 +1128,6 @@ subroutine MphaseUpdateSolutionPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
 
-  PetscInt :: istart, iend
   PetscInt :: local_id, ghosted_id
   ! secondary continuum variables
   PetscReal :: sec_dencpr
