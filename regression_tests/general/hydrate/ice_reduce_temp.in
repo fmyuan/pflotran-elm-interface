@@ -122,7 +122,7 @@ OUTPUT
     PERIODIC TIMESTEP 1 d
     #TIMES d 1
     #FORMAT TECPLOT POINT
-    #FORMAT HDF5
+    FORMAT HDF5
   /
   UNFILTER_NON_STATE_VARIABLES
   
@@ -179,8 +179,7 @@ FLOW_CONDITION well
     RATE mass_rate
   /
      ! liquid gas   energy
-  RATE 0.d0   8.d-7 -1.d-4 kg/s kg/s MW
-#  RATE 0.D0 0.D0 -1.D-4 kg/s kg/s MW
+  RATE 0.D0 0.D0 -1.D-4 kg/s kg/s MW
   SYNC_TIMESTEP_WITH_UPDATE
 /
 
