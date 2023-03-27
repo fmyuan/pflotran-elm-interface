@@ -1,0 +1,218 @@
+#Description: Gas hydrate example: Single-Cell problem in Aqueous-Ice State
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE HYDRATE
+    /
+  /
+END
+
+SUBSURFACE
+
+HYDRATE
+  GAS METHANE
+  HYDRATE_PHASE_BOUNDARY MORIDIS
+  ADJUST_SOLUBILITY_WITHIN_GHSZ
+  WITH_GIBBS_THOMSON #Ice simulations require freezing point depression as f(Sl)
+END
+
+NUMERICAL_METHODS flow
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    CENTRAL_DIFFERENCE_JACOBIAN
+  END
+  LINEAR_SOLVER FLOW
+    SOLVER DIRECT
+  END
+END
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    2
+  /
+END
+
+#=========================== discretization ===================================
+
+GRID
+  TYPE STRUCTURED CARTESIAN
+  NXYZ 3 1 1
+DXYZ  
+    3@1.d0
+    1@1.d0
+    1@1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+END
+
+EOS GAS
+  DENSITY   PR_METHANE
+  ENTHALPY  IDEAL_METHANE
+  VISCOSITY CONSTANT 1.1d-5 Pa-s #DEFAULT
+  HENRYS_CONSTANT METHANE
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.3
+  TORTUOSITY 1.0
+  ROCK_DENSITY 2600.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0 #W/m-C
+  THERMAL_CONDUCTIVITY_WET 2.18d0 #W/m-C
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  POROSITY_COMPRESSIBILITY 1.d-9
+END
+
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 8.d-5
+    M 0.45
+    LIQUID_RESIDUAL_SATURATION 0.12d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    PHASE LIQUID
+    LAMBDA 3
+    LIQUID_RESIDUAL_SATURATION 0.12
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    PHASE GAS
+    LAMBDA 3
+    LIQUID_RESIDUAL_SATURATION 0.12
+    GAS_RESIDUAL_SATURATION 0.02
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIMESTEP 1 d
+    #TIMES d 1
+    #FORMAT TECPLOT POINT
+    #FORMAT HDF5
+  /
+  UNFILTER_NON_STATE_VARIABLES
+  
+  VARIABLES
+   TEMPERATURE
+   LIQUID_PRESSURE
+   GAS_PRESSURE
+   LIQUID_SATURATION
+   GAS_SATURATION
+   HYDRATE_SATURATION
+   ICE_SATURATION
+   LIQUID_MOLE_FRACTIONS
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 25.d0 d 
+  INITIAL_TIMESTEP_SIZE 1.d-1 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d 
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    3.d0 1.d0 1.d0
+  /
+END
+
+REGION center
+  COORDINATES
+    1.5D0 0.5D0 0.5D0
+  /
+END
+
+REGION west-face
+  FACE west
+  COORDINATES
+    0.D0 0.D0 0.D0
+    0.D0 1.D0 1.D0
+  /
+END
+
+REGION east-face
+  FACE east
+  COORDINATES
+    3.d0 0.d0 0.d0
+    3.d0 1.d0 1.d0
+  /
+END
+FLOW_CONDITION well
+  TYPE
+    RATE mass_rate
+  /
+     ! liquid gas   energy
+  RATE 0.D0 0.D0 -1.D-4 kg/s kg/s MW
+  SYNC_TIMESTEP_WITH_UPDATE
+/
+
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION L
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 15.d6
+  MOLE_FRACTION 5.d-3
+  TEMPERATURE 15.d0
+END
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION all
+  FLOW_CONDITION L
+  REGION all
+END
+BOUNDARY_CONDITION west-face
+  FLOW_CONDITION L
+  REGION west-face
+END
+BOUNDARY_CONDITION west-face
+  FLOW_CONDITION L
+  REGION east-face
+END
+SOURCE_SINK
+  FLOW_CONDITION well
+  REGION center
+END
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
