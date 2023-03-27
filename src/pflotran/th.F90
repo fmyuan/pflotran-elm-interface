@@ -4078,7 +4078,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
       if (Equal((material_auxvars(ghosted_id)% &
           soil_properties(epsilon_index)),1.d0)) cycle
       iend = local_id*option%nflowdof
-
+      
       ! secondary rho*c_p same as primary for now
       icct = patch%cct_id(ghosted_id)
       sec_dencpr = th_parameter%dencpr(icct)
@@ -4889,7 +4889,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     icc = patch%cc_id(ghosted_id)
 
     if (option%use_sc) then
-      vol_frac_prim = sec_heat_vars(local_id)%epsilon
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     icct = patch%cct_id(ghosted_id)
