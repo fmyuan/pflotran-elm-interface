@@ -3471,7 +3471,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     if (option%use_sc) then
       if (Equal((material_auxvars(ghosted_id)% &
           soil_properties(epsilon_index)),1.d0)) cycle
-      call SecondaryHeatJacobian(sec_heat_vars(ghosted_id), &
+      call SecondaryHeatJacobian(sec_heat_vars(local_id), &
                                  mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                                  mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
                                  option,jac_sec_heat)
