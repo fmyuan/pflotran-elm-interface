@@ -11,7 +11,7 @@ END
 
 SUBSURFACE
 
-REFERENCE_SATURATION 0.1
+REFERENCE_SATURATION 1.d-5
 
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
@@ -49,7 +49,7 @@ CHEMISTRY
     RADON
       SPECIES_NAME Rn(aq)
       MINERAL_NAME Quartz
-      RADON_GENERATION_RATE 1.0856503d-05
+      RADON_GENERATION_RATE 1.1627850420873736e-19
     /
   /
   RADIOACTIVE_DECAY_REACTION
@@ -63,6 +63,7 @@ CHEMISTRY
     TOTAL
     ALL
     GASES
+    GAS_CONCENTRATION
   /
 END
 
@@ -84,7 +85,7 @@ END
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
-  POROSITY 0.25d0
+  POROSITY 1.d0
   TORTUOSITY 1.d0
 END
 
@@ -130,7 +131,7 @@ CONSTRAINT initial
     SiO2(aq)  1.d-9   M Quartz
   /
   MINERALS
-    Quartz  0.1d0 0.d0 m^2/m^3
+    Quartz  1.d0 0.d0 m^2/m^3
   /
 END
 

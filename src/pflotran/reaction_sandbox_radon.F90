@@ -174,7 +174,7 @@ subroutine RadonEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   Residual(this%species_id) = Residual(this%species_id) - &
     (1.d0) * & ! positive stoichiometry for generation
-    this%radon_generation_rate * &  ! mole/m^3-sec
+    this%radon_generation_rate * &  ! mole/m^3 mnrl-sec
     rt_auxvar%mnrl_volfrac(this%mineral_id) * & ! m^3 mnrl/m^3 bulk
     material_auxvar%volume ! m^3 bulk
 
