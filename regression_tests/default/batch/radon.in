@@ -49,6 +49,8 @@ CHEMISTRY
     RADON
       SPECIES_NAME Rn(aq)
       MINERAL_NAME Quartz
+      # this generation rate that is consistent with a 70,000 Bq/m^3 radon 
+      # gas concentration
       RADON_GENERATION_RATE 1.1627850420873736e-19
     /
   /
