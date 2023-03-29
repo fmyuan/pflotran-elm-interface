@@ -2816,7 +2816,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
       if (distance > 0.d0) then
         flag = PETSC_TRUE
         ! need to test all combinations of points 
-        if (face_type == QUAD_FACE_TYPE) then
+        if (face_type == QUAD_FACE_TYPE .and. unstructured_grid%check_all_points_rh_rule) then
           point4 =  &
                unstructured_grid%vertices(cell_vertex_ids_before(face_vertex_ids(4)))
           call GeometryComputePlaneWithPoints(plane1,point2,point3,point4)
