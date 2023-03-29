@@ -32,6 +32,7 @@ module PM_NWT_class
     PetscBool :: check_post_convergence
     PetscBool :: check_update
     PetscBool :: verbose_newton
+    PetscBool :: scale_update
     PetscBool :: scaling_cut_dt
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
@@ -146,6 +147,7 @@ function PMNWTCreate()
   nullify(nwt_pm%controls%names_itol_abs_res)
   nwt_pm%controls%max_newton_iterations = 10
   nwt_pm%controls%dt_cut = 0.5d0
+  nwt_pm%controls%scale_update = PETSC_TRUE
   nwt_pm%controls%scaling_cut_dt = PETSC_FALSE
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   nwt_pm%controls%check_post_convergence = PETSC_FALSE
@@ -236,6 +238,8 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+      case('NO_UPDATE_SCALING')
+        this%controls%scale_update = PETSC_FALSE
 !geh: yet to be implemented
 !      case('TEMPERATURE_DEPENDENT_DIFFUSION')
 !        this%temperature_dependent_diffusion = PETSC_TRUE
@@ -1192,6 +1196,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   character(len=MAXSTRINGLENGTH) :: out_string, string, rsn_string
   character(len=6) :: aR_str, sR_str, rUP_str, aUP_str
   character(len=4) :: rsn
+  character(len=2) :: sign_str
   Vec :: dX
   PetscReal, pointer :: dX_p(:)    ! solution update
   PetscReal, pointer :: X0_p(:)    ! previous solution
@@ -1219,6 +1224,8 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscInt :: local_id, offset, idof, index
   PetscBool :: converged_flag
   
+  PetscBool :: idof_is_positive(this%option%ntrandof, &
+                                         this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_abs_update(this%option%ntrandof, &
@@ -1233,10 +1240,11 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscBool :: rsn_aUP(this%option%ntrandof)
   PetscBool :: rsn_aR(this%option%ntrandof)
   PetscBool :: rsn_sR(this%option%ntrandof)
-  PetscBool :: idof_cnvgd(this%option%ntrandof,4)
+  PetscBool :: rsn_pos(this%option%ntrandof)
+  PetscBool :: idof_cnvgd(this%option%ntrandof,5)
 
   PetscMPIInt :: mpi_int
-  PetscInt, parameter :: MAX_INDEX = 4
+  PetscInt, parameter :: MAX_INDEX = 5
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -1258,6 +1266,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   endif
 
   converged_flag = PETSC_FALSE
+  idof_is_positive = PETSC_FALSE
   idof_cnvgd_due_to_update = PETSC_FALSE
   idof_cnvgd_due_to_rel_update = PETSC_FALSE
   idof_cnvgd_due_to_abs_update = PETSC_FALSE
@@ -1269,6 +1278,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   rsn_sR = PETSC_FALSE
   rsn_rUP = PETSC_FALSE
   rsn_aUP = PETSC_FALSE
+  rsn_pos = PETSC_FALSE
   species_max_relative_update = 0.d0
   species_max_absolute_update = 0.d0
   species_max_absolute_residual = 0.d0
@@ -1301,6 +1311,12 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     offset = (local_id-1)*option%ntrandof
     do idof = 1, option%ntrandof
       index = idof + offset
+    !-----------------------------------------------------------------
+    !---solution-is-positive------------------------------------------
+      tempreal = X1_p(index)
+      if (tempreal > 0.d0) then
+        idof_is_positive(idof,local_id) = PETSC_TRUE
+      endif
     !-----------------------------------------------------------------
     !---relative-update-----------------------------------------------
       tempreal = dabs((dX_p(index))/X0_p(index))
@@ -1364,6 +1380,10 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       rsn_sR(idof) = PETSC_TRUE
       sR_str  = '  *sR:'
     endif
+    if (all(idof_is_positive(idof,:))) then
+      rsn_pos(idof) = PETSC_TRUE
+      sign_str  = ' +'
+    endif
 
     if (rsn_aUP(idof) .or. rsn_rUP(idof)) then
       idof_cnvgd_due_to_update(idof) = PETSC_TRUE
@@ -1375,9 +1395,11 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     idof_cnvgd(idof,2)=rsn_rUP(idof)
     idof_cnvgd(idof,3)=rsn_aR(idof)
     idof_cnvgd(idof,4)=rsn_sR(idof)
+    idof_cnvgd(idof,5)=rsn_pos(idof)
   enddo
 
-  if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual)) then
+  if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual) &
+      .and. all(idof_is_positive)) then
     converged_flag = PETSC_TRUE
   else
     converged_flag = PETSC_FALSE
@@ -1395,6 +1417,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   aUP_str = '  aUP:'
   aR_str  = '   aR:'
   sR_str  = '   sR:'
+  sign_str = ' -'
   rsn_string = ''
   
   if (all(idof_cnvgd(:,1))) then
@@ -1413,6 +1436,10 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     sR_str = '  *sR:'
     rsn_string = trim(rsn_string) // ' sR,'
   endif  
+  if (all(idof_cnvgd(:,5))) then
+    sign_str = ' +'
+    rsn_string = trim(rsn_string) // ' +'
+  endif
   
   if (converged_flag .eqv. PETSC_TRUE) then
     option%converged = PETSC_TRUE
@@ -1430,11 +1457,12 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   endif
 
   rsn = 'rsn:'
-  write(out_string,'(i4,a6,es10.3,a6,es10.3,a6,es10.3,a6,es10.3,a5,i4)') &
+  write(out_string,'(i4,a6,es10.3,a6,es10.3,a6,es10.3,a6,es10.3,a5,i4,a2)') &
                     it, aR_str, maxval(species_max(:,3)), &
                     sR_str, maxval(species_max(:,4)), &
                     rUP_str, maxval(species_max(:,2)), &
-                    aUP_str, maxval(species_max(:,1)), rsn, reason
+                    aUP_str, maxval(species_max(:,1)), rsn, reason, &
+                    sign_str
   call PrintMsg(option,out_string)
 
   if (this%controls%verbose_newton) then
@@ -1502,6 +1530,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, k
   PetscReal,parameter :: TOL=1.0d-20
+
+  if (.not. this%controls%scale_update) return 
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
