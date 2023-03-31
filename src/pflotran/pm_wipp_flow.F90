@@ -2093,7 +2093,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
                      MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ! if running in parallel, we can no longer report the sign on the maximum
   ! change variables as the sign may differ across processes.
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     this%convergence_reals(1:MIN_LIQ_PRES-1) = &
       dabs(this%convergence_reals(1:MIN_LIQ_PRES-1))
   endif
@@ -2252,7 +2252,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       ! just overwrite the character, the flag/real matches FORCE_ITERATION
       reason_string(7:7) = 'B'
     endif
-    if (option%comm%mycommsize > 1 .or. grid%nmax > 9999) then
+    if (option%comm%size > 1 .or. grid%nmax > 9999) then
       write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
         this%convergence_reals(MAX_NORMAL_RES_LIQ), &
         this%convergence_reals(MAX_NORMAL_RES_GAS), &

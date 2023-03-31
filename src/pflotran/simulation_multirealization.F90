@@ -4,6 +4,7 @@ module Simulation_MultiRealization_class
   use petscsys
   use PFLOTRAN_Constants_module
   use Simulation_Base_class
+  use Communicator_Aux_module
 
   implicit none
 
@@ -17,6 +18,7 @@ module Simulation_MultiRealization_class
     PetscInt :: cur_realization
     character(len=MAXSTRINGLENGTH) :: forward_simulation_filename
     PetscInt, pointer :: realization_ids(:)
+    type(comm_type), pointer :: mrcomm
   contains
     procedure, public :: Init => SimulationMRInit
     procedure, public :: InitializeRun => SimulationMRInitializeRun
@@ -75,6 +77,7 @@ subroutine SimulationMRInit(this,driver)
   this%cur_realization = 0
   this%forward_simulation_filename = ''
   nullify(this%realization_ids)
+  nullify(this%mrcomm)
 
 end subroutine SimulationMRInit
 
@@ -148,9 +151,11 @@ subroutine SimulationMRInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
+  use Driver_class
   use Option_module
   use Input_Aux_module
   use Communicator_Aux_module
+  use String_module
 
   class(simulation_multirealization_type) :: this
 
@@ -162,9 +167,11 @@ subroutine SimulationMRInitializeRun(this)
   PetscInt, pointer :: realization_ids_from_file(:)
   character(len=MAXSTRINGLENGTH) :: filename
   type(input_type), pointer :: input
+  PetscErrorCode :: ierr
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
+  call OptionSetComm(option,this%driver%comm)
 
   call SimulationBaseInitializeRun(this)
 
@@ -236,9 +243,15 @@ subroutine SimulationMRInitializeRun(this)
     option%io_buffer = trim(option%io_buffer) // ').'
     call PrintErrMsg(option)
   endif
+  call OptionDestroy(option)
 
-  call CommCreateProcessorGroups(option%comm,this%num_groups)
-  call OptionUpdateComm(option)
+  call CommCreateProcessGroups(this%driver%comm,this%num_groups,PETSC_TRUE, &
+                               this%mrcomm,ierr)
+  if (ierr /= 0) then
+    call this%driver%PrintErrMsg('The number of communicator processes (' // &
+      StringWrite(this%driver%comm%size) // ') does not divide evenly &
+      &into the requested (' // StringWrite(this%num_groups) // ') groups.')
+  endif
 
   ! divvy up the realizations
   this%num_local_realizations = this%num_realizations / &
@@ -247,13 +260,13 @@ subroutine SimulationMRInitializeRun(this)
                                          this%num_local_realizations
 
   ! offset is initialized above after check for '-realization_offset'
-  do i = 1, option%comm%mygroup_id-1
+  do i = 1, this%mrcomm%group_id-1
     delta = this%num_local_realizations
     if (i < remainder) delta = delta + 1
     offset = offset + delta
   enddo
 
-  if (option%comm%mygroup_id < remainder) &
+  if (this%mrcomm%group_id < remainder) &
     this%num_local_realizations = this%num_local_realizations + 1
   allocate(this%realization_ids(this%num_local_realizations))
   this%realization_ids = 0
@@ -268,8 +281,6 @@ subroutine SimulationMRInitializeRun(this)
         realization_ids_from_file(this%realization_ids(i))
     enddo
   endif
-
-  call OptionDestroy(option)
 
 end subroutine SimulationMRInitializeRun
 
@@ -295,6 +306,7 @@ subroutine SimulationMRExecuteRun(this)
   do
     option => OptionCreate()
     call OptionSetDriver(option,this%driver)
+    call OptionSetComm(option,this%mrcomm)
     call SimulationMRIncrement(this,option)
     call FactoryForwardInitialize(forward_simulation, &
                                   this%forward_simulation_filename,option)
@@ -347,7 +359,7 @@ subroutine SimulationMRFinalizeRun(this)
   class(simulation_multirealization_type) :: this
 
   call SimulationBaseFinalizeRun(this)
-  if (this%driver%comm%global_rank == this%driver%io_rank) then
+  if (this%driver%IsIORank()) then
     call SimulationBaseWriteTimes(this,this%driver%fid_out)
   endif
 
@@ -365,6 +377,7 @@ subroutine SimulationMRStrip(this)
   class(simulation_multirealization_type) :: this
 
   call SimulationBaseStrip(this)
+  call CommDestroy(this%mrcomm)
 
 end subroutine SimulationMRStrip
 

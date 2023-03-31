@@ -226,14 +226,14 @@ subroutine SimulationBaseWriteTimes(this,fid_out)
 
   total_time = this%timer%GetCumulativeTime()
 
-  if (this%driver%print_to_screen) then
+  if (this%driver%PrintToScreen()) then
     write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
       & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
       total_time, &
       total_time/60.d0, &
       total_time/3600.d0
   endif
-  if (this%driver%print_to_file) then
+  if (this%driver%PrintToFile()) then
     write(fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
       & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
       total_time, &

@@ -129,7 +129,7 @@ subroutine MicrobialRead(microbial,input,option)
                                  'CHEMISTRY,MICROBIAL_REACTION,MONOD')
             case('THRESHOLD_CONCENTRATION')
               call InputReadDouble(input,option,monod%threshold_concentration)
-              call InputErrorMsg(input,option,'threshold concdntration', &
+              call InputErrorMsg(input,option,'threshold concentration', &
                                  'CHEMISTRY,MICROBIAL_REACTION,MONOD')
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -386,8 +386,9 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
           ! if microbial%inhibition_C2 is negative, inhibition kicks in
           ! above the concentration
           inhibition(ii) = 0.5d0 + &
+                           sign(1.d0,microbial%inhibition_C(iinhibition)) * &
                            atan((conc - &
-                                 microbial%inhibition_C(iinhibition)) * &
+                                 dabs(microbial%inhibition_C(iinhibition))) * &
                                 microbial%inhibition_C2(iinhibition)) / PI
       end select
       Im = Im*inhibition(ii)
@@ -476,9 +477,10 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                   (denominator*denominator)
         case(INHIBITION_THRESHOLD)
           ! derivative of atan(X) = 1 / (1 + X^2) dX
-          tempreal = (conc - microbial%inhibition_C(iinhibition)) * &
+          tempreal = (conc - dabs(microbial%inhibition_C(iinhibition))) * &
                      microbial%inhibition_C2(iinhibition)
-          dX_dc = (microbial%inhibition_C2(iinhibition) * dconc_dmolal / &
+          dX_dc =  sign(1.d0,microbial%inhibition_C(iinhibition)) * &
+                   (microbial%inhibition_C2(iinhibition) * dconc_dmolal / &
                    (1.d0 + tempreal*tempreal)) / PI
       end select
 

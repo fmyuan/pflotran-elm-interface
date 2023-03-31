@@ -256,7 +256,7 @@ subroutine ZFlowSetup(realization)
   zflow_ts_cut_count = 0
   zflow_ni_count = 0
   if (Initialized(zflow_debug_cell_id) .and. &
-      option%comm%mycommsize > 1) then
+      option%comm%size > 1) then
     option%io_buffer = 'Cannot debug cells in parallel.'
     call PrintErrMsg(option)
   endif
@@ -1221,6 +1221,13 @@ subroutine ZFlowSetPlotVariables(realization,list)
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
                                  LIQUID_SATURATION)
+
+    if (zflow_sol_tran_eq > 0) then
+      name = 'Solute Concentration'
+      units = 'M'
+      call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                   SOLUTE_CONCENTRATION)
+    endif
   endif
 
 end subroutine ZFlowSetPlotVariables

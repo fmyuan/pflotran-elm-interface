@@ -473,6 +473,7 @@ subroutine InvSubsurfInitForwardRun(this,option)
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
+  call OptionSetComm(option,this%driver%comm)
   call OptionSetInversionOption(option,this%inversion_option)
   this%inversion_option%perturbation_run = PETSC_FALSE
   if (associated(this%inversion_aux%perturbation)) then
@@ -689,7 +690,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     ! JsensitivityT is the transpose of the sensitivity Jacobian
     ! with num measurement columns and num parameter rows
-    call MatCreateDense(this%driver%comm%mycomm, &
+    call MatCreateDense(this%driver%comm%communicator, &
                         this%num_parameters_local,PETSC_DECIDE, &
                         num_parameters,num_measurements, &
                         PETSC_NULL_SCALAR,this%inversion_aux%JsensitivityT, &
@@ -717,7 +718,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     int_array(2) = num_measurements_local
     int_array2(:) = 0
     call MPI_Exscan(int_array,int_array2,TWO_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                    this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
+                    this%driver%comm%communicator,ierr);CHKERRQ(ierr)
     this%parameter_offset = int_array2(1)
     this%dist_measurement_offset = int_array2(2)
     deallocate(int_array,int_array2)
@@ -734,7 +735,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       int_array = this%parameter_offset + int_array - 1
       call DiscretAOApplicationToPetsc(this%realization%discretization, &
                                        int_array)
-      call ISCreateGeneral(this%driver%comm%mycomm,size(int_array),int_array, &
+      call ISCreateGeneral(this%driver%comm%communicator,size(int_array),int_array, &
                            PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
       deallocate(int_array)
       call VecScatterCreate(this%realization%field%work,is_petsc, &
@@ -750,7 +751,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       call VecDuplicate(this%inversion_aux%parameter_vec, &
                         this%inversion_aux%del_parameter_vec, &
                         ierr);CHKERRQ(ierr)
-      call ISCreateStride(this%driver%comm%mycomm,num_parameters,ZERO_INTEGER, &
+      call ISCreateStride(this%driver%comm%communicator,num_parameters,ZERO_INTEGER, &
                           ONE_INTEGER,is_parameter,ierr);CHKERRQ(ierr)
       call VecScatterCreate(this%inversion_aux%parameter_vec,is_parameter, &
                             this%inversion_aux%dist_parameter_vec, &
@@ -819,7 +820,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     enddo
     ! ensure that cell and ert measurement ids are within bounds
     call MPI_Allreduce(MPI_IN_PLACE,max_int,TWO_INTEGER_MPI,MPIU_INTEGER, &
-                       MPI_MAX,this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
+                       MPI_MAX,this%driver%comm%communicator,ierr);CHKERRQ(ierr)
     if (associated(this%realization%survey)) then
       if (max_int(1) > size(this%realization%survey%dsim)) then
         call this%driver%PrintErrMsg('The ERT_MEASUREMENT_ID assigned to a &
@@ -837,7 +838,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! ensure that all cell ids have been found
     mpi_int = num_measurements
     call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
-                      this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
+                      this%driver%comm%communicator,ierr);CHKERRQ(ierr)
     i = maxval(int_array)
     do i = 1, num_measurements
       if (int_array(i) > 0) then
@@ -880,7 +881,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     ! find local measurements
     temp_int = 0
     call MPI_Exscan(patch%grid%nlmax,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                    MPI_SUM,this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
+                    MPI_SUM,this%driver%comm%communicator,ierr);CHKERRQ(ierr)
     ! Exscan does not include the temp_int from this rank
     ! local ids are between temp_int and temp_int + grid%nlmax
     ! (0 < id <= grid%nlmax on process 0; it is zero-based)
@@ -933,7 +934,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     enddo
 
     ! map measurement vec to distributed measurement vec
-    call ISCreateStride(this%driver%comm%mycomm,num_measurements,ZERO_INTEGER, &
+    call ISCreateStride(this%driver%comm%communicator,num_measurements,ZERO_INTEGER, &
                         ONE_INTEGER,is_measure,ierr);CHKERRQ(ierr)
     call VecScatterCreate(this%inversion_aux%measurement_vec,is_measure, &
                           this%inversion_aux%dist_measurement_vec, &
@@ -1751,7 +1752,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
               &one parameter.'
             call PrintErrMsg(option)
           endif
-          if (option%comm%myrank == option%driver%io_rank) then
+          if (OptionIsIORank(option)) then
             tempreal = -measurements(imeasurement)%dobs_dparam
             iparameter = 1
             call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
@@ -1860,7 +1861,7 @@ subroutine InvSubsurfAdjAddSensitivities(this)
                        ndof_vec2,ierr);CHKERRQ(ierr)
           call VecDot(ndof_vec2,lambda(imeasurement), &
                       tempreal,ierr);CHKERRQ(ierr)
-          if (option%comm%myrank == option%driver%io_rank) then
+          if (OptionIsIORank(option)) then
             call MatSetValue(this%inversion_aux%JsensitivityT,iparameter-1, &
                              imeasurement-1,tempreal,ADD_VALUES, &
                              ierr);CHKERRQ(ierr)
@@ -2264,6 +2265,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   !
   use hdf5
   use HDF5_module
+  use HDF5_Aux_module
   use Output_HDF5_module
   use String_module
 
@@ -2279,9 +2281,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: prop_id
   character(len=MAXSTRINGLENGTH) :: string
-  integer :: hdf5_err
 
   if (.not.associated(this%realization)) then
     call this%driver%PrintErrMsg('InvSubsurfOutputSensitivityHDF5 must be &
@@ -2289,15 +2289,9 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   endif
 
   !HDF5 formatted output
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,this%realization%option%mycomm, &
-                          MPI_INFO_NULL,hdf5_err)
-#endif
   string = trim(filename_prefix) // '.h5'
-  call h5fcreate_f(string,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
-                   H5P_DEFAULT_F,prop_id)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpen(string,file_id,PETSC_TRUE, &
+                    this%realization%option)
 
   call OutputHDF5WriteStructCoordGroup(file_id, &
                                        this%realization%discretization, &
@@ -2308,12 +2302,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   write(string,'(''Time:'',es13.5,x,a1)') &
         this%realization%option%time/this%realization%output_option%tconv, &
         this%realization%output_option%tunit
-  call h5eset_auto_f(OFF,hdf5_err)
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
-  if (hdf5_err /= 0) then
-    call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-  endif
-  call h5eset_auto_f(ON,hdf5_err)
+  call HDF5GroupOpenOrCreate(file_id,string,grp_id,this%realization%option)
 
   num_measurement = size(this%inversion_aux%measurements)
   call VecDuplicate(this%inversion_aux%dist_measurement_vec, &
@@ -2335,7 +2324,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
                                        H5T_NATIVE_DOUBLE)
   enddo
   call VecDestroy(row_vec,ierr);CHKERRQ(ierr)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,this%driver)
   call OutputHDF5CloseFile(this%realization%option,file_id)
 
 end subroutine InvSubsurfOutputSensitivityHDF5
@@ -2501,7 +2490,7 @@ subroutine InvSubsurfRestartIteration(this)
     call this%driver%PrintMsg('Restarting at last iteration (' // &
                               trim(StringWrite(restart_iteration)) // ').')
   endif
-  call HDF5FileClose(file_id)
+  call HDF5FileClose(file_id,this%driver)
   this%restart_iteration = restart_iteration
   this%iteration = this%restart_iteration
 

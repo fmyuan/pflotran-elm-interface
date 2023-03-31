@@ -432,11 +432,11 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
                                dist_dn / tempreal
         Jup(zflow_sol_tran_eq,zflow_liq_flow_eq) = &
           (dq_dpup * conc_upwind + &
-           area * dDeff_over_dist_dpup * 1.d0) * &
+           area * dDeff_over_dist_dpup * delta_conc) * &
           L_per_m3
         Jdn(zflow_sol_tran_eq,zflow_liq_flow_eq) = &
           (dq_dpdn * conc_upwind + &
-           area * dDeff_over_dist_dpdn * (-1.d0)) * &
+           area * dDeff_over_dist_dpdn * delta_conc) * &
           L_per_m3
       endif
       if (zflow_calc_adjoint) then

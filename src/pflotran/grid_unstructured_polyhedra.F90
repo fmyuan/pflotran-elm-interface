@@ -68,7 +68,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   PetscInt, allocatable :: nfaces_per_proc(:)
 
   pgrid => ugrid%polyhedra_grid
-  allocate(nfaces_per_proc(option%comm%mycommsize))
+  allocate(nfaces_per_proc(option%comm%size))
   nfaces_per_proc = 0
   num_faces_local_save = 0
 
@@ -96,17 +96,17 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   num_cells = temp_int
   pgrid%num_cells_global = num_cells
   ugrid%nmax = num_cells
 
   ! divide cells across ranks
-  num_cells_local = num_cells/option%comm%mycommsize
+  num_cells_local = num_cells/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = num_cells - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -134,7 +134,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
     allocate(temp_real_array(7,num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -174,7 +174,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       if (nfaces_per_proc(irank+1)>num_faces_local_save) &
         num_faces_local_save = nfaces_per_proc(irank+1)
 
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
         ! cells reside on io_rank
         num_faces_local = 0
         pgrid%num_cells_local = num_cells_local
@@ -205,7 +205,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       allocate(temp_real_array(7,num_cells_local))
       int_mpi = num_cells_local*7
       call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank,MPI_ANY_TAG,option%mycomm, &
+                    option%comm%io_rank,MPI_ANY_TAG,option%mycomm, &
                     status_mpi,ierr);CHKERRQ(ierr)
       num_faces_local = 0
       pgrid%num_cells_local = num_cells_local
@@ -229,7 +229,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   deallocate(temp_real_array)
 
   call MPI_Bcast(max_nvert_per_cell,ONE_INTEGER_MPI,MPI_INTEGER, &
-                 option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                 option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   ugrid%max_nvert_per_cell = max_nvert_per_cell
   pgrid%max_nvert_per_cell = max_nvert_per_cell
   allocate(pgrid%cell_vertids(max_nvert_per_cell,num_cells_local))
@@ -255,7 +255,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   num_faces = temp_int
   pgrid%num_faces_global = num_faces
@@ -279,7 +279,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionSetBlocking(option,PETSC_FALSE)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(7+max_nvert_per_cell,num_faces_local_save))
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = nfaces_per_proc(irank+1)
       do iface = 1, num_to_read
@@ -348,7 +348,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     allocate(temp_real_array(7+max_nvert_per_cell,num_faces_local+1))
     int_mpi = num_faces_local*(7+max_nvert_per_cell)
     call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
 
     do iface = 1, num_faces_local
@@ -393,17 +393,17 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   num_vertices = temp_int
   pgrid%num_vertices_global = num_vertices
   ugrid%num_vertices_global = num_vertices
 
    ! divide cells across ranks
-  num_vertices_local = num_vertices/option%comm%mycommsize
+  num_vertices_local = num_vertices/option%comm%size
   num_vertices_local_save = num_vertices_local
   remainder = num_vertices - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                  num_vertices_local + 1
 
@@ -420,7 +420,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for all processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = num_vertices_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -455,7 +455,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     allocate(temp_real_array(3,num_vertices_local))
     int_mpi = num_vertices_local*3
     call MPI_Recv(temp_real_array,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
     do ivert = 1, num_vertices_local
       pgrid%vertex_coordinates(ivert)%x = temp_real_array(1,ivert)
@@ -470,12 +470,12 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   deallocate(nfaces_per_proc)
 
   temp_int = max_nface_per_cell
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   pgrid%max_nface_per_cell = temp_int
 
   temp_int = max_nvert_per_face
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%driver%io_rank, &
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%comm%io_rank, &
                  option%mycomm,ierr);CHKERRQ(ierr)
   pgrid%max_nvert_per_face = temp_int
 

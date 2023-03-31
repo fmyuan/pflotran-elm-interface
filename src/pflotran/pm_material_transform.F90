@@ -122,6 +122,7 @@ subroutine PMMaterialTransformSetup(this)
   use Option_module
   use Material_module
   use Material_Aux_module
+  use Global_Aux_module
   use Grid_module
 
   implicit none
@@ -147,6 +148,7 @@ subroutine PMMaterialTransformSetup(this)
   ! material_id: id number of material
   ! material_auxvars: pointer to array of material auxiliary variables
   ! material aux: pointer to material auxiliary variable object in list
+  ! global_auxvars: pointer to array of global auxiliary variables
   ! ----------------------------------
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -157,6 +159,7 @@ subroutine PMMaterialTransformSetup(this)
   type(material_property_type), pointer :: null_material_property
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_auxvar_type), pointer :: material_aux
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id, material_id
   PetscInt :: i, ps
   PetscBool :: found
@@ -251,9 +254,9 @@ subroutine PMMaterialTransformSetup(this)
   ! initialize the auxiliary variables
   patch%aux%MTransform => MaterialTransformCreate()
   material_auxvars => patch%aux%Material%auxvars
+  global_auxvars => patch%aux%Global%auxvars
   allocate(m_transform_auxvars(grid%ngmax))
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
+  do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
@@ -280,6 +283,12 @@ subroutine PMMaterialTransformSetup(this)
             BufferErosionAuxVarInit()
         endif
 
+        if (associated(material_transform%bats_transform)) then
+          ! initialize the bats function auxiliary variable object
+          m_transform_auxvars(ghosted_id)%bt_aux => &
+            BatsTransformAuxVarInit(option)
+        endif
+
         ! pass information from functions to auxiliary variables as needed
         if (.not. option%restart_flag) then
           if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
@@ -302,6 +311,14 @@ subroutine PMMaterialTransformSetup(this)
           endif
         endif
 
+        ! Save initial permability tensor and temperature for bats function
+        if (associated(m_transform_auxvars(ghosted_id)%bt_aux)) then
+          ps = size(material_auxvars(ghosted_id)%permeability)
+          do i = 1, ps
+            m_transform_auxvars(ghosted_id)%bt_aux%perm0(i) = &
+              material_auxvars(ghosted_id)%permeability(i)
+          enddo
+        endif
       endif
     endif
   enddo
@@ -354,7 +371,8 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
 
   option%io_buffer = 'pflotran card:: MATERIAL_TRANSFORM_GENERAL'
   call PrintMsg(option)
-
+  option%flow%store_state_variables_in_global = PETSC_TRUE
+  
   input%ierr = 0
 
   nullify(prev_material_transform)
@@ -443,6 +461,8 @@ subroutine PMMaterialTransformInitializeTS(this)
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
 
+  use Global_module
+
   implicit none
 
   ! INPUT ARGUMENTS:
@@ -452,6 +472,8 @@ subroutine PMMaterialTransformInitializeTS(this)
   class(pm_material_transform_type) :: this
   ! --------------------------------
 
+  if (.not.this%option%ntrandof > 0) call GlobalWeightAuxVars(this%realization,1.d0)
+  
 end subroutine PMMaterialTransformInitializeTS
 
 ! ************************************************************************** !
@@ -661,6 +683,10 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
         endif
         ! if (associated(material_transform%buffer_erosion)) then
         ! endif
+        if (associated(material_transform%bats_transform)) then
+          call material_transform%bats_transform%ModifyPerm(material_aux, &
+            m_transform_aux%bt_aux,global_aux,option)    
+        endif
       endif
     endif
 

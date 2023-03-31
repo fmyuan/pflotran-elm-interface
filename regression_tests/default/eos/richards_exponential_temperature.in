@@ -41,7 +41,8 @@ END
 
 #=========================== EOS ==============================================
 EOS WATER
-  DENSITY EXPONENTIAL_PRESSURE_TEMPERATURE 997.16d0 101325.d0 1.d-8 2.d-4
+#Ref dw [kg/m^3], Ref p [Pa], Ref t [C], wat comp [1/Pa], therm exp coeff [1/K]
+  DENSITY EXPONENTIAL_PRESSURE_TEMPERATURE 997.16d0 101325.d0 0.d0 1.d-8 2.d-4
 END
 
 #=========================== fluid properties =================================

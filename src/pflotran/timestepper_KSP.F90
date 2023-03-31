@@ -486,6 +486,7 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointWriteIntDatasetHDF5
   use Checkpoint_module, only : CheckPointWriteRealDatasetHDF5
 
@@ -508,11 +509,9 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   PetscReal, pointer :: real_array(:)
-  PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  call h5gcreate_f(h5_chk_grp_id, string, timestepper_grp_id, &
-                   hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5GroupCreate(h5_chk_grp_id, string, timestepper_grp_id, option)
 
   allocate(start(1))
   allocate(dims(1))
@@ -582,7 +581,7 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
                                      dataset_rank, dims, start, length, &
                                      stride, int_array, option)
 
-  call h5gclose_f(timestepper_grp_id, hdf5_err)
+  call HDF5GroupClose(timestepper_grp_id,option)
 
   deallocate(start)
   deallocate(dims)
@@ -628,10 +627,9 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   PetscReal, pointer :: real_array(:)
-  PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option%driver)
+  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
 
   allocate(start(1))
   allocate(dims(1))
@@ -700,7 +698,7 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
                                      stride, int_array, option)
   this%revert_dt = (int_array(1) == ONE_INTEGER)
 
-  call h5gclose_f(timestepper_grp_id, hdf5_err)
+  call HDF5GroupClose(timestepper_grp_id,option)
 
   deallocate(start)
   deallocate(dims)

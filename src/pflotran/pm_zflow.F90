@@ -1009,7 +1009,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
 
   if (this%convergence_verbosity > 0 .and. &
       OptionPrintToScreen(option)) then
-    if (option%comm%mycommsize > 1) then
+    if (option%comm%size > 1) then
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &
         this%convergence_reals(MAX_RES_LIQ_EQ), &
         this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)

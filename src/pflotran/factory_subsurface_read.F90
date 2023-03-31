@@ -734,12 +734,12 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
             call PrintMsg(option)
           endif
 
-          if (option%comm%mycommsize /= grid%structured_grid%npx * &
+          if (option%comm%size /= grid%structured_grid%npx * &
                                  grid%structured_grid%npy * &
                                  grid%structured_grid%npz) then
             write(option%io_buffer,*) 'Incorrect number of processors &
               &specified: ',grid%structured_grid%npx*grid%structured_grid%npy* &
-              grid%structured_grid%npz,' commsize = ',option%comm%mycommsize
+              grid%structured_grid%npz,' commsize = ',option%comm%size
             call PrintErrMsg(option)
           endif
         endif
@@ -852,6 +852,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use PM_Well_class
   use PM_Hydrate_class
   use PM_Base_class
+  use Print_module
   use Timestepper_Base_class
   use Timestepper_KSP_class
   use Timestepper_SNES_class
@@ -895,7 +896,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(tran_condition_type), pointer :: tran_condition
   type(geop_condition_type), pointer :: geop_condition
   class(tran_constraint_base_type), pointer :: tran_constraint
-  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
@@ -1374,23 +1374,12 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
 
       case('SECONDARY_CONSTRAINT')
-        if (.not.option%use_sc) then
-          option%io_buffer = 'SECONDARY_CONSTRAINT can only be used with &
-                             &MULTIPLE_CONTINUUM keyword.'
-          call PrintErrMsg(option)
-        endif
-        if (.not.associated(reaction)) then
-          option%io_buffer = 'SECONDARY_CONSTRAINT not supported without &
-                             &CHEMISTRY.'
-          call PrintErrMsg(option)
-        endif
-        sec_tran_constraint => TranConstraintRTCreate(option)
-        call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'secondary constraint','name')
-        call PrintMsg(option,sec_tran_constraint%name)
-        call TranConstraintRTRead(sec_tran_constraint,reaction,input,option)
-        realization%sec_transport_constraint => sec_tran_constraint
-        nullify(sec_tran_constraint)
+        option%io_buffer = 'SECONDARY_CONSTRAINT has been moved to the &
+                            &TRANSPORT_CONDITION block. If a SECONDARY_CONSTRAINT &
+                            &is not specified the secondary initial conditions &
+                            &are copied from the primary.'
+        call PrintErrMsg(option)
+
 
 !......................
 
@@ -1873,7 +1862,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
               call StringToUpper(word)
               select case(trim(word))
                 case('OFF')
-                  option%driver%print_to_file = PETSC_FALSE
+                  call PrintSetPrintToFileFlag(option%print_flags, &
+                                               PETSC_FALSE)
                 case('PERIODIC')
                   call InputReadInt(input,option,output_option%output_file_imod)
                   call InputErrorMsg(input,option,'timestep increment', &
@@ -1888,7 +1878,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
               call StringToUpper(word)
               select case(trim(word))
                 case('OFF')
-                  option%driver%print_to_screen = PETSC_FALSE
+                  call PrintSetPrintToScreenFlag(option%print_flags, &
+                                                 PETSC_FALSE)
                 case('PERIODIC')
                   call InputReadInt(input,option,output_option%screen_imod)
                   call InputErrorMsg(input,option,'timestep increment', &
@@ -2062,7 +2053,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                                'OUTPUT,FORMAT,TECPLOT',option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                      .and. option%comm%mycommsize > 1) then
+                      .and. option%comm%size > 1) then
                     output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
                   endif
                   if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
@@ -2469,6 +2460,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
   enddo
   call InputPopBlock(input,option) ! SUBSURFACE
 
+  call PrintInitFlags(option%print_flags,option%driver%print_flags)
+
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
       case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE, &
@@ -2488,8 +2481,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
                              &the current transport mode.'
           call PrintErrMsg(option)
         endif
-  end select
-endif
+    end select
+  endif
 
   ! must come after setup of timestepper steady above. otherwise, the
   ! destruction of the waypoint lists will fail with to pointer to the

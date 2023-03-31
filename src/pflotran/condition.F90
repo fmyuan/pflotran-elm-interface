@@ -111,6 +111,7 @@ module Condition_module
     character(len=MAXWORDLENGTH) :: name  ! name of condition (e.g. initial, recharge)
     class(tran_constraint_coupler_base_type), pointer :: constraint_coupler_list
     class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
+    class(tran_constraint_coupler_base_type), pointer :: sec_constraint_coupler
     type(tran_condition_type), pointer :: next
   end type tran_condition_type
 
@@ -244,6 +245,7 @@ function TranConditionCreate(option)
   allocate(condition)
   nullify(condition%constraint_coupler_list)
   nullify(condition%cur_constraint_coupler)
+  nullify(condition%sec_constraint_coupler)
   nullify(condition%next)
   condition%id = 0
   condition%itype = 0
@@ -2956,6 +2958,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   class(tran_constraint_base_type), pointer :: constraint
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: sec_constraint_coupler
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
   class(reaction_rt_type), pointer :: reaction
@@ -3109,6 +3112,34 @@ subroutine TranConditionRead(condition,constraint_list, &
             cur_constraint_coupler => cur_constraint_coupler%next
           enddo
           cur_constraint_coupler%next => constraint_coupler
+        endif
+      case('SECONDARY_CONSTRAINT')
+        if (.not.option%use_sc) then
+          option%io_buffer = 'SECONDARY_CONSTRAINT can only be used with &
+                             &MULTIPLE_CONTINUUM keyword.'
+          call PrintErrMsg(option)
+        endif
+        select case(option%itranmode)
+          case(RT_MODE)
+            sec_constraint_coupler => TranConstraintCouplerRTCreate(option)
+          case(NWT_MODE)
+            option%io_buffer = 'MULTIPLE_CONTINUUM is not compatible with &
+                                &NWT mode'
+            call PrintErrMsg(option)
+        end select
+        call InputReadWord(input,option,sec_constraint_coupler%constraint_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'secondary constraint','name')
+        sec_constraint_coupler%time = 0.d0
+        ! add to end of coupler list
+        if (.not.associated(condition%sec_constraint_coupler)) then
+          condition%sec_constraint_coupler => sec_constraint_coupler
+        else
+          cur_constraint_coupler => condition%sec_constraint_coupler
+          do
+            if (.not.associated(cur_constraint_coupler%next)) exit
+            cur_constraint_coupler => cur_constraint_coupler%next
+          enddo
+          cur_constraint_coupler%next => sec_constraint_coupler
         endif
       case default
         call InputKeywordUnrecognized(input,word,'transport condition',option)
@@ -3313,19 +3344,14 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
 
         option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
         call PrintMsg(option)
-        call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-        call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-        call HDF5FileOpenReadOnly(filename,file_id,prop_id,option)
-        call h5pclose_f(prop_id,hdf5_err)
+        call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
         hdf5_path = trim(hdf5_path) // trim(realization_word)
         call HDF5ReadNDimRealArray(option,file_id,hdf5_path,ndims,dims, &
                                    real_buffer)
         option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
         call PrintMsg(option)
-        call h5fclose_f(file_id,hdf5_err)
+        call HDF5FileClose(file_id,option)
 
         ! dims(1) = size of array
         ! dims(2) = number of data point in time

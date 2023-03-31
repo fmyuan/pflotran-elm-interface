@@ -726,12 +726,12 @@ subroutine InputReadPflotranString(input, option)
       call InputReadPflotranStringSlave(input, option)
     endif
     flag = input%ierr
-    call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
+    call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%comm%io_rank, &
                    option%mycomm,ierr);CHKERRQ(ierr)
     input%ierr = flag
     if (.not.InputError(input)) then
       call MPI_Bcast(input%buf,MAXSTRINGLENGTH,MPI_CHARACTER, &
-                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                     option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
   else
     call InputReadPflotranStringSlave(input, option)

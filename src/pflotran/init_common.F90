@@ -351,7 +351,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
       if (OptionIsIORank(option)) &
         read(fid,*,iostat=ierr) values(1:read_count)
       flag = ierr
-      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
+      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%comm%io_rank, &
                      option%mycomm,ierr);CHKERRQ(ierr)
       if (flag /= 0) then
         option%io_buffer = 'Insufficent data in file: ' // filename
@@ -363,7 +363,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
       endif
       count = count + read_count
     enddo
-    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
+    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER,option%comm%io_rank, &
                    option%mycomm,ierr);CHKERRQ(ierr)
     if (count /= grid%nmax) then
       write(option%io_buffer,'("Number of data in file (",i8, &

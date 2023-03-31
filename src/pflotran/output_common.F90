@@ -456,7 +456,7 @@ subroutine OutputGetVertexCoordinates(grid,vec,direction,option)
   PetscReal, allocatable :: values(:)
   PetscErrorCode :: ierr
 
-  if (option%comm%mycommsize == 1) then
+  if (option%comm%size == 1) then
     call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     select case(direction)
       case(X_COORDINATE)

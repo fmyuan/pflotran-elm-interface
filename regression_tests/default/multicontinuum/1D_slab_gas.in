@@ -1,6 +1,4 @@
 #dual continuum. single fracture. planar geometry
-#Based on Tang et al (1981) analytical solution
-
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -174,12 +172,6 @@ STRATA
   REGION all
   MATERIAL soil1
 END
-
-SECONDARY_CONSTRAINT sec
-    CONCENTRATIONS
-    A(aq)   1.e-20  T   
-  /
-/
 
 END_SUBSURFACE
 

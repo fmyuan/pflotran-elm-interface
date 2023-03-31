@@ -274,7 +274,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
         reason = 0
     endif
 
-    if (option%print_screen_flag .and. solver%print_convergence) then
+    if (solver%print_convergence) then
       i = int(reason)
       select case(i)
         case(-20)
@@ -377,7 +377,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       reason = 0
     endif
 
-    if (option%print_screen_flag .and. solver%print_convergence) then
+    if (solver%print_convergence) then
       i = int(reason)
       select case(i)
         case(-19)
@@ -509,7 +509,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !      imin_residual(i) = imin_residual(i)/ndof
     enddo
 
-    if (option%print_screen_flag) then
+    if (OptionPrintToScreen(option)) then
       select case(reason)
         case (10)
           string = "CONVERGED_USER_NORM_INF_REL"
