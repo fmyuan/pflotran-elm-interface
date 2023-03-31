@@ -34,6 +34,7 @@ module PM_NWT_class
     PetscBool :: check_update
     PetscBool :: verbose_newton
     PetscBool :: scaling_cut_dt
+    PetscBool :: well_cut_dt
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -150,6 +151,7 @@ function PMNWTCreate()
   nwt_pm%controls%max_newton_iterations = 10
   nwt_pm%controls%dt_cut = 0.5d0
   nwt_pm%controls%scaling_cut_dt = PETSC_FALSE
+  nwt_pm%controls%well_cut_dt = PETSC_FALSE
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   nwt_pm%controls%check_post_convergence = PETSC_FALSE
   nwt_pm%controls%check_update = PETSC_TRUE
@@ -960,6 +962,8 @@ subroutine PMNWTInitializeTimestep(this)
   ! This will eventually call NWTEqDissPrecipSorb() so that the aqueous,
   ! precipitated, and sorbed amounts of the total bulk mass get adjusted.
 
+  this%controls%well_cut_dt = PETSC_FALSE
+
 end subroutine PMNWTInitializeTimestep
 
 ! ************************************************************************** !
@@ -1153,6 +1157,9 @@ subroutine PMNWTResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call NWTResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
+  if (this%pmwell_ptr%tran_soln%cut_ts_flag) then
+    this%controls%well_cut_dt = PETSC_TRUE
+  endif
 
 end subroutine PMNWTResidual
 
@@ -1171,6 +1178,8 @@ subroutine PMNWTJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
+
+  if (this%controls%well_cut_dt) return
 
   call NWTJacobian(snes,xx,A,B,this%realization,ierr)
 
@@ -1248,6 +1257,14 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     option%convergence = CONVERGENCE_CUT_TIMESTEP
     reason = -88
     this%controls%scaling_cut_dt = PETSC_FALSE
+    return
+  endif
+
+  ! check if well model requires ts cut
+  if (this%controls%well_cut_dt) then
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    reason = -88
+    this%controls%well_cut_dt = PETSC_FALSE
     return
   endif
 

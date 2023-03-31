@@ -330,6 +330,8 @@ module PM_Well_class
     PetscReal :: itol_rel_update
     ! time tracking
     PetscReal :: tran_time
+    ! time step cut flag for quasi-implicit coupling
+    PetscBool :: cut_ts_flag
   end type well_soln_tran_type
 
   type :: well_comm_type
@@ -595,6 +597,7 @@ subroutine PMWellTranCreate(this)
   this%tran_soln%itol_scaled_res = 1.0d-4
   this%tran_soln%n_steps = 0
   this%tran_soln%n_newton = 0
+  this%tran_soln%cut_ts_flag = PETSC_FALSE
 
   this%tran_soln%itol_abs_update = 1.0d0
   this%tran_soln%itol_rel_update = 1.0d-1
@@ -4104,10 +4107,11 @@ subroutine PMWellQISolveTran(this)
   implicit none
 
   class(pm_well_type) :: this
-
+  
   PetscErrorCode :: ierr
 
   ierr = 0
+  this%tran_soln%cut_ts_flag = PETSC_FALSE
 
   if (initialize_well_tran) then
     call PMWellInitializeWellTran(this)
@@ -4117,6 +4121,7 @@ subroutine PMWellQISolveTran(this)
   this%dt_tran = this%option%tran_dt 
 
   call PMWellSolveTran(this,ierr)
+  if (this%tran_soln%cut_ts_flag) return
 
   call PMWellUpdateReservoirSrcSinkTran(this)
 
@@ -5011,6 +5016,7 @@ subroutine PMWellSolve(this,time,ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: out_string
+  PetscBool :: cut_ts_flag
   PetscReal :: curr_time
 
   curr_time = this%option%time - this%option%flow_dt
@@ -5482,10 +5488,12 @@ subroutine PMWellSolveTran(this,ierr)
     do while (soln%not_converged)
       if (n_iter > (soln%max_iter-1)) then
         soln%cut_timestep = PETSC_TRUE
+        soln%cut_ts_flag = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
         call PrintMsg(this%option,out_string)
         call PMWellCutTimestepTran(this)
+        if (this%tran_QI_coupling) return 
         n_iter = 0
         ts_cut = ts_cut + 1
         exit
@@ -5661,11 +5669,16 @@ subroutine PMWellCutTimestepTran(this)
 
   class(pm_well_type) :: this
 
-  this%dt_tran = this%dt_tran / this%tran_soln%ts_cut_factor
-  this%dt_tran = max(this%dt_tran,this%min_dt_tran)
   this%well%aqueous_mass = this%tran_soln%prev_soln%aqueous_mass
   this%well%aqueous_conc = this%tran_soln%prev_soln%aqueous_conc
   call PMWellUpdatePropertiesTran(this)
+
+  if (this%tran_QI_coupling) then
+    return
+  else
+    this%dt_tran = this%dt_tran / this%tran_soln%ts_cut_factor
+    this%dt_tran = max(this%dt_tran,this%min_dt_tran)
+  endif
 
 end subroutine PMWellCutTimestepTran
 
