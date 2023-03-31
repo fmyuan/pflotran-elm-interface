@@ -504,7 +504,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
-  call InitCommonReadRegionFiles(realization)
+  call InitCommonReadRegionFiles(realization%patch,realization%region_list,realization%option)
   ! clip regions and set up boundary connectivity, distance
   call RealizationLocalizeRegions(realization)
   call RealizationPassPtrsToPatches(realization)
