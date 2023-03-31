@@ -584,7 +584,7 @@ end subroutine RealizationPassPtrsToPatches
 
 ! ************************************************************************** !
 
-subroutine RealizationAddCoupler(realization,coupler)
+subroutine RealizationAddCoupler(patch,coupler)
   !
   ! Adds a copy of a coupler to a list
   !
@@ -596,14 +596,10 @@ subroutine RealizationAddCoupler(realization,coupler)
 
   implicit none
 
-  class(realization_subsurface_type) :: realization
+  type(patch_type), pointer :: patch
   type(coupler_type), pointer :: coupler
 
-  type(patch_type), pointer :: patch
-
   type(coupler_type), pointer :: new_coupler
-
-  patch => realization%patch
 
   ! only add to flow list for now, since they will be split out later
   new_coupler => CouplerCreate(coupler)
@@ -623,7 +619,7 @@ end subroutine RealizationAddCoupler
 
 ! ************************************************************************** !
 
-subroutine RealizationAddStrata(realization,strata)
+subroutine RealizationAddStrata(patch,strata)
   !
   ! Adds a copy of a strata to a list
   !
@@ -635,13 +631,13 @@ subroutine RealizationAddStrata(realization,strata)
 
   implicit none
 
-  class(realization_subsurface_type) :: realization
+  type(patch_type), pointer :: patch
   type(strata_type), pointer :: strata
 
   type(strata_type), pointer :: new_strata
 
   new_strata => StrataCreate(strata)
-  call StrataAddToList(new_strata,realization%patch%strata_list)
+  call StrataAddToList(new_strata,patch%strata_list)
   nullify(new_strata)
 
   call StrataDestroy(strata)
