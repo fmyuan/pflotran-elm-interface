@@ -498,7 +498,7 @@ end subroutine RealizationCreateDiscretization
 
 ! ************************************************************************** !
 
-subroutine RealizationLocalizeRegions(realization)
+subroutine RealizationLocalizeRegions(patch,region_list,option)
   !
   ! Localizes regions within each patch
   !
@@ -512,16 +512,15 @@ subroutine RealizationLocalizeRegions(realization)
 
   implicit none
 
-  class(realization_subsurface_type) :: realization
+  type(patch_type), pointer :: patch
+  type(region_list_type), pointer :: region_list
+  type(option_type), pointer :: option
 
   type (region_type), pointer :: cur_region, cur_region2
-  type(option_type), pointer :: option
   type(region_type), pointer :: region
 
-  option => realization%option
-
   ! check to ensure that region names are not duplicated
-  cur_region => realization%region_list%first
+  cur_region => region_list%first
   do
     if (.not.associated(cur_region)) exit
     cur_region2 => cur_region%next
@@ -536,16 +535,15 @@ subroutine RealizationLocalizeRegions(realization)
     cur_region => cur_region%next
   enddo
 
-  call PatchLocalizeRegions(realization%patch,realization%region_list, &
-                            realization%option)
+  call PatchLocalizeRegions(patch,region_list,option)
   ! destroy realization's copy of region list as it can be confused with the
   ! localized patch regions later in teh simulation.
-  call RegionDestroyList(realization%region_list)
+  call RegionDestroyList(region_list)
 
   ! compute regional connections for inline surface flow
   if (option%flow%inline_surface_flow) then
      region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
-          realization%patch%region_list)
+          patch%region_list)
      if (.not.associated(region)) then
         option%io_buffer = 'realization_subsurface.F90:RealizationLocalize&
              &Regions() --> Could not find a required region named "' // &
@@ -553,7 +551,7 @@ subroutine RealizationLocalizeRegions(realization)
              '" from the list of regions.'
         call PrintErrMsg(option)
      endif
-     call GridRestrictRegionalConnect(realization%patch%grid,region)
+     call GridRestrictRegionalConnect(patch%grid,region)
    endif
 
 end subroutine RealizationLocalizeRegions
