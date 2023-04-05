@@ -1045,7 +1045,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                      liquid_phase:option%gas_phase))
       xxss(2) = 5.d-1
       xxss(3) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
-      if (general_salt .and..not. general_soluble_matrix) then
+      if (general_salt .and. .not. general_soluble_matrix) then
         xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%xmol(option%salt_id,option%liquid_phase)
       elseif (general_salt .and. general_soluble_matrix) then
         xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity

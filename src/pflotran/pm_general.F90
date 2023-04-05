@@ -309,7 +309,6 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   class(pm_general_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
-  PetscInt :: tempint
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscInt :: lid, gid, eid, sid
@@ -1037,6 +1036,23 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
                   pres(option%saturation_pressure_id)
              changed = PETSC_TRUE
           endif
+        case(LP_STATE)
+          xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
+          pw_index = offset + GENERAL_LIQUID_PRESSURE_DOF
+          if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+            dX_p(xmol_index) = X_p(xmol_index)
+            changed = PETSC_TRUE
+          endif
+          if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
+           dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
+           changed = PETSC_TRUE
+          endif
+        case(GP_STATE)  
+          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+          if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
+            dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+            changed = PETSC_TRUE
+          endif
       end select
     enddo
 
@@ -1351,12 +1367,6 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
   PetscReal, parameter :: A_zero = 1.d-15
-!  PetscBool, pointer :: converged_abs_residual_flag(:,:)
-!  PetscReal, pointer:: converged_abs_residual_real(:,:)
-!  PetscInt, pointer :: converged_abs_residual_cell(:,:)
-!  PetscBool, pointer :: converged_scaled_residual_flag(:,:)
-!  PetscReal, pointer :: converged_scaled_residual_real(:,:)
-!  PetscInt, pointer :: converged_scaled_residual_cell(:,:)
   PetscBool, allocatable :: converged_abs_residual_flag(:,:)
   PetscReal, allocatable :: converged_abs_residual_real(:,:)
   PetscInt, allocatable :: converged_abs_residual_cell(:,:)
@@ -1367,7 +1377,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
-  PetscBool, pointer :: flags(:)
+  PetscBool, allocatable :: flags(:)
   PetscBool :: rho_flag
   character(len=MAXSTRINGLENGTH) :: string
   character(len=12), allocatable :: state_string(:)

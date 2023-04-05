@@ -3445,7 +3445,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     else ! delta of mass fraction
       ! 4th dof not implemented here.
       if (general_salt) then
-        option%io_buffer = 'Mass-based flux not implented for general mode with 4 dof.'
+        option%io_buffer = 'Mass-based flux not implented for general mode with fully coupled salt transport.'
         call PrintErrMsg(option)
       endif
       xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
@@ -4028,7 +4028,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                      liquid_phase:option%gas_phase))
   xxss(2) = gen_auxvar_ss%sat(gid)
   xxss(3) = gen_auxvar_ss%temp
-  if (general_salt .and..not. general_soluble_matrix) then
+  if (general_salt .and. .not. general_soluble_matrix) then
     xxss(4) = gen_auxvar_ss%sat(pid)
   elseif (general_salt .and. general_soluble_matrix) then
     xxss(4) = gen_auxvar_ss%effective_porosity
@@ -4086,13 +4086,13 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar_ss%pres(apid)
         endif
-        if (general_salt .and..not. general_soluble_matrix) then
+        if (general_salt .and. .not. general_soluble_matrix) then
           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
         elseif (general_salt .and. general_soluble_matrix) then
           xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
         endif
       case(LGP_STATE)
-        if (general_salt .and..not. general_soluble_matrix) then
+        if (general_salt .and. .not. general_soluble_matrix) then
            xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
         elseif (general_salt .and. general_soluble_matrix) then
            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
