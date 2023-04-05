@@ -888,7 +888,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = ''
       category = OUTPUT_GENERIC
       id = LIQUID_MOLE_FRACTION
-      subvar = option%solute_id
+      subvar = option%salt_id
     case ('XLG')
       name = 'X_l^g'
       units = ''
@@ -912,7 +912,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = ''
       category = OUTPUT_GENERIC
       id = LIQUID_MASS_FRACTION
-      subvar = option%solute_id
+      subvar = option%salt_id
     case ('WGG')
       name = 'w_g^g'
       units = ''

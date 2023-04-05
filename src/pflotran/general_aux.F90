@@ -16,6 +16,7 @@ module General_Aux_module
   PetscBool, public :: general_non_darcy_flow = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
+  PetscBool, public :: general_salt = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(3) = [FMWH2O,FMWAIR,FMWNACL]
   PetscReal, public :: general_max_pressure_change = 5.d4
@@ -88,7 +89,7 @@ module General_Aux_module
   PetscInt, parameter, public :: GENERAL_LIQUID_EQUATION_INDEX = 1
   PetscInt, parameter, public :: GENERAL_GAS_EQUATION_INDEX = 2
   PetscInt, parameter, public :: GENERAL_ENERGY_EQUATION_INDEX = 3
-  PetscInt, parameter, public :: GENERAL_SOLUTE_EQUATION_INDEX = 4
+  PetscInt, parameter, public :: GENERAL_SALT_EQUATION_INDEX = 4
 
   PetscInt, parameter, public :: GENERAL_LIQUID_PRESSURE_INDEX = 2
   PetscInt, parameter, public :: GENERAL_GAS_PRESSURE_INDEX = 3
@@ -102,7 +103,7 @@ module General_Aux_module
   PetscInt, parameter, public :: GENERAL_LIQUID_CONDUCTANCE_INDEX = 11
   PetscInt, parameter, public :: GENERAL_GAS_CONDUCTANCE_INDEX = 12
   PetscInt, parameter, public :: GENERAL_GAS_WATER_MOL_FRAC_INDEX = 13
-  PetscInt, parameter, public :: GENERAL_SOLUTE_INDEX = 14
+  PetscInt, parameter, public :: GENERAL_SALT_INDEX = 14
   PetscInt, parameter, public :: GENERAL_POROSITY_INDEX = 15
   PetscInt, parameter, public :: GENERAL_PRECIPITATE_SAT_INDEX = 16
   PetscInt, parameter, public :: GENERAL_MAX_INDEX = 16
@@ -219,7 +220,7 @@ module General_Aux_module
 
   type, public :: general_parameter_type
     PetscReal, pointer :: diffusion_coefficient(:) ! (iphase)
-    PetscReal, pointer :: solute_diffusion_coefficient
+    PetscReal, pointer :: salt_diffusion_coefficient
     PetscReal :: newton_inf_scaled_res_tol
     PetscBool :: check_post_converged
   end type general_parameter_type
@@ -289,7 +290,7 @@ function GeneralAuxCreate(option)
 
   type(general_type), pointer :: aux
 
-  if (option%nflowdof == 3) then
+  if (.not. general_salt) then
     allocate(dof_to_primary_variable(option%nflowdof,3))
     dof_to_primary_variable(1:option%nflowdof,1:3) = &
       reshape([GENERAL_LIQUID_PRESSURE_INDEX, GENERAL_MOLE_FRACTION_INDEX, &
@@ -298,17 +299,17 @@ function GeneralAuxCreate(option)
                GENERAL_TEMPERATURE_INDEX, &
                GENERAL_GAS_PRESSURE_INDEX, GENERAL_GAS_SATURATION_INDEX, &
                general_2ph_energy_dof],shape(dof_to_primary_variable))
-  elseif (option%nflowdof == 4) then
+  elseif (general_salt) then
     allocate(dof_to_primary_variable(option%nflowdof,7))
     dof_to_primary_variable(1:option%nflowdof,1:7) = &
       reshape([GENERAL_LIQUID_PRESSURE_INDEX, GENERAL_MOLE_FRACTION_INDEX, & !L
-               GENERAL_TEMPERATURE_INDEX, GENERAL_SOLUTE_INDEX, &
+               GENERAL_TEMPERATURE_INDEX, GENERAL_SALT_INDEX, &
                GENERAL_GAS_PRESSURE_INDEX, general_gas_air_mass_dof, &       !G
-               GENERAL_TEMPERATURE_INDEX, GENERAL_SOLUTE_INDEX, &
+               GENERAL_TEMPERATURE_INDEX, GENERAL_SALT_INDEX, &
                GENERAL_GAS_PRESSURE_INDEX, GENERAL_GAS_SATURATION_INDEX, &   !LG
-               general_2ph_energy_dof, GENERAL_SOLUTE_INDEX, &
+               general_2ph_energy_dof, GENERAL_SALT_INDEX, &
                GENERAL_LIQUID_PRESSURE_INDEX, GENERAL_MOLE_FRACTION_INDEX, & !P
-               GENERAL_TEMPERATURE_INDEX, GENERAL_SOLUTE_INDEX, &
+               GENERAL_TEMPERATURE_INDEX, GENERAL_SALT_INDEX, &
                GENERAL_LIQUID_PRESSURE_INDEX, GENERAL_MOLE_FRACTION_INDEX, & !LP
                GENERAL_TEMPERATURE_INDEX, GENERAL_PRECIPITATE_SAT_INDEX, &
                GENERAL_GAS_PRESSURE_INDEX, GENERAL_AIR_PRESSURE_INDEX, &     !GP
@@ -330,7 +331,7 @@ function GeneralAuxCreate(option)
 
   allocate(aux%general_parameter)
   allocate(aux%general_parameter%diffusion_coefficient(option%nphase))
-  allocate(aux%general_parameter%solute_diffusion_coefficient)
+  allocate(aux%general_parameter%salt_diffusion_coefficient)
 
   !geh: there is no point in setting default lquid diffusion coeffcient values
   !     here as they will be overwritten by the fluid property defaults.
@@ -1696,7 +1697,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   acid = option%air_id ! air component id
   wid = option%water_id
   eid = option%energy_id
-  sid = option%solute_id
+  sid = option%salt_id
 
   eos_henry_ierr = 0
 
@@ -3220,7 +3221,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
   acid = option%air_id ! air component id
   wid = option%water_id
   eid = option%energy_id
-  sid = option%solute_id
+  sid = option%salt_id
 
   gas_flag = PETSC_FALSE
 
@@ -4256,7 +4257,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
            gen_auxvar(ZERO_INTEGER)%effective_porosity
        else
          x(GENERAL_LIQUID_STATE_S_MOLE_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%xmol(option%solute_id,option%liquid_phase)
+           gen_auxvar(ZERO_INTEGER)%xmol(option%salt_id,option%liquid_phase)
        endif
 #ifdef HEEHO_PERTURBATION
        pert(GENERAL_LIQUID_PRESSURE_DOF) = &
@@ -4425,7 +4426,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
            gen_auxvar(ZERO_INTEGER)%effective_porosity
        else
           x(GENERAL_LIQUID_STATE_S_MOLE_DOF) = &
-            gen_auxvar(ZERO_INTEGER)%xmol(option%solute_id,option%liquid_phase)
+            gen_auxvar(ZERO_INTEGER)%xmol(option%salt_id,option%liquid_phase)
        endif
 #ifdef HEEHO_PERTURBATION
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then

@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        NUMBER_OF_EQUATIONS 4
         SOLUBLE_MATRIX
         SOLUTE SALT
       /
@@ -33,7 +32,7 @@ END
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-10
-  SOLUTE_DIFFUSION_COEFFICIENT 1.D-10 
+  SALT_DIFFUSION_COEFFICIENT 1.D-10 
 END
 #=========================== equation of state ================================
 EOS WATER

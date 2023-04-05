@@ -9,8 +9,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
         OPTIONS
-          # this option turn on the solution for porosity (first three variables are typical in GENERAL mode)
-	  NUMBER_OF_EQUATIONS 4
           # this allows the porosity to change due to dissolution and precipitation of salt too (solved for implicitly)
 	  SOLUBLE_MATRIX
           SOLUTE SALT
@@ -30,7 +28,7 @@ END
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-10
-  SOLUTE_DIFFUSION_COEFFICIENT 1.D-10 
+  SALT_DIFFUSION_COEFFICIENT 1.D-10 
 END
 #=========================== equation of state ================================
 EOS WATER

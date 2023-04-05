@@ -78,7 +78,7 @@ module Option_module
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
     PetscInt :: energy_id  ! index of energy dof
-    PetscInt :: solute_id ! index of solute dof
+    PetscInt :: salt_id ! index of salt dof
 
     PetscInt :: ntrandof
 
@@ -497,7 +497,7 @@ subroutine OptionInitRealization(option)
   option%water_id = 0
   option%air_id = 0
   option%energy_id = 0
-  option%solute_id = 0
+  option%salt_id = 0
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters

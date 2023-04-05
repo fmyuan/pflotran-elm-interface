@@ -51,7 +51,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: gas_saturation
     type(flow_sub_condition_type), pointer :: precipitate_saturation
     type(flow_sub_condition_type), pointer :: mole_fraction
-    type(flow_sub_condition_type), pointer :: solute_fraction
+    type(flow_sub_condition_type), pointer :: salt_fraction
     type(flow_sub_condition_type), pointer :: porosity
     type(flow_sub_condition_type), pointer :: relative_humidity
     type(flow_sub_condition_type), pointer :: temperature
@@ -310,7 +310,7 @@ function FlowGeneralConditionCreate(option)
   nullify(general_condition%precipitate_saturation)
   nullify(general_condition%relative_humidity)
   nullify(general_condition%mole_fraction)
-  nullify(general_condition%solute_fraction)
+  nullify(general_condition%salt_fraction)
   nullify(general_condition%porosity)
   nullify(general_condition%temperature)
   nullify(general_condition%liquid_flux)
@@ -436,12 +436,12 @@ function FlowGeneralSubConditionPtr(input,sub_condition_name,general, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         general%mole_fraction => sub_condition_ptr
       endif
-    case('SOLUTE_FRACTION')
-      if (associated(general%solute_fraction)) then
-        sub_condition_ptr => general%solute_fraction
+    case('SALT_FRACTION')
+      if (associated(general%salt_fraction)) then
+        sub_condition_ptr => general%salt_fraction
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        general%solute_fraction => sub_condition_ptr
+        general%salt_fraction => sub_condition_ptr
       endif
     case('POROSITY')
       if (associated(general%porosity)) then
@@ -1993,7 +1993,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('LIQUID_PRESSURE','GAS_PRESSURE','LIQUID_SATURATION', &
            'GAS_SATURATION', 'TEMPERATURE','MOLE_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY', &
-           'SOLUTE_FRACTION','PRECIPITATE_SATURATION','POROSITY')
+           'SALT_FRACTION','PRECIPITATE_SATURATION','POROSITY')
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
             sub_condition_ptr => &
@@ -2004,7 +2004,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           case('LIQUID_PRESSURE','GAS_PRESSURE')
             internal_units = 'Pa'
           case('LIQUID_SATURATION','GAS_SATURATION','MOLE_FRACTION', &
-                'RELATIVE_HUMIDITY','SOLUTE_FRACTION', &
+                'RELATIVE_HUMIDITY','SALT_FRACTION', &
                 'PRECIPITATE_SATURATION','POROSITY')
             internal_units = 'unitless'
           case('TEMPERATURE')
@@ -2016,10 +2016,10 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               case(WF_MODE)
                 internal_units = trim(rate_string) // ',' // trim(rate_string)
               case(G_MODE)
-                if (option%nflowdof == 3) then
+                if (.not. general_salt) then
                   internal_units = trim(rate_string) // ',' // &
                                    trim(rate_string) // ',MJ/sec|MW'
-                elseif (option%nflowdof == 4) then
+                elseif (general_salt) then
                   internal_units = trim(rate_string) // ',' // &
                                    trim(rate_string) // ',' // &
                                    trim(rate_string) // ',MJ/sec|MW'
@@ -2135,7 +2135,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           condition%iphase = LGP_STATE
         else if (associated(general%liquid_pressure) .and. &
                  associated(general%mole_fraction)) then
-          if (((option%nflowdof == 4) .and. (associated(general%solute_fraction) &
+          if (((option%nflowdof == 4) .and. (associated(general%salt_fraction) &
                .or. associated(general%porosity)) &
                .or. (option%nflowdof == 3))) then
             ! liquid phase condition
@@ -2205,8 +2205,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,general%mole_fraction, &
                               default_time_storage, &
                               PETSC_TRUE)
-  word = 'solute fraction'
-  call FlowSubConditionVerify(option,condition,word,general%solute_fraction, &
+  word = 'salt fraction'
+  call FlowSubConditionVerify(option,condition,word,general%salt_fraction, &
                               default_time_storage, &
                               PETSC_TRUE)
 
@@ -2245,7 +2245,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
   if (associated(general%mole_fraction)) &
     i = i + 1
-  if (associated(general%solute_fraction)) &
+  if (associated(general%salt_fraction)) &
     i = i + 1
   if (associated(general%porosity)) &
     i = i + 1
@@ -2289,9 +2289,9 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%mole_fraction
   endif
-  if (associated(general%solute_fraction)) then
+  if (associated(general%salt_fraction)) then
     i = i + 1
-    condition%sub_condition_ptr(i)%ptr => general%solute_fraction
+    condition%sub_condition_ptr(i)%ptr => general%salt_fraction
   endif
   if (associated(general%porosity)) then
      i = i + 1

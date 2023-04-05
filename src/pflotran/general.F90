@@ -205,8 +205,8 @@ subroutine GeneralSetup(realization)
       diffusion_coefficient(cur_fluid_property%phase_id) = &
         cur_fluid_property%diffusion_coefficient
     patch%aux%General%general_parameter% &
-      solute_diffusion_coefficient = &
-        cur_fluid_property%solute_diffusion_coefficient
+      salt_diffusion_coefficient = &
+        cur_fluid_property%salt_diffusion_coefficient
     cur_fluid_property => cur_fluid_property%next
   enddo
   ! check whether diffusion coefficients are initialized.
@@ -222,11 +222,11 @@ subroutine GeneralSetup(realization)
       UninitializedMessage('Gas phase diffusion coefficient','')
     call PrintErrMsg(option)
   endif
-  if (option%nflowdof == 4) then
+  if (general_salt) then
     if (Uninitialized(patch%aux%General%general_parameter% &
-         solute_diffusion_coefficient)) then
+         salt_diffusion_coefficient)) then
        option%io_buffer = &
-            UninitializedMessage('Solute diffusion coefficient','')
+            UninitializedMessage('Salt diffusion coefficient','')
        call PrintErrMsg(option)
     endif
   endif
@@ -698,7 +698,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   PetscInt :: offset
   PetscInt :: istate
 
-  PetscInt :: wat_comp_id, air_comp_id, solute_comp_id
+  PetscInt :: wat_comp_id, air_comp_id, salt_comp_id
   PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
   PetscReal :: qsrc(realization%option%nflowdof)
@@ -754,7 +754,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
     !hdp - Debugging purposes
     !write(option%io_buffer,'("cell id: ",i7)') natural_id
     !call PrintMsg(option)
-      if (option%nflowdof == 3) then
+      if (.not. general_salt) then
         call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                                   gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                   global_auxvars(ghosted_id), &
@@ -763,7 +763,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                     patch%cc_id(ghosted_id))%ptr, &
                                   natural_id, &
                                   option)
-      elseif (option%nflowdof == 4) then
+      elseif (general_salt) then
         call GeneralAuxVarCompute4(xx_loc_p(ghosted_start:ghosted_end), &
                                   gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                   global_auxvars(ghosted_id), &
@@ -774,7 +774,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                   option)
       endif
     if (update_state) then
-      if (option%nflowdof == 3) then
+      if (.not. general_salt) then
         call GeneralAuxVarUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
                                       gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                       global_auxvars(ghosted_id), &
@@ -783,7 +783,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                         patch%cc_id(ghosted_id))%ptr, &
                                       natural_id, &  ! for debugging
                                       option)
-      elseif (option%nflowdof == 4) then
+      elseif (general_salt) then
         call GeneralAuxVarUpdateState4(xx_loc_p(ghosted_start:ghosted_end), &
                                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                        global_auxvars(ghosted_id), &
@@ -946,7 +946,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       endif
       ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = GENERAL_UPDATE_FOR_BOUNDARY
-      if (option%nflowdof == 3) then
+      if (.not. general_salt) then
         call GeneralAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
                                   global_auxvars_bc(sum_connection), &
                                   material_auxvars(ghosted_id), &
@@ -954,7 +954,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                     patch%cc_id(ghosted_id))%ptr, &
                                   natural_id, &
                                   option)
-      elseif (option%nflowdof == 4) then
+      elseif (general_salt) then
         call GeneralAuxVarCompute4(xxbc,gen_auxvars_bc(sum_connection), &
                                   global_auxvars_bc(sum_connection), &
                                   material_auxvars(ghosted_id), &
@@ -966,14 +966,14 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       if (update_state_bc) then
         ! update state and update aux var; this could result in two update to
         ! the aux var as update state updates if the state changes
-        if (option%nflowdof == 3) then
+        if (.not. general_salt) then
           call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
                                        global_auxvars_bc(sum_connection), &
                                        material_auxvars(ghosted_id), &
                                        patch%characteristic_curves_array( &
                                          patch%cc_id(ghosted_id))%ptr, &
                                        natural_id,option)
-        elseif (option%nflowdof == 4) then
+        elseif (general_salt) then
            call GeneralAuxVarUpdateState4(xxbc,gen_auxvars_bc(sum_connection), &
                                         global_auxvars_bc(sum_connection), &
                                         material_auxvars(ghosted_id), &
@@ -988,7 +988,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
-  solute_comp_id = option%solute_id
+  salt_comp_id = option%salt_id
 
   source_sink => patch%source_sink_list%first
   sum_connection = 0
@@ -1032,7 +1032,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       endif
 
       ! Check if porosity is set if 4 dof
-      if (option%nflowdof == 4 .and. general_soluble_matrix) then
+      if (general_salt .and. general_soluble_matrix) then
         ! if (associated(source_sink%flow_condition%general%porosity)) then
         !   gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity = &
         !     source_sink%flow_condition%general%effective_porosity%dataset%rarray(1)
@@ -1045,9 +1045,9 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                      liquid_phase:option%gas_phase))
       xxss(2) = 5.d-1
       xxss(3) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
-      if (option%nflowdof == 4 .and..not. general_soluble_matrix) then
-        xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%xmol(option%solute_id,option%liquid_phase)
-      elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+      if (general_salt .and..not. general_soluble_matrix) then
+        xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%xmol(option%salt_id,option%liquid_phase)
+      elseif (general_salt .and. general_soluble_matrix) then
         xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity
       endif
 
@@ -1065,17 +1065,17 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           dabs(qsrc(air_comp_id)) > 0.d0) then
         global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       elseif (dabs(qsrc(wat_comp_id)) > 0.d0) then
-        if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+        if (general_salt .and. .not. general_soluble_matrix) then
           global_auxvars_ss(sum_connection)%istate = LIQUID_STATE
-        elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+        elseif (general_salt .and. general_soluble_matrix) then
           global_auxvars_ss(sum_connection)%istate = LP_STATE
         endif
       elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
         global_auxvars_ss(sum_connection)%istate = GAS_STATE
       else
-        if (option%nflowdof == 4 .and. .not. general_soluble_matrix) then
+        if (general_salt .and. .not. general_soluble_matrix) then
           global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
-        elseif (option%nflowdof == 4 .and. general_soluble_matrix) then
+        elseif (general_salt .and. general_soluble_matrix) then
           global_auxvars_ss(sum_connection)%istate = LGP_STATE
         endif
       endif
@@ -1176,7 +1176,7 @@ subroutine GeneralUpdateFixedAccum(realization)
     ! GENERAL_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = GENERAL_UPDATE_FOR_FIXED_ACCUM
 
-    if (option%nflowdof == 3) then
+    if (.not. general_salt) then
       call GeneralAuxVarCompute(xx_p(local_start:local_end), &
                                 gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                 global_auxvars(ghosted_id), &
@@ -1185,7 +1185,7 @@ subroutine GeneralUpdateFixedAccum(realization)
                                   patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
-    elseif (option%nflowdof == 4) then
+    elseif (general_salt) then
       call GeneralAuxVarCompute4(xx_p(local_start:local_end), &
                                 gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                 global_auxvars(ghosted_id), &
@@ -1500,11 +1500,11 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        if (option%nflowdof == 3) then
+        if (.not. general_salt) then
           global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
             global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - &
             Res(1:2)
-        elseif (option%nflowdof == 4) then
+        elseif (general_salt) then
            global_auxvars_bc(sum_connection)%mass_balance_delta(1:3,1) = &
              global_auxvars_bc(sum_connection)%mass_balance_delta(1:3,1) - &
              (Res(1:3))!,Res(4)/)
@@ -1571,11 +1571,11 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        if (option%nflowdof == 4) then
+        if (general_salt) then
           global_auxvars_ss(sum_connection)%mass_balance_delta(1:3,1) = &
             global_auxvars_ss(sum_connection)%mass_balance_delta(1:3,1) - &
             (Res(1:3))!,Res(4)/)
-        elseif (option%nflowdof == 3) then
+        elseif (.not. general_salt) then
           global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
             global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
             Res(1:2)
@@ -1760,7 +1760,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
       if (patch%imat(ghosted_id) <= 0) cycle
       natural_id = grid%nG2A(ghosted_id)
-      if (option%nflowdof == 4) then
+      if (general_salt) then
         call GeneralAuxVarPerturb4(gen_auxvars(:,ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    material_auxvars(ghosted_id), &
@@ -2253,12 +2253,12 @@ subroutine GeneralSetPlotVariables(realization,list)
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 LIQUID_MOLE_FRACTION, &
                                 realization%option%water_id)
-    if (realization%option%nflowdof == 4) then
+    if (general_salt) then
       name = 'X_s^l'
       units = ''
       call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                    LIQUID_MOLE_FRACTION, &
-                                   realization%option%solute_id)
+                                   realization%option%salt_id)
     endif
 
     name = 'X_g^g'

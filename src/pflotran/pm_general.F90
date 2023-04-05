@@ -186,7 +186,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
     option%energy_id = 3
   elseif (option%nflowdof == 4) then
     option%nflowspec = 3
-    option%solute_id = 3
+    option%salt_id = 3
     option%energy_id = 4
     option%nphase = 3
     option%precipitate_phase = 3
@@ -216,7 +216,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   allocate(pm%converged_cell(option%nflowdof,general_max_states,MAX_INDEX))
   allocate(pm%converged_real(option%nflowdof,general_max_states,MAX_INDEX))
 
-  if (option%nflowdof == 3) then
+  if (optioN%nflowdof == 3) then
     rel_update_inf_tol = &
       reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
                pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
@@ -319,7 +319,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   lid = option%liquid_phase
   gid = option%gas_phase
   eid = option%energy_id
-  sid = option%solute_id
+  sid = option%salt_id
 
   error_string = 'General Options'
 
@@ -409,10 +409,6 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_compute_surface_tension = PETSC_TRUE
       case('VAPOR_PRESSURE_KELVIN')
         general_kelvin_equation = PETSC_TRUE
-      case('NUMBER_OF_EQUATIONS')
-        call InputReadInt(input,option,tempint)
-        option%nflowdof = tempint
-        call InputErrorMsg(input,option,keyword,error_string)
       case('SOLUBLE_MATRIX')
         general_soluble_matrix = PETSC_TRUE
       case('UPDATE_PERMEABILITY')
@@ -423,7 +419,9 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'solute',error_string)
         call GeneralAuxSetSolute(word,option)
+        general_salt = PETSC_TRUE
         general_set_solute = PETSC_TRUE
+        option%nflowdof = FOUR_INTEGER
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
@@ -474,7 +472,7 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
   lid = option%liquid_phase
   gid = option%gas_phase
   eid = option%energy_id
-  sid = option%solute_id
+  sid = option%salt_id
 
   error_string = 'GENERAL Newton Solver'
 
@@ -1409,15 +1407,15 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
        'LGP State   ']
     dof_string = &
     reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ',&
-             'Solute Fraction  ',&
+             'Salt Fraction    ',&
              'Gas Pressure     ','Air Mole Fraction','Temperature      ',&
-             'Solute Fraction  ',&
+             'Salt Fraction    ',&
              'Gas Pressure     ','Gas Saturation   ','Temperature      ',&
-             'Solute Fraction  ',&
+             'Salt Fraction    ',&
              'Liquid Pressure  ','Air Mole Fraction','Temperature      ',&
-             'Solute Fraction  ',&
+             'Salt Fraction    ',&
              'Liquid Pressure  ','Air Mole Fraction','Temperature      ',&
-             'Solute Fraction  ',&
+             'Salt Fraction    ',&
              'Gas Pressure     ','Air Pressure     ','Temperature      ',&
              'Precipitate Sat. ',&
              'Gas Pressure     ','Gas Saturation   ','Temperature      ',&
@@ -1544,7 +1542,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                    trim(state_string(istate)) // ', Energy'
                 elseif (idof == 4) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
-                   trim(state_string(istate)) // ', Solute Mass'
+                   trim(state_string(istate)) // ', Salt Mass'
                 endif
               else
                 string = '   ' // trim(tol_string(itol)) // ', ' // &

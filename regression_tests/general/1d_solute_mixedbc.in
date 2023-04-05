@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        NUMBER_OF_EQUATIONS 4
         SOLUTE SALT
       /
     /
@@ -75,7 +74,7 @@ GRID
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
-  SOLUTE_DIFFUSION_COEFFICIENT 1.D-9
+  SALT_DIFFUSION_COEFFICIENT 1.D-9
 /
 
 #=========================== material properties ==============================
@@ -181,12 +180,12 @@ FLOW_CONDITION initial
   TYPE
     LIQUID_PRESSURE DIRICHLET
     MOLE_FRACTION DIRICHLET
-    SOLUTE_FRACTION DIRICHLET
+    SALT_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
   LIQUID_PRESSURE 111325.d0
   MOLE_FRACTION 1.d-10
-  SOLUTE_FRACTION 1.d-4
+  SALT_FRACTION 1.d-4
   TEMPERATURE 25.d0
 /
 
@@ -195,12 +194,12 @@ FLOW_CONDITION inlet
     LIQUID_FLUX NEUMANN
     GAS_FLUX NEUMANN
     ENERGY_FLUX NEUMANN
-    SOLUTE_FRACTION DIRICHLET
+    SALT_FRACTION DIRICHLET
   /
   LIQUID_FLUX 0.d0 m/y
   GAS_FLUX 0.d0 m/y
   ENERGY_FLUX 0.d0 MW/m^2
-  SOLUTE_FRACTION 1.D-3
+  SALT_FRACTION 1.D-3
 /
 
 #=========================== condition couplers ===============================
