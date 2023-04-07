@@ -12,8 +12,8 @@ module Strata_module
 
   private
 
-  PetscInt, parameter, public :: SET_MATERIAL_ID_BOTTOM_UP = 1
-  PetscInt, parameter, public :: SET_MATERIAL_ID_TOP_DOWN = 2
+  PetscInt, parameter, public :: SET_MATERIAL_IDS_BELOW_SURFACE = 1
+  PetscInt, parameter, public :: SET_MATERIAL_IDS_ABOVE_SURFACE = 2
 
   type, public :: strata_type
     PetscInt :: id                                       ! id of strata
@@ -210,10 +210,10 @@ subroutine StrataRead(strata,input,option)
       case('SURFACE_DATASET')
         call InputReadWord(input,option,strata%dataset_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'dataset name','STRATA')
-      case('SET_MATERIAL_ID_BOTTOM_UP')
-        strata%dataset_mat_id_direction = SET_MATERIAL_ID_BOTTOM_UP
-      case('SET_MATERIAL_ID_TOP_DOWN')
-        strata%dataset_mat_id_direction = SET_MATERIAL_ID_TOP_DOWN
+      case('SET_MATERIAL_IDS_BELOW_SURFACE')
+        strata%dataset_mat_id_direction = SET_MATERIAL_IDS_BELOW_SURFACE
+      case('SET_MATERIAL_IDS_ABOVE_SURFACE')
+        strata%dataset_mat_id_direction = SET_MATERIAL_IDS_ABOVE_SURFACE
       case('REALIZATION_DEPENDENT')
         strata%realization_dependent = PETSC_TRUE
       case('START_TIME')
@@ -245,7 +245,8 @@ subroutine StrataRead(strata,input,option)
       Uninitialized(strata%dataset_mat_id_direction)) then
     option%io_buffer = 'Please set the direction for setting material IDs &
       &using the XY gridded dataset "' // trim(strata%dataset_name) // &
-      '" in STRATA: SET_MATERIAL_ID_BOTTOM_UP or SET_MATERIAL_ID_TOP_DOWN'
+      '" in STRATA: SET_MATERIAL_IDS_BELOW_SURFACE or &
+      &SET_MATERIAL_IDS_ABOVE_SURFACE'
     call PrintErrMsg(option)
   endif
 

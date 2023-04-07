@@ -232,12 +232,12 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
                             grid%x(ghosted_id),grid%y(ghosted_id), &
                             UNINITIALIZED_DOUBLE,elevation,option)
               if (strata%dataset_mat_id_direction == &
-                  SET_MATERIAL_ID_BOTTOM_UP) then
+                  SET_MATERIAL_IDS_BELOW_SURFACE) then
                 ! sets the material id if the cell center is below elevation
                 if (grid%z(ghosted_id) > elevation) then
                   set_material_id = PETSC_FALSE
                 endif
-              else
+              else ! SET_MATERIAL_IDS_ABOVE_SURFACE
                 ! sets the material id if the cell center is above elevation
                 if (grid%z(ghosted_id) < elevation) then
                   set_material_id = PETSC_FALSE
