@@ -1,0 +1,39 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE strata_surface_dataset.txt
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  INACTIVE
+  MATERIAL soil1
+  REGION all
+END
+
+STRATA
+  MATERIAL soil1
+  SURFACE_DATASET layer1_dataset
+  SET_MATERIAL_ID_BOTTOM_UP
+END
+
+STRATA
+  MATERIAL soil2
+  SURFACE_DATASET layer2_dataset
+  SET_MATERIAL_ID_BOTTOM_UP
+END
+
+STRATA
+  MATERIAL soil3
+  SURFACE_DATASET layer3_dataset
+  SET_MATERIAL_ID_BOTTOM_UP
+END
+
+END_SUBSURFACE

@@ -1,0 +1,30 @@
+-- DISCRETE: Kludged material ids for VisIt --
+      Max:         2
+      Min:         0
+     Mean:   6.6862500000000E-01
+     1059:         0
+     2781:         0
+     5349:         2
+     9241:         2
+    15201:         1
+        1:         0
+     8001:         2
+-- DISCRETE: Material ID --
+      Max:         2
+      Min:         0
+     Mean:   6.6862500000000E-01
+     1059:         0
+     2781:         0
+     5349:         2
+     9241:         2
+    15201:         1
+        1:         0
+     8001:         2
+-- SOLUTION: Flow --
+   Time (seconds):   0.0000000000000E+00
+   Time Steps:            0
+   Newton Iterations:            0
+   Linear Solver Iterations:            0
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.1943485110880E+07
+   Residual 2-Norm:   0.0000000000000E+00
