@@ -2910,8 +2910,15 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
   enddo
 
   if (error_found) then
-    option%io_buffer = 'Cells founds that violate right hand rule.'
-    call PrintErrMsgByRank(option)
+    if (face_type == QUAD_FACE_TYPE) then
+      option%io_buffer = 'Cells founds that violate right hand rule.' // &
+        ' Keyword: "RIGHT_HAND_RULE_CHECK_ALL" can be used under' // &
+        ' GRID to check all combinatons of points on face'
+      call PrintErrMsgByRank(option)
+    else
+      option%io_buffer = 'Cells founds that violate right hand rule.'
+      call PrintErrMsgByRank(option)
+    endif      
   endif
 
 end subroutine UGridEnsureRightHandRule
