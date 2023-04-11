@@ -126,8 +126,6 @@ subroutine RTSetup(realization)
   class(reaction_rt_type), pointer :: reaction
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  type(coupler_type), pointer :: initial_condition
-  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(reactive_transport_param_type), pointer :: rt_parameter
@@ -142,8 +140,6 @@ subroutine RTSetup(realization)
   patch => realization%patch
   grid => patch%grid
   reaction => realization%reaction
-  sec_tran_constraint => &
-    TranConstraintRTCast(realization%sec_transport_constraint)
 
   patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase)
   rt_parameter => patch%aux%RT%rt_parameter
@@ -240,7 +236,6 @@ subroutine RTSetup(realization)
 
   if (option%use_sc) then
     patch%aux%SC_RT => SecondaryAuxRTCreate(option)
-    initial_condition => patch%initial_condition_list%first
     ! Must allocate to ngmax since rt_sec_transport_vars()%epsilon is used in
     ! the calculation of effective diffusion coef in fluxes.
     allocate(rt_sec_transport_vars(grid%ngmax))
@@ -254,8 +249,7 @@ subroutine RTSetup(realization)
                                  material_auxvars(ghosted_id)% &
                                    soil_properties(half_matrix_width_index), &
                                  rt_sec_transport_vars(ghosted_id), &
-                                 reaction,initial_condition, &
-                                 sec_tran_constraint,option)
+                                 reaction,option)
     enddo
     patch%aux%SC_RT%sec_transport_vars => rt_sec_transport_vars
     do i = 1, size(patch%material_property_array)
@@ -533,7 +527,12 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
     if (patch%imat(ghosted_id) <= 0) cycle
     liquid_saturation = global_auxvars(ghosted_id)%sat(1)
     porosity = material_auxvars(ghosted_id)%porosity
-    volume = material_auxvars(ghosted_id)%volume ! [m^3]
+    if (option%use_sc) then
+      volume = material_auxvars(ghosted_id)%volume * &
+          material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+    else
+      volume = material_auxvars(ghosted_id)%volume ! [m^3]
+    endif
 
     ! aqueous (sum_mol_aq)
     sum_mol_aq(1:naqcomp) = sum_mol_aq(1:naqcomp) + &

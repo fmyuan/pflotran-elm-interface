@@ -165,6 +165,7 @@ TRANSPORT_CONDITION initial
   CONSTRAINT_LIST
     0.d0 initial
   /
+  SECONDARY_CONSTRAINT sec
 END
 
 TRANSPORT_CONDITION west
@@ -232,15 +233,14 @@ A(aq)  1.E-02  T
 /
 /
 
-#==================== secondary continuum initial constraint ==================
-SECONDARY_CONSTRAINT sec
-CONCENTRATIONS
-A(aq)  0.1  M A(s)
+CONSTRAINT sec
+  CONCENTRATIONS
+    A(aq)  0.1  M A(s)
+  /
+  MINERALS
+  #mineral vol. frac. area
+    A(s)      0.5d5    17.857d2
+  /
 /
-MINERALS
-#mineral vol. frac. area
-A(s)      0.5d5    17.857d2
-/
-/
-
+  
 END_SUBSURFACE

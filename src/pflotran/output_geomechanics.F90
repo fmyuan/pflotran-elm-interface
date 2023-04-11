@@ -593,7 +593,7 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
   PetscReal, allocatable :: values(:)
   PetscErrorCode :: ierr
 
-  if (option%comm%mycommsize == 1) then
+  if (option%comm%size == 1) then
     call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     select case(direction)
       case(X_COORDINATE)
@@ -872,13 +872,13 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
       real_data(1:local_size_mpi-iend) = real_data(iend+1:local_size_mpi)
       num_in_array = local_size_mpi-iend
     endif
-    do iproc_mpi=1,option%comm%mycommsize-1
+    do iproc_mpi=1,option%comm%size-1
 #ifdef HANDSHAKE
       if (option%io_handshake_buffer_size > 0 .and. &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm, &
+                       option%comm%io_rank,option%mycomm, &
                        ierr);CHKERRQ(ierr)
       endif
 #endif
@@ -943,7 +943,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
       call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                     option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
 #endif
     ! Print the remaining values, if they exist
@@ -971,24 +971,24 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%comm%io_rank, &
                        option%mycomm,ierr);CHKERRQ(ierr)
       enddo
     endif
 #endif
     if (datatype == TECPLOT_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
-                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    option%comm%io_rank,local_size_mpi,option%mycomm, &
                     ierr);CHKERRQ(ierr)
     else
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    option%comm%io_rank,local_size_mpi,option%mycomm, &
                     ierr);CHKERRQ(ierr)
     endif
 #ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%comm%io_rank, &
                        option%mycomm,ierr);CHKERRQ(ierr)
         if (max_proc < 0) exit
       enddo
@@ -1202,8 +1202,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
 
-  integer(HID_T) :: prop_id
-
   type(geomech_grid_type), pointer :: grid
   type(geomech_discretization_type), pointer :: geomech_discretization
   type(geomech_field_type), pointer :: field
@@ -1220,7 +1218,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
   PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscMPIInt :: hdf5_err
   PetscBool :: first
   PetscErrorCode :: ierr
 
@@ -1271,22 +1268,12 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   grid => patch%geomech_grid
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-
   if (.not.first) then
-    call h5eset_auto_f(OFF,hdf5_err)
-    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
-    if (hdf5_err /= 0) first = PETSC_TRUE
-    call h5eset_auto_f(ON,hdf5_err)
+    call HDF5FileTryOpen(filename,file_id,first,option)
   endif
   if (first) then
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
-                     H5P_DEFAULT_F,prop_id)
+    call HDF5FileOpen(filename,file_id,PETSC_TRUE,option)
   endif
-  call h5pclose_f(prop_id,hdf5_err)
 
   if (first) then
     option%io_buffer = ' --> creating hdf5 geomech output file: ' // &
@@ -1300,9 +1287,9 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   if (first) then
     ! create a group for the coordinates data set
     string = "Domain"
-    call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(file_id,string,grp_id,option)
     call WriteHDF5CoordinatesXDMFGeomech(geomech_realization,option,grp_id)
-    call h5gclose_f(grp_id,hdf5_err)
+    call HDF5GroupClose(grp_id,option)
   endif
 
   if (OptionIsIORank(option)) then
@@ -1325,13 +1312,8 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   endif
   string = trim(string3) // ' ' // trim(string)
 
-  call h5eset_auto_f(OFF,hdf5_err)
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
+  call HDF5GroupOpenOrCreate(file_id,string,grp_id,option)
   group_name=string
-  if (hdf5_err /= 0) then
-    call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-  endif
-  call h5eset_auto_f(ON,hdf5_err)
 
   ! write out data sets
   call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
@@ -1409,9 +1391,8 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
-  call h5gclose_f(grp_id,hdf5_err)
-
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
+  call HDF5FileClose(file_id,option)
 
   if (OptionIsIORank(option)) then
     call OutputXMFFooterGeomech(OUTPUT_UNIT)
@@ -1434,6 +1415,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   !
 
   use hdf5
+  use HDF5_Aux_module
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use Geomechanics_Realization_class
   use Geomechanics_Grid_module
@@ -1569,7 +1551,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   deallocate(double_array)
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
@@ -1708,7 +1690,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   deallocate(int_array)
   call h5pclose_f(prop_id,hdf5_err)
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
   call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)

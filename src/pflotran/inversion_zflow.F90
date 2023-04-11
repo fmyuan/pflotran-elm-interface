@@ -2611,7 +2611,6 @@ subroutine InversionZFlowCheckpoint(this)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   character(len=MAXSTRINGLENGTH) :: string
-  integer :: hdf5_err
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
@@ -2624,7 +2623,7 @@ subroutine InversionZFlowCheckpoint(this)
   call HDF5AttributeWrite(file_id,H5T_NATIVE_INTEGER,'Last Iteration', &
                           this%iteration,this%driver)
   string = 'Iteration ' // trim(StringWrite(this%iteration))
-  call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5GroupCreate(file_id,string,grp_id,this%driver)
   call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
                           this%phi_total,this%driver)
   call HDF5AttributeWrite(grp_id,H5T_NATIVE_DOUBLE,'Phi Data', &
@@ -2641,8 +2640,8 @@ subroutine InversionZFlowCheckpoint(this)
   call HDF5DatasetWrite(grp_id,'Measurement Values',vec_ptr,this%driver)
   call VecRestoreArrayReadF90(this%inversion_aux%measurement_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
-  call h5gclose_f(grp_id,hdf5_err)
-  call HDF5FileClose(file_id)
+  call HDF5GroupClose(grp_id,this%driver)
+  call HDF5FileClose(file_id,this%driver)
 
 end subroutine InversionZFlowCheckpoint
 
@@ -2666,7 +2665,6 @@ subroutine InversionZFlowRestartReadData(this)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   character(len=MAXSTRINGLENGTH) :: string
-  integer :: hdf5_err
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
@@ -2685,7 +2683,7 @@ subroutine InversionZFlowRestartReadData(this)
                          this%phi_data_0,this%driver)
   call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Model', &
                          this%phi_model_0,this%driver)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,this%driver)
   string = 'Iteration ' // trim(StringWrite(this%restart_iteration))
   call HDF5GroupOpen(file_id,string,grp_id,this%driver)
   call HDF5AttributeRead(grp_id,H5T_NATIVE_DOUBLE,'Phi Total', &
@@ -2699,8 +2697,8 @@ subroutine InversionZFlowRestartReadData(this)
   call HDF5DatasetRead(grp_id,'Parameter Values',vec_ptr,this%driver)
   call VecRestoreArrayReadF90(this%inversion_aux%parameter_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
-  call h5gclose_f(grp_id,hdf5_err)
-  call HDF5FileClose(file_id)
+  call HDF5GroupClose(grp_id,this%driver)
+  call HDF5FileClose(file_id,this%driver)
 
   call InvAuxCopyParamToFromParamVec(this%inversion_aux, &
                                      INVAUX_PARAMETER_VALUE, &

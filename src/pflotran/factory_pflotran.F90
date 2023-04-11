@@ -29,6 +29,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   use HDF5_Aux_module
   use Input_Aux_module
   use Option_module
+  use Print_module
   use Logging_module
   use String_module
   use Simulation_Base_class
@@ -41,10 +42,12 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
   PetscBool :: option_found
+  PetscBool :: temp_bool
 
   call CommInitPetsc(driver%comm)
   option => OptionCreate()
   call OptionSetDriver(option,driver)
+  call OptionSetComm(option,driver%comm)
 
   ! check for non-default input filename
   driver%input_filename = 'pflotran.in'
@@ -56,12 +59,18 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
                                  input_prefix_option_found,option)
 
   string = '-screen_output'
-  call InputGetCommandLineTruth(string,driver%print_to_screen, &
+  call InputGetCommandLineTruth(string,temp_bool, &
                                 option_found,option)
+  if (option_found) then
+    call PrintSetPrintToScreenFlag(driver%print_flags,temp_bool)
+  endif
 
   string = '-file_output'
-  call InputGetCommandLineTruth(string,driver%print_to_file, &
+  call InputGetCommandLineTruth(string,temp_bool, &
                                 option_found,option)
+  if (option_found) then
+    call PrintSetPrintToFileFlag(driver%print_flags,temp_bool)
+  endif
 
   if (pflotranin_option_found .and. input_prefix_option_found) then
     call driver%PrintErrMsg('Cannot specify both "-pflotranin" and &
@@ -116,6 +125,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
 
   option => OptionCreate()
   call OptionSetDriver(option,driver)
+  call OptionSetComm(option,driver%comm)
   input => InputCreate(IN_UNIT,driver%input_filename,option)
   string = 'SIMULATION_TYPE'
   call InputFindStringInFile(input,option,string)
@@ -131,7 +141,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
     case('MULTIREALIZATION','INVERSE')
       driver%fid_out = DRIVER_OUT_UNIT
       string = trim(driver%global_prefix) // '.out'
-      if (driver%comm%myrank == driver%io_rank .and. driver%print_to_file) then
+      if (driver%PrintToFile()) then
         open(driver%fid_out, file=string, action="write", status="unknown")
       endif
   end select
@@ -195,7 +205,7 @@ subroutine FactoryPFLOTRANFinalize(driver)
 
   PetscErrorCode :: ierr
 
-  call MPI_Barrier(driver%comm%global_comm,ierr);CHKERRQ(ierr)
+  call MPI_Barrier(driver%comm%communicator,ierr);CHKERRQ(ierr)
   call LoggingDestroy() ! can only be called once, even for mult-realization
   call HDF5Finalize()
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS,'-options_left','no', &

@@ -1404,7 +1404,7 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   PetscErrorCode :: ierr
 
 #if !defined(PETSC_HAVE_MUMPS)
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     if (solver%ksp_type == KSPPREONLY .and. solver%pc_type == PCLU) then
       option%io_buffer = 'Direct solver (KSPPREONLY + PCLU) not ' // &
         ' supported when running in parallel.  Switch to SOLVER ITERATIVE.'

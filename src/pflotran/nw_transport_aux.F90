@@ -125,6 +125,7 @@ module NW_Transport_Aux_module
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
     type(nwt_params_type), pointer :: params !TODO(jenn): move to nw_transport_type
     type(nwt_print_type), pointer :: print_what
+    PetscReal :: UNSPECIFIED_MMD
     PetscBool :: reaction_nw_on
     PetscBool :: truncate_output
     PetscBool :: screening_run
@@ -275,6 +276,7 @@ function NWTReactionCreate()
   reaction_nw%reaction_nw_on = PETSC_TRUE
   reaction_nw%truncate_output = PETSC_FALSE
   reaction_nw%screening_run = PETSC_FALSE
+  reaction_nw%UNSPECIFIED_MMD = 100.d0  ! mnrl_molar_density placeholder
 
   nullify(reaction_nw%params)
   allocate(reaction_nw%params)
@@ -443,12 +445,6 @@ subroutine NWTRead(reaction_nw,input,option)
         endif
         if (Uninitialized(new_species%solubility_limit)) then
           option%io_buffer = 'SOLUBILITY not provided in ' // &
-                             trim(error_string) // ' block for SPECIES ' // &
-                             trim(new_species%name) // '.'
-          call PrintErrMsg(option)
-        endif
-        if (Uninitialized(new_species%mnrl_molar_density)) then
-          option%io_buffer = 'PRECIPITATE_MOLAR_DENSITY not provided in ' // &
                              trim(error_string) // ' block for SPECIES ' // &
                              trim(new_species%name) // '.'
           call PrintErrMsg(option)
@@ -901,7 +897,7 @@ function NWTSpeciesCreate()
   species%id = 0
   species%name = ''
   species%molar_weight = UNINITIALIZED_DOUBLE
-  species%mnrl_molar_density = UNINITIALIZED_DOUBLE
+  species%mnrl_molar_density = 100.d0
   species%solubility_limit = UNINITIALIZED_DOUBLE
   species%ele_kd = UNINITIALIZED_DOUBLE
   species%radioactive = PETSC_FALSE
