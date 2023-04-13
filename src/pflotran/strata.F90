@@ -91,7 +91,7 @@ function StrataCreate1()
   strata%start_time = UNINITIALIZED_DOUBLE
   strata%final_time = UNINITIALIZED_DOUBLE
   strata%well = PETSC_FALSE
-  strata%dataset_mat_id_direction = UNINITIALIZED_INTEGER
+  strata%dataset_mat_id_direction = SET_MATERIAL_IDS_BELOW_SURFACE
   nullify(strata%region)
   nullify(strata%material_property)
   nullify(strata%next)
@@ -240,15 +240,6 @@ subroutine StrataRead(strata,input,option)
 
   enddo
   call InputPopBlock(input,option)
-
-  if (len_trim(strata%dataset_name) > 0 .and. &
-      Uninitialized(strata%dataset_mat_id_direction)) then
-    option%io_buffer = 'Please set the direction for setting material IDs &
-      &using the XY gridded dataset "' // trim(strata%dataset_name) // &
-      '" in STRATA: SET_MATERIAL_IDS_BELOW_SURFACE or &
-      &SET_MATERIAL_IDS_ABOVE_SURFACE'
-    call PrintErrMsg(option)
-  endif
 
   if (len_trim(strata%region_name) == 0 .and. &
       len_trim(strata%dataset_name) == 0 .and. &
