@@ -328,6 +328,10 @@ module PM_Well_class
     ! convergence criterial
     PetscReal :: itol_abs_update
     PetscReal :: itol_rel_update
+    ! time tracking
+    PetscReal :: tran_time
+    ! time step cut flag for quasi-implicit coupling
+    PetscBool :: cut_ts_flag
   end type well_soln_tran_type
 
   type :: well_comm_type
@@ -370,6 +374,7 @@ module PM_Well_class
     PetscBool :: well_on          !Turns the well on, regardless of other checks
     PetscInt :: well_force_ts_cut
     PetscBool :: update_for_wippflo_qi_coupling
+    PetscBool :: tran_QI_coupling
     PetscBool :: print_well
     PetscBool :: print_output
   contains
@@ -393,7 +398,8 @@ module PM_Well_class
             PMWellReadPass2, &
             PMWellUpdateRates, &
             PMWellCalcResidualValues, &
-            PMWellCalcJacobianValues
+            PMWellCalcJacobianValues, &
+            PMWellQISolveTran
 
   contains
 
@@ -461,6 +467,7 @@ function PMWellCreate()
   this%well_on = PETSC_TRUE
   this%well_force_ts_cut = 0
   this%update_for_wippflo_qi_coupling = PETSC_FALSE
+  this%tran_QI_coupling = PETSC_FALSE
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
 
@@ -590,6 +597,7 @@ subroutine PMWellTranCreate(this)
   this%tran_soln%itol_scaled_res = 1.0d-4
   this%tran_soln%n_steps = 0
   this%tran_soln%n_newton = 0
+  this%tran_soln%cut_ts_flag = PETSC_FALSE
 
   this%tran_soln%itol_abs_update = 1.0d0
   this%tran_soln%itol_rel_update = 1.0d-1
@@ -3060,6 +3068,8 @@ subroutine PMWellInitializeTimestep(this)
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
 
+  if (this%tran_QI_coupling) return
+
   if (initialize_well_tran) then
     ! enter here if its the very first timestep
     call PMWellInitializeWellTran(this)
@@ -3611,7 +3621,10 @@ subroutine PMWellFinalizeTimestep(this)
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
 
-  call PMWellUpdateReservoirSrcSink(this)
+  call PMWellUpdateReservoirSrcSinkFlow(this)
+  if (this%transport) then
+    call PMWellUpdateReservoirSrcSinkTran(this)
+  endif
 
   call PMWellUpdateMass(this)
 
@@ -3625,7 +3638,7 @@ end subroutine PMWellFinalizeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateReservoirSrcSink(this)
+subroutine PMWellUpdateReservoirSrcSinkFlow(this)
 !
 ! Author: Jennifer M. Frederick
 ! Date: 12/21/2021
@@ -3640,7 +3653,6 @@ subroutine PMWellUpdateReservoirSrcSink(this)
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: srcsink_name
-  type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   type(coupler_type), pointer :: source_sink
   PetscInt :: k, ghosted_id
   PetscReal :: well_delta_liq, well_delta_gas
@@ -3705,19 +3717,6 @@ subroutine PMWellUpdateReservoirSrcSink(this)
         this%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
              well%Qg = this%well%gas%Q(k)
 
-        if (this%transport) then
-          ! access nwt_auxvar from the tran_condition
-          nwt_auxvar => &
-            TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
-                                       cur_constraint_coupler)
-          ! modify nwt_auxvar from the tran_condition
-          nwt_auxvar%aqueous_eq_conc(:) = this%well%aqueous_conc(:,k)
-
-          this%realization%patch%aux%nwt%auxvars(ghosted_id)%&
-            well%AQ_conc(1:this%nspecies) = this%well%aqueous_conc(:,k)
-          this%realization%patch%aux%nwt%auxvars(ghosted_id)%&
-            well%AQ_mass(1:this%nspecies) = this%well%aqueous_mass(:,k)
-        endif
         exit
       endif
 
@@ -3726,7 +3725,76 @@ subroutine PMWellUpdateReservoirSrcSink(this)
 
   enddo
 
-end subroutine PMWellUpdateReservoirSrcSink
+end subroutine PMWellUpdateReservoirSrcSinkFlow
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateReservoirSrcSinkTran(this)
+!
+! Author: Jennifer M. Frederick
+! Date: 12/21/2021
+
+  use Coupler_module
+  use NW_Transport_Aux_module
+  use Transport_Constraint_NWT_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: srcsink_name
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvar
+  type(coupler_type), pointer :: source_sink
+  PetscInt :: k, ghosted_id
+  PetscReal :: density_avg
+
+  if (this%well_comm%comm == MPI_COMM_NULL) return
+
+  do k = 1,this%well_grid%nsegments
+    if (this%well_grid%h_rank_id(k) /= this%option%myrank) cycle
+
+    write(string,'(I0.6)') k
+    srcsink_name = 'well_segment_' // trim(string)
+
+    ghosted_id = this%well_grid%h_ghosted_id(k)
+
+    ! [kg-liq/m3]
+    density_avg = 0.5d0 * (this%well%liq%rho(k) + this%reservoir%rho_l(k))
+
+    source_sink => this%realization%patch%source_sink_list%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      if (trim(srcsink_name) == trim(source_sink%name)) then
+        source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+            -1.d0 * this%well%liq%Q(k) ! [kmol/s]
+        source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+            -1.d0 * this%well%gas%Q(k) ! [kmol/s]
+        source_sink%flow_condition%well%aux_real(1) = density_avg ! kg/m3
+
+        ! access nwt_auxvar from the tran_condition
+        nwt_auxvar => &
+          TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
+                                     cur_constraint_coupler)
+
+        ! modify nwt_auxvar from the tran_condition
+        nwt_auxvar%aqueous_eq_conc(:) = this%well%aqueous_conc(:,k)
+
+        this%realization%patch%aux%nwt%auxvars(ghosted_id)%&
+          well%AQ_conc(1:this%nspecies) = this%well%aqueous_conc(:,k)
+        this%realization%patch%aux%nwt%auxvars(ghosted_id)%&
+          well%AQ_mass(1:this%nspecies) = this%well%aqueous_mass(:,k)
+
+        exit
+      endif
+
+      source_sink => source_sink%next
+    enddo
+
+  enddo
+
+end subroutine PMWellUpdateReservoirSrcSinkTran
 
 ! ************************************************************************** !
 
@@ -4028,6 +4096,36 @@ subroutine PMWellResidualFlow(this)
   end select
 
 end subroutine PMWellResidualFlow
+
+! ************************************************************************** !
+
+subroutine PMWellQISolveTran(this)
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 03/13/2023
+
+  implicit none
+
+  class(pm_well_type) :: this
+  
+  PetscErrorCode :: ierr
+
+  ierr = 0
+  this%tran_soln%cut_ts_flag = PETSC_FALSE
+
+  if (initialize_well_tran) then
+    call PMWellInitializeWellTran(this)
+  endif
+
+  call PMWellUpdatePropertiesTran(this)
+  this%dt_tran = this%option%tran_dt 
+
+  call PMWellSolveTran(this,ierr)
+  if (this%tran_soln%cut_ts_flag) return
+
+  call PMWellUpdateReservoirSrcSinkTran(this)
+
+end subroutine PMWellQISolveTran
 
 ! ************************************************************************** !
 
@@ -4831,19 +4929,7 @@ subroutine PMWellPreSolve(this)
 
   class(pm_well_type) :: this
 
-  ! pseudo-code for solve order of operations:
-  !
-  ! call pm%solve()
-  !   call pm_well%pmwellsolve()
-  !     call pm_well%pmwellsolveflow()
-  !       call pm_well%pmwellpresolveflow()
-  !       flow solve occurs
-  !       call pm_well%pmwellpostsolveflow()
-  !     call pm_well%pmwellsolvetran()       ---> if (transport)
-  !       call pm_well%pmwellpresolvetran()  ---> if (transport)
-  !       transport solve occurs             ---> if (transport)
-  !       call pm_well%pmwellpostsolvetran() ---> if (transport)
-
+  ! placeholder
 
 end subroutine PMWellPreSolve
 
@@ -4881,7 +4967,7 @@ end subroutine PMWellPreSolveFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellPreSolveTran(this)
+subroutine PMWellPreSolveTran(this,master_dt)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
@@ -4889,6 +4975,7 @@ subroutine PMWellPreSolveTran(this)
   implicit none
 
   class(pm_well_type) :: this
+  PetscReal :: master_dt
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time, cur_time_converted
@@ -4897,14 +4984,27 @@ subroutine PMWellPreSolveTran(this)
   this%tran_soln%not_converged = PETSC_TRUE
   this%tran_soln%converged = PETSC_FALSE
 
-  cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt_tran
+  if (this%tran_QI_coupling) then
+    cur_time = this%option%time + this%cumulative_dt_tran
+  else
+    cur_time = this%option%time - master_dt + this%cumulative_dt_tran
+  endif
+  this%tran_soln%tran_time = cur_time
+
   cur_time_converted = cur_time/this%output_option%tconv
   dt_converted = this%dt_tran/this%output_option%tconv
 
-  write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+  if (this%tran_QI_coupling) then
+    write(out_string,'(" WELL TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," ",a4)') &
-                   (this%tran_soln%n_steps+1),cur_time_converted, &
-                   dt_converted,this%output_option%tunit
+                     (this%tran_soln%n_steps+1),cur_time_converted, &
+                     dt_converted,this%output_option%tunit
+  else
+    write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+                     1pe12.5," ",a4)') &
+                     (this%tran_soln%n_steps+1),cur_time_converted, &
+                     dt_converted,this%output_option%tunit
+  endif
   call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveTran
@@ -4923,9 +5023,17 @@ subroutine PMWellSolve(this,time,ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscReal :: curr_time
+  PetscBool :: cut_ts_flag
+  PetscReal :: curr_time, curr_time_converted
 
-  curr_time = this%option%time - this%option%flow_dt
+  if (this%update_for_wippflo_qi_coupling .and. &
+      this%tran_QI_coupling) then
+    curr_time = this%option%time + this%cumulative_dt_tran
+  else
+    curr_time = this%option%time - this%option%flow_dt
+  endif
+
+  curr_time_converted = curr_time/this%output_option%tconv
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs if the solve
            ! routines are not entered, either due to an inactive well or due
@@ -4933,7 +5041,8 @@ subroutine PMWellSolve(this,time,ierr)
 
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
-    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
+    write(out_string,'(" Inactive.    Time =",1pe12.5," ",a4)') &
+          curr_time_converted,this%output_option%tunit
     call PrintMsg(this%option,out_string)
     return
   endif
@@ -4942,13 +5051,21 @@ subroutine PMWellSolve(this,time,ierr)
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    this%update_for_wippflo_qi_coupling = PETSC_FALSE
+    !this%update_for_wippflo_qi_coupling = PETSC_FALSE
   else 
     call PMWellSolveFlow(this,ierr)
   endif
 
   if (this%transport) then
-    call PMWellSolveTran(this,time,ierr)
+    if (this%tran_QI_coupling) then
+      write(out_string,'(" TRAN Step          Quasi-implicit wellbore flow &
+                      &coupling is being used.")')
+      call PrintMsg(this%option,out_string)
+      this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+      this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+    else 
+      call PMWellSolveTran(this,ierr)
+    endif
   endif
 
 end subroutine PMWellSolve
@@ -5341,7 +5458,7 @@ end subroutine PMWellSolveFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellSolveTran(this,time,ierr)
+subroutine PMWellSolveTran(this,ierr)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
@@ -5349,13 +5466,13 @@ subroutine PMWellSolveTran(this,time,ierr)
   implicit none
 
   class(pm_well_type) :: this
-  PetscReal :: time
   PetscErrorCode :: ierr
 
   type(well_soln_tran_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
   PetscReal :: res_fixed(this%tran_soln%ndof*this%well_grid%nsegments)
+  PetscReal :: master_dt
   PetscInt :: n_iter, ts_cut
   PetscInt :: istart, iend
   PetscInt :: k
@@ -5373,19 +5490,27 @@ subroutine PMWellSolveTran(this,time,ierr)
   soln%converged = PETSC_FALSE
   soln%not_converged = PETSC_TRUE
 
-  do while (this%cumulative_dt_tran < this%realization%option%flow_dt)
+  if (this%tran_QI_coupling) then
+    master_dt = this%option%tran_dt
+  else
+    master_dt = this%realization%option%flow_dt
+  endif
 
-    call PMWellPreSolveTran(this)
+  do while (this%cumulative_dt_tran < master_dt)
+
+    call PMWellPreSolveTran(this,master_dt)
 
     n_iter = 0
 
     do while (soln%not_converged)
       if (n_iter > (soln%max_iter-1)) then
         soln%cut_timestep = PETSC_TRUE
+        soln%cut_ts_flag = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
         call PrintMsg(this%option,out_string)
         call PMWellCutTimestepTran(this)
+        if (this%tran_QI_coupling) return 
         n_iter = 0
         ts_cut = ts_cut + 1
         exit
@@ -5419,14 +5544,13 @@ subroutine PMWellSolveTran(this,time,ierr)
     if (soln%converged) then
       this%dt_tran = soln%ts_ramp_factor * this%dt_tran
     endif 
-    if (this%dt_tran > this%realization%option%flow_dt) then
-      this%dt_tran = this%realization%option%flow_dt
+    if (this%dt_tran > master_dt) then
+      this%dt_tran = master_dt
     endif
 
-    ! if this next time step will overstep flow_dt, then correct it
-    if (this%cumulative_dt_tran + this%dt_tran > &
-        this%realization%option%flow_dt) then
-      this%dt_tran = this%realization%option%flow_dt - this%cumulative_dt_tran
+    ! if this next time step will overstep master_dt, then correct it
+    if (this%cumulative_dt_tran + this%dt_tran > master_dt) then
+      this%dt_tran = master_dt - this%cumulative_dt_tran
     endif
 
     soln%n_steps = soln%n_steps + 1
@@ -5562,11 +5686,16 @@ subroutine PMWellCutTimestepTran(this)
 
   class(pm_well_type) :: this
 
-  this%dt_tran = this%dt_tran / this%tran_soln%ts_cut_factor
-  this%dt_tran = max(this%dt_tran,this%min_dt_tran)
   this%well%aqueous_mass = this%tran_soln%prev_soln%aqueous_mass
   this%well%aqueous_conc = this%tran_soln%prev_soln%aqueous_conc
   call PMWellUpdatePropertiesTran(this)
+
+  if (this%tran_QI_coupling) then
+    return
+  else
+    this%dt_tran = this%dt_tran / this%tran_soln%ts_cut_factor
+    this%dt_tran = max(this%dt_tran,this%min_dt_tran)
+  endif
 
 end subroutine PMWellCutTimestepTran
 
@@ -5737,15 +5866,24 @@ subroutine PMWellPostSolveTran(this)
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscReal :: cur_time_converted
+  PetscReal :: cur_time, cur_time_converted
 
-  cur_time_converted = this%option%time/this%output_option%tconv
+  if (this%tran_QI_coupling) then
+    cur_time = this%option%time + this%option%tran_dt
+  else 
+    cur_time = this%option%time
+  endif 
+  this%tran_soln%tran_time = cur_time
 
-  WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," &
-                    &",a4,"Total Newton Its =",i8)') &
-                    cur_time_converted,this%output_option%tunit, &
-                    this%flow_soln%n_newton
-  call PrintMsg(this%option,out_string)
+  cur_time_converted = cur_time/this%output_option%tconv
+
+  if (.not. this%tran_QI_coupling) then
+    WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," &
+                      &",a4,"Total Newton Its =",i8)') &
+                      cur_time_converted,this%output_option%tunit, &
+                      this%tran_soln%n_newton
+    call PrintMsg(this%option,out_string)
+  endif
 
 end subroutine PMWellPostSolveTran
 
@@ -5967,7 +6105,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
           max_relative_update_p,max_relative_update_s
     call PrintMsg(this%option,out_string)
     if (flow_soln%converged) then
-      out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
+      out_string = ' WELL FLOW Solution converged!  ---> ' // trim(rsn_string)
       call PrintMsg(this%option,out_string)
     endif
   endif
@@ -6079,18 +6217,21 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     rsn_string = trim(rsn_string) // ' rU '
   endif
 
-  write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  rU:",es10.2)') &
-        n_iter,max_absolute_residual,max_scaled_residual,max_update
+  write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", &
+        es10.3)') n_iter,max_absolute_residual,max_scaled_residual, &
+        max_update
   call PrintMsg(this%option,out_string)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     soln%converged = PETSC_TRUE
     soln%not_converged = PETSC_FALSE
-    out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
+    out_string = ' WELL TRAN Solution converged!  ---> ' // trim(rsn_string)
     call PrintMsg(this%option,out_string)
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
-    soln%prev_soln%aqueous_conc = this%well%aqueous_conc
-    soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+    if (.not. this%tran_QI_coupling) then
+      soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+      soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+    endif
   else
     soln%converged = PETSC_FALSE
     soln%not_converged = PETSC_TRUE

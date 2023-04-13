@@ -254,6 +254,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_Well_class
   use PM_Material_Transform_class
   use PM_WIPP_Flow_class
+  use PM_NWT_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
   use Option_module
@@ -316,14 +317,26 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCMaterialTrans(simulation,pm_material_transform, &
                                         'PMC3MaterialTransform',input)
   endif
+  if (associated(pm_well)) then
+    call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
+    select type(pm_flow)
+      class is (pm_wippflo_type)
+        ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
+        pm_flow%pmwell_ptr => pm_well
+    end select
+    if (associated(pm_tran)) then
+      select type(pm_tran)
+        class is (pm_nwt_type)
+          ! Set up PM NWT linkages for quasi-implicit coupling option
+          pm_tran%pmwell_ptr => pm_well
+      end select
+    endif
+  endif
+
   if (associated(pm_flow)) then
     select type(pm_flow)
       class is (pm_wippflo_type)
         call FactSubLinkAddPMWippSrcSink(realization,pm_flow,input)
-        if (associated(pm_well)) then
-          call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell', &
-                                     pm_flow,input)
-        endif
     end select
   endif
 
@@ -930,19 +943,17 @@ end subroutine FactSubLinkAddPMCMaterialTrans
 
 ! ************************************************************************** !
 
-subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,pm_wippflo, &
-                                 input)
+subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   !
   ! Adds a well PMC
   !
   ! Author: Jennifer M. Frederick, SNL
-  ! Date: 08/04/2021
+  ! Date: 03/13/2023
   !
 
   use PMC_Base_class
   use PMC_Third_Party_class
   use PM_Well_class
-  use PM_WIPP_Flow_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -953,7 +964,6 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,pm_wippflo, &
   class(simulation_subsurface_type) :: simulation
   class(pm_well_type), pointer :: pm_well
   character(len=*) :: pmc_name
-  class(pm_wippflo_type) :: pm_wippflo
   type(input_type), pointer :: input
 
   class(pmc_third_party_type), pointer :: pmc_well
@@ -1006,12 +1016,6 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,pm_wippflo, &
          simulation%flow_process_model_coupler%CastToBase(), &
          pmc_dummy,PM_APPEND)
   endif
-  
-  ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
-  pm_wippflo%pmwell_ptr => pm_well
-
-  ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
-  pm_wippflo%pmwell_ptr => pm_well
 
 end subroutine FactSubLinkAddPMCWell
 

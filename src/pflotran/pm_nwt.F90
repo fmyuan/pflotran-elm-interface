@@ -10,6 +10,7 @@ module PM_NWT_class
   use PFLOTRAN_Constants_module
   use NW_Transport_module
   use NW_Transport_Aux_module
+  use PM_Well_class
 
   implicit none
 
@@ -33,6 +34,7 @@ module PM_NWT_class
     PetscBool :: check_update
     PetscBool :: verbose_newton
     PetscBool :: scaling_cut_dt
+    PetscBool :: well_cut_dt
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -73,6 +75,7 @@ module PM_NWT_class
     class(communicator_type), pointer :: comm1
     type(pm_nwt_controls_type), pointer :: controls
     type(pm_nwt_params_type), pointer :: params
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: Setup => PMNWTSetup
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -132,6 +135,7 @@ function PMNWTCreate()
   nullify(nwt_pm%output_option)
   nullify(nwt_pm%realization)
   nullify(nwt_pm%comm1)
+  nullify(nwt_pm%pmwell_ptr)
 
   allocate(nwt_pm%controls)
   nullify(nwt_pm%controls%itol_rel_update)
@@ -147,6 +151,7 @@ function PMNWTCreate()
   nwt_pm%controls%max_newton_iterations = 10
   nwt_pm%controls%dt_cut = 0.5d0
   nwt_pm%controls%scaling_cut_dt = PETSC_FALSE
+  nwt_pm%controls%well_cut_dt = PETSC_FALSE
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   nwt_pm%controls%check_post_convergence = PETSC_FALSE
   nwt_pm%controls%check_update = PETSC_TRUE
@@ -236,11 +241,17 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+    !-----------------------------------------------------------
 !geh: yet to be implemented
 !      case('TEMPERATURE_DEPENDENT_DIFFUSION')
 !        this%temperature_dependent_diffusion = PETSC_TRUE
+    !-----------------------------------------------------------
+      case('QUASI_IMPLICIT_WELLBORE_COUPLING') 
+        nwt_well_quasi_imp_coupled = PETSC_TRUE
+    !-----------------------------------------------------------
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
+    !-----------------------------------------------------------
     end select
   enddo
   call InputPopBlock(input,option)
@@ -764,6 +775,10 @@ subroutine PMNWTInitializeRun(this)
 
   call PMNWTUpdateSolution(this)
 
+  if (associated(this%pmwell_ptr) .and. nwt_well_quasi_imp_coupled) then
+    this%pmwell_ptr%tran_QI_coupling = PETSC_TRUE
+  endif
+
 end subroutine PMNWTInitializeRun
 
 ! ************************************************************************** !
@@ -949,6 +964,8 @@ subroutine PMNWTInitializeTimestep(this)
   call NWTInitializeTimestep(this%realization)
   ! This will eventually call NWTEqDissPrecipSorb() so that the aqueous,
   ! precipitated, and sorbed amounts of the total bulk mass get adjusted.
+
+  this%controls%well_cut_dt = PETSC_FALSE
 
 end subroutine PMNWTInitializeTimestep
 
@@ -1142,7 +1159,10 @@ subroutine PMNWTResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
-  call NWTResidual(snes,xx,r,this%realization,ierr)
+  call NWTResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
+  if (this%pmwell_ptr%tran_soln%cut_ts_flag) then
+    this%controls%well_cut_dt = PETSC_TRUE
+  endif
 
 end subroutine PMNWTResidual
 
@@ -1161,6 +1181,8 @@ subroutine PMNWTJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
+
+  if (this%controls%well_cut_dt) return
 
   call NWTJacobian(snes,xx,A,B,this%realization,ierr)
 
@@ -1238,6 +1260,13 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     option%convergence = CONVERGENCE_CUT_TIMESTEP
     reason = -88
     this%controls%scaling_cut_dt = PETSC_FALSE
+    return
+  endif
+
+  ! check if well model requires ts cut
+  if (this%controls%well_cut_dt) then
+    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    reason = -88
     return
   endif
 
@@ -1638,6 +1667,15 @@ subroutine PMNWTTimeCut(this)
 
   ! copy previous solution back to current solution
   call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
+
+  if (nwt_well_quasi_imp_coupled .and. &
+      .not. this%controls%well_cut_dt) then
+    this%pmwell_ptr%well%aqueous_mass = &
+      this%pmwell_ptr%tran_soln%prev_soln%aqueous_mass
+    this%pmwell_ptr%well%aqueous_conc =  &
+      this%pmwell_ptr%tran_soln%prev_soln%aqueous_conc
+  endif
+  this%controls%well_cut_dt = PETSC_FALSE
 
   ! set densities and saturations to t+dt
   if (realization%option%nflowdof > 0) then
