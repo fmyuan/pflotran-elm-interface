@@ -967,8 +967,10 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     write_xdmf = PETSC_TRUE
   endif
 
-  if (first .and. output_option%print_explicit_primal_grid) then
-    call HDF5FileOpen(domain_filename_path,new_file_id,PETSC_TRUE,option)
+  if (OptionIsIORank(option) .and. &
+      first .and. output_option%print_explicit_primal_grid) then
+    call HDF5FileOpen(domain_filename_path,new_file_id,PETSC_TRUE,&
+                      PETSC_FALSE,option)
     ! create a group for the coordinates data set
     string = "Domain"
     call HDF5GroupCreate(new_file_id,string,new_grp_id,option)
