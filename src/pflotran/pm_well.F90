@@ -4994,10 +4994,17 @@ subroutine PMWellPreSolveTran(this,master_dt)
   cur_time_converted = cur_time/this%output_option%tconv
   dt_converted = this%dt_tran/this%output_option%tconv
 
-  write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+  if (this%tran_QI_coupling) then
+    write(out_string,'(" WELL TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," ",a4)') &
-                   (this%tran_soln%n_steps+1),cur_time_converted, &
-                   dt_converted,this%output_option%tunit
+                     (this%tran_soln%n_steps+1),cur_time_converted, &
+                     dt_converted,this%output_option%tunit
+  else
+    write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+                     1pe12.5," ",a4)') &
+                     (this%tran_soln%n_steps+1),cur_time_converted, &
+                     dt_converted,this%output_option%tunit
+  endif
   call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveTran
@@ -5870,11 +5877,13 @@ subroutine PMWellPostSolveTran(this)
 
   cur_time_converted = cur_time/this%output_option%tconv
 
-  WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," &
-                    &",a4,"Total Newton Its =",i8)') &
-                    cur_time_converted,this%output_option%tunit, &
-                    this%tran_soln%n_newton
-  call PrintMsg(this%option,out_string)
+  if (.not. this%tran_QI_coupling) then
+    WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," &
+                      &",a4,"Total Newton Its =",i8)') &
+                      cur_time_converted,this%output_option%tunit, &
+                      this%tran_soln%n_newton
+    call PrintMsg(this%option,out_string)
+  endif
 
 end subroutine PMWellPostSolveTran
 
@@ -6096,7 +6105,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
           max_relative_update_p,max_relative_update_s
     call PrintMsg(this%option,out_string)
     if (flow_soln%converged) then
-      out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
+      out_string = ' WELL FLOW Solution converged!  ---> ' // trim(rsn_string)
       call PrintMsg(this%option,out_string)
     endif
   endif
@@ -6208,14 +6217,15 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     rsn_string = trim(rsn_string) // ' rU '
   endif
 
-  write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  rU:",es10.2)') &
-        n_iter,max_absolute_residual,max_scaled_residual,max_update
+  write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", &
+        es10.3)') n_iter,max_absolute_residual,max_scaled_residual, &
+        max_update
   call PrintMsg(this%option,out_string)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     soln%converged = PETSC_TRUE
     soln%not_converged = PETSC_FALSE
-    out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
+    out_string = ' WELL TRAN Solution converged!  ---> ' // trim(rsn_string)
     call PrintMsg(this%option,out_string)
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
     if (.not. this%tran_QI_coupling) then
