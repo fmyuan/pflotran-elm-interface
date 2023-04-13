@@ -5017,9 +5017,16 @@ subroutine PMWellSolve(this,time,ierr)
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscBool :: cut_ts_flag
-  PetscReal :: curr_time
+  PetscReal :: curr_time, curr_time_converted
 
-  curr_time = this%option%time - this%option%flow_dt
+  if (this%update_for_wippflo_qi_coupling .and. &
+      this%tran_QI_coupling) then
+    curr_time = this%option%time + this%cumulative_dt_tran
+  else
+    curr_time = this%option%time - this%option%flow_dt
+  endif
+
+  curr_time_converted = curr_time/this%output_option%tconv
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs if the solve
            ! routines are not entered, either due to an inactive well or due
@@ -5027,7 +5034,8 @@ subroutine PMWellSolve(this,time,ierr)
 
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start)) then
-    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time
+    write(out_string,'(" Inactive.    Time =",1pe12.5," ",a4)') &
+          curr_time_converted,this%output_option%tunit
     call PrintMsg(this%option,out_string)
     return
   endif
@@ -5036,7 +5044,7 @@ subroutine PMWellSolve(this,time,ierr)
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    this%update_for_wippflo_qi_coupling = PETSC_FALSE
+    !this%update_for_wippflo_qi_coupling = PETSC_FALSE
   else 
     call PMWellSolveFlow(this,ierr)
   endif
@@ -5046,6 +5054,8 @@ subroutine PMWellSolve(this,time,ierr)
       write(out_string,'(" TRAN Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
       call PrintMsg(this%option,out_string)
+      this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+      this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
     else 
       call PMWellSolveTran(this,ierr)
     endif
@@ -6208,8 +6218,10 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
     call PrintMsg(this%option,out_string)
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
-    soln%prev_soln%aqueous_conc = this%well%aqueous_conc
-    soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+    if (.not. this%tran_QI_coupling) then
+      soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+      soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+    endif
   else
     soln%converged = PETSC_FALSE
     soln%not_converged = PETSC_TRUE

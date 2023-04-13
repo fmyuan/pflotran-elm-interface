@@ -1264,7 +1264,6 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   if (this%controls%well_cut_dt) then
     option%convergence = CONVERGENCE_CUT_TIMESTEP
     reason = -88
-    this%controls%well_cut_dt = PETSC_FALSE
     return
   endif
 
@@ -1665,6 +1664,15 @@ subroutine PMNWTTimeCut(this)
 
   ! copy previous solution back to current solution
   call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
+
+  if (nwt_well_quasi_imp_coupled .and. &
+      .not. this%controls%well_cut_dt) then
+    this%pmwell_ptr%well%aqueous_mass = &
+      this%pmwell_ptr%tran_soln%prev_soln%aqueous_mass
+    this%pmwell_ptr%well%aqueous_conc =  &
+      this%pmwell_ptr%tran_soln%prev_soln%aqueous_conc
+  endif
+  this%controls%well_cut_dt = PETSC_FALSE
 
   ! set densities and saturations to t+dt
   if (realization%option%nflowdof > 0) then
