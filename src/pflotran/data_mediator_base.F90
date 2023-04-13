@@ -81,7 +81,7 @@ recursive subroutine DataMediatorBaseUpdate(this,data_mediator_vec,option)
 
   class(data_mediator_base_type) :: this
   Vec :: data_mediator_vec
-  type(option_type), pointer :: option
+  type(option_type) :: option
   print *, 'Must extend DataMediatorBaseUpdate.'
   stop
 

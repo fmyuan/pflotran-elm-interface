@@ -111,7 +111,7 @@ subroutine DatasetScreenForNonCellIndexed(datasets,option)
   implicit none
 
   class(dataset_base_type), pointer :: datasets
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   class(dataset_base_type), pointer :: cur_dataset
   class(dataset_base_type), pointer :: prev_dataset
@@ -236,7 +236,7 @@ recursive subroutine DatasetUpdate(dataset,option)
   implicit none
 
   class(dataset_base_type), pointer :: dataset
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   class(dataset_ascii_type), pointer :: dataset_ascii
 
@@ -274,7 +274,7 @@ recursive subroutine DatasetLoad(dataset,option)
   implicit none
 
   class(dataset_base_type), pointer :: dataset
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   class(dataset_global_hdf5_type), pointer :: dataset_global_hdf5
   class(dataset_gridded_hdf5_type), pointer :: dataset_gridded_hdf5
@@ -335,7 +335,7 @@ subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
   class(dataset_base_type), pointer :: dataset_base
   type(time_storage_type), pointer :: default_time_storage
   character(len=MAXSTRINGLENGTH) :: error_string
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: dataset_name
   PetscReal, parameter :: time = 0.d0

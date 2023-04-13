@@ -494,7 +494,7 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
 
   class(timestepper_KSP_type) :: this
   integer(HID_T) :: h5_chk_grp_id
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
@@ -612,7 +612,7 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
 
   class(timestepper_KSP_type) :: this
   integer(HID_T) :: h5_chk_grp_id
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)

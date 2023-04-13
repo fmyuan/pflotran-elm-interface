@@ -241,6 +241,7 @@ module Option_module
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
             OptionIsIORank, &
+            OptionCreatePrintHandler, &
             OptionDestroy
 
 contains

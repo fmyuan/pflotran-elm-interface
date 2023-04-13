@@ -464,7 +464,7 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
 
   type(grid_unstructured_type) :: unstructured_grid
   character(len=MAXSTRINGLENGTH) :: filename
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   type(unstructured_explicit_type), pointer :: explicit_grid
   character(len=MAXSTRINGLENGTH) :: group_name

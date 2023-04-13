@@ -8626,7 +8626,7 @@ subroutine ANNReadH5File(this, option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
@@ -8842,7 +8842,7 @@ subroutine KnnrReadH5File(this, option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
@@ -8928,7 +8928,7 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   integer(HID_T) :: group_id
@@ -8966,7 +8966,7 @@ subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   integer(HID_T) :: group_id

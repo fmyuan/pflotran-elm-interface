@@ -515,7 +515,7 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   character(len=MAXWORDLENGTH), optional, intent(in) :: id_stamp
   character(len=MAXSTRINGLENGTH) :: append_name
   character(len=MAXSTRINGLENGTH) :: string
@@ -553,7 +553,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   implicit none
 
   character(len=MAXSTRINGLENGTH),intent(in) :: filename
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -593,7 +593,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HID_T) :: data_set_id
   integer(HID_T) :: grp_space_id
@@ -677,7 +677,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HID_T) :: data_set_id
   integer(HID_T) :: grp_space_id
@@ -759,7 +759,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HID_T) :: data_set_id
   integer(HID_T) :: grp_space_id
@@ -833,7 +833,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HID_T) :: data_set_id
   integer(HID_T) :: grp_space_id
@@ -901,7 +901,7 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -956,7 +956,7 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name

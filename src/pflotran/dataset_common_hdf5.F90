@@ -246,7 +246,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: dataset_name
   type(time_storage_type), pointer :: time_storage
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   integer(HID_T) :: file_id
   integer(HID_T) :: file_space_id
@@ -412,7 +412,7 @@ function DatasetCommonHDF5Load(this,option)
   PetscBool :: DatasetCommonHDF5Load
 
   class(dataset_common_hdf5_type) :: this
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   PetscBool :: read_due_to_time
   PetscInt :: end_of_buffer
@@ -474,7 +474,7 @@ function DatasetCommonHDF5IsCellIndexed(dataset,option)
   implicit none
 
   class(dataset_common_hdf5_type) :: dataset
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   PetscBool :: DatasetCommonHDF5IsCellIndexed
 

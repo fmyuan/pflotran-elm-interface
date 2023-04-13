@@ -647,7 +647,7 @@ subroutine GeomechConditionUpdate(condition_list,option)
   implicit none
 
   type(geomech_condition_list_type) :: condition_list
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   type(geomech_condition_type), pointer :: condition
   type(geomech_sub_condition_type), pointer :: sub_condition

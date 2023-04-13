@@ -118,7 +118,7 @@ subroutine DatasetGlobalHDF5Load(this,option)
   implicit none
 
   class(dataset_global_hdf5_type) :: this
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   if (.not.associated(this%dm_wrapper)) then
     option%io_buffer = 'dm_wrapper not associated in Global Dataset: ' // &
@@ -170,7 +170,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   implicit none
 
   class(dataset_global_hdf5_type) :: this
-  type(option_type), pointer :: option
+  type(option_type) :: option
   integer(HID_T) :: data_type
 
   integer(HID_T) :: file_id

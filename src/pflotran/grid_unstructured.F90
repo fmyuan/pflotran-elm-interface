@@ -596,7 +596,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   implicit none
 
   type(grid_unstructured_type) :: unstructured_grid
-  type(option_type), pointer :: option
+  type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: group_name
 
@@ -853,7 +853,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
   type(grid_unstructured_type) :: unstructured_grid
   character(len=MAXSTRINGLENGTH) :: filename
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: string

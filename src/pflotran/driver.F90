@@ -30,6 +30,7 @@ module Driver_class
     procedure, public :: PrintToScreen => DriverPrintToScreen
     procedure, public :: PrintToFile => DriverPrintToFile
     procedure, public :: IsIORank => DriverIsIORank
+    procedure, public :: CreatePrintHandler => DriverCreatePrintHandler
   end type driver_type
 
   public :: DriverPrintMessage

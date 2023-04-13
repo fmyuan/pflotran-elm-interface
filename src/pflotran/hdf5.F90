@@ -60,7 +60,7 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_size
@@ -178,7 +178,7 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
 
   character(len=*) :: name
   PetscReal :: array(:)
-  type(option_type), pointer :: option
+  type(option_type) :: option
   PetscInt :: nx_local, ny_local, nz_local
   PetscInt :: nx_global, ny_global, nz_global
   PetscInt :: istart_local, jstart_local, kstart_local
@@ -332,7 +332,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   implicit none
 
   type(grid_type) :: grid
-  type(option_type), pointer :: option
+  type(option_type) :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: dataset_size
@@ -474,7 +474,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
 
   type(discretization_type) :: discretization
   type(grid_type) :: grid
-  type(option_type), pointer :: option
+  type(option_type) :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: dataset_size
@@ -636,7 +636,7 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   PetscBool, intent (out) :: face_ids_exists
   PetscBool, intent (out) :: vert_ids_exists
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -697,7 +697,7 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   type(region_type) :: region
   character(len=MAXSTRINGLENGTH) :: filename
 
@@ -796,13 +796,13 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   implicit none
 
   !class(realization_subsurface_type) :: realization
-  type(option_type), pointer :: option
+  type(option_type) :: option
   type(region_type) :: region
   type(region_sideset_type),pointer :: sideset
   character(len=MAXSTRINGLENGTH) :: filename
 
   ! local
-  !type(option_type), pointer :: option
+  !type(option_type) :: option
   PetscMPIInt :: hdf5_err
   PetscMPIInt :: rank_mpi
   PetscInt :: remainder
@@ -1258,7 +1258,7 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   PetscReal, pointer :: vec_ptr(:)
 
   PetscMPIInt :: rank_mpi
@@ -1394,7 +1394,7 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   PetscReal, pointer :: vec_ptr(:)
 
   PetscMPIInt :: rank_mpi

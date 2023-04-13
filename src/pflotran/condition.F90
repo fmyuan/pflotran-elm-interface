@@ -3620,7 +3620,7 @@ subroutine FlowConditionUpdate(condition_list,option)
   implicit none
 
   type(condition_list_type) :: condition_list
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   type(flow_condition_type), pointer :: condition
   type(flow_sub_condition_type), pointer :: sub_condition

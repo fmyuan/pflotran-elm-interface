@@ -50,7 +50,7 @@ subroutine DataMediatorUpdate(data_mediator_list,vec,option)
 
   class(data_mediator_base_type), pointer :: data_mediator_list
   Vec :: vec
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   class(data_mediator_base_type), pointer :: cur_data_mediator
   PetscErrorCode :: ierr
