@@ -857,7 +857,7 @@ subroutine PMWellSetup(this)
 
   if (well_grid%match_reservoir) then
   !---------------------------------------------------------------------------
-    if (option%comm%global_commsize > 1) then
+    if (option%driver%comm%size > 1) then
       option%io_buffer = 'WELLBORE_MODEL WELL_GRID,MATCH_RESERVOIR option &
         &is not supported yet for parallel simulations. Use & 
         &WELL_GRID,NUMBER_OF_SEGMENTS option or WELL_GRID,&
@@ -1261,10 +1261,10 @@ subroutine PMWellSetup(this)
 
   this%well_comm%petsc_rank_list = h_rank_id_unique(1:k)
   this%well_comm%commsize = k 
-  call MPI_Group_incl(option%comm%global_group,this%well_comm%commsize, &
+  call MPI_Group_incl(option%driver%comm%group,this%well_comm%commsize, &
                       this%well_comm%petsc_rank_list,this%well_comm%group, &
                       ierr);CHKERRQ(ierr)
-  call MPI_Comm_create(option%comm%global_comm,this%well_comm%group, &
+  call MPI_Comm_create(option%driver%comm%communicator,this%well_comm%group, &
                        this%well_comm%comm,ierr);CHKERRQ(ierr)
 
   if (this%well_comm%comm /= MPI_COMM_NULL) then

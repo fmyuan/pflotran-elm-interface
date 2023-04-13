@@ -1290,7 +1290,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   ! model approach
   if (wippflo_well_quasi_imp_coupled) then
     if (associated(pmwell_ptr)) then
-      call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
+      call PMWellUpdateRates(pmwell_ptr,-1,ierr)
       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
         call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
       endif
