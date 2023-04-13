@@ -766,7 +766,7 @@ function PMWFMechanismFMDMSurrogateCreate(option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
 ! LOCAL VARIABLES:
 ! ================
@@ -1320,7 +1320,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
 ! ----------------------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
-  type(option_type), pointer :: option
+  type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
@@ -8762,7 +8762,7 @@ subroutine KnnrInit(this,option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
   PetscInt :: i_d, d
   PetscInt :: data_array_shape(2)

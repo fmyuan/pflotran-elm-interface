@@ -652,11 +652,12 @@ function HDF5GroupExists3(filename,group_name,print_handler)
   ! Author: Glenn Hammond
   ! Date: 03/26/2012
   !
-  implicit none
+  use Communicator_Aux_module
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: group_name
   type(print_handler_type) :: print_handler
+  type(comm_type) :: comm
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
@@ -668,7 +669,8 @@ function HDF5GroupExists3(filename,group_name,print_handler)
   PetscBool :: HDF5GroupExists3
 
   ! open the file
-  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',print_handler)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'', &
+                            print_handler,comm)
 
   call PrintMessage(print_handler,'Testing group: ' // trim(group_name))
   ! I turn off error messaging since if the group does not exist, an error
@@ -782,7 +784,7 @@ function HDF5DatasetExists1(filename,group_name,dataset_name,option)
 
   print_handler => OptionCreatePrintHandler(option)
   HDF5DatasetExists1 = HDF5DatasetExists(filename,group_name,dataset_name, &
-                                         print_handler)
+                                         print_handler,option%comm)
   call PrintDestroyHandler(print_handler)
 
 end function HDF5DatasetExists1
@@ -809,26 +811,28 @@ function HDF5DatasetExists2(filename,group_name,dataset_name,driver)
 
   print_handler => driver%CreatePrintHandler()
   HDF5DatasetExists2 = HDF5DatasetExists(filename,group_name,dataset_name, &
-                                         print_handler)
+                                         print_handler,driver%comm)
   call PrintDestroyHandler(print_handler)
 
 end function HDF5DatasetExists2
 
 ! ************************************************************************** !
 
-function HDF5DatasetExists3(filename,group_name,dataset_name,print_handler)
+function HDF5DatasetExists3(filename,group_name,dataset_name, &
+                            print_handler,comm)
   !
   ! Returns true if a dataset exists
   !
   ! Author: Gautam Bisht
   ! Date: 04/30/2015
   !
-  implicit none
+  use Communicator_Aux_module
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: group_name
   character(len=MAXWORDLENGTH) :: dataset_name
   type(print_handler_type) :: print_handler
+  type(comm_type) :: comm
 
   character(len=MAXWORDLENGTH) :: group_name_local
   integer(HID_T) :: file_id
@@ -847,7 +851,8 @@ function HDF5DatasetExists3(filename,group_name,dataset_name,print_handler)
     group_name_local = trim(group_name) // "/" // CHAR(0)
   endif
 
-  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',print_handler)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'', &
+                            print_handler,comm)
 
   ! I turn off error messaging since if the group does not exist, an error
   ! will be printed, but the user does not need to see this.
@@ -2230,15 +2235,19 @@ subroutine HDF5FileOpen1(filename,file_id,create,option)
   ! Author: Glenn Hammond
   ! Date: 03/02/23
   !
+  use Communicator_Aux_module
+
   character(len=*) :: filename  ! must be of variable length
   integer(HID_T) :: file_id
   PetscBool :: create
   type(option_type) :: option
 
   type(print_handler_type), pointer :: print_handler
+  type(comm_type), pointer :: comm
 
   print_handler => OptionCreatePrintHandler(option)
-  call HDF5FileOpen(filename,file_id,create,print_handler)
+  comm => option%comm
+  call HDF5FileOpen(filename,file_id,create,print_handler,comm)
   call PrintDestroyHandler(print_handler)
 
 end subroutine HDF5FileOpen1
@@ -2253,22 +2262,26 @@ subroutine HDF5FileOpen2(filename,file_id,create,driver)
   ! Author: Glenn Hammond
   ! Date: 03/02/23
   !
+  use Communicator_Aux_module
+
   character(len=*) :: filename  ! must be of variable length
   integer(HID_T) :: file_id
   PetscBool :: create
   class(driver_type) :: driver
 
   type(print_handler_type), pointer :: print_handler
+  type(comm_type), pointer :: comm
 
   print_handler => driver%CreatePrintHandler()
-  call HDF5FileOpen(filename,file_id,create,print_handler)
+  comm => driver%comm
+  call HDF5FileOpen(filename,file_id,create,print_handler,comm)
   call PrintDestroyHandler(print_handler)
 
 end subroutine HDF5FileOpen2
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpen3(filename,file_id,create,print_handler)
+subroutine HDF5FileOpen3(filename,file_id,create,print_handler,comm)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -2282,6 +2295,7 @@ subroutine HDF5FileOpen3(filename,file_id,create,print_handler)
   integer(HID_T) :: file_id
   PetscBool :: create
   type(print_handler_type) :: print_handler
+  type(comm_type) :: comm
 
   integer(HID_T) :: prop_id
   PetscMPIInt, parameter :: ON=1, OFF=0
@@ -2291,7 +2305,7 @@ subroutine HDF5FileOpen3(filename,file_id,create,print_handler)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,print_handler%comm%communicator, &
+  call h5pset_fapl_mpio_f(prop_id,comm%communicator, &
                           MPI_INFO_NULL,hdf5_err)
 #endif
   hdf5_err = 0
@@ -2341,7 +2355,8 @@ subroutine HDF5FileOpenReadOnly1(filename,file_id,is_collective, &
 
   print_handler => OptionCreatePrintHandler(option)
   call HDF5FileOpenReadOnly(filename,file_id,is_collective, &
-                            error_string,print_handler,hdfopen_err)
+                            error_string,print_handler,option%comm, &
+                            hdfopen_err)
   call PrintDestroyHandler(print_handler)
 
 end subroutine HDF5FileOpenReadOnly1
@@ -2368,7 +2383,8 @@ subroutine HDF5FileOpenReadOnly2(filename,file_id,is_collective, &
 
   print_handler => driver%CreatePrintHandler()
   call HDF5FileOpenReadOnly(filename,file_id,is_collective, &
-                            error_string,print_handler,hdfopen_err)
+                            error_string,print_handler,driver%comm, &
+                            hdfopen_err)
   call PrintDestroyHandler(print_handler)
 
 end subroutine HDF5FileOpenReadOnly2
@@ -2376,7 +2392,8 @@ end subroutine HDF5FileOpenReadOnly2
 ! ************************************************************************** !
 
 subroutine HDF5FileOpenReadOnly3(filename,file_id,is_collective, &
-                                 error_string,print_handler,hdfopen_err)
+                                 error_string,print_handler,comm, &
+                                 hdfopen_err)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -2384,11 +2401,14 @@ subroutine HDF5FileOpenReadOnly3(filename,file_id,is_collective, &
   ! Author: Glenn Hammond
   ! Date: 06/22/15
   !
+  use Communicator_Aux_module
+
   character(len=*) :: filename  ! must be of variable length
   integer(HID_T) :: file_id
   PetscBool :: is_collective
   character(len=*) :: error_string
   type(print_handler_type) :: print_handler
+  type(comm_type) :: comm
   integer, optional :: hdfopen_err
 
   integer(HID_T) :: prop_id
@@ -2399,7 +2419,7 @@ subroutine HDF5FileOpenReadOnly3(filename,file_id,is_collective, &
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   if (is_collective) then
-    call h5pset_fapl_mpio_f(prop_id,print_handler%comm%communicator, &
+    call h5pset_fapl_mpio_f(prop_id,comm%communicator, &
                             MPI_INFO_NULL,hdf5_err)
   endif
 #endif
