@@ -9,10 +9,26 @@ module Print_module
 
   private
 
+  type, public :: print_handler_type
+    type(print_flags_type), pointer :: print_flags
+    type(comm_type), pointer :: comm
+    PetscInt :: fid
+    PetscInt :: exit_code
+    PetscBool :: advance
+    PetscBool :: blocking
+    PetscBool :: byrank
+  end type print_handler_type
+
   type, public :: print_flags_type
     PetscBool :: print_to_screen
     PetscBool :: print_to_file
   end type print_flags_type
+
+  interface PrintCreateHandler
+    module procedure :: PrintCreateHandler1
+    module procedure :: PrintCreateHandler2
+  end interface PrintCreateHandler
+
 
   interface PrintCreateFlags
     module procedure :: PrintCreateFlags1
@@ -24,7 +40,18 @@ module Print_module
     module procedure :: PrintInitFlags2
   end interface PrintInitFlags
 
-  public :: PrintCreateFlags, &
+  interface PrintErrorMessage
+    module procedure :: PrintErrorMessage1
+    module procedure :: PrintErrorMessage2
+  end interface PrintErrorMessage
+
+  interface PrintMessage
+    module procedure :: PrintMessage1
+    module procedure :: PrintMessage2
+  end interface PrintMessage
+
+  public :: PrintCreateHandler, &
+            PrintCreateFlags, &
             PrintInitFlags, &
             PrintToScreen, &
             PrintToFile, &
@@ -32,12 +59,74 @@ module Print_module
             PrintSetPrintToFileFlag, &
             PrintMessage, &
             PrintErrorMessage, &
-            PrintDestroyFlags
-
+            PrintDestroyFlags, &
+            PrintDestroyHandler
 
 contains
 
 ! ************************************************************************** !
+
+function PrintCreateHandler1()
+  !
+  ! Creates the print flags object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+
+  type(print_handler_type), pointer :: PrintCreateHandler1
+
+  type(print_handler_type), pointer :: handler
+
+  allocate(handler)
+  handler%fid = UNINITIALIZED_INTEGER
+  handler%exit_code = UNINITIALIZED_INTEGER
+  handler%advance = PETSC_FALSE
+  handler%blocking = PETSC_FALSE
+  handler%byrank = PETSC_FALSE
+  nullify(handler%print_flags)
+  nullify(handler%comm)
+
+  PrintCreateHandler1 => handler
+
+end function PrintCreateHandler1
+
+! ************************************************************************** !
+
+function PrintCreateHandler2(print_flags,comm,fid,exit_code,advance, &
+                             blocking,byrank)
+  !
+  ! Creates the print flags object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+
+  type(print_flags_type), pointer :: print_flags
+  type(comm_type), pointer :: comm
+  PetscInt :: fid
+  PetscInt :: exit_code
+  PetscBool :: advance
+  PetscBool :: blocking
+  PetscBool :: byrank
+
+  type(print_handler_type), pointer :: PrintCreateHandler2
+
+  type(print_handler_type), pointer :: handler
+
+  handler => PrintCreateHandler()
+  handler%print_flags => print_flags
+  handler%comm => comm
+  handler%fid = fid
+  handler%exit_code = exit_code
+  handler%advance = advance
+  handler%blocking = blocking
+  handler%byrank = byrank
+
+  PrintCreateHandler2 => handler
+
+end function PrintCreateHandler2
+
+! ************************************************************************** !
+
 function PrintCreateFlags1()
   !
   ! Creates the print flags object
@@ -173,8 +262,30 @@ end subroutine PrintSetPrintToFileFlag
 
 ! ************************************************************************** !
 
-subroutine PrintErrorMessage(print_flags,comm,fid,string,exit_code, &
-                             blocking,byrank)
+subroutine PrintErrorMessage1(print_handler,string)
+  !
+  ! Prints an error message
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+
+  type(print_handler_type) :: print_handler
+  character(len=*) :: string
+
+  call PrintErrorMessage(print_handler%print_flags, &
+                         print_handler%comm, &
+                         print_handler%fid, &
+                         string, &
+                         print_handler%exit_code, &
+                         print_handler%blocking, &
+                         print_handler%byrank)
+
+end subroutine PrintErrorMessage1
+
+! ************************************************************************** !
+
+subroutine PrintErrorMessage2(print_flags,comm,fid,string,exit_code, &
+                              blocking,byrank)
   !
   ! Prints an error message
   !
@@ -227,11 +338,32 @@ subroutine PrintErrorMessage(print_flags,comm,fid,string,exit_code, &
     end select
   endif
 
-end subroutine PrintErrorMessage
+end subroutine PrintErrorMessage2
 
 ! ************************************************************************** !
 
-subroutine PrintMessage(print_flags,comm,fid,string,advance_,byrank)
+subroutine PrintMessage1(print_handler,string)
+  !
+  ! Prints a message
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+
+  type(print_handler_type) :: print_handler
+  character(len=*) :: string
+
+  call PrintMessage(print_handler%print_flags, &
+                    print_handler%comm, &
+                    print_handler%fid, &
+                    string, &
+                    print_handler%advance, &
+                    print_handler%byrank)
+
+end subroutine PrintMessage1
+
+! ************************************************************************** !
+
+subroutine PrintMessage2(print_flags,comm,fid,string,advance_,byrank)
   !
   ! Prints a message to the screen and/or file
   !
@@ -282,7 +414,25 @@ subroutine PrintMessage(print_flags,comm,fid,string,advance_,byrank)
     endif
   endif
 
-end subroutine PrintMessage
+end subroutine PrintMessage2
+
+! ************************************************************************** !
+
+subroutine PrintDestroyHandler(print_handler)
+  !
+  ! Destroys the print flags object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+
+  type(print_handler_type), pointer :: print_handler
+
+  if (.not.associated(print_handler)) return
+
+  deallocate(print_handler)
+  nullify(print_handler)
+
+end subroutine PrintDestroyHandler
 
 ! ************************************************************************** !
 

@@ -175,6 +175,34 @@ end function DriverIsIORank
 
 ! ************************************************************************** !
 
+function DriverCreatePrintHandler(driver)
+  !
+  ! Creates a print handler with flags for file and screen io
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+  !
+  use Print_module
+
+  implicit none
+
+  class(driver_type) :: driver
+
+  type(print_handler_type), pointer :: DriverCreatePrintHandler
+
+  DriverCreatePrintHandler => &
+    PrintCreateHandler(driver%print_flags, &
+                       driver%comm, &
+                       driver%fid_out, &
+                       driver%exit_code, &
+                       PETSC_TRUE, & ! advance
+                       PETSC_TRUE, & ! blocking
+                       PETSC_FALSE)  ! byrank
+
+end function DriverCreatePrintHandler
+
+! ************************************************************************** !
+
 subroutine DriverDestroy(driver)
   !
   ! Deallocates an driver
