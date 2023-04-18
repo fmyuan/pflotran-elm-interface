@@ -3406,7 +3406,7 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
 
   enddo
 
-  if (wippflo_update_index < 0) then
+  if (wippflo_update_index < 0 .or. initialize_well_flow) then
   if (option%myrank == this%well_grid%h_rank_id(1)) then
       root_rank = this%well_comm%rank
   endif 
