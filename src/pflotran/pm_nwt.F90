@@ -1160,8 +1160,10 @@ subroutine PMNWTResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call NWTResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
-  if (this%pmwell_ptr%tran_soln%cut_ts_flag) then
-    this%controls%well_cut_dt = PETSC_TRUE
+  if (associated(this%pmwell_ptr)) then
+    if (this%pmwell_ptr%tran_soln%cut_ts_flag) then
+      this%controls%well_cut_dt = PETSC_TRUE
+    endif
   endif
 
 end subroutine PMNWTResidual

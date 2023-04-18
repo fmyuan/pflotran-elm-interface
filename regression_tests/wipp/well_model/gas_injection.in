@@ -149,6 +149,13 @@ WELLBORE_MODEL
     ITOL_REL_UPDATE_SATURATION 1.0d-4   ! default=1.0d-4
   /
 
+  WELL_MODEL_OUTPUT
+    WELL_LIQ_PRESSURE
+    WELL_GAS_PRESSURE
+    WELL_LIQ_SATURATION
+    WELL_GAS_SATURATION
+  /
+
 END
 
 !=========================== fluid properties =================================
