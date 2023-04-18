@@ -5028,7 +5028,6 @@ subroutine PMWellSolve(this,time,ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscBool :: cut_ts_flag
   PetscReal :: curr_time, curr_time_converted
 
   if (this%update_for_wippflo_qi_coupling .and. &
@@ -6103,8 +6102,8 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   endif
 
   if (this%print_output) then
-    write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  uP:" &
-          &,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
+    write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  uP:", es10.2," &
+          &  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
           n_iter,max_absolute_residual,max_scaled_residual, &
           max_absolute_update_p,max_absolute_update_s, &
           max_relative_update_p,max_relative_update_s
@@ -6222,8 +6221,8 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     rsn_string = trim(rsn_string) // ' rU '
   endif
 
-  write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", &
-        es10.3)') n_iter,max_absolute_residual,max_scaled_residual, &
+  write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", es10.3)')&
+        n_iter,max_absolute_residual,max_scaled_residual, &
         max_update
   call PrintMsg(this%option,out_string)
 

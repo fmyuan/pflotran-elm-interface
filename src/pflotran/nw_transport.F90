@@ -643,7 +643,6 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   PetscInt :: local_id, local_id_up, local_id_dn
   PetscInt :: nphase, iphase, nspecies
   PetscInt :: istart, iend, offset
-  PetscInt :: niter
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
