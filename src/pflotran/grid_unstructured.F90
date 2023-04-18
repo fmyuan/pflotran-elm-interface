@@ -2916,7 +2916,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
         ' GRID to check all combinatons of points on face'
       call PrintErrMsgByRank(option)
     else
-      option%io_buffer = 'Cells founds that violate right hand rule.'
+      option%io_buffer = 'Cells found that violate right hand rule.'
       call PrintErrMsgByRank(option)
     endif      
   endif
