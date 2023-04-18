@@ -41,6 +41,7 @@ module PM_Well_class
 
   PetscBool :: initialize_well_flow = PETSC_TRUE
   PetscBool :: initialize_well_tran = PETSC_TRUE
+  PetscReal :: min_flow_dt_scale = 1.d-3
   PetscReal, parameter :: gravity = -9.80665d0 ! [m/s2]
 
   PetscInt, parameter :: PEACEMAN_ISO = 1
@@ -2302,6 +2303,10 @@ subroutine PMWellReadFlowSolver(pm_well,input,option,keyword,error_string, &
             call InputErrorMsg(input,option,'ITOL_REL_UPDATE_SATURATION', &
                                error_string)
         !-----------------------------
+          case('MIN_FLOW_DT_SCALE')
+            call InputReadDouble(input,option,min_flow_dt_scale)
+            call InputErrorMsg(input,option,'MIN_FLOW_DT_SCALE', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -3817,7 +3822,7 @@ subroutine PMWellUpdateRates(this,k,ierr)
 !  if (this%flow_soln%n_steps < 1) return
 
   ! Need to limit well model timestepping 
-  this%min_dt_flow = this%option%flow_dt * 1.d-3 
+  this%min_dt_flow = this%option%flow_dt * min_flow_dt_scale
 
   if (.not. this%well_on .and. Initialized(this%intrusion_time_start) .and. &
       time < this%intrusion_time_start) then
@@ -5051,7 +5056,7 @@ subroutine PMWellSolve(this,time,ierr)
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    !this%update_for_wippflo_qi_coupling = PETSC_FALSE
+    this%update_for_wippflo_qi_coupling = PETSC_FALSE
   else 
     call PMWellSolveFlow(this,ierr)
   endif

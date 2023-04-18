@@ -6354,22 +6354,22 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(WELL_LIQ_PRESSURE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pl
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%pl
           enddo
         case(WELL_GAS_PRESSURE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%pg
           enddo
         case(WELL_LIQ_SATURATION)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sl
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%sl
           enddo
         case(WELL_GAS_SATURATION)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sg
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%sg
           enddo
         case(WELL_AQ_CONC)
           do local_id=1,grid%nlmax
@@ -6384,12 +6384,12 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(WELL_LIQ_Q)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Ql
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%Ql
           enddo
         case(WELL_GAS_Q)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Qg
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%Qg
           enddo
       end select 
     case default
@@ -7374,28 +7374,28 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       select case(ivar)
         case(WELL_LIQ_PRESSURE)
           value = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pl
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%pl
         case(WELL_GAS_PRESSURE)
           value = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%pg
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%pg
         case(WELL_LIQ_SATURATION)
           value = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sl
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%sl
         case(WELL_GAS_SATURATION)
           value = &
-              patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%sg
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%sg
         case(WELL_AQ_CONC)
-          value = patch%aux%NWT%auxvars(grid%nL2G(local_id))%&
+          value = patch%aux%NWT%auxvars(ghosted_id)%&
                   well%AQ_conc(isubvar)
         case(WELL_AQ_MASS)
-          value = patch%aux%NWT%auxvars(grid%nL2G(local_id))%&
+          value = patch%aux%NWT%auxvars(ghosted_id)%&
                   well%AQ_mass(isubvar)
         case(WELL_LIQ_Q)
           value = &
-            patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Ql 
+            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Ql 
         case(WELL_GAS_Q)
           value = &
-            patch%aux%wippflo%auxvars(1,grid%nL2G(local_id))%well%Qg 
+            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg 
       end select 
     case default
       call PatchUnsupportedVariable(ivar,option)
