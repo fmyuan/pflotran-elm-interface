@@ -374,6 +374,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   PetscInt :: temp_int
   PetscInt :: nphase
+  PetscBool :: iflag
   PetscErrorCode :: ierr
 
   ! boundary conditions
@@ -607,8 +608,10 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   strata => patch%strata_list%first
   do
     if (.not.associated(strata)) exit
+    iflag = PETSC_FALSE
     ! pointer to region
     if (len_trim(strata%region_name) > 0) then
+      iflag = PETSC_TRUE
       strata%region => RegionGetPtrFromList(strata%region_name, &
                                                   patch%region_list)
       if (.not.associated(strata%region)) then
@@ -616,20 +619,24 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                  '" in strata not found in region list'
         call PrintErrMsg(option)
       endif
-      if (strata%active) then
-        ! pointer to material
-        strata%material_property => &
-          MaterialPropGetPtrFromArray(strata%material_property_name, &
-                                      patch%material_property_array)
-        if (.not.associated(strata%material_property)) then
-          option%io_buffer = 'Material "' // &
-                            trim(strata%material_property_name) // &
-                            '" not found in material list'
-          call PrintErrMsg(option)
-        endif
-      endif
     else
       nullify(strata%region)
+    endif
+    if (len_trim(strata%dataset_name) > 0) then
+      iflag = PETSC_TRUE
+    endif
+    if (iflag .and. strata%active) then
+      ! pointer to material
+      strata%material_property => &
+        MaterialPropGetPtrFromArray(strata%material_property_name, &
+                                    patch%material_property_array)
+      if (.not.associated(strata%material_property)) then
+        option%io_buffer = 'Material "' // &
+                          trim(strata%material_property_name) // &
+                          '" not found in material list'
+        call PrintErrMsg(option)
+      endif
+    else
       nullify(strata%material_property)
     endif
     strata => strata%next

@@ -68,6 +68,7 @@ module HDF5_Aux_module
     module procedure :: HDF5FileOpen1
     module procedure :: HDF5FileOpen2
     module procedure :: HDF5FileOpen3
+    module procedure :: HDF5FileOpen4
   end interface
 
   interface HDF5FileOpenReadOnly
@@ -2236,7 +2237,7 @@ subroutine HDF5FileOpen1(filename,file_id,create,option)
   !
   use Communicator_Aux_module
 
-  character(len=*) :: filename  ! must be of variable length
+  character(len=*) :: filename
   integer(HID_T) :: file_id
   PetscBool :: create
   type(option_type) :: option
@@ -2246,7 +2247,7 @@ subroutine HDF5FileOpen1(filename,file_id,create,option)
 
   print_handler => OptionCreatePrintHandler(option)
   comm => option%comm
-  call HDF5FileOpen(filename,file_id,create,print_handler,comm)
+  call HDF5FileOpen(filename,file_id,create,PETSC_TRUE,print_handler,comm)
   call PrintDestroyHandler(print_handler)
 
 end subroutine HDF5FileOpen1
@@ -2263,7 +2264,7 @@ subroutine HDF5FileOpen2(filename,file_id,create,driver)
   !
   use Communicator_Aux_module
 
-  character(len=*) :: filename  ! must be of variable length
+  character(len=*) :: filename
   integer(HID_T) :: file_id
   PetscBool :: create
   class(driver_type) :: driver
@@ -2273,14 +2274,15 @@ subroutine HDF5FileOpen2(filename,file_id,create,driver)
 
   print_handler => driver%CreatePrintHandler()
   comm => driver%comm
-  call HDF5FileOpen(filename,file_id,create,print_handler,comm)
+  call HDF5FileOpen(filename,file_id,create,PETSC_TRUE,print_handler,comm)
   call PrintDestroyHandler(print_handler)
 
 end subroutine HDF5FileOpen2
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpen3(filename,file_id,create,print_handler,comm)
+subroutine HDF5FileOpen3(filename,file_id,create,collective, &
+                         print_handler,comm)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -2293,6 +2295,31 @@ subroutine HDF5FileOpen3(filename,file_id,create,print_handler,comm)
   character(len=*) :: filename  ! must be of variable length
   integer(HID_T) :: file_id
   PetscBool :: create
+  PetscBool :: collective
+  type(print_handler_type) :: print_handler
+  type(comm_type) :: comm
+
+  call HDF5FileOpen(filename,file_id,create,collective,print_handler,comm)
+
+end subroutine HDF5FileOpen3
+
+! ************************************************************************** !
+
+subroutine HDF5FileOpen4(filename,file_id,create,collective, &
+                         print_handler,comm)
+  !
+  ! Opens an HDF5 file.  This wrapper provides error messaging if the file
+  ! does not exist.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/08/22
+  !
+  use Communicator_Aux_module
+
+  character(len=*) :: filename  ! must be of variable length
+  integer(HID_T) :: file_id
+  PetscBool :: create
+  PetscBool :: collective
   type(print_handler_type) :: print_handler
   type(comm_type) :: comm
 
@@ -2304,8 +2331,10 @@ subroutine HDF5FileOpen3(filename,file_id,create,print_handler,comm)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,comm%communicator, &
-                          MPI_INFO_NULL,hdf5_err)
+  if (collective) then
+    call h5pset_fapl_mpio_f(prop_id,comm%communicator, &
+                            MPI_INFO_NULL,hdf5_err)
+  endif
 #endif
   hdf5_err = 0
   string = trim(filename)
@@ -2325,12 +2354,15 @@ subroutine HDF5FileOpen3(filename,file_id,create,print_handler,comm)
     else
       word = 'opening'
     endif
-    call PrintErrorMessage(print_handler,'Error ' // trim(word) // &
-                           ' HDF5 file "' // trim(filename) // '".')
+    ! the last arg is whether to print "byrank" which is false if collective
+    call PrintErrorMessage(driver%print_flags,driver%comm,driver%fid_out, &
+                           'Error ' // trim(word) // ' HDF5 file "' // &
+                              trim(filename) // '".',driver%exit_code, &
+                           PETSC_FALSE,.not.collective)
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
-end subroutine HDF5FileOpen3
+end subroutine HDF5FileOpen4
 
 ! ************************************************************************** !
 
