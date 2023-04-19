@@ -657,7 +657,6 @@ function HDF5GroupExists3(filename,group_name,print_handler)
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: group_name
   type(print_handler_type) :: print_handler
-  type(comm_type) :: comm
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
@@ -670,7 +669,7 @@ function HDF5GroupExists3(filename,group_name,print_handler)
 
   ! open the file
   call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'', &
-                            print_handler,comm)
+                            print_handler,print_handler%comm)
 
   call PrintMessage(print_handler,'Testing group: ' // trim(group_name))
   ! I turn off error messaging since if the group does not exist, an error
