@@ -69,6 +69,7 @@ module HDF5_Aux_module
     module procedure :: HDF5FileOpen2
     module procedure :: HDF5FileOpen3
     module procedure :: HDF5FileOpen4
+    module procedure :: HDF5FileOpen5
   end interface
 
   interface HDF5FileOpenReadOnly
@@ -2254,7 +2255,35 @@ end subroutine HDF5FileOpen1
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpen2(filename,file_id,create,driver)
+subroutine HDF5FileOpen2(filename,file_id,create,collective,option)
+  !
+  ! Opens an HDF5 file.  This wrapper provides error messaging if the file
+  ! does not exist.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/02/23
+  !
+  use Communicator_Aux_module
+
+  character(len=*) :: filename
+  integer(HID_T) :: file_id
+  PetscBool :: create
+  PetscBool :: collective
+  type(option_type) :: option
+
+  type(print_handler_type), pointer :: print_handler
+  type(comm_type), pointer :: comm
+
+  print_handler => OptionCreatePrintHandler(option)
+  comm => option%comm
+  call HDF5FileOpen(filename,file_id,create,collective,print_handler,comm)
+  call PrintDestroyHandler(print_handler)
+
+end subroutine HDF5FileOpen2
+
+! ************************************************************************** !
+
+subroutine HDF5FileOpen3(filename,file_id,create,driver)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
@@ -2277,35 +2306,39 @@ subroutine HDF5FileOpen2(filename,file_id,create,driver)
   call HDF5FileOpen(filename,file_id,create,PETSC_TRUE,print_handler,comm)
   call PrintDestroyHandler(print_handler)
 
-end subroutine HDF5FileOpen2
+end subroutine HDF5FileOpen3
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpen3(filename,file_id,create,collective, &
-                         print_handler,comm)
+subroutine HDF5FileOpen4(filename,file_id,create,collective,driver)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
   ! does not exist.
   !
   ! Author: Glenn Hammond
-  ! Date: 12/08/22
+  ! Date: 03/02/23
   !
   use Communicator_Aux_module
 
-  character(len=*) :: filename  ! must be of variable length
+  character(len=*) :: filename
   integer(HID_T) :: file_id
   PetscBool :: create
   PetscBool :: collective
-  type(print_handler_type) :: print_handler
-  type(comm_type) :: comm
+  class(driver_type) :: driver
 
+  type(print_handler_type), pointer :: print_handler
+  type(comm_type), pointer :: comm
+
+  print_handler => driver%CreatePrintHandler()
+  comm => driver%comm
   call HDF5FileOpen(filename,file_id,create,collective,print_handler,comm)
+  call PrintDestroyHandler(print_handler)
 
-end subroutine HDF5FileOpen3
+end subroutine HDF5FileOpen4
 
 ! ************************************************************************** !
 
-subroutine HDF5FileOpen4(filename,file_id,create,collective, &
+subroutine HDF5FileOpen5(filename,file_id,create,collective, &
                          print_handler,comm)
   !
   ! Opens an HDF5 file.  This wrapper provides error messaging if the file
@@ -2355,14 +2388,16 @@ subroutine HDF5FileOpen4(filename,file_id,create,collective, &
       word = 'opening'
     endif
     ! the last arg is whether to print "byrank" which is false if collective
-    call PrintErrorMessage(driver%print_flags,driver%comm,driver%fid_out, &
+    call PrintErrorMessage(print_handler%print_flags, &
+                           comm,print_handler%fid, &
                            'Error ' // trim(word) // ' HDF5 file "' // &
-                              trim(filename) // '".',driver%exit_code, &
+                              trim(filename) // '".', &
+                           print_handler%exit_code, &
                            PETSC_FALSE,.not.collective)
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
-end subroutine HDF5FileOpen4
+end subroutine HDF5FileOpen5
 
 ! ************************************************************************** !
 
