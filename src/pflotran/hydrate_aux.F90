@@ -745,9 +745,9 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       if (hyd_auxvar%temp <= TQD) then
         dTf = hyd_auxvar%temp
         ! Clausius-Clayperon equation
-        Pc = dTf * (L_ICE * ICE_DENSITY * 1.d6) / (TQD + 273.15d0)
+        Pc = -dTf * (L_ICE * ICE_DENSITY * 1.d6) / (TQD + 273.15d0)
         call characteristic_curves%saturation_function% &
-             Saturation(-Pc,hyd_auxvar%sat(lid),dsat_dpres,option)
+             Saturation(Pc,hyd_auxvar%sat(lid),dsat_dpres,option)
         hyd_auxvar%sat(iid) = 1.d0 - hyd_auxvar%sat(lid)
         hyd_auxvar%sat(gid) = 0.d0
         hyd_auxvar%sat(hid) = 0.d0
