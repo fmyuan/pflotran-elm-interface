@@ -1835,13 +1835,14 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
   PetscReal, intent(out) :: dw,dwmol,dwp,dwt
   PetscErrorCode :: ierr
 
-  PetscReal :: dumb, psat_64315, psat_62315, T_temp
+  PetscReal :: dumb, psat_64315, psat_62315, T_temp, nu
   PetscInt, parameter :: T3ab=1, T3cd=2, T3gh=3
   PetscInt, parameter :: T3ij=4, T3jk=5, T3mn=6
   PetscInt, parameter :: T3op=7, T3qu=8, T3rx=9
   PetscInt, parameter :: T3ef=12, T3uv=10, T3wx=11
 
   PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
 
   ! Region 3:  Region 3: Valid in "wedge" >623.15K, >Ps(T), and 100MPa
   ! first, determine which of 24 sub-regions we fall into:
@@ -1856,189 +1857,189 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
                                       psat_62315, dumb, ierr)
 
   ! ranges given in Table 2 and Table 10 (near critical point)
-  dw = UNINITIALIZED_DOUBLE
+  nu = UNINITIALIZED_DOUBLE
   if (P <= 100.0D+6 .and. P > 40.0D+6) then
     if (T_temp > T3bdry(P,T3ab)) then
-      dw = IF97_subregion_3b(P,T_temp)
+      nu = IF97_subregion_3b(P,T_temp)
     else
-      dw = IF97_subregion_3a(P,T_temp)
+      nu = IF97_subregion_3a(P,T_temp)
     end if
   else if (P > 25.0D+6) then
     if (T_temp  > T3bdry(P,T3ef)) then
-      dw = IF97_subregion_3f(P,T_temp)
+      nu = IF97_subregion_3f(P,T_temp)
     else if (T_temp > T3bdry(P,T3ab)) then
-      dw = IF97_subregion_3e(P,T_temp)
+      nu = IF97_subregion_3e(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3d(P,T_temp)
+      nu = IF97_subregion_3d(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 23.5D+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3ij)) then
-      dw = IF97_subregion_3j(P,T_temp)
+      nu = IF97_subregion_3j(P,T_temp)
     else if (T_temp > T3bdry(P,T3ef)) then
-      dw = IF97_subregion_3i(P,T_temp)
+      nu = IF97_subregion_3i(P,T_temp)
     else if (T_temp > T3bdry(P,T3gh)) then
-      dw = IF97_subregion_3h(P,T_temp)
+      nu = IF97_subregion_3h(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3g(P,T_temp)
+      nu = IF97_subregion_3g(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 23.0D+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3ij)) then
-      dw = IF97_subregion_3j(P,T_temp)
+      nu = IF97_subregion_3j(P,T_temp)
     else if (T_temp > T3bdry(P,T3ef)) then
-      dw = IF97_subregion_3i(P,T_temp)
+      nu = IF97_subregion_3i(P,T_temp)
     else if (T_temp > T3bdry(P,T3gh)) then
-      dw = IF97_subregion_3h(P,T_temp)
+      nu = IF97_subregion_3h(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3l(P,T_temp)
+      nu = IF97_subregion_3l(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 22.5D+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3ij)) then
-      dw = IF97_subregion_3j(P,T_temp)
+      nu = IF97_subregion_3j(P,T_temp)
     else if (T_temp > T3bdry(P,T3op)) then
-      dw = IF97_subregion_3p(P,T_temp)
+      nu = IF97_subregion_3p(P,T_temp)
     else if (T_temp > T3bdry(P,T3ef)) then
-      dw = IF97_subregion_3o(P,T_temp)
+      nu = IF97_subregion_3o(P,T_temp)
     else if (T_temp > T3bdry(P,T3mn)) then
-      dw = IF97_subregion_3n(P,T_temp)
+      nu = IF97_subregion_3n(P,T_temp)
     else if (T_temp > T3bdry(P,T3gh)) then
-      dw = IF97_subregion_3m(P,T_temp)
+      nu = IF97_subregion_3m(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3l(P,T_temp)
+      nu = IF97_subregion_3l(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 21.11D+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3rx)) then
-      dw = IF97_subregion_3r(P,T_temp)
+      nu = IF97_subregion_3r(P,T_temp)
     else if (T_temp > T3bdry(P,T3wx)) then
-      dw = IF97_subregion_3x(P,T_Temp)
+      nu = IF97_subregion_3x(P,T_Temp)
     else if (T_temp > T3bdry(P,T3ef)) then
-      dw = IF97_subregion_3w(P,T_Temp)
+      nu = IF97_subregion_3w(P,T_Temp)
     else if (T_temp > T3bdry(P,T3uv)) then
-      dw = IF97_subregion_3v(P,T_Temp)
+      nu = IF97_subregion_3v(P,T_Temp)
     else if (T_temp > T3bdry(P,T3qu)) then
-      dw = IF97_subregion_3u(P,T_Temp)
+      nu = IF97_subregion_3u(P,T_Temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3q(P,T_Temp)
+      nu = IF97_subregion_3q(P,T_Temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 22.064D+6) then ! P_crit
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3rx)) then
-      dw = IF97_subregion_3r(P,T_temp)
+      nu = IF97_subregion_3r(P,T_temp)
     else if (T_temp > T3bdry(P,T3wx)) then
-      dw = IF97_subregion_3x(P,T_Temp)
+      nu = IF97_subregion_3x(P,T_Temp)
     else if (T_temp > T3bdry(P,T3ef)) then
-      dw = IF97_subregion_3z(P,T_Temp)
+      nu = IF97_subregion_3z(P,T_Temp)
     else if (T_temp > T3bdry(P,T3uv)) then
-      dw = IF97_subregion_3y(P,T_Temp)
+      nu = IF97_subregion_3y(P,T_Temp)
     else if (T_temp > T3bdry(P,T3qu)) then
-      dw = IF97_subregion_3u(P,T_Temp)
+      nu = IF97_subregion_3u(P,T_Temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3q(P,T_Temp)
+      nu = IF97_subregion_3q(P,T_Temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 21.93161551d+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3rx)) then
-      dw = IF97_subregion_3r(P,T_temp)
+      nu = IF97_subregion_3r(P,T_temp)
     else if (T_temp > T3bdry(P,T3wx)) then
-      dw = IF97_subregion_3x(P,T_Temp)
+      nu = IF97_subregion_3x(P,T_Temp)
     else if (T_temp > IF97SaturationTemperature(P)) then
-      dw = IF97_subregion_3z(P,T_Temp)
+      nu = IF97_subregion_3z(P,T_Temp)
     else if (T_temp > T3bdry(P,T3uv)) then
-      dw = IF97_subregion_3y(P,T_Temp)
+      nu = IF97_subregion_3y(P,T_Temp)
     else if (T_temp > T3bdry(P,T3qu)) then
-      dw = IF97_subregion_3u(P,T_Temp)
+      nu = IF97_subregion_3u(P,T_Temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3q(P,T_Temp)
+      nu = IF97_subregion_3q(P,T_Temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 21.90096265d+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3rx)) then
-      dw = IF97_subregion_3r(P,T_temp)
+      nu = IF97_subregion_3r(P,T_temp)
     else if (T_temp > T3bdry(P,T3wx)) then
-      dw = IF97_subregion_3x(P,T_Temp)
+      nu = IF97_subregion_3x(P,T_Temp)
     else if (T_temp > IF97SaturationTemperature(P)) then
-      dw = IF97_subregion_3z(P,T_Temp)
+      nu = IF97_subregion_3z(P,T_Temp)
     else if (T_temp > T3bdry(P,T3qu)) then
-      dw = IF97_subregion_3u(P,T_Temp)
+      nu = IF97_subregion_3u(P,T_Temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3q(P,T_Temp)
+      nu = IF97_subregion_3q(P,T_Temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > psat_64315) then ! 21.0434 MPa
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > T3bdry(P,T3rx)) then
-      dw = IF97_subregion_3r(P,T_temp)
+      nu = IF97_subregion_3r(P,T_temp)
     else if (T_temp > IF97SaturationTemperature(P)) then
-      dw = IF97_subregion_3x(P,T_temp)
+      nu = IF97_subregion_3x(P,T_temp)
     else if (T_temp > T3bdry(P,T3qu)) then
-      dw = IF97_subregion_3u(P,T_temp)
+      nu = IF97_subregion_3u(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3q(P,T_temp)
+      nu = IF97_subregion_3q(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 20.5D+6) then
     if (T_temp > T3bdry(P,T3jk)) then
-      dw = IF97_subregion_3k(P,T_temp)
+      nu = IF97_subregion_3k(P,T_temp)
     else if (T_temp > IF97SaturationTemperature(p)) then
-      dw = IF97_subregion_3r(P,T_temp)
+      nu = IF97_subregion_3r(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3s(P,T_temp)
+      nu = IF97_subregion_3s(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > 1.900881189173929D+1) then
     if (T_temp > IF97SaturationTemperature(P)) then
-      dw = IF97_subregion_3t(P,T_temp)
+      nu = IF97_subregion_3t(P,T_temp)
     else if (T_temp > T3bdry(P,T3cd)) then
-      dw = IF97_subregion_3s(P,T_temp)
+      nu = IF97_subregion_3s(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else if (P > psat_62315) then ! 16.5292 MPa
     if (T_temp >= IF97SaturationTemperature(P)) then
-      dw = IF97_subregion_3t(P,T_temp)
+      nu = IF97_subregion_3t(P,T_temp)
     else
-      dw = IF97_subregion_3c(P,T_temp)
+      nu = IF97_subregion_3c(P,T_temp)
     end if
   else
     stop 'IF97 Region 3 ERROR: either > 100 MPa or < 16.5292 MPa'
   end if
 
-  dw = 1.d0/dw
-  dwmol = dw/FMWH2O
+  dw = 1.d0 / (nu * R * T_temp / P * 1.0D+3)
 
   if (calculate_derivatives) then
     stop 'IF97 region 3 water density derivative not implemented yet'
   else
     dwp = UNINITIALIZED_DOUBLE
     dwt = UNINITIALIZED_DOUBLE
+    dwmol = UNINITIALIZED_DOUBLE
   endif
 
 end subroutine EOSWaterDensityIF97Region3
@@ -3121,7 +3122,7 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   PetscInt, parameter :: J_i(34) = [-2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1, &
                                      3,17,-4,0,6,-5,-2,10,-8,-11,-6,-29,-31, &
                                      -38,-39,-40,-41]
-  PetscReal :: pi, tao,  g_tao, T_temp, delta
+  PetscReal :: pi, tao,  g_tao, T_temp
 
   T_temp = T+Tf
   pi = P/p_ref
@@ -3166,7 +3167,6 @@ subroutine EOSWaterEnthalpyIF97Region3(T,P,calculate_derivatives,hw,hwp,hwt)
   PetscReal, intent(out) :: hw,hwp,hwt
 
   PetscReal, parameter :: Tf = 273.15d0 !K
-  PetscReal, parameter :: p_c = 16.53d6 !Pa
   PetscReal, parameter :: T_c = 647.096d0 ! K
   PetscReal, parameter :: rho_c = 322.d0 ! kg/m^3
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
@@ -3188,11 +3188,11 @@ subroutine EOSWaterEnthalpyIF97Region3(T,P,calculate_derivatives,hw,hwp,hwt)
        2,2,2,3,3, 3,3,3,4,4, 4,4,5,5,5, 6,6,6,7,8, 9,9,10,10,11]
   PetscInt, parameter :: J_i(40) = [0,0,1,2,7, 10,12,23,2,6, 15,17,0,2,6, &
        7,22,26,0,2, 4,16,26,0,2, 4,26,1,3,26, 0,2,26,2,26, 2,26,0,1,26]
-  PetscReal :: tau,  phi_tau, phi_delta, T_temp, delta, dw, dummy
+  PetscReal :: tau,  phi_tau, phi_delta, T_temp, delta, dw, dumb
 
   T_temp = T+Tf
   ! P only used to compute density
-  call EOSWaterDensityIF97Region3(T,P,.false.,dw,dummy,dummy,dummy)
+  call EOSWaterDensityIF97Region3(T,P,.false.,dw,dumb,dumb,dumb)
   delta = dw/rho_c
   tau = T_c/T_temp
 
@@ -4357,7 +4357,7 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   PetscReal, parameter :: T_ref = 540d0 !1386  ! K
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
   PetscReal, parameter :: Tf = 273.15d0
-  PetscReal :: pi, tao, T_temp, dummy
+  PetscReal :: pi, tao, T_temp
   PetscReal :: gamma_0_pi, gamma_r_pi, gamma_0_tao, gamma_r_tao
   ! region 2, Tables 10 and 11
   PetscReal, parameter :: n_i0(9) = [-0.96927686500217d1, 0.10086655968018d2, &
