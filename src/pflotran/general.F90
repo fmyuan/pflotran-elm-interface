@@ -204,10 +204,12 @@ subroutine GeneralSetup(realization)
     patch%aux%General%general_parameter% &
       diffusion_coefficient(cur_fluid_property%phase_id) = &
         cur_fluid_property%diffusion_coefficient
-    patch%aux%General%general_parameter% &
-      salt_diffusion_coefficient = &
-        cur_fluid_property%salt_diffusion_coefficient
-    cur_fluid_property => cur_fluid_property%next
+    if (general_salt) then
+      patch%aux%General%general_parameter% &
+        diffusion_coefficient(THREE_INTEGER) = &
+          cur_fluid_property%salt_diffusion_coefficient
+      cur_fluid_property => cur_fluid_property%next
+    endif
   enddo
   ! check whether diffusion coefficients are initialized.
   if (Uninitialized(patch%aux%General%general_parameter% &
@@ -224,7 +226,7 @@ subroutine GeneralSetup(realization)
   endif
   if (general_salt) then
     if (Uninitialized(patch%aux%General%general_parameter% &
-         salt_diffusion_coefficient)) then
+         diffusion_coefficient(PRECIPITATE_PHASE))) then
        option%io_buffer = &
             UninitializedMessage('Salt diffusion coefficient','')
        call PrintErrMsg(option)
@@ -783,7 +785,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                         patch%cc_id(ghosted_id))%ptr, &
                                       natural_id, &  ! for debugging
                                       option)
-      elseif (general_salt) then
+      else
         call GeneralAuxVarUpdateState4(xx_loc_p(ghosted_start:ghosted_end), &
                                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                        global_auxvars(ghosted_id), &

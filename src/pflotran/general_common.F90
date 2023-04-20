@@ -1612,8 +1612,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
     dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
-                             general_parameter%salt_diffusion_coefficient * &
+                             general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
                              area
+
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave
@@ -2783,8 +2784,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       !geh: we should read in the mole fraction for both phases as the
       !     enthalpy, etc. applies to phase, not pure component.
       xmol(iphase) = 1.d0
-      !     if liquid flux is set to 0, SALT_FRACTION becomes a dirichlet BC
-      !     if liquid flux is non-zero, SALT_FRACTION becomes mole fraction of flux fluid
+      !     if liquid flux is set to 0, SALT_MOLE_FRACTION becomes a dirichlet BC
+      !     if liquid flux is non-zero, SALT_MOLE_FRACTION becomes mole fraction of flux fluid
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
         if (general_salt) then
@@ -3465,7 +3466,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
     dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
-                             general_parameter%salt_diffusion_coefficient * &
+                             general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
                              area
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
@@ -3476,7 +3477,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       tot_mole_flux1 = dtot_mole_flux_ddeltaS * delta_xsmol
       dtot_mole_flux_dstpd1 = tot_mole_flux1 / stpd_ave_over_dist
       dtot_mole_flux_ddenave1 = tot_mole_flux1 / density_ave
-      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
+      !DF: The diffusion of dissolved air (above) is equal and opposite to water.
+      !    This is not currently being applied to salt.
+      !Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
       Res(salt_comp_id) = Res(salt_comp_id) + tot_mole_flux1
     endif
 
@@ -4028,11 +4031,13 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                      liquid_phase:option%gas_phase))
   xxss(2) = gen_auxvar_ss%sat(gid)
   xxss(3) = gen_auxvar_ss%temp
-  if (general_salt .and. .not. general_soluble_matrix) then
-    xxss(4) = gen_auxvar_ss%sat(pid)
-  elseif (general_salt .and. general_soluble_matrix) then
-    xxss(4) = gen_auxvar_ss%effective_porosity
-  endif
+  if (general_salt) then
+    if (general_soluble_matrix) then
+      xxss(4) = gen_auxvar_ss%effective_porosity
+    else
+      xxss(4) = gen_auxvar_ss%sat(pid)
+    endif
+  endif  
 
   cell_pressure = maxval(gen_auxvar%pres(option%liquid_phase: &
                          option%gas_phase))
@@ -4043,10 +4048,10 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     xxss(ONE_INTEGER) = cell_pressure
     select case(global_auxvar%istate)
       case(LIQUID_STATE)
-        xxss(TWO_INTEGER) = gen_auxvar%xmol(air_comp_id,wat_comp_id)
+        xxss(TWO_INTEGER) = gen_auxvar%xmol(air_comp_id,lid)
         xxss(THREE_INTEGER) = gen_auxvar%temp
         if (general_salt) then
-          xxss(FOUR_INTEGER) = gen_auxvar%xmol(salt_comp_id, wat_comp_id)
+          xxss(FOUR_INTEGER) = gen_auxvar%xmol(salt_comp_id,lid)
         endif
       case(GAS_STATE)
         if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
@@ -4204,10 +4209,9 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       endif
 
       if (general_salt) then
-        ss_flow_vol_flux(salt_comp_id) = qsrc_mol / gen_auxvar_ss% &
-             den(air_comp_id)
-        Res(salt_comp_id) = qsrc_mol
-        !if (gen_auxvar_ss%sat(gid) )
+        option%io_buffer = 'TOTAL_MASS_RATE not set up &
+            &for salt in GeneralAuxVarComputeAndSrcSink.'
+        call PrintErrMsg(option)
       endif
   else
 

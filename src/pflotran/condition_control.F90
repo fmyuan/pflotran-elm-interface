@@ -303,9 +303,9 @@ subroutine CondControlAssignFlowInitCond(realization)
                 endif
                 if (general_salt) then
                   if (.not. &
-                       (general%salt_fraction%itype == DIRICHLET_BC .or. &
-                         general%salt_fraction%itype == HYDROSTATIC_BC)) then
-                    option%io_buffer = 'Solute fraction ' // trim(string)
+                       (general%salt_mole_fraction%itype == DIRICHLET_BC .or. &
+                         general%salt_mole_fraction%itype == HYDROSTATIC_BC)) then
+                    option%io_buffer = 'Salt mole fraction ' // trim(string)
                     call PrintErrMsg(option)
                   endif
                 endif
@@ -441,7 +441,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     general%temperature%dataset%rarray(1)
                   if (general_salt) then
                     xx_p(ibegin+GENERAL_LIQUID_STATE_S_MOLE_DOF) = &
-                      general%salt_fraction%dataset%rarray(1)
+                      general%salt_mole_fraction%dataset%rarray(1)
                   endif
                 case(GAS_STATE)
                   xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &

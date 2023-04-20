@@ -254,6 +254,7 @@ module PFLOTRAN_Constants_module
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
+  PetscInt, parameter, public :: PRECIPITATE_PHASE = 3
 
   PetscInt, parameter, public :: MAX_PHASE = 2
 
