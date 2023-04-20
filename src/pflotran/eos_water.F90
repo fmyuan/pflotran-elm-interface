@@ -1836,8 +1836,10 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
   PetscErrorCode :: ierr
 
   PetscReal :: dumb, psat_64315, psat_62315, T_temp
-  PetscInt, parameter :: T3ab=1, T3cd=2, T3gh=3, T3ij=4, T3jk=5, T3mn=6
-  PetscInt, parameter :: T3op=7, T3qu=8, T3rx=9, T3ef=12, T3uv=10, T3wx=11
+  PetscInt, parameter :: T3ab=1, T3cd=2, T3gh=3
+  PetscInt, parameter :: T3ij=4, T3jk=5, T3mn=6
+  PetscInt, parameter :: T3op=7, T3qu=8, T3rx=9
+  PetscInt, parameter :: T3ef=12, T3uv=10, T3wx=11
 
   PetscReal, parameter :: Tf = 273.15d0 !K
 
@@ -1846,10 +1848,14 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
 
   T_temp = T+Tf
 
-  ! see Table 2
-  call EOSWaterSaturationPressureIF97(370.d0, .false., psat_64315, dumb, ierr) ! 21.0434 MPa
-  call EOSWaterSaturationPressureIF97(350.d0, .false., psat_62315, dumb, ierr) ! 16.5292 MPa
+  ! 21.0434 MPa
+  call EOSWaterSaturationPressureIF97(370.d0, .false., &
+                                      psat_64315, dumb, ierr)
+  ! 16.5292 MPa
+  call EOSWaterSaturationPressureIF97(350.d0, .false., &
+                                      psat_62315, dumb, ierr)
 
+  ! ranges given in Table 2 and Table 10 (near critical point)
   dw = UNINITIALIZED_DOUBLE
   if (P <= 100.0D+6 .and. P > 40.0D+6) then
     if (T_temp > T3bdry(P,T3ab)) then
@@ -2029,7 +2035,7 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
   dwmol = dw/FMWH2O
 
   if (calculate_derivatives) then
-    stop 'IF97 region 3 derivative not implemented yet'
+    stop 'IF97 region 3 water density derivative not implemented yet'
   else
     dwp = UNINITIALIZED_DOUBLE
     dwt = UNINITIALIZED_DOUBLE
@@ -2812,6 +2818,7 @@ end function IF97_subregion_3z
 
 function IF97SaturationTemperature(Ps) result(Ts)
   ! section 8.2 of IAPWS R7-97(2012)
+  ! this is the inverse of EOSWaterSaturationPressureIF97()
   implicit none
   PetscReal, parameter :: n(10) = [0.11670521452767D4, -0.72421316703206D6, &
        -0.17073846940092D2, 0.12020824702470D5, -0.32325550322333D7, &
@@ -3114,32 +3121,98 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   PetscInt, parameter :: J_i(34) = [-2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1, &
                                      3,17,-4,0,6,-5,-2,10,-8,-11,-6,-29,-31, &
                                      -38,-39,-40,-41]
-  PetscReal :: pi, tao,  g_tao, T_temp
-
-! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+  PetscReal :: pi, tao,  g_tao, T_temp, delta
 
   T_temp = T+Tf
   pi = P/p_ref
   tao = T_ref/T_temp
 
-  g_tao = sum((n_i*(7.1d0-pi)**(I_i))*J_i*(tao-1.222d0)**(J_i-1))
+  if (Tf <= 623.15d0) then
+    ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+    g_tao = sum((n_i*(7.1d0-pi)**(I_i))*J_i*(tao-1.222d0)**(J_i-1))
 
-  hw = g_tao *T_ref*R
-  hw = hw*FMWH2O * 1.d3
+    hw = g_tao *T_ref*R
+    hw = hw*FMWH2O * 1.d3
 
-  if (calculate_derivatives) then
-    hwp = T_ref*R/p_ref * sum(-n_i*I_i*(7.1d0-pi)**(I_i-1) * &
-                              J_i*(tao-1.222d0)**(J_i-1))
-    hwt = -T_ref*T_ref*R/(T_temp*T_temp) * sum(n_i*(7.1d0-pi)**(I_i)* &
-                                       J_i*(J_i-1)*(tao-1.222d0)**(J_i-2))
-    hwp = hwp*FMWH2O * 1.d3
-    hwt = hwt*FMWH2O * 1.d3
+    if (calculate_derivatives) then
+      hwp = T_ref*R/p_ref * sum(-n_i*I_i*(7.1d0-pi)**(I_i-1) * &
+           J_i*(tao-1.222d0)**(J_i-1))
+      hwt = -T_ref*T_ref*R/(T_temp*T_temp) * sum(n_i*(7.1d0-pi)**(I_i)* &
+           J_i*(J_i-1)*(tao-1.222d0)**(J_i-2))
+      hwp = hwp*FMWH2O * 1.d3
+      hwt = hwt*FMWH2O * 1.d3
+    else
+      hwp = UNINITIALIZED_DOUBLE
+      hwt = UNINITIALIZED_DOUBLE
+    endif
   else
-    hwp = UNINITIALIZED_DOUBLE
-    hwt = UNINITIALIZED_DOUBLE
-  endif
+    ! Region 3: Valid in "wedge" >623.15K, >Ps(T), and 100MPa
+    ! moved to subroutine to avoid weighting down this more-used routine
+    call EOSWaterEnthalpyIF97Region3(T,P,.false.,hw,hwp,hwt)
+  end if
 
 end subroutine EOSWaterEnthalpyIF97
+
+subroutine EOSWaterEnthalpyIF97Region3(T,P,calculate_derivatives,hw,hwp,hwt)
+
+  ! Region 3 is in terms of Helmholtz free energy, rather than
+  ! Gibbs free energy. Enthalpy is in terms of density and temperature.
+
+  implicit none
+
+  PetscReal, intent(in) :: T   ! Temperature in centigrade
+  PetscReal, intent(in) :: P   ! Pressure in Pascals
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: hw,hwp,hwt
+
+  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: p_c = 16.53d6 !Pa
+  PetscReal, parameter :: T_c = 647.096d0 ! K
+  PetscReal, parameter :: rho_c = 322.d0 ! kg/m^3
+  PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
+  PetscReal, parameter :: n_i(40) = [0.10658070028513D1, &
+       -0.15732845290239D2, 0.20944395974307D2, -0.76867707878716D1, &
+       0.26185947787954D1, -0.28080781148620D1, 0.12053369696517D1, &
+       -0.84566812812502D-2, -0.12654315477714D1, -0.11524407806681D1, &
+       0.88521043984318d0, -0.64207765181607d0, 0.38493460186671d0, &
+       -0.85214708824206d0, 0.48972281541877D1, -0.30502617256965d1, &
+       0.39420536879154d-1, 0.12558408424308d0, -0.27999329698710d0, &
+       0.13899799569460D1, -0.20189915023570D1, -0.82147637173963D-2, &
+       -0.47596035734923d0, 0.43984074473500D-1, -0.44476435428739d0, &
+       0.90572070719733d0, 0.70522450087967d0, 0.10770512626332d0, &
+       -0.32913623258954d0, -0.50871062041158d0, -0.22175400873096D-1, &
+       0.94260751665092D-1, 0.16436278447961d0, -0.13503372241348D-1, &
+       -0.14834345352472D-1, 0.57922953628084D-3, 0.32308904703711D-2, &
+       0.80964802996215D-4, -0.16557679795037D-3, -0.44923899061815D-4]
+  PetscInt, parameter :: I_i(40) = [0,0,0,0,0, 0,0,0,1,1, 1,1,2,2,2, &
+       2,2,2,3,3, 3,3,3,4,4, 4,4,5,5,5, 6,6,6,7,8, 9,9,10,10,11]
+  PetscInt, parameter :: J_i(40) = [0,0,1,2,7, 10,12,23,2,6, 15,17,0,2,6, &
+       7,22,26,0,2, 4,16,26,0,2, 4,26,1,3,26, 0,2,26,2,26, 2,26,0,1,26]
+  PetscReal :: tau,  phi_tau, phi_delta, T_temp, delta, dw, dummy
+
+  T_temp = T+Tf
+  ! P only used to compute density
+  call EOSWaterDensityIF97Region3(T,P,.false.,dw,dummy,dummy,dummy)
+  delta = dw/rho_c
+  tau = T_c/T_temp
+
+  ! Table 32
+  phi_tau = sum(n_i(2:) * delta ** I_i(2:) * &
+                J_i(2:) * tau ** (J_i(2:) - 1))
+  phi_delta = n_i(1)/delta + sum(n_i(2:) * I_i(2:) * &
+                                 delta ** (I_i(2:) - 1) * tau ** J_i(2:))
+
+  ! Table 31
+  hw = (tau * phi_tau + delta * phi_delta) * R * T_temp
+
+  if (calculate_derivatives) then
+    stop 'IF97 region 3 water enthalpy derivative not implemented yet'
+  else
+    hwt = UNINITIALIZED_DOUBLE
+    hwp = UNINITIALIZED_DOUBLE
+  end if
+
+end subroutine EOSWaterEnthalpyIF97Region3
 
 ! ************************************************************************** !
 subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
@@ -4268,6 +4341,8 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   !Region 2, valid on: {273.15K <= T <= 623.15K; 0 < P < Ps(T)}
   !                    {623.15K < T <= 863.15K; 0 < P <= P(T) 2-3 boundary fn}
   !                    {863.15K < T <= 1073.15K; 0 < P < 100MPa}
+  !Region 5, valid on: {1073.15K < T < 2273.15K; 0 < P < 50MPa}
+  ! IAPWS R7-97(2012)
 
   implicit none
 
@@ -4282,8 +4357,9 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   PetscReal, parameter :: T_ref = 540d0 !1386  ! K
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
   PetscReal, parameter :: Tf = 273.15d0
-  PetscReal :: pi, tao, T_temp
+  PetscReal :: pi, tao, T_temp, dummy
   PetscReal :: gamma_0_pi, gamma_r_pi, gamma_0_tao, gamma_r_tao
+  ! region 2, Tables 10 and 11
   PetscReal, parameter :: n_i0(9) = [-0.96927686500217d1, 0.10086655968018d2, &
           -0.56087911283020d-2,  0.71452738081455d-1, -0.40710498223928d0, &
           0.14240819171444d1, -0.43839511319450d1, -0.28408632460772d0, &
@@ -4310,48 +4386,75 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   PetscInt, parameter :: J_i(43) = [0,1,2,3,6,1,2,4,7,36,0,1,3,6,35,1,2,3,7, &
                                     3,16,35,0,11,25,8,36,13,4,10,14,29,50,57 &
                                     ,20,35,48,21,53,39,26,40,58]
+  ! region 5, Tables 37 and 38
+  PetscReal, parameter :: n5_i0(6) = [-0.13179983674201D2, &
+       0.68540841634434D1, -0.24805148933466D-1, 0.36901534980333d0, &
+       -0.31161318213925D1, -0.32961626538917d0]
+  PetscReal, parameter :: n5_i(6) = [0.15736404855259D-2, 0.90153761673944D-3, &
+       -0.50270077677648D-2, 0.22440037409485D-5, -0.41163275453471D-5, &
+       0.37919454822955D-7]
+  PetscInt, parameter :: J5_i0(6) = [0,1,-3,-2,-1,2]
+  PetscInt, parameter :: I5_i(6) = [1,1,1,2,2,3]
+  PetscInt, parameter :: J5_i(6) = [1,2,3,3,9,7]
 
   T_temp = T+Tf
   pi = Pv/p_ref
   tao = T_ref/T_temp
 
-  gamma_0_pi = 1.d0/pi
+  if (T_temp <= 1073.15d0) then
+    ! region 2, tables 13 & 14
+    gamma_0_pi = 1.d0/pi
+    gamma_r_pi = sum(n_i*I_i*(pi**(I_i-1))*(tao-0.5)**J_i)
+    gamma_0_tao = sum(n_i0*J_i0*tao**(J_i0-1))
+    gamma_r_tao = sum(n_i*pi**(I_i)*J_i*(tao-0.5)**(J_i-1))
+    dg = R*T_temp/Pv * pi * (gamma_0_pi + gamma_r_pi) *1.d3
+    hg = R*T_temp * tao * (gamma_0_tao + gamma_r_tao)
 
-  gamma_r_pi = sum(n_i*I_i*(pi**(I_i-1))*(tao-0.5)**J_i)
+    dg = 1/dg
+    dgmol = dg/FMWH2O
 
-  gamma_0_tao = sum(n_i0*J_i0*tao**(J_i0-1))
+    if (calculate_derivatives) then
+      dgt = R/p_ref*((gamma_0_pi+gamma_r_pi)-T_ref/(T_temp)* &
+           sum(n_i*I_i*pi**(I_i-1)*J_i*(tao-0.5d0)**(J_i-1)))
+      dgp = R*T_temp/(p_ref*p_ref)*(-1.d0/(pi*pi)+ &
+           sum(n_i*I_i*(I_i-1)*pi**(I_i-2)*(tao-0.5d0)**(J_i)))
+      hgt = -tao*tao*R*(sum(n_i0*J_i0*(J_i0-1)*tao**(J_i0-2))+ &
+           sum(n_i*pi**(I_i)*J_i*(J_i-1)*(tao-0.5d0)**(J_i-2)))
+      hgp = T_ref*R/p_ref *(sum(n_i*I_i*pi**(I_i-1)*J_i*(tao-0.5d0)**(J_i-1)))
 
-  gamma_r_tao = sum(n_i*pi**(I_i)*J_i*(tao-0.5)**(J_i-1))
+      hgt = hgt*FMWH2O * 1.d3
+      hgp = hgp*FMWH2O * 1.d3
+      dgt = -dgt*dg*dg*1.d3/FMWH2O
+      dgp = -dgp*dg*dg*1.d3/FMWH2O
+    else
+      dgt = UNINITIALIZED_DOUBLE
+      dgp = UNINITIALIZED_DOUBLE
+      hgt = UNINITIALIZED_DOUBLE
+      hgp = UNINITIALIZED_DOUBLE
+    endif
+    hg = hg*FMWH2O * 1.d3
+  else if (T_temp <= 2273.15d0) then
+    ! region 5: table 40
+    gamma_0_pi = 1.d0/pi
+    gamma_0_tao = sum(n5_i0*J5_i0*tao**(J5_i0-1))
+    ! table 41
+    gamma_r_pi = sum(n5_i*I5_i*(pi**(I5_i-1))*tao**J5_i)
+    gamma_r_tao = sum(n5_i*pi**(I5_i)*J5_i*tao**(J5_i-1))
+    dg = R*T_temp/Pv * pi * (gamma_0_pi + gamma_r_pi) * 1.d3
+    hg = R*T_temp * tao * (gamma_0_tao + gamma_r_tao)
 
-  dg = R*T_temp/Pv * pi * (gamma_0_pi + gamma_r_pi) *1.d3
-
-  hg = R*T_temp * tao * (gamma_0_tao + gamma_r_tao)
-
-  dg = 1/dg
-  dgmol = dg/FMWH2O
-
-  if (calculate_derivatives) then
-    dgt = R/p_ref*((gamma_0_pi+gamma_r_pi)-T_ref/(T_temp)* &
-          sum(n_i*I_i*pi**(I_i-1)*J_i*(tao-0.5d0)**(J_i-1)))
-    dgp = R*T_temp/(p_ref*p_ref)*(-1.d0/(pi*pi)+ &
-          sum(n_i*I_i*(I_i-1)*pi**(I_i-2)*(tao-0.5d0)**(J_i)))
-    hgt = -tao*tao*R*(sum(n_i0*J_i0*(J_i0-1)*tao**(J_i0-2))+ &
-                      sum(n_i*pi**(I_i)*J_i*(J_i-1)*(tao-0.5d0)**(J_i-2)))
-    hgp = T_ref*R/p_ref *(sum(n_i*I_i*pi**(I_i-1)*J_i*(tao-0.5d0)**(J_i-1)))
-
-    hgt = hgt*FMWH2O * 1.d3
-    hgp = hgp*FMWH2O * 1.d3
-    dgt = -dgt*dg*dg*1.d3/FMWH2O
-    dgp = -dgp*dg*dg*1.d3/FMWH2O
+    dg = 1/dg
+    if (calculate_derivatives) then
+    stop 'IF97 region 5 steam density/enthalpy derivative not implemented yet'
+    else
+      dgt = UNINITIALIZED_DOUBLE
+      dgp = UNINITIALIZED_DOUBLE
+      hgt = UNINITIALIZED_DOUBLE
+      hgp = UNINITIALIZED_DOUBLE
+    end if
   else
-    dgt = UNINITIALIZED_DOUBLE
-    dgp = UNINITIALIZED_DOUBLE
-    hgt = UNINITIALIZED_DOUBLE
-    hgp = UNINITIALIZED_DOUBLE
-  endif
-
-  hg = hg*FMWH2O * 1.d3
-
+    stop 'wow. much hotness.'
+  end if
 
 end subroutine EOSWaterSteamDensityEnthalpyIF97
 
