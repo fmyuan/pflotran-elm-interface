@@ -1734,6 +1734,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
   select case(global_auxvar%istate)
     case(L_STATE)
+      if (hyd_auxvar%sat(iid) == ZERO_INTEGER) then
       if (hyd_auxvar%temp > Tf_ice) then
         !if (hyd_auxvar%pres(apid) >= hyd_auxvar% &
         !     pres(lid)*(1.d0-window_epsilon)) then
@@ -1787,10 +1788,36 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = GAI_STATE
       else
+        istatechng = PETSC_FALSE
         !istatechng = PETSC_TRUE
         !global_auxvar%istate = AI_STATE
       endif
-
+      else
+      if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
+          K_H_tilde_hyd*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+          pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_methane) then
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = HAI_STATE
+      elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
+              K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+              pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_methane) then
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = GAI_STATE
+      elseif (K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+              pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_air) then
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = GAI_STATE
+      else
+        if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
+          istatechng = PETSC_FALSE
+        elseif (hyd_auxvar%sat(lid) > 0.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = L_STATE
+        else
+          istatechng = PETSC_FALSE
+        endif
+      endif
+      endif
     case(G_STATE)
       if (hyd_auxvar%pres(vpid) >= hyd_auxvar%pres(spid)* &
          (1.d0-window_epsilon)) then
