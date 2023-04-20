@@ -1783,34 +1783,1052 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
   PetscReal :: pi, tao, g_pi, T_temp
   PetscReal :: dg_pi_dT, dv_dt, dg_pi_dp, dv_dp
 
-! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+
+  if (Tf <= 623.15d0) then
+    ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+
+    T_temp = T+Tf
+    pi = P/p_ref
+    tao = T_ref/T_temp
+
+    g_pi = sum((-n_i*I_i*(7.1d0-pi)**(I_i-1))*(tao-1.222d0)**(J_i))
+    dw = g_pi * pi*R*T_temp/P * 1.d3
+
+    dw = 1.d0/dw
+    dwmol = dw/FMWH2O
+
+    if (calculate_derivatives) then
+      dg_pi_dT = T_ref/(T_temp*T_temp) * sum(n_i*I_i*(7.1d0-pi)**(I_i-1)* &
+                                             J_i*(tao-1.222d0)**(J_i-1))
+      dv_dt = R*pi/P * (g_pi+T_temp*dg_pi_dT)
+      dwt = -1.d3/FMWH2O*dw*dw * dv_dt
+
+      dg_pi_dp = sum(n_i*I_i*(I_i-1)*(7.1d0-pi)**(I_i-2)* &
+                     (tao-1.222d0)**(J_i)) / p_ref
+      dv_dp = R*T_temp*(-g_pi*pi/(P*P) + (g_pi/p_ref + dg_pi_dp*pi)/P)
+      dwp = -1.d3/FMWH2O*dw*dw *dv_dp
+    else
+      dwp = UNINITIALIZED_DOUBLE
+      dwt = UNINITIALIZED_DOUBLE
+    endif
+  else
+    ! Region 3: Valid in "wedge" >623.15K, >Ps(T), and 100MPa
+    ! put into separate routine, to minimize weighing down this
+    ! much more commonly used routine (Region 1)
+    call EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
+                                    dwp,dwt)
+  end if
+
+end subroutine EOSWaterDensityIF97
+
+subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
+                                     dwp,dwt)
+  ! only ever called by EOSWaterDensityIF97()
+  ! implements "backward equations" and "auxiliary equations" for
+  ! specific volume as a funciton of p,T near the critical point
+  ! in report IAPWS SR5-05(2016).
+
+  implicit none
+  PetscReal, intent(in) :: T   ! Temperature [C]
+  PetscReal, intent(in) :: P   ! Pressure [Pa]
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode :: ierr
+
+  PetscReal :: dumb, psat_64315, psat_62315, T_temp
+  PetscInt, parameter :: T3ab=1, T3cd=2, T3gh=3, T3ij=4, T3jk=5, T3mn=6
+  PetscInt, parameter :: T3op=7, T3qu=8, T3rx=9, T3ef=12, T3uv=10, T3wx=11
+
+  PetscReal, parameter :: Tf = 273.15d0 !K
+
+  ! Region 3:  Region 3: Valid in "wedge" >623.15K, >Ps(T), and 100MPa
+  ! first, determine which of 24 sub-regions we fall into:
 
   T_temp = T+Tf
-  pi = P/p_ref
-  tao = T_ref/T_temp
 
-  g_pi = sum((-n_i*I_i*(7.1d0-pi)**(I_i-1))*(tao-1.222d0)**(J_i))
-  dw = g_pi * pi*R*T_temp/P * 1.d3
+  ! see Table 2
+  call EOSWaterSaturationPressureIF97(370.d0, .false., psat_64315, dumb, ierr) ! 21.0434 MPa
+  call EOSWaterSaturationPressureIF97(350.d0, .false., psat_62315, dumb, ierr) ! 16.5292 MPa
+
+  dw = UNINITIALIZED_DOUBLE
+  if (P <= 100.0D+6 .and. P > 40.0D+6) then
+    if (T_temp > T3bdry(P,T3ab)) then
+      dw = IF97_subregion_3b(P,T_temp)
+    else
+      dw = IF97_subregion_3a(P,T_temp)
+    end if
+  else if (P > 25.0D+6) then
+    if (T_temp  > T3bdry(P,T3ef)) then
+      dw = IF97_subregion_3f(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ab)) then
+      dw = IF97_subregion_3e(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3d(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 23.5D+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ij)) then
+      dw = IF97_subregion_3j(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ef)) then
+      dw = IF97_subregion_3i(P,T_temp)
+    else if (T_temp > T3bdry(P,T3gh)) then
+      dw = IF97_subregion_3h(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3g(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 23.0D+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ij)) then
+      dw = IF97_subregion_3j(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ef)) then
+      dw = IF97_subregion_3i(P,T_temp)
+    else if (T_temp > T3bdry(P,T3gh)) then
+      dw = IF97_subregion_3h(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3l(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 22.5D+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ij)) then
+      dw = IF97_subregion_3j(P,T_temp)
+    else if (T_temp > T3bdry(P,T3op)) then
+      dw = IF97_subregion_3p(P,T_temp)
+    else if (T_temp > T3bdry(P,T3ef)) then
+      dw = IF97_subregion_3o(P,T_temp)
+    else if (T_temp > T3bdry(P,T3mn)) then
+      dw = IF97_subregion_3n(P,T_temp)
+    else if (T_temp > T3bdry(P,T3gh)) then
+      dw = IF97_subregion_3m(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3l(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 21.11D+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3rx)) then
+      dw = IF97_subregion_3r(P,T_temp)
+    else if (T_temp > T3bdry(P,T3wx)) then
+      dw = IF97_subregion_3x(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3ef)) then
+      dw = IF97_subregion_3w(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3uv)) then
+      dw = IF97_subregion_3v(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3qu)) then
+      dw = IF97_subregion_3u(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3q(P,T_Temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 22.064D+6) then ! P_crit
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3rx)) then
+      dw = IF97_subregion_3r(P,T_temp)
+    else if (T_temp > T3bdry(P,T3wx)) then
+      dw = IF97_subregion_3x(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3ef)) then
+      dw = IF97_subregion_3z(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3uv)) then
+      dw = IF97_subregion_3y(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3qu)) then
+      dw = IF97_subregion_3u(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3q(P,T_Temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 21.93161551d+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3rx)) then
+      dw = IF97_subregion_3r(P,T_temp)
+    else if (T_temp > T3bdry(P,T3wx)) then
+      dw = IF97_subregion_3x(P,T_Temp)
+    else if (T_temp > IF97SaturationTemperature(P)) then
+      dw = IF97_subregion_3z(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3uv)) then
+      dw = IF97_subregion_3y(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3qu)) then
+      dw = IF97_subregion_3u(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3q(P,T_Temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 21.90096265d+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3rx)) then
+      dw = IF97_subregion_3r(P,T_temp)
+    else if (T_temp > T3bdry(P,T3wx)) then
+      dw = IF97_subregion_3x(P,T_Temp)
+    else if (T_temp > IF97SaturationTemperature(P)) then
+      dw = IF97_subregion_3z(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3qu)) then
+      dw = IF97_subregion_3u(P,T_Temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3q(P,T_Temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > psat_64315) then ! 21.0434 MPa
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > T3bdry(P,T3rx)) then
+      dw = IF97_subregion_3r(P,T_temp)
+    else if (T_temp > IF97SaturationTemperature(P)) then
+      dw = IF97_subregion_3x(P,T_temp)
+    else if (T_temp > T3bdry(P,T3qu)) then
+      dw = IF97_subregion_3u(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3q(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 20.5D+6) then
+    if (T_temp > T3bdry(P,T3jk)) then
+      dw = IF97_subregion_3k(P,T_temp)
+    else if (T_temp > IF97SaturationTemperature(p)) then
+      dw = IF97_subregion_3r(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3s(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > 1.900881189173929D+1) then
+    if (T_temp > IF97SaturationTemperature(P)) then
+      dw = IF97_subregion_3t(P,T_temp)
+    else if (T_temp > T3bdry(P,T3cd)) then
+      dw = IF97_subregion_3s(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else if (P > psat_62315) then ! 16.5292 MPa
+    if (T_temp >= IF97SaturationTemperature(P)) then
+      dw = IF97_subregion_3t(P,T_temp)
+    else
+      dw = IF97_subregion_3c(P,T_temp)
+    end if
+  else
+    stop 'IF97 Region 3 ERROR: either > 100 MPa or < 16.5292 MPa'
+  end if
 
   dw = 1.d0/dw
   dwmol = dw/FMWH2O
 
   if (calculate_derivatives) then
-    dg_pi_dT = T_ref/(T_temp*T_temp) * sum(n_i*I_i*(7.1d0-pi)**(I_i-1)* &
-                                           J_i*(tao-1.222d0)**(J_i-1))
-    dv_dt = R*pi/P * (g_pi+T_temp*dg_pi_dT)
-    dwt = -1.d3/FMWH2O*dw*dw * dv_dt
-
-    dg_pi_dp = sum(n_i*I_i*(I_i-1)*(7.1d0-pi)**(I_i-2)* &
-                   (tao-1.222d0)**(J_i)) / p_ref
-    dv_dp = R*T_temp*(-g_pi*pi/(P*P) + (g_pi/p_ref + dg_pi_dp*pi)/P)
-    dwp = -1.d3/FMWH2O*dw*dw *dv_dp
+    stop 'IF97 region 3 derivative not implemented yet'
   else
     dwp = UNINITIALIZED_DOUBLE
     dwt = UNINITIALIZED_DOUBLE
   endif
 
-end subroutine EOSWaterDensityIF97
+end subroutine EOSWaterDensityIF97Region3
+
+function T3bdry(P,idx)
+  implicit none
+  PetscReal, parameter :: n_i(11,5) = reshape([ &
+        0.154793642129415D4, -0.187661219490113D3, 0.213144632222113D2, & !T3ab
+       -0.191887498864292D4, 0.918419702359447D3, &
+        0.585276966696349D3, 0.278233532206915D1, -0.127283549295878D-1, & !T3cd
+        0.159090746562729D-3, 0.0d0, &
+       -0.249284240900418D5, 0.428143584791546D4, -0.269029173140130D3, & !T3gh
+        0.751608051114157D1, -0.787105249910383D-1, &
+        0.584814781649163D3, -0.616179320924617D0, 0.260763050899562D0, & !T3ij
+       -0.587071076864459D-2, 0.515308185433082D-4, &
+        0.617229772068439D3, -0.770600270141675D1, 0.697072596851896D0, & !T3jk
+       -0.157391839848015D-1, 0.137897492684194D-3, &
+        0.535339483742384D3, 0.761978122720128D1, -0.158365725441648D0, & !T3mn
+        0.192871054508108D-2, 0.0d0, &
+        0.969461372400213D3, -0.332500170441278D3, 0.642859598466067D2, & !T3op
+        0.773845935768222D3, -0.152313732937084D4, &
+        0.565603648239126D3, 0.529062258221222D1, -0.102020639611016D0, & !T3qu
+        0.122240301070145D-2, 0.0d0, &
+        0.584561202520006D3, -0.102961025163669D1, 0.243293362700452D0, & !T3rx
+       -0.294905044740799D-2, 0.0d0, &
+        0.528199646263062D3, 0.890579602135307D1, -0.222814134903755D0, & !T3uv
+        0.286791682263697D-2, 0.0d0, &
+        0.728052609145380D1, 0.973505869861952D2, 0.147370491183191D2, & !T3wx
+        0.329196213998375D3, 0.873371668682417D3],shape=[11,5],order=[2,1])
+  PetscInt, parameter :: I_i(11,5) = reshape([0,1,2,-1,-2, 0,1,2,3,0, 0,1,2,3,4, &
+       0,1,2,3,4, 0,1,2,3,4, 0,1,2,3,0, 0,1,2,-1,-2, 0,1,2,3,0, 0,1,2,3,0, 0,1,2,3,0, &
+       0,1,2,-1,-2],shape=[11,5],order=[2,1])
+  PetscReal, intent(in) :: P
+  PetscInt, intent(in) :: idx
+  PetscReal :: T3bdry, pi
+
+  pi = P * 1.0D-6
+  select case(idx)
+  case(1,7,11)
+    T3bdry = sum(n_i(idx,:) * log(pi) ** I_i(idx,:)) ! eqn 2
+  case(12)
+    T3bdry = 3.727888004d0 * (pi - 22.064d0) + 647.096d0 ! eqn 3
+  case(2:6,8:10)
+    T3bdry = sum(n_i(idx,:) * pi ** I_i(idx,:)) ! eqn 1
+  case default
+    stop "ERROR: IF97 T3bdry(). Invalid select case"
+  end select
+end function T3bdry
+
+function IF97_subregion_3a(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(30) = [0.110879558823853D-2, &
+          0.572616740810616D3, -0.767051948380852D5, -0.253321069529674D-1, &
+          0.628008049345689D4, 0.234105654131876D6, 0.216867826045856D0, &
+          -0.156237904341963D3, -0.269893956176613D5, -0.180407100085505D-3, &
+          0.116732227668261D-2, 0.266987040856040D2, 0.282776617243286D5, &
+          -0.242431520029523D4, 0.435217323022733D-3, -0.122494831387441D-1, &
+          0.179357604019989D1, 0.442729521058314D2, -0.593223489018342D-2, &
+          0.453186261685774D0, 0.135825703129140D1, 0.408748415856745D-1, &
+          0.474686397863312D0, 0.118646814997915D1, 0.546987265727549D0, &
+          0.195266770452643D0, -0.502268790869663D-1, -0.369645308193377D0, &
+          0.633828037528420D-2, 0.797441793901017D-1]
+  PetscInt, parameter :: I_i(30) = [-12,-12,-12,-10,-10,-10,-8,-8,-8,-6,-5,-5,-5, &
+                                    -4,-3,-3,-3,-3,-2,-2,-2,-1,-1,-1,0,0,1,1,2, &
+                                    2]
+  PetscInt, parameter :: J_i(30) = [5,10,12,5,10,12,5,8,10,1,1,5,10,8,0,1,3,6,0, &
+                                    2,3,0,1,2,0,1,0,2,0,2]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0024d0, p_star = 100.d0, T_star = 760.d0
+  PetscReal, parameter :: a = 0.085d0, b = 0.817d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3a
+
+function IF97_subregion_3b(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(32) = [-0.827670470003621D-1, &
+          0.416887126010565D2, 0.483651982197059D-1, -0.291032084950276D5, &
+          -0.111422582236948D3, -0.202300083904014D-1, 0.294002509338515D3, &
+          0.140244997609658D3, -0.344384158811459D3, 0.361182452612149D3, &
+          -0.140699677420738D4, -0.202023902676481D-2, 0.171346792457471D3, &
+          -0.425597804058632D1, 0.691346085000334D-5, 0.151140509678925D-2, &
+          -0.416375290166236D-1, -0.413754957011042D2, -0.506673295721637D2, &
+          -0.572212965569023D-3, 0.608817368401785D1, 0.239600660256161D2, &
+          0.122261479925384D-1, 0.216356057692938D1, 0.398198903368642D0, &
+          -0.116892827834085D0, -0.102845919373532D0, -0.492676637589284D0, &
+          0.655540456406790D-1, -0.240462535078530D0, -0.269798180310075D-1, &
+          0.128369435967012D0]
+  PetscInt, parameter :: I_i(32) = [-12,-12,-10,-10,-8,-6,-6,-6,-5,-5,-5,-4,-4, &
+                                    -4,-3,-3,-3,-3,-3,-2,-2,-2,-1,-1,0,0,1,1,2, &
+                                    3,4,4]
+  PetscInt, parameter :: J_i(32) = [10,12,8,14,8,5,6,8,5,8,10,2,4,5,0,1,2,3,5,0, &
+                                    2,5,0,2,0,1,0,2,0,2,0,1]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0041d0, p_star = 100.d0, T_star = 860.d0
+  PetscReal, parameter :: a = 0.280d0, b = 0.779d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3b
+
+function IF97_subregion_3c(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(35) = [0.311967788763030D1, &
+          0.276713458847564D5, 0.322583103403269D8, -0.342416065095363D3, &
+          -0.899732529907377D6, -0.793892049821251D8, 0.953193003217388D2, &
+          0.229784742345072D4, 0.175336675322499D6, 0.791214365222792D7, &
+          0.319933345844209D-4, -0.659508863555767D2, -0.833426563212851D6, &
+          0.645734680583292D-1, -0.382031020570813D7, 0.406398848470079D-4, &
+          0.310327498492008D2, -0.892996718483724D-3, 0.234604891591616D3, &
+          0.377515668966951D4, 0.158646812591361D-1, 0.707906336241843D0, &
+          0.126016225146570D2, 0.736143655772152D0, 0.676544268999101D0, &
+          -0.178100588189137D2, -0.156531975531713D0, 0.117707430048158D2, &
+          0.840143653860447D-1, -0.186442467471949D0, -0.440170203949645D2, &
+          0.123290423502494D7, -0.240650039730845D-1, -0.107077716660869D7, &
+          0.438319858566475D-1]
+  PetscInt, parameter :: I_i(35) = [-12,-12,-12,-10,-10,-10,-8,-8,-8,-6,-5,-5,-5, &
+                                    -4,-4,-3,-3,-2,-2,-2,-1,-1,-1,0,0,0,1,1,2,2, &
+                                    2,2,3,3,8]
+  PetscInt, parameter :: J_i(35) = [6,8,10,6,8,10,5,6,7,8,1,4,7,2,8,0,3,0,4,5,0, &
+                                    1,2,0,1,2,0,2,0,1,3,7,0,7,1]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0022d0, p_star = 40.d0, T_star = 690.d0
+  PetscReal, parameter :: a = 0.259d0, b = 0.903d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3c
+
+function IF97_subregion_3d(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(38) = [-0.452484847171645D-9, &
+          0.315210389538801D-4, -0.214991352047545D-2, 0.508058874808345D3, &
+          -0.127123036845932D8, 0.115371133120497D13, -0.197805728776273D-15, &
+          0.241554806033972D-10, -0.156481703640525D-5, 0.277211346836625D-2, &
+          -0.203578994462286D2, 0.144369489909053D7, -0.411254217946539D11, &
+          0.623449786243773D-5, -0.221774281146038D2, -0.689315087933158D5, &
+          -0.195419525060713D8, 0.316373510564015D4, 0.224040754426988D7, &
+          -0.436701347922356D-5, -0.404213852833996D-3, -0.348153203414663D3, &
+          -0.385294213555289D6, 0.135203700099403D-6, 0.134648383271089D-3, &
+          0.125031835351736D6, 0.968123678455841D-1, 0.225660517512438D3, &
+          -0.190102435341872D-3, -0.299628410819229D-1, 0.500833915372121D-2, &
+          0.387842482998411D0, -0.138535367777182D4, 0.870745245971773D0, &
+          0.171946252068742D1, -0.326650121426383D-1, 0.498044171727877D4, &
+          0.551478022765087D-2]
+  PetscInt, parameter :: I_i(38) = [-12,-12,-12,-12,-12,-12,-10,-10,-10,-10,-10, &
+                                    -10,-10,-8,-8,-8,-8,-6,-6,-5,-5,-5,-5,-4,-4, &
+                                    -4,-3,-3,-2,-2,-1,-1,-1,0,0,1,1,3]
+  PetscInt, parameter :: J_i(38) = [4,6,7,10,12,16,0,2,4,6,8,10,14,3,7,8,10,6,8, &
+                                    1,2,5,7,0,1,7,2,4,0,1,0,1,5,0,2,0,6,0]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0029d0, p_star = 40.d0, T_star = 690.d0
+  PetscReal, parameter :: a = 0.559d0, b = 0.939d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3d
+
+function IF97_subregion_3e(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(29) = [0.715815808404721D9, &
+          -0.114328360753449D12, 0.376531002015720D-11, -0.903983668691157D-4, &
+          0.665695908836252D6, 0.535364174960127D10, 0.794977402335603D11, &
+          0.922230563421437D2, -0.142586073991215D6, -0.111796381424162D7, &
+          0.896121629640760D4, -0.669989239070491D4, 0.451242538486834D-2, &
+          -0.339731325977713D2, -0.120523111552278D1, 0.475992667717124D5, &
+          -0.266627750390341D6, -0.153314954386524D-3, 0.305638404828265D0, &
+          0.123654999499486D3, -0.104390794213011D4, -0.157496516174308D-1, &
+          0.685331118940253D0, 0.178373462873903D1, -0.544674124878910D0, &
+          0.204529931318843D4, -0.228342359328752D5, 0.413197481515899D0, &
+          -0.341931835910405D2]
+  PetscInt, parameter :: I_i(29) = [-12,-12,-10,-10,-10,-10,-10,-8,-8,-8,-6,-5, &
+                                    -4,-4,-3,-3,-3,-2,-2,-2,-2,-1,0,0,1,1,1,2,2 &
+                                    ]
+  PetscInt, parameter :: J_i(29) = [14,16,3,6,10,14,16,7,8,10,6,6,2,4,2,6,7,0,1, &
+                                    3,4,0,0,1,0,4,6,0,2]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0032d0, p_star = 40.d0, T_star = 710.d0
+  PetscReal, parameter :: a = 0.587d0, b = 0.918d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3e
+
+function IF97_subregion_3f(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(42) = [-0.251756547792325D-7, &
+          0.601307193668763D-5, -0.100615977450049D-2, 0.999969140252192D0, &
+          0.214107759236486D1, -0.165175571959086D2, -0.141987303638727D-2, &
+          0.269251915156554D1, 0.349741815858722D2, -0.300208695771783D2, &
+          -0.131546288252539D1, -0.839091277286169D1, 0.181545608337015D-9, &
+          -0.591099206478909D-3, 0.152115067087106D1, 0.252956470663225D-4, &
+          0.100726265203786D-14, -0.149774533860650D1, -0.793940970562969D-9, &
+          -0.150290891264717D-3, 0.151205531275133D1, 0.470942606221652D-5, &
+          0.195049710391712D-12, -0.911627886266077D-8, 0.604374640201265D-3, &
+          -0.225132933900136D-15, 0.610916973582981D-11, -0.303063908043404D-6, &
+          -0.137796070798409D-4, -0.919296736666106D-3, 0.639288223132545D-9, &
+          0.753259479898699D-6, -0.400321478682929D-12, 0.756140294351614D-8, &
+          -0.912082054034891D-11, -0.237612381140539D-7, 0.269586010591874D-4, &
+          -0.732828135157839D-10, 0.241995578306660D-9, -0.405735532730322D-3, &
+          0.189424143498011D-9, -0.486632965074563D-9]
+  PetscInt, parameter :: I_i(42) = [0,0,0,0,0,0,1,1,1,1,2,2,3,3,3,4,5,5,6,7,7,10, &
+                                    12,12,12,14,14,14,14,14,16,16,18,18,20,20,20, &
+                                    22,24,24,28,32]
+  PetscInt, parameter :: J_i(42) = [-3,-2,-1,0,1,2,-1,1,2,3,0,1,-5,-2,0,-3,-8,1, &
+                                    -6,-4,1,-6,-10,-8,-4,-12,-10,-8,-6,-4,-10,-8, &
+                                    -12,-10,-12,-10,-6,-12,-12,-4,-12,-12]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0064d0, p_star = 40.d0, T_star = 730.d0
+  PetscReal, parameter :: a = 0.587d0, b = 0.891d0
+  PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3f
+
+function IF97_subregion_3g(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(38) = [0.412209020652996D-4, &
+          -0.114987238280587D7, 0.948180885032080D10, -0.195788865718971D18, &
+          0.496250704871300D25, -0.105549884548496D29, -0.758642165988278D12, &
+          -0.922172769596101D23, 0.725379072059348D30, -0.617718249205859D2, &
+          0.107555033344858D5, -0.379545802336487D8, 0.228646846221831D12, &
+          -0.499741093010619D7, -0.280214310054101D31, 0.104915406769586D7, &
+          0.613754229168619D28, 0.802056715528378D32, -0.298617819828065D8, &
+          -0.910782540134681D2, 0.135033227281565D6, -0.712949383408211D19, &
+          -0.104578785289542D37, 0.304331584444093D2, 0.593250797959445D10, &
+          -0.364174062110798D28, 0.921791403532461D0, -0.337693609657471D0, &
+          -0.724644143758508D2, -0.110480239272601D0, 0.536516031875059D1, &
+          -0.291441872156205D4, 0.616338176535305D40, -0.120889175861180D39, &
+          0.818396024524612D23, 0.940781944835829D9, -0.367279669545448D5, &
+          -0.837513931798655D16]
+  PetscInt, parameter :: I_i(38) = [-12,-12,-12,-12,-12,-12,-10,-10,-10,-8,-8,-8, &
+                                    -8,-6,-6,-5,-5,-4,-3,-2,-2,-2,-2,-1,-1,-1,0, &
+                                    0,0,1,1,1,3,5,6,8,10,10]
+  PetscInt, parameter :: J_i(38) = [7,12,14,18,22,24,14,20,24,7,8,10,12,8,22,7, &
+                                    20,22,7,3,5,14,24,2,8,18,0,1,2,0,1,3,24,22, &
+                                    12,3,0,6]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0027d0, p_star = 25.d0, T_star = 660.d0
+  PetscReal, parameter :: a = 0.872d0, b = 0.971d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3g
+
+function IF97_subregion_3h(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(29) = [0.561379678887577D-1, &
+          0.774135421587083D10, 0.111482975877938D-8, -0.143987128208183D-2, &
+          0.193696558764920D4, -0.605971823585005D9, 0.171951568124337D14, &
+          -0.185461154985145D17, 0.387851168078010D-16, -0.395464327846105D-13, &
+          -0.170875935679023D3, -0.212010620701220D4, 0.177683337348191D8, &
+          0.110177443629575D2, -0.234396091693313D6, -0.656174421999594D7, &
+          0.156362212977396D-4, -0.212946257021400D1, 0.135249306374858D2, &
+          0.177189164145813D0, 0.139499167345464D4, -0.703670932036388D-2, &
+          -0.152011044389648D0, 0.981916922991113D-4, 0.147199658618076D-2, &
+          0.202618487025578D2, 0.899345518944240D0, -0.211346402240858D0, &
+          0.249971752957491D2]
+  PetscInt, parameter :: I_i(29) = [-12,-12,-10,-10,-10,-10,-10,-10,-8,-8,-8,-8, &
+                                    -8,-6,-6,-6,-5,-5,-5,-4,-4,-3,-3,-2,-1,-1,0, &
+                                    1,1]
+  PetscInt, parameter :: J_i(29) = [8,12,4,6,8,10,14,16,0,1,6,7,8,4,6,8,2,3,4,2, &
+                                    4,1,2,0,0,2,0,0,2]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0032d0, p_star = 25.d0, T_star = 660.d0
+  PetscReal, parameter :: a = 0.898d0, b = 0.983d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3h
+
+function IF97_subregion_3i(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(42) = [0.106905684359136D1, &
+          -0.148620857922333D1, 0.259862256980408D15, -0.446352055678749D-11, &
+          -0.566620757170032D-6, -0.235302885736849D-2, -0.269226321968839D0, &
+          0.922024992944392D1, 0.357633505503772D-11, -0.173942565562222D2, &
+          0.700681785556229D-5, -0.267050351075768D-3, -0.231779669675624D1, &
+          -0.753533046979752D-12, 0.481337131452891D1, -0.223286270422356D22, &
+          -0.118746004987383D-4, 0.646412934136496D-2, -0.410588536330937D-9, &
+          0.422739537057241D20, 0.313698180473812D-12, 0.164395334345040D-23, &
+          -0.339823323754373D-5, -0.135268639905021D-1, -0.723252514211625D-14, &
+          0.184386437538366D-8, -0.463959533752385D-1, -0.992263100376750D14, &
+          0.688169154439335D-16, -0.222620998452197D-10, -0.540843018624083D-7, &
+          0.345570606200257D-2, 0.422275800304086D11, -0.126974478770487D-14, &
+          0.927237985153679D-9, 0.612670812016489D-13, -0.722693924063497D-11, &
+          -0.383669502636822D-3, 0.374684572410204D-3, -0.931976897511086D5, &
+          -0.247690616026922D-1, 0.658110546759474D2]
+  PetscInt, parameter :: I_i(42) = [0,0,0,1,1,1,1,2,3,3,4,4,4,5,5,5,7,7,8,8,10, &
+                                    12,12,12,14,14,14,14,18,18,18,18,18,20,20,22, &
+                                    24,24,32,32,36,36]
+  PetscInt, parameter :: J_i(42) = [0,1,10,-4,-2,-1,0,0,-5,0,-3,-2,-1,-6,-1,12, &
+                                    -4,-3,-6,10,-8,-12,-6,-4,-10,-8,-4,5,-12,-10, &
+                                    -8,-6,2,-12,-10,-12,-12,-8,-10,-5,-10,-8]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0041d0, p_star = 25.d0, T_star = 660.d0
+  PetscReal, parameter :: a = 0.910d0, b = 0.984d0
+  PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3i
+
+function IF97_subregion_3j(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(29) = [-0.111371317395540D-3, &
+          0.100342892423685D1, 0.530615581928979D1, 0.179058760078792D-5, &
+          -0.728541958464774D-3, -0.187576133371704D2, 0.199060874071849D-2, &
+          0.243574755377290D2, -0.177040785499444D-3, -0.259680385227130D-2, &
+          -0.198704578406823D3, 0.738627790224287D-4, -0.236264692844138D-2, &
+          -0.161023121314333D1, 0.622322971786473D4, -0.960754116701669D-8, &
+          -0.510572269720488D-10, 0.767373781404211D-2, 0.663855469485254D-14, &
+          -0.717590735526745D-9, 0.146564542926508D-4, 0.309029474277013D-11, &
+          -0.464216300971708D-15, -0.390499637961161D-13, -0.236716126781431D-9, &
+          0.454652854268717D-11, -0.422271787482497D-2, 0.283911742354706D-10, &
+          0.270929002720228D1]
+  PetscInt, parameter :: I_i(29) = [0,0,0,1,1,1,2,2,3,4,4,5,5,5,6,10,12,12,14,14, &
+                                    14,16,18,20,20,24,24,28,28]
+  PetscInt, parameter :: J_i(29) = [-1,0,1,-2,-1,1,-1,1,-2,-2,2,-3,-2,0,3,-6,-8, &
+                                    -3,-10,-8,-5,-10,-12,-12,-10,-12,-6,-12,-5]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0054d0, p_star = 25.d0, T_star = 670.d0
+  PetscReal, parameter :: a = 0.875d0, b = 0.964d0
+  PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3j
+
+function IF97_subregion_3k(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(34) = [-0.401215699576099D9, &
+          0.484501478318406D11, 0.394721471363678D-14, 0.372629967374147D5, &
+          -0.369794374168666D-29, -0.380436407012452D-14, 0.475361629970233D-6, &
+          -0.879148916140706D-3, 0.844317863844331D0, 0.122433162656600D2, &
+          -0.104529634830279D3, 0.589702771277429D3, -0.291026851164444D14, &
+          0.170343072841850D-5, -0.277617606975748D-3, -0.344709605486686D1, &
+          0.221333862447095D2, -0.194646110037079D3, 0.808354639772825D-15, &
+          -0.180845209145470D-10, -0.696664158132412D-5, -0.181057560300994D-2, &
+          0.255830298579027D1, 0.328913873658481D4, -0.173270241249904D-18, &
+          -0.661876792558034D-6, -0.395688923421250D-2, 0.604203299819132D-17, &
+          -0.400879935920517D-13, 0.160751107464958D-8, 0.383719409025556D-4, &
+          -0.649565446702457D-14, -0.149095328506000D-11, 0.541449377329581D-8]
+  PetscInt, parameter :: I_i(34) = [-2,-2,-1,-1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,2,2, &
+                                    2,2,2,2,5,5,5,6,6,6,6,8,10,12]
+  PetscInt, parameter :: J_i(34) = [10,12,-5,6,-12,-6,-2,-1,0,1,2,3,14,-3,-2,0, &
+                                    1,2,-8,-6,-3,-2,0,4,-12,-6,-3,-12,-10,-8,-5, &
+                                    -12,-12,-10]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0077d0, p_star = 25.d0, T_star = 680.d0
+  PetscReal, parameter :: a = 0.802d0, b = 0.935d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3k
+
+function IF97_subregion_3l(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(43) = [0.260702058647537D10, &
+          -0.188277213604704D15, 0.554923870289667D19, -0.758966946387758D23, &
+          0.413865186848908D27, -0.815038000738060D12, -0.381458260489955D33, &
+          -0.123239564600519D-1, 0.226095631437174D8, -0.495017809506720D12, &
+          0.529482996422863D16, -0.444359478746295D23, 0.521635864527315D35, &
+          -0.487095672740742D55, -0.714430209937547D6, 0.127868634615495D0, &
+          -0.100752127917598D2, 0.777451437960990D7, -0.108105480796471D25, &
+          -0.357578581169659D-5, -0.212857169423484D1, 0.270706111085238D30, &
+          -0.695953622348829D33, 0.110609027472280D0, 0.721559163361354D2, &
+          -0.306367307532219D15, 0.265839618885530D-4, 0.253392392889754D-1, &
+          -0.214443041836579D3, 0.937846601489667D0, 0.223184043101700D1, &
+          0.338401222509191D2, 0.494237237179718D21, -0.198068404154428D0, &
+          -0.141415349881140D31, -0.993862421613651D2, 0.125070534142731D3, &
+          -0.996473529004439D3, 0.473137909872765D5, 0.116662121219322D33, &
+          -0.315874976271533D16, -0.445703369196945D33, 0.642794932373694D33]
+  PetscInt, parameter :: I_i(43) = [-12,-12,-12,-12,-12,-10,-10,-8,-8,-8,-8,-8, &
+                                    -8,-8,-6,-5,-5,-4,-4,-3,-3,-3,-3,-2,-2,-2,-1, &
+                                    -1,-1,0,0,0,0,1,1,2,4,5,5,6,10,10,14]
+  PetscInt, parameter :: J_i(43) = [14,16,18,20,22,14,24,6,10,12,14,18,24,36,8, &
+                                    4,5,7,16,1,3,18,20,2,3,10,0,1,3,0,1,2,12,0, &
+                                    16,1,0,0,1,14,4,12,10]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0026d0, p_star = 24.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.908d0, b = 0.989d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3l
+
+function IF97_subregion_3m(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(40) = [0.811384363481847D0, &
+          -0.568199310990094D4, -0.178657198172556D11, 0.795537657613427D32, &
+          -0.814568209346872D5, -0.659774567602874D8, -0.152861148659302D11, &
+          -0.560165667510446D12, 0.458384828593949D6, -0.385754000383848D14, &
+          0.453735800004273D8, 0.939454935735563D12, 0.266572856432938D28, &
+          -0.547578313899097D10, 0.200725701112386D15, 0.185007245563239D13, &
+          0.185135446828337D9, -0.170451090076385D12, 0.157890366037614D15, &
+          -0.202530509748774D16, 0.368193926183570D60, 0.170215539458936D18, &
+          0.639234909918741D42, -0.821698160721956D15, -0.795260241872306D24, &
+          0.233415869478510D18, -0.600079934586803D23, 0.594584382273384D25, &
+          0.189461279349492D40, -0.810093428842645D46, 0.188813911076809D22, &
+          0.111052244098768D36, 0.291133958602503D46, -0.329421923951460D22, &
+          -0.137570282536696D26, 0.181508996303902D28, -0.346865122768353D30, &
+          -0.211961148774260D38, -0.128617899887675D49, 0.479817895699239D65]
+  PetscInt, parameter :: I_i(40) = [0,3,8,20,1,3,4,5,1,6,2,4,14,2,5,3,0,1,1,1,28, &
+                                    2,16,0,5,0,3,4,12,16,1,8,14,0,2,3,4,8,14,24 &
+                                    ]
+  PetscInt, parameter :: J_i(40) = [0,0,0,2,5,5,5,5,6,6,7,8,8,10,10,12,14,14,18, &
+                                    20,20,22,22,24,24,28,28,28,28,28,32,32,32,36, &
+                                    36,36,36,36,36,36]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0028d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 1.000d0, b = 0.997d0
+  PetscReal, parameter :: c = 1.0d0, d = 0.25d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3m
+
+function IF97_subregion_3n(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(39) = [0.280967799943151D-38, &
+          0.614869006573609D-30, 0.582238667048942D-27, 0.390628369238462D-22, &
+          0.821445758255119D-20, 0.402137961842776D-14, 0.651718171878301D-12, &
+          -0.211773355803058D-7, 0.264953354380072D-2, -0.135031446451331D-31, &
+          -0.607246643970893D-23, -0.402352115234494D-18, -0.744938506925544D-16, &
+          0.189917206526237D-12, 0.364975183508473D-5, 0.177274872361946D-25, &
+          -0.334952758812999D-18, -0.421537726098389D-8, -0.391048167929649D-1, &
+          0.541276911564176D-13, 0.705412100773699D-11, 0.258585887897486D-8, &
+          -0.493111362030162D-10, -0.158649699894543D-5, -0.525037427886100D0, &
+          0.220019901729615D-2, -0.643064132636925D-2, 0.629154149015048D2, &
+          0.135147318617061D3, 0.240560808321713D-6, -0.890763306701305D-3, &
+          -0.440209599407714D4, -0.302807107747776D3, 0.159158748314599D4, &
+          0.232534272709876D6, -0.792681207132600D6, -0.869871364662769D11, &
+          0.354542769185671D12, 0.400849240129329D15]
+  PetscInt, parameter :: I_i(39) = [0,3,4,6,7,10,12,14,18,0,3,5,6,8,12,0,3,7,12, &
+                                    2,3,4,2,4,7,4,3,5,6,0,0,3,1,0,1,0,1,0,1]
+  PetscInt, parameter :: J_i(39) = [-12,-12,-12,-12,-12,-12,-12,-12,-12,-10,-10, &
+                                    -10,-10,-10,-10,-8,-8,-8,-8,-6,-6,-6,-5,-5, &
+                                    -5,-4,-3,-3,-3,-2,-1,-1,0,1,1,2,4,5,6]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0031d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.976d0, b = 0.997d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = exp(sum(n_i * (pi - a)**I_i * (theta - b)**J_i)) * v_star
+end function IF97_subregion_3n
+
+function IF97_subregion_3o(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(24) = [0.128746023979718D-34, &
+          -0.735234770382342D-11, 0.289078692149150D-2, 0.244482731907223D0, &
+          0.141733492030985D-23, -0.354533853059476D-28, -0.594539202901431D-17, &
+          -0.585188401782779D-8, 0.201377325411803D-5, 0.138647388209306D1, &
+          -0.173959365084772D-4, 0.137680878349369D-2, 0.814897605805513D-14, &
+          0.425596631351839D-25, -0.387449113787755D-17, 0.139814747930240D-12, &
+          -0.171849638951521D-2, 0.641890529513296D-21, 0.118960578072018D-10, &
+          -0.155282762571611D-17, 0.233907907347507D-7, -0.174093247766213D-12, &
+          0.377682649089149D-8, -0.516720236575302D-10]
+  PetscInt, parameter :: I_i(24) = [0,0,0,2,3,4,4,4,4,4,5,5,6,7,8,8,8,10,10,14, &
+                                    14,20,20,24]
+  PetscInt, parameter :: J_i(24) = [-12,-4,-1,-1,-10,-12,-8,-5,-4,-1,-4,-3,-8,-12, &
+                                    -10,-8,-4,-12,-8,-12,-8,-12,-10,-12]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0034d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.974d0, b = 0.996d0
+  PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3o
+
+function IF97_subregion_3p(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(27) = [-0.982825342010366D-4, &
+          0.105145700850612D1, 0.116033094095084D3, 0.324664750281543D4, &
+          -0.123592348610137D4, -0.561403450013495D-1, 0.856677401640869D-7, &
+          0.236313425393924D3, 0.972503292350109D-2, -0.103001994531927D1, &
+          -0.149653706199162D-8, -0.215743778861592D-4, -0.834452198291445D1, &
+          0.586602660564988D0, 0.343480022104968D-25, 0.816256095947021D-5, &
+          0.294985697916798D-2, 0.711730466276584D-16, 0.400954763806941D-9, &
+          0.107766027032853D2, -0.409449599138182D-6, -0.729121307758902D-5, &
+          0.677107970938909D-8, 0.602745973022975D-7, -0.382323011855257D-10, &
+          0.179946628317437D-2, -0.345042834640005D-3]
+  PetscInt, parameter :: I_i(27) = [0,0,0,0,1,2,3,3,4,6,7,7,8,10,12,12,12,14,14, &
+                                    14,16,18,20,22,24,24,36]
+  PetscInt, parameter :: J_i(27) = [-1,0,1,2,1,-1,-3,0,-2,-2,-5,-4,-2,-3,-12,-6, &
+                                    -5,-10,-8,-3,-8,-8,-10,-10,-12,-8,-12]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0041d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.972d0, b = 0.997d0
+  PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3p
+
+function IF97_subregion_3q(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(24) = [-0.820433843259950D5, &
+          0.473271518461586D11, -0.805950021005413D-1, 0.328600025435980D2, &
+          -0.356617029982490D4, -0.172985781433335D10, 0.351769232729192D8, &
+          -0.775489259985144D6, 0.710346691966018D-4, 0.993499883820274D5, &
+          -0.642094171904570D0, -0.612842816820083D4, 0.232808472983776D3, &
+          -0.142808220416837D-4, -0.643596060678456D-2, -0.428577227475614D1, &
+          0.225689939161918D4, 0.100355651721510D-2, 0.333491455143516D0, &
+          0.109697576888873D1, 0.961917379376452D0, -0.838165632204598D-1, &
+          0.247795908411492D1, -0.319114969006533D4]
+  PetscInt, parameter :: I_i(24) = [-12,-12,-10,-10,-10,-10,-8,-6,-5,-5,-4,-4,-3, &
+                                    -2,-2,-2,-2,-1,-1,-1,0,1,1,1]
+  PetscInt, parameter :: J_i(24) = [10,12,6,7,8,10,8,6,2,5,3,4,3,0,1,2,4,0,1,2, &
+                                    0,0,1,3]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0022d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.848d0, b = 0.983d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3q
+
+function IF97_subregion_3r(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(27) = [0.144165955660863D-2, &
+          -0.701438599628258D13, -0.830946716459219D-16, 0.261975135368109D0, &
+          0.393097214706245D3, -0.104334030654021D5, 0.490112654154211D9, &
+          -0.147104222772069D-3, 0.103602748043408D1, 0.305308890065089D1, &
+          -0.399745276971264D7, 0.569233719593750D-11, -0.464923504407778D-1, &
+          -0.535400396512906D-17, 0.399988795693162D-12, -0.536479560201811D-6, &
+          0.159536722411202D-1, 0.270303248860217D-14, 0.244247453858506D-7, &
+          -0.983430636716454D-5, 0.663513144224454D-1, -0.993456957845006D1, &
+          0.546491323528491D3, -0.143365406393758D5, 0.150764974125511D6, &
+          -0.337209709340105D-9, 0.377501980025469D-8]
+  PetscInt, parameter :: I_i(27) = [-8,-8,-3,-3,-3,-3,-3,0,0,0,0,3,3,8,8,8,8,10, &
+                                    10,10,10,10,10,10,10,12,14]
+  PetscInt, parameter :: J_i(27) = [6,14,-3,3,4,5,8,-1,0,1,5,-6,-2,-12,-10,-8,-5, &
+                                    -12,-10,-8,-6,-5,-4,-3,-2,-12,-12]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0054d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.874d0, b = 0.982d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3r
+
+function IF97_subregion_3s(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(29) = [-0.532466612140254D23, &
+          0.100415480000824D32, -0.191540001821367D30, 0.105618377808847D17, &
+          0.202281884477061D59, 0.884585472596134D8, 0.166540181638363D23, &
+          -0.313563197669111D6, -0.185662327545324D54, -0.624942093918942D-1, &
+          -0.504160724132590D10, 0.187514491833092D5, 0.121399979993217D-2, &
+          0.188317043049455D1, -0.167073503962060D4, 0.965961650599775D0, &
+          0.294885696802488D1, -0.653915627346115D5, 0.604012200163444D50, &
+          -0.198339358557937D0, -0.175984090163501D58, 0.356314881403987D1, &
+          -0.575991255144384D3, 0.456213415338071D5, -0.109174044987829D8, &
+          0.437796099975134D34, -0.616552611135792D46, 0.193568768917797D10, &
+          0.950898170425042D54]
+  PetscInt, parameter :: I_i(29) = [-12,-12,-10,-8,-6,-5,-5,-4,-4,-3,-3,-2,-1,-1, &
+                                    -1,0,0,0,0,1,1,3,3,3,4,4,4,5,14]
+  PetscInt, parameter :: J_i(29) = [20,24,22,14,36,8,16,6,32,3,8,4,1,2,3,0,1,4, &
+                                    28,0,32,0,1,2,3,18,24,4,24]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0022d0, p_star = 21.d0, T_star = 640.d0
+  PetscReal, parameter :: a = 0.886d0, b = 0.990d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3s
+
+function IF97_subregion_3t(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(33) = [0.155287249586268D1, &
+          0.664235115009031D1, -0.289366236727210D4, -0.385923202309848D13, &
+          -0.291002915783761D1, -0.829088246858083D12, 0.176814899675218D1, &
+          -0.534686695713469D9, 0.160464608687834D18, 0.196435366560186D6, &
+          0.156637427541729D13, -0.178154560260006D1, -0.229746237623692D16, &
+          0.385659001648006D8, 0.110554446790543D10, -0.677073830687349D14, &
+          -0.327910592086523D31, -0.341552040860644D51, -0.527251339709047D21, &
+          0.245375640937055D24, -0.168776617209269D27, 0.358958955867578D29, &
+          -0.656475280339411D36, 0.355286045512301D39, 0.569021454413270D58, &
+          -0.700584546433113D48, -0.705772623326374D65, 0.166861176200148D53, &
+          -0.300475129680486D61, -0.668481295196808D51, 0.428432338620678D69, &
+          -0.444227367758304D72, -0.281396013562745D77]
+  PetscInt, parameter :: I_i(33) = [0,0,0,0,1,1,2,2,2,3,3,4,4,7,7,7,7,7,10,10,10, &
+                                    10,10,18,20,22,22,24,28,32,32,32,36]
+  PetscInt, parameter :: J_i(33) = [0,1,4,12,0,10,0,6,14,3,8,0,10,3,4,7,20,36,10, &
+                                    12,14,16,22,18,32,22,36,24,28,22,32,36,36]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0088d0, p_star = 20.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.803d0, b = 1.020d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3t
+
+function IF97_subregion_3u(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(38) = [0.122088349258355D18, &
+          0.104216468608488D10, -0.882666931564652D16, 0.259929510849499D20, &
+          0.222612779142211D15, -0.878473585050085D18, -0.314432577551552D22, &
+          -0.216934916996285D13, 0.159079648196849D21, -0.339567617303423D3, &
+          0.884387651337836D13, -0.843405926846418D21, 0.114178193518022D2, &
+          -0.122708229235641D-3, -0.106201671767107D3, 0.903443213959313D25, &
+          -0.693996270370852D28, 0.648916718965575D-8, 0.718957567127851D4, &
+          0.105581745346187D-2, -0.651903203602581D15, -0.160116813274676D25, &
+          -0.510254294237837D-8, -0.152355388953402D0, 0.677143292290144D12, &
+          0.276378438378930D15, 0.116862983141686D-1, -0.301426947980171D14, &
+          0.169719813884840D-7, 0.104674840020929D27, -0.108016904560140D5, &
+          -0.990623601934295D-12, 0.536116483602738D7, 0.226145963747881D22, &
+          -0.488731565776210D-9, 0.151001548880670D-4, -0.227700464643920D5, &
+          -0.781754507698846D28]
+  PetscInt, parameter :: I_i(38) = [-12,-10,-10,-10,-8,-8,-8,-6,-6,-5,-5,-5,-3, &
+                                    -1,-1,-1,-1,0,0,1,2,2,3,5,5,5,6,6,8,8,10,12, &
+                                    12,12,14,14,14,14]
+  PetscInt, parameter :: J_i(38) = [14,10,12,14,10,12,14,8,12,4,8,12,2,-1,1,12, &
+                                    14,-3,1,-2,5,10,-5,-4,2,3,-5,2,-8,8,-4,-12, &
+                                    -4,4,-12,-10,-6,6]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0026d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.902d0, b = 0.988d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3u
+
+function IF97_subregion_3v(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(39) = [-0.415652812061591D-54, &
+          0.177441742924043D-60, -0.357078668203377D-54, 0.359252213604114D-25, &
+          -0.259123736380269D2, 0.594619766193460D5, -0.624184007103158D11, &
+          0.313080299915944D17, 0.105006446192036D-8, -0.192824336984852D-5, &
+          0.654144373749937D6, 0.513117462865044D13, -0.697595750347391D19, &
+          -0.103977184454767D29, 0.119563135540666D-47, -0.436677034051655D-41, &
+          0.926990036530639D-29, 0.587793105620748D21, 0.280375725094731D-17, &
+          -0.192359972440634D23, 0.742705723302738D27, -0.517429682450605D2, &
+          0.820612048645469D7, -0.188214882341448D-8, 0.184587261114837D-1, &
+          -0.135830407782663D-5, -0.723681885626348D17, -0.223449194054124D27, &
+          -0.111526741826431D-34, 0.276032601145151D-28, 0.134856491567853D15, &
+          0.652440293345860D-9, 0.510655119774360D17, -0.468138358908732D32, &
+          -0.760667491183279D16, -0.417247986986821D-18, 0.312545677756104D14, &
+          -0.100375333864186D15, 0.247761392329058D27]
+  PetscInt, parameter :: I_i(39) = [-10,-8,-6,-6,-6,-6,-6,-6,-5,-5,-5,-5,-5,-5, &
+                                    -4,-4,-4,-4,-3,-3,-3,-2,-2,-1,-1,0,0,0,1,1, &
+                                    3,4,4,4,5,8,10,12,14]
+  PetscInt, parameter :: J_i(39) = [-8,-12,-12,-3,5,6,8,10,1,2,6,8,10,14,-12,-10, &
+                                    -6,10,-3,10,12,2,4,-2,0,-2,6,10,-12,-10,3,-6, &
+                                    3,10,2,-12,-2,-3,1]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0031d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.960d0, b = 0.995d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3v
+
+function IF97_subregion_3w(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(35) = [-0.586219133817016D-7, &
+          -0.894460355005526D11, 0.531168037519774D-30, 0.109892402329239D0, &
+          -0.575368389425212D-1, 0.228276853990249D5, -0.158548609655002D19, &
+          0.329865748576503D-27, -0.634987981190669D-24, 0.615762068640611D-8, &
+          -0.961109240985747D8, -0.406274286652625D-44, -0.471103725498077D-12, &
+          0.725937724828145D0, 0.187768525763682D-38, -0.103308436323771D4, &
+          -0.662552816342168D-1, 0.579514041765710D3, 0.237416732616644D-26, &
+          0.271700235739893D-14, -0.907886213483600D2, -0.171242509570207D-36, &
+          0.156792067854621D3, 0.923261357901470D0, -0.597865988422577D1, &
+          0.321988767636389D7, -0.399441390042203D-29, 0.493429086046981D-7, &
+          0.812036983370565D-19, -0.207610284654137D-11, -0.340821291419719D-6, &
+          0.542000573372233D-17, -0.856711586510214D-12, 0.266170454405981D-13, &
+          0.858133791857099D-5]
+  PetscInt, parameter :: I_i(35) = [-12,-12,-10,-10,-8,-8,-8,-6,-6,-6,-6,-5,-4, &
+                                    -4,-3,-3,-2,-2,-1,-1,-1,0,0,1,2,2,3,3,5,5,5, &
+                                    8,8,10,10]
+  PetscInt, parameter :: J_i(35) = [8,14,-1,8,6,8,14,-4,-3,2,8,-10,-1,3,-10,3,1, &
+                                    2,-8,-4,1,-12,1,-1,-1,2,-12,-5,-10,-8,-6,-12, &
+                                    -10,-12,-8]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0039d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.959d0, b = 0.995d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3w
+
+function IF97_subregion_3x(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(36) = [0.377373741298151D19, &
+          -0.507100883722913D13, -0.103363225598860D16, 0.184790814320773D-5, &
+          -0.924729378390945D-3, -0.425999562292738D24, -0.462307771873973D-12, &
+          0.107319065855767D22, 0.648662492280682D11, 0.244200600688281D1, &
+          -0.851535733484258D10, 0.169894481433592D22, 0.215780222509020D-26, &
+          -0.320850551367334D0, -0.382642448458610D17, -0.275386077674421D-28, &
+          -0.563199253391666D6, -0.326068646279314D21, 0.397949001553184D14, &
+          0.100824008584757D-6, 0.162234569738433D5, -0.432355225319745D11, &
+          -0.592874245598610D12, 0.133061647281106D1, 0.157338197797544D7, &
+          0.258189614270853D14, 0.262413209706358D25, -0.920011937431142D-1, &
+          0.220213765905426D-2, -0.110433759109547D2, 0.847004870612087D7, &
+          -0.592910695762536D9, -0.183027173269660D-4, 0.181339603516302D0, &
+          -0.119228759669889D4, 0.430867658061468D7]
+  PetscInt, parameter :: I_i(36) = [-8,-6,-5,-4,-4,-4,-3,-3,-1,0,0,0,1,1,2,3,3, &
+                                    3,4,5,5,5,6,8,8,8,8,10,12,12,12,12,14,14,14, &
+                                    14]
+  PetscInt, parameter :: J_i(36) = [14,10,10,1,2,14,-2,12,5,0,4,10,-10,-1,6,-12, &
+                                    0,8,3,-6,-2,1,1,-6,-3,1,8,-8,-10,-8,-5,-4,-12, &
+                                    -10,-8,-6]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0049d0, p_star = 23.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.910d0, b = 0.988d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3x
+
+function IF97_subregion_3y(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(20) = [-0.525597995024633D-9, &
+          0.583441305228407D4, -0.134778968457925D17, 0.118973500934212D26, &
+          -0.159096490904708D27, -0.315839902302021D-6, 0.496212197158239D3, &
+          0.327777227273171D19, -0.527114657850696D22, 0.210017506281863D-16, &
+          0.705106224399834D21, -0.266713136106469D31, -0.145370512554562D-7, &
+          0.149333917053130D28, -0.149795620287641D8, -0.381881906271100D16, &
+          0.724660165585797D-4, -0.937808169550193D14, 0.514411468376383D10, &
+          -0.828198594040141D5]
+  PetscInt, parameter :: I_i(20) = [0,0,0,0,1,2,2,2,2,3,3,3,4,4,5,5,8,8,10,12]
+  PetscInt, parameter :: J_i(20) = [-3,1,5,8,8,-4,-1,4,5,-8,4,8,-6,6,-2,1,-8,-2, &
+                                    -5,-8]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0031d0, p_star = 22.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.996d0, b = 0.994d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3y
+
+function IF97_subregion_3z(p,T) result (v)
+  implicit none
+  PetscReal, parameter :: n_i(23) = [0.244007892290650D-10, &
+          -0.463057430331242D7, 0.728803274777712D10, 0.327776302858856D16, &
+          -0.110598170118409D10, -0.323899915729957D13, 0.923814007023245D16, &
+          0.842250080413712D-12, 0.663221436245506D12, -0.167170186672139D15, &
+          0.253749358701391D4, -0.819731559610523D-20, 0.328380587890663D12, &
+          -0.625004791171543D8, 0.803197957462023D21, -0.204397011338353D-10, &
+          -0.378391047055938D4, 0.972876545938620D-2, 0.154355721681459D2, &
+          -0.373962862928643D4, -0.682859011374572D11, -0.248488015614543D-3, &
+          0.394536049497068D7]
+  PetscInt, parameter :: I_i(23) = [-8,-6,-5,-5,-4,-4,-4,-3,-3,-3,-2,-1,0,1,2,3, &
+                                    3,6,6,6,6,8,8]
+  PetscInt, parameter :: J_i(23) = [3,6,6,8,5,6,8,-2,5,6,2,-6,3,1,6,-6,-2,-6,-5, &
+                                    -4,-1,-8,-4]
+  PetscReal :: p, T, v, pi, theta
+  PetscReal, parameter :: v_star = 0.0038d0, p_star = 22.d0, T_star = 650.d0
+  PetscReal, parameter :: a = 0.993d0, b = 0.994d0
+  PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
+  pi = p/(p_star * 1.0D+6)
+  theta = (T + 273.15d0)/T_star
+  v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
+end function IF97_subregion_3z
+
+function IF97SaturationTemperature(Ps) result(Ts)
+  ! section 8.2 of IAPWS R7-97(2012)
+  implicit none
+  PetscReal, parameter :: n(10) = [0.11670521452767D4, -0.72421316703206D6, &
+       -0.17073846940092D2, 0.12020824702470D5, -0.32325550322333D7, &
+       0.14915108613530D2, -0.48232657361591D4, 0.40511340542057D6, &
+       -0.23855557567849D0, 0.65017534844798D3]
+  PetscReal :: Ps ! saturation pressure (Pa)
+  PetscReal :: Ts ! saturation temperature (K)
+  PetscReal :: beta, betasq, D, E, F, G
+  betasq = sqrt(Ps/1.0D+6) ! eqn 29a
+  beta = sqrt(betasq)
+  E = betasq + n(3)*beta + n(6)
+  F = n(1)*betasq + n(4)*beta + n(7)
+  G = n(2)*betasq + n(5)*beta + n(8)
+  D = 2.d0 * G / (-F-sqrt(F**2 - 4.d0*E*G))
+  Ts = (n(10) + D - sqrt((n(10) + D)**2 - 4.d0*(n(9) + n(10)*D)))/2.d0 ! eqn 31
+
+end function IF97SaturationTemperature
 
 ! ************************************************************************** !
 
