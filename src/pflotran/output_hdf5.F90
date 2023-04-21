@@ -913,6 +913,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   write_xdmf = PETSC_FALSE
   include_cell_centers = PETSC_FALSE
   mesh_type = grid%unstructured_grid%explicit_grid%output_mesh_type
+  if (len_trim(grid%unstructured_grid%explicit_grid%domain_filename) > 0 &
+      .and. output_option%print_explicit_primal_grid) then
+    option%io_buffer = 'PRINT_PRIMAL_GRID under OUTPUT may not be used &
+      &when DOMAIN_FILENAME is defined under GRID. Please remove &
+      &the DOMAIN_FILENAME card.'
+    call PrintErrMsg(option)
+  endif
   if (OptionIsIORank(option) .and. &
       (output_option%print_explicit_primal_grid .or. &
        len_trim(grid%unstructured_grid%explicit_grid% &
