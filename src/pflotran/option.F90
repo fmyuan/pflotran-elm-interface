@@ -241,6 +241,7 @@ module Option_module
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
             OptionIsIORank, &
+            OptionCreatePrintHandler, &
             OptionDestroy
 
 contains
@@ -658,17 +659,19 @@ subroutine PrintErrMsg2(option,string)
   ! Author: Glenn Hammond
   ! Date: 10/26/07
   !
+  use Print_module
 
   implicit none
 
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool, parameter :: byrank = PETSC_FALSE
+  type(print_handler_type), pointer :: print_handler
 
-  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
-                         string,option%driver%exit_code,option%blocking, &
-                         byrank)
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%byrank = PETSC_FALSE
+  call PrintErrorMessage(print_handler,string)
+  call PrintDestroyHandler(print_handler)
   if (.not.option%blocking) then
     option%error_while_nonblocking = PETSC_TRUE
   endif
@@ -736,17 +739,19 @@ subroutine PrintErrMsgByRank2(option,string)
   ! Author: Glenn Hammond
   ! Date: 11/04/11
   !
+  use Print_module
 
   implicit none
 
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool, parameter :: byrank = PETSC_TRUE
+  type(print_handler_type), pointer :: print_handler
 
-  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
-                         string,option%driver%exit_code,option%blocking, &
-                         byrank)
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%byrank = PETSC_TRUE
+  call PrintErrorMessage(print_handler,string)
+  call PrintDestroyHandler(print_handler)
 
 end subroutine PrintErrMsgByRank2
 
@@ -785,11 +790,13 @@ subroutine PrintErrMsgNoStopByRank2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool, parameter :: blocking = PETSC_FALSE ! keeps it from stopping
-  PetscBool, parameter :: byrank = PETSC_TRUE
+  type(print_handler_type), pointer :: print_handler
 
-  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
-                         string,option%driver%exit_code,blocking,byrank)
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%blocking = PETSC_FALSE ! keeps it from stopping
+  print_handler%byrank = PETSC_TRUE
+  call PrintErrorMessage(print_handler,string)
+  call PrintDestroyHandler(print_handler)
 
 end subroutine PrintErrMsgNoStopByRank2
 
@@ -1338,7 +1345,6 @@ subroutine OptionPrintPFLOTRANHeader(option)
 end subroutine OptionPrintPFLOTRANHeader
 
 ! ************************************************************************** !
-
 subroutine OptionSetBlocking(option,flag)
   !
   ! Sets blocking flag
@@ -1355,6 +1361,34 @@ subroutine OptionSetBlocking(option,flag)
   option%blocking = flag
 
 end subroutine OptionSetBlocking
+
+! ************************************************************************** !
+
+function OptionCreatePrintHandler(option)
+  !
+  ! Creates a print handler with flags for file and screen io
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+  !
+  use Print_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  type(print_handler_type), pointer :: OptionCreatePrintHandler
+
+  OptionCreatePrintHandler => &
+    PrintCreateHandler(option%print_flags, &
+                       option%comm, &
+                       option%fid_out, &
+                       option%driver%exit_code, &
+                       PETSC_TRUE, & ! advance
+                       option%blocking, &
+                       PETSC_FALSE)  ! byrank
+
+end function OptionCreatePrintHandler
 
 ! ************************************************************************** !
 

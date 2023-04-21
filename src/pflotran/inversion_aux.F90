@@ -4,6 +4,7 @@ module Inversion_Aux_module
   use petscmat
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_module
+  use Communicator_Aux_module
   use Driver_class
   use Inversion_Coupled_Aux_module
   use Inversion_Measurement_Aux_module
@@ -81,8 +82,12 @@ module Inversion_Aux_module
             InvAuxGetParamValueByCell, &
             InvAuxGetSetParamValueByMat, &
             InvAuxScatMeasToDistMeas, &
+            InvAuxCopyMeasToFromMeasVec, &
             InvAuxScatParamToDistParam, &
-            InvAuxScatGlobalToDistParam
+            InvAuxScatGlobalToDistParam, &
+            InvAuxBCastVecForCommI, &
+            InvAuxParamVecToMaterial, &
+            InvAuxMaterialToParamVec
 
 contains
 
@@ -428,6 +433,48 @@ end subroutine InvAuxCopyParamToFromParamVec
 
 ! ************************************************************************** !
 
+subroutine InvAuxParamVecToMaterial(aux)
+  !
+  ! Copies parameter values from parameter vec to material properties
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/10/23
+
+  class(inversion_aux_type) :: aux
+
+  PetscInt :: i
+
+  call InvAuxCopyParamToFromParamVec(aux,INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_FROM_VEC)
+  do i = 1, size(aux%parameters)
+    call InvAuxCopyParameterValue(aux,i,INVAUX_OVERWRITE_MATERIAL_VALUE)
+  enddo
+
+end subroutine InvAuxParamVecToMaterial
+
+! ************************************************************************** !
+
+subroutine InvAuxMaterialToParamVec(aux)
+  !
+  ! Copies parameter values from material properties to parameter vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/10/23
+
+  class(inversion_aux_type) :: aux
+
+  PetscInt :: i
+
+  do i = 1, size(aux%parameters)
+    call InvAuxCopyParameterValue(aux,i,INVAUX_GET_MATERIAL_VALUE)
+  enddo
+  call InvAuxCopyParamToFromParamVec(aux,INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_TO_VEC)
+
+end subroutine InvAuxMaterialToParamVec
+
+! ************************************************************************** !
+
 subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
                                      material_auxvar)
   !
@@ -593,6 +640,65 @@ subroutine InvAuxScatMeasToDistMeas(inversion_aux,measurement_vec, &
   endif
 
 end subroutine InvAuxScatMeasToDistMeas
+
+! ************************************************************************** !
+
+subroutine InvAuxCopyMeasToFromMeasVec(aux,idirection)
+  !
+  ! Copies parameter values back and forth
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/30/22
+  use Inversion_Measurement_Aux_module
+
+  class(inversion_aux_type) :: aux
+  PetscInt :: idirection
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  call VecGetArrayF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  select case(idirection)
+    case(INVAUX_COPY_FROM_VEC)
+      do i = 1, size(aux%measurements)
+        aux%measurements(i)%simulated_value = vec_ptr(i)
+      enddo
+    case(INVAUX_COPY_TO_VEC)
+      do i = 1, size(aux%measurements)
+        vec_ptr(i) = aux%measurements(i)%simulated_value
+      enddo
+    case default
+      stop 'Error: idirection in InvAuxCopyMeasToFromMeasVec,Update'
+  end select
+  call VecRestoreArrayF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine InvAuxCopyMeasToFromMeasVec
+
+! ************************************************************************** !
+
+subroutine InvAuxBCastVecForCommI(comm,vec,driver)
+  !
+  ! Broadcasts the contents of a Vec segment to the perturbation ranks
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/06/23
+  !
+  type(comm_type) :: comm
+  Vec :: vec
+  type(driver_type) :: driver
+
+  PetscInt :: vec_size
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetLocalSize(vec,vec_size,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call MPI_BCast(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
+                 comm%communicator,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine InvAuxBCastVecForCommI
 
 ! ************************************************************************** !
 

@@ -1269,7 +1269,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   grid => patch%geomech_grid
 
   if (.not.first) then
-    call HDF5FileTryOpen(filename,file_id,first,option)
+    call HDF5FileTryOpen(filename,file_id,first,option%comm)
   endif
   if (first) then
     call HDF5FileOpen(filename,file_id,PETSC_TRUE,option)
