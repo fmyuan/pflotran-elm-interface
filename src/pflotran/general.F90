@@ -208,8 +208,8 @@ subroutine GeneralSetup(realization)
       patch%aux%General%general_parameter% &
         diffusion_coefficient(THREE_INTEGER) = &
           cur_fluid_property%salt_diffusion_coefficient
-      cur_fluid_property => cur_fluid_property%next
     endif
+      cur_fluid_property => cur_fluid_property%next
   enddo
   ! check whether diffusion coefficients are initialized.
   if (Uninitialized(patch%aux%General%general_parameter% &
