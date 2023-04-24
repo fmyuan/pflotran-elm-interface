@@ -940,10 +940,10 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       if (istate <= 5) then
         global_auxvars_bc(sum_connection)%istate = istate
       else
-        if (.not. general_soluble_matrix) then
-          global_auxvars_bc(sum_connection)%istate = TWO_PHASE_STATE
-        elseif (general_soluble_matrix) then
+        if (general_soluble_matrix) then
           global_auxvars_bc(sum_connection)%istate = LGP_STATE
+        else
+          global_auxvars_bc(sum_connection)%istate = TWO_PHASE_STATE
         endif
       endif
       ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
@@ -1047,12 +1047,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                      liquid_phase:option%gas_phase))
       xxss(2) = 5.d-1
       xxss(3) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
-      if (general_salt .and. .not. general_soluble_matrix) then
-        xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%xmol(option%salt_id,option%liquid_phase)
-      elseif (general_salt .and. general_soluble_matrix) then
-        xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity
+      if (general_salt) then
+        if (general_soluble_matrix) then
+          xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity
+        else
+          xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%xmol(option%salt_id,option%liquid_phase)
+        endif
       endif
-
 
       cell_pressure = maxval(gen_auxvars(ZERO_INTEGER,ghosted_id)% &
                              pres(option%liquid_phase:option%gas_phase))
