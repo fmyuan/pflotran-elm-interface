@@ -23,11 +23,12 @@ module Secondary_Continuum_module
   public :: SecondaryContinuumType, &
             SecondaryContinuumSetProperties, &
             SecondaryRTAuxVarInit, &
+            SecondaryHeatAuxVarInit, &
             SecondaryRTResJacMulti, &
             SecondaryRTAuxVarComputeMulti, &
-            THCSecHeatAuxVarCompute, &
-            THSecHeatAuxVarCompute, &
-            MphaseSecHeatAuxVarCompute, &
+            SecHeatAuxVarCompute, &
+            SecondaryHeatResidual, &
+            SecondaryHeatJacobian, &
             SecondaryRTUpdateIterate, &
             SecondaryRTUpdateEquilState, &
             SecondaryRTUpdateKineticState, &
@@ -40,7 +41,7 @@ contains
 ! ************************************************************************** !
 
 subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
-            volm,dm1,dm2,aperture,epsilon,log_spacing,outer_spacing, &
+            volm,dm1,dm2,half_aperture,epsilon,log_spacing,outer_spacing, &
             interfacial_area,option)
   !
   ! The area, volume, grid sizes for secondary continuum
@@ -63,7 +64,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
   PetscInt :: igeom, nmat, m
   PetscReal :: aream(nmat), volm(nmat), dm1(nmat), dm2(nmat)
   PetscReal :: dy, r0, r1, aream0, am0, vm0, interfacial_area
-  PetscReal :: num_density, aperture, epsilon, fracture_spacing
+  PetscReal :: num_density, half_aperture, epsilon, fracture_spacing
   PetscReal :: outer_spacing, matrix_block_size
   PetscReal :: grid_spacing(nmat)
   PetscBool :: log_spacing
@@ -78,34 +79,31 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
   select case (igeom)
     case(SLAB)
-      if (Initialized(epsilon) .and. Initialized(aperture) .and. &
-          Initialized(sec_continuum%slab%length)) then
+      if (Initialized(epsilon) .and. Initialized(half_aperture) .and. &
+          Initialized(sec_continuum%slab%half_matrix_width)) then
         option%io_buffer = 'SLAB GEOMETRY OVERDEFINED. DEFINE ONLY &
                             &EPSILON and APERTURE, LENGTH and APERTURE &
                             &or LENGTH and EPSILON '
         call PrintErrMsg(option)
-      else if (Initialized(epsilon) .and. Initialized(aperture)) then
-        sec_continuum%slab%length = 2.d0 * aperture / ((1.d0 - epsilon) ** (-1.d0/3.d0) - 1.d0)
-      else if (Initialized(sec_continuum%slab%length) .and. Initialized(aperture)) then
-        epsilon = aperture / (sec_continuum%slab%length + aperture)
-      else if (Initialized(sec_continuum%slab%length) .and. Initialized(epsilon)) then
-        aperture = (sec_continuum%slab%length * epsilon) / (1.d0 - epsilon)
+      else if (Initialized(epsilon) .and. Initialized(half_aperture)) then
+        sec_continuum%slab%half_matrix_width = (half_aperture - epsilon * half_aperture) / (epsilon)
+      else if (Initialized(sec_continuum%slab%half_matrix_width) .and. Initialized(half_aperture)) then
+        epsilon = half_aperture / (sec_continuum%slab%half_matrix_width + half_aperture)
+      else if (Initialized(sec_continuum%slab%half_matrix_width) .and. Initialized(epsilon)) then
+        half_aperture = (sec_continuum%slab%half_matrix_width * epsilon) / (1.d0 - epsilon)
       else
         option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE &
                            &or LENGTH and EPSILON &
                            &must be specified for SLAB type '
         call PrintErrMsg(option)
       endif
-      if (Initialized(sec_continuum%slab%area)) then
-        aream0 = sec_continuum%slab%area
-      else
-        aream0 = 1.0 / (sec_continuum%slab%length + aperture)
-      endif
-      am0 = aream0
-      vm0 = sec_continuum%slab%length*aream0
-      interfacial_area = am0/vm0
+
+      !area cancels out in slab
+      aream0 = 1.d0
+      vm0 = sec_continuum%slab%half_matrix_width*aream0
+      interfacial_area = 1.d0/(sec_continuum%slab%half_matrix_width + half_aperture)
       if (log_spacing) then
-        call SecondaryContinuumCalcLogSpacing(sec_continuum%slab%length,outer_spacing, &
+        call SecondaryContinuumCalcLogSpacing(sec_continuum%slab%half_matrix_width,outer_spacing, &
              nmat,grid_spacing,option)
         do m = 1, nmat
           volm(m) = 2.0d0 * grid_spacing(m) * aream0
@@ -115,7 +113,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         enddo
 
       else
-        dy = sec_continuum%slab%length/nmat
+        dy = sec_continuum%slab%half_matrix_width/nmat
         do m = 1, nmat
           volm(m) = dy*aream0
           aream(m) = aream0
@@ -132,15 +130,13 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         write(option%fid_out,'(2x,a,/)') trim(string)
         num_density = (1.d0-epsilon)/vm0
         write(option%fid_out,'(2x,"number density: ",11x,1pe12.4," m^(-3)")') num_density
-        write(option%fid_out,'(2x,"matrix block size: ",8x,1pe12.4," m")') sec_continuum%slab%length
+        write(option%fid_out,'(2x,"matrix block size: ",8x,1pe12.4," m")') sec_continuum%slab%half_matrix_width
         write(option%fid_out,'(2x,"epsilon: ",18x,1pe12.4)') epsilon
         write(option%fid_out,'(2x,"specific interfacial area: ",1pe12.4," m^(-1)")') interfacial_area
         do m = 1, nmat
           if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")')
           write(option%fid_out,'(2x,i3,3x,1pe12.4)') m,volm(m)/vm0 !*(1.d0 - epsilon)
         enddo
-!       aperture = r0*(1.d0/(1.d0-epsilon)**(1.d0/3.d0)-1.d0)
-!       write(option%fid_out,'(2x,"aperture: ",17x,1pe12.4," m")') aperture
       endif
 
       ! Store the distances
@@ -156,15 +152,15 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 
         fracture_spacing = sec_continuum%nested_cube%fracture_spacing
 !        override epsilon if aperture defined
-        if (Initialized(aperture)) then
-          r0 = fracture_spacing - aperture
-          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
+        if (Initialized(half_aperture)) then
+          r0 = fracture_spacing - half_aperture
+          epsilon = 1.d0 - (1.d0 + half_aperture/r0)**(-3.d0)
         else if (Initialized(epsilon)) then
           r0 = fracture_spacing*(1.d0-epsilon)**(1.d0/3.d0)
-          aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
+          half_aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
         else if (Initialized(sec_continuum%nested_cube%matrix_block_size)) then
           r0 = sec_continuum%nested_cube%matrix_block_size
-          aperture = 0.5 * (fracture_spacing - r0)
+          half_aperture = 0.5 * (fracture_spacing - r0)
           epsilon = 1.0 - (r0/fracture_spacing)**3
         else
           option%io_buffer = 'EPSILON, APERTURE, or MATRIX BOCK SIZE' // &
@@ -178,12 +174,12 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         r0 = sec_continuum%nested_cube%matrix_block_size
 
 !        override epsilon if aperture defined
-        if (Initialized(aperture)) then
-          fracture_spacing = r0 + aperture
-          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
+        if (Initialized(half_aperture)) then
+          fracture_spacing = r0 + half_aperture
+          epsilon = 1.d0 - (1.d0 + half_aperture/r0)**(-3.d0)
         else if (Initialized(epsilon)) then
           fracture_spacing = r0*(1.d0-epsilon)**(-1.d0/3.d0)
-          aperture = fracture_spacing - r0
+          half_aperture = fracture_spacing - r0
         else
           option%io_buffer = 'EPSILON or APERTURE must be specified for' // &
                              ' MATRIX BLOCK SIZE in NESTED_CUBES type '
@@ -253,7 +249,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         write(option%fid_out,'(2x,"matrix block size: ",8x,1pe12.4," m")') r0
         write(option%fid_out,'(2x,"epsilon: ",18x,1pe12.4)') epsilon
         write(option%fid_out,'(2x,"specific interfacial area: ",1pe12.4," m^(-1)")') interfacial_area
-        write(option%fid_out,'(2x,"fracture aperture: ",8x,1pe12.4," m")') aperture
+        write(option%fid_out,'(2x,"fracture half aperture: ",8x,1pe12.4," m")') half_aperture
         write(option%fid_out,'(2x,"fracture spacing: ",9x,1pe12.4," m")') fracture_spacing
         write(option%fid_out,'(/,2x,"node  vol. frac.      dm1         dm2         aream       dy          y")')
         r0 = 0.d0
@@ -321,9 +317,6 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           if (m == 1) write(option%fid_out,'(/,2x,"node matrix volume fraction")')
           write(option%fid_out,'(2x,i3,3x,1pe12.4)') m,volm(m)/vm0*(1.d0 - epsilon)
         enddo
-
-!       aperture = r0*(1.d0/(1.d0-epsilon)**(1.d0/3.d0)-1.d0)
-!       write(option%fid_out,'(2x,"aperture: ",17x,1pe12.4," m")') aperture
       endif
 
       ! Store the distances
@@ -363,12 +356,11 @@ end subroutine SecondaryContinuumType
 
 subroutine SecondaryContinuumSetProperties(sec_continuum, &
                                            sec_continuum_name, &
-                                           sec_continuum_length, &
+                                           sec_continuum_half_matrix_width, &
                                            sec_continuum_matrix_block_size, &
                                            sec_continuum_fracture_spacing, &
                                            sec_continuum_radius, &
-                                           sec_continuum_area,porosity, &
-                                           option)
+                                           porosity, option)
   !
   ! The type, dimensions of the secondary
   ! continuum are set
@@ -386,8 +378,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   type(option_type) :: option
   PetscReal :: sec_continuum_matrix_block_size
   PetscReal :: sec_continuum_fracture_spacing
-  PetscReal :: sec_continuum_length
-  PetscReal :: sec_continuum_area
+  PetscReal :: sec_continuum_half_matrix_width
   PetscReal :: sec_continuum_radius
   PetscReal :: porosity
   character(len=MAXWORDLENGTH) :: sec_continuum_name
@@ -402,8 +393,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   select case(trim(sec_continuum_name))
     case("SLAB")
       sec_continuum%itype = SLAB
-      sec_continuum%slab%length = sec_continuum_length
-      sec_continuum%slab%area = sec_continuum_area
+      sec_continuum%slab%half_matrix_width = sec_continuum_half_matrix_width
     case("NESTED_CUBES")
       sec_continuum%itype = NESTED_CUBES
       if (sec_continuum_matrix_block_size < 0.d0 .and. &
@@ -523,6 +513,7 @@ subroutine SecondaryRTTimeCut(realization)
   use Realization_Subsurface_class
   use Grid_module
   use Reaction_Aux_module
+  use Material_Aux_module
 
   implicit none
   class(realization_subsurface_type) :: realization
@@ -543,6 +534,8 @@ subroutine SecondaryRTTimeCut(realization)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
+    if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
+        soil_properties(epsilon_index)),1.d0)) cycle
     do comp = 1, ncomp
       ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
@@ -556,8 +549,8 @@ end subroutine SecondaryRTTimeCut
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_vars, &
-                                 reaction,initial_condition,constraint,option)
+subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
+                                 rt_sec_transport_vars,reaction,option)
   !
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -566,62 +559,35 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   ! Date: 02/05/13
   !
 
-  use Coupler_module
-  use Transport_Constraint_module
-  use Condition_module
-  use Global_Aux_module
   use Material_module
   use Option_module
   use Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_module
-  use Transport_Constraint_RT_module
-
-  use EOS_Water_module
 
   implicit none
 
   type(sec_transport_type) :: rt_sec_transport_vars
   type(multicontinuum_property_type) :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
-  type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
-  type(material_auxvar_type), allocatable :: material_auxvar
-  class(tran_constraint_rt_type), pointer :: constraint
-  type(flow_condition_type), pointer :: initial_flow_condition
 
-
-  PetscReal :: equil_conc(reaction%mineral%nmnrl)
-  PetscInt :: i, cell
+  PetscInt :: cell
   PetscReal :: area_per_vol
-  PetscReal :: dum1
   PetscReal :: epsilon
-  PetscReal :: length
-  PetscInt :: num_iterations
-  PetscErrorCode :: ierr
-
-  num_iterations = 0
-
-  allocate(material_auxvar)
-  call MaterialAuxVarInit(material_auxvar,option)
-  material_auxvar%porosity = option%flow%reference_porosity
+  PetscReal :: half_matrix_width
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
         multicontinuum%name, &
-        length, &
+        half_matrix_width, &
         multicontinuum%matrix_block_size, &
         multicontinuum%fracture_spacing, &
         multicontinuum%radius, &
-        multicontinuum%area, multicontinuum%porosity, &
-        option)
-
+        multicontinuum%porosity, option)
 
   rt_sec_transport_vars%ncells = multicontinuum%ncells
-  rt_sec_transport_vars%aperture = multicontinuum%aperture
+  rt_sec_transport_vars%half_aperture = multicontinuum%half_aperture
   rt_sec_transport_vars%epsilon = epsilon
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
   rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing
@@ -639,7 +605,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
                               rt_sec_transport_vars%vol, &
                               rt_sec_transport_vars%dm_minus, &
                               rt_sec_transport_vars%dm_plus, &
-                              rt_sec_transport_vars%aperture, &
+                              rt_sec_transport_vars%half_aperture, &
                               rt_sec_transport_vars%epsilon, &
                               rt_sec_transport_vars%log_spacing, &
                               rt_sec_transport_vars%outer_spacing, &
@@ -668,71 +634,6 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
   allocate(rt_sec_transport_vars% &
            updated_conc(reaction%naqcomp,rt_sec_transport_vars%ncells))
 
-
-  initial_flow_condition => initial_condition%flow_condition
-  do cell = 1, rt_sec_transport_vars%ncells
-    global_auxvar => initial_condition%tran_condition% &
-                       constraint_coupler_list%global_auxvar
-    rt_auxvar => rt_sec_transport_vars%sec_rt_auxvar(cell)
-    if (associated(initial_flow_condition)) then
-      if (associated(initial_flow_condition%pressure)) then
-        if (associated(initial_flow_condition%pressure%dataset)) then
-          global_auxvar%pres = &
-            initial_flow_condition%pressure%dataset%rarray(1)
-        else
-          global_auxvar%pres = option%flow%reference_pressure
-        endif
-      else
-        global_auxvar%pres = option%flow%reference_pressure
-      endif
-      if (associated(initial_flow_condition%temperature)) then
-        if (associated(initial_flow_condition%temperature%dataset)) then
-          global_auxvar%temp  = &
-            initial_flow_condition%temperature%dataset%rarray(1)
-        else
-          global_auxvar%temp = option%flow%reference_temperature
-        endif
-      else
-        global_auxvar%temp = option%flow%reference_temperature
-      endif
-
-      call EOSWaterDensity(global_auxvar%temp, &
-                           global_auxvar%pres(1), &
-                           global_auxvar%den_kg(1), &
-                           dum1,ierr)
-    else
-      global_auxvar%pres = option%flow%reference_pressure
-      global_auxvar%temp = option%flow%reference_temperature
-      global_auxvar%den_kg(option%liquid_phase) = &
-        option%flow%reference_density(option%liquid_phase)
-
-    endif
-    global_auxvar%sat = option%flow%reference_saturation
-
-    if (option%transport%nphase > option%nphase) then
-      ! gas phase not considered explicitly on flow side
-      global_auxvar%den_kg(option%gas_phase) = &
-        option%flow%reference_density(option%gas_phase)
-      global_auxvar%sat(option%gas_phase) = &
-        1.d0 - global_auxvar%sat(option%liquid_phase)
-    endif
-
-    !Use multicontinuum sorption
-    reaction%mc_flag = 1
-    call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
-                          material_auxvar, &
-                          reaction,constraint, &
-                          num_iterations, &
-                          PETSC_FALSE,option)
-    reaction%mc_flag = 0
-
-    rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal
-
-  enddo
-
-  call MaterialAuxVarStrip(material_auxvar)
-  deallocate(material_auxvar)
-
   rt_sec_transport_vars%sec_jac_update = PETSC_FALSE
   rt_sec_transport_vars%sec_jac = 0.d0
   rt_sec_transport_vars%cxm = 0.d0
@@ -743,6 +644,80 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_
 end subroutine SecondaryRTAuxVarInit
 
 ! ************************************************************************** !
+subroutine SecondaryHeatAuxVarInit(multicontinuum, &
+                               epsilon,half_matrix_width, &
+                               sec_heat_vars, initial_condition,option)
+
+  ! Initializes all the secondary continuum heat
+  ! transport variables
+  !
+  ! Author: Rosie Leone
+  ! Date: 03/27/23
+  
+  use Material_module
+  use Coupler_module
+  use Option_module
+
+  implicit none
+
+  type(sec_heat_type) :: sec_heat_vars
+  type(multicontinuum_property_type) :: multicontinuum
+  type(coupler_type), pointer :: initial_condition
+  type(option_type), pointer :: option
+
+  
+  PetscReal :: epsilon
+  PetscReal :: half_matrix_width
+  PetscReal :: area_per_vol
+  
+  call SecondaryContinuumSetProperties( &
+       sec_heat_vars%sec_continuum, &
+       multicontinuum%name, &
+       half_matrix_width, &
+       multicontinuum%matrix_block_size, &
+       multicontinuum%fracture_spacing, &
+       multicontinuum%radius, &
+       multicontinuum%porosity, &
+       option)
+
+  sec_heat_vars%ncells = multicontinuum%ncells
+  sec_heat_vars%half_aperture = multicontinuum%half_aperture
+  sec_heat_vars%epsilon = epsilon
+  sec_heat_vars%log_spacing = multicontinuum%log_spacing
+  sec_heat_vars%outer_spacing = multicontinuum%outer_spacing
+
+  allocate(sec_heat_vars%area(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%vol(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%dm_minus(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%dm_plus(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%sec_continuum%distance(sec_heat_vars%ncells))
+
+  call SecondaryContinuumType(sec_heat_vars%sec_continuum, &
+                              sec_heat_vars%ncells, &
+                              sec_heat_vars%area, &
+                              sec_heat_vars%vol, &
+                              sec_heat_vars%dm_minus, &
+                              sec_heat_vars%dm_plus, &
+                              sec_heat_vars%half_aperture, &
+                              sec_heat_vars%epsilon, &
+                              sec_heat_vars%log_spacing, &
+                              sec_heat_vars%outer_spacing, &
+                              area_per_vol, option)
+
+  sec_heat_vars%interfacial_area = area_per_vol * &
+       (1.d0 - sec_heat_vars%epsilon) * multicontinuum%area_scaling
+
+  allocate(sec_heat_vars%sec_temp(sec_heat_vars%ncells))
+
+  if (option%flow%set_secondary_init_temp) then
+     sec_heat_vars%sec_temp = multicontinuum%init_temp
+  else
+     sec_heat_vars%sec_temp = initial_condition%flow_condition%temperature%dataset%rarray(1)
+  endif
+
+end subroutine SecondaryHeatAuxVarInit
+  
+! ************************************************************************** !
 
 subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                   global_auxvar,prim_vol, &
@@ -751,7 +726,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   !
   ! RTSecondaryTransportMulti:  Calculates the source term contribution due to
   ! secondary continuum in the primary continuum residual for multicomponent
-  ! system assuming only aqueous reaction
+  ! system
   !
   ! Author: Satish Karra, LANL
   ! Date: 1/31/13
@@ -816,7 +791,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: area_fm, RT
   PetscReal :: diffusion_coefficient(option%transport%nphase)
   PetscReal :: porosity
-  PetscReal :: arrhenius_factor
   PetscReal :: pordt, pordiff(option%transport%nphase)
   PetscReal :: prim_vol ! volume of primary grid cell
   PetscReal :: dCsec_dCprim(reaction%naqcomp,reaction%naqcomp)
@@ -1524,6 +1498,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
+  use Material_Aux_module
 
   implicit none
 
@@ -1555,7 +1530,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   rt_auxvars => realization%patch%aux%RT%auxvars
   global_auxvars => realization%patch%aux%Global%auxvars
   reaction => realization%reaction
-  if (option%use_mc) then
+  if (option%use_sc) then
     rt_sec_transport_vars => realization%patch%aux%SC_RT%sec_transport_vars
   endif
 
@@ -1565,14 +1540,16 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
 
   max_inf_norm_sec = 0.d0
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
+      if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       sec_diffusion_coefficient = realization%patch% &
-                                  material_property_array(1)%ptr% &
+                                  material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                                   multicontinuum%diff_coeff
-      sec_porosity = realization%patch%material_property_array(1)%ptr% &
+      sec_porosity = realization%patch%material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                     multicontinuum%porosity
 
       call SecondaryRTAuxVarComputeMulti(&
@@ -1783,7 +1760,6 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   PetscReal :: area_fm
   PetscReal :: diffusion_coefficient(option%transport%nphase)
   PetscReal :: porosity
-  PetscReal :: arrhenius_factor
   PetscReal :: pordt, pordiff(option%transport%nphase)
   PetscReal :: inf_norm_sec
   type(material_auxvar_type), allocatable :: material_auxvar
@@ -1962,8 +1938,6 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
   PetscInt :: i, j, n
   PetscInt :: ngcells, ncomp
   PetscInt :: pivot(reaction%naqcomp,sec_transport_vars%ncells)
-  PetscInt :: indx(reaction%naqcomp)
-  PetscInt :: d
 
   ngcells = sec_transport_vars%ncells
   ncomp = reaction%naqcomp
@@ -2024,9 +1998,9 @@ end subroutine SecondaryRTAuxVarComputeMulti
 
 ! ************************************************************************** !
 
-subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
-                                   therm_conductivity,dencpr, &
-                                   option)
+subroutine SecHeatAuxVarCompute(sec_heat_vars, &
+                                therm_conductivity,dencpr, &
+                                temp_primary_node,option)
   !
   ! Computes secondary auxillary variables for each
   ! grid cell for heat transfer only
@@ -2036,12 +2010,10 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   !
 
   use Option_module
-  use Global_Aux_module
 
   implicit none
 
   type(sec_heat_type) :: sec_heat_vars
-  type(global_auxvar_type) :: global_auxvar
   type(option_type) :: option
   PetscReal :: coeff_left(sec_heat_vars%ncells)
   PetscReal :: coeff_diag(sec_heat_vars%ncells)
@@ -2064,7 +2036,6 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   dm_plus = sec_heat_vars%dm_plus
   dm_minus = sec_heat_vars%dm_minus
   area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_auxvar%temp
 
   coeff_left = 0.d0
   coeff_diag = 0.d0
@@ -2116,205 +2087,7 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
 
   sec_heat_vars%sec_temp = sec_temp
 
-end subroutine THCSecHeatAuxVarCompute
-
-! ************************************************************************** !
-
-subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
-                                   therm_conductivity,dencpr, &
-                                   option)
-  !
-  ! Computes secondary auxillary variables for each
-  ! grid cell for heat transfer only
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/5/12
-  !
-
-  use Option_module
-  use Global_Aux_module
-
-  implicit none
-
-  type(sec_heat_type) :: sec_heat_vars
-  type(global_auxvar_type) :: global_auxvar
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: temp_primary_node
-  PetscReal :: m
-
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  dm_minus = sec_heat_vars%dm_minus
-  area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_auxvar%temp
-
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-  sec_temp = 0.d0
-
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-
-  ! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-
-  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + &
-                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
-                 temp_primary_node
-
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    rhs(i) = rhs(i) - m*rhs(i-1)
-  enddo
-
-  ! Back substitution
-  ! Calculate temperature in the secondary continuum
-  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
-  do i = ngcells-1, 1, -1
-    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
-  enddo
-
-  sec_heat_vars%sec_temp = sec_temp
-
-end subroutine THSecHeatAuxVarCompute
-
-! ************************************************************************** !
-
-subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
-                                   therm_conductivity,dencpr, &
-                                   option)
-  !
-  ! Computes secondary auxillary variables in each
-  ! grid cell for heat transfer only
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/28/12
-  !
-
-  use Option_module
-  use Global_Aux_module
-  use Mphase_Aux_module
-
-  implicit none
-
-  type(sec_heat_type) :: sec_heat_vars
-  type(mphase_auxvar_elem_type) :: auxvar
-  type(global_auxvar_type) :: global_auxvar
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: temp_primary_node
-  PetscReal :: m
-
-
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  dm_minus = sec_heat_vars%dm_minus
-  area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = auxvar%temp
-
-
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-  sec_temp = 0.d0
-
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-
-  ! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + &
-                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
-                 temp_primary_node
-
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    rhs(i) = rhs(i) - m*rhs(i-1)
-  enddo
-
-  ! Back substitution
-  ! Calculate temperature in the secondary continuum
-  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
-  do i = ngcells-1, 1, -1
-    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
-  enddo
-
-! print *,'temp_dcdm= ',(sec_temp(i),i=1,ngcells)
-
-  sec_heat_vars%sec_temp = sec_temp
-
-
-end subroutine MphaseSecHeatAuxVarCompute
+end subroutine SecHeatAuxVarCompute
 
 ! ************************************************************************** !
 
@@ -2416,7 +2189,6 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   type(patch_type), pointer :: patch
   PetscReal, pointer :: vec_p(:)
   PetscInt :: local_id
-  PetscInt :: ghosted_id
   PetscErrorCode :: ierr
   patch => realization%patch
   grid => patch%grid
@@ -2424,7 +2196,7 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   if (vec_format == NATURAL .or. vec_format == LOCAL) then
     call PrintErrMsg(realization%option,&
                      'NATURAL and LOCAL vector formats not supported by &
-SecondaryRTSetVariable')
+                      &SecondaryRTSetVariable')
   endif
 
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
@@ -2460,6 +2232,186 @@ SecondaryRTSetVariable')
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SecondaryRTSetVariable
+
+! ************************************************************************** !
+
+subroutine SecondaryHeatResidual(sec_heat_vars, &
+                                 therm_conductivity,dencpr, &
+                                 temp_primary_node,option,res_heat)
+
+  ! Calculates the source term contribution due to secondary
+  ! continuum in the primary continuum residual
+  !
+  ! Author: Satish, Karra, LANL
+  ! Date 06/2/12
+  
+  use Option_module
+
+  implicit none
+
+  type(sec_heat_type) :: sec_heat_vars
+  type(option_type) :: option
+  PetscReal :: therm_conductivity,dencpr,temp_primary_node
+  PetscReal :: res_heat
+
+  PetscReal :: coeff_left(sec_heat_vars%ncells)
+  PetscReal :: coeff_diag(sec_heat_vars%ncells)
+  PetscReal :: coeff_right(sec_heat_vars%ncells)
+  PetscReal :: rhs(sec_heat_vars%ncells)
+  PetscReal :: area(sec_heat_vars%ncells)
+  PetscReal :: vol(sec_heat_vars%ncells)
+  PetscReal :: dm_plus(sec_heat_vars%ncells)
+  PetscReal :: dm_minus(sec_heat_vars%ncells)
+  PetscInt :: i, ngcells
+  PetscReal :: area_fm
+  PetscReal :: alpha
+  PetscReal :: m
+  PetscReal :: temp_current_N
+
+  ngcells = sec_heat_vars%ncells
+  area = sec_heat_vars%area
+  vol = sec_heat_vars%vol
+  dm_plus = sec_heat_vars%dm_plus
+  dm_minus = sec_heat_vars%dm_minus
+  area_fm = sec_heat_vars%interfacial_area
+
+  coeff_left = 0.d0
+  coeff_diag = 0.d0
+  coeff_right = 0.d0
+  rhs = 0.d0
+
+  alpha = option%flow_dt*therm_conductivity/dencpr
+
+
+! Setting the coefficients
+  do i = 2, ngcells-1
+    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
+    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
+                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
+    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
+  enddo
+
+  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
+  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
+
+  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
+  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
+                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
+                       + 1.d0
+
+  ! secondary continuum values from previous time step
+  rhs = sec_heat_vars%sec_temp
+  rhs(ngcells) = rhs(ngcells) + &
+                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
+                 temp_primary_node
+
+  ! Thomas algorithm for tridiagonal system
+  ! Forward elimination
+  do i = 2, ngcells
+    m = coeff_left(i)/coeff_diag(i-1)
+    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
+    rhs(i) = rhs(i) - m*rhs(i-1)
+  enddo
+
+  ! Back substitution
+  ! We only need the temperature at the outer-most node (closest to
+  ! primary node)
+  temp_current_N = rhs(ngcells)/coeff_diag(ngcells)
+
+  ! Calculate the coupling term
+  res_heat = area_fm*therm_conductivity*(temp_current_N - temp_primary_node)/ &
+             dm_plus(ngcells)
+
+end subroutine SecondaryHeatResidual
+
+! ************************************************************************** !
+
+subroutine SecondaryHeatJacobian(sec_heat_vars,therm_conductivity, &
+                                 dencpr,option,jac_heat)
+  !
+  ! Calculates the source term jacobian contribution
+  ! due to secondary continuum in the primary continuum residual
+  !
+  ! Author: Satish Karra, LANL
+  ! Date: 06/6/12
+  !
+
+  use Option_module
+  use Global_Aux_module
+  use Secondary_Continuum_Aux_module
+
+  implicit none  
+
+  type(sec_heat_type) :: sec_heat_vars
+  type(option_type) :: option
+  PetscReal :: coeff_left(sec_heat_vars%ncells)
+  PetscReal :: coeff_diag(sec_heat_vars%ncells)
+  PetscReal :: coeff_right(sec_heat_vars%ncells)
+  PetscReal :: rhs(sec_heat_vars%ncells)
+  PetscReal :: area(sec_heat_vars%ncells)
+  PetscReal :: vol(sec_heat_vars%ncells)
+  PetscReal :: dm_plus(sec_heat_vars%ncells)
+  PetscReal :: dm_minus(sec_heat_vars%ncells)
+  PetscInt :: i, ngcells
+  PetscReal :: area_fm
+  PetscReal :: alpha, therm_conductivity, dencpr
+  PetscReal :: m
+  PetscReal :: Dtemp_N_Dtemp_prim
+  PetscReal :: jac_heat
+
+  ngcells = sec_heat_vars%ncells
+  area = sec_heat_vars%area
+  vol = sec_heat_vars%vol
+  dm_plus = sec_heat_vars%dm_plus
+  area_fm = sec_heat_vars%interfacial_area
+  dm_minus = sec_heat_vars%dm_minus
+
+  coeff_left = 0.d0
+  coeff_diag = 0.d0
+  coeff_right = 0.d0
+  rhs = 0.d0
+
+  alpha = option%flow_dt*therm_conductivity/dencpr
+
+! Setting the coefficients
+  do i = 2, ngcells-1
+    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
+    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
+                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
+    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
+  enddo
+
+  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
+  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
+
+  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
+  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
+                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
+                       + 1.d0
+
+  ! Thomas algorithm for tridiagonal system
+  ! Forward elimination
+  do i = 2, ngcells
+    m = coeff_left(i)/coeff_diag(i-1)
+    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
+    ! We do not have to calculate rhs terms
+  enddo
+
+  ! We need the temperature derivative at the outer-most node (closest
+  ! to primary node)
+  Dtemp_N_Dtemp_prim = 1.d0/coeff_diag(ngcells)*alpha*area(ngcells)/ &
+                       (dm_plus(ngcells)*vol(ngcells))
+
+  ! Calculate the jacobian term
+  jac_heat = area_fm*therm_conductivity*(Dtemp_N_Dtemp_prim - 1.d0)/ &
+             dm_plus(ngcells)
+
+
+end subroutine SecondaryHeatJacobian
 
 end module Secondary_Continuum_module
 

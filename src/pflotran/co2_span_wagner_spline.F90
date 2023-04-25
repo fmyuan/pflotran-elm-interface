@@ -23,7 +23,7 @@
   contains
 subroutine sw_spline_read
 
-  use spline_module
+  use Spline_module
 
   PetscInt :: i,ipx,j,n,iunit=9
 
@@ -106,11 +106,11 @@ subroutine sw_spline_read
   rr = 0.d0
   do ipx = 1,nptab
     n = nttab(ipx)-ncrit(ipx)+1
-    call spline(t_tab(ipx,ncrit(ipx):nttab(ipx)),r_tab(ipx,ncrit(ipx):nttab(ipx)),n,rr(ipx,ncrit(ipx):nttab(ipx)))
-    call spline(t_tab(ipx,ncrit(ipx):nttab(ipx)),h_tab(ipx,ncrit(ipx):nttab(ipx)),n,hh(ipx,ncrit(ipx):nttab(ipx)))
-    call spline(t_tab(ipx,ncrit(ipx):nttab(ipx)),u_tab(ipx,ncrit(ipx):nttab(ipx)),n,uu(ipx,ncrit(ipx):nttab(ipx)))
-    call spline(t_tab(ipx,ncrit(ipx):nttab(ipx)),f_tab(ipx,ncrit(ipx):nttab(ipx)),n,ff(ipx,ncrit(ipx):nttab(ipx)))
-!   call spline(t(ipx,ncrit(ipx)),s(ipx,ncrit(ipx)),n,ss(ipx,ncrit(ipx)))
+    call SplineSecondDeriv(t_tab(ipx,ncrit(ipx):nttab(ipx)),r_tab(ipx,ncrit(ipx):nttab(ipx)),n,rr(ipx,ncrit(ipx):nttab(ipx)))
+    call SplineSecondDeriv(t_tab(ipx,ncrit(ipx):nttab(ipx)),h_tab(ipx,ncrit(ipx):nttab(ipx)),n,hh(ipx,ncrit(ipx):nttab(ipx)))
+    call SplineSecondDeriv(t_tab(ipx,ncrit(ipx):nttab(ipx)),u_tab(ipx,ncrit(ipx):nttab(ipx)),n,uu(ipx,ncrit(ipx):nttab(ipx)))
+    call SplineSecondDeriv(t_tab(ipx,ncrit(ipx):nttab(ipx)),f_tab(ipx,ncrit(ipx):nttab(ipx)),n,ff(ipx,ncrit(ipx):nttab(ipx)))
+!   call SplineSecondDeriv(t(ipx,ncrit(ipx)),s(ipx,ncrit(ipx)),n,ss(ipx,ncrit(ipx)))
 !   print *,'p= ',n,ipx,p_tab(ipx),rr(ipx,ncrit(ipx)),ncrit(ipx)
 !   if (ipx == 10 .or. ipx ==11) then
 !     print *,ncrit(ipx), nttab(ipx), rr(ipx,ncrit(ipx):nttab(ipx))
@@ -125,7 +125,7 @@ end subroutine sw_spline_read
 
 subroutine sw_prop(tx,px,rho,h,u,fg)
 
-       use spline_module
+       use Spline_module
 
 !     density of liquid or vapor co2.
 
@@ -158,41 +158,41 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
             n = nttab(ipx)-ncrit(ipx)+1
             if (tkx.gt.t_tab(ipx,1)) then
               jpx = jpx+1
-              call splint(t_tab(ipx,ncrit(ipx):nttab(ipx)),r_tab(ipx,ncrit(ipx):nttab(ipx)), &
+              call SplineInterp(t_tab(ipx,ncrit(ipx):nttab(ipx)),r_tab(ipx,ncrit(ipx):nttab(ipx)), &
                 rr(ipx,ncrit(ipx):nttab(ipx)),n,tkx,rtab(jpx))
 
-              call splint(t_tab(ipx,ncrit(ipx):nttab(ipx)),h_tab(ipx,ncrit(ipx):nttab(ipx)), &
+              call SplineInterp(t_tab(ipx,ncrit(ipx):nttab(ipx)),h_tab(ipx,ncrit(ipx):nttab(ipx)), &
                 hh(ipx,ncrit(ipx):nttab(ipx)),n,tkx,htab(jpx))
 
-              call splint(t_tab(ipx,ncrit(ipx):nttab(ipx)),u_tab(ipx,ncrit(ipx):nttab(ipx)), &
+              call SplineInterp(t_tab(ipx,ncrit(ipx):nttab(ipx)),u_tab(ipx,ncrit(ipx):nttab(ipx)), &
                 uu(ipx,ncrit(ipx):nttab(ipx)),n,tkx,utab(jpx))
 
-              call splint(t_tab(ipx,ncrit(ipx):nttab(ipx)),f_tab(ipx,ncrit(ipx):nttab(ipx)), &
+              call SplineInterp(t_tab(ipx,ncrit(ipx):nttab(ipx)),f_tab(ipx,ncrit(ipx):nttab(ipx)), &
                 ff(ipx,ncrit(ipx):nttab(ipx)),n,tkx,fgtab(jpx))
 
 !             print *,ipx,jpx,t_tab(ipx,ncrit(ipx)),r_tab(ipx,ncrit(ipx)),rtab(jpx)
             endif
           enddo
-          !call locate(p_tab,jpx,px,ipx)
+          !call BisectionSearch(p_tab,jpx,px,ipx)
           !ipx = min(max(1,ipx),jpx-1)
 
 #if 0
 ! Density
-          call spline(p_tab,rtab,nptab,rtab2)
-          call splint(p_tab,rtab,rtab2,nptab,px,rho)
+          call SplineSecondDeriv(p_tab,rtab,nptab,rtab2)
+          call SplineInterp(p_tab,rtab,rtab2,nptab,px,rho)
 ! H
-          call spline(p_tab,htab,nptab,htab2)
-          call splint(p_tab,htab,htab2,nptab,px,h)
+          call SplineSecondDeriv(p_tab,htab,nptab,htab2)
+          call SplineInterp(p_tab,htab,htab2,nptab,px,h)
 ! U
-          call spline(p_tab,utab,nptab,utab2)
-          call splint(p_tab,utab,utab2,nptab,px,u)
+          call SplineSecondDeriv(p_tab,utab,nptab,utab2)
+          call SplineInterp(p_tab,utab,utab2,nptab,px,u)
 ! fg
-          call spline(p_tab,fgtab,nptab,fgtab2)
-          call splint(p_tab,fgtab,fgtab2,nptab,px,fg)
+          call SplineSecondDeriv(p_tab,fgtab,nptab,fgtab2)
+          call SplineInterp(p_tab,fgtab,fgtab2,nptab,px,fg)
 #endif
 
 ! ************** linear interpolation in pressure *******************
-          call locate(p_tab,jpx,px,ipx)
+          call BisectionSearch(p_tab,jpx,px,ipx)
           ipx = min(max(1,ipx),jpx-1)
           rho = (rtab(ipx+1)-rtab(ipx))*(px-p_tab(ipx))/(p_tab(ipx+1)-p_tab(ipx)) + rtab(ipx)
           h   = (htab(ipx+1)-htab(ipx))*(px-p_tab(ipx))/(p_tab(ipx+1)-p_tab(ipx)) + htab(ipx)

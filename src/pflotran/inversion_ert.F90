@@ -50,9 +50,11 @@ module Inversion_ERT_class
 
   contains
     procedure, public :: Init => InversionERTInit
-    procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
     procedure, public :: Step => InversionERTStep
+    procedure, public :: SetupForwardRunLinkage => &
+                           InvERTSetupForwardRunLinkage
+    procedure, public :: ExecuteForwardRun => InversionERTExecuteForwardRun
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
@@ -113,7 +115,7 @@ function InversionERTCreate(driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
-  use Driver_module
+  use Driver_class
 
   class(driver_type), pointer :: driver
 
@@ -135,16 +137,16 @@ subroutine InversionERTInit(this,driver)
   !
   use Inversion_Parameter_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY
-  use Driver_module
+  use Driver_class
 
   class(inversion_ert_type) :: this
   class(driver_type), pointer :: driver
 
   call InversionSubsurfaceInit(this,driver)
   ! override default set in InversionSubsurfaceInit
-  allocate(this%parameters(1))
-  call InversionParameterInit(this%parameters(1))
-  this%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
+  allocate(this%inversion_aux%parameters(1))
+  call InversionParameterInit(this%inversion_aux%parameters(1))
+  this%inversion_aux%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -452,7 +454,6 @@ subroutine InversionERTReadBlock(this,input,option)
   use Input_Aux_module
   use String_module
   use Option_module
-  use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
   type(input_type), pointer :: input
@@ -685,7 +686,7 @@ end subroutine ConstrainedBlockParRead
 
 ! ************************************************************************** !
 
-subroutine InversionERTInitialize(this)
+subroutine InvERTSetupForwardRunLinkage(this)
   !
   ! Initializes inversion
   !
@@ -699,7 +700,7 @@ subroutine InversionERTInitialize(this)
   use Material_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
 
@@ -713,7 +714,7 @@ subroutine InversionERTInitialize(this)
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
     ! theck to ensure that quantity of interest exists
     exists = PETSC_FALSE
-    select case(this%parameters(1)%iparameter)
+    select case(this%inversion_aux%parameters(1)%iparameter)
       case(ELECTRICAL_CONDUCTIVITY)
         if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
         word = 'ELECTRICAL_CONDUCTIVITY'
@@ -725,7 +726,7 @@ subroutine InversionERTInitialize(this)
       call PrintErrMsg(this%realization%option)
     endif
 
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     if (this%app_cond_start_model) then
       ! non-ghosted Vec
       call VecDuplicate(this%realization%field%work,this%quantity_of_interest, &
@@ -770,7 +771,7 @@ subroutine InversionERTInitialize(this)
     endif
   endif
 
-end subroutine InversionERTInitialize
+end subroutine InvERTSetupForwardRunLinkage
 
 ! ************************************************************************** !
 
@@ -789,7 +790,7 @@ subroutine InversionERTStep(this)
   type(option_type), pointer :: option
 
   call this%InitializeForwardRun(option)
-  call this%Initialize()
+  call this%SetupForwardRunLinkage()
   call this%UpdateParameters()
   call this%forward_simulation%InitializeRun()
   call this%ExecuteForwardRun()
@@ -800,6 +801,24 @@ subroutine InversionERTStep(this)
   call this%DestroyForwardRun()
 
 end subroutine InversionERTStep
+
+
+! ************************************************************************** !
+
+subroutine InversionERTExecuteForwardRun(this)
+  !
+  ! Executes a forward simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/02/22
+
+  class(inversion_ert_type) :: this
+
+  if (this%realization%option%status == PROCEED) then
+    call this%forward_simulation%ExecuteRun()
+  endif
+
+end subroutine InversionERTExecuteForwardRun
 
 ! ************************************************************************** !
 
@@ -818,12 +837,19 @@ subroutine InversionERTCheckConvergence(this)
 
   type(survey_type), pointer :: survey
 
+  PetscErrorCode :: ierr
+
   survey => this%realization%survey
 
   this%converged = PETSC_FALSE
-  call this%EvaluateCostFunction()
-  if ((this%current_chi2 <= this%target_chi2) .or. &
-      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  if (associated(this%inversion_option%invcomm)) then
+    call this%EvaluateCostFunction()
+    if ((this%current_chi2 <= this%target_chi2) .or. &
+        (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  endif
+  call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
+                 MPI_LOGICAL,this%driver%comm%io_rank, &
+                 this%driver%comm%communicator,ierr);CHKERRQ(ierr)
 
 end subroutine InversionERTCheckConvergence
 
@@ -1025,16 +1051,13 @@ subroutine InversionERTUpdateParameters(this)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
 
-  PetscInt :: local_id,ghosted_id
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iqoi(2)
-  PetscErrorCode :: ierr
 
   field => this%realization%field
   discretization => this%realization%discretization
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
-    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
     call DiscretizationGlobalToLocal(discretization, &
                                      this%quantity_of_interest, &
                                      field%work_loc,ONEDOF)
@@ -1856,7 +1879,6 @@ subroutine InversionERTWriteIterationInfo(this)
   class(inversion_ert_type) :: this
 
   PetscInt :: fid
-  character(len=MAXWORDLENGTH) :: string
 
   if (this%driver%PrintToScreen()) then
     write(*,*)

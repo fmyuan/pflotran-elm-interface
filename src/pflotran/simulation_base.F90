@@ -2,7 +2,7 @@ module Simulation_Base_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use Driver_module
+  use Driver_class
   use Output_Aux_module
   use Output_module
   use Simulation_Aux_module
@@ -18,6 +18,8 @@ module Simulation_Base_class
   type, public :: simulation_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
+    ! filename of simulation that must be run before this one is executed
+    character(len=MAXSTRINGLENGTH) :: prerequisite
   contains
     procedure, public :: InitializeRun => SimulationBaseInitializeRun
     procedure, public :: InputRecord => SimulationBaseInputRecord
@@ -79,6 +81,7 @@ subroutine SimulationBaseInit(this,driver)
 
   this%driver => driver
   this%timer => TimerCreate()
+  this%prerequisite = ''
 
 end subroutine SimulationBaseInit
 
@@ -115,7 +118,6 @@ subroutine SimulationBaseInputRecordPrint(this,option)
   class(simulation_base_type) :: this
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscBool :: is_open
 
@@ -224,14 +226,14 @@ subroutine SimulationBaseWriteTimes(this,fid_out)
 
   total_time = this%timer%GetCumulativeTime()
 
-  if (this%driver%print_to_screen) then
+  if (this%driver%PrintToScreen()) then
     write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
       & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
       total_time, &
       total_time/60.d0, &
       total_time/3600.d0
   endif
-  if (this%driver%print_to_file) then
+  if (this%driver%PrintToFile()) then
     write(fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
       & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
       total_time, &

@@ -176,8 +176,8 @@ subroutine IntegralFluxRead(integral_flux,input,option)
                                             x(3),y(3),z(3))
       case('COORDINATES')
         option%io_buffer = "COORDINATES has been deprecated within the &
-          INTEGRAL_FLUX block in favor of COORDINATES_AND_DIRECTIONS. &
-          Please see the user guide for instructions on the new card's use."
+          &INTEGRAL_FLUX block in favor of COORDINATES_AND_DIRECTIONS. &
+          &Please see the user guide for instructions on the new card's use."
         call PrintErrMsg(option)
       case('COORDINATES_AND_DIRECTIONS')
         allocate(real_array(6,100))
@@ -611,8 +611,6 @@ subroutine IntegralFluxDestroy(integral_flux)
   implicit none
 
   type(integral_flux_type), pointer :: integral_flux
-
-  PetscInt :: i
 
   if (.not.associated(integral_flux)) return
 

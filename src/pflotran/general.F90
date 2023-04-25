@@ -58,11 +58,10 @@ subroutine GeneralSetup(realization)
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
-  type(coupler_type), pointer :: boundary_condition
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
-  PetscInt :: i, idof, count, ndof
+  PetscInt :: i, idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
   PetscErrorCode :: ierr
@@ -292,8 +291,7 @@ subroutine GeneralUpdateSolution(realization)
   type(field_type), pointer :: field
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  PetscInt :: local_id, ghosted_id
-  PetscErrorCode :: ierr
+  PetscInt :: ghosted_id
 
   option => realization%option
   field => realization%field
@@ -343,8 +341,7 @@ subroutine GeneralTimeCut(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
 
-  PetscInt :: local_id, ghosted_id
-  PetscErrorCode :: ierr
+  PetscInt :: ghosted_id
 
   option => realization%option
   patch => realization%patch
@@ -402,7 +399,7 @@ subroutine GeneralNumericalJacobianTest(xx,realization,B)
   PetscReal :: derivative, perturbation
   PetscReal :: perturbation_tolerance = 1.d-6
   PetscInt, save :: icall = 0
-  character(len=MAXWORDLENGTH) :: word, word2
+  character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: idof, idof2, icell
 
@@ -515,7 +512,6 @@ subroutine GeneralComputeMassBalance(realization,mass_balance)
   type(general_auxvar_type), pointer :: general_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iphase, icomp
@@ -688,19 +684,18 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end, i
-  PetscInt :: iphasebc, iphase
+  PetscInt :: ghosted_start, ghosted_end
   PetscInt :: offset
   PetscInt :: istate
   PetscInt :: wat_comp_id, air_comp_id
-  PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
+  PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
   PetscReal :: qsrc(3)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), &
                xxss(realization%option%nflowdof)
-  PetscReal :: cell_pressure,qsrc_vol(2),scale
+  PetscReal :: cell_pressure, scale
   PetscReal :: Res_dummy(realization%option%nflowdof)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
@@ -1065,7 +1060,7 @@ subroutine GeneralUpdateFixedAccum(realization)
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:)
-  PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: accum_p(:)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
 
@@ -1175,7 +1170,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: iconn
-  PetscInt :: iphase
   PetscReal :: scale
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
@@ -1183,17 +1177,14 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
-  PetscInt, save :: iplot = 0
   PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
-  PetscReal, pointer :: vec_p(:)
 
   PetscReal :: qsrc(3)
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: icct_up, icct_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1595,7 +1586,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: irow
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = tVec(0)
@@ -1608,8 +1598,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
-  PetscReal :: distance, fraction_upwind
-  PetscReal :: distance_gravity
   PetscInt, pointer :: zeros(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1625,7 +1613,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
 
   patch => realization%patch
   grid => patch%grid

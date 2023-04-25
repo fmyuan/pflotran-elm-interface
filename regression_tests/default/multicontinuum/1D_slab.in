@@ -87,7 +87,6 @@ MATERIAL_PROPERTY soil1
   SECONDARY_CONTINUUM
     TYPE SLAB 
     LENGTH 1 #half distance between fractures - BC location in the matrix
-    AREA 1.0 #fracture/matrix interfacial area per unit (bulk) volume (1/(b+L))
     NUM_CELLS 5 #in secondary continuum (matrix)
     EPSILON 0.00005 #fracture volume fraction (b/(L+b))
     LIQUID_DIFFUSION_COEFFICIENT 1.6d-10  #effective diffusion coefficient, includes tortuosity
@@ -133,6 +132,7 @@ TRANSPORT_CONDITION background_conc
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /
+  SECONDARY_CONSTRAINT initial_constraint
 END
 
 TRANSPORT_CONDITION inlet_conc
@@ -179,11 +179,7 @@ STRATA
   MATERIAL soil1
 END
 
-SECONDARY_CONSTRAINT sec
-    CONCENTRATIONS
-    Tracer1   1.e-20  T   
-  /
-/
+
 
 END_SUBSURFACE
 

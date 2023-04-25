@@ -80,9 +80,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(timestepper_steady_type), pointer :: timestepper
   character(len=MAXSTRINGLENGTH) :: string
-  type(waypoint_type), pointer :: waypoint
   type(input_type), pointer :: input
-  PetscErrorCode :: ierr
 
   option => simulation%option
   nullify(timestepper)
@@ -120,7 +118,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     pmc_geomech%name = 'PMCGeomech'
     simulation%geomech_process_model_coupler => pmc_geomech
     pmc_geomech%option => option
-    pmc_geomech%checkpoint_option => simulation%checkpoint_option
     pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
     pmc_geomech%pm_list => pm_geomech
     pmc_geomech%pm_ptr%pm => pm_geomech
@@ -283,9 +280,7 @@ subroutine GeomechanicsJumpStart(simulation)
   class(timestepper_steady_type), pointer :: master_timestepper
   class(timestepper_steady_type), pointer :: geomech_timestepper
   type(option_type), pointer :: option
-  type(output_option_type), pointer :: output_option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
   PetscBool :: geomech_read
   PetscBool :: failure
@@ -349,7 +344,6 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   class(realization_geomech_type) :: geomech_realization
   type(input_type), pointer :: input
 
-  type(geomech_discretization_type), pointer :: geomech_discretization
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
 
@@ -509,25 +503,18 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   type(option_type), pointer :: option
   type(geomech_discretization_type), pointer :: geomech_discretization
   type(geomech_material_property_type),pointer :: geomech_material_property
-  type(waypoint_type), pointer :: waypoint
   type(geomech_grid_type), pointer :: grid
   type(gm_region_type), pointer :: region
-  type(geomech_debug_type), pointer :: debug
   type(geomech_strata_type), pointer :: strata
   type(geomech_condition_type), pointer :: condition
   type(geomech_coupler_type), pointer :: coupler
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
-  PetscReal :: units_conversion
 
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: card
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=1) :: backslash
 
-  PetscReal :: temp_real, temp_real2
-  PetscReal, pointer :: temp_real_array(:)
-  PetscInt :: i
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
   input%ierr = 0
@@ -649,16 +636,14 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           call InputErrorMsg(input,option,'word','GEOMECHANICS_TIME')
           select case(trim(word))
             case('COUPLING_TIMESTEP_SIZE')
-              internal_units = 'sec'
-              call InputReadDouble(input,option,temp_real)
+              call InputReadDouble(input,option,geomech_realization%dt_coupling)
               call InputErrorMsg(input,option, &
                                  'Coupling Timestep Size','GEOMECHANICS_TIME')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option, &
-                        'Coupling Timestep Size Time Units','GEOMECHANICS_TIME')
-              geomech_realization%dt_coupling = &
-                            temp_real*UnitsConvertToInternal(word, &
-                            internal_units,option)
+              internal_units = 'sec'
+              call InputReadAndConvertUnits(input, &
+                                            geomech_realization%dt_coupling, &
+                                            internal_units,'GEOMECHANICS_TIME,&
+                                            &COUPLING_TIMESTEP_SIZE',option)
             case default
               call InputKeywordUnrecognized(input,word, &
                                             'GEOMECHANICS_TIME',option)
@@ -803,11 +788,8 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
 
   class(realization_geomech_type) :: geomech_realization
 
-  PetscReal, pointer :: vec_p(:)
-
-  PetscInt :: ivertex, local_id, ghosted_id, natural_id, geomech_material_id
+  PetscInt :: ivertex, local_id, ghosted_id, geomech_material_id
   PetscInt :: istart, iend
-  character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscErrorCode :: ierr
 

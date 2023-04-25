@@ -195,7 +195,6 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer :: tempint
-  PetscLogDouble :: tstart, tend
 
   character(len=MAXWORDLENGTH) :: attribute_name, dataset_name, word
 
@@ -220,16 +219,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-!geh: I don't believe that we ever need this
-!  if (first_time) then
-!  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-!  endif
-#endif
-  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%filename,file_id,PETSC_FALSE,'',option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
@@ -253,6 +243,12 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
       call h5tclose_f(atype_id,hdf5_err)
       ! set dimensionality of dataset
       call DatasetGriddedHDF5SetDimension(this,word)
+      if (this%data_dim == DIM_NULL) then
+        option%io_buffer = 'Unknown dimension "' // &
+          trim(adjustl(word)) // '" read for gridded dataset "' // &
+          trim(this%hdf5_dataset_name) // '".'
+        call PrintErrMsg(option)
+      endif
     else
       option%io_buffer = &
         'Dimension attribute must be included in hdf5 dataset file.'
@@ -305,8 +301,9 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
         case('LINEAR')
           this%interpolation_method = INTERPOLATION_LINEAR
         case default
-          option%io_buffer = '"Interpolation Method" not recognized in ' // &
-            'Gridded HDF5 Dataset "' // trim(this%name) // '".'
+          option%io_buffer = 'Interpolation method "' // &
+            trim(adjustl(word)) // '" not recognized in &
+            &Gridded HDF5 Dataset "' // trim(this%name) // '".'
           call PrintErrMsg(option)
       end select
     endif
@@ -517,18 +514,18 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
 #ifdef BROADCAST_DATASET
   endif !if (OptionIsIORank(option)) then
   if (associated(this%rbuffer)) then
     mpi_int = size(this%rbuffer)
     call MPI_Bcast(this%rbuffer,mpi_int,MPI_DOUBLE_PRECISION, &
-                   option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                   option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   else
     mpi_int = size(this%rarray)
     call MPI_Bcast(this%rarray,mpi_int,MPI_DOUBLE_PRECISION, &
-                   option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                   option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
   endif
 #endif
 
@@ -539,10 +536,10 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 #endif
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 #ifdef BROADCAST_DATASET
   endif
 #endif
@@ -684,7 +681,6 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
   PetscReal :: real_value
   type(option_type) :: option
 
-  PetscInt :: spatial_interpolation_method
   PetscInt :: i, j, k
   PetscReal :: x, y, z
   PetscReal :: x1, x2, y1, y2, z1
@@ -1015,7 +1011,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           z2 = z1 + dz
 
           nx = this%dims(1)
-          ny = this%dims(1)
+          ny = this%dims(2)
 
           index = i + (j-1)*nx + (k-1)*nx*ny
 
@@ -1024,13 +1020,13 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
 
           index = i + j*nx + (k-1)*nx*ny
 
-          c001 = this%rarray(index)
-          c101 = this%rarray(index+1)
+          c010 = this%rarray(index)
+          c110 = this%rarray(index+1)
 
           index = i + (j-1)*nx + k*nx*ny
 
-          c010 = this%rarray(index)
-          c110 = this%rarray(index+1)
+          c001 = this%rarray(index)
+          c101 = this%rarray(index+1)
 
           index = i + j*nx + k*nx*ny
 

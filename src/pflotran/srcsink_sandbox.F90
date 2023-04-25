@@ -104,7 +104,6 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   class(srcsink_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
 
@@ -187,7 +186,6 @@ subroutine SSSandboxSetup(grid,option,output_option)
   class(srcsink_sandbox_base_type), pointer :: cur_sandbox
   class(srcsink_sandbox_base_type), pointer :: prev_sandbox
   class(srcsink_sandbox_base_type), pointer :: next_sandbox
-  PetscBool :: exists
 
   ! sandbox source/sinks
   cur_sandbox => ss_sandbox_list
@@ -253,7 +251,7 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   PetscReal :: res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   class(srcsink_sandbox_base_type), pointer :: cur_srcsink
-  PetscInt :: i, local_id, ghosted_id, istart, iend
+  PetscInt :: local_id, ghosted_id, istart, iend
   PetscReal :: aux_real(0)
   PetscErrorCode :: ierr
 
@@ -371,8 +369,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   character(len=MAXWORDLENGTH) :: units_string, variable_string
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscInt :: fid
-  PetscInt :: icolumn, i
+  PetscInt :: icolumn
   PetscInt :: local_id, ghosted_id
 
   filename = SSSandboxOutputFilename(option)

@@ -9,16 +9,18 @@ util_obj = \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
+	${common_src}matrix_zeroing.o \
 	${common_src}option.o \
+	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
 	${common_src}option_inversion.o \
 	${common_src}option_transport.o \
 	${common_src}option_geophysics.o \
 	${common_src}output_aux.o \
-	${common_src}matrix_zeroing.o \
 	${common_src}petsc_utility.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
+	${common_src}print.o \
 	${common_src}string.o \
 	${common_src}timer.o \
 	${common_src}units.o \
@@ -43,7 +45,6 @@ mode_aux_obj = \
 	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
 	${common_src}mphase_aux.o \
-	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
 	${common_src}pnf_aux.o \
 	${common_src}richards_aux.o \
@@ -57,6 +58,7 @@ mode_process_model_obj = \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
+	${common_src}pm_inversion.o \
 	${common_src}pm_wipp_flow.o \
 	${common_src}pm_mphase.o \
 	${common_src}pm_nwt.o \
@@ -86,6 +88,7 @@ mode_obj = \
 	${common_src}global.o \
 	${common_src}mphase.o \
 	${common_src}nw_transport.o \
+	${common_src}nw_transport_equilibrium.o \
 	${common_src}pnf.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
@@ -107,6 +110,7 @@ shared_mode_aux_obj = \
 	${common_src}global_aux.o \
 	${common_src}lookup_table.o \
 	${common_src}material_aux.o \
+	${common_src}nw_transport_aux.o \
 	${common_src}reactive_transport_aux.o
 
 # DO NOT place any object files that depend on the discretization within
@@ -114,7 +118,6 @@ shared_mode_aux_obj = \
 chem_obj = \
 	${common_src}reaction_database.o \
 	${common_src}reaction_database_aux.o \
-	${common_src}reaction_database_hpt.o \
 	${common_src}reaction_gas.o \
 	${common_src}reaction_gas_aux.o \
 	${common_src}reaction_immobile.o \
@@ -132,20 +135,24 @@ chem_obj = \
 	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
+	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_bioTH.o \
+	${common_src}reaction_sandbox_calcite.o \
+	${common_src}reaction_sandbox_chromium.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
-	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_equilibrate.o \
 	${common_src}reaction_sandbox_flexbiohill.o \
-	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
+	${common_src}reaction_sandbox_pnnl_cyber.o \
+	${common_src}reaction_sandbox_pnnl_lambda.o \
+	${common_src}reaction_sandbox_radon.o \
 	${common_src}reaction_sandbox_simple.o \
-	${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
 	${common_src}reaction_surf_complex_aux.o \
-	${common_src}nw_transport_equilibrium.o \
 	${common_src}transport_constraint.o \
 	${common_src}transport_constraint_base.o \
 	${common_src}transport_constraint_rt.o \
@@ -229,6 +236,8 @@ misc_obj = \
 	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
+	${common_src}factory_subsurface_linkage.o \
+	${common_src}factory_subsurface_read.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
 	${common_src}init_common.o \
@@ -238,18 +247,18 @@ misc_obj = \
 	${common_src}integral_flux.o \
 	${common_src}inversion_aux.o \
 	${common_src}inversion_base.o \
+	${common_src}inversion_coupled_aux.o \
 	${common_src}inversion_ert.o \
 	${common_src}inversion_measurement_aux.o \
 	${common_src}inversion_parameter.o \
 	${common_src}inversion_subsurface.o \
-	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
 	${common_src}inversion_zflow.o \
 	${common_src}matrix_buffer.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
-	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
+	${common_src}pmc_general.o \
 	${common_src}pmc_linear.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_subsurface_osrt.o \
@@ -260,6 +269,7 @@ misc_obj = \
 	${common_src}regression.o \
 	${common_src}secondary_continuum_aux.o\
 	${common_src}secondary_continuum.o \
+	${common_src}secondary_continuum_np.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
 	${common_src}simulation_inverse.o \
@@ -273,6 +283,7 @@ misc_obj = \
 	${common_src}timestepper_SNES.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
+	${common_src}transport_np.o \
 	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o

@@ -41,6 +41,7 @@ subroutine EOSRead(input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Communicator_Aux_module
 
   implicit none
 
@@ -50,7 +51,7 @@ subroutine EOSRead(input,option)
   character(len=MAXWORDLENGTH) :: keyword, word, subkeyword
   character(len=MAXWORDLENGTH) :: test_filename
   character(len=MAXSTRINGLENGTH) :: string
-  PetscReal :: tempreal, tempreal2
+  PetscReal :: tempreal
   PetscReal :: rks_tc = UNINITIALIZED_DOUBLE
   PetscReal :: rks_pc = UNINITIALIZED_DOUBLE
   PetscReal :: rks_acen = UNINITIALIZED_DOUBLE
@@ -121,9 +122,12 @@ subroutine EOSRead(input,option)
                 call InputErrorMsg(input,option,'REFERENCE_PRESSURE', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
                 call InputReadDouble(input,option,temparray(3))
-                call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
+                call InputErrorMsg(input,option,'REFERENCE_TEMPERATURE', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
                 call InputReadDouble(input,option,temparray(4))
+                call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
+                                   'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
+                call InputReadDouble(input,option,temparray(5))
                 call InputErrorMsg(input,option,'THERMAL_EXPANSION', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
               case('LINEAR')
@@ -251,7 +255,7 @@ subroutine EOSRead(input,option)
             select case(trim(word))
               case('HAAS','SPARROW')
                 option%flow%sat_pres_depends_on_salinity = PETSC_TRUE
-              case('IFC67','IF97','WAGNER_AND_PRUSS')
+              case('IFC67','IF97','WAGNER_AND_PRUSS','HUANG-ICE','ICE')
               case default
                 call InputKeywordUnrecognized(input,word, &
                        'EOS,WATER,SATURATION_PRESSURE', &
@@ -264,7 +268,7 @@ subroutine EOSRead(input,option)
             call StringToUpper(word)
             call EOSWaterSetSalinity(input,trim(word),option)
           case('TEST')
-            if (option%comm%global_rank == 0) then
+            if (CommIsIORank(option%comm)) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,WATER,TEST')
@@ -478,13 +482,15 @@ subroutine EOSRead(input,option)
                 call EOSGasSetHenryConstant(tempreal)
               case('DEFAULT')
                 call EOSGasSetHenry()
+              case('METHANE')
+                call EOSGasSetHenryMethane()
               case default
                 call InputKeywordUnrecognized(input,word, &
                                               'EOS,GAS,HENRYS_CONSTANT', &
                                               option)
             end select
           case('TEST')
-            if (option%comm%global_rank == 0) then
+            if (CommIsIORank(option%comm)) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,GAS,TEST')

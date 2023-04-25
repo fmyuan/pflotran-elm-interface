@@ -70,6 +70,7 @@ module Grid_Unstructured_Aux_module
     PetscReal, pointer :: face_area(:)
     PetscInt, pointer :: nat_ids_of_other_grid(:)
     PetscBool :: project_face_area_along_normal
+    PetscBool :: check_all_points_rh_rule ! checks all point combinations for right hand rule
   end type grid_unstructured_type
 
   type, public :: unstructured_explicit_type
@@ -280,7 +281,8 @@ function UGridCreate()
 
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
   unstructured_grid%project_face_area_along_normal = PETSC_TRUE
-
+  unstructured_grid%check_all_points_rh_rule = PETSC_FALSE
+  
   UGridCreate => unstructured_grid
 
 end function UGridCreate
@@ -407,14 +409,9 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
 
   PetscInt, pointer :: int_ptr(:)
   PetscInt :: local_id, ghosted_id
-  PetscInt :: idof
   IS :: is_tmp
   Vec :: vec_tmp
   PetscErrorCode :: ierr
-  character(len=MAXWORDLENGTH) :: ndof_word
-  character(len=MAXSTRINGLENGTH) :: string
-
-  PetscViewer :: viewer
 
   PetscInt, allocatable :: int_array(:)
 
@@ -1057,8 +1054,6 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   PetscInt, allocatable :: cell_counts(:)
   PetscInt :: iflag
   PetscInt :: tempint
-  PetscViewer :: viewer
-  PetscInt :: local_vertex_offset
   PetscErrorCode :: ierr
 
 #if UGRID_DEBUG
@@ -1090,10 +1085,10 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
 #endif
 
   ! calculate the number of local grid cells on each processor
-  allocate(cell_counts(option%comm%mycommsize))
+  allocate(cell_counts(option%comm%size))
   ! ISPartitioningCount takes a ISPartitioning and determines the number of
   ! resulting elements on each (partition) process - petsc
-  tempint = option%comm%mycommsize
+  tempint = option%comm%size
   call ISPartitioningCount(is_new,tempint,cell_counts,ierr);CHKERRQ(ierr)
   num_cells_local_new = cell_counts(option%myrank+1)
   call MPI_Allreduce(num_cells_local_new,iflag,ONE_INTEGER_MPI,MPIU_INTEGER, &
@@ -1131,7 +1126,6 @@ subroutine UGridCreateOldVec(ugrid,option,elements_old, &
   IS :: is_scatter
   PetscInt :: stride
 
-  PetscViewer :: viewer
   IS :: is_num
   PetscInt, pointer :: index_ptr(:)
   PetscErrorCode :: ierr
@@ -1203,7 +1197,6 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   IS :: is_scatter
 
   Vec :: elements_petsc, elements_natural
-  PetscViewer :: viewer
   VecScatter :: vec_scatter
   IS :: is_gather
 
@@ -1214,15 +1207,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt :: temp_int
   PetscInt :: ghosted_id
   PetscInt :: ghost_cell_count
-  PetscInt :: ghost_offset_new
   PetscInt :: dual_id
-  PetscInt :: global_num_cells
-  PetscInt :: global_num_g_cells
-  PetscInt :: ghost_global_offset
-  PetscInt :: lc_g_count
-  PetscInt :: ghost_to_scatter_glb_offset
-  PetscInt :: global_petsc_id
-  PetscInt :: istart1, iend1, istart2, iend2
   PetscBool :: found
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
@@ -1231,18 +1216,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt, allocatable :: int_array3(:)
   PetscInt, allocatable :: int_array4(:)
   PetscInt, allocatable :: int_array5(:)
-  PetscInt, allocatable :: ele_g_glb_petsc_ids(:)
-  PetscInt, allocatable :: ele_g_glb_rank_to_petsc(:)
-  PetscInt, allocatable :: ele_g_lc_rank_to_petsc(:)
-  PetscInt, allocatable :: ele_g_glb_petsc_to_rank(:)
-  PetscInt, allocatable :: ele_g_lc_petsc_to_rank(:)
-  PetscInt, allocatable :: ele_g_lc_to_glb_by_rank(:)
-  PetscReal, allocatable :: elements_global_petsc(:)
-  PetscReal, allocatable :: ele_g_global_by_rank(:)
-  PetscReal, allocatable :: ele_g_local_by_rank(:)
   PetscInt, pointer :: int_array_pointer(:)
-  PetscMPIInt :: send_size_mpi, send_displ_mpi
-  PetscMPIInt, allocatable :: rcv_sizes_mpi(:),disp_mpi(:)
   PetscErrorCode :: ierr
 
   ! create a petsc vec to store all the information for each element
@@ -1755,15 +1729,15 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     !                 ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
 
     send_size_mpi = ugrid%nlmax*stride
-    !allocate(rcv_sizes_mpi(option%comm%mycommsize))
-    allocate(rcv_sizes_mpi(0:(option%comm%mycommsize-1)))
+    !allocate(rcv_sizes_mpi(option%comm%size))
+    allocate(rcv_sizes_mpi(0:(option%comm%size-1)))
     rcv_sizes_mpi = 0
     call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                        rcv_sizes_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                        option%mycomm,ierr);CHKERRQ(ierr)
 
-    !allocate(disp_mpi(option%comm%mycommsize))
-    allocate(disp_mpi(0:(option%comm%mycommsize-1)))
+    !allocate(disp_mpi(option%comm%size))
+    allocate(disp_mpi(0:(option%comm%size-1)))
     disp_mpi = 0
 
     !displacement with 0-based index
@@ -1845,14 +1819,14 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 
       !build array of number of ghost of each proc for use in MPI_Allgatherv
       send_size_mpi = ugrid%num_ghost_cells
-      allocate(rcv_sizes_mpi(0:(option%comm%mycommsize-1)))
+      allocate(rcv_sizes_mpi(0:(option%comm%size-1)))
       rcv_sizes_mpi = 0
       call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                          rcv_sizes_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                          option%mycomm,ierr);CHKERRQ(ierr)
       !
       !build array of pointers to ghost section petsc ids for each proc
-      allocate(disp_mpi(0:(option%comm%mycommsize-1)))
+      allocate(disp_mpi(0:(option%comm%size-1)))
       disp_mpi = 0
       !displacement with 0-based index
       ghost_global_offset = 0
@@ -2178,8 +2152,6 @@ subroutine UGridExplicitDestroy(explicit_grid)
 
   type(unstructured_explicit_type), pointer :: explicit_grid
 
-  PetscErrorCode :: ierr
-
   if (.not.associated(explicit_grid)) return
 
   call DeallocateArray(explicit_grid%cell_ids)
@@ -2222,8 +2194,6 @@ subroutine UGridPolyhedraDestroy(polyhedra_grid)
   implicit none
 
   type(unstructured_polyhedra_type), pointer :: polyhedra_grid
-
-  PetscErrorCode :: ierr
 
   if (.not.associated(polyhedra_grid)) return
 

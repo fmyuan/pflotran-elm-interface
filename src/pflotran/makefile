@@ -51,7 +51,7 @@ PETSC_MAKE_STOP_ON_ERROR=
 # so that PFLOTRAN will be built with the same options as 
 # the petsc configured in $PETSC_DIR/$PETSC_ARCH
 
-MYFLAGS = -I.
+MYFLAGS = -I. 
 
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
@@ -61,6 +61,16 @@ MYFLAGS = -I.
 # PFLOTRAN_RXN_FLAG 
 ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
   PFLOTRAN_RXN_FLAG := 1
+endif
+
+ifdef ci
+  gnu_code_coverage = 1
+  gnu_runtime_checks = 1
+  catch_warnings_as_errors = 1
+endif
+
+ifdef cw
+  catch_warnings_as_errors = 1
 endif
 
 ifdef match_tough2
@@ -185,9 +195,17 @@ ifdef scorpio
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
-ifdef codecov
+ifdef gnu_code_coverage
   MYFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
+endif
+
+ifdef gnu_runtime_checks
+  MYFLAGS += -fcheck=all
+endif
+
+ifdef catch_warnings_as_errors
+  MYFLAGS += -Werror=all -Wno-maybe-uninitialized -Wno-unused-dummy-argument 
 endif
 
 ###############################################################################
@@ -257,11 +275,14 @@ pflotran : $(pflotran_obj)
 libpflotran.a : $(pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(pflotran_obj)
 
-libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
-	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
+libpflotranchem.a : $(chem_obj) $(shared_mode_aux_obj) $(util_obj)
+	$(AR) $(ARFLAGS) $@ $(chem_obj) $(shared_mode_aux_obj) $(util_obj)
 
+# GNU 11.3 reports link errors when libpflotranchem.a is used instead of the
+# object files lists below.... This is a workaround.
 pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
-	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
+	${FLINKER} -o $@ $(pflotran_rxn_obj) $(chem_obj) $(shared_mode_aux_obj) \
+	$(util_obj) ${PETSC_LIB} ${LIBS} 
 
 # PFLOTRAN derivative test
 pflotran_derivative : $(pflotran_base_obj) pflotran_derivative.o

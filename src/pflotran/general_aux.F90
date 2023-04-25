@@ -22,6 +22,7 @@ module General_Aux_module
   PetscInt, public :: general_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: general_damping_factor = 0.6d0
   PetscInt, public :: general_debug_cell_id = UNINITIALIZED_INTEGER
+  PetscReal, public :: non_darcy_A = 4.0d-12 ! values from Liu (2014) Eqn 11
   PetscReal, public :: non_darcy_B = -0.78d0
 #if defined(MATCH_TOUGH2)
   PetscBool, public :: general_temp_dep_gas_air_diff = PETSC_FALSE
@@ -34,7 +35,7 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
   PetscInt, public :: general_sub_newton_iter_num = 0
-  PetscInt, public :: general_newtontrdc_prev_iter_num = 0 
+  PetscInt, public :: general_newtontrdc_prev_iter_num = 0
 
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: general_allow_state_change = PETSC_TRUE
@@ -542,18 +543,17 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: K_H_tilde
   PetscReal :: guess, dummy
   PetscInt :: apid, cpid, vpid, spid
+#if 0
+  character(len=8) :: state_char
   PetscReal :: NaN
+#endif
   PetscReal :: creep_closure_time
-  PetscReal :: xmass_air_in_gas
-  PetscReal :: Ugas_J_kg, Hgas_J_kg
-  PetscReal :: Uair_J_kg, Hair_J_kg
-  PetscReal :: Uvapor_J_kg, Hvapor_J_kg
   PetscReal :: Hg_mixture_fractioned
   PetscReal :: aux(1)
   PetscReal :: hw, hw_dp, hw_dT
   PetscReal :: dpor_dp
   PetscReal :: one_over_dw
-  PetscReal :: tempreal, tempreal2, tempreal3
+  PetscReal :: tempreal
   PetscReal :: dpair_dT, dpair_dpgas
   PetscReal :: dden_air_dT, dden_air_dpa, dden_air_dpg
   PetscReal :: du_air_dT, dh_air_dT
@@ -562,7 +562,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dh_water_vapor_dpv, dh_water_vapor_dT
   PetscReal :: du_water_vapor_dpv, du_water_vapor_dT
   PetscReal :: dpc_dsatl
-  character(len=8) :: state_char
   PetscErrorCode :: ierr
   PetscErrorCode :: eos_henry_ierr
 
@@ -1636,7 +1635,6 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, acid, wid, eid
   PetscBool :: istatechng, gas_flag
-  PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
 
@@ -1904,7 +1902,9 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 #endif
 #endif
 
+#ifdef LEGACY_PERTURBATION
   PetscReal, parameter :: min_mole_fraction_pert = 1.d-13
+#endif
   PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
 
@@ -2032,8 +2032,6 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
        !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
 
-       !MAN: Try perturbing upward, because lower gas pressure is associated with
-       !     lower gas saturation (i.e. two-phase)
        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
                                 x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
 

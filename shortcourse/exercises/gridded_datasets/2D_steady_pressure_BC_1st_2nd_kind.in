@@ -139,37 +139,37 @@ END
 #======================= flow conditions ======================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 1 MPa
+  LIQUID_PRESSURE 1 MPa
 END
 
 FLOW_CONDITION west_face
   TYPE
-    FLUX neumann
+    LIQUID_FLUX neumann
   /
-  FLUX -1.d-5 m/s
+  LIQUID_FLUX -1.d-5 m/s
 END
 
 FLOW_CONDITION east_face
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE DATASET pressure_bc_east
+  LIQUID_PRESSURE DATASET pressure_bc_east
 END
 
 FLOW_CONDITION north_face
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE DATASET pressure_bc_north
+  LIQUID_PRESSURE DATASET pressure_bc_north
 END
 
 FLOW_CONDITION south_face
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE DATASET pressure_bc_south
+  LIQUID_PRESSURE DATASET pressure_bc_south
 END
 
 #========================== initial and boundary conditions ===================

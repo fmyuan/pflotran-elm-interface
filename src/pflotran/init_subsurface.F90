@@ -132,6 +132,9 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
+  use Dataset_Base_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_module
   use Realization_Subsurface_class
   use Strata_module
   use Region_module
@@ -154,10 +157,15 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   type(strata_type), pointer :: strata
   type(patch_type), pointer :: cur_patch
 
+  character(len=MAXSTRINGLENGTH) :: string
   type(material_property_type), pointer :: material_property
   type(region_type), pointer :: region
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  class(dataset_gridded_hdf5_type), pointer :: gridded_dataset
+  PetscBool :: set_material_id
+  PetscReal :: elevation
 
+  nullify(gridded_dataset)
   option => realization%option
 
   cur_patch => realization%patch_list%first
@@ -174,8 +182,29 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
       ! use a one second tolerance on the start time and end time
       if (StrataWithinTimePeriod(strata,option%time) .and. &
           (.not. strata%well)) then
+        if (len_trim(strata%dataset_name) > 0) then
+          string = 'STRATA DATASET block'
+          gridded_dataset => &
+            DatasetGriddedHDF5Cast( &
+              DatasetBaseGetPointer(realization%datasets, &
+                                    strata%dataset_name, &
+                                    string,option))
+          string = 'Dataset "' // trim(strata%dataset_name) // &
+            '" referenced in a STRATA block must be'
+          if (.not.associated(gridded_dataset)) then
+            option%io_buffer = trim(string) // ' a gridded dataset.'
+            call PrintErrMsg(option)
+          endif
+          call DatasetGriddedHDF5Load(gridded_dataset,option)
+          if (gridded_dataset%data_dim /= DIM_XY) then
+            option%io_buffer = trim(string) // ' 2D in XY.'
+            call PrintErrMsg(option)
+          endif
+        endif
         ! Read in cell by cell material ids if they exist
-        if (.not.associated(strata%region) .and. strata%active) then
+        if (.not.associated(strata%region) .and. &
+            len_trim(strata%dataset_name) == 0 .and. &
+            strata%active) then
           call SubsurfReadMaterialIDsFromFile(realization, &
                                               strata%realization_dependent, &
                                               strata%material_property_filename)
@@ -197,13 +226,41 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
               local_id = icell
             endif
             ghosted_id = grid%nL2G(local_id)
-            if (strata%active) then
-              cur_patch%imat(ghosted_id) = material_property%internal_id
-            else
-              ! if not active, set material id to zero
-              cur_patch%imat(ghosted_id) = 0
+            set_material_id = PETSC_TRUE
+            if (associated(gridded_dataset)) then
+              call DatasetGriddedHDF5InterpolateReal(gridded_dataset, &
+                            grid%x(ghosted_id),grid%y(ghosted_id), &
+                            UNINITIALIZED_DOUBLE,elevation,option)
+              if (strata%dataset_mat_id_direction == &
+                  SET_MATERIAL_IDS_BELOW_SURFACE) then
+                ! sets the material id if the cell center is below elevation
+                if (grid%z(ghosted_id) > elevation) then
+                  set_material_id = PETSC_FALSE
+                endif
+              else ! SET_MATERIAL_IDS_ABOVE_SURFACE
+                ! sets the material id if the cell center is above elevation
+                if (grid%z(ghosted_id) < elevation) then
+                  set_material_id = PETSC_FALSE
+                endif
+              endif
+            endif
+            if (set_material_id) then
+              if (strata%active) then
+                cur_patch%imat(ghosted_id) = material_property%internal_id
+              else
+                ! if not active, set material id to zero
+                cur_patch%imat(ghosted_id) = 0
+              endif
             endif
           enddo
+        endif
+        if (associated(gridded_dataset)) then
+          ! do not destroy; just strip as the dataset may be needed later
+          call DatasetGriddedHDF5Strip(gridded_dataset)
+          ! setting data_dim to NULL forces the dataset information to be
+          ! read again on the next use, which is necessary
+          gridded_dataset%data_dim = DIM_NULL
+          nullify(gridded_dataset)
         endif
       endif
       strata => strata%next
@@ -256,7 +313,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, ELECTRICAL_CONDUCTIVITY, &
-                               MATRIX_LENGTH
+                               HALF_MATRIX_WIDTH
 
   use HDF5_module
   use Utility_module, only : DeallocateArray
@@ -324,7 +381,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                        epsilon0);
     call VecGetArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
   endif
-  if (matrix_length_index > 0) then
+  if (half_matrix_width_index > 0) then
     call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
                                        matrixlength0);
     call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
@@ -441,8 +498,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (epsilon_index > 0) then
       eps0_p(local_id) = material_property%multicontinuum%epsilon
     endif
-    if (matrix_length_index > 0) then
-      length0_p(local_id) = material_property%multicontinuum%length
+    if (half_matrix_width_index > 0) then
+      length0_p(local_id) = material_property%multicontinuum%half_matrix_width
     endif
 
     if (option%ngeopdof > 0) then
@@ -471,7 +528,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   if (epsilon_index > 0) then
     call VecRestoreArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
   endif
-  if (matrix_length_index > 0) then
+  if (half_matrix_width_index > 0) then
     call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
 
@@ -533,9 +590,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                  material_property%multicontinuum%epsilon_dataset, &
                  material_property%internal_id,PETSC_FALSE,epsilon0)
         endif
-        if (associated(material_property%multicontinuum%length_dataset)) then
+        if (associated(material_property%multicontinuum%half_matrix_width_dataset)) then
           call SubsurfReadDatasetToVecWithMask(realization, &
-                 material_property%multicontinuum%length_dataset, &
+                 material_property%multicontinuum%half_matrix_width_dataset, &
                  material_property%internal_id,PETSC_FALSE,matrixlength0)
         endif
       endif
@@ -605,11 +662,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                  EPSILON,ZERO_INTEGER)
     call VecDestroy(epsilon0,ierr);CHKERRQ(ierr)
   endif
-  if (matrix_length_index > 0) then
+  if (half_matrix_width_index > 0) then
     call DiscretizationGlobalToLocal(discretization,matrixlength0, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 MATRIX_LENGTH,ZERO_INTEGER)
+                                 HALF_MATRIX_WIDTH,ZERO_INTEGER)
     call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr)
   endif
 
@@ -1353,7 +1410,7 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
 
   if (ncount /= n_inactive_rows) then
     option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
-      StringWrite(ncount) // ' ' // StringWrite(n_inactive_rows)
+      StringWrite(ncount) // ' ' // trim(StringWrite(n_inactive_rows))
     call PrintErrMsgByRank(option)
   endif
 

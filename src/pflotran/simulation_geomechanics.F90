@@ -49,7 +49,7 @@ function GeomechanicsSimulationCreate(driver,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -77,7 +77,7 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   ! Modified: Satish Karra, 06/01/2016
   !
   use Waypoint_module
-  use Driver_module
+  use Driver_class
   use Option_module
 
   implicit none
@@ -135,7 +135,6 @@ subroutine GeomechanicsSimInputRecord(this)
 
   class(simulation_geomechanics_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a29)',advance='no') 'simulation type: '
@@ -166,7 +165,6 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   PetscReal :: time
   PetscReal :: final_time
   PetscReal :: dt
-  PetscViewer :: viewer
 
   time = this%option%time
 
@@ -284,8 +282,6 @@ subroutine GeomechanicsSimulationDestroy(simulation)
   implicit none
 
   class(simulation_geomechanics_type), pointer :: simulation
-
-  call PrintMsg(simulation%option,'GeomehanicsSimulationDestroy()')
 
   if (.not.associated(simulation)) return
 

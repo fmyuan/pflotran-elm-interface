@@ -293,6 +293,7 @@ function SFBaseGetNeedsToBeExtended(this)
 
   PetscReal :: SFBaseGetNeedsToBeExtended
 
+  SFBaseGetNeedsToBeExtended = UNINITIALIZED_DOUBLE
   print *, 'A SFBaseGetXXX routine needs to be extended'
   stop
 
@@ -505,6 +506,7 @@ function RPFBaseGetNeedsToBeExtended(this)
 
   PetscReal :: RPFBaseGetNeedsToBeExtended
 
+  RPFBaseGetNeedsToBeExtended = UNINITIALIZED_DOUBLE
   print *, 'A RPFBaseGetXXX routine needs to be extended'
   stop
 
@@ -571,8 +573,6 @@ subroutine RPFBaseGasEffectiveSaturation(this,liquid_saturation, &
   PetscReal, intent(out) :: effective_saturation
   PetscReal, intent(out) :: deffsat_dsat
   type(option_type), intent(inout) :: option
-
-  PetscReal :: tempreal
 
   option%io_buffer = 'RPFBaseGasEffectiveSaturation must be extended for the &
                      &current relative permeability function.'

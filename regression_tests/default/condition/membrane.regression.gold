@@ -1,0 +1,43 @@
+-- CONCENTRATION: Total Tracer --
+      Max:   1.8478912906157E-03
+      Min:   6.5914970923387E-04
+     Mean:   1.0000013399452E-03
+        1:   9.9991822076625E-04
+       10:   1.8478912906157E-03
+-- CONCENTRATION: Total Na+ --
+      Max:   1.0685438722438E+01
+      Min:   6.2053582264551E+00
+     Mean:   6.6599736688385E+00
+        1:   6.2360315087987E+00
+       10:   1.0685438722438E+01
+-- CONCENTRATION: Total Cl- --
+      Max:   1.0685438722438E+01
+      Min:   6.2053582264551E+00
+     Mean:   6.6599736688385E+00
+        1:   6.2360315087987E+00
+       10:   1.0685438722438E+01
+-- VOLUME_FRACTION: Halite VF --
+      Max:   1.5567385944881E+00
+      Min:   1.7217552140464E-03
+     Mean:   1.5871824759407E-01
+        1:   8.9416127770881E-03
+       10:   1.5567385944881E+00
+-- RATE: Halite Rate --
+      Max:   1.9654097847491E-04
+      Min:   7.7635863197312E-09
+     Mean:   1.9874393183857E-05
+        1:   9.9889022097706E-07
+       10:   1.9654097847491E-04
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+       10:         1
+-- SOLUTION: Transport --
+   Time Steps:          111
+   Newton Iterations:          354
+   Linear Solver Iterations:          354
+   Time Step Cuts:            0
+   Solution 2-Norm:   3.0382829134179E+01
+   Residual 2-Norm:   1.9505903064836E-18

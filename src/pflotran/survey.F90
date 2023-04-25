@@ -94,7 +94,6 @@ subroutine SurveyRead(survey,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  type(input_type), pointer :: input_tmp
   character(len=MAXWORDLENGTH) :: word
 
   ! we initialize the word to blanks to avoid error reported by valgrind
@@ -325,7 +324,7 @@ subroutine SurveyWriteERT(survey,time_suffix,option)
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word
-  PetscInt :: iprefix,i
+  PetscInt :: i
   PetscInt :: fid
 
   filename = trim(option%global_prefix) // trim(option%group_prefix) // &

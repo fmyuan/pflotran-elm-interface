@@ -1,0 +1,62 @@
+-- GENERIC: Temperature --
+      Max:   2.5921920100775E+02
+      Min:   4.1840557439000E+01
+     Mean:   1.5425902967148E+02
+        1:   2.5921920100775E+02
+        5:   1.0844283972916E+02
+-- CONCENTRATION: Total Cs137 --
+      Max:   1.7929042034615E-13
+      Min:   1.0243421108815E-13
+     Mean:   1.2593119030345E-13
+        1:   1.0243421108815E-13
+        5:   1.7929042034615E-13
+-- CONCENTRATION: Total Sr90 --
+      Max:   9.4786000152520E-14
+      Min:   6.3000920650836E-14
+     Mean:   7.1767156538022E-14
+        1:   6.6232152287814E-14
+        5:   9.4786000152520E-14
+-- VOLUME_FRACTION: Cs137(s) VF --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- VOLUME_FRACTION: Sr90(s) VF --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- RATE: Cs137(s) Rate --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- RATE: Sr90(s) Rate --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+        5:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         5
+      Min:         1
+     Mean:   2.2500000000000E+00
+        1:         2
+        5:         1
+-- SOLUTION: Flow --
+   Time Steps:          110
+   Newton Iterations:          380
+   Linear Solver Iterations:          380
+   Time Step Cuts:            0
+   Solution 2-Norm:   7.4777561578394E+06
+   Residual 2-Norm:   2.4713879164981E-15
+-- SOLUTION: Transport --
+   Time Steps:          110
+   Newton Iterations:          110
+   Linear Solver Iterations:          110
+   Time Step Cuts:            0
+   Solution 2-Norm:   4.5974855124068E-13
+   Residual 2-Norm:   2.3351218051888E-32

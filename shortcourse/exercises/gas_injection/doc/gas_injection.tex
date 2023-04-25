@@ -145,6 +145,28 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Numerical Methods}
+
+\begin{frame}[fragile]\frametitle{NUMERICAL METHODS}
+
+\begin{itemize}
+\item Add a numerical methods block
+\item Newton Solver sub-block
+\end{itemize}
+
+\begin{semiverbatim}
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+END
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \subsection{FLUID\_PROPERTY}
 
 \begin{frame}[fragile]\frametitle{FLUID\_PROPERTY}
@@ -361,7 +383,7 @@ REGION all               \bluecomment{! define region:} \greencomment{all}
 END
 
 REGION upper_right       \bluecomment{! define region:} \greencomment{upper_right}
-  FACE top               \bluecomment{! face for use in BC}
+  FACE TOP               \bluecomment{! face for use in BC}
   COORDINATES
     90.d0 0.d0 100.d0
     100.d0 1.d0 100.d0
@@ -556,95 +578,6 @@ END_SUBSURFACE \bluecomment{That's all!}
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{Speed Up}
-\begin{frame}[fragile]\frametitle{Can We Speed it Up?}
-
-\begin{semiverbatim}
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2
-        ISOTHERMAL 
-      /
-    /
-  /
-END
-\end{semiverbatim}
-
-\begin{itemize}
-  \item Plot the results
-\end{itemize}
-
-\begin{semiverbatim}
-> python gas_injection.py
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Faster}
-\begin{frame}[fragile]\frametitle{Faster?}
-
-\begin{semiverbatim}
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL 
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 
-        ISOTHERMAL 
-      /
-    /
-  /
-END
-\end{semiverbatim}
-
-\begin{itemize}
-  \item Plot the results
-\end{itemize}
-
-\begin{semiverbatim}
-> python gas_injection.py
-\end{semiverbatim}
-
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Faster2}
-\begin{frame}[fragile]\frametitle{Faster!}
-
-\begin{semiverbatim}
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL 
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
-        LOGGING_VERBOSITY 1
-	GAS_COMPONENT_FORMULA_WEIGHT 44.d0 
-        ISOTHERMAL 
-      /
-    /
-  /
-END
-\end{semiverbatim}
-
-\begin{itemize}
-  \item Plot the results
-\end{itemize}
-
-\end{frame}
-%-----------------------------------------------------------------------------
 \subsection{Ouput Messages 1}
 
 \begin{frame}[fragile]\frametitle{Screen Output}
@@ -699,56 +632,24 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{Faster3}
-\begin{frame}[fragile]\frametitle{Faster!!}
+\subsection{Tolerances}
 
-\begin{semiverbatim}
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL 
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
-        REL_UPDATE_INF_TOL 1.d-2
-        GAS_COMPONENT_FORMULA_WEIGHT 44.d0  
-        ISOTHERMAL 
-      /
-    /
-  /
-END
-\end{semiverbatim}
+\begin{frame}[fragile]\frametitle{Adjust Tolerances}
 
 \begin{itemize}
-  \item Plot the results
+\item \redcomment{NEWTON\_SOLVER} block can be used to adjust individual tolerances (e.g. residual or update).
 \end{itemize}
 
-\end{frame}
-%-----------------------------------------------------------------------------
-\subsection{Faster4}
-\begin{frame}[fragile]\frametitle{FASTER!!}
-
 \begin{semiverbatim}
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL 
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
-        REL_UPDATE_INF_TOL 1.d0
-        GAS_COMPONENT_FORMULA_WEIGHT 44.d0  
-        ISOTHERMAL 
-      /
-    /
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+    REL_UPDATE_INF_TOL 1.d-2
   /
 END
-\end{semiverbatim}
 
+\end{semiverbatim}
 \end{frame}
 
 %-----------------------------------------------------------------------------

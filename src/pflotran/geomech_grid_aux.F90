@@ -213,13 +213,9 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   PetscInt :: ndof
   PetscInt, pointer :: int_ptr(:)
   PetscInt :: local_id, ghosted_id
-  PetscInt :: idof
   IS :: is_tmp, is_tmp_petsc, is_tmp_natural
   Vec :: vec_tmp
   PetscErrorCode :: ierr
-  character(len=MAXWORDLENGTH) :: ndof_word
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscViewer :: viewer
   PetscInt, allocatable :: int_array(:), int_array2(:)
 
   gmdm => GMDMCreate()
@@ -602,16 +598,10 @@ subroutine GMGridDMCreateMatrix(geomech_grid,gmdm,mat_type,J,option)
   type(option_type) :: option
   MatType :: mat_type
   Mat :: J
-  IS :: is_tmp
 
   PetscInt, allocatable :: d_nnz(:), o_nnz(:)
-  PetscInt :: local_id, ineighbor, neighbor_id
   PetscInt :: ndof_local
-  PetscInt :: ielem, node_count
-  PetscInt :: ivertex1, ivertex2
-  PetscInt :: local_id1, local_id2
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string
 
   allocate(d_nnz(geomech_grid%nlmax_node))
   allocate(o_nnz(geomech_grid%nlmax_node))

@@ -95,7 +95,6 @@ subroutine MineralReadKinetics(mineral,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
@@ -110,7 +109,6 @@ subroutine MineralReadKinetics(mineral,input,option)
                                               cur_prefactor_species
   PetscBool :: found
   PetscInt :: imnrl,icount
-  PetscReal :: temp_real
 
   cur_mineral => mineral%mineral_list
   do
@@ -166,7 +164,9 @@ subroutine MineralReadKinetics(mineral,input,option)
                 call InputDefaultMsg(input,option)
               else
                 tstrxn%rate = tstrxn%rate * &
-                  UnitsConvertToInternal(word,internal_units,option)
+                  UnitsConvertToInternal(word,internal_units, &
+                                     trim(error_string)//',RATE_CONSTANT', &
+                                     option)
               endif
             case('ACTIVATION_ENERGY')
 !             read activation energy for Arrhenius law
@@ -174,7 +174,7 @@ subroutine MineralReadKinetics(mineral,input,option)
               call InputErrorMsg(input,option,'activation',error_string)
               call InputReadAndConvertUnits(input,tstrxn%activation_energy, &
                                             'J/mol', &
-                              trim(error_string)//',activation energy',option)
+                              trim(error_string)//',ACTIVATION_ENERGY',option)
             case('AFFINITY_THRESHOLD')
 !             read affinity threshold for precipitation
               call InputReadDouble(input,option,tstrxn%affinity_threshold)
@@ -261,7 +261,9 @@ subroutine MineralReadKinetics(mineral,input,option)
                       call InputDefaultMsg(input,option)
                     else
                       prefactor%rate = prefactor%rate * &
-                        UnitsConvertToInternal(word,internal_units,option)
+                        UnitsConvertToInternal(word,internal_units, &
+                          trim(cur_mineral%name)//',PREFACTOR RATE_CONSTANT', &
+                          option)
                     endif
                   case('ACTIVATION_ENERGY')
                     ! read activation energy for Arrhenius law
@@ -272,7 +274,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                     call InputReadAndConvertUnits(input, &
                                                   prefactor%activation_energy, &
                                                   'J/mol', &
-                              trim(error_string)//',activation energy',option)
+                              trim(error_string)//',ACTIVATION_ENERGY',option)
                   case('PREFACTOR_SPECIES')
                     error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,&
                                    &SPECIES'
@@ -589,7 +591,10 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
     if (per_unit_mass) then
       internal_units = 'm^2/kg' ! m^2 mnrl/kg mnrl
     endif
-    tempreal = UnitsConvertToInternal(units,internal_units,option)
+    tempreal = UnitsConvertToInternal(units,internal_units, &
+                         trim(constraint%names(imnrl))// &
+                         ',specific surface area', &
+                         option)
     if (per_unit_mass) then
       mineral_rxn => GetMineralFromName(constraint%names(imnrl),mineral)
       if (mineral_rxn%molar_weight < epsilon .or. &
@@ -623,7 +628,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
           option%io_buffer = 'The zero volume fraction assigned to &
             &mineral "' // trim(mineral_rxn%name) // '" in constraint "' // &
             trim(constraint_name) // '" prevents the use of a mass-based &
-            surface area in the constraint.'
+            &surface area in the constraint.'
           call PrintErrMsg(option)
         endif
       endif
@@ -665,10 +670,10 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
 
-  PetscInt :: i, j, k, imnrl, icomp, jcomp, kcplx, iphase, ncomp
+  PetscInt :: i, j, imnrl, icomp, jcomp, iphase, ncomp
   PetscInt :: ipref, ipref_species
   ! I am assuming a maximum of 10 prefactors and 5 species per prefactor
-  PetscReal :: tempreal, tempreal2
+  PetscReal :: tempreal
   PetscReal :: affinity_factor, sign_
   PetscReal :: Im, Im_const, dIm_dQK
   PetscReal :: ln_conc(reaction%naqcomp)
@@ -697,8 +702,6 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
 #endif
 
   type(mineral_type), pointer :: mineral
-
-  PetscInt, parameter :: needs_to_be_fixed = 1
 
   PetscReal :: arrhenius_factor
 
@@ -1111,7 +1114,6 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
 
   PetscReal :: arrhenius_factor
-  PetscInt, parameter :: iphase = 1
 
   cycle_ = PETSC_FALSE
 

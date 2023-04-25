@@ -37,9 +37,13 @@ MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 #MYFLAGS += ${FC_DEFINE_FLAG}LEGACY_SATURATION_FUNCTION
 
-ifdef codecov
+ifdef gnu_code_coverage
   MYFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
+endif
+
+ifdef gnu_runtime_checks
+  MYFLAGS += -fcheck=all
 endif
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
@@ -301,7 +305,7 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    pflotran_constants.o realization_base.o \
                    realization_subsurface.o richards.o \
                    richards_aux.o saturation_function.o simulation_base.o \
-                   simulation_subsurface.o \
+                   simulation_subsurface.o simulation_inverse.o \
                    string.o \
                    th.o th_aux.o timestepper_base.o units.o utility.o \
                    variables.o waypoint.o

@@ -44,7 +44,7 @@ module Material_Aux_module
   PetscInt, public :: soil_reference_pressure_index
   PetscInt, public :: max_material_index
   PetscInt, public :: epsilon_index
-  PetscInt, public :: matrix_length_index
+  PetscInt, public :: half_matrix_width_index
 
   type, public :: material_auxvar_type
     PetscInt :: id
@@ -293,7 +293,7 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
     perm_tens_to_scal_model = model
   else
     option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
-                         model type is not recognized.'
+                        &model type is not recognized.'
     call PrintErrMsg(option)
   endif
 
@@ -668,6 +668,9 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
                                  soil_properties(soil_reference_pressure_index)
     case(ELECTRICAL_CONDUCTIVITY)
       MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)
+    case default
+      print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
+      stop
   end select
 
 end function MaterialAuxVarGetValue
@@ -703,8 +706,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%tortuosity = value
     case(EPSILON)
       material_auxvar%soil_properties(epsilon_index) = value
-    case(MATRIX_LENGTH)
-      material_auxvar%soil_properties(matrix_length_index) = value
+    case(HALF_MATRIX_WIDTH)
+      material_auxvar%soil_properties(half_matrix_width_index) = value
     case(PERMEABILITY_X)
       material_auxvar%permeability(perm_xx_index) = value
     case(PERMEABILITY_Y)
@@ -723,6 +726,9 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(soil_reference_pressure_index) = value
     case(ELECTRICAL_CONDUCTIVITY)
       material_auxvar%electrical_conductivity(1) = value
+    case default
+      print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
+      stop
   end select
 
 end subroutine MaterialAuxVarSetValue
@@ -935,8 +941,8 @@ function MaterialAuxIndexToPropertyName(i)
     MaterialAuxIndexToPropertyName = 'soil reference pressure'
   else if (i == epsilon_index) then
    MaterialAuxIndexToPropertyName = 'multicontinuum epsilon'
-  else if (i == matrix_length_index) then
-    MaterialAuxIndexToPropertyName = 'matrix length'
+  else if (i == half_matrix_width_index) then
+    MaterialAuxIndexToPropertyName = 'half matrix width'
 !  else if (i == soil_thermal_conductivity_index) then
 !    MaterialAuxIndexToPropertyName = 'soil thermal conductivity'
 !  else if (i == soil_heat_capacity_index) then

@@ -299,7 +299,8 @@ end subroutine PMRichardsPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMRichardsUpdateTimestep(this,update_dt, &
+                                    dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac, &
                                     time_step_max_growth_factor)
   !
@@ -311,6 +312,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_richards_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -326,33 +328,35 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dt_tfac
   PetscInt :: ifac
 
-  if (iacceleration > 0) then
-    fac = 0.5d0
-    if (num_newton_iterations >= iacceleration) then
-      fac = 0.33d0
-      ut = 0.d0
+  if (update_dt .and. iacceleration /= 0) then
+    if (iacceleration > 0) then
+      fac = 0.5d0
+      if (num_newton_iterations >= iacceleration) then
+        fac = 0.33d0
+        ut = 0.d0
+      else
+        up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+        ut = up
+      endif
+      dtt = fac * dt * (1.d0 + ut)
     else
+      ifac = max(min(num_newton_iterations,size(tfac)),1)
+      dt_tfac = tfac(ifac) * dt
+
+      fac = 0.5d0
       up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-      ut = up
+      dt_p = fac * dt * (1.d0 + up)
+
+      dtt = min(dt_tfac,dt_p)
     endif
-    dtt = fac * dt * (1.d0 + ut)
-  else
-    ifac = max(min(num_newton_iterations,size(tfac)),1)
-    dt_tfac = tfac(ifac) * dt
 
-    fac = 0.5d0
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    dt_p = fac * dt * (1.d0 + up)
-
-    dtt = min(dt_tfac,dt_p)
+    dtt = min(time_step_max_growth_factor*dt,dtt)
+    if (dtt > dt_max) dtt = dt_max
+    ! geh: There used to be code here that cut the time step if it is too
+    !      large relative to the simulation time.  This has been removed.
+    dtt = max(dtt,dt_min)
+    dt = dtt
   endif
-
-  dtt = min(time_step_max_growth_factor*dt,dtt)
-  if (dtt > dt_max) dtt = dt_max
-  ! geh: There used to be code here that cut the time step if it is too
-  !      large relative to the simulation time.  This has been removed.
-  dtt = max(dtt,dt_min)
-  dt = dtt
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
 
@@ -771,7 +775,7 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         option%convergence = CONVERGENCE_KEEP_ITERATING
         if (this%logging_verbosity > 0) then
           string = '   ' // trim(tol_string(itol)) // ', Liquid Pressure'
-          if (option%comm%mycommsize == 1) then
+          if (option%comm%size == 1) then
             string = trim(string) // ' (' // &
               trim(StringFormatInt(this%converged_cell(itol))) &
               // ')'
@@ -916,7 +920,6 @@ subroutine PMRichardsInputRecord(this)
 
   class(pm_richards_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

@@ -25,7 +25,7 @@ MAKE_LOG="make.log"
 TEST_LOG="test.log"
 cd $PFLOTRAN_DIR/src/pflotran
 make clean > /dev/null 2>&1
-make -j4 codecov=1 pflotran > $MAKE_LOG 2>&1
+make -j4 gnu_code_coverage=1 gnu_runtime_checks=1 catch_warnings_as_errors=1 pflotran > $MAKE_LOG 2>&1
 
 if [ -e "pflotran" ] ; then
   GNU_PFLOTRAN_MAKE_SUCCESS=true
@@ -33,7 +33,7 @@ if [ -e "pflotran" ] ; then
 
 # test PFLOTRAN
   make clean-tests > /dev/null 2>&1
-  make test > $TEST_LOG 2>&1
+  make gnu_code_coverage=1 test > $TEST_LOG 2>&1
 
   if [ -e "$TEST_LOG" ] ; then
     # We cannot use Fail or Failure as these are included in the names of
@@ -61,7 +61,7 @@ echo "GNU Make PFLOTRAN_RXN"
 MAKE_LOG="pflotran_rxn_make.log"
 cd $PFLOTRAN_DIR/src/pflotran
 make clean > /dev/null 2>&1
-make -j4 codecov=1 pflotran_rxn > $MAKE_LOG 2>&1
+make -j4 gnu_code_coverage=1 gnu_runtime_checks=1 catch_warnings_as_errors=1 pflotran_rxn > $MAKE_LOG 2>&1
 
 if [ -e "pflotran_rxn" ] ; then
   GNU_PFLOTRAN_RXN_MAKE_SUCCESS=true

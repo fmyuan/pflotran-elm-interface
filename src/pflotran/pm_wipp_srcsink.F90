@@ -1106,7 +1106,6 @@ subroutine PMWSSCopyRadInv(rad_inventory,wp_rad_inventory)
 
   type(rad_inventory_type), pointer :: rad_inventory
   type(rad_inventory_type), pointer :: wp_rad_inventory
-  PetscInt :: num_cells
 
   PetscInt :: num_species
 
@@ -2582,7 +2581,7 @@ subroutine PMWSSSetup(this)
   ! point the waste panel region to the desired region
   call PMWSSAssociateRegion(this,this%realization%patch%region_list)
 
-  allocate(ranks(option%comm%mycommsize))
+  allocate(ranks(option%comm%size))
 
   waste_panel_id = 0
   nullify(prev_waste_panel)
@@ -2606,19 +2605,19 @@ subroutine PMWSSSetup(this)
       ranks(option%myrank+1) = 0
     endif
     ! count the number of processes that own the waste panel
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%size,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_panel%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%comm%mycommsize
+    do i = 1,option%comm%size
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_panel%rank_list(j) = (i - 1)
       endif
     enddo
     ! create an MPI group and communicator for each waste panel
-    call MPI_Group_incl(option%comm%mygroup,newcomm_size, &
+    call MPI_Group_incl(option%comm%group,newcomm_size, &
                         cur_waste_panel%rank_list,cur_waste_panel%myMPIgroup, &
                         ierr);CHKERRQ(ierr)
     call MPI_Comm_create(option%mycomm,cur_waste_panel%myMPIgroup, &
@@ -3882,7 +3881,6 @@ subroutine PMWSSFinalizeTimestep(this)
 ! ----------------------------------------------------
   type(srcsink_panel_type), pointer :: cur_waste_panel
   type(option_type), pointer :: option
-  PetscReal :: dt
 ! ----------------------------------------------------
 
   option => this%option
@@ -4401,7 +4399,6 @@ subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
   PetscInt :: k
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscReal :: pflotran_to_bragflo(2)
   PetscInt :: local_start, local_end
 ! ----------------------------------------------------------
 
@@ -4791,7 +4788,6 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
   PetscInt :: cell_index
   type(option_type), pointer :: option
 
-  PetscReal :: vol_brine, n_isotopes
   PetscInt :: i,j,im
 !
   PetscReal :: radiolysis_start
@@ -4812,8 +4808,7 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
   PetscReal :: h2_source
   PetscReal :: isotope_in_solution, isotope_in_solid, isotope_mf
 
-  PetscInt :: nx,ny,nz
-  PetscInt :: idni,id1,id2,id3,id4,idx,idx1
+  PetscInt :: id1,id2,id3,id4,idx,idx1
 
   PetscInt :: num_species
 
@@ -5189,18 +5184,13 @@ subroutine PMWSSCheckpointHDF5(this,pm_grp_id)
   class(pm_wipp_srcsink_type) :: this
   integer(HID_T) :: pm_grp_id
 
-  ! Local Variables
-  IS :: is
-  VecScatter :: scatter_ctx
-  Vec :: global_wp_vec, local_wp_vec
-
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
   PetscErrorCode :: ierr
   PetscInt :: local_stride, n_wp_local, n_wp_global, &
               local_stride_tmp, i, stride, stride_rad, &
               local_stride_rad, local_stride_tmp_rad
-  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscInt, allocatable :: int_array(:)
 
   class(srcsink_panel_type), pointer :: cwp
 
@@ -5412,17 +5402,13 @@ subroutine PMWSSRestartHDF5(this,pm_grp_id)
   integer(HID_T) :: pm_grp_id
 
   ! Local Variables
-  IS :: is
-  VecScatter :: scatter_ctx
-  Vec :: global_wp_vec, local_wp_vec
-
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
   PetscErrorCode :: ierr
   PetscInt :: local_stride, n_wp_local, n_wp_global,  &
               local_stride_tmp, i, stride, stride_rad, &
               local_stride_rad, local_stride_tmp_rad
-  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscInt, allocatable :: int_array(:)
 
   class(srcsink_panel_type), pointer :: cwp
 
@@ -5637,17 +5623,12 @@ subroutine PMWSSCheckpointBinary(this,viewer)
   class(pm_wipp_srcsink_type) :: this
 
     ! Local Variables
-  IS :: is
-  VecScatter :: scatter_ctx
-  Vec :: global_wp_vec, local_wp_vec
-
-  character(len=MAXSTRINGLENGTH) :: dataset_name
 
   PetscErrorCode :: ierr
   PetscInt :: local_stride, n_wp_local, n_wp_global, &
               local_stride_tmp, i, stride, stride_rad, &
               local_stride_rad, local_stride_tmp_rad
-  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscInt, allocatable :: int_array(:)
 
   class(srcsink_panel_type), pointer :: cwp
 
@@ -5844,16 +5825,12 @@ subroutine PMWSSRestartBinary(this,viewer)
   class(pm_wipp_srcsink_type) :: this
 
   ! Local Variables
-  IS :: is
-  VecScatter :: scatter_ctx
-  Vec :: global_wp_vec, local_wp_vec
 
   PetscErrorCode :: ierr
   PetscInt :: local_stride, n_wp_local, n_wp_global, &
               local_stride_tmp, i, stride, stride_rad, &
               local_stride_rad, local_stride_tmp_rad
   PetscInt, allocatable :: int_array(:)
-  PetscReal, pointer :: local_wp_array
 
   class(srcsink_panel_type), pointer :: cwp
 

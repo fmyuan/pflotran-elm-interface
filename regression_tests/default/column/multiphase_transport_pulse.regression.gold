@@ -25,7 +25,7 @@
        50:   1.7463962429793E-05
        60:   1.5139479588637E-05
        80:   1.2702509517035E-05
--- CONCENTRATION: Active Gas A(g) --
+-- PRESSURE: Active Gas A(g) --
       Max:   4.5756955116923E-02
       Min:   2.4790000000000E-04
      Mean:   2.7494363636364E-03
@@ -34,7 +34,7 @@
        50:   4.5756955116923E-02
        60:   3.6128739138066E-04
        80:   2.4790000675760E-04
--- CONCENTRATION: Active Gas O2(g) --
+-- PRESSURE: Active Gas O2(g) --
       Max:   1.3857272665382E-02
       Min:   1.0003459581911E-02
      Mean:   1.0909090909091E-02
@@ -53,10 +53,9 @@
        60:         1
        80:         1
 -- SOLUTION: Transport --
-   Time (seconds):   2.6912927627563E-02
    Time Steps:           10
    Newton Iterations:           10
-   Solver Iterations:           10
+   Linear Solver Iterations:           10
    Time Step Cuts:            0
    Solution 2-Norm:   1.0061497459950E-03
-   Residual 2-Norm:   1.5816673084765E-20
+   Residual 2-Norm:   1.7559300827020E-20

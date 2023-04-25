@@ -92,7 +92,7 @@ end function CheckpointFilename
 
 ! ************************************************************************** !
 
-function CheckpointAppendNameAtTime(checkpoint_option,time,option)
+function CheckpointAppendNameAtTime(time,option)
   !
   ! This subroutine forms the appendage to the checkpoint filename.
   !
@@ -100,13 +100,12 @@ function CheckpointAppendNameAtTime(checkpoint_option,time,option)
   ! Date: 1/29/2016
   !
 
-  use Output_Aux_module
+  use Option_Checkpoint_module
   use Units_module
   use Option_module
 
   implicit none
 
-  type(checkpoint_option_type) :: checkpoint_option
   PetscReal :: time
   type(option_type) :: option
 
@@ -115,17 +114,17 @@ function CheckpointAppendNameAtTime(checkpoint_option,time,option)
   PetscReal :: temp_time
 
   ! time is actually option%time. do not overwrite it.
-  temp_time = time * checkpoint_option%tconv
+  temp_time = time * option%checkpoint%tconv
   !write(time_string,'(1pe12.4)') time
   write(word,'(f15.4)') temp_time
   CheckpointAppendNameAtTime = '-' // trim(adjustl(word)) // &
-                             trim(adjustl(checkpoint_option%tunit))
+                               trim(adjustl(option%checkpoint%tunit))
 
 end function CheckpointAppendNameAtTime
 
 ! ************************************************************************** !
 
-function CheckpointAppendNameAtTimestep(checkpoint_option,timestep,option)
+function CheckpointAppendNameAtTimestep(timestep,option)
   !
   ! This subroutine forms the appendage to the checkpoint filename.
   !
@@ -133,13 +132,12 @@ function CheckpointAppendNameAtTimestep(checkpoint_option,timestep,option)
   ! Date: 1/29/2016
   !
 
-  use Output_Aux_module
+  use Option_Checkpoint_module
   use Units_module
   use Option_module
 
   implicit none
 
-  type(checkpoint_option_type) :: checkpoint_option
   PetscInt :: timestep
   type(option_type) :: option
 
@@ -513,6 +511,7 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -521,26 +520,17 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   character(len=MAXSTRINGLENGTH) :: append_name
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscErrorCode :: ierr
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
-  integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
 
   filename = CheckpointFilename(append_name, option)
   filename = trim(filename) // '.h5'
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-  call h5fcreate_f(filename, H5F_ACC_TRUNC_F, file_id, hdf5_err, &
-                   H5P_DEFAULT_F, prop_id)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpen(filename,file_id,PETSC_TRUE,option)
 
   string = "Checkpoint"
-  call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5GroupCreate(file_id, string, grp_id,option)
 
   option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
   call PrintMsg(option)
@@ -566,21 +556,12 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
-  PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
-  integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
   string = 'HDF5 restart file "' // trim(filename) // '" not found.'
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,string,option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,string,option)
 
   string = "Checkpoint"
   call HDF5GroupOpen(file_id,string,grp_id,option)
@@ -601,6 +582,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -666,7 +648,7 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointWriteIntDatasetHDF5
 
@@ -684,6 +666,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -747,7 +730,7 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointWriteRealDatasetHDF5
 
@@ -764,6 +747,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -821,7 +805,7 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointReadIntDatasetHDF5
 
@@ -838,6 +822,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -892,7 +877,7 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5sclose_f(memory_space_id, hdf5_err)
   call h5sclose_f(grp_space_id, hdf5_err)
   call h5pclose_f(prop_id, hdf5_err)
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
 end subroutine CheckPointReadRealDatasetHDF5
 
@@ -1271,7 +1256,7 @@ end subroutine RestartFlowProcessModelHDF5
 
 ! ************************************************************************** !
 
-subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
+subroutine CheckpointRead(input,option,waypoint_list)
   !
   ! Reads the CHECKPOINT card in an input file.
   !
@@ -1281,7 +1266,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
 
   use Option_module
   use Input_Aux_module
-  use Output_Aux_module
+  use Option_Checkpoint_module
   use Waypoint_module
   use String_module
   use Units_module
@@ -1294,21 +1279,19 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   type(waypoint_list_type) :: waypoint_list
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: temp_string
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
   type(waypoint_type), pointer :: waypoint
   PetscReal :: units_conversion
   PetscReal :: temp_real
-  PetscReal, pointer :: temp_real_array(:)
-  PetscInt :: i
   PetscBool :: format_binary
   PetscBool :: format_hdf5
 
-  if (.not.associated(checkpoint_option)) then
-    checkpoint_option => CheckpointOptionCreate()
+  if (.not.associated(option%checkpoint)) then
+    option%checkpoint => OptionCheckpointCreate()
   endif
+  checkpoint_option => option%checkpoint
 
   format_binary = PETSC_FALSE
   format_hdf5 = PETSC_FALSE
@@ -1337,7 +1320,8 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
                                 'CHECKPOINT,PERIODIC,TIME')
             internal_units = 'sec'
             units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,'CHECKPOINT,PERIODIC,TIME', &
+                                option)
             checkpoint_option%tconv = 1.d0/units_conversion
             checkpoint_option%tunit = trim(word)
             checkpoint_option%periodic_time_incr = temp_real*units_conversion
@@ -1355,7 +1339,8 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
                             'CHECKPOINT,TIMES')
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units, &
-                                                  option)
+                                            'CHECKPOINT,TIMES,TIME_UNITS', &
+                                            option)
         checkpoint_option%tconv = 1.d0/units_conversion
         checkpoint_option%tunit = trim(word)
 !geh: this needs to be tested to verify that the upper version replicates
@@ -1415,7 +1400,8 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     units_conversion = UnitsConvertToInternal(default_time_units, &
-                                              internal_units,option)
+                                              internal_units, &
+                                              'CHECKPOINT,TIME_UNITS',option)
     checkpoint_option%tconv = 1.d0/units_conversion
     checkpoint_option%tunit = trim(default_time_units)
   endif
@@ -1431,8 +1417,7 @@ end subroutine CheckpointRead
 
 ! ************************************************************************** !
 
-subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
-                                           option)
+subroutine CheckpointPeriodicTimeWaypoints(waypoint_list,option)
   !
   ! Inserts periodic time waypoints into list
   !
@@ -1442,13 +1427,12 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
 
   use Option_module
   use Waypoint_module
-  use Output_Aux_module
+  use Option_Checkpoint_module
   use Utility_module
 
   implicit none
 
   type(option_type) :: option
-  type(checkpoint_option_type), pointer :: checkpoint_option
   type(waypoint_list_type) :: waypoint_list
   type(waypoint_type), pointer :: waypoint
   character(len=MAXWORDLENGTH) :: word
@@ -1467,10 +1451,10 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
   endif
 
   ! add waypoints for periodic checkpoint
-  if (associated(checkpoint_option)) then
-    if (Initialized(checkpoint_option%periodic_time_incr)) then
+  if (associated(option%checkpoint)) then
+    if (Initialized(option%checkpoint%periodic_time_incr)) then
       temp_real = 0.d0
-      num_waypoints = final_time / checkpoint_option%periodic_time_incr
+      num_waypoints = final_time / option%checkpoint%periodic_time_incr
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
         write(word,*) floor(num_waypoints)
@@ -1482,7 +1466,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
       k = 0
       do
         k = k + 1
-        temp_real = temp_real + checkpoint_option%periodic_time_incr
+        temp_real = temp_real + option%checkpoint%periodic_time_incr
         if (temp_real > final_time) exit
         waypoint => WaypointCreate()
         waypoint%time = temp_real
@@ -1507,8 +1491,8 @@ subroutine CheckpointInputRecord(checkpoint_option,waypoint_list)
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
   !
-  use Output_Aux_module
   use Waypoint_module
+  use Option_Checkpoint_module
 
   implicit none
 

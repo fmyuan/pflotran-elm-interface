@@ -79,6 +79,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
     select case(c_type)
     !---------------------------------------
       case(CONSTRAINT_T_EQUILIBRIUM)
+        nwt_auxvar%constraint_type(ispecies) = c_type
         nwt_auxvar%total_bulk_conc(ispecies) = &
                               nwt_species%constraint_conc(ispecies)
         ! check aqueous concentration against solubility limit and update
@@ -89,10 +90,11 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
         nwt_auxvar%aqueous_eq_conc(ispecies) = aq_mass
         nwt_auxvar%sorb_eq_conc(ispecies) = sorb_mass
         nwt_auxvar%mnrl_eq_conc(ispecies) = ppt_mass
-        nwt_auxvar%mnrl_vol_frac(:) = nwt_auxvar%mnrl_eq_conc(:)/ &
-                                      (por*mnrl_molar_density(:))
+        nwt_auxvar%mnrl_vol_frac(ispecies) = nwt_auxvar%mnrl_eq_conc(ispecies)/ &
+                                      (por*mnrl_molar_density(ispecies))
     !---------------------------------------
       case(CONSTRAINT_AQ_EQUILIBRIUM)
+        nwt_auxvar%constraint_type(ispecies) = c_type
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
                                          nwt_species%constraint_conc(ispecies)
         !if (dry_out) then
@@ -115,8 +117,11 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                             (nwt_auxvar%aqueous_eq_conc(ispecies)*sat*por) + &
                             nwt_auxvar%mnrl_eq_conc(ispecies) + &
                             nwt_auxvar%sorb_eq_conc(ispecies)
+        nwt_auxvar%mnrl_vol_frac(ispecies) = nwt_auxvar%mnrl_eq_conc(ispecies)/ &
+                                             (por*mnrl_molar_density(ispecies))
     !---------------------------------------
       case(CONSTRAINT_PPT_EQUILIBRIUM)
+        nwt_auxvar%constraint_type(ispecies) = c_type
         nwt_auxvar%mnrl_eq_conc(ispecies) = &
                               nwt_species%constraint_conc(ispecies)
         nwt_auxvar%mnrl_vol_frac(ispecies) = &
@@ -136,6 +141,13 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                             nwt_auxvar%sorb_eq_conc(ispecies)
     !---------------------------------------
       case(CONSTRAINT_MNRL_VOL_FRAC_EQ)
+        if (mnrl_molar_density(ispecies) == reaction_nw%UNSPECIFIED_MMD) then
+          option%io_buffer = 'A value for PRECIP_MOLAR_DENSITY, is required if &
+            &the concentration is being constrained by VF or &
+            &PRECIPITATED_VOLUME_FRACTION.'
+          call PrintErrMsg(option)
+        endif
+        nwt_auxvar%constraint_type(ispecies) = c_type
         nwt_auxvar%mnrl_vol_frac(ispecies) = &
                               nwt_species%constraint_conc(ispecies)
         nwt_auxvar%mnrl_eq_conc(ispecies) = &
@@ -155,8 +167,9 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                             nwt_auxvar%sorb_eq_conc(ispecies)
     !---------------------------------------
       case(CONSTRAINT_SB_EQUILIBRIUM)
+        nwt_auxvar%constraint_type(ispecies) = c_type
         if (ele_kd(ispecies) == 0.d0) then
-          option%io_buffer = 'No value given for elemental Kd, but the &
+          option%io_buffer = 'A value for elemental Kd is required if the &
             &concentration is being constrained by SB.'
           call PrintErrMsg(option)
         endif

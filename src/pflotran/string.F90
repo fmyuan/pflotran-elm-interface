@@ -694,17 +694,21 @@ function StringsMerge(strings,chars)
   character(len=*) :: strings(:)
   character(len=*) :: chars
 
-  character(len=MAXSTRINGLENGTH) :: StringsMerge
+  character(len=:), allocatable :: StringsMerge
+
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: i
 
-  StringsMerge = ''
+  string = ''
   do i = 1, size(strings)
-    StringsMerge = trim(StringsMerge) // trim(strings(i))
+    string = trim(string) // trim(strings(i))
     if (len_trim(chars) > 0 .and. i < size(strings)) then
-      StringsMerge = trim(StringsMerge) // trim(chars)
+      string = trim(string) // trim(chars)
     endif
   enddo
+
+  StringsMerge = trim(string)
 
 end function StringsMerge
 
@@ -722,11 +726,13 @@ function StringFormatInt(int_value)
 
   PetscInt :: int_value
 
-  character(len=MAXWORDLENGTH) :: StringFormatInt
+  character(len=:), allocatable :: StringFormatInt
 
-  write(StringFormatInt,'(1i12)') int_value
+  character(len=MAXWORDLENGTH) :: word
 
-  StringFormatInt = adjustl(StringFormatInt)
+  write(word,'(1i12)') int_value
+
+  StringFormatInt = trim(adjustl(word))
 
 end function StringFormatInt
 
@@ -744,11 +750,13 @@ function StringFormatDouble(real_value)
 
   PetscReal :: real_value
 
-  character(len=MAXWORDLENGTH) :: StringFormatDouble
+  character(len=:), allocatable :: StringFormatDouble
 
-  write(StringFormatDouble,'(1es13.5)') real_value
+  character(len=MAXWORDLENGTH) :: string
 
-  StringFormatDouble = adjustl(StringFormatDouble)
+  write(string,'(1es13.5)') real_value
+
+  StringFormatDouble = trim(adjustl(string))
 
 end function StringFormatDouble
 
@@ -876,7 +884,7 @@ function StringCenter(string,center_column,center_characters)
   PetscInt :: center_column
   character(len=*) :: center_characters
 
-  character(len=MAXSTRINGLENGTH) :: StringCenter
+  character(len=:), allocatable :: StringCenter
 
   PetscInt :: icol
   character(len=center_column) :: buffer
@@ -892,7 +900,7 @@ function StringCenter(string,center_column,center_characters)
     string = trim(center_characters) // string
   endif
 
-  StringCenter = string
+  StringCenter = trim(string)
 
 end function StringCenter
 
@@ -908,17 +916,19 @@ function StringWriteIArray(i_array)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteIArray
+  character(len=:), allocatable :: StringWriteIArray
 
   PetscInt :: i_array(:)
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  StringWriteIArray = ''
+  string = ''
   do i = 1, size(i_array)
-    StringWriteIArray = trim(StringWriteIArray) // ' ' // &
-                        trim(StringWrite(i_array(i)))
+    string = trim(string) // ' ' // &
+             trim(StringWrite(i_array(i)))
   enddo
+  StringWriteIArray = trim(adjustl(string))
 
 end function StringWriteIArray
 
@@ -934,17 +944,18 @@ function StringWriteESArray1(es_array)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteESArray1
+  character(len=:), allocatable :: StringWriteESArray1
 
   PetscReal :: es_array(:)
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  StringWriteESArray1 = ''
+  string = ''
   do i = 1, size(es_array)
-    StringWriteESArray1 = trim(StringWriteESArray1) // ' ' // &
-                          trim(StringWrite(es_array(i)))
+    string = trim(string) // ' ' // StringWrite(es_array(i))
   enddo
+  StringWriteESArray1 = trim(adjustl(string))
 
 end function StringWriteESArray1
 
@@ -960,18 +971,19 @@ function StringWriteESArray2(format_string,es_array)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteESArray2
+  character(len=:), allocatable :: StringWriteESArray2
 
   character(len=*) format_string
   PetscReal :: es_array(:)
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  StringWriteESArray2 = ''
+  string = ''
   do i = 1, size(es_array)
-    StringWriteESArray2 = trim(StringWriteESArray2) // ' ' // &
-                          trim(StringWrite(format_string,es_array(i)))
+    string = trim(string) // ' ' // StringWrite(format_string,es_array(i))
   enddo
+  StringWriteESArray2 = trim(adjustl(string))
 
 end function StringWriteESArray2
 
@@ -987,12 +999,13 @@ function StringWriteI1(i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteI1
+  character(len=:), allocatable :: StringWriteI1
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
-  write(StringWriteI1,*) i
-  StringWriteI1 = adjustl(StringWriteI1)
+  write(string,*) i
+  StringWriteI1 = trim(adjustl(string))
 
 end function StringWriteI1
 
@@ -1008,13 +1021,15 @@ function StringWriteI2(format_string,i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteI2
+  character(len=:), allocatable :: StringWriteI2
 
   character(len=*) format_string
   PetscInt :: i
 
-  write(StringWriteI2,format_string) i
-  StringWriteI2 = adjustl(StringWriteI2)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  write(string,format_string) i
+  StringWriteI2 = trim(adjustl(string))
 
 end function StringWriteI2
 
@@ -1030,11 +1045,11 @@ function StringWriteBracketI(i)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteBracketI
+  character(len=:), allocatable :: StringWriteBracketI
 
   PetscInt :: i
 
-  StringWriteBracketI = '[' // trim(adjustl(StringWrite(i))) // ']'
+  StringWriteBracketI = '[' // StringWrite(i) // ']'
 
 end function StringWriteBracketI
 
@@ -1050,7 +1065,7 @@ function StringWriteES1(es)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteES1
+  character(len=:), allocatable :: StringWriteES1
 
   PetscReal :: es
 
@@ -1070,13 +1085,15 @@ function StringWriteES2(format_string,es)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteES2
+  character(len=:), allocatable :: StringWriteES2
 
   character(len=*) format_string
   PetscReal :: es
 
-  write(StringWriteES2,format_string) es
-  StringWriteES2 = adjustl(StringWriteES2)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  write(string,format_string) es
+  StringWriteES2 = trim(adjustl(string))
 
 end function StringWriteES2
 
@@ -1092,7 +1109,7 @@ function StringWriteF1(f)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteF1
+  character(len=:), allocatable :: StringWriteF1
 
   PetscReal :: f
 
@@ -1112,13 +1129,15 @@ function StringWriteF2(format_string,f)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteF2
+  character(len=:), allocatable :: StringWriteF2
 
   character(len=*) format_string
   PetscReal :: f
 
-  write(StringWriteF2,format_string) f
-  StringWriteF2 = adjustl(StringWriteF2)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  write(string,format_string) f
+  StringWriteF2 = trim(adjustl(string))
 
 end function StringWriteF2
 
@@ -1134,11 +1153,11 @@ function StringWriteString(s)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteString
+  character(len=:), allocatable :: StringWriteString
 
   character(len=*) :: s
 
-  StringWriteString = adjustl(s)
+  StringWriteString = trim(adjustl(s))
 
 end function StringWriteString
 
@@ -1154,7 +1173,7 @@ function StringWriteBracketString(s)
 
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: StringWriteBracketString
+  character(len=:), allocatable :: StringWriteBracketString
 
   character(len=*) :: s
 
@@ -1227,15 +1246,16 @@ function StringGetFilename(filename_and_path)
 
   character(len=*) :: filename_and_path
 
-  character(len=MAXSTRINGLENGTH) :: StringGetFilename
+  character(len=:), allocatable :: StringGetFilename
 
   PetscInt :: i
 
   i = index(filename_and_path,'/',PETSC_TRUE)
 
-  StringGetFilename = filename_and_path
   if (i > 0) then
     StringGetFilename = trim(filename_and_path(i+1:))
+  else
+    StringGetFilename = trim(filename_and_path)
   endif
 
 end function StringGetFilename
@@ -1253,15 +1273,16 @@ function StringGetPath(filename_and_path)
 
   character(len=*) :: filename_and_path
 
-  character(len=MAXSTRINGLENGTH) :: StringGetPath
+  character(len=:), allocatable :: StringGetPath
 
   PetscInt :: i
 
   i = index(filename_and_path,'/',PETSC_TRUE)
 
-  StringGetPath = ''
   if (i > 0) then
     StringGetPath = trim(filename_and_path(1:i-1))
+  else
+    StringGetPath = ''
   endif
 
 end function StringGetPath
@@ -1280,7 +1301,7 @@ function StringStripFilenameSuffix(filename)
 
   character(len=*) :: filename
 
-  character(len=MAXSTRINGLENGTH) :: StringStripFilenameSuffix
+  character(len=:), allocatable :: StringStripFilenameSuffix
 
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
 
@@ -1288,7 +1309,7 @@ function StringStripFilenameSuffix(filename)
   if (size(strings) > 1) then
     StringStripFilenameSuffix = StringsMerge(strings(1:size(strings)-1),'.')
   else
-    StringStripFilenameSuffix = strings(1)
+    StringStripFilenameSuffix = trim(strings(1))
   endif
   deallocate(strings)
   nullify(strings)

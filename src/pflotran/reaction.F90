@@ -105,9 +105,7 @@ subroutine ReactionInit(reaction,input,option)
 
   call ReactionReadPass1(reaction,input,option)
   reaction%primary_species_names => GetPrimarySpeciesNames(reaction)
-  ! PCL add in colloid dofs
   option%ntrandof = GetPrimarySpeciesCount(reaction)
-  option%ntrandof = option%ntrandof + GetColloidCount(reaction)
   option%ntrandof = option%ntrandof + GetImmobileCount(reaction)
   reaction%ncomp = option%ntrandof
   if (GasGetCount(reaction%gas,ACTIVE_GAS) > 0) then
@@ -148,12 +146,9 @@ subroutine ReactionReadPass1(reaction,input,option)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
-  character(len=MAXWORDLENGTH) :: internal_units
   type(aq_species_type), pointer :: species, prev_species
-  type(gas_species_type), pointer :: gas, prev_gas
-  type(immobile_species_type), pointer :: immobile_species
+  type(gas_species_type), pointer :: prev_gas
   type(immobile_species_type), pointer :: prev_immobile_species
-  type(colloid_type), pointer :: colloid, prev_colloid
   type(ion_exchange_rxn_type), pointer :: ionx_rxn, prev_ionx_rxn
   type(ion_exchange_cation_type), pointer :: cation, prev_cation
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
@@ -161,18 +156,15 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
-  PetscInt :: i, temp_int
+  PetscInt :: temp_int
   PetscReal :: temp_real
   PetscInt :: srfcplx_count
-  PetscInt :: temp_srfcplx_count
-  PetscBool :: found
   PetscBool :: reaction_sandbox_read
   PetscBool :: reaction_clm_read
 
   nullify(prev_species)
   nullify(prev_gas)
   nullify(prev_immobile_species)
-  nullify(prev_colloid)
   nullify(prev_cation)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
@@ -439,26 +431,16 @@ subroutine ReactionReadPass1(reaction,input,option)
               call InputReadDouble(input,option,general_rxn%forward_rate)
               call InputErrorMsg(input,option,'forward rate', &
                                  'CHEMISTRY,GENERAL_REACTION')
-              ! throw error if units exist after rate
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
-                option%io_buffer = 'Units conversion not supported for &
-                  &GENERAL_REACTION FORWARD_RATE. Please assume the &
-                  &documented units.'
-                call PrintErrMsg(option)
-              endif
+              call InputReadAndConvertUnits(input,general_rxn%forward_rate, &
+                     'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
             case('BACKWARD_RATE')
               call InputReadDouble(input,option,general_rxn%backward_rate)
               call InputErrorMsg(input,option,'backward rate', &
                                  'CHEMISTRY,GENERAL_REACTION')
-              ! throw error if units exist after rate
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
-                option%io_buffer = 'Units conversion not supported for &
-                  &GENERAL_REACTION BACKWARD_RATE. Please assume the &
-                  &documented units.'
-                call PrintErrMsg(option)
-              endif
+              call InputReadAndConvertUnits(input,general_rxn%backward_rate, &
+                     'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -541,33 +523,6 @@ subroutine ReactionReadPass1(reaction,input,option)
         call PrintErrMsg(option)
 #endif
 
-      case('COLLOIDS')
-        nullify(prev_colloid)
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-
-          reaction%ncoll = reaction%ncoll + 1
-
-          colloid => ColloidCreate()
-          call InputReadCard(input,option,colloid%name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'keyword','CHEMISTRY,COLLOIDS')
-          call InputReadDouble(input,option,colloid%mobile_fraction)
-          call InputDefaultMsg(input,option,'CHEMISTRY,COLLOIDS,MOBILE_FRACTION')
-          if (.not.associated(reaction%colloid_list)) then
-            reaction%colloid_list => colloid
-            colloid%id = 1
-          endif
-          if (associated(prev_colloid)) then
-            prev_colloid%next => colloid
-            colloid%id = prev_colloid%id + 1
-          endif
-          prev_colloid => colloid
-          nullify(colloid)
-        enddo
-        call InputPopBlock(input,option)
       case('SORPTION')
         call InputPushBlock(input,option)
         do
@@ -823,6 +778,8 @@ subroutine ReactionReadPass1(reaction,input,option)
         enddo
       case('NO_BDOT')
         reaction%act_coef_use_bdot = PETSC_FALSE
+      case('CALCULATE_INITIAL_POROSITY')
+        reaction%calculate_initial_porosity = PETSC_TRUE
       case('UPDATE_POROSITY')
         reaction%update_porosity = PETSC_TRUE
         option%flow%transient_porosity = PETSC_TRUE
@@ -975,9 +932,7 @@ subroutine ReactionReadPass2(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
 
   call InputPushBlock(input,'CHEMISTRY_2ND_PASS',option)
@@ -989,7 +944,7 @@ subroutine ReactionReadPass2(reaction,input,option)
     call InputErrorMsg(input,option,'word','CHEMISTRY')
     select case(trim(word))
       case('PRIMARY_SPECIES','SECONDARY_SPECIES','GAS_SPECIES', &
-            'MINERALS','COLLOIDS','GENERAL_REACTION', &
+            'MINERALS','GENERAL_REACTION', &
             'IMMOBILE_SPECIES','RADIOACTIVE_DECAY_REACTION', &
             'IMMOBILE_DECAY_REACTION', &
             'ACTIVE_GAS_SPECIES','PASSIVE_GAS_SPECIES', &
@@ -1173,16 +1128,13 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   type(guess_constraint_type), pointer :: free_ion_guess_constraint
   type(mineral_constraint_type), pointer :: mineral_constraint
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
-  type(colloid_constraint_type), pointer :: colloid_constraint
   type(immobile_constraint_type), pointer :: immobile_constraint
   PetscBool :: found
   PetscInt :: icomp, jcomp
-  PetscInt :: icoll, jcoll
   PetscInt :: igas, imnrl
   PetscReal :: constraint_conc(reaction%naqcomp)
   PetscInt :: constraint_type(reaction%naqcomp)
   character(len=MAXWORDLENGTH) :: constraint_aux_string(reaction%naqcomp)
-  character(len=MAXWORDLENGTH) :: constraint_colloid_name(reaction%ncoll)
   PetscInt :: constraint_id(reaction%naqcomp)
   PetscBool :: external_dataset(reaction%naqcomp)
 
@@ -1190,7 +1142,6 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   free_ion_guess_constraint => constraint%free_ion_guess
   mineral_constraint => constraint%minerals
   srfcplx_constraint => constraint%surface_complexes
-  colloid_constraint => constraint%colloids
   immobile_constraint => constraint%immobile_species
 
   constraint_id = 0
@@ -1391,7 +1342,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icomp, jcomp, kcomp
-  PetscInt :: imnrl, jmnrl
+  PetscInt :: imnrl
   PetscInt :: icplx
   PetscInt :: irxn, isite, ncplx, k, ikinrxn
   PetscInt :: igas
@@ -1405,7 +1356,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(guess_constraint_type), pointer :: free_ion_guess_constraint
   type(mineral_constraint_type), pointer :: mineral_constraint
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
-  type(colloid_constraint_type), pointer :: colloid_constraint
   type(immobile_constraint_type), pointer :: immobile_constraint
 
   PetscReal :: Res(reaction%naqcomp)
@@ -1413,8 +1363,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscReal :: total_conc(reaction%naqcomp)
   PetscReal :: free_conc(reaction%naqcomp)
   PetscReal :: Jac(reaction%naqcomp,reaction%naqcomp)
-  PetscInt :: indices(reaction%naqcomp)
-  PetscReal :: norm
   PetscReal :: maximum_residual, maximum_relative_change
   PetscReal :: ratio, min_ratio
   PetscReal :: prev_molal(reaction%naqcomp)
@@ -1433,9 +1381,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscInt :: io2gas
   PetscReal :: eh, pe
   PetscBool :: flag
-
-  PetscReal :: Jac_num(reaction%naqcomp)
-  PetscReal :: Res_pert, pert, prev_value, coh0
 
   PetscInt :: iphase
   PetscInt :: idof
@@ -1457,7 +1402,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   free_ion_guess_constraint => constraint%free_ion_guess
   mineral_constraint => constraint%minerals
   srfcplx_constraint => constraint%surface_complexes
-  colloid_constraint => constraint%colloids
   immobile_constraint => constraint%immobile_species
 
   constraint_type = aq_species_constraint%constraint_type
@@ -1503,16 +1447,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           mineral_constraint%constraint_area(imnrl)
       endif
     enddo
-  endif
-
-  if (associated(colloid_constraint)) then
-    colloid_constraint%basis_conc_mob = colloid_constraint%constraint_conc_mob
-    colloid_constraint%basis_conc_imb = colloid_constraint%constraint_conc_imb
-    rt_auxvar%colloid%conc_mob = colloid_constraint%basis_conc_mob* &
-                                 convert_molar_to_molal
-    !TODO(geh): this can't be correct as immobile concentrations are mol/m^3
-    rt_auxvar%colloid%conc_imb = colloid_constraint%basis_conc_imb* &
-                                 convert_molar_to_molal
   endif
 
   if (.not.reaction%use_full_geochemistry) then
@@ -1656,13 +1590,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     !call RTPrintAuxVar(rt_auxvar,reaction,option)
 
     Jac = 0.d0
-
-! for colloids later on
-!    if (reaction%ncoll > 0) then
-!      do idof = istartcoll, iendcoll
-!        Jac(idof,idof) = 1.d0
-!      enddo
-!    endif
 
     do icomp = 1, reaction%naqcomp
 
@@ -2158,14 +2085,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   call RCalculateCompression(global_auxvar,rt_auxvar,reaction,option)
 #endif
 
-! this is performed above
-!  if (associated(colloid_constraint%colloids)) then
-!    colloid_constraint%colloids%basis_conc_mob = rt_auxvar%colloid%conc_mob* &
-!                           global_auxvar%den_kg(option%liquid_phase)/1000.d0
-!    colloid_constraint%colloids%basis_conc_imb = rt_auxvar%colloid%conc_imb* &
-!                           global_auxvar%den_kg(option%liquid_phase)/1000.d0
-!  endif
-
 !  write(option%io_buffer,111) trim(constraint%name),num_iterations
 !  call PrintMsg(option)
 !111 format(' Equilibrate Constraint: ',a30,i4)
@@ -2218,11 +2137,11 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   PetscReal :: totj, retardation, kd, ph
   PetscInt :: comp_id, jcomp
   PetscInt :: icount
-  PetscInt :: iphase, ifo2
+  PetscInt :: iphase
   PetscReal :: bulk_vol_to_fluid_vol, molar_to_molal, molal_to_molar
   PetscReal :: sum_molality, sum_mass, mole_fraction_h2o, mass_fraction_h2o, &
                mass_fraction_co2, mole_fraction_co2
-  PetscReal :: ehfac,eh,pe,tk
+  PetscReal :: eh,pe
   PetscReal :: affinity
 
 
@@ -2802,8 +2721,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
   if (reaction%gas%npassive_gas > 0) then
 
-    132 format(/,'  gas        log part. press.  part. press. [bars]      log K')
-    133 format(2x,a10,2x,1pe12.4,6x,1pe12.4,8x,1pe12.4)
+    132 format(/,'  gas              par pres [bars]  conc [mol/m^3]  log K')
+    133 format(2x,a15,2x,1pe10.4,7x,1pe10.4,5x,1pe12.4)
 
     write(option%fid_out,132)
     write(option%fid_out,90)
@@ -2825,13 +2744,16 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       do jcomp = 1, reaction%gas%paseqspecid(0,igas)
         comp_id = reaction%gas%paseqspecid(jcomp,igas)
         lnQKgas(igas) = lnQKgas(igas) + reaction%gas%paseqstoich(jcomp,igas)* &
-                      log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
+                      log(rt_auxvar%pri_molal(comp_id)* &
+                          rt_auxvar%pri_act_coef(comp_id))
       enddo
 
       QKgas(igas) = exp(lnQKgas(igas))
 
-      write(option%fid_out,133) reaction%gas%passive_names(igas),lnQKgas(igas)*LN_TO_LOG, &
-      QKgas(igas),reaction%gas%paseqlogK(igas)
+      write(option%fid_out,133) reaction%gas%passive_names(igas),QKgas(igas), &
+        RGasConcentration(QKgas(igas),global_auxvar%temp), &
+        reaction%gas%paseqlogK(igas)
+
     enddo
   endif
 
@@ -2910,10 +2832,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
-  type(aq_species_constraint_type), pointer :: aq_species_constraint
-  type(mineral_constraint_type), pointer :: mineral_constraint
   type(surface_complexation_type), pointer :: surface_complexation
-  type(mineral_type), pointer :: mineral_reaction
 
   PetscReal, parameter :: tk = 273.15d0
   PetscReal, parameter :: epsilon = 78.5d0
@@ -2929,13 +2848,12 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
 
   PetscReal :: free_site_conc
   PetscReal :: ln_free_site
-  PetscReal :: lnQK, tempreal, tempreal1, tempreal2, total
+  PetscReal :: total
 
   PetscInt :: iphase
-  PetscInt :: i, j, icomp, icplx, irxn, ncomp, ncplx
+  PetscInt :: i, icomp, icplx, irxn, ncplx
 
   PetscReal :: site_density(2)
-  PetscReal :: mobile_fraction
   PetscInt :: num_types_of_sites
   PetscInt :: isite
 
@@ -3105,11 +3023,9 @@ subroutine ReactionReadOutput(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   PetscBool :: found
-  PetscInt :: temp_int
 
   type(aq_species_type), pointer :: cur_aq_spec
   type(gas_species_type), pointer :: cur_gas_spec
@@ -3151,7 +3067,6 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_kd = PETSC_FALSE
         reaction%print_total_sorb = PETSC_FALSE
         reaction%print_total_sorb_mobile = PETSC_FALSE
-        reaction%print_colloid = PETSC_FALSE
         reaction%print_act_coefs = PETSC_FALSE
         reaction%print_total_component = PETSC_FALSE
         reaction%print_free_ion = PETSC_FALSE
@@ -3192,8 +3107,6 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_O2 = PETSC_TRUE
       case('KD')
         reaction%print_kd = PETSC_TRUE
-      case('COLLOIDS')
-        reaction%print_colloid = PETSC_TRUE
       case('TOTAL')
         reaction%print_total_component = PETSC_TRUE
       case('TOTAL_SORBED')
@@ -3212,6 +3125,10 @@ subroutine ReactionReadOutput(reaction,input,option)
       case('MOLALITY')
         reaction%print_free_conc_type = PRIMARY_MOLALITY
         reaction%print_tot_conc_type = TOTAL_MOLALITY
+      case('GAS_PARTIAL_PRESSURE')
+        reaction%gas%print_partial_pressure = PETSC_TRUE
+      case('GAS_CONCENTRATION')
+        reaction%gas%print_concentration = PETSC_TRUE
       case('AGE')
         reaction%print_age = PETSC_TRUE
         reaction%use_full_geochemistry = PETSC_TRUE
@@ -3393,8 +3310,6 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
-  PetscInt :: irate
-
   ! WARNING: below assumes site concentration multiplicative factor
   allocate(rt_auxvar%dtotal_sorb_eq(reaction%naqcomp,reaction%naqcomp))
   !geh: if jumpstarting, we need to zero the sorbed total as
@@ -3445,6 +3360,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: ierror
 
   PetscReal :: residual(reaction%ncomp)
+  PetscReal :: initial_total(reaction%ncomp)
   PetscReal :: dummy_res(reaction%ncomp)
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   PetscReal :: dummy_J(reaction%ncomp,reaction%ncomp)
@@ -3454,7 +3370,6 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: update(reaction%ncomp)
   PetscReal :: conc(reaction%ncomp)
   PetscReal :: maximum_relative_change
-  PetscReal :: accumulation_coef
   PetscReal :: fixed_accum(reaction%ncomp)
   PetscInt :: num_iterations
   PetscInt :: ncomp
@@ -3480,11 +3395,6 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   one_over_dt = 1.d0/option%tran_dt
   num_iterations = 0
 
-  if (reaction%ncoll > 0) then
-    option%io_buffer = 'Colloids not set up for operator split mode.'
-    call PrintErrMsg(option)
-  endif
-
 ! skip chemistry if species nonreacting
   if (.not.reaction%use_full_geochemistry) then
     rt_auxvar%pri_molal(:) = rt_auxvar%total(:,iphase) / &
@@ -3507,12 +3417,12 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
                            option,fixed_accum)
   endif
 
-!TODO(geh): activity coefficient will be updated earlier. otherwise, they
-!           will be repeatedly updated due to time step cut
-!  ! now update activity coefficients
-!  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-!    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-!  endif
+  ! store initial concentrations for error reporting
+  initial_total(1:naqcomp) = rt_auxvar%total(:,1)
+  if (nimmobile > 0) then
+    initial_total(immobile_start:immobile_end) = &
+      tran_xx(immobile_start:immobile_end)
+  endif
 
   ! initialize guesses to stored solution
   rt_auxvar%pri_molal(:) = tran_xx(1:naqcomp)
@@ -3625,13 +3535,13 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
         if (verbose_output) then
           print *, 'Maximum iterations in RReact: stop: ' // &
                    trim(StringWrite(num_iterations))
-          print *, 'Maximum iterations in RReact: residual: ' // &
-                   trim(StringWrite(residual))
-          print *, 'Maximum iterations in RReact: new solution: ' // &
-                   trim(StringWrite(new_solution))
-          print *, 'Grid cell: ' // trim(StringWrite(natural_id))
-          if (option%comm%mycommsize > 1) then
-            print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+          print *, '  initial total: ' // trim(StringWrite(initial_total))
+          print *, '  initial primary: ' // trim(StringWrite(tran_xx))
+          print *, '  residual: ' // trim(StringWrite(residual))
+          print *, '  new solution: ' // trim(StringWrite(new_solution))
+          print *, '  Grid cell: ' // trim(StringWrite(natural_id))
+          if (option%comm%size > 1) then
+            print *, '  Process rank: ' // trim(StringWrite(option%myrank))
           endif
         endif
         num_iterations_ = num_iterations
@@ -3851,9 +3761,8 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscReal :: m_na, m_cl, tc, co2aqact, lngamco2, henry, xphico2, pco2
+  PetscReal :: m_na, m_cl, tc, co2aqact, lngamco2, henry, pco2
   PetscReal :: sat_pressure
-  PetscErrorCode :: ierr
 
 ! print *,'CO2AqActCoeff: ', global_auxvar%pres(:)
 
@@ -3930,8 +3839,6 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
   type(option_type) :: option
   PetscReal :: RCO2MoleFraction
 
-  PetscInt :: i
-  PetscInt :: icplx
   PetscInt :: ico2
   PetscReal :: sum_co2, sum_mol
 
@@ -3980,7 +3887,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
   type(option_type) :: option
 
   PetscInt :: icplx, icomp, it, j, jcomp, ncomp
-  PetscReal :: I, sqrt_I, II, sqrt_II, f, fpri, didi, dcdi, den, dgamdi, &
+  PetscReal :: I, sqrt_I, II, f, fpri, didi, dcdi, den, dgamdi, &
     lnQK, sum, sum_pri_molal, sum_sec_molal
   PetscReal :: sum_molality
   PetscReal :: ln_conc(reaction%naqcomp)
@@ -4271,7 +4178,6 @@ subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
 
   PetscInt :: i, j, icplx, icomp, jcomp, ncomp
   PetscInt, parameter :: iphase = 1
-  PetscErrorCode :: ierr
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal
@@ -4430,7 +4336,6 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
-  type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
 
   PetscInt :: irxn
@@ -4449,8 +4354,6 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dtotal_sorb_dckd
   PetscReal :: dtotal_sorb_dcref
   PetscReal :: tempreal
-
-  PetscInt, parameter :: iphase = 1
 
 !geh  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
   ! to make compatible with constant KD
@@ -4503,24 +4406,19 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: i, j, k, icplx, icomp, jcomp, iphase, ncomp, ncplx
+  PetscInt :: i, j, icomp, jcomp, ncomp
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
-  PetscReal :: tempreal, tempreal1, tempreal2, total
+  PetscReal :: tempreal1, tempreal2, total
   PetscInt :: irxn
   PetscReal, parameter :: tol = 1.d-12
   PetscBool :: one_more
   PetscReal :: res
 
   PetscReal :: omega
-  PetscReal :: ref_cation_X, ref_cation_conc, ref_cation_Z, ref_cation_k, &
-               ref_cation_quotient
+  PetscReal :: ref_cation_X, ref_cation_conc, ref_cation_Z, ref_cation_k
   PetscReal :: cation_X(reaction%naqcomp)
-  PetscReal :: dres_dref_cation_X, dref_cation_X
   PetscReal :: sumZX, sumkm
-
-  PetscReal :: total_pert, ref_cation_X_pert, pert
-  PetscReal :: ref_cation_quotient_pert, dres_dref_cation_X_pert
 
   PetscReal :: KDj, dres_dKDj, delta_KDj
   PetscInt :: it
@@ -4773,7 +4671,6 @@ subroutine RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
   class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
 
-  PetscInt :: icomp
   PetscReal :: v_t
 
   ! units = (kg water/m^3 bulk)*(m^3 bulk)/(sec) = kg water/sec
@@ -5110,7 +5007,7 @@ subroutine ReactionComputeKd(icomp,retardation,rt_auxvar,global_auxvar, &
   type(option_type) :: option
 
   PetscReal :: bulk_vol_to_fluid_vol
-  PetscInt :: i, j, jcomp, irxn, icplx, irate
+  PetscInt :: irxn, irate
   PetscInt, parameter :: iphase = 1
 
   retardation = 0.d0
@@ -5297,10 +5194,6 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: istart, iend
   PetscInt :: idof
   PetscInt :: iimob
-  PetscInt :: icoll
-  PetscInt :: icollcomp
-  PetscInt :: iaqcomp
-  PetscInt :: iimb
   PetscReal :: psv_t
 
   iphase = 1
@@ -5325,19 +5218,6 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
       Res(idof) = Res(idof) + rt_auxvar%immobile(iimob)* &
 !                              material_auxvar%volume/option%tran_dt
                               material_auxvar%volume
-    enddo
-  endif
-  if (reaction%ncoll > 0) then
-    do icoll = 1, reaction%ncoll
-      idof = reaction%offset_colloid + icoll
-      Res(idof) = psv_t*rt_auxvar%colloid%conc_mob(icoll)
-    enddo
-  endif
-  if (reaction%ncollcomp > 0) then
-    do icollcomp = 1, reaction%ncollcomp
-      iaqcomp = reaction%coll_spec_to_pri_spec(icollcomp)
-      Res(iaqcomp) = Res(iaqcomp) + &
-        psv_t*rt_auxvar%colloid%total_eq_mob(icollcomp)
     enddo
   endif
   if (reaction%gas%nactive_gas > 0) then
@@ -5379,7 +5259,6 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
   PetscInt :: icomp, iphase
   PetscInt :: istart, iendaq
   PetscInt :: idof
-  PetscInt :: icoll
   PetscInt :: iimob
   PetscReal :: psvd_t ! d is for density
 
@@ -5417,21 +5296,6 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
       idof = reaction%offset_immobile + iimob
       J(idof,idof) = material_auxvar%volume/option%tran_dt
     enddo
-  endif
-  if (reaction%ncoll > 0) then
-    do icoll = 1, reaction%ncoll
-      idof = reaction%offset_colloid + icoll
-      ! shouldn't have to sum a this point
-      J(idof,idof) = psvd_t
-    enddo
-  endif
-  if (reaction%ncollcomp > 0) then
-    ! dRj_dCj - mobile
-    J(istart:iendaq,istart:iendaq) = J(istart:iendaq,istart:iendaq) + &
-      rt_auxvar%colloid%dRj_dCj%dtotal(:,:,1)*psvd_t
-    ! need the below
-    ! dRj_dSic
-    ! dRic_dCj
   endif
   if (reaction%gas%nactive_gas > 0) then
     iphase = 2
@@ -5472,8 +5336,6 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   PetscInt :: natural_id
 
   PetscInt :: i, jj
-  PetscReal :: vol = 1.d0
-  PetscReal :: por = 0.25d0
   PetscReal :: sum
 
   dfill = 0
@@ -5762,8 +5624,6 @@ subroutine RTPrintAuxVar(file_unit,rt_auxvar,global_auxvar,material_auxvar,&
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
 
   10 format(a20,':',10es19.11)
   20 format(a20,':',a20)
@@ -5860,7 +5720,6 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   character(len=MAXWORDLENGTH) :: time_unit
 
   character(len=MAXWORDLENGTH) :: name,  units
-  character(len=MAXSTRINGLENGTH) string
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   PetscInt :: i
 
@@ -5957,14 +5816,40 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   enddo
 #endif
 
-  do i=1,reaction%gas%nactive_gas
-    if (reaction%gas%active_print_me(i)) then
-      name = 'Active Gas ' // trim(reaction%gas%active_names(i))
-      units = trim('Bar')
-      call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
-          GAS_CONCENTRATION,i)
-    endif
-  enddo
+  ! if neither gas partial pressure or concentration is TRUE and there are
+  ! gases to print, use partial pressure by default
+  if (reaction%gas%nactive_gas > 0 .and. &
+      .not.(reaction%gas%print_partial_pressure .or. &
+            reaction%gas%print_concentration)) then
+    do i=1,reaction%gas%nactive_gas
+      if (reaction%gas%active_print_me(i)) then
+        reaction%gas%print_partial_pressure = PETSC_TRUE
+        exit
+      endif
+    enddo
+  endif
+
+  if (reaction%gas%print_partial_pressure) then
+    do i=1,reaction%gas%nactive_gas
+      if (reaction%gas%active_print_me(i)) then
+        name = 'Active Gas ' // trim(reaction%gas%active_names(i))
+        units = trim('Bar')
+        call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+            GAS_PARTIAL_PRESSURE,i)
+      endif
+    enddo
+  endif
+
+  if (reaction%gas%print_concentration) then
+    do i=1,reaction%gas%nactive_gas
+      if (reaction%gas%active_print_me(i)) then
+        name = 'Active Gas ' // trim(reaction%gas%active_names(i))
+        units = trim('mol/m^3 gas')
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+            GAS_CONCENTRATION,i)
+      endif
+    enddo
+  endif
 
   if (reaction%print_total_bulk) then
     do i=1,reaction%naqcomp
@@ -6121,37 +6006,6 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
         units = 'mol/m^3'
         call  OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
                                       TOTAL_SORBED,i)
-      endif
-    enddo
-  endif
-
-  if (associated(reaction%total_sorb_mobile_print)) then
-    do i=1,reaction%ncollcomp
-      if (reaction%total_sorb_mobile_print(i)) then
-        name = 'Total Sorbed Mobile ' // &
-               trim(reaction%colloid_species_names(i))
-        units = trim(tot_mol_char)
-        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
-                                     TOTAL_SORBED_MOBILE,i)
-      endif
-    enddo
-  endif
-
-  if (reaction%print_colloid) then
-    do i=1,reaction%ncoll
-      if (reaction%colloid_print(i)) then
-        name = 'Mobile Colloidal ' // trim(reaction%colloid_names(i))
-        units = trim(tot_mol_char)
-        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
-                                     COLLOID_MOBILE,i)
-      endif
-    enddo
-    do i=1,reaction%ncoll
-      if (reaction%colloid_print(i)) then
-        name = 'Mobile Colloidal ' // trim(reaction%colloid_names(i))
-        units = trim(tot_mol_char)
-        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
-                                     COLLOID_IMMOBILE,i)
       endif
     enddo
   endif

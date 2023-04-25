@@ -146,7 +146,8 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
 
   ! need these for reactive transport only if flow is computed
-  if (option%nflowdof > 0 .and. option%ntrandof > 0) then
+  if ((option%nflowdof > 0 .and. option%ntrandof > 0) .or. &
+       option%flow%store_state_variables_in_global) then
     allocate(auxvar%sat_store(nphase,TWO_INTEGER))
     auxvar%sat_store = 0.d0
     allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
@@ -201,7 +202,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       nullify(auxvar%reaction_rate)
       nullify(auxvar%reaction_rate_store)
     case (G_MODE,H_MODE)
-      if (option%ntrandof > 0) then
+      if (option%ntrandof > 0 .or. option%flow%store_state_variables_in_global) then
         allocate(auxvar%pres_store(nphase,TWO_INTEGER))
         auxvar%pres_store = 0.d0
         allocate(auxvar%temp_store(TWO_INTEGER))
@@ -253,10 +254,12 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
-  auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
 !  auxvar2%dphi = auxvar%dphi
 
+  if (associated(auxvar2%den)) then
+    auxvar2%den = auxvar%den
+  endif
   if (associated(auxvar2%darcy_vel)) then
     auxvar2%darcy_vel = auxvar%darcy_vel
   endif

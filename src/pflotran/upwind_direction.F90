@@ -72,7 +72,6 @@ function UpwindDirection(upwind_direction,delta_pressure, &
 
   PetscInt :: upwind_direction
   PetscReal :: delta_pressure
-  PetscBool :: upwind
   PetscBool :: derivative_call
   PetscBool :: count_upwind_direction_flip_
   PetscInt :: upwind_flip_count_by_res

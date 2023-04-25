@@ -291,6 +291,9 @@ module PM_Waste_Form_class
     PetscInt :: num_qoi
     PetscReal, pointer :: table_data(:,:)
     PetscReal :: knnr_eps
+    ! outputs
+    PetscReal :: temp
+    PetscReal :: dose_rate
   contains
     procedure, public :: Dissolution => WFMechFMDMSurrogateDissolution
   end type wf_mechanism_fmdm_surrogate_type
@@ -475,6 +478,8 @@ module PM_Waste_Form_class
     class(lookup_table_general_type), pointer :: lookup
     type(crit_inventory_lookup_type), pointer :: next
     character(len=MAXWORDLENGTH) :: name
+    PetscBool :: use_log10_time
+    PetscReal :: log10_time_zero_sub
   contains
     procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
@@ -534,11 +539,12 @@ module PM_Waste_Form_class
 
   type, public :: spacer_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
-    PetscReal :: threshold_sat ! threshold saturation for asm. exposure to water
+    PetscReal :: threshold_sat ! threshold saturation for exposure to water
     PetscReal :: alteration_rate  ! saturation-based factor for altering rate
-    PetscReal :: spacer_mass  ! total mass of grid spacers
-    PetscReal :: spacer_surface_area ! total surface area of grid spacers
+    PetscReal :: spacer_loss_ratio  ! metal loss ratio from oxide formation
+    PetscReal :: spacer_thickness ! initial thickness of metal
     PetscReal :: spacer_coeff  ! empirical coefficient of Arrhenius term
+    PetscReal :: spacer_rad_factor  ! irradiation factor for degradation rate
     PetscReal :: spacer_activation_energy  ! activation energy
     class(spacer_mechanism_base_type), pointer :: next
   contains
@@ -554,8 +560,7 @@ module PM_Waste_Form_class
             PMWFMechanismWIPPCreate, &
             PMWFMechanismCustomCreate, &
             PMWFMechanismFMDMCreate, &
-            PMWFMechanismFMDMSurrogateCreate, &
-            PMWFRadSpeciesCreate
+            PMWFMechanismFMDMSurrogateCreate
 
 contains
 
@@ -788,6 +793,9 @@ function PMWFMechanismFMDMSurrogateCreate(option)
   surrfmdm%iFe_2p = 3
   surrfmdm%iH2 = 4
 
+  surrfmdm%temp = UNINITIALIZED_DOUBLE
+  surrfmdm%dose_rate = UNINITIALIZED_DOUBLE
+
   allocate(surrfmdm%mapping_surrfmdm_to_pflotran(surrfmdm%num_concentrations))
   surrfmdm%mapping_surrfmdm_to_pflotran = UNINITIALIZED_INTEGER
 
@@ -842,32 +850,29 @@ end function PMWFMechanismCustomCreate
 
 ! ************************************************************************** !
 
-function PMWFRadSpeciesCreate()
+subroutine PMWFRadSpeciesInit(rad_species)
   !
-  ! Creates a radioactive species in the waste form mechanism package
+  ! Initializes a radioactive species in the waste form mechanism package
   !
   ! Author: Jenn Frederick
   ! Date: 03/09/16
 
   implicit none
 
-! LOCAL VARIABLES:
-! ================
-! PMWFRadSpeciesCreate (output): new radionuclide species object
 ! ----------------------------------------------
-  type(rad_species_type) :: PMWFRadSpeciesCreate
+  type(rad_species_type) :: rad_species
 ! ----------------------------------------------
 
-  PMWFRadSpeciesCreate%name = ''
-  PMWFRadSpeciesCreate%daughter = ''
-  PMWFRadSpeciesCreate%daugh_id = UNINITIALIZED_INTEGER
-  PMWFRadSpeciesCreate%formula_weight = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%decay_constant = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%mass_fraction = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%inst_release_fraction = UNINITIALIZED_DOUBLE
-  PMWFRadSpeciesCreate%ispecies = UNINITIALIZED_INTEGER
+  rad_species%name = ''
+  rad_species%daughter = ''
+  rad_species%daugh_id = UNINITIALIZED_INTEGER
+  rad_species%formula_weight = UNINITIALIZED_DOUBLE
+  rad_species%decay_constant = UNINITIALIZED_DOUBLE
+  rad_species%mass_fraction = UNINITIALIZED_DOUBLE
+  rad_species%inst_release_fraction = UNINITIALIZED_DOUBLE
+  rad_species%ispecies = UNINITIALIZED_INTEGER
 
-end function PMWFRadSpeciesCreate
+end subroutine PMWFRadSpeciesInit
 
 ! ************************************************************************** !
 
@@ -892,9 +897,10 @@ function PMWFSpacerMechCreate()
 
   spc%mech_name = ''
   spc%threshold_sat = 0.0d0
+  spc%spacer_rad_factor = 1.0d0
   spc%alteration_rate = UNINITIALIZED_DOUBLE
-  spc%spacer_mass = UNINITIALIZED_DOUBLE
-  spc%spacer_surface_area = UNINITIALIZED_DOUBLE
+  spc%spacer_loss_ratio = UNINITIALIZED_DOUBLE
+  spc%spacer_thickness = UNINITIALIZED_DOUBLE
   spc%spacer_coeff = UNINITIALIZED_DOUBLE
   spc%spacer_activation_energy = UNINITIALIZED_DOUBLE
 
@@ -1262,6 +1268,17 @@ subroutine PMWFReadPMBlock(this,input)
       endif
     endif
 
+    if (cur_waste_form%spacer_degradation_flag .and. &
+        .not. associated(this%spacer_mech_list)) then
+      option%io_buffer = 'SPACER_MECHANISM_NAME "' &
+                       // trim(cur_waste_form%spacer_mech_name) &
+                       //'" was specified for waste form "' &
+                       // trim(cur_waste_form%mechanism%name) &
+                       //'" but no SPACER_DEGRADATION_MECHANISM block was ' &
+                       //'actually provided.'
+      call PrintErrMsg(option)
+    endif
+
     cur_waste_form => cur_waste_form%next
   enddo
 
@@ -1325,7 +1342,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: temp_buf
-  type(rad_species_type), pointer :: temp_species_array(:)
+  type(rad_species_type), allocatable :: temp_species_array(:)
   class(wf_mechanism_base_type), pointer :: new_mechanism, cur_mechanism
   PetscInt :: k, j
   PetscReal :: double
@@ -1338,7 +1355,6 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   found = PETSC_TRUE
   added = PETSC_FALSE
   input%ierr = 0
-  allocate(temp_species_array(50))
   k = 0
   num_errors = 0
 
@@ -1401,7 +1417,6 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
       !---------------------------------
         case('CUSTOM')
           error_string = trim(error_string) // ' CUSTOM'
-          allocate(new_mechanism)
           new_mechanism => PMWFMechanismCustomCreate()
       !---------------------------------
         case default
@@ -1754,6 +1769,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
              end select
         !--------------------------
           case('SPECIES')
+            allocate(temp_species_array(50))
             do
               call InputReadPflotranString(input,option)
               if (InputCheckExit(input,option)) exit
@@ -1766,7 +1782,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                        'if reducing to less than 50 is not &
                                        &an option.')
               endif
-              temp_species_array(k) = PMWFRadSpeciesCreate()
+              call PMWFRadSpeciesInit(temp_species_array(k))
               ! read species name
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'SPECIES name',error_string)
@@ -2122,7 +2138,6 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   select case(trim(keyword))
   !-------------------------------------
     case('WASTE_FORM')
-      allocate(new_waste_form)
       new_waste_form => PMWFWasteFormCreate()
       call InputPushBlock(input,option)
       do
@@ -2360,22 +2375,22 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
             call InputErrorMsg(input,option,'grid spacer exposure &
                                &saturation limit',error_string)
         !-----------------------------
-          case('MASS')
+          case('METAL_LOSS_RATIO')
             call InputReadDouble(input,option, &
-                                 new_sp_mech%spacer_mass)
-            call InputErrorMsg(input,option,'grid spacer total mass', &
+                                 new_sp_mech%spacer_loss_ratio)
+            call InputErrorMsg(input,option,'grid spacer metal loss ratio', &
                                error_string)
-            call InputReadAndConvertUnits(input, new_sp_mech%spacer_mass, &
-                                          'kg','MASS',option)
+            call InputReadAndConvertUnits(input, new_sp_mech%spacer_loss_ratio,&
+                                          'm^3/kg','METAL_LOSS_RATIO',option)
         !-----------------------------
-          case('SURFACE_AREA')
+          case('THICKNESS')
             call InputReadDouble(input,option, &
-                                 new_sp_mech%spacer_surface_area)
-            call InputErrorMsg(input,option,'grid spacer total surface &
-                               &area',error_string)
+                                 new_sp_mech%spacer_thickness)
+            call InputErrorMsg(input,option,'grid spacer initial thickness', &
+                               error_string)
             call InputReadAndConvertUnits(input, &
-                                          new_sp_mech%spacer_surface_area, &
-                                          'm^2','SURFACE_AREA',option)
+                                          new_sp_mech%spacer_thickness, &
+                                          'm','THICKNESS',option)
         !-----------------------------
           case('C')
             call InputReadDouble(input,option, &
@@ -2386,11 +2401,16 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
                                           new_sp_mech%spacer_coeff, &
                                           'kg/m^2-s','C',option)
         !-----------------------------
+          case('RAD_FACTOR')
+            call InputReadDouble(input,option,new_sp_mech%spacer_rad_factor)
+            call InputErrorMsg(input,option,'irradiation factor for grid &
+                               &spacer degradation rate',error_string)
+        !-----------------------------
           case('Q')
             call InputReadDouble(input,option, &
                                  new_sp_mech%spacer_activation_energy)
             call InputErrorMsg(input,option,'grid spacer degradation model &
-                               activation energy',error_string)
+                               &activation energy',error_string)
             call InputReadAndConvertUnits(input, &
                                           new_sp_mech%spacer_activation_energy,&
                                           'J/mol','Q',option)
@@ -2411,9 +2431,16 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
                          //'with a waste form.'
         call PrintWrnMsg(option)
       endif
-      if (Uninitialized(new_sp_mech%spacer_mass)) then
-        option%io_buffer = 'ERROR: Total spacer grid mass must be specified &
-                           &for spacer grid degradation mechanism.'
+      if (Uninitialized(new_sp_mech%spacer_loss_ratio)) then
+        option%io_buffer = 'ERROR: Metal loss ratio for spacer grid must be &
+                           &specified for spacer grid degradation mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (new_sp_mech%spacer_rad_factor <= 0.d0) then
+        option%io_buffer = 'ERROR: Irradiation factor for spacer grid &
+                           &degradation rate must be greater than zero in the &
+                           &spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -2429,8 +2456,8 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
-      if (Uninitialized(new_sp_mech%spacer_surface_area)) then
-        option%io_buffer = 'ERROR: Total spacer grid surface area must be &
+      if (Uninitialized(new_sp_mech%spacer_thickness)) then
+        option%io_buffer = 'ERROR: Spacer grid initial thickness must be &
                            &specified for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
@@ -2705,6 +2732,7 @@ subroutine PMWFSetup(this)
   use Grid_Unstructured_module
   use Option_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Utility_module, only : GetRndNumFromNormalDist
   use String_module
 
@@ -2757,7 +2785,7 @@ subroutine PMWFSetup(this)
   ! point the waste form region to the desired region
   call PMWFAssociateRegion(this,this%realization%patch%region_list)
 
-  allocate(ranks(option%comm%mycommsize))
+  allocate(ranks(option%comm%size))
 
   waste_form_id = 0
   nullify(prev_waste_form)
@@ -2817,12 +2845,12 @@ subroutine PMWFSetup(this)
       cur_waste_form%id = 0
       ranks(option%myrank+1) = 0
     endif
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%size,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_form%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%comm%mycommsize
+    do i = 1,option%comm%size
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_form%rank_list(j) = (i - 1)  ! (world ranks)
@@ -2967,10 +2995,22 @@ subroutine PMWFSetup(this)
     allocate(cur_waste_form%inst_release_amount(num_species))
     cur_waste_form%inst_release_amount = 0.d0
     do j = 1, num_species
-      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
-        GetPrimarySpeciesIDFromName( &
-        cur_waste_form%mechanism%rad_species_list(j)%name, &
-        this%realization%reaction,this%option)
+      if (associated(this%realization%reaction_nw)) then
+        cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+          NWTGetSpeciesIDFromName( &
+          cur_waste_form%mechanism%rad_species_list(j)%name, &
+          this%realization%reaction_nw,this%option)
+      elseif (associated(this%realization%reaction)) then
+        cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+          GetPrimarySpeciesIDFromName( &
+          cur_waste_form%mechanism%rad_species_list(j)%name, &
+          this%realization%reaction,this%option)
+      else
+        option%io_buffer = 'Currently, a transport process model (GIRT/OSRT ' &
+                         //'or NWT) is required to use the WASTE_FORM_GENERAL '&
+                         //'process model.'
+        call PrintErrMsg(option)
+      endif
     enddo
     cur_waste_form => cur_waste_form%next
   enddo
@@ -2987,7 +3027,7 @@ end subroutine PMWFSetup
   ! Author: Glenn Hammond
   ! Date: 08/25/15
   use Reaction_Aux_module
-  use Reaction_Gas_aux_module
+  use Reaction_Gas_Aux_module
   use Reaction_Sandbox_module
   use Realization_Base_class
 
@@ -3015,7 +3055,6 @@ end subroutine PMWFSetup
   class(waste_form_base_type), pointer :: cur_waste_form
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: num_waste_form_cells
-  PetscInt :: num_species
   PetscInt :: size_of_vec
   PetscInt :: i, j, k
   PetscInt, allocatable :: species_indices_in_residual(:), &
@@ -3027,17 +3066,19 @@ end subroutine PMWFSetup
 
   ! ensure that waste form is not being used with other reactive transport
   ! capability
-  if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
-      reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
-      reaction%immobile%nimmobile > 0 .or. &
-      GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
-      associated(rxn_sandbox_list)) then
-    this%option%io_buffer = 'The UFD_DECAY process model may not be used &
-      &with other reactive transport capability within PFLOTRAN. &
-      &Minerals (and mineral kinetics) are used because their data &
-      &structures are leveraged by UFD_DECAY, but no "conventional" &
-      &mineral precipitation-dissolution capability is used.'
-    call PrintErrMsg(this%option)
+  if (associated(reaction)) then
+    if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
+        reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
+        reaction%immobile%nimmobile > 0 .or. &
+        GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+        associated(rxn_sandbox_list)) then
+      this%option%io_buffer = 'The UFD_DECAY process model may not be used &
+        &with other reactive transport capability within PFLOTRAN. &
+        &Minerals (and mineral kinetics) are used because their data &
+        &structures are leveraged by UFD_DECAY, but no "conventional" &
+        &mineral precipitation-dissolution capability is used.'
+      call PrintErrMsg(this%option)
+    endif
   endif
 
   if (this%print_mass_balance) then
@@ -3249,7 +3290,6 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, allocatable :: Coeff(:)
   PetscReal, allocatable :: concentration_old(:)
   PetscReal :: inst_release_molality
-  PetscReal, parameter :: conversion = 1.d0/(24.d0*3600.d0)
   PetscReal, pointer :: xx_p(:)
   ! implicit solution parameters
   PetscReal :: norm
@@ -3468,7 +3508,7 @@ subroutine PMWFInitializeTimestep(this)
              1.d3) / &                               ! [kg-matrix] -> [g-matrix]
              ! [kg-water]
             (material_auxvars(ghosted_id)%porosity * &         ! [-]
-             global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [-]
+             (global_auxvars(ghosted_id)%sat(LIQUID_PHASE)+1.d-20) * &  ! [-]
              material_auxvars(ghosted_id)%volume * &           ! [m^3]
              global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE))  ! [kg/m^3-water]
           idof = cwfm%rad_species_list(k)%ispecies + &
@@ -4110,7 +4150,7 @@ subroutine PMWFSolve(this,time,ierr)
                      MPI_INTEGER,MPI_SUM,this%realization%option%mycomm, &
                      ierr);CHKERRQ(ierr)
   if ((fmdm_count_global > 0) .and. &
-      this%realization%option%print_screen_flag) then
+      OptionPrintToScreen(this%realization%option)) then
     write(word,'(i5)') fmdm_count_global
   ! ** START (this can be removed after FMDM profiling is finished) **
     write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'
@@ -4210,7 +4250,6 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  PetscReal, parameter :: time_conversion = 1.d0/(24.d0*3600.d0)
   PetscReal :: avg_temp_local, avg_temp_global
   PetscReal :: ph_local, ph_global
   PetscReal :: Q_local, Q_global
@@ -4451,16 +4490,13 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   PetscInt :: icomp_fmdm
   PetscInt :: icomp_pflotran
   PetscInt :: ghosted_id
-  PetscReal :: avg_temp_local
 ! --------------------------------------------------------------
 
  ! FMDM model:
  !=======================================================
   integer ( kind = 4) :: success
   logical ( kind = 4) :: initialRun
-  PetscReal :: time
   PetscReal :: Usource
-  PetscReal :: avg_temp_global
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(option_type), pointer :: option
  !========================================================
@@ -4649,6 +4685,9 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
     call AMP_ann_surrogate_step(this, time, avg_temp_global)
   endif
 
+  ! store for output
+  this%temp = avg_temp_global
+
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
@@ -4821,6 +4860,7 @@ subroutine PMWFOutput(this)
 ! option: pointer to option object
 ! output_option: pointer to output option object
 ! cur_waste_form: pointer to curent waste form object
+! cwfm: pointer to current waste form mechanism object
 ! grid: pointer to grid object
 ! filename: filename string
 ! fid: [-] file id number
@@ -4829,6 +4869,7 @@ subroutine PMWFOutput(this)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   class(waste_form_base_type), pointer :: cur_waste_form
+  class(wf_mechanism_base_type), pointer :: cwfm
   type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
@@ -4865,6 +4906,21 @@ subroutine PMWFOutput(this)
                                 cur_waste_form%volume, &
                                 cur_waste_form%eff_canister_vit_rate, &
                                 cur_waste_form%canister_vitality*100.d0
+
+    if (associated(cur_waste_form%spacer_mechanism)) then
+      write(fid,100,advance="no") cur_waste_form%spacer_vitality_rate, &
+                                  cur_waste_form%spacer_vitality
+    endif
+    cwfm => cur_waste_form%mechanism
+    select type(cwfm => cur_waste_form%mechanism)
+      type is(wf_mechanism_fmdm_surrogate_type)
+         write(fid,100,advance="no") cwfm%temp, &
+                                     cwfm%dose_rate, &
+                                     cwfm%concentration(1), &
+                                     cwfm%concentration(2), &
+                                     cwfm%concentration(3), &
+                                     cwfm%concentration(4)
+    end select
     cur_waste_form => cur_waste_form%next
   enddo
   close(fid)
@@ -4934,6 +4990,7 @@ subroutine PMWFOutputHeader(this)
 ! output_option: pointer to output option object
 ! grid: pointer to grid object
 ! cur_waste_form: pointer to current waste form object
+! cwfm: pointer to current waste form mechanism object
 ! cell_string: cell string
 ! x_string, y_string, z_string: coordinate strings
 ! units_string: units string
@@ -4947,6 +5004,7 @@ subroutine PMWFOutputHeader(this)
   type(output_option_type), pointer :: output_option
   type(grid_type), pointer :: grid
   class(waste_form_base_type), pointer :: cur_waste_form
+  class(wf_mechanism_base_type), pointer :: cwfm
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   character(len=MAXWORDLENGTH) :: units_string, variable_string
@@ -5033,6 +5091,50 @@ subroutine PMWFOutputHeader(this)
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
 
+    if (associated(cur_waste_form%spacer_mechanism)) then
+      variable_string = 'Spacer Vitality Deg. Rate'
+      units_string = '1/yr'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+
+      variable_string = 'Spacer Vitality'
+      units_string = '%'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+    endif
+    cwfm => cur_waste_form%mechanism
+    select type (cwfm => cur_waste_form%mechanism)
+      type is(wf_mechanism_fmdm_surrogate_type)
+        variable_string = 'Temperature'
+        units_string = 'C'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'Dose Rate'
+        units_string = 'Gy/s'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'CO3_2'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'O2'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'Fe++'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+
+        variable_string = 'H2'
+        units_string = 'mol/L'
+        call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                                 icolumn)
+    end select
     cur_waste_form => cur_waste_form%next
   enddo
 
@@ -5708,7 +5810,6 @@ subroutine WasteFormInputRecord(this)
   ! ================
   class(waste_form_base_type), pointer :: cur_waste_form
   character(len=MAXWORDLENGTH) :: word
-  PetscInt :: i
   PetscInt :: id = INPUT_RECORD_UNIT
   ! ---------------------------------
 
@@ -6089,16 +6190,16 @@ subroutine SpacerMechInputRecord(this)
       write(id,'(a)') trim(adjustl(cur_sp_mech%mech_name))
     endif
 
-    if (Initialized(cur_sp_mech%spacer_mass)) then
-      write(id,'(a29)',advance='no') 'grid spc. tot. mass: '
-      write(word,'(es12.5)') cur_sp_mech%spacer_mass
-      write(id,'(a)') trim(adjustl(word)) // ' kg'
+    if (Initialized(cur_sp_mech%spacer_loss_ratio)) then
+      write(id,'(a29)',advance='no') 'grid spc. metal loss ratio: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_loss_ratio
+      write(id,'(a)') trim(adjustl(word)) // ' m^3/kg'
     endif
 
-    if (Initialized(cur_sp_mech%spacer_surface_area)) then
-      write(id,'(a29)',advance='no') 'grid spc. tot. surface area: '
-      write(word,'(es12.5)') cur_sp_mech%spacer_surface_area
-      write(id,'(a)') trim(adjustl(word)) // ' m^2'
+    if (Initialized(cur_sp_mech%spacer_thickness)) then
+      write(id,'(a29)',advance='no') 'grid spc. init. thickness: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_thickness
+      write(id,'(a)') trim(adjustl(word)) // ' m'
     endif
 
     if (Initialized(cur_sp_mech%spacer_coeff)) then
@@ -6111,6 +6212,12 @@ subroutine SpacerMechInputRecord(this)
       write(id,'(a29)',advance='no') 'grid spc. mech act. energy: '
       write(word,'(es12.5)') cur_sp_mech%spacer_activation_energy
       write(id,'(a)') trim(adjustl(word)) // ' J/mol'
+    endif
+
+    if (Initialized(cur_sp_mech%spacer_rad_factor)) then
+      write(id,'(a29)',advance='no') 'grid spc. rad factor: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_rad_factor
+      write(id,'(a)') trim(adjustl(word))
     endif
 
     if (Initialized(cur_sp_mech%threshold_sat)) then
@@ -6429,8 +6536,9 @@ subroutine PMWFDestroy(this)
   character(len=MAXWORDLENGTH) :: word
 
   if (OptionPrintToScreen(this%option)) then
-    word = StringWrite('(es12.4)',this%cumulative_time)
-    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+    word = trim(StringWrite('(es12.4)',this%cumulative_time))
+    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // &
+      ' seconds'
   endif
 
   call PMBaseDestroy(this)
@@ -6463,13 +6571,14 @@ subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
                                     this%spacer_activation_energy / &
                                     (IDEAL_GAS_CONSTANT * temp))
 
-  ! Modify rate with total surface area and saturation factor [kg/s]
+  ! Modify rate with metal loss ratio and saturation factor [kg/s]
   waste_form%spacer_vitality_rate = waste_form%spacer_vitality_rate* &
-                                    this%spacer_surface_area* &
+                                    this%spacer_loss_ratio* &
+                                    this%spacer_rad_factor* &
                                     this%alteration_rate
 
   ! Change in spacer vitality [kg/kg]
-  dspv = (1.0d0 / this%spacer_mass) * waste_form%spacer_vitality_rate * dt
+  dspv = (2.0d0 / this%spacer_thickness) * waste_form%spacer_vitality_rate * dt
 
   ! Spacer vitality [kg/kg]
   waste_form%spacer_vitality = waste_form%spacer_vitality - dspv
@@ -6606,6 +6715,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
 
   PetscBool :: found, added
   PetscInt :: num_errors
+  PetscReal :: tempreal
 
   character(len=MAXWORDLENGTH) :: word
   class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
@@ -6614,6 +6724,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
   added = PETSC_FALSE
   found = PETSC_TRUE
   num_errors = 0
+  tempreal = UNINITIALIZED_DOUBLE
   select case(trim(keyword))
   !-------------------------------------
     case('CRITICALITY_MECH')
@@ -6830,6 +6941,37 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           call PrintErrMsg(option)
                         endif
                     !-----------------------------
+                      case('LOG10_TIME_INTERPOLATION')
+                        ! Use log10 basis for time interpolation
+                        if (.not. associated(new_crit_mech% &
+                                             inventory_dataset)) then
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+
+                        ! User can specify substitute value for zero (optional)
+                        internal_units = 's'
+                        call InputReadDouble(input,option,tempreal)
+                        if (Initialized(tempreal)) then
+                          call InputReadAndConvertUnits(input,tempreal, &
+                                 internal_units,trim(error_string) &
+                                 //',EXPANDED_DATASET,OPTION' &
+                                 //',LOG10_TIME_INTERPOLATION,' &
+                                 //' zero substitute (' &
+                                 //trim(new_crit_mech%inventory_dataset% &
+                                 file_name)//')',option)
+                          call CritInventoryCheckZeroSub(tempreal, &
+                                                         new_crit_mech% &
+                                                         inventory_dataset, &
+                                                         option)
+                        endif
+
+                        ! Modify lookup tables
+                        call CritInventoryUseLog10(new_crit_mech% &
+                                                   inventory_dataset,option)
+                    !-----------------------------
                       case default
                         call InputKeywordUnrecognized(input,word,error_string, &
                                                       option)
@@ -6880,6 +7022,14 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
           call PrintMsg(option)
           num_errors = num_errors + 1
         endif
+      endif
+
+      if (.not. associated(new_crit_mech%heat_dataset)) then
+        option%io_buffer = 'ERROR: Decay heat dataset must be provided for ' &
+                         //'CRITICALITY_MECH "'//trim(new_crit_mech%mech_name) &
+                         //'".'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
       endif
 
       if (associated(new_crit_mech%crit_heat_dataset)) then
@@ -7005,16 +7155,9 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
   character(len=MAXWORDLENGTH) :: word, realization_word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscInt :: length, i, icount
-  PetscInt :: icol
-  PetscInt :: ndims
-  PetscInt, pointer :: dims(:)
-  PetscReal, pointer :: real_buffer(:)
+  PetscInt :: length, i
   PetscErrorCode :: ierr
 
-  integer(HID_T) :: file_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: hdf5_err
   ! dataset_base, though of type dataset_base_type, should always be created
   ! as dataset_ascii_type.
   dataset_ascii => DatasetAsciiCast(dataset_base)
@@ -7215,20 +7358,20 @@ subroutine CritHeatRead(this,filename,option)
         call InputReadWord(input2,option,word,PETSC_TRUE)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         time_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,keyword,option)
       case('TEMPERATURE_UNITS')
         internal_units = 'C'
         call InputReadWord(input2,option,word,PETSC_TRUE)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         call StringToUpper(word)
         temp_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,keyword,option)
       case('POWER_UNITS')
         internal_units = 'MW'
         call InputReadWord(input2,option,word,PETSC_TRUE)
         call InputErrorMsg(input2,option,'UNITS','CONDITION')
         power_units_conversion = UnitsConvertToInternal(word, &
-                                 internal_units,option)
+                                 internal_units,keyword,option)
       case('START_TIME')
         if (Uninitialized(this%num_start_times) .or. &
             Uninitialized(this%num_values_per_start_time)) then
@@ -7419,21 +7562,21 @@ subroutine CritInventoryRead(this,filename,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'time units',error_string)
         time_units_conversion = UnitsConvertToInternal(word, &
-                                internal_units,option)
+                                internal_units,keyword,option)
     !-------------------------------------
       case('POWER_UNITS')
         internal_units = 'MW'
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'power units',error_string)
         power_units_conversion = UnitsConvertToInternal(word, &
-                                 internal_units,option)
+                                 internal_units,keyword,option)
     !-------------------------------------
       case('DATA_UNITS')
         internal_units = 'g/g'
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'data units',error_string)
         data_units_conversion = UnitsConvertToInternal(word, &
-                                 internal_units,option)
+                                 internal_units,keyword,option)
     !-------------------------------------
       case('START_TIME')
         string = 'START_TIME in criticality inventory lookup table "' &
@@ -7750,7 +7893,6 @@ subroutine CritInventoryRealTimeSections(this,string,option)
   PetscInt  :: sz
   PetscInt  :: bnd1, bnd2
   PetscReal :: tmp1, tmp2
-  character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
   ! This subroutine only operates upon axis3
@@ -7847,8 +7989,6 @@ subroutine CritInventoryDataSections(this,string,option)
   PetscInt  :: i, j, k, l
   PetscInt  :: szlim, sz
   PetscInt  :: bnd1, bnd2
-  PetscReal :: tmp1, tmp2
-  character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
   ! This subroutine is not needed if axis3 was not partitioned
@@ -8030,6 +8170,216 @@ end subroutine CritInventoryCheckDuplicates
 
 ! ************************************************************************** !
 
+subroutine CritInventoryUseLog10(inventory,option)
+  !
+  ! Transform radionuclide inventory lookup tables to use log10(time) basis
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/17/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  PetscInt :: i, psize
+  PetscBool :: modified
+  ! ----------------------------------
+
+  ! axis3 is modified (rectangular array)
+  modified = PETSC_FALSE
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+    inv%use_log10_time = PETSC_TRUE
+    zero_sub = inv%log10_time_zero_sub
+    if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
+      psize = size(inv%lookup%axis3%partition)
+      do i = 1, psize
+        call CritInventoryLog10Array(inv%lookup%axis3%partition(i)%data, &
+                                     zero_sub,option)
+      enddo
+    else
+      ! time axis is described by the dim(3) value (rectangular)
+      if (.not. modified) then
+        call CritInventoryLog10Array(inv%lookup%axis3%values,zero_sub,option)
+        modified = PETSC_TRUE
+      endif
+    endif
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryUseLog10
+
+! ************************************************************************** !
+
+subroutine CritInventoryLog10Array(array1,zero_sub,option)
+  !
+  ! Modify array to use log10 of original values
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/16/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  ! ----------------------------------
+  PetscReal, pointer :: array2(:)
+  PetscInt :: i, asize
+  PetscReal :: tval ! values from array to be modified
+  ! ----------------------------------
+
+  ! allocate dummy array for log10 transformation
+  asize = size(array1)
+  allocate(array2(asize))
+
+  ! populate dummy array with log10 values of original array
+  do i = 1, asize
+    tval = array1(i)
+    ! replace zeros in original array with a substitute value
+    if (tval <= 0) tval = zero_sub
+    array2(i) = log10(tval)
+  enddo
+
+  ! replace original array with the log10 array
+  array1(1:asize) = array2(1:asize)
+  deallocate(array2)
+  nullify(array2)
+
+end subroutine CritInventoryLog10Array
+
+! ************************************************************************** !
+
+subroutine CritInventoryCheckZeroSub(zero_sub,inventory,option)
+  !
+  ! For log10 interpolation, make sure zero substitute is below minimum nonzero
+  !   value in the time arrays
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal :: zero_sub ! substitute value for instances of zero
+  class(crit_inventory_type), pointer :: inventory ! criticality inventory data
+  type(option_type) :: option
+  ! ----------------------------------
+  type(crit_inventory_lookup_type), pointer :: inv ! radionuclide inventory
+  PetscInt :: i, psize
+  PetscReal :: min_nonzero ! smallest nonzero number in array
+  character(len=MAXSTRINGLENGTH) :: word1, word2
+  PetscBool :: checked
+  ! ----------------------------------
+
+  ! loop through linked list of lookup tables and modify axis 3 values
+  checked = PETSC_FALSE
+  inv => inventory%radionuclide_table
+  do
+    if (.not. associated(inv)) exit
+    inv%log10_time_zero_sub = zero_sub
+    if (allocated(inv%lookup%axis3%partition)) then
+      ! time axis has defined partitions (non-rectangular)
+      psize = size(inv%lookup%axis3%partition)
+      do i = 1, psize
+        min_nonzero = &
+          CritInventoryMinNonzeroTime(inv%lookup%axis3%partition(i)%data,option)
+        if (zero_sub >= min_nonzero) then
+          write(word1,'(es11.5)') zero_sub
+          write(word2,'(es11.5)') min_nonzero
+          option%io_buffer = 'For log10 time interpolation, zero substitute (' &
+                           // trim(word1) &
+                           //') must remain below minimum nonzero value (' &
+                           // trim(word2) //') in REAL_TIME array in file "' &
+                           // trim(inventory%file_name) // '."'
+          call PrintErrMsg(option)
+        endif
+      enddo
+    elseif (.not. checked) then
+      ! time axis is described by the dim(3) value (rectangular)
+      min_nonzero = CritInventoryMinNonzeroTime(inv%lookup%axis3%values,option)
+      if (zero_sub >= min_nonzero) then
+        write(word1,'(es11.5)') zero_sub
+        write(word2,'(es11.5)') min_nonzero
+        option%io_buffer = 'For log10 time interpolation, zero substitute (' &
+                         // trim(word1) &
+                         //') must remain below minimum nonzero value (' &
+                         // trim(word2) //') in REAL_TIME array in file "' &
+                         // trim(inventory%file_name) // '."'
+        call PrintErrMsg(option)
+      endif
+      checked = PETSC_TRUE
+    endif
+    inv => inv%next
+  enddo
+  nullify(inv)
+
+end subroutine CritInventoryCheckZeroSub
+
+! ************************************************************************** !
+
+function CritInventoryMinNonzeroTime(array1,option)
+  !
+  ! Find minimum nonzero time
+  !
+  ! Author: Alex Salazar III
+  ! Date: 08/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  PetscReal :: CritInventoryMinNonzeroTime
+  PetscReal, pointer :: array1(:)
+  type(option_type) :: option
+  ! ----------------------------------
+  PetscReal, allocatable :: array2(:)
+  PetscInt :: i, j, asize1, asize2
+  PetscReal :: val1
+  ! ----------------------------------
+
+  asize1 = size(array1)
+  val1 = 0.0d0
+
+  ! check number of non-zero entries
+  asize2 = 0
+  do i = 1, asize1
+    val1 = array1(i)
+    if (val1 > 0.0d0) asize2 = asize2 + 1
+  enddo
+
+  ! group nonzero values
+  allocate(array2(asize2))
+  j = 1
+  do i = 1, asize1
+    val1 = array1(i)
+    if (val1 > 0.0d0) then
+      array2(j) = val1
+      j = j + 1
+    endif
+  enddo
+
+  ! get smallest nonzero number
+  CritInventoryMinNonzeroTime = minval(array2)
+  deallocate(array2)
+
+end function CritInventoryMinNonzeroTime
+
+! ************************************************************************** !
+
 function CritHeatEvaluate(this,start_time,temperature)
   !
   ! Author: Alex Salazar III
@@ -8052,20 +8402,36 @@ end function CritHeatEvaluate
 
 function CritInventoryEvaluate(this,start_time,power,time)
   !
+  ! Evaluate radionuclide mass fraction from lookup table
+  !
   ! Author: Alex Salazar III
   ! Date: 02/21/2022
   !
-
   implicit none
-
+  ! ----------------------------------
   class(crit_inventory_lookup_type) :: this
   PetscReal :: start_time
   PetscReal :: power
   PetscReal :: time
-
   PetscReal :: CritInventoryEvaluate
+  ! ----------------------------------
+  PetscReal :: t ! time value passed to lookup table
+  PetscReal :: zero_sub ! substitute time for t=0 (log10 interpolation)
+  ! ----------------------------------
 
-  CritInventoryEvaluate = this%lookup%Sample(start_time,power,time)
+  ! time value passed to lookup table
+  if (this%use_log10_time) then
+    if (time <= 0.d0) then
+      zero_sub = this%log10_time_zero_sub
+      t = log10(zero_sub) ! substitute for zero
+    else
+      t = log10(time)
+    endif
+  else
+    t = time
+  endif
+
+  CritInventoryEvaluate = this%lookup%Sample(start_time,power,t)
 
 end function CritInventoryEvaluate
 
@@ -8110,8 +8476,6 @@ function CritInventoryCreate()
   class(crit_inventory_type), pointer :: CritInventoryCreate
   class(crit_inventory_type), pointer :: ci
 
-  PetscInt :: i
-
   allocate(ci)
   nullify(ci%next)
   nullify(ci%radionuclide_table)
@@ -8150,6 +8514,10 @@ function CritInventoryLookupCreate()
   allocate(cl)
   nullify(cl%next)
   nullify(cl%lookup)
+
+  cl%name = ''
+  cl%use_log10_time = PETSC_FALSE
+  cl%log10_time_zero_sub = 1.0d-20
 
   CritInventoryLookupCreate => cl
 
@@ -8215,13 +8583,16 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
+  ! store for output
+  this%dose_rate = dose_rate(yTme,this%decay_time,this%burnup)
+
   ! features
   f(1) = current_temp_C + 273.15d0
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(2)) ! Env_O2
   f(4) = log10(this%concentration(3)) ! Env_Fe_2p
   f(5) = log10(this%concentration(4)) ! Env_H2
-  f(6) = log10(dose_rate(yTme,this%decay_time,this%burnup))
+  f(6) = log10(this%dose_rate)
 
   ! standardize
   do i = 1,num_features
@@ -8259,11 +8630,9 @@ subroutine ANNReadH5File(this, option)
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
-  integer(HID_T) :: prop_id
   integer(HID_T) :: file_id
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
@@ -8272,9 +8641,7 @@ subroutine ANNReadH5File(this, option)
 
   PetscMPIInt :: hdf5_err
 
-  call h5open_f(hdf5_err)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
+  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_FALSE,'',option)
   call HDF5GroupOpen(file_id,group_name,group_id,option)
 
   dataset_name = 'input_hidden1_weights'
@@ -8282,7 +8649,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_weights, dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'input_hidden1_bias'
@@ -8290,7 +8657,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_bias,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden1_hidden2_weights'
@@ -8298,7 +8665,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_weights, dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden1_hidden2_bias'
@@ -8306,7 +8673,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_bias, dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden2_output_weights'
@@ -8314,7 +8681,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_weights,dims_h5, &
                    hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'hidden2_output_bias'
@@ -8322,7 +8689,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_bias,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'scaler_offsets'
@@ -8330,7 +8697,7 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_offsets,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
   dataset_name = 'scaler_scales'
@@ -8338,12 +8705,11 @@ subroutine ANNReadH5File(this, option)
        dims_h5)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_scales,dims_h5, &
                  hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
   deallocate(dims_h5)
 
-  call h5gclose_f(group_id,hdf5_err)
-  call h5fclose_f(file_id,hdf5_err)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5GroupClose(group_id,option)
+  call HDF5FileClose(file_id,option)
 
 end subroutine ANNReadH5File
 
@@ -8364,7 +8730,6 @@ subroutine ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id,&
 
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
 
-  PetscInt :: i
   PetscInt :: ndims_h5
 
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -8399,7 +8764,7 @@ subroutine KnnrInit(this,option)
 
   type(option_type) :: option
   class(wf_mechanism_fmdm_surrogate_type) :: this
-  PetscInt :: i_n, i_d, d
+  PetscInt :: i_d, d
   PetscInt :: data_array_shape(2)
 
   call KnnrReadH5File(this, option)
@@ -8431,12 +8796,9 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
 
   PetscReal :: current_temp_C
   PetscReal :: decay_time
-  PetscReal, allocatable :: conc(:)
   PetscReal :: burnup
   PetscReal :: sTme
   PetscInt :: nn
-
-  PetscReal :: fuelDisRate
 
   ! features
   PetscReal :: f(4)
@@ -8448,16 +8810,18 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   type(kdtree_result), allocatable :: knnr_results(:)
 
   decay_time = this%decay_time
-  conc = this%concentration
   burnup = this%burnup
   nn = this%num_nearest_neighbor
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
+  ! store for output
+  this%dose_rate = dose_rate(yTme,decay_time,burnup)
+
   f(1) = log10(current_temp_C + 273.15d0)
-  f(2) = log10(conc(1)) ! Env_CO3_2n
-  f(3) = log10(conc(4)) ! Env_H2
-  f(4) = log10(dose_rate(yTme,decay_time,burnup))
+  f(2) = log10(this%concentration(1)) ! Env_CO3_2n
+  f(3) = log10(this%concentration(4)) ! Env_H2
+  f(4) = log10(this%dose_rate)
 
   allocate(knnr_results(nn))
 
@@ -8482,13 +8846,10 @@ subroutine KnnrReadH5File(this, option)
   class(wf_mechanism_fmdm_surrogate_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: group_name = '/'
   character(len=MAXSTRINGLENGTH) :: dataset_name
 
-  integer(HID_T) :: prop_id
   integer(HID_T) :: file_id
-  integer(HID_T) :: parent_id
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
   integer(HID_T) :: file_space_id
@@ -8499,11 +8860,7 @@ subroutine KnnrReadH5File(this, option)
 
   PetscMPIInt :: hdf5_err
 
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
-
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(h5_name,file_id,PETSC_FALSE,'',option)
 
   !hdf5groupopen
   call HDF5GroupOpen(file_id,group_name,group_id,option)
@@ -8537,7 +8894,7 @@ subroutine KnnrReadH5File(this, option)
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(1,:), dims_h5, &
                    hdf5_err)
 
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
   dataset_name = 'Env_CO3_2n'
   call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,2)
@@ -8551,9 +8908,8 @@ subroutine KnnrReadH5File(this, option)
   deallocate(dims_h5)
   deallocate(max_dims_h5)
 
-
-  call h5gclose_f(group_id,hdf5_err)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5GroupClose(group_id,option)
+  call HDF5FileClose(file_id,option)
 
   this%table_data(1,:) = log10(this%table_data(1,:))
   this%table_data(2,:) = log10(this%table_data(2,:))
@@ -8568,6 +8924,7 @@ end subroutine KnnrReadH5File
 subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -8576,7 +8933,6 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
 
   integer(HID_T) :: group_id
   integer(HID_T) :: dataset_id
-  integer(HID_T) :: file_space_id
 
   integer(HSIZE_T) :: dims_h5(1) = 1
 
@@ -8596,7 +8952,7 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
      call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, this%num_nearest_neighbor, dims_h5, &
        hdf5_err)
 
-     call h5dclose_f(dataset_id,hdf5_err)
+     call HDF5DatasetClose(dataset_id,option)
   endif
 
 end subroutine KnnrGetNearestNeighbors
@@ -8606,6 +8962,7 @@ end subroutine KnnrGetNearestNeighbors
 subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i)
 
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -8638,8 +8995,7 @@ subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(i,:), dims_h5, &
        hdf5_err)
 
-  call h5dclose_f(dataset_id,hdf5_err)
-
+  call HDF5DatasetClose(dataset_id,option)
 
 end subroutine KnnrReadH5Dataset
 

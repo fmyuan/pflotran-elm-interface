@@ -6,6 +6,7 @@ module Mphase_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -28,7 +29,6 @@ module Mphase_module
          MphaseMaxChange,MphaseUpdateSolution, &
          MphaseGetTecplotHeader,MphaseInitializeTimestep, &
          MphaseUpdateAuxVars, &
-         MphaseSecondaryHeat,MphaseSecondaryHeatJacobian, &
          MphaseComputeMassBalance,MphaseDestroy
 
 contains
@@ -54,12 +54,9 @@ subroutine MphaseTimeCut(realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
 
-  PetscReal, pointer :: xx_p(:),yy_p(:)
   type(mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
-  PetscInt :: local_id
 
   option => realization%option
   field => realization%field
@@ -137,14 +134,12 @@ subroutine MphaseSetupPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
 
-  PetscInt :: ghosted_id, iconn, sum_connection, ipara
+  PetscInt :: ghosted_id, iconn, sum_connection, ipara, i, local_id
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(Mphase_auxvar_type), pointer :: auxvars_bc(:)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
-  PetscReal :: area_per_vol
-  PetscInt :: local_id
 
   option => realization%option
   patch => realization%patch
@@ -191,81 +186,31 @@ subroutine MphaseSetupPatch(realization)
 
 ! Create secondary continuum variables - Added by SK 06/28/12
 
-  if (option%use_mc) then
+  if (option%use_sc) then
 
     initial_condition => patch%initial_condition_list%first
     allocate(mphase_sec_heat_vars(grid%nlmax))
 
     do local_id = 1, grid%nlmax
-
       ghosted_id = grid%nL2G(local_id)
-    ! Assuming the same secondary continuum for all regions (need to make it an array)
-    ! S. Karra 07/18/12
-      call SecondaryContinuumSetProperties( &
-        mphase_sec_heat_vars(local_id)%sec_continuum, &
-        patch%material_property_array(1)%ptr%multicontinuum%name, &
-        patch%aux%Material%auxvars(ghosted_id)%soil_properties(matrix_length_index), &
-        patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
-        patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
-        patch%material_property_array(1)%ptr%multicontinuum%radius, &
-        patch%material_property_array(1)%ptr%multicontinuum%area, &
-        patch%material_property_array(1)%ptr%multicontinuum%porosity, &
-        option)
-
-      mphase_sec_heat_vars(local_id)%ncells = &
-        patch%material_property_array(1)%ptr%multicontinuum%ncells
-      mphase_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%multicontinuum%aperture
-      mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
-      mphase_sec_heat_vars(local_id)%log_spacing = &
-        patch%material_property_array(1)%ptr%multicontinuum%log_spacing
-      mphase_sec_heat_vars(local_id)%outer_spacing = &
-        patch%material_property_array(1)%ptr%multicontinuum%outer_spacing
-
-
-      allocate(mphase_sec_heat_vars(local_id)%area(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%vol(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%dm_minus(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%dm_plus(mphase_sec_heat_vars(local_id)%ncells))
-      allocate(mphase_sec_heat_vars(local_id)%sec_continuum% &
-               distance(mphase_sec_heat_vars(local_id)%ncells))
-
-      call SecondaryContinuumType(&
-                              mphase_sec_heat_vars(local_id)%sec_continuum, &
-                              mphase_sec_heat_vars(local_id)%ncells, &
-                              mphase_sec_heat_vars(local_id)%area, &
-                              mphase_sec_heat_vars(local_id)%vol, &
-                              mphase_sec_heat_vars(local_id)%dm_minus, &
-                              mphase_sec_heat_vars(local_id)%dm_plus, &
-                              mphase_sec_heat_vars(local_id)%aperture, &
-                              mphase_sec_heat_vars(local_id)%epsilon, &
-                              mphase_sec_heat_vars(local_id)%log_spacing, &
-                              mphase_sec_heat_vars(local_id)%outer_spacing, &
-                              area_per_vol,option)
-
-      mphase_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
-          (1.d0 - mphase_sec_heat_vars(local_id)%epsilon)* &
-          patch%material_property_array(1)%ptr% &
-          multicontinuum%area_scaling
-
-
-    ! Setting the initial values of all secondary node temperatures same as primary node
-    ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
-      allocate(mphase_sec_heat_vars(local_id)%sec_temp(mphase_sec_heat_vars(local_id)%ncells))
-
-      if (option%flow%set_secondary_init_temp) then
-        mphase_sec_heat_vars(local_id)%sec_temp = &
-          patch%material_property_array(1)%ptr%multicontinuum%init_temp
-      else
-        mphase_sec_heat_vars(local_id)%sec_temp = &
-        initial_condition%flow_condition%temperature%dataset%rarray(1)
-      endif
-
+      if (patch%imat(ghosted_id) <= 0) cycle
+      call SecondaryHeatAuxVarInit( &
+           patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
+           patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
+           patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
+           mphase_sec_heat_vars(local_id), initial_condition, option)
+           
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => mphase_sec_heat_vars
-
+    do i = 1, size(patch%material_property_array)
+      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
+           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
+        option%io_buffer = &
+          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
+        call PrintErrMsg(option)
+      endif
+    enddo
   endif
 
 
@@ -387,11 +332,10 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   type(mphase_auxvar_type), pointer :: mphase_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iphase
-  PetscInt :: ispec_start, ispec_end, ispec
+  PetscInt :: ispec
   PetscReal :: pckr_sir(realization%option%nphase)
 
   option => realization%option
@@ -583,6 +527,7 @@ function MphaseInitGuessCheck(realization)
   PetscInt :: ipass, ipass0
   PetscErrorCode :: ierr
 
+  MphaseInitGuessCheck = UNINITIALIZED_INTEGER
   option => realization%option
   ipass = 1
   cur_patch => realization%patch_list%first
@@ -594,12 +539,13 @@ function MphaseInitGuessCheck(realization)
   enddo
 
   call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                        option%mycomm,ierr);CHKERRQ(ierr)
-    if (ipass0 < option%comm%mycommsize) ipass=-1
+    if (ipass0 < option%comm%size) ipass=-1
   endif
-  MphaseInitGuessCheck =ipass
+  MphaseInitGuessCheck = ipass
+
 end function MphaseInitGuessCheck
 
 ! ************************************************************************** !
@@ -628,7 +574,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
   PetscReal, pointer :: xx_p(:), yy_p(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: n,n0,re
-  PetscInt :: re0, iipha
+  PetscInt :: iipha
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -756,10 +702,10 @@ subroutine MPhaseUpdateReason(reason, realization)
 
   call MPI_Barrier(realization%option%mycomm,ierr);CHKERRQ(ierr)
 
-  if (realization%option%comm%mycommsize > 1) then
+  if (realization%option%comm%size > 1) then
     call MPI_Allreduce(re,re0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                        realization%option%mycomm,ierr);CHKERRQ(ierr)
-    if (re0<realization%option%comm%mycommsize) re=0
+    if (re0<realization%option%comm%size) re=0
   endif
   reason=re
 
@@ -794,6 +740,7 @@ end subroutine MPhaseUpdateReason
     PetscReal, pointer :: xx_p(:)
     PetscErrorCode :: ierr
 
+    MphaseInitGuessCheckPatch = UNINITIALIZED_INTEGER
 
     patch => realization%patch
     grid => patch%grid
@@ -829,7 +776,7 @@ end subroutine MPhaseUpdateReason
 
     MphaseInitGuessCheckPatch = ipass
 
-  end function MphaseInitGuessCheckPatch
+end function MphaseInitGuessCheckPatch
 
 ! ************************************************************************** !
 
@@ -1123,8 +1070,6 @@ subroutine MphaseUpdateSolution(realization)
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: ghosted_id
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
   field => realization%field
   auxvars => realization%patch%aux%Mphase%auxvars
@@ -1169,6 +1114,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
   use Field_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Material_Aux_module
 
   implicit none
 
@@ -1183,11 +1129,9 @@ subroutine MphaseUpdateSolutionPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
 
-  PetscInt :: istart, iend
   PetscInt :: local_id, ghosted_id
   ! secondary continuum variables
   PetscReal :: sec_dencpr
-  PetscErrorCode :: ierr
 
   patch => realization%patch
   grid => patch%grid
@@ -1199,7 +1143,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
   auxvars => mphase%auxvars
   global_auxvars => patch%aux%Global%auxvars
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     mphase_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   endif
 
@@ -1207,7 +1151,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
     call MphaseUpdateMassBalancePatch(realization)
   endif
 
-  if (option%use_mc) then
+  if (option%use_sc) then
 
   ! Secondary continuum contribution (Added by SK 06/26/2012)
   ! only one secondary continuum for now for each primary continuum node
@@ -1216,17 +1160,15 @@ subroutine MphaseUpdateSolutionPatch(realization)
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
-      iend = local_id*option%nflowdof
-      istart = iend-option%nflowdof+1
+      if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
-      call MphaseSecHeatAuxVarCompute(mphase_sec_heat_vars(local_id), &
-                        auxvars(ghosted_id)%auxvar_elem(0), &
-                        global_auxvars(ghosted_id), &
-                        mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
-                        sec_dencpr, &
-                        option)
+      call SecHeatAuxVarCompute(mphase_sec_heat_vars(local_id), &
+                                mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
+                                sec_dencpr, &
+                                auxvars(ghosted_id)%auxvar_elem(0)%temp,option)
     enddo
 
   endif
@@ -1277,7 +1219,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Secondary_Continuum_Aux_module
   use Material_Aux_module
 
   implicit none
@@ -1291,7 +1232,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   type(mphase_parameter_type), pointer :: mphase_parameter
   type(mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend !, iphase
@@ -1312,7 +1252,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   mphase_parameter => patch%aux%Mphase%mphase_parameter
   auxvars => patch%aux%Mphase%auxvars
   global_auxvars => patch%aux%Global%auxvars
-  mphase_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -1329,8 +1268,8 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
-      vol_frac_prim = mphase_sec_heat_vars(local_id)%epsilon
+    if (option%use_sc) then
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     if (.not.associated(mphase_parameter%dencpr)) print *,'no para'
@@ -1459,7 +1398,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
   PetscReal :: enth_src_h2o, enth_src_co2
   PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
   PetscReal :: ukvr, v_darcy, dq, dphi
-  PetscReal :: well_status, well_diameter
+  PetscReal :: well_status
   PetscReal :: pressure_bh, well_factor, pressure_max, pressure_min
   PetscReal :: well_inj_water, well_inj_co2
   PetscInt :: np
@@ -1695,7 +1634,7 @@ subroutine MphaseFlux(auxvar_up,por_up,tor_up,sir_up,dd_up,perm_up,Dk_up, &
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
 #if 0
 ! This factor 2/3 is multiplied to get bulk perm k=delta^3/12/l, karra 05/14/2013
-  if (option%use_mc) Dq = Dq*2.d0/3.d0*vol_frac_prim
+  if (option%use_sc) Dq = Dq*2.d0/3.d0*vol_frac_prim
 #endif
   diffdp = (por_up*tor_up * por_dn*tor_dn) / &
     (dd_dn*por_up*tor_up + dd_up*por_dn*tor_dn)*area*vol_frac_prim
@@ -1896,7 +1835,7 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
         Dq = perm_dn / dd_up
 #if 0
 ! This factor 2/3 is multiplied to get bulk perm k=delta^3/12/l, karra 05/14/2013
-        if (option%use_mc) Dq = Dq*2.d0/3.d0*vol_frac_prim
+        if (option%use_sc) Dq = Dq*2.d0/3.d0*vol_frac_prim
 #endif
         ! Flow term
         ukvr = 0.D0
@@ -2173,18 +2112,16 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
   PetscReal :: p2,p,tmp,t
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp
   PetscReal :: ug,xphi,henry,sat_pressure
-  PetscReal :: k1, k2, z1, z2, xg, vmco2, vmh2o, sg, sgg
+  PetscReal :: k1, k2, z1, z2, xg, vmco2, vmh2o, sg
   PetscReal :: xmol(realization%option%nphase*realization%option%nflowspec),&
                satu(realization%option%nphase)
   PetscReal :: yh2o_in_co2 = 1.d-2
 ! PetscReal :: yh2o_in_co2 = 0.d0
   PetscReal :: wat_sat_x, co2_sat_x
-  PetscReal :: lngamco2, m_na, m_cl, m_nacl, Qkco2, mco2, xco2eq, temp
+  PetscReal :: lngamco2, m_na, m_cl, m_nacl, Qkco2, mco2, xco2eq
 ! PetscReal :: xla,co2_poyn
   PetscInt :: local_id, ghosted_id, dof_offset
   PetscInt :: iflag
-  PetscInt :: idum
-  PetscReal :: min_value
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -2492,23 +2429,20 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i, jn
-  PetscInt :: ip1, ip2
+  PetscInt :: i
   PetscInt :: local_id, ghosted_id, local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: accum_p(:)
 
-  PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
+  PetscReal, pointer :: r_p(:), xx_loc_p(:)
 
   PetscInt :: iphase
   PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
-  PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
   PetscReal :: D_up, D_dn  ! "Diffusion" constants at upstream, downstream faces.
-  PetscReal :: dw_kg, dw_mol,dddt,dddp
-  PetscReal :: tsrc1, qsrc1, csrc1, enth_src_h2o, enth_src_co2 , hsrc1
-  PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
+  PetscReal :: tsrc1, csrc1, hsrc1
+  PetscReal :: xphi
   PetscReal :: upweight
   PetscReal :: Res(realization%option%nflowdof), v_darcy(realization%option%nphase)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -2549,7 +2483,6 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
   ! secondary continuum variables
   PetscReal :: sec_dencpr
-  PetscReal :: area_prim_sec
   PetscReal :: res_sec_heat
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -2688,8 +2621,8 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
-      vol_frac_prim = mphase_sec_heat_vars(local_id)%epsilon
+    if (option%use_sc) then
+      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
     endif
 
     call MphaseAccumulation(auxvars(ghosted_id)%auxvar_elem(0), &
@@ -2707,7 +2640,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
 ! ================== Secondary continuum heat source terms =====================
 #if 1
-  if (option%use_mc) then
+  if (option%use_sc) then
   ! Secondary continuum contribution (Added by SK 06/26/2012)
   ! only one secondary continuum for now for each primary continuum node
     do local_id = 1, grid%nlmax  ! For each local node do...
@@ -2715,17 +2648,16 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
+      if (Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
       iend = local_id*option%nflowdof
-      istart = iend-option%nflowdof+1
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
-      call MphaseSecondaryHeat(mphase_sec_heat_vars(local_id), &
-                        auxvars(ghosted_id)%auxvar_elem(0), &
-                        global_auxvars(ghosted_id), &
-                        mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
-                        sec_dencpr, &
-                        option,res_sec_heat)
+      call SecondaryHeatResidual(mphase_sec_heat_vars(local_id), &
+                                 mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
+                                 sec_dencpr, auxvars(ghosted_id)%auxvar_elem(0)%temp, &
+                                 option,res_sec_heat)
       r_p(iend) = r_p(iend) - res_sec_heat*option%flow_dt* &
                               material_auxvars(ghosted_id)%volume
 
@@ -3135,7 +3067,6 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
   MatType :: mat_type
   PetscViewer :: viewer
   type(patch_type), pointer :: cur_patch
-  type(grid_type),  pointer :: grid
   type(option_type), pointer :: option
   PetscReal :: norm
   character(len=MAXSTRINGLENGTH) :: string
@@ -3200,6 +3131,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Material_Aux_module
+  use Secondary_Continuum_module
 
   implicit none
 
@@ -3209,26 +3141,20 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: nvar,neq,nr
-  PetscInt :: icct_up, icct_dn, i, j
-  PetscInt :: ip1, ip2
+  PetscInt :: nvar,neq
+  PetscInt :: icct_up, icct_dn
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscInt :: iphas,iphas_up,iphas_dn,icc_up,icc_dn
-  PetscInt :: ii, jj
-  PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
-  PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
-  PetscReal :: dd_up, dd_dn, dd, f_up, f_dn
+  PetscInt :: iphas_up,iphas_dn,icc_up,icc_dn
+  PetscReal :: tsrc1,csrc1,hsrc1
+  PetscReal :: dd_up, dd_dn, f_up
   PetscReal :: perm_up, perm_dn
-  PetscReal :: dw_dp,dw_dt,hw_dp,hw_dt,dresT_dp,dresT_dt
   PetscReal :: D_up, D_dn  ! "Diffusion" constants upstream and downstream of a face.
-  PetscReal :: zero, norm
   PetscReal :: upweight
 ! PetscReal :: max_dev
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  PetscInt :: natural_id_up,natural_id_dn
 
   PetscReal :: Jup(1:realization%option%nflowdof,1:realization%option%nflowdof), &
                Jdn(1:realization%option%nflowdof,1:realization%option%nflowdof)
@@ -3264,17 +3190,13 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscReal :: ra(1:realization%option%nflowdof,1:realization%option%nflowdof*2)
   PetscReal, pointer :: msrc(:)
   PetscReal :: psrc(1:realization%option%nphase)
-  PetscReal :: dddt, dddp, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt,&
-               dvdp, xphi
   PetscInt :: iphasebc
   PetscInt :: nsrcpara
 
   PetscViewer :: viewer
-  Vec :: debug_vec
   PetscReal :: vol_frac_prim
 
   ! secondary continuum variables
-  PetscReal :: area_prim_sec
   PetscReal :: jac_sec_heat
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -3327,7 +3249,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (option%use_mc) then
+    if (option%use_sc) then
       vol_frac_prim = sec_heat_vars(local_id)%epsilon
     endif
 
@@ -3546,12 +3468,13 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
     Jup = ra(1:option%nflowdof,1:option%nflowdof)
 
-    if (option%use_mc) then
-
-      call MphaseSecondaryHeatJacobian(sec_heat_vars(local_id), &
-                        mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
-                        mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
-                        option,jac_sec_heat)
+    if (option%use_sc) then
+      if (Equal((material_auxvars(ghosted_id)% &
+          soil_properties(epsilon_index)),1.d0)) cycle
+      call SecondaryHeatJacobian(sec_heat_vars(local_id), &
+                                 mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
+                                 mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
+                                 option,jac_sec_heat)
  ! sk - option%flow_dt cancels out with option%flow_dt in the denominator for the term below
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
                                jac_sec_heat* &
@@ -4162,193 +4085,6 @@ subroutine MphaseSetPlotVariables(list)
                                PHASE)
 
 end subroutine MphaseSetPlotVariables
-
-! ************************************************************************** !
-
-subroutine MphaseSecondaryHeat(sec_heat_vars,auxvar,global_auxvar, &
-                            therm_conductivity,dencpr, &
-                            option,res_heat)
-  !
-  ! Calculates the source term contribution due to secondary
-  ! continuum in the primary continuum residual
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/26/12
-  !
-
-  use Option_module
-  use Global_Aux_module
-  use Secondary_Continuum_Aux_module
-
-  implicit none
-
-  type(sec_heat_type) :: sec_heat_vars
-  type(mphase_auxvar_elem_type) :: auxvar
-  type(global_auxvar_type) :: global_auxvar
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: temp_primary_node
-  PetscReal :: m
-  PetscReal :: temp_current_N
-  PetscReal :: res_heat
-
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  dm_minus = sec_heat_vars%dm_minus
-  area_fm = sec_heat_vars%interfacial_area
-! temp_primary_node = global_auxvar%temp
-  temp_primary_node = auxvar%temp
-
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-
-  ! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + &
-                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
-                 temp_primary_node
-
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    rhs(i) = rhs(i) - m*rhs(i-1)
-  enddo
-
-  ! Back substitution
-  ! We only need the temperature at the outer-most node (closest to primary node)
-  temp_current_N = rhs(ngcells)/coeff_diag(ngcells)
-
-  ! Calculate the coupling term
-  res_heat = area_fm*therm_conductivity*(temp_current_N - temp_primary_node)/ &
-             dm_plus(ngcells)
-
-end subroutine MphaseSecondaryHeat
-
-! ************************************************************************** !
-
-subroutine MphaseSecondaryHeatJacobian(sec_heat_vars, &
-                                    therm_conductivity, &
-                                    dencpr, &
-                                    option,jac_heat)
-  !
-  ! Calculates the source term jacobian contribution
-  ! due to secondary continuum in the primary continuum residual
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/6/12
-  !
-
-  use Option_module
-  use Global_Aux_module
-  use Secondary_Continuum_Aux_module
-
-  implicit none
-
-  type(sec_heat_type) :: sec_heat_vars
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: m
-  PetscReal :: Dtemp_N_Dtemp_prim
-  PetscReal :: jac_heat
-
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  area_fm = sec_heat_vars%interfacial_area
-  dm_minus = sec_heat_vars%dm_minus
-
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-
-! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    ! We do not have to calculate rhs terms
-  enddo
-
-  ! We need the temperature derivative at the outer-most node (closest to primary node)
-  Dtemp_N_Dtemp_prim = 1.d0/coeff_diag(ngcells)*alpha*area(ngcells)/ &
-                       (dm_plus(ngcells)*vol(ngcells))
-
-  ! Calculate the jacobian term
-  jac_heat = area_fm*therm_conductivity*(Dtemp_N_Dtemp_prim - 1.d0)/ &
-             dm_plus(ngcells)
-
-
-end subroutine MphaseSecondaryHeatJacobian
 
 ! ************************************************************************** !
 

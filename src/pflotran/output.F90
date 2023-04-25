@@ -26,11 +26,6 @@ module Output_module
   PetscInt, parameter :: TECPLOT_FILE = 0
   PetscInt, parameter ::  HDF5_FILE = 1
 
-
-  PetscBool :: observation_first
-  PetscBool :: hdf5_first
-  PetscBool :: mass_balance_first
-
   public :: OutputInit, &
             Output, &
             OutputPrintCouplers, &
@@ -92,6 +87,7 @@ subroutine OutputFileRead(input,realization,output_option, &
   use Grid_module
   use Patch_module
   use Region_module
+  use Print_module
 
   implicit none
 
@@ -110,16 +106,16 @@ subroutine OutputFileRead(input,realization,output_option, &
   PetscReal, pointer :: temp_real_array(:)
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: units, internal_units
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion,deltat
-  PetscInt :: k,deltas
+  PetscReal :: units_conversion
+  PetscInt :: k
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
 
   option => realization%option
   patch => realization%patch
@@ -176,6 +172,18 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
+
+!......................................
+      case('PRINT_INITIAL')
+        select case(trim(block_name))
+          case('OBSERVATION_FILE')
+            output_option%print_initial_obs = PETSC_TRUE
+          case('SNAPSHOT_FILE')
+            output_option%print_initial_snap = PETSC_TRUE
+          case('MASS_BALANCE_FILE')
+            output_option%print_initial_massbal = PETSC_TRUE
+        end select
+
 !...............................
       case('NO_PRINT_SOURCE_SINK')
         select case(trim(block_name))
@@ -242,7 +250,7 @@ subroutine OutputFileRead(input,realization,output_option, &
         call InputErrorMsg(input,option,'units',string)
         internal_units = 'sec'
         units_conversion = &
-             UnitsConvertToInternal(word,internal_units,option)
+             UnitsConvertToInternal(word,internal_units,string,option)
         call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER, &
              string,input,option)
         do k = 1, size(temp_real_array)
@@ -264,52 +272,46 @@ subroutine OutputFileRead(input,realization,output_option, &
       case('PERIODIC')
         string = 'OUTPUT,' // trim(block_name) // ',PERIODIC'
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'periodic time increment type',string)
+        call InputErrorMsg(input,option,'periodic increment type',string)
         call StringToUpper(word)
         select case(trim(word))
         !.............
           case('TIME')
-            string = 'OUTPUT,' // trim(block_name) // ',PERIODIC,TIME'
+            string = trim(string)//',TIME'
             call InputReadDouble(input,option,temp_real)
             call InputErrorMsg(input,option,'time increment',string)
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'time increment units',string)
             internal_units = 'sec'
-            units_conversion = UnitsConvertToInternal(word, &
-                 internal_units,option)
+            call InputReadAndConvertUnits(input,temp_real, &
+                                          internal_units,string,option)
             select case(trim(block_name))
               case('SNAPSHOT_FILE')
-                output_option%periodic_snap_output_time_incr = temp_real* &
-                     units_conversion
+                output_option%periodic_snap_output_time_incr = temp_real
               case('OBSERVATION_FILE')
-                output_option%periodic_obs_output_time_incr = temp_real* &
-                     units_conversion
+                output_option%periodic_obs_output_time_incr = temp_real
               case('MASS_BALANCE_FILE')
-                output_option%periodic_msbl_output_time_incr = temp_real* &
-                     units_conversion
+                output_option%periodic_msbl_output_time_incr = temp_real
             end select
             call InputReadCard(input,option,word)
             if (input%ierr == 0) then
               if (StringCompareIgnoreCase(word,'between')) then
                 call InputReadDouble(input,option,temp_real)
                 call InputErrorMsg(input,option,'start time',string)
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'start time units',string)
-                units_conversion = UnitsConvertToInternal(word, &
-                     internal_units,option)
-                temp_real = temp_real * units_conversion
+                internal_units = 'sec'
+                call InputReadAndConvertUnits(input,temp_real, &
+                                              internal_units, &
+                                              trim(string)//',START TIME', &
+                                              option)
                 call InputReadCard(input,option,word)
                 if (.not.StringCompareIgnoreCase(word,'and')) then
                   input%ierr = 1
                 endif
-                call InputErrorMsg(input,option,'and',string)
+                call InputErrorMsg(input,option,'AND',string)
                 call InputReadDouble(input,option,temp_real2)
                 call InputErrorMsg(input,option,'end time',string)
-                call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,'end time units',string)
-                units_conversion = UnitsConvertToInternal(word, &
-                     internal_units,option)
-                temp_real2 = temp_real2 * units_conversion
+                internal_units = 'sec'
+                call InputReadAndConvertUnits(input,temp_real2, &
+                                              internal_units, &
+                                              trim(string)//',END TIME',option)
                 select case(trim(block_name))
                   case('SNAPSHOT_FILE')
                     do
@@ -347,12 +349,12 @@ subroutine OutputFileRead(input,realization,output_option, &
                 end select
               else
                 input%ierr = 1
-                call InputErrorMsg(input,option,'between',string)
+                call InputErrorMsg(input,option,'BETWEEN',string)
               endif
             endif
         !.................
           case('TIMESTEP')
-            string = 'OUTPUT,' // trim(block_name) // ',TIMESTEP'
+            string = trim(string)//',TIMESTEP'
             select case(trim(block_name))
               case('SNAPSHOT_FILE')
                 call InputReadInt(input,option, &
@@ -378,7 +380,8 @@ subroutine OutputFileRead(input,realization,output_option, &
         call StringToUpper(word)
         select case(trim(word))
           case('OFF')
-            option%driver%print_to_screen = PETSC_FALSE
+            call PrintSetPrintToScreenFlag(option%driver%print_flags, &
+                                           PETSC_FALSE)
           case('PERIODIC')
             string = trim(string) // ',PERIODIC'
             call InputReadInt(input,option,output_option%screen_imod)
@@ -481,7 +484,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 call InputKeywordUnrecognized(input,word,string,option)
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                 .and. option%comm%mycommsize > 1) then
+                 .and. option%comm%size > 1) then
               option%io_buffer = 'TECPLOT POINT format not supported in &
                 &parallel. Switching to TECPLOT BLOCK.'
               call PrintMsg(option)
@@ -511,6 +514,9 @@ subroutine OutputFileRead(input,realization,output_option, &
           case default
             call InputKeywordUnrecognized(input,word,string,option)
         end select
+
+      case ('ACKNOWLEDGE_VTK_FLAW')
+        output_option%vtk_acknowledgment = PETSC_TRUE
 
 !...................................
       case ('HDF5_WRITE_GROUP_SIZE')
@@ -628,7 +634,8 @@ subroutine OutputFileRead(input,realization,output_option, &
       endif
     endif
     option%flow%store_fluxes = PETSC_TRUE
-    if (associated(grid%unstructured_grid%explicit_grid)) then
+    if (realization%discretization%grid%itype == &
+        EXPLICIT_UNSTRUCTURED_GRID) then
       option%flow%store_fluxes = PETSC_TRUE
       output_option%print_explicit_flowrate = mass_flowrate
     endif
@@ -1116,7 +1123,7 @@ subroutine Output(realization_base,snapshot_plot_flag, &
     endif
 
     ! Print secondary continuum variables vs sec. continuum dist.
-    if (option%use_mc) then
+    if (option%use_sc) then
       if (realization_base%output_option%print_tecplot) then
         call PetscTime(tstart,ierr);CHKERRQ(ierr)
         call PetscLogEventBegin(logging%event_output_secondary_tecplot, &
@@ -1498,9 +1505,9 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  PetscInt :: iconn, i, direction, iphase, sum_connection
+  PetscInt :: iconn, direction, iphase, sum_connection
   PetscInt :: local_id_up, local_id_dn, local_id
-  PetscInt :: ghosted_id_up, ghosted_id_dn, ghosted_id
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscReal :: flux
   Vec :: global_vec, global_vec2
 
@@ -1508,7 +1515,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   PetscInt :: max_loc, min_loc
   character(len=MAXSTRINGLENGTH) :: string
 
-  PetscReal, pointer :: vec_ptr(:), vec2_ptr(:), den_loc_p(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscReal, allocatable :: sum_area(:)
   PetscErrorCode :: ierr
 
@@ -1660,7 +1667,6 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
 
-  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: iphase
@@ -2217,7 +2223,6 @@ subroutine OutputPrintRegionsH5(realization_base)
   integer(HID_T) :: grp_id
 
   PetscReal, pointer :: one_ptr(:)
-  PetscReal, pointer :: all_ptr(:)
   PetscInt :: i
   PetscErrorCode :: ierr
 

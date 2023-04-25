@@ -186,7 +186,7 @@ subroutine ObservationRead(observation,input,option)
   type(option_type), pointer :: option
 
   type(observation_aggregate_type), pointer :: aggregate, new_aggregate
-  character(len=MAXWORDLENGTH) :: keyword, word, word2, var_name, units
+  character(len=MAXWORDLENGTH) :: keyword, word, var_name, units
   PetscInt :: id, category, subvar, subsubvar
 
   input%ierr = 0
@@ -223,7 +223,7 @@ subroutine ObservationRead(observation,input,option)
       case('VELOCITY')
         observation%print_velocities = PETSC_TRUE
       case('SECONDARY_TEMPERATURE')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(1) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_TEMPERATURE can only be used' // &
@@ -231,7 +231,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_CONCENTRATION')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(2) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_CONCENTRATION can only be used' // &
@@ -239,7 +239,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_VOLFRAC')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(3) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_VOLFRAC can ' // &
@@ -247,7 +247,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_RATE')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(4) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_RATE can ' // &
@@ -255,7 +255,7 @@ subroutine ObservationRead(observation,input,option)
           call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_SI')
-        if (option%use_mc) then
+        if (option%use_sc) then
           observation%print_secondary_data(5) = PETSC_TRUE
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_SI can ' // &
@@ -305,7 +305,7 @@ subroutine ObservationRead(observation,input,option)
               if (trim(word) == 'TOTAL') then
                 call InputReadWord(input,option,word, &
                                    PETSC_TRUE)
-                new_aggregate%var_name = 'Total ' // word
+                new_aggregate%var_name = 'Total ' // trim(word)
               else
                 call OutputVariableToID(word,var_name,units,category,id, &
                                         subvar,subsubvar,option)
@@ -543,8 +543,6 @@ subroutine ObservationDestroy(observation)
   implicit none
 
   type(observation_type), pointer :: observation
-
-  PetscInt :: i
 
   if (.not.associated(observation)) return
 

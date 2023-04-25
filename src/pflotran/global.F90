@@ -129,7 +129,7 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   use Option_module
   use Patch_module
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               LIQUID_DENSITY, GAS_PRESSURE, &
+                               LIQUID_DENSITY, &
                                GAS_DENSITY, GAS_SATURATION, &
                                TEMPERATURE, LIQUID_DENSITY_MOL, &
                                GAS_DENSITY_MOL
@@ -520,7 +520,6 @@ subroutine GlobalWeightAuxVars(realization,weight)
 
   use Realization_Subsurface_class
   use Option_module
-  use Material_module, only : MaterialWeightAuxVars
 
   implicit none
 
@@ -652,7 +651,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   PetscInt :: local_id, local_id_max
   Vec :: vec_x,vec_y,vec_z,global_vec
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:), vec_calc_ptr(:)
-  Vec :: vec_calc,velx,vely,velz
+  Vec :: vec_calc
   PetscBool :: flag
   PetscErrorCode :: ierr
   type(discretization_type), pointer :: discretization

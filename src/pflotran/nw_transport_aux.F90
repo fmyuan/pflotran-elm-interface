@@ -26,6 +26,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
+    PetscInt, pointer :: constraint_type(:)
   end type nw_transport_auxvar_type
 
   type, public :: nw_transport_type
@@ -124,6 +125,7 @@ module NW_Transport_Aux_module
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
     type(nwt_params_type), pointer :: params !TODO(jenn): move to nw_transport_type
     type(nwt_print_type), pointer :: print_what
+    PetscReal :: UNSPECIFIED_MMD
     PetscBool :: reaction_nw_on
     PetscBool :: truncate_output
     PetscBool :: screening_run
@@ -133,6 +135,11 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarSingleDestroy
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
+
+  interface NWTGetSpeciesIDFromName
+    module procedure NWTGetSpeciesIDFromName1
+    module procedure NWTGetSpeciesIDFromName2
+  end interface
 
   public :: NWTAuxCreate, &
             NWTSpeciesCreate, &
@@ -149,7 +156,8 @@ module NW_Transport_Aux_module
             NWTAuxDestroy, &
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
-            NWTReactionDestroy
+            NWTReactionDestroy, &
+            NWTGetSpeciesIDFromName
 
 
 contains
@@ -218,6 +226,8 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   auxvar%mnrl_eq_conc = 0.d0
   allocate(auxvar%mnrl_vol_frac(nspecies))
   auxvar%mnrl_vol_frac = 0.d0
+  allocate(auxvar%constraint_type(nspecies))
+  auxvar%constraint_type = 0
 
   if (nauxiliary > 0) then
     allocate(auxvar%auxiliary_data(nauxiliary))
@@ -266,6 +276,7 @@ function NWTReactionCreate()
   reaction_nw%reaction_nw_on = PETSC_TRUE
   reaction_nw%truncate_output = PETSC_FALSE
   reaction_nw%screening_run = PETSC_FALSE
+  reaction_nw%UNSPECIFIED_MMD = 100.d0  ! mnrl_molar_density placeholder
 
   nullify(reaction_nw%params)
   allocate(reaction_nw%params)
@@ -408,7 +419,6 @@ subroutine NWTRead(reaction_nw,input,option)
             case('NAME')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'species name',error_string)
-              call StringToUpper(word)
               temp_species_names(k) = trim(word)
               new_species%name = trim(word)
             case('SOLUBILITY')
@@ -435,12 +445,6 @@ subroutine NWTRead(reaction_nw,input,option)
         endif
         if (Uninitialized(new_species%solubility_limit)) then
           option%io_buffer = 'SOLUBILITY not provided in ' // &
-                             trim(error_string) // ' block for SPECIES ' // &
-                             trim(new_species%name) // '.'
-          call PrintErrMsg(option)
-        endif
-        if (Uninitialized(new_species%mnrl_molar_density)) then
-          option%io_buffer = 'PRECIPITATE_MOLAR_DENSITY not provided in ' // &
                              trim(error_string) // ' block for SPECIES ' // &
                              trim(new_species%name) // '.'
           call PrintErrMsg(option)
@@ -477,7 +481,6 @@ subroutine NWTRead(reaction_nw,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'radioactive species name', &
                              error_string)
-          call StringToUpper(word)
           new_rad_rxn%name = trim(word)
           parent_name_hold = trim(word)
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -485,7 +488,6 @@ subroutine NWTRead(reaction_nw,input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'radioactive species daughter &
                                &name',error_string)
-            call StringToUpper(word)
             new_rad_rxn%daughter_name = trim(word)
             j = 0
             ! record which species was the parent
@@ -895,7 +897,7 @@ function NWTSpeciesCreate()
   species%id = 0
   species%name = ''
   species%molar_weight = UNINITIALIZED_DOUBLE
-  species%mnrl_molar_density = UNINITIALIZED_DOUBLE
+  species%mnrl_molar_density = 100.d0
   species%solubility_limit = UNINITIALIZED_DOUBLE
   species%ele_kd = UNINITIALIZED_DOUBLE
   species%radioactive = PETSC_FALSE
@@ -1079,6 +1081,86 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
   enddo
 
 end subroutine NWTVerifySpecies
+
+! ************************************************************************** !
+
+function NWTGetSpeciesIDFromName1(name,reaction,option)
+  !
+  ! Returns the ID of the named species
+  !
+  ! Author: Alex Salazar III
+  ! Based on code from Glenn Hammond
+  ! Date: 09/13/2022
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: NWTGetSpeciesIDFromName1
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_nw_type) :: reaction
+  type(option_type) :: option
+
+  NWTGetSpeciesIDFromName1 = NWTGetSpeciesIDFromName2(name, reaction, &
+                                                      PETSC_TRUE, option)
+
+end function NWTGetSpeciesIDFromName1
+
+! ************************************************************************** !
+
+function NWTGetSpeciesIDFromName2(name,reaction,return_error,option)
+  !
+  ! Returns the ID of the named species
+  !
+  ! Author: Alex Salazar III
+  ! Based on code from Glenn Hammond
+  ! Date: 09/13/2022
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: NWTGetSpeciesIDFromName2
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_nw_type) :: reaction
+  type(option_type) :: option
+
+  type(species_type), pointer :: species
+  PetscInt :: i
+  PetscBool :: return_error
+
+  NWTGetSpeciesIDFromName2 = UNINITIALIZED_INTEGER
+
+  if (associated(reaction%species_names)) then
+    do i = 1, size(reaction%species_names)
+      if (StringCompare(name,reaction%species_names(i),MAXWORDLENGTH)) then
+        NWTGetSpeciesIDFromName2 = i
+        exit
+      endif
+    enddo
+  else
+    species => reaction%species_list
+    i = 0
+    do
+      if (.not.associated(species)) exit
+      i = i + 1
+      if (StringCompare(name,species%name,MAXWORDLENGTH)) then
+        NWTGetSpeciesIDFromName2 = i
+        exit
+      endif
+      species => species%next
+    enddo
+  endif
+
+  if (return_error .and. NWTGetSpeciesIDFromName2 <= 0) then
+    option%io_buffer = 'Species "' // trim(name) // &
+      '" not found within species list in NWTGetSpeciesIDFromName().'
+    call PrintErrMsg(option)
+  endif
+
+end function NWTGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 

@@ -62,17 +62,12 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   PetscInt, allocatable :: int_array3(:)
   PetscInt, allocatable :: int_array4(:)
   PetscErrorCode :: ierr
-  character(len=MAXSTRINGLENGTH) :: string, string1
   PetscInt :: global_offset_old
-  PetscInt :: global_offset
   Mat :: Rank_Mat
   PetscReal :: rank
-  PetscViewer :: viewer
-  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: istart,iend
   PetscBool :: vertex_found
   PetscInt :: int_rank
-  PetscInt :: vertex_count2
   IS :: is_rank
   IS :: is_rank_new
   IS :: is_natural
@@ -259,9 +254,9 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   ! For each row numbered by vertex (-1, zero-base),
   ! the ranks of the processes that possess the vertex are stored
   call MatCreateAIJ(option%mycomm,PETSC_DECIDE,ONE_INTEGER, &
-                    geomech_grid%nmax_node,option%comm%mycommsize, &
-                    option%comm%mycommsize,PETSC_NULL_INTEGER, &
-                    option%comm%mycommsize,PETSC_NULL_INTEGER,Rank_Mat, &
+                    geomech_grid%nmax_node,option%comm%size, &
+                    option%comm%size,PETSC_NULL_INTEGER, &
+                    option%comm%size,PETSC_NULL_INTEGER,Rank_Mat, &
                     ierr);CHKERRQ(ierr)
 
   call MatZeroEntries(Rank_Mat,ierr);CHKERRQ(ierr)
@@ -283,8 +278,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 #endif
 
   ! Now find the maximum of all the ranks for each vertex
-  allocate(val(option%comm%mycommsize))
-  allocate(cols(option%comm%mycommsize))
+  allocate(val(option%comm%size))
+  allocate(cols(option%comm%size))
   call MatGetOwnershipRange(Rank_Mat,istart,iend,ierr);CHKERRQ(ierr)
   allocate(int_array(iend-istart))
   count = 0
@@ -316,12 +311,12 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 #endif
 
   ! Now count the number of vertices that are local to each rank
-  allocate(vertex_count_array(option%comm%mycommsize))
-  allocate(vertex_count_array2(option%comm%mycommsize))
+  allocate(vertex_count_array(option%comm%size))
+  allocate(vertex_count_array2(option%comm%size))
   vertex_count_array = 0
   vertex_count_array2 = 0
 
-  do int_rank = 0, option%comm%mycommsize
+  do int_rank = 0, option%comm%size
     do local_id = 1, count
       if (int_array(local_id) == int_rank) then
         vertex_count_array(int_rank+1) = vertex_count_array(int_rank+1) + 1
@@ -329,10 +324,10 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     enddo
   enddo
   call MPI_Allreduce(vertex_count_array,vertex_count_array2, &
-                     option%comm%mycommsize,MPIU_INTEGER,MPI_SUM, &
+                     option%comm%size,MPIU_INTEGER,MPI_SUM, &
                      option%mycomm,ierr);CHKERRQ(ierr)
 
-  do int_rank = 0, option%comm%mycommsize
+  do int_rank = 0, option%comm%size
     if (option%myrank == int_rank) geomech_grid%nlmax_node = &
       vertex_count_array2(int_rank+1)
     if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
@@ -758,10 +753,6 @@ subroutine GeomechGridLocalizeRegions(grid,region_list,option)
   type(option_type) :: option
 
   type(gm_region_type), pointer :: region
-  character(len=MAXSTRINGLENGTH) :: string
-
-
-
 
   region => region_list%first
   do
@@ -816,17 +807,13 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   IS :: is_from, is_to
   VecScatter :: vec_scat
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
-  PetscInt :: ii,jj,kk,count
+  PetscInt :: ii,count
   PetscInt :: istart,iend
   PetscInt :: ghosted_id,local_id
   PetscInt :: natural_id
   PetscInt, pointer :: tmp_int_array(:)
   PetscScalar, pointer :: v_loc_p(:)
   PetscScalar, pointer :: tmp_scl_array(:)
-  character(len=MAXSTRINGLENGTH) :: string,string1
-
-
 
   if (associated(geomech_region%vertex_ids)) then
     call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
@@ -1108,9 +1095,7 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   type(option_type) :: option
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: word
   character(len=1) :: backslash
-  character(len=MAXSTRINGLENGTH) :: string, string1
 
   PetscInt, pointer :: temp_int_array(:)
   PetscInt, pointer :: vertex_ids_geomech(:)
@@ -1118,8 +1103,6 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   PetscInt :: max_size, max_size_old
   PetscInt :: count
   PetscInt :: temp_int
-  PetscInt :: input_data_type
-  PetscInt :: ii
   PetscInt :: istart
   PetscInt :: iend
   PetscInt :: remainder
@@ -1175,8 +1158,8 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
     enddo
 
     ! Depending on processor rank, save only a portion of data
-    grid%mapping_num_cells = count/option%comm%mycommsize
-      remainder = count - grid%mapping_num_cells*option%comm%mycommsize
+    grid%mapping_num_cells = count/option%comm%size
+      remainder = count - grid%mapping_num_cells*option%comm%size
     if (option%myrank < remainder) grid%mapping_num_cells = &
                                      grid%mapping_num_cells + 1
     istart = 0

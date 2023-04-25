@@ -359,10 +359,9 @@ subroutine GeomechForceUpdateAuxVars(geomech_realization)
   type(geomech_patch_type), pointer :: patch
   type(geomech_grid_type), pointer :: grid
   type(geomech_field_type), pointer :: geomech_field
-  type(gm_region_type), pointer :: region
   type(geomech_global_auxvar_type), pointer :: geomech_global_aux_vars(:)
 
-  PetscInt :: ghosted_id, local_id
+  PetscInt :: ghosted_id
   PetscReal, pointer :: xx_loc_p(:), xx_init_loc_p(:)
   PetscErrorCode :: ierr
 
@@ -494,7 +493,6 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   Vec :: xx
   Vec :: r
   class(realization_geomech_type) :: geomech_realization
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   type(geomech_discretization_type), pointer :: geomech_discretization
@@ -523,8 +521,6 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   PetscInt :: ghosted_id
   PetscInt :: eletype, idof
   PetscInt :: petsc_id, local_id
-  PetscReal :: error_H1_global, error_L2_global
-  PetscReal :: error_L2, error_H1
   PetscReal, pointer :: imech_loc_p(:)
   PetscInt :: size_elenodes
 
@@ -1245,7 +1241,6 @@ subroutine GeomechGetLambdaMu(lambda,mu,E,nu)
 
   PetscReal :: lambda, mu
   PetscReal :: E, nu
-  PetscReal :: coord(THREE_INTEGER)
 
   lambda = E*nu/(1.d0+nu)/(1.d0-2.d0*nu)
   mu = E/2.d0/(1.d0+nu)
@@ -1269,7 +1264,7 @@ subroutine GeomechGetBodyForce(load_type,lambda,mu,coord,bf,option)
   type(option_type) :: option
 
   PetscInt :: load_type
-  PetscReal :: lambda, mu, den_rock
+  PetscReal :: lambda, mu
   PetscReal :: coord(THREE_INTEGER)
   PetscReal :: bf(THREE_INTEGER)
   PetscReal :: x, y, z
@@ -1319,7 +1314,6 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
   Mat :: J
   MatType :: mat_type
   PetscViewer :: viewer
-  type(geomech_grid_type),  pointer :: grid
   type(option_type), pointer :: option
   PetscReal :: norm
 
@@ -1377,7 +1371,6 @@ subroutine GeomechForceJacobianPatch(snes,xx,A,B,geomech_realization,ierr)
   Vec, intent(in) :: xx
   Mat, intent(inout) :: A
   Mat, intent(inout) :: B
-  PetscViewer :: viewer
 
   PetscErrorCode :: ierr
 
@@ -1415,7 +1408,6 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
   implicit none
 
   Mat :: A
-  PetscViewer :: viewer
 
   PetscErrorCode :: ierr
 
@@ -1446,7 +1438,7 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
   PetscInt :: local_id, petsc_id
   PetscInt :: ghosted_id1, ghosted_id2
   PetscInt :: petsc_id1, petsc_id2
-  PetscInt :: id1, id2, i, j, vertex_count, count
+  PetscInt :: id1, id2, vertex_count, count
   PetscReal, pointer :: imech_loc_p(:)
   PetscInt :: size_elenodes
 
@@ -1815,7 +1807,6 @@ subroutine GeomechCreateGeomechSubsurfVec(realization,geomech_realization)
   class(realization_geomech_type) :: geomech_realization
 
   type(grid_type), pointer :: grid
-  type(geomech_grid_type), pointer :: geomech_grid
   type(option_type), pointer :: option
   type(geomech_field_type), pointer :: geomech_field
 
@@ -1860,7 +1851,6 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   class(realization_geomech_type) :: geomech_realization
 
   type(grid_type), pointer :: grid
-  type(geomech_grid_type), pointer :: geomech_grid
   type(option_type), pointer :: option
   type(geomech_field_type), pointer :: geomech_field
 
@@ -1939,8 +1929,6 @@ subroutine GeomechForceStressStrain(geomech_realization)
   type(geomech_grid_type), pointer :: grid
   type(geomech_global_auxvar_type), pointer :: geomech_global_aux_vars(:)
   type(option_type), pointer :: option
-  type(gm_region_type), pointer :: region
-  type(geomech_coupler_type), pointer :: boundary_condition
   type(geomech_parameter_type), pointer :: GeomechParam
 
   PetscInt, allocatable :: elenodes(:)
@@ -1950,11 +1938,10 @@ subroutine GeomechForceStressStrain(geomech_realization)
   PetscInt, allocatable :: ids(:)
   PetscReal, allocatable :: youngs_vec(:), poissons_vec(:)
   PetscReal, allocatable :: strain(:,:), stress(:,:)
-  PetscInt, allocatable :: count(:)
   PetscInt :: ielem, ivertex
   PetscInt :: ghosted_id
   PetscInt :: eletype, idof
-  PetscInt :: petsc_id, local_id
+  PetscInt :: local_id
   PetscInt :: size_elenodes
   PetscReal, pointer :: imech_loc_p(:)
   PetscReal, pointer :: strain_loc_p(:)
@@ -2119,8 +2106,7 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   type(option_type) :: option
 
   PetscReal, allocatable :: local_coordinates(:,:)
-  PetscReal, allocatable :: B(:,:), Kmat(:,:)
-  PetscReal, allocatable :: res_vec(:)
+  PetscReal, allocatable :: B(:,:)
   PetscReal, allocatable :: local_disp(:,:)
   PetscReal, allocatable :: local_youngs(:)
   PetscReal, allocatable :: local_poissons(:)
@@ -2129,7 +2115,6 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   PetscReal :: strain_local(NINE_INTEGER,ONE_INTEGER)
   PetscReal :: stress_local(NINE_INTEGER,ONE_INTEGER)
 
-  PetscReal, pointer :: r(:,:), w(:)
   PetscInt :: ivertex
   PetscInt :: eletype
   PetscReal :: identity(THREE_INTEGER,THREE_INTEGER)
@@ -2239,9 +2224,6 @@ subroutine GeomechUpdateSolution(geomech_realization)
   class(realization_geomech_type) :: geomech_realization
   type(geomech_field_type), pointer :: field
 
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
-
   field => geomech_realization%geomech_field
 
   call GeomechUpdateSolutionPatch(geomech_realization)
@@ -2318,8 +2300,6 @@ subroutine GeomechStoreInitialPorosity(realization,geomech_realization)
   class(realization_geomech_type) :: geomech_realization
   class(realization_subsurface_type) :: realization
   type(discretization_type) :: discretization
-
-  PetscErrorCode :: ierr
 
   call DiscretizationDuplicateVector(discretization, &
                                      realization%field%work_loc, &

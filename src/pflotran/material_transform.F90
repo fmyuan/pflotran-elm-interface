@@ -91,9 +91,23 @@ module Material_Transform_module
     ! Placeholder for buffer erosion model auxvars
   end type buffer_erosion_auxvar_type
   !---------------------------------------------------------------------------
+  type, public :: bats_transform_type
+    character(len=MAXWORDLENGTH) :: name
+    PetscBool :: print_me
+    PetscReal :: b(3) ! coefficients for the bats transform
+  contains
+    procedure, public :: ModifyPerm => BTModifyPerm
+  end type bats_transform_type
+  !---------------------------------------------------------------------------
+  type, public :: bats_transform_auxvar_type
+    PetscReal :: temp0 ! initial temperature
+    PetscReal, allocatable :: perm0(:) ! initial permeability 
+  end type bats_transform_auxvar_type
+  !---------------------------------------------------------------------------
   type, public :: material_transform_auxvar_type
     class(illitization_auxvar_type), pointer :: il_aux ! auxvars for illitization class
     class(buffer_erosion_auxvar_type), pointer :: be_aux ! auxvars for buffer erosion class
+    class(bats_transform_auxvar_type), pointer :: bt_aux ! auxvars for bats transform class
   end type material_transform_auxvar_type
   !---------------------------------------------------------------------------
   type, public :: material_transform_type
@@ -107,6 +121,7 @@ module Material_Transform_module
     ! Classes for material transformations
     class(illitization_type), pointer :: illitization
     class(buffer_erosion_type), pointer :: buffer_erosion
+    class(bats_transform_type), pointer :: bats_transform
 
     ! Linked list
     type(material_transform_type), pointer :: next
@@ -128,7 +143,8 @@ module Material_Transform_module
             MTransformGetAuxVarVecLoc, &
             MTransformSetAuxVarVecLoc, &
             IllitizationAuxVarInit, &
-            BufferErosionAuxVarInit
+            BufferErosionAuxVarInit, &
+            BatsTransformAuxVarInit
 
 contains
 
@@ -298,6 +314,29 @@ end function BufferErosionCreate
 
 ! ************************************************************************** !
 
+function BatsTransformCreate()
+  !
+  ! Creates an object for the bats transform
+  !
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
+  implicit none
+
+  class(bats_transform_type), pointer :: BatsTransformCreate
+  class(bats_transform_type), pointer :: BatsTransform
+
+  allocate(BatsTransform)
+  BatsTransform%name = ''
+  BatsTransform%print_me = PETSC_FALSE
+  BatsTransform%b(3) = UNINITIALIZED_DOUBLE
+
+  BatsTransformCreate => BatsTransform
+
+end function BatsTransformCreate
+
+! ************************************************************************** !
+
 function MaterialTransformCreate()
   !
   ! Creates a material transform object
@@ -317,6 +356,7 @@ function MaterialTransformCreate()
   nullify(material_transform%auxvars)
   nullify(material_transform%illitization)
   nullify(material_transform%buffer_erosion)
+  nullify(material_transform%bats_transform)
   nullify(material_transform%next)
 
   MaterialTransformCreate => material_transform
@@ -375,11 +415,45 @@ function BufferErosionAuxVarInit()
   class(buffer_erosion_auxvar_type), pointer :: auxvar
 
   allocate(auxvar)
-
+  
   BufferErosionAuxVarInit => auxvar
 
 end function BufferErosionAuxVarInit
 
+! ************************************************************************** !
+
+function BatsTransformAuxVarInit(option)
+  !
+  ! Initializes a bats transform auxiliary object
+  !
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
+  use Option_module
+
+  implicit none
+
+  class(bats_transform_auxvar_type), pointer :: BatsTransformAuxVarInit
+  class(bats_transform_auxvar_type), pointer :: auxvar
+  type(option_type) :: option
+
+  allocate(auxvar)
+
+  auxvar%temp0 = UNINITIALIZED_DOUBLE
+  
+  if (option%iflowmode /= NULL_MODE) then
+    if (option%flow%full_perm_tensor) then
+      allocate(auxvar%perm0(6))
+    else
+      allocate(auxvar%perm0(3))
+    endif
+    auxvar%perm0 = UNINITIALIZED_DOUBLE
+  endif
+
+  BatsTransformAuxVarInit => auxvar
+
+end function BatsTransformAuxVarInit
+  
 ! ************************************************************************** !
 
 subroutine MaterialTransformAuxVarInit(auxvar)
@@ -395,6 +469,7 @@ subroutine MaterialTransformAuxVarInit(auxvar)
 
   nullify(auxvar%il_aux)
   nullify(auxvar%be_aux)
+  nullify(auxvar%bt_aux)
 
 end subroutine MaterialTransformAuxVarInit
 
@@ -824,7 +899,7 @@ subroutine ILTRead(illitization_function, input, option)
 
   input%ierr = 0
   error_string = 'ILLITIZATION_FUNCTION,'
-  select type(illitization_function => illitization_function)
+  select type(illitization_function_ => illitization_function)
     class is(ILT_default_type)
       error_string = trim(error_string) // 'DEFAULT'
     class is(ILT_general_type)
@@ -840,12 +915,12 @@ subroutine ILTRead(illitization_function, input, option)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
-    select type(illitization_function => illitization_function)
+    select type(illitization_function_ => illitization_function)
       !------------------------------------------
       class is(ILT_default_type)
         select case(trim(keyword))
           case default
-            call ILTDefaultRead(illitization_function,input,keyword, &
+            call ILTDefaultRead(illitization_function_,input,keyword, &
                                 error_string,'DEFAULT',option)
         end select
       !------------------------------------------
@@ -853,16 +928,16 @@ subroutine ILTRead(illitization_function, input, option)
         select case(trim(keyword))
           case('K_EXP')
             ! Exponent of potassium cation concentration
-            call InputReadDouble(input,option,illitization_function%K_exp)
+            call InputReadDouble(input,option,illitization_function_%K_exp)
             call InputErrorMsg(input,option,'potassium concentration exponent',&
                                'ILLITIZATION, GENERAL')
           case('SMECTITE_EXP')
             ! Exponent of smectite fraction
-            call InputReadDouble(input,option,illitization_function%exp)
+            call InputReadDouble(input,option,illitization_function_%exp)
             call InputErrorMsg(input,option,'smectite exponent', &
                                'ILLITIZATION, GENERAL')
           case default
-            call ILTDefaultRead(illitization_function,input,keyword, &
+            call ILTDefaultRead(illitization_function_,input,keyword, &
                                 error_string,'GENERAL',option)
         end select
       !------------------------------------------
@@ -984,7 +1059,7 @@ subroutine BufferErosionRead(this, input, option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string, verify_string
   ! class(buffer_erosion_base_type), pointer :: buffer_erosion_model_ptr
 
@@ -1040,6 +1115,70 @@ end subroutine BufferErosionRead
 
 ! ************************************************************************** !
 
+subroutine BatsTransformRead(this, input, option)
+  !
+  ! Reads in contents of a BATS_FUNCTION block from MATERIAL_TRANSFORM
+  !
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(bats_transform_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  input%ierr = 0
+  error_string = 'BATS_FUNCTION'
+
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      !------------------------------------------
+      case('B_COEFFICIENTS')
+        call InputReadNDoubles(input,option,this%b,3)
+        call InputErrorMsg(input,option, &
+             'Bats Function B coefficients',error_string)
+      !------------------------------------------
+      case default
+        call InputKeywordUnrecognized(input,keyword,'BATS_FUNCTION',option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+  if (option%iflowmode == NULL_MODE) then
+    option%io_buffer = 'Parameters for modifying permeability in function "' &
+      //trim(this%name)//'" will have no effect without flow mode active.'
+    call PrintWrnMsg(option)
+  endif
+
+  if (Uninitialized(this%b(1)).or. &
+      Uninitialized(this%b(2)) .or. &
+      Uninitialized(this%b(3))) then
+    option%io_buffer = UninitializedMessage('B coefficients',trim(this%name))
+    call PrintErrMsg(option)
+  endif
+
+end subroutine BatsTransformRead
+
+! ************************************************************************** !
+
 subroutine MaterialTransformRead(this, input, option)
   !
   ! Reads in components of a MATERIAL_TRANSFORM block
@@ -1084,6 +1223,12 @@ subroutine MaterialTransformRead(this, input, option)
         this%buffer_erosion%name = this%name
         call BufferErosionRead(this%buffer_erosion,input,option)
       !------------------------------------------
+      case('BATS_FUNCTION')
+        this%bats_transform => BatsTransformCreate()
+        this%bats_transform%name = this%name
+        call BatsTransformRead(this%bats_transform,input,option)
+      !------------------------------------------
+  
       case default
         call InputKeywordUnrecognized(input,keyword, &
                'MATERIAL_TRANSFORM "'//trim(this%name)//'"',option)
@@ -1409,16 +1554,21 @@ subroutine ILTBaseTest(this, name, option)
   PetscReal :: smec_vec(ns)
   PetscReal :: temp_vec(nt)
   PetscReal :: time_vec(np)
-  PetscReal :: fi(ns,nt,np)
-  PetscReal :: dfi_dtemp_numerical(ns,nt,np)
+  PetscReal, allocatable :: fi(:,:,:)
+  PetscReal, allocatable :: dfi_dtemp_numerical(:,:,:)
+  PetscReal, allocatable :: sc(:,:,:)
   PetscReal :: perturbed_temp
   PetscReal :: fi_temp_pert
   PetscReal :: smec_min, smec_max
   PetscReal :: temp_min, temp_max
-  PetscReal :: sc(ns,nt,np), sc_temp_pert
+  PetscReal :: sc_temp_pert
   PetscReal :: dt,fs0_original
   PetscReal :: fs, fsp
   PetscInt :: i, j, k
+
+  allocate(fi(ns,nt,np))
+  allocate(sc(ns,nt,np))
+  allocate(dfi_dtemp_numerical(ns,nt,np))
 
   ! thermal conductivity as a function of temp. and liq. sat.
   smec_min = 1.0d-1 ! Minimum fraction smectite
@@ -1467,7 +1617,7 @@ subroutine ILTBaseTest(this, name, option)
   string = trim(name) // '_ilt_vs_time_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"initial smectite [-]", "temperature [C]", &
-               "time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
+              &"time [yr]", "illite [-]", "dillite/dT [1/yr]", "scale [-]"'
   do i = 1,ns
     do j = 1,nt
       do k = 2,np
@@ -1477,6 +1627,10 @@ subroutine ILTBaseTest(this, name, option)
     enddo
   enddo
   close(86)
+
+  deallocate(fi)
+  deallocate(sc)
+  deallocate(dfi_dtemp_numerical)
 
   ! reset to original values
   this%fs0 = fs0_original
@@ -1789,6 +1943,45 @@ subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
   if (allocated(fperm)) deallocate(fperm)
 
 end subroutine ILTShiftPerm
+
+! ************************************************************************** !
+
+subroutine BTModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
+  !                                                       
+  ! Modifies the permeability tensor according to the Bats Function
+  !   
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
+  use Option_module
+  use Material_Aux_module
+  use Global_Aux_module
+  
+  implicit none
+
+  class(bats_transform_type), intent(inout) :: this
+  class(material_auxvar_type), intent(inout) :: material_auxvar
+  class(global_auxvar_type), intent(inout) :: global_auxvar
+  class(bats_transform_auxvar_type), intent(inout) :: auxvar
+  class(option_type), intent(inout) :: option
+
+  PetscInt  :: ps, i
+  PetscReal :: scale
+
+  if (Uninitialized(auxvar%temp0)) then
+    !store intial temperature
+    auxvar%temp0 = global_auxvar%temp_store(1)
+  endif
+  
+  scale = (this%b(1) * (global_auxvar%temp - auxvar%temp0) + this%b(3) &
+       * exp(this%b(2) * (global_auxvar%temp - auxvar%temp0)))
+  
+  ps = size(material_auxvar%permeability)
+  do i = 1, ps
+    material_auxvar%permeability(i) = auxvar%perm0(i) * scale 
+  enddo   
+
+end subroutine BTModifyPerm
 
 ! ************************************************************************** !
 
@@ -2133,12 +2326,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   type(material_transform_type), pointer :: material_transform_list
 
   class(material_transform_type), pointer :: cur_material_transform
-  class(illitization_base_type), pointer :: illitization_function
-  class(ILT_kd_effects_type), pointer :: kdl
-  class(ILT_perm_effects_type), pointer :: perm
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
-  PetscInt :: i, j, k
 
   write(id,'(a)') ' '
   write(id,'(a)') '---------------------------------------------------------&
@@ -2157,57 +2346,72 @@ subroutine MaterialTransformInputRecord(material_transform_list)
     if (associated(cur_material_transform%illitization)) then
       write(id,'(a29)') '--------------: '
       write(id,'(a29)',advance='no') 'illitization model: '
-      select type (illitization_function => cur_material_transform% &
+      select type (illitization_function_ => cur_material_transform% &
         illitization%illitization_function)
         !---------------------------------
         class is (ILT_default_type)
           write(id,'(a)') 'Huang et al., 1993'
           write(id,'(a29)',advance='no') 'initial smectite: '
-          write(word,'(es12.5)') illitization_function%fs0
+          write(word,'(es12.5)') illitization_function_%fs0
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'frequency: '
-          write(word,'(es12.5)') illitization_function%freq
+          write(word,'(es12.5)') illitization_function_%freq
           write(id,'(a)') adjustl(trim(word))//' L/mol-s'
           write(id,'(a29)',advance='no') 'activation energy: '
-          write(word,'(es12.5)') illitization_function%ea
+          write(word,'(es12.5)') illitization_function_%ea
           write(id,'(a)') adjustl(trim(word))//' J/mol'
           write(id,'(a29)',advance='no') 'K+ concentration: '
-          write(word,'(es12.5)') illitization_function%K_conc
+          write(word,'(es12.5)') illitization_function_%K_conc
           write(id,'(a)') adjustl(trim(word))//' M'
           write(id,'(a29)',advance='no') 'temperature threshold: '
-          write(word,'(es12.5)') illitization_function%threshold
+          write(word,'(es12.5)') illitization_function_%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call ILTPrintPermEffects(illitization_function)
-          call ILTPrintKdEffects(illitization_function)
+          call ILTPrintPermEffects(illitization_function_)
+          call ILTPrintKdEffects(illitization_function_)
         !---------------------------------
         class is (ILT_general_type)
           write(id,'(a)') 'Cuadros and Linares, 1996'
           write(id,'(a29)',advance='no') 'initial smectite: '
-          write(word,'(es12.5)') illitization_function%fs0
+          write(word,'(es12.5)') illitization_function_%fs0
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'smectite exponent: '
-          write(word,'(es12.5)') illitization_function%exp
+          write(word,'(es12.5)') illitization_function_%exp
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'frequency: '
-          write(word,'(es12.5)') illitization_function%freq
+          write(word,'(es12.5)') illitization_function_%freq
           write(id,'(a)') adjustl(trim(word))//' '
           write(id,'(a29)',advance='no') 'activation energy: '
-          write(word,'(es12.5)') illitization_function%ea
+          write(word,'(es12.5)') illitization_function_%ea
           write(id,'(a)') adjustl(trim(word))//' J/mol'
           write(id,'(a29)',advance='no') 'K+ concentration: '
-          write(word,'(es12.5)') illitization_function%K_conc
+          write(word,'(es12.5)') illitization_function_%K_conc
           write(id,'(a)') adjustl(trim(word))//' M'
           write(id,'(a29)',advance='no') 'K+ conc. exponent: '
-          write(word,'(es12.5)') illitization_function%K_exp
+          write(word,'(es12.5)') illitization_function_%K_exp
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'temperature threshold: '
-          write(word,'(es12.5)') illitization_function%threshold
+          write(word,'(es12.5)') illitization_function_%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call ILTPrintPermEffects(illitization_function)
-          call ILTPrintKdEffects(illitization_function)
+          call ILTPrintPermEffects(illitization_function_)
+          call ILTPrintKdEffects(illitization_function_)
       end select
     endif
 
+    !Bats Transform
+    if (associated(cur_material_transform%bats_transform)) then
+      write(id,'(a29)') '--------------: '
+      write(id,'(a29)',advance='no') 'Bats Transform'
+      write(id,'(a29)',advance='no') 'B1 Coefficient: '
+      write(word,'(es12.5)') cur_material_transform%bats_transform%b(1)
+      write(id,'(a)') adjustl(trim(word))
+      write(id,'(a29)',advance='no') 'B2 Coefficient: '
+      write(word,'(es12.5)') cur_material_transform%bats_transform%b(2)
+      write(id,'(a)') adjustl(trim(word))
+      write(id,'(a29)',advance='no') 'B3 Coefficient: '
+      write(word,'(es12.5)') cur_material_transform%bats_transform%b(3)
+      write(id,'(a)') adjustl(trim(word))
+    endif
+   
     write(id,'(a29)') '---------------------------: '
     cur_material_transform => cur_material_transform%next
   enddo
@@ -2223,11 +2427,29 @@ subroutine ILTDestroy(illitization_function)
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
 
+  use Utility_module
+
   implicit none
 
   class(illitization_base_type), pointer :: illitization_function
 
   if (.not. associated(illitization_function)) return
+  if (associated(illitization_function%shift_perm)) then
+    call DeallocateArray(illitization_function%shift_perm%f_perm)
+    if (associated(illitization_function%shift_perm%f_perm_mode)) then
+      deallocate(illitization_function%shift_perm%f_perm_mode)
+      nullify(illitization_function%shift_perm%f_perm_mode)
+    endif
+    deallocate(illitization_function%shift_perm)
+    nullify(illitization_function%shift_perm)
+  endif
+  if (associated(illitization_function%shift_kd_list)) then
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd)
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd_mode)
+    call DeallocateArray(illitization_function%shift_kd_list%f_kd_element)
+    deallocate(illitization_function%shift_kd_list)
+    nullify(illitization_function%shift_kd_list)
+  endif
   deallocate(illitization_function)
   nullify(illitization_function)
 
@@ -2282,6 +2504,32 @@ end subroutine BufferErosionAuxVarStrip
 
 ! ************************************************************************** !
 
+subroutine BatsTransformAuxVarStrip(auxvar)
+  !
+  ! Deallocates an bats transform auxiliary object
+  !
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+  
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  class(bats_transform_auxvar_type), pointer :: auxvar
+
+  if (.not. associated(auxvar)) return
+
+  if (allocated(auxvar%perm0)) then
+    deallocate(auxvar%perm0)
+  endif
+
+  deallocate(auxvar)
+  nullify(auxvar)
+
+end subroutine BatsTransformAuxVarStrip
+
+! ************************************************************************** !
+
 subroutine MaterialTransformAuxVarStrip(auxvar)
   !
   ! Deallocates a material transform auxiliary object
@@ -2299,7 +2547,10 @@ subroutine MaterialTransformAuxVarStrip(auxvar)
   if (associated(auxvar%be_aux)) then
     call BufferErosionAuxVarStrip(auxvar%be_aux)
   endif
-
+  if (associated(auxvar%bt_aux)) then
+    call BatsTransformAuxVarStrip(auxvar%bt_aux)
+  endif
+ 
 end subroutine MaterialTransformAuxVarStrip
 
 ! ************************************************************************** !
@@ -2348,6 +2599,26 @@ end subroutine BufferErosionDestroy
 
 ! ************************************************************************** !
 
+recursive subroutine BatsTransformDestroy(bats_transform)
+  !
+  ! Deallocates a bats transform object
+  !
+  ! Author: Rosie Leone
+  ! Date: 02/8/2023
+
+  implicit none
+
+  class(bats_transform_type), pointer :: bats_transform
+
+  if (.not. associated(bats_transform)) return
+
+  deallocate(bats_transform)
+  nullify(bats_transform)
+
+end subroutine BatsTransformDestroy
+
+! ************************************************************************** !
+
 recursive subroutine MaterialTransformDestroy(material_transform)
   !
   ! Deallocates a material transform object
@@ -2381,6 +2652,11 @@ recursive subroutine MaterialTransformDestroy(material_transform)
     call BufferErosionDestroy(material_transform%buffer_erosion)
   endif
 
+  if (associated(material_transform%bats_transform)) then
+    call BatsTransformDestroy(material_transform%bats_transform)
+  endif
+
+  deallocate(material_transform)
   nullify(material_transform)
 
 end subroutine MaterialTransformDestroy

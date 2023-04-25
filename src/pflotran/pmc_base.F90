@@ -26,11 +26,10 @@ module PMC_Base_class
   ! process model coupler type
   type, public :: pmc_base_type
     character(len=MAXWORDLENGTH) :: name
-    PetscInt :: stage
+    PetscLogStage :: stage
     PetscBool :: is_master
     PetscLogDouble :: cumulative_time
     type(option_type), pointer :: option
-    type(checkpoint_option_type), pointer :: checkpoint_option
     class(timestepper_base_type), pointer :: timestepper
     class(pm_base_type), pointer :: pm_list
     type(waypoint_list_type), pointer :: waypoint_list
@@ -66,7 +65,6 @@ module PMC_Base_class
     procedure, public :: CheckNullPM => PMCBaseCheckNullPM
     procedure, public :: SetName
     procedure, public :: SetOption
-    procedure, public :: SetCheckpointOption
     procedure, public :: SetWaypointList
     !procedure, public :: SetChildPeerPtr => PMCBaseSetChildPeerPtr
   end type pmc_base_type
@@ -102,8 +100,7 @@ module PMC_Base_class
             PMCBaseSetChildPeerPtr, &
             PMCBaseFinalizeRun, &
             PMCBaseStrip, &
-            SetOutputFlags, &
-            PMCCastToBase
+            SetOutputFlags
 
 contains
 
@@ -157,7 +154,6 @@ subroutine PMCBaseInit(this)
   this%is_master = PETSC_FALSE
   this%cumulative_time = 0.d0
   nullify(this%option)
-  nullify(this%checkpoint_option)
   nullify(this%timestepper)
   nullify(this%pm_list)
   nullify(this%waypoint_list)
@@ -191,7 +187,7 @@ subroutine PMCBaseReadNumericalMethods(this,input,pm_label)
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found, found2
+  PetscBool :: found
 
   option => this%option
 
@@ -290,7 +286,6 @@ recursive subroutine PMCBaseInputRecord(this)
   class(pmc_base_type) :: this
 
   class(pm_base_type), pointer :: cur_pm
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -566,7 +561,6 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
 
   character(len=MAXSTRINGLENGTH) :: filename_append
   PetscInt :: local_stop_flag
-  PetscBool :: failure
   PetscBool :: sync_flag
   PetscBool :: checkpoint_at_this_time_flag
   PetscBool :: snapshot_plot_at_this_time_flag
@@ -669,34 +663,35 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
 
     ! checkpoint at time step flags
-    if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0 .and. &
-          mod(this%timestepper%steps, &
-              this%checkpoint_option%periodic_ts_incr) == 0) then
-        checkpoint_at_this_timestep_flag = PETSC_TRUE
+    if (this%is_master .and. associated(this%option%checkpoint)) then
+      if (this%option%checkpoint%periodic_ts_incr > 0) then
+        if (mod(this%timestepper%steps, &
+                this%option%checkpoint%periodic_ts_incr) == 0) then
+          checkpoint_at_this_timestep_flag = PETSC_TRUE
+        endif
       endif
     endif
 
     peer_already_run_to_time = PETSC_FALSE
     if (associated(this%peer)) then
       if ( &
+          this%pm_list%output_option%force_synchronized_output .and. &
           ! specified synchronization of process model couplers
-          sync_flag .or. &
+          (sync_flag .or. &
           ! printing output
           ! this%Output current performs actions beyond solely
           ! outputing data (e.g. time averaging of data). but
           ! we should only force the peers on actual output
-          (this%pm_list%output_option%force_synchronized_output .and. &
             (snapshot_plot_at_this_time_flag .or. &
              snapshot_plot_at_this_timestep_flag .or. &
              observation_plot_at_this_time_flag .or. &
              observation_plot_at_this_timestep_flag .or. &
              massbal_plot_at_this_time_flag .or. &
-             massbal_plot_at_this_timestep_flag)) .or. &
+             massbal_plot_at_this_timestep_flag) .or. &
           ! checkpointing
           (this%is_master .and. &
             (checkpoint_at_this_time_flag .or. &
-             checkpoint_at_this_timestep_flag))) then
+             checkpoint_at_this_timestep_flag)))) then
         call this%SetAuxData()
         ! Run neighboring process model couplers
         call this%peer%RunToTime(this%timestepper%target_time, &
@@ -722,15 +717,12 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       ! one at the time and another at the time step, but this is fine.
       if (checkpoint_at_this_time_flag) then
         filename_append = &
-          CheckpointAppendNameAtTime(this%checkpoint_option, &
-                                      this%option%time,this%option)
+          CheckpointAppendNameAtTime(this%option%time,this%option)
         call this%Checkpoint(filename_append)
       endif
       if (checkpoint_at_this_timestep_flag) then
         filename_append = &
-          CheckpointAppendNameAtTimestep(this%checkpoint_option, &
-                                          this%timestepper%steps, &
-                                          this%option)
+          CheckpointAppendNameAtTimestep(this%timestepper%steps,this%option)
         call this%Checkpoint(filename_append)
       endif
 
@@ -846,8 +838,6 @@ recursive subroutine PMCBaseFinalizeRun(this)
 
   class(pmc_base_type) :: this
 
-  character(len=MAXSTRINGLENGTH) :: string
-
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCBase%FinalizeRun()')
 #endif
@@ -856,7 +846,7 @@ recursive subroutine PMCBaseFinalizeRun(this)
   this%option%io_buffer = this%name
   call PrintMsg(this%option)
   this%option%io_buffer = ' Total Time: ' // &
-    trim(StringWrite('(es12.4)',this%cumulative_time))
+    trim(StringWrite('(es12.4)',this%cumulative_time)) // ' seconds'
   call PrintMsg(this%option)
 
   if (associated(this%timestepper)) then
@@ -890,6 +880,7 @@ subroutine SetOutputFlags(this)
 
   use Option_module
   use Output_Aux_module
+  use Print_module
 
   implicit none
 
@@ -899,22 +890,22 @@ subroutine SetOutputFlags(this)
 
   output_option => this%pm_list%output_option
 
-  if (OptionPrintToScreen(this%option) .and. output_option%screen_imod > 0) then
+  if (this%option%driver%print_flags%print_to_screen .and. &
+      output_option%screen_imod > 0) then
     if (mod(this%timestepper%steps,output_option%screen_imod) == 0) then
-      this%option%print_screen_flag = PETSC_TRUE
+      call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_TRUE)
     else
-      this%option%print_screen_flag = PETSC_FALSE
+      call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_FALSE)
     endif
   else
-    this%option%print_screen_flag = PETSC_FALSE
+    call PrintSetPrintToScreenFlag(this%option%print_flags,PETSC_FALSE)
   endif
 
-  if (OptionPrintToFile(this%option) .and. &
+  if (this%option%driver%print_flags%print_to_file .and. &
       mod(this%timestepper%steps,output_option%output_file_imod) == 0) then
-    this%option%print_file_flag = PETSC_TRUE
+    call PrintSetPrintToFileFlag(this%option%print_flags,PETSC_TRUE)
   else
-    this%option%print_file_flag = PETSC_FALSE
-
+    call PrintSetPrintToFileFlag(this%option%print_flags,PETSC_FALSE)
   endif
 
 end subroutine SetOutputFlags
@@ -960,6 +951,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   !
   use hdf5
   use Option_module
+  use Option_Checkpoint_module
 
   implicit none
 
@@ -969,12 +961,12 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   integer(HID_T) :: h5_chk_grp_id
   PetscViewer :: viewer
 
-  if (this%checkpoint_option%format == CHECKPOINT_BINARY .or. &
-      this%checkpoint_option%format == CHECKPOINT_BOTH) then
+  if (this%option%checkpoint%format == CHECKPOINT_BINARY .or. &
+      this%option%checkpoint%format == CHECKPOINT_BOTH) then
     call this%CheckpointBinary(viewer,filename_append)
   endif
-  if (this%checkpoint_option%format == CHECKPOINT_HDF5 .or. &
-      this%checkpoint_option%format == CHECKPOINT_BOTH) then
+  if (this%option%checkpoint%format == CHECKPOINT_HDF5 .or. &
+      this%option%checkpoint%format == CHECKPOINT_BOTH) then
     call this%CheckpointHDF5(h5_chk_grp_id,filename_append)
   endif
 
@@ -1105,8 +1097,6 @@ subroutine PMCBaseSetHeader(this,bag,header)
   class(pmc_base_type) :: this
   class(pmc_base_header_type) :: header
   PetscBag :: bag
-
-  PetscErrorCode :: ierr
 
   header%plot_number = &
     this%pm_list%realization_base%output_option%plot_number
@@ -1297,6 +1287,7 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   use Checkpoint_module, only : CheckpointOpenFileForWriteHDF5, &
                                 CheckPointWriteCompatibilityHDF5
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -1309,13 +1300,11 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   integer(HID_T) :: h5_pm_grp_id
 
   class(pm_base_type), pointer :: cur_pm
-  class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
-  PetscMPIInt :: hdf5_err
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -1329,12 +1318,12 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
                                         append_name, this%option)
     call CheckPointWriteCompatibilityHDF5(h5_chk_grp_id, &
                                           this%option)
-    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     h5_pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_chk_grp_id,trim(this%name),h5_pmc_grp_id, &
+                         this%option)
     call PMCBaseSetHeaderHDF5(this, h5_pmc_grp_id, this%option)
   else
-    call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
-                     h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_chk_grp_id,trim(this%name),h5_pmc_grp_id, &
+                         this%option)
   endif
 
   if (associated(this%timestepper)) then
@@ -1344,16 +1333,15 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
-
-    call h5gcreate_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
-         hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+    call HDF5GroupCreate(h5_pmc_grp_id,trim(cur_pm%name),h5_pm_grp_id, &
+                         this%option)
     call cur_pm%CheckpointHDF5(h5_pm_grp_id)
-    call h5gclose_f(h5_pm_grp_id, hdf5_err)
+    call HDF5GroupClose(h5_pm_grp_id,this%option)
 
     cur_pm => cur_pm%next
   enddo
 
-  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  call HDF5GroupClose(h5_pmc_grp_id,this%option)
 
   if (associated(this%child)) then
     call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
@@ -1364,8 +1352,8 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   endif
 
   if (this%is_master) then
-    call h5gclose_f(h5_chk_grp_id, hdf5_err)
-    call h5fclose_f(h5_file_id,hdf5_err)
+    call HDF5GroupClose(h5_chk_grp_id,this%option)
+    call HDF5FileClose(h5_file_id,this%option)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to write to checkpoint file: ", f10.2)') &
@@ -1400,7 +1388,6 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   class(pm_base_type), pointer :: cur_pm
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
-  PetscMPIInt :: hdf5_err
 
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
@@ -1437,7 +1424,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
                                          this%option)
 
     if (.not.skip_restart) then
-      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
+                         this%option)
 
       ! read pmc header
       call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
@@ -1448,7 +1436,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     endif
   else
     if (.not.skip_restart) then
-      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id, &
+                         this%option)
     endif
   endif
 
@@ -1495,13 +1484,14 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
     cur_pm => this%pm_list
     do
       if (.not.associated(cur_pm)) exit
-      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id, &
+                         this%option)
       call cur_pm%RestartHDF5(h5_pm_grp_id)
-      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      call HDF5GroupClose(h5_pm_grp_id,this%option)
       cur_pm => cur_pm%next
     enddo
 
-    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+    call HDF5GroupClose(h5_pmc_grp_id,this%option)
   endif
 
   if (associated(this%child)) then
@@ -1513,8 +1503,8 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   endif
 
   if (this%is_master) then
-    call h5gclose_f(h5_chk_grp_id, hdf5_err)
-    call h5fclose_f(h5_file_id, hdf5_err)
+    call HDF5GroupClose(h5_chk_grp_id,this%option)
+    call HDF5FileClose(h5_file_id,this%option)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to read from restart file: ", f10.2)') &
@@ -1765,7 +1755,6 @@ subroutine PMCBaseStrip(this)
 
   ! these are destoyed elsewhere
   nullify(this%option)
-  nullify(this%checkpoint_option)
   nullify(this%waypoint_list)
 
   if (associated(this%timestepper)) then
@@ -1824,24 +1813,6 @@ subroutine SetOption(this, option)
   if (associated(option)) this%option => option
 
 end subroutine SetOption
-
-! ************************************************************************** !
-
-subroutine SetCheckpointOption(this, checkpoint_option)
-  !
-  ! Sets checkpoint option
-  !
-  ! Author: Gautam Bisht
-  ! Date: 06/11/18
-  !
-  implicit none
-
-  class(pmc_base_type) :: this
-  type(checkpoint_option_type), pointer :: checkpoint_option
-
-  if (associated(checkpoint_option)) this%checkpoint_option => checkpoint_option
-
-end subroutine SetCheckpointOption
 
 ! ************************************************************************** !
 

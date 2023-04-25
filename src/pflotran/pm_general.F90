@@ -78,11 +78,6 @@ function PMGeneralCreate()
 
   class(pm_general_type), pointer :: this
 
-  PetscReal, parameter :: ref_temp = 20.d0 !degrees C
-  PetscReal, parameter :: ref_pres = 101325.d0 !Pa
-  PetscReal, parameter :: ref_sat = 0.5
-  PetscReal, parameter :: ref_xmol = 1.d-6
-
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
@@ -106,10 +101,6 @@ function PMGeneralCreate()
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
-
-  PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
-  PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
-  PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
 
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
@@ -241,13 +232,17 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
       case('ISOTHERMAL')
-         general_isothermal = PETSC_TRUE
+        general_isothermal = PETSC_TRUE
       case('NON_DARCY_FLOW')
         general_non_darcy_flow = PETSC_TRUE
+      case('NON_DARCY_FLOW_A')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        non_darcy_A = tempreal
       case('NON_DARCY_FLOW_B')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-         non_darcy_B = tempreal
+        non_darcy_B = tempreal
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
         !heeho: assuming liquid component is index 1
         call InputReadDouble(input,option,fmw_comp(1))
@@ -597,7 +592,8 @@ end subroutine PMGeneralPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMGeneralUpdateTimestep(this,update_dt, &
+                                   dt,dt_min,dt_max,iacceleration, &
                                    num_newton_iterations,tfac, &
                                    time_step_max_growth_factor)
   !
@@ -617,6 +613,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   implicit none
 
   class(pm_general_type) :: this
+  PetscBool :: update_dt
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -639,57 +636,59 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call PrintMsg(this%option,'PMGeneral%UpdateTimestep()')
 #endif
 
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    umin = 0.d0
-  else
-    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
-    ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
-    us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
-    umin = min(up,ut,ux,us)
-  endif
-  ifac = max(min(num_newton_iterations,size(tfac)),1)
-  umin_scale = fac * (1.d0 + umin)
-  governed_dt = umin_scale * dt
-  dtt = min(time_step_max_growth_factor*dt,governed_dt)
-  dt = min(dtt,tfac(ifac)*dt,dt_max)
-  dt = max(dt,dt_min)
-
-   ! Inform user that time step is being limited by a state variable.
-  if (Equal(dt,governed_dt)) then
-    umin = umin * (1.d0 + 1.d-8)
-    if (up < umin) then
-      string = 'Pressure'
-      value = this%max_pressure_change
-      governor_value = this%pressure_change_governor
-    else if (ut < umin) then
-      string = 'Temperature'
-      value = this%max_temperature_change
-      governor_value = this%temperature_change_governor
-    else if (ux < umin) then
-      string = 'Mole Fraction'
-      value = this%max_xmol_change
-      governor_value = this%xmol_change_governor
-    else if (us < umin) then
-      string = 'Saturation'
-      value = this%max_saturation_change
-      governor_value = this%saturation_change_governor
+  if (update_dt .and. iacceleration /= 0) then
+    fac = 0.5d0
+    if (num_newton_iterations >= iacceleration) then
+      fac = 0.33d0
+      umin = 0.d0
     else
-      string = 'Unknown'
-      value = -999.d0
-      governor_value = -999.d0
+      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+      ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+      ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
+      us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
+      umin = min(up,ut,ux,us)
     endif
-    string = ' Dt limited by ' // trim(string) // ': Val=' // &
-      trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
-      trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
-      trim(StringWriteF('(f4.2)',umin_scale))
-    if (OptionPrintToScreen(this%option)) then
-      write(*,'(a,/)') trim(string)
-    endif
-    if (OptionPrintToFile(this%option)) then
-      write(this%option%fid_out,'(a,/)') trim(string)
+    ifac = max(min(num_newton_iterations,size(tfac)),1)
+    umin_scale = fac * (1.d0 + umin)
+    governed_dt = umin_scale * dt
+    dtt = min(time_step_max_growth_factor*dt,governed_dt)
+    dt = min(dtt,tfac(ifac)*dt,dt_max)
+    dt = max(dt,dt_min)
+
+    ! Inform user that time step is being limited by a state variable.
+    if (Equal(dt,governed_dt)) then
+      umin = umin * (1.d0 + 1.d-8)
+      if (up < umin) then
+        string = 'Pressure'
+        value = this%max_pressure_change
+        governor_value = this%pressure_change_governor
+      else if (ut < umin) then
+        string = 'Temperature'
+        value = this%max_temperature_change
+        governor_value = this%temperature_change_governor
+      else if (ux < umin) then
+        string = 'Mole Fraction'
+        value = this%max_xmol_change
+        governor_value = this%xmol_change_governor
+      else if (us < umin) then
+        string = 'Saturation'
+        value = this%max_saturation_change
+        governor_value = this%saturation_change_governor
+      else
+        string = 'Unknown'
+        value = -999.d0
+        governor_value = -999.d0
+      endif
+      string = ' Dt limited by ' // trim(string) // ': Val=' // &
+        trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
+        trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
+        trim(StringWriteF('(f4.2)',umin_scale))
+      if (OptionPrintToScreen(this%option)) then
+        write(*,'(a,/)') trim(string)
+      endif
+      if (OptionPrintToFile(this%option)) then
+        write(this%option%fid_out,'(a,/)') trim(string)
+      endif
     endif
   endif
 
@@ -800,22 +799,17 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, pointer :: X_p(:),dX_p(:)
 
-  PetscReal, pointer :: r_p(:)
   type(field_type), pointer :: field
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
   PetscInt :: temperature_index
-  PetscInt :: lid, gid, apid, cpid, vpid, spid
+  PetscInt :: apid, spid
   PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
   PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
   PetscReal :: air_pressure0, air_pressure1, del_air_pressure
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
-  PetscReal :: xmol0, xmol1, del_xmol
   PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
-  PetscReal :: min_pressure
   PetscReal :: scale, temp_scale
-  PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
   PetscInt :: newton_iteration
 
@@ -1346,7 +1340,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
                  trim(state_string(istate)) // ', ' // dof_string(idof,istate)
               endif
-              if (option%comm%mycommsize == 1) then
+              if (option%comm%size == 1) then
                 string = trim(string) // ' (' // &
                   trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
                   // ')'
@@ -1517,9 +1511,7 @@ subroutine PMGeneralMaxChange(this)
   use Grid_module
   use Global_Aux_module
   use General_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_MOLE_FRACTION, &
-                               TEMPERATURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               GAS_SATURATION
+
   implicit none
 
   class(pm_general_type) :: this
@@ -1534,7 +1526,7 @@ subroutine PMGeneralMaxChange(this)
   PetscReal :: max_change_global(6)
   PetscReal :: max_change
   PetscInt :: i, j
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: ghosted_id
 
 
   PetscErrorCode :: ierr
@@ -1636,7 +1628,6 @@ subroutine PMGeneralInputRecord(this)
 
   class(pm_general_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT
@@ -1665,7 +1656,6 @@ subroutine PMGeneralCheckpointBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
@@ -1688,7 +1678,6 @@ subroutine PMGeneralRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
-  use Variables_module, only : STATE
 
   implicit none
 #include "petsc/finclude/petscviewer.h"

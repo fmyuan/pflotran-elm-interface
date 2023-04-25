@@ -64,8 +64,6 @@ module Reactive_Transport_Aux_module
 
     PetscReal, pointer :: kinmr_total_sorb(:,:,:)
 
-    type(colloid_auxvar_type), pointer :: colloid
-
     ! immobile species such as biomass
     PetscReal, pointer :: immobile(:) ! mol/m^3 bulk
 
@@ -81,19 +79,15 @@ module Reactive_Transport_Aux_module
     PetscInt :: naqcomp
     PetscInt :: nimcomp
     PetscInt :: ngas
-    PetscInt :: ncoll
-    PetscInt :: ncollcomp
     PetscInt :: offset_aqueous
-    PetscInt :: offset_colloid
-    PetscInt :: offset_collcomp
     PetscInt :: offset_immobile
     PetscInt :: offset_auxiliary
     PetscBool :: species_dependent_diffusion
     PetscBool :: millington_quirk_tortuosity
-    PetscInt, pointer :: pri_spec_to_coll_spec(:)
-    PetscInt, pointer :: coll_spec_to_pri_spec(:)
     PetscReal, pointer :: diffusion_coefficient(:,:)
     PetscReal, pointer :: diffusion_activation_energy(:,:)
+    PetscReal, pointer :: pri_spec_diff_coef(:)
+    PetscReal, pointer :: sec_spec_diff_coef(:)
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -109,23 +103,6 @@ module Reactive_Transport_Aux_module
     PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
   end type reactive_transport_param_type
-
-  ! Colloids
-  type, public :: colloid_auxvar_type
-    PetscReal, pointer :: conc_mob(:) ! mol/L water
-    PetscReal, pointer :: conc_imb(:) ! mol/m^3 bulk
-    PetscReal, pointer :: total_eq_mob(:) ! mol/L water
-    PetscReal, pointer :: total_kin(:)
-    type(matrix_block_auxvar_type), pointer :: dRj_dCj
-    type(matrix_block_auxvar_type), pointer :: dRj_dSic
-    type(matrix_block_auxvar_type), pointer :: dRic_dCj
-    type(matrix_block_auxvar_type), pointer :: dRic_dSic
-  end type colloid_auxvar_type
-
-  type, public :: colloid_param_type
-    PetscInt :: num_colloids
-    PetscInt :: num_colloid_comp
-  end type colloid_param_type
 
   type, public :: reactive_transport_type
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -184,20 +161,16 @@ function RTAuxCreate(naqcomp,nphase)
   allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp,nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
   aux%rt_parameter%diffusion_activation_energy = 0.d0
+  nullify(aux%rt_parameter%pri_spec_diff_coef)
+  nullify(aux%rt_parameter%sec_spec_diff_coef)
   aux%rt_parameter%ncomp = 0
   aux%rt_parameter%nimcomp = 0
   aux%rt_parameter%ngas = 0
-  aux%rt_parameter%ncoll = 0
-  aux%rt_parameter%ncollcomp = 0
   aux%rt_parameter%offset_aqueous = 0
-  aux%rt_parameter%offset_colloid = 0
-  aux%rt_parameter%offset_collcomp = 0
   aux%rt_parameter%offset_immobile = 0
   aux%rt_parameter%offset_auxiliary = 0
   aux%rt_parameter%species_dependent_diffusion = PETSC_FALSE
   aux%rt_parameter%millington_quirk_tortuosity = PETSC_FALSE
-  nullify(aux%rt_parameter%pri_spec_to_coll_spec)
-  nullify(aux%rt_parameter%coll_spec_to_pri_spec)
   aux%rt_parameter%calculate_transverse_dispersion = PETSC_FALSE
   aux%rt_parameter%temperature_dependent_diffusion = PETSC_FALSE
 #ifdef OS_STATISTICS
@@ -362,32 +335,6 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
     nullify(auxvar%mass_balance_delta)
   endif
 
-  if (reaction%ncollcomp > 0) then
-    allocate(auxvar%colloid)
-    allocate(auxvar%colloid%conc_mob(reaction%ncoll))
-    allocate(auxvar%colloid%conc_imb(reaction%ncoll))
-    allocate(auxvar%colloid%total_eq_mob(reaction%ncollcomp))
-    allocate(auxvar%colloid%total_kin(reaction%ncollcomp))
-    ! dRj/dCj
-    auxvar%colloid%dRj_dCj => MatrixBlockAuxVarCreate(option)
-    call MatrixBlockAuxVarInit(auxvar%colloid%dRj_dCj,reaction%naqcomp, &
-                               reaction%naqcomp,ONE_INTEGER,option)
-    ! dRj/dSic
-    auxvar%colloid%dRj_dSic => MatrixBlockAuxVarCreate(option)
-    call MatrixBlockAuxVarInit(auxvar%colloid%dRj_dSic,reaction%naqcomp, &
-                               reaction%ncollcomp,ONE_INTEGER,option)
-    ! dRic/dCj
-    auxvar%colloid%dRic_dCj => MatrixBlockAuxVarCreate(option)
-    call MatrixBlockAuxVarInit(auxvar%colloid%dRic_dCj,reaction%ncollcomp, &
-                               reaction%naqcomp,ONE_INTEGER,option)
-    ! dRic/dSic
-    auxvar%colloid%dRic_dSic => MatrixBlockAuxVarCreate(option)
-    call MatrixBlockAuxVarInit(auxvar%colloid%dRic_dSic,reaction%ncollcomp, &
-                               reaction%ncollcomp,ONE_INTEGER,option)
-  else
-    nullify(auxvar%colloid)
-  endif
-
   if (reaction%immobile%nimmobile > 0) then
     allocate(auxvar%immobile(reaction%immobile%nimmobile))
     auxvar%immobile = 0.d0
@@ -480,25 +427,6 @@ subroutine RTAuxVarCopy(auxvar,auxvar2,option)
 
   if (associated(auxvar%kinmr_total_sorb)) then
     auxvar%kinmr_total_sorb = auxvar2%kinmr_total_sorb
-  endif
-
-  if (associated(auxvar%colloid)) then
-    auxvar%colloid%conc_mob = auxvar2%colloid%conc_mob
-    auxvar%colloid%conc_imb = auxvar2%colloid%conc_imb
-    auxvar%colloid%total_eq_mob = auxvar2%colloid%total_eq_mob
-    auxvar%colloid%total_kin = auxvar2%colloid%total_kin
-    ! dRj/dCj
-    call MatrixBlockAuxVarCopy(auxvar%colloid%dRj_dCj, &
-                               auxvar2%colloid%dRj_dCj,option)
-    ! dRj/dSic
-    call MatrixBlockAuxVarCopy(auxvar%colloid%dRj_dSic, &
-                               auxvar2%colloid%dRj_dSic,option)
-    ! dRic/dCj
-    call MatrixBlockAuxVarCopy(auxvar%colloid%dRic_dCj, &
-                               auxvar2%colloid%dRic_dCj,option)
-    ! dRic/dSic
-    call MatrixBlockAuxVarCopy(auxvar%colloid%dRic_dSic, &
-                               auxvar2%colloid%dRic_dSic,option)
   endif
 
   if (associated(auxvar%immobile)) then
@@ -644,23 +572,6 @@ subroutine RTAuxVarStrip(auxvar)
 
   call DeallocateArray(auxvar%kinmr_total_sorb)
 
-  if (associated(auxvar%colloid)) then
-    call DeallocateArray(auxvar%colloid%conc_mob)
-    call DeallocateArray(auxvar%colloid%conc_imb)
-    call DeallocateArray(auxvar%colloid%total_eq_mob)
-    call DeallocateArray(auxvar%colloid%total_kin)
-    ! dRj/dCj
-    call MatrixBlockAuxVarDestroy(auxvar%colloid%dRj_dCj)
-    ! dRj/dSic
-    call MatrixBlockAuxVarDestroy(auxvar%colloid%dRj_dSic)
-    ! dRic/dCj
-    call MatrixBlockAuxVarDestroy(auxvar%colloid%dRic_dCj)
-    ! dRic/dSic
-    call MatrixBlockAuxVarDestroy(auxvar%colloid%dRic_dSic)
-    deallocate(auxvar%colloid)
-    nullify(auxvar%colloid)
-  endif
-
   call DeallocateArray(auxvar%immobile)
   call DeallocateArray(auxvar%auxiliary_data)
 
@@ -681,7 +592,6 @@ subroutine RTAuxDestroy(aux)
   implicit none
 
   type(reactive_transport_type), pointer :: aux
-  PetscInt :: iaux
 
   if (.not.associated(aux)) return
 
@@ -693,8 +603,8 @@ subroutine RTAuxDestroy(aux)
   if (associated(aux%rt_parameter)) then
     call DeallocateArray(aux%rt_parameter%diffusion_coefficient)
     call DeallocateArray(aux%rt_parameter%diffusion_activation_energy)
-    call DeallocateArray(aux%rt_parameter%pri_spec_to_coll_spec)
-    call DeallocateArray(aux%rt_parameter%coll_spec_to_pri_spec)
+    call DeallocateArray(aux%rt_parameter%pri_spec_diff_coef)
+    call DeallocateArray(aux%rt_parameter%pri_spec_diff_coef)
     deallocate(aux%rt_parameter)
   endif
   nullify(aux%rt_parameter)

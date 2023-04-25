@@ -1,9 +1,10 @@
-module Driver_module
+module Driver_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Communicator_Aux_module
   use PFLOTRAN_Constants_module
+  use Print_module
 
   implicit none
 
@@ -11,6 +12,7 @@ module Driver_module
 
   type, public :: driver_type
 
+    type(print_flags_type), pointer :: print_flags
     type(comm_type), pointer :: comm
 
     character(len=MAXSTRINGLENGTH) :: input_filename
@@ -18,19 +20,20 @@ module Driver_module
     character(len=MAXSTRINGLENGTH) :: global_prefix
 
     PetscInt :: fid_out
-    PetscBool :: print_to_screen
-    PetscBool :: print_to_file
-    PetscMPIInt :: io_rank
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
                                            ! at end of simulation
     PetscInt :: status
 
   contains
     procedure, public :: PrintErrMsg => DriverPrintErrorMessage
+    procedure, public :: PrintMsg => DriverPrintMessage
     procedure, public :: PrintToScreen => DriverPrintToScreen
     procedure, public :: PrintToFile => DriverPrintToFile
     procedure, public :: IsIORank => DriverIsIORank
+    procedure, public :: CreatePrintHandler => DriverCreatePrintHandler
   end type driver_type
+
+  public :: DriverPrintMessage
 
   public :: DriverCreate, &
             DriverSetComm, &
@@ -52,15 +55,13 @@ function DriverCreate()
   class(driver_type), pointer :: driver
 
   allocate(driver)
+  driver%print_flags => PrintCreateFlags()
   nullify(driver%comm)
   driver%input_filename = ''
   driver%input_prefix = ''
   driver%global_prefix = ''
   driver%fid_out = -1
-  driver%print_to_screen = PETSC_TRUE
-  driver%print_to_file = PETSC_TRUE
   driver%exit_code = 0
-  driver%io_rank = 0
   driver%status = 0
 
   DriverCreate => driver
@@ -94,29 +95,33 @@ subroutine DriverPrintErrorMessage(driver,string)
 
   class(driver_type) :: driver
   character(len=*) :: string
+  PetscBool, parameter :: blocking = PETSC_TRUE
+  PetscBool, parameter :: byrank = PETSC_FALSE
 
-  PetscBool :: petsc_initialized
-  PetscErrorCode :: ierr
-
-  if (driver%PrintToScreen()) then
-    print *
-    print *, 'ERROR: ' // trim(string)
-    print *
-    print *, 'Stopping!'
-  endif
-  call MPI_Barrier(driver%comm%mycomm,ierr);CHKERRQ(ierr)
-  call PetscInitialized(petsc_initialized,ierr);CHKERRQ(ierr)
-  if (petsc_initialized) then
-    call PetscFinalize(ierr);CHKERRQ(ierr)
-  endif
-  select case(driver%exit_code)
-    case(EXIT_FAILURE)
-      call exit(driver%exit_code)
-    case default
-      call exit(EXIT_USER_ERROR)
-  end select
+  call PrintErrorMessage(driver%print_flags,driver%comm,driver%fid_out, &
+                         string,driver%exit_code,blocking,byrank)
 
 end subroutine DriverPrintErrorMessage
+
+! ************************************************************************** !
+
+subroutine DriverPrintMessage(driver,string)
+  !
+  ! Prints a message to the screen and/or file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/22
+
+  class(driver_type) :: driver
+  character(len=*) :: string
+
+  PetscBool, parameter :: advance_ = PETSC_TRUE
+  PetscBool, parameter :: byrank = PETSC_FALSE
+
+  call PrintMessage(driver%print_flags,driver%comm,driver%fid_out, &
+                    string,advance_,byrank)
+
+end subroutine DriverPrintMessage
 
 ! ************************************************************************** !
 
@@ -131,11 +136,7 @@ function DriverPrintToScreen(driver)
 
   PetscBool :: DriverPrintToScreen
 
-  if (driver%comm%myrank == driver%io_rank .and. driver%print_to_screen) then
-    DriverPrintToScreen = PETSC_TRUE
-  else
-    DriverPrintToScreen = PETSC_FALSE
-  endif
+  DriverPrintToScreen = PrintToScreen(driver%print_flags,driver%comm)
 
 end function DriverPrintToScreen
 
@@ -152,11 +153,7 @@ function DriverPrintToFile(driver)
 
   PetscBool :: DriverPrintToFile
 
-  if (driver%comm%myrank == driver%io_rank .and. driver%print_to_file) then
-    DriverPrintToFile = PETSC_TRUE
-  else
-    DriverPrintToFile = PETSC_FALSE
-  endif
+  DriverPrintToFile = PrintToFile(driver%print_flags,driver%comm)
 
 end function DriverPrintToFile
 
@@ -173,9 +170,37 @@ function DriverIsIORank(driver)
 
   PetscBool :: DriverIsIORank
 
-  DriverIsIORank = (driver%comm%myrank == driver%io_rank)
+  DriverIsIORank = CommIsIORank(driver%comm)
 
 end function DriverIsIORank
+
+! ************************************************************************** !
+
+function DriverCreatePrintHandler(driver)
+  !
+  ! Creates a print handler with flags for file and screen io
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+  !
+  use Print_module
+
+  implicit none
+
+  class(driver_type) :: driver
+
+  type(print_handler_type), pointer :: DriverCreatePrintHandler
+
+  DriverCreatePrintHandler => &
+    PrintCreateHandler(driver%print_flags, &
+                       driver%comm, &
+                       driver%fid_out, &
+                       driver%exit_code, &
+                       PETSC_TRUE, & ! advance
+                       PETSC_TRUE, & ! blocking
+                       PETSC_FALSE)  ! byrank
+
+end function DriverCreatePrintHandler
 
 ! ************************************************************************** !
 
@@ -188,6 +213,7 @@ subroutine DriverDestroy(driver)
 
   class(driver_type), pointer :: driver
 
+  call PrintDestroyFlags(driver%print_flags)
   call CommDestroy(driver%comm)
   if (driver%fid_out > 0) close(driver%fid_out)
 
@@ -196,4 +222,4 @@ subroutine DriverDestroy(driver)
 
 end subroutine DriverDestroy
 
-end module Driver_module
+end module Driver_class

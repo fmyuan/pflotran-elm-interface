@@ -17,7 +17,8 @@ module Reaction_Gas_module
 
   public :: RGasRead, &
             RTotalGas, &
-            RTotalCO2
+            RTotalCO2, &
+            RGasConcentration
 
 contains
 
@@ -106,16 +107,16 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal
-  PetscReal :: RT
   PetscReal :: gas_concentration
   type(gas_type), pointer :: gas
 
   rt_auxvar%total(:,iphase) = 0.d0 !debugging
 
   gas => reaction%gas
-  ! units of ideal gas constant = J/mol-K = kPa-L/mol-K
-  ! units of RT = Pa-L/mol
-  RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
+  ! units of ideal gas constant = J/mol-K or Pa-m^3/mol-K
+  ! J/mol-K
+  ! N-m/mol-K
+  ! Pa-m^3/mol-K
 
   ln_conc = log(rt_auxvar%pri_molal)
   ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
@@ -140,7 +141,9 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     ! units = bars
     rt_auxvar%gas_pp(igas) = exp(lnQK)
     ! unit = mol/L gas
-    gas_concentration = rt_auxvar%gas_pp(igas) * 1.d5 / RT
+    ! RGasConcentration units = mol/m^3 gas
+    gas_concentration = &
+      RGasConcentration(rt_auxvar%gas_pp(igas),global_auxvar%temp)*1.d-3
 
     ! add contribution to primary totals
     ! units of total = mol/L gas
@@ -155,7 +158,10 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     ! units of dtotal = kg water / L gas
     do j = 1, ncomp
       jcomp = gas%acteqspecid(j,igas)
-      tempreal = gas%acteqstoich(j,igas)*exp(lnQK-ln_conc(jcomp))*1.d5/RT
+      tempreal = gas%acteqstoich(j,igas)* &
+                 RGasConcentration(exp(lnQK-ln_conc(jcomp)), &
+                                       global_auxvar%temp) * &
+                 1.d-3
       do i = 1, ncomp
         icomp = gas%acteqspecid(i,igas)
         rt_auxvar%aqueous%dtotal(icomp,jcomp,iphase) = &
@@ -193,8 +199,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   PetscInt :: iphase
   PetscInt :: icomp
   PetscReal :: tempreal
-  PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
-               yco2,pco2,sat_pressure,lngamco2
+  PetscReal :: pco2,sat_pressure,lngamco2
   PetscReal :: den_kg_per_L
   PetscReal :: den
   PetscReal :: lnQK
@@ -293,5 +298,28 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   endif
 
 end subroutine RTotalCO2
+
+! ************************************************************************** !
+
+function RGasConcentration(gas_pp,temperature)
+  !
+  ! Calculate the gas concentration [mol/m^3] from partial pressure
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/10/22
+  !
+  implicit none
+
+  PetscReal :: gas_pp
+  PetscReal :: temperature
+
+  PetscReal :: RGasConcentration
+
+  ! mol/m^3 = bar * Pa/bar / (Pa-m^3/mol-K * K)
+
+  RGasConcentration = gas_pp * 1.d5 / &
+                      (IDEAL_GAS_CONSTANT * (temperature+273.15d0))
+
+end function RGasConcentration
 
 end module Reaction_Gas_module

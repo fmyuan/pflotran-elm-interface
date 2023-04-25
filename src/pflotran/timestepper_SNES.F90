@@ -278,17 +278,14 @@ subroutine TimestepperSNESUpdateDT(this,process_model)
     update_time_step = PETSC_FALSE
   endif
 
-  if (update_time_step .and. this%iaccel /= 0) then
-
-    call process_model%UpdateTimestep(this%dt, &
-                                      this%dt_min, &
-                                      this%dt_max, &
-                                      this%iaccel, &
-                                      this%num_newton_iterations, &
-                                      this%tfac, &
-                                      this%time_step_max_growth_factor)
-
-  endif
+  call process_model%UpdateTimestep(update_time_step, &
+                                    this%dt, &
+                                    this%dt_min, &
+                                    this%dt_max, &
+                                    this%iaccel, &
+                                    this%num_newton_iterations, &
+                                    this%tfac, &
+                                    this%time_step_max_growth_factor)
 
   ! rescue mode - heeho
   if (this%rescue_mode) then
@@ -353,7 +350,6 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
   PetscInt :: sum_wasted_newton_iterations
 
   PetscReal :: fnorm, inorm, scaled_fnorm
-  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
@@ -426,6 +422,7 @@ subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
           end select
         endif
       endif
+      if (stop_flag == TS_STOP_FAILURE) return
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt
@@ -598,8 +595,6 @@ subroutine TimestepperSNESSetHeader(this,bag,header)
   class(stepper_SNES_header_type) :: header
   PetscBag :: bag
 
-  PetscErrorCode :: ierr
-
   header%cumulative_newton_iterations = this%cumulative_newton_iterations
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
   header%num_newton_iterations = this%num_newton_iterations
@@ -660,6 +655,7 @@ subroutine TimestepperSNESCheckpointHDF5(this, h5_chk_grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointWriteIntDatasetHDF5
   use Checkpoint_module, only : CheckPointWriteRealDatasetHDF5
 
@@ -682,11 +678,9 @@ subroutine TimestepperSNESCheckpointHDF5(this, h5_chk_grp_id, option)
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   PetscReal, pointer :: real_array(:)
-  PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  call h5gcreate_f(h5_chk_grp_id, string, timestepper_grp_id, &
-                   hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  call HDF5GroupCreate(h5_chk_grp_id, string, timestepper_grp_id, option)
 
   allocate(start(1))
   allocate(dims(1))
@@ -768,7 +762,7 @@ subroutine TimestepperSNESCheckpointHDF5(this, h5_chk_grp_id, option)
                                      dataset_rank, dims, start, length, &
                                      stride, int_array, option)
 
-  call h5gclose_f(timestepper_grp_id, hdf5_err)
+  call HDF5GroupClose(timestepper_grp_id,option)
 
   deallocate(start)
   deallocate(dims)
@@ -814,7 +808,6 @@ subroutine TimestepperSNESRestartHDF5(this, h5_chk_grp_id, option)
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   PetscReal, pointer :: real_array(:)
-  PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
   call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
@@ -898,7 +891,7 @@ subroutine TimestepperSNESRestartHDF5(this, h5_chk_grp_id, option)
                                      stride, int_array, option)
   this%revert_dt = (int_array(1) == ONE_INTEGER)
 
-  call h5gclose_f(timestepper_grp_id, hdf5_err)
+  call HDF5GroupClose(timestepper_grp_id,option)
 
   deallocate(start)
   deallocate(dims)
@@ -990,11 +983,13 @@ subroutine TimestepperSNESPrintInfo(this,aux_string,option)
   allocate(strings(this%ntfac+20))
   strings = ''
   strings(1) = 'acceleration: ' // &
-                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+    trim(StringWrite(String1Or2(this%iaccel>0,'on','off')))
   if (this%iaccel > 0) then
-    strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
+    strings(2) = 'acceleration threshold: ' // &
+      trim(StringWrite(this%iaccel))
   endif
-  strings(3) = 'number of ramp entries: ' // StringWrite(this%iaccel)
+  strings(3) = 'number of ramp entries: ' // &
+    trim(StringWrite(this%iaccel))
   do i = 1, this%ntfac
     strings(i+3) = 'ramp entry #' // trim(StringWrite(i)) // ': ' // &
                    StringWriteF(this%tfac(i))

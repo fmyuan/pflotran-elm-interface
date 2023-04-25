@@ -229,10 +229,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   integer(HID_T) :: dataset_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: attribute_id
-  integer(HID_T) :: atype_id
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
-  integer(HSIZE_T) :: attribute_dim(3)
   integer(HSIZE_T) :: offset(4), length(4), stride(4)
   integer(HSIZE_T) :: num_data_values
   integer :: ndims_h5
@@ -250,13 +247,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%filename,file_id,PETSC_TRUE,'',option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
@@ -389,16 +380,16 @@ subroutine DatasetMapHDF5ReadData(this,option)
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
   call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
                         ierr);CHKERRQ(ierr)
@@ -435,7 +426,6 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2)
   integer :: ndims_hdf5
-  PetscInt :: i
   PetscMPIInt :: array_rank_mpi
   PetscMPIInt :: hdf5_err
   PetscInt :: nids_local, remainder, istart, iend
@@ -451,13 +441,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%map_filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(this%map_filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%map_filename,file_id,PETSC_TRUE,'',option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
@@ -483,8 +467,8 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   allocate(max_dims_h5(ndims_hdf5))
   call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
 
-  nids_local=int(dims_h5(2)/option%comm%mycommsize)
-  remainder =int(dims_h5(2))-nids_local*option%comm%mycommsize
+  nids_local=int(dims_h5(2)/option%comm%size)
+  remainder =int(dims_h5(2))-nids_local*option%comm%size
   if (option%myrank<remainder) nids_local=nids_local+1
 
   ! Find istart and iend
@@ -540,14 +524,14 @@ subroutine DatasetMapHDF5ReadMap(this,option)
 
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(dataset_id,hdf5_err)
+  call HDF5DatasetClose(dataset_id,option)
 
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
                         ierr);CHKERRQ(ierr)

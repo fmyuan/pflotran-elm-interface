@@ -96,12 +96,13 @@ subroutine MicrobialRead(microbial,input,option)
         endif
       case('RATE_CONSTANT')
         call InputReadDouble(input,option,microbial_rxn%rate_constant)
-        call InputErrorMsg(input,option,'rate constant', &
-                           'CHEMISTRY,MICROBIAL_REACTION')
+        call InputErrorMsg(input,option,word,'CHEMISTRY,MICROBIAL_REACTION')
+        call InputReadAndConvertUnits(input,microbial_rxn%activation_energy, &
+                     '1/sec|mol/L-sec', &
+                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
       case('ACTIVATION_ENERGY')
         call InputReadDouble(input,option,microbial_rxn%activation_energy)
-        call InputErrorMsg(input,option,'activation energy', &
-                           'CHEMISTRY,MICROBIAL_REACTION')
+        call InputErrorMsg(input,option,word,'CHEMISTRY,MICROBIAL_REACTION')
         call InputReadAndConvertUnits(input,microbial_rxn%activation_energy, &
                      'J/mol', &
                      'CHEMISTRY,MICROBIAL_REACTION,ACTIVATION_ENERGY',option)
@@ -128,7 +129,7 @@ subroutine MicrobialRead(microbial,input,option)
                                  'CHEMISTRY,MICROBIAL_REACTION,MONOD')
             case('THRESHOLD_CONCENTRATION')
               call InputReadDouble(input,option,monod%threshold_concentration)
-              call InputErrorMsg(input,option,'threshold concdntration', &
+              call InputErrorMsg(input,option,'threshold concentration', &
                                  'CHEMISTRY,MICROBIAL_REACTION,MONOD')
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -314,8 +315,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: dconc_dmolal
   PetscReal :: monod(10)
   PetscReal :: inhibition(10)
-  PetscReal :: biomass_conc, yield
-  PetscInt :: immobile_id
+  PetscReal :: biomass_conc, yield, dbiomass_conc_dconc
   PetscReal :: denominator, dR_dX, dX_dc, dR_dc, dR_dbiomass
   PetscReal :: tempreal
   PetscReal :: L_water
@@ -357,6 +357,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     endif
     yield = 0.d0
     biomass_conc = 0.d0
+    dbiomass_conc_dconc = 0.d0
 
     ! monod expressions
     do ii = 1, microbial%monodid(0,irxn)
@@ -385,8 +386,9 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
           ! if microbial%inhibition_C2 is negative, inhibition kicks in
           ! above the concentration
           inhibition(ii) = 0.5d0 + &
+                           sign(1.d0,microbial%inhibition_C(iinhibition)) * &
                            atan((conc - &
-                                 microbial%inhibition_C(iinhibition)) * &
+                                 dabs(microbial%inhibition_C(iinhibition))) * &
                                 microbial%inhibition_C2(iinhibition)) / PI
       end select
       Im = Im*inhibition(ii)
@@ -394,12 +396,21 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
     ! biomass term
     ibiomass = microbial%biomassid(irxn)
-    if (ibiomass > 0) then
-      immobile_id = reaction%offset_immobile + ibiomass
-      biomass_conc = rt_auxvar%immobile(ibiomass)
-      yield = microbial%biomass_yield(irxn)
+    if (ibiomass /= 0) then
       ! Im units (before): mol/mol biomass-sec
-      Im = Im*biomass_conc*material_auxvar%volume
+      if (ibiomass > 0) then
+        biomass_conc = concentration(ibiomass)
+        Im = Im*biomass_conc*L_water
+        dbiomass_conc_dconc = dconcentration_dmolal(ibiomass)
+      else
+        ibiomass = -ibiomass
+        biomass_conc = rt_auxvar%immobile(ibiomass)
+        ! change to immobile offset
+        ibiomass = reaction%offset_immobile + ibiomass
+        Im = Im*biomass_conc*material_auxvar%volume
+        dbiomass_conc_dconc = 1.d0
+      endif
+      yield = microbial%biomass_yield(irxn)
     else
       ! Im units (before): mol/L-sec
       Im = Im * L_water
@@ -412,7 +423,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     enddo
 
     if (ibiomass > 0) then
-      Res(immobile_id) = Res(immobile_id) - yield*Im
+      Res(ibiomass) = Res(ibiomass) - yield*Im
     endif
 
     if (.not. compute_derivative) cycle
@@ -441,7 +452,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                             microbial%stoich(i,irxn)*dR_dc
       enddo
       if (ibiomass > 0) then
-        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + yield*dR_dc
+        Jac(ibiomass,jcomp) = Jac(ibiomass,jcomp) + yield*dR_dc
       endif
     enddo
 
@@ -466,9 +477,10 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                   (denominator*denominator)
         case(INHIBITION_THRESHOLD)
           ! derivative of atan(X) = 1 / (1 + X^2) dX
-          tempreal = (conc - microbial%inhibition_C(iinhibition)) * &
+          tempreal = (conc - dabs(microbial%inhibition_C(iinhibition))) * &
                      microbial%inhibition_C2(iinhibition)
-          dX_dc = (microbial%inhibition_C2(iinhibition) * dconc_dmolal / &
+          dX_dc =  sign(1.d0,microbial%inhibition_C(iinhibition)) * &
+                   (microbial%inhibition_C2(iinhibition) * dconc_dmolal / &
                    (1.d0 + tempreal*tempreal)) / PI
       end select
 
@@ -480,20 +492,21 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                             microbial%stoich(i,irxn)*dR_dc
       enddo
       if (ibiomass > 0) then
-        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + yield*dR_dc
+        Jac(ibiomass,jcomp) = Jac(ibiomass,jcomp) + yield*dR_dc
       endif
     enddo
 
     ! biomass expression
     if (ibiomass > 0) then
-      dR_dbiomass = -1.d0*Im / biomass_conc
+      dR_dbiomass = -1.d0*Im / biomass_conc * dbiomass_conc_dconc
       do i = 1, ncomp
         icomp = microbial%specid(i,irxn)
-        ! units = (mol/sec)*(m^3/mol) = m^3/sec
-        Jac(icomp,immobile_id) = Jac(icomp,immobile_id) + &
+        ! units = (mol/sec)*(kg water/mol) = kg water/sec (mobile)
+        ! units = (mol/sec)*(m^3/mol) = m^3/sec (immobile)
+        Jac(icomp,ibiomass) = Jac(icomp,ibiomass) + &
                             microbial%stoich(i,irxn)*dR_dbiomass
       enddo
-      Jac(immobile_id,immobile_id) = Jac(immobile_id,immobile_id) + &
+      Jac(ibiomass,ibiomass) = Jac(ibiomass,ibiomass) + &
         yield*dR_dbiomass
     endif
 

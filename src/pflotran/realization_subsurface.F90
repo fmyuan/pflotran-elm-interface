@@ -36,7 +36,6 @@ private
     type(tran_constraint_list_type), pointer :: transport_constraints
     type(geop_condition_list_type), pointer :: geophysics_conditions
 
-    class(tran_constraint_base_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
     type(fluid_property_type), pointer :: fluid_property_array(:)
@@ -94,7 +93,8 @@ private
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
             RealizationLimitDTByCFL, &
-            RealizationReadGeopSurveyFile
+            RealizationReadGeopSurveyFile, &
+            RealizationCheckConsistency
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -116,7 +116,6 @@ function RealizationCreate1()
 
   class(realization_subsurface_type), pointer :: RealizationCreate1
 
-  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
   nullify(option)
@@ -166,7 +165,6 @@ function RealizationCreate2(option)
   nullify(realization%material_transform)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
-  nullify(realization%sec_transport_constraint)
   nullify(realization%reaction)
   nullify(realization%reaction_nw)
   nullify(realization%survey)
@@ -197,7 +195,6 @@ subroutine RealizationCreateDiscretization(realization)
   use Discretization_module
   use Grid_Unstructured_Cell_module
   use DM_Kludge_module
-  use Variables_module, only : VOLUME
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
 
@@ -209,7 +206,6 @@ subroutine RealizationCreateDiscretization(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  type(coupler_type), pointer :: boundary_condition
   PetscErrorCode :: ierr
   PetscInt :: ivar
 
@@ -778,7 +774,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
   class(realization_subsurface_type) :: realization
 
-  PetscBool :: found
   PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
@@ -1037,19 +1032,19 @@ subroutine RealProcessMatPropAndSatFunc(realization)
             call PrintErrMsg(option)
         end select
       endif
-      if (associated(cur_material_property%multicontinuum%length_dataset)) then
+      if (associated(cur_material_property%multicontinuum%half_matrix_width_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                  '),LENGTH'
         dataset => &
           DatasetBaseGetPointer(realization%datasets, &
                                 cur_material_property% &
-                                  multicontinuum%length_dataset%name, &
+                                  multicontinuum%half_matrix_width_dataset%name, &
                                 string,option)
         call DatasetDestroy(cur_material_property% &
-                              multicontinuum%length_dataset)
+                              multicontinuum%half_matrix_width_dataset)
         select type(dataset)
           class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%length_dataset => dataset
+            cur_material_property%multicontinuum%half_matrix_width_dataset => dataset
           class default
             option%io_buffer = 'Incorrect dataset type for length.'
             call PrintErrMsg(option)
@@ -1210,8 +1205,6 @@ subroutine RealProcessFluidProperties(realization)
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  PetscInt :: icc, ncc, maxsatn
-  PetscBool :: satnum_set, ccset
 
   option => realization%option
 
@@ -1256,7 +1249,6 @@ subroutine RealProcessFlowConditions(realization)
   class(realization_subsurface_type) :: realization
 
   type(flow_condition_type), pointer :: cur_flow_condition
-  type(flow_sub_condition_type), pointer :: cur_flow_sub_condition
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
@@ -1362,14 +1354,6 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint => cur_constraint%next
   enddo
 
-  if (option%use_mc) then
-    select type(constraint=>realization%sec_transport_constraint)
-      class is (tran_constraint_rt_type)
-        call ReactionProcessConstraint(realization%reaction, &
-                                       constraint,realization%option)
-    end select
-  endif
-
   ! tie constraints to couplers, if not already associated
   cur_condition => realization%transport_conditions%first
   do
@@ -1402,6 +1386,34 @@ subroutine RealProcessTranConditions(realization)
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
     enddo
+    if (option%use_sc) then
+      cur_constraint_coupler => cur_condition%sec_constraint_coupler
+      do
+        if (.not.associated(cur_constraint_coupler)) exit
+        ! if constraint exists, it was coupled during the embedded read.
+        if (.not.associated(cur_constraint_coupler%constraint)) then
+          cur_constraint => realization%transport_constraints%first
+          do
+            if (.not.associated(cur_constraint)) exit
+            if (StringCompare(cur_constraint%name, &
+                              cur_constraint_coupler%constraint_name, &
+                              MAXWORDLENGTH)) then
+              cur_constraint_coupler%constraint => cur_constraint
+              exit
+            endif
+            cur_constraint => cur_constraint%next
+          enddo
+          if (.not.associated(cur_constraint_coupler%constraint)) then
+            option%io_buffer = 'Secondary constraint "' // &
+                     trim(cur_constraint_coupler%constraint_name) // &
+                     '" not found in input file constraints.'
+            call PrintErrMsg(realization%option)
+          endif
+        endif
+        cur_constraint_coupler => cur_constraint_coupler%next
+      enddo
+    endif 
+         
 !TODO(geh) remove this?
     if (associated(cur_condition%constraint_coupler_list%next)) then
       ! there are more than one
@@ -1855,7 +1867,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(strata_type), pointer :: cur_strata
   type(time_storage_type), pointer :: time_storage_ptr
   PetscInt :: itime, isub_condition
-  PetscReal :: temp_real, final_time
+  PetscReal :: final_time
   PetscReal, pointer :: times(:)
 
   option => realization%option
@@ -2054,16 +2066,13 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
+  PetscInt :: imnrl, imat
+  PetscReal :: scale
   PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: porosity0_p(:)
   PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscReal, pointer :: perm0_xy_p(:), perm0_xz_p(:), perm0_yz_p(:)
-  PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
   PetscReal :: porosity_base_
@@ -2265,56 +2274,9 @@ subroutine RealizationUpdatePropertiesNI(realization)
   ! Date: 08/05/09
   !
 
-  use Discretization_module
-  use Field_module
-  use Grid_module
-  use Reaction_Aux_module
-  use Reactive_Transport_Aux_module
-  use Material_Aux_module
-  use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z, &
-                               PERMEABILITY_XY, PERMEABILITY_XZ, &
-                               PERMEABILITY_YZ
-
   implicit none
 
   class(realization_subsurface_type) :: realization
-
-#if 0
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(field_type), pointer :: field
-  class(reaction_rt_type), pointer :: reaction
-  type(grid_type), pointer :: grid
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(discretization_type), pointer :: discretization
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
-  PetscReal :: sum_volfrac
-  PetscReal :: scale, porosity_scale, volfrac_scale
-  PetscBool :: porosity_updated
-  PetscReal, pointer :: vec_p(:)
-  PetscReal, pointer :: porosity0_p(:)
-  PetscReal, pointer :: porosity_mnrl_loc_p(:)
-  PetscReal, pointer :: tortuosity0_p(:)
-  PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
-  PetscReal :: min_value
-  PetscInt :: ivalue
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  discretization => realization%discretization
-  patch => realization%patch
-  field => realization%field
-  reaction => realization%reaction
-  grid => patch%grid
-  material_property_array => patch%material_property_array
-  rt_auxvars => patch%aux%RT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-#endif
 
 end subroutine RealizationUpdatePropertiesNI
 
@@ -2352,7 +2314,6 @@ subroutine RealizationCalcMineralPorosity(realization)
   PetscInt :: local_id, ghosted_id
   PetscInt :: imnrl
   PetscReal :: sum_volfrac
-  PetscErrorCode :: ierr
 
   option => realization%option
   discretization => realization%discretization
@@ -2522,7 +2483,7 @@ subroutine RealizationPrintGridStatistics(realization)
   type(grid_type), pointer :: grid
 
   PetscInt :: i1, i2, i3
-  PetscReal :: r1, r2, r3
+  PetscReal :: r1
   PetscInt :: global_total_count, global_active_count
   PetscInt :: total_count, active_count
   PetscReal :: total_min, total_max, total_mean, total_variance
@@ -2578,7 +2539,7 @@ subroutine RealizationPrintGridStatistics(realization)
                      MPIU_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
 
   ! why I cannot use *100, I do not know....geh
-  inactive_percentages = dble(temp_int_out)/dble(option%comm%mycommsize)*10.d0
+  inactive_percentages = dble(temp_int_out)/dble(option%comm%size)*10.d0
   inactive_percentages = inactive_percentages+1.d-8
 
   r1 = 0.d0
@@ -2623,7 +2584,7 @@ subroutine RealizationPrintGridStatistics(realization)
               & "                                        Check : ",1f7.2,/)') &
            global_total_count, &
            global_active_count, &
-           option%comm%mycommsize, &
+           option%comm%size, &
            i1,i2,i3, &
            int(total_max+1.d-4), &
            int(total_min+1.d-4), &
@@ -2674,7 +2635,7 @@ subroutine RealizationPrintGridStatistics(realization)
                & "                                        Check : ",1f7.2,/)') &
            global_total_count, &
            global_active_count, &
-           option%comm%mycommsize, &
+           option%comm%size, &
            i1,i2,i3, &
            int(total_max+1.d-4), &
            int(total_min+1.d-4), &
@@ -2957,6 +2918,102 @@ end subroutine RealizationReadGeopSurveyFile
 
 ! ************************************************************************** !
 
+subroutine RealizationCheckConsistency(r1,r2)
+  !
+  ! Checks to ensure that two separate realizations have the same
+  ! sized objects (used in inversion calculations to ensure that the
+  ! prerequisite have the same sized data structures as the main
+  ! forward run)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/02/22
+  !
+  use String_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: r1, r2
+
+  type(option_type), pointer :: o1, o2
+  PetscBool :: error_found
+  character(len=MAXSTRINGLENGTH) :: s
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  o1 => r1%option
+  o2 => r2%option
+
+  s = new_line('a') // &
+      'Checking consistency of outer and prerequisite realizations:' // &
+      new_line('a')
+  call PrintMsg(o1,s)
+
+  error_found = PETSC_FALSE
+  s = 'Grid type'
+  if (IntegersDiffer(r1%patch%grid%itype,r2%patch%grid%itype,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of grid cells'
+  if (IntegersDiffer(r1%patch%grid%nmax,r2%patch%grid%nmax,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Material IDs differ'
+  i = min(size(r1%patch%imat),size(r2%patch%imat))
+  i = maxval(abs(r1%patch%imat(1:i)-r2%patch%imat(1:i)))
+  call MPI_Allreduce(MPI_IN_PLACE,i,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_MAX,o1%mycomm,ierr);CHKERRQ(ierr)
+  if (i > 0) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of material properties'
+  if (IntegersDiffer(size(r1%patch%material_property_array), &
+                     size(r2%patch%material_property_array),s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of characteristic curves'
+  if (IntegersDiffer(size(r1%patch%characteristic_curves_array), &
+                     size(r2%patch%characteristic_curves_array),s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of flow degrees of freedom'
+  if (IntegersDiffer(o1%nflowdof,o2%nflowdof,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+  s = 'Number of transport degrees of freedom'
+  if (IntegersDiffer(o1%ntrandof,o2%ntrandof,s)) then
+    error_found = PETSC_TRUE
+    call PrintMsg(o1,s)
+  endif
+
+  if (error_found) then
+    call PrintErrMsg(o1,'Inconsistent realizations.')
+  endif
+  call PrintMsg(o1,'Realizations are consistent.')
+
+contains
+
+  function IntegersDiffer(i1,i2,error_string)
+    PetscInt :: i1, i2
+    character(*) :: error_string
+    PetscBool :: IntegersDiffer
+    IntegersDiffer = (i1 /= i2)
+    if (IntegersDiffer) then
+      error_string = trim(error_string) // ' differ: ' // &
+                     trim(StringWrite(i1)) // ' vs ' // &
+                     trim(StringWrite(i2))
+    endif
+  end function IntegersDiffer
+
+end subroutine RealizationCheckConsistency
+
+! ************************************************************************** !
+
 subroutine RealizationStrip(this)
   !
   ! Deallocates a realization
@@ -2993,9 +3050,7 @@ subroutine RealizationStrip(this)
     call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
   endif
 
-  if (associated(this%material_transform)) then
-    call MaterialTransformDestroy(this%material_transform)
-  endif
+  nullify(this%material_transform)
 
   call DatasetDestroy(this%datasets)
 
@@ -3004,8 +3059,6 @@ subroutine RealizationStrip(this)
   ! nullify since they are pointers to reaction_base in realization_base
   nullify(this%reaction)
   nullify(this%reaction_nw)
-
-  call TranConstraintDestroy(this%sec_transport_constraint)
 
   if (associated(this%survey)) then
     call SurveyDestroy(this%survey)

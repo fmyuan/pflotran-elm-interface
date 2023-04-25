@@ -25,10 +25,9 @@
       169:         1
       193:         1
 -- SOLUTION: Flow --
-   Time (seconds):   2.9865264892578E-02
    Time Steps:            1
    Newton Iterations:            2
-   Solver Iterations:            2
+   Linear Solver Iterations:            2
    Time Step Cuts:            0
    Solution 2-Norm:   1.4696940169155E+07
    Residual 2-Norm:   8.6326090590031E-06

@@ -398,7 +398,6 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
 
   PetscInt :: i, j, k, ghosted_id
   PetscReal :: tempreal
-  PetscErrorCode :: ierr
 
   allocate(structured_grid%dxg_local(structured_grid%ngx))
   structured_grid%dxg_local = 0.d0
@@ -548,7 +547,6 @@ implicit none
 ! PetscErrorCode :: ierr
   PetscInt :: i, j, k, ghosted_id
   PetscReal :: x, y, z
-  PetscInt :: prevnode
 
   x_min = origin_global(X_DIRECTION)
   y_min = origin_global(Y_DIRECTION)
@@ -847,7 +845,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
 
   implicit none
 
-!  PetscReal :: radius(:)
   type(connection_set_type), pointer :: StructGridComputeInternConnect
   type(option_type) :: option
   type(grid_structured_type) :: structured_grid
@@ -861,12 +858,9 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   PetscInt :: tvd_ghost_offset, ghost_count
   PetscReal :: dist_up, dist_dn
   PetscReal :: r1, r2
-  type(connection_set_type), pointer :: connections, connections_2
+  type(connection_set_type), pointer :: connections
 
-  PetscErrorCode :: ierr
   PetscReal, pointer :: radius(:)
-  PetscInt, pointer :: int_array1(:), int_array2(:),int_array3(:),int_array4(:),int_array5(:),index(:)
-  PetscInt :: count
 
   radius => xc
 
@@ -1146,8 +1140,6 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
   PetscReal :: radius(:)
   PetscReal :: dist_scale
 
-  PetscErrorCode :: ierr
-
   PetscReal, parameter :: Pi=3.141592653590d0
 
   if (structured_grid%second_order_bc) then
@@ -1370,22 +1362,14 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
 
   call VecRestoreArrayF90(volume,volume_p,ierr);CHKERRQ(ierr)
 
-  if (option%driver%print_to_screen .and. &
-      option%comm%mycommsize > 1 .and. &
-      option%comm%mycommsize <= 16) then
-    write(*,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
+  if (option%comm%size > 1 .and. option%comm%size <= 16) then
+    write(option%io_buffer,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
       & ", nxs,e = ",2i4,", nys,e = ",2i4,", nzs,e = ",2i4)') &
       option%myrank,structured_grid%nlmax,structured_grid%nlx, &
         structured_grid%nly,structured_grid%nlz,structured_grid%lxs, &
         structured_grid%lxe,structured_grid%lys,structured_grid%lye, &
         structured_grid%lzs,structured_grid%lze
-
-    write(*,'(" rank= ",i3,", ngmax= ",i6,", ngx,y,z= ",3i4, &
-      & ", ngxs,e= ",2i4,", ngys,e= ",2i4,", ngzs,e= ",2i4)') &
-      option%myrank,structured_grid%ngmax,structured_grid%ngx, &
-        structured_grid%ngy,structured_grid%ngz,structured_grid%gxs, &
-        structured_grid%gxe,structured_grid%gys,structured_grid%gye, &
-        structured_grid%gzs,structured_grid%gze
+    call PrintMsgAnyRank(option)
   endif
 
 end subroutine StructGridComputeVolumes
@@ -1414,7 +1398,6 @@ subroutine StructGridMapIndices(structured_grid,stencil_type, &
   type(option_type) :: option
 
   PetscInt :: i, j, k, local_id, ghosted_id, natural_id, count1
-  PetscErrorCode :: ierr
 
   allocate(nL2G(structured_grid%nlmax))
   allocate(nG2L(structured_grid%ngmax))
@@ -1748,8 +1731,6 @@ subroutine StructGridDestroy(structured_grid)
 
   type(grid_structured_type), pointer :: structured_grid
 
-  PetscErrorCode :: ierr
-
   if (.not.associated(structured_grid)) return
 
   call DeallocateArray(structured_grid%dx_global)
@@ -1808,7 +1789,6 @@ subroutine StructGridCreateTVDGhosts(structured_grid,ndof,global_vec, &
   PetscInt, allocatable :: global_indices_from(:)
   PetscInt, allocatable :: tvd_ghost_indices_to(:)
   ISLocalToGlobalMapping :: mapping_ltog
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   ! structured grid has 6 sides to it

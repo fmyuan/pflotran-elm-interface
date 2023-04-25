@@ -78,7 +78,6 @@ subroutine MatrixBlockAuxVarInit1(auxvar,dim1,dim2,dim3,option)
   implicit none
 
   type(matrix_block_auxvar_type) :: auxvar
-  type(matrix_block_info_type) :: matrix_info
   PetscInt :: dim1
   PetscInt :: dim2
   PetscInt :: dim3

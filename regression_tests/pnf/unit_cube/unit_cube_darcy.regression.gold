@@ -14,7 +14,6 @@
         1:   1.0000000000000E+00  0.0000000000000E+00  0.0000000000000E+00
         6:   1.0000000000000E+00  0.0000000000000E+00  0.0000000000000E+00
 -- SOLUTION: Flow --
-   Time (seconds):   6.7424774169922E-04
    Time Steps:           14
    Linear Solver Iterations:           14
    Time Step Cuts:            0

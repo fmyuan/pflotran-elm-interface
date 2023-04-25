@@ -26,6 +26,27 @@
         1:         1
         3:         3
         5:         3
+-- GENERIC: Porosity --
+      Max:   2.5000000000000E-01
+      Min:   2.5000000000000E-01
+     Mean:   2.5000000000000E-01
+        1:   2.5000000000000E-01
+        3:   2.5000000000000E-01
+        5:   2.5000000000000E-01
+-- GENERIC: Tortuosity --
+      Max:   5.0000000000000E-01
+      Min:   5.0000000000000E-01
+     Mean:   5.0000000000000E-01
+        1:   5.0000000000000E-01
+        3:   5.0000000000000E-01
+        5:   5.0000000000000E-01
+-- GENERIC: Permeability X --
+      Max:   1.0000000000000E-13
+      Min:   1.0000000000000E-13
+     Mean:   1.0000000000000E-13
+        1:   1.0000000000000E-13
+        3:   1.0000000000000E-13
+        5:   1.0000000000000E-13
 -- CONCENTRATION: Free Tracer --
       Max:   1.6105086390227E-10
       Min:   4.3141218283709E-12
@@ -41,18 +62,16 @@
         3:         1
         5:         1
 -- SOLUTION: Flow --
-   Time (seconds):   9.2804431915283E-03
    Time Steps:           18
    Newton Iterations:           22
-   Solver Iterations:           22
+   Linear Solver Iterations:           22
    Time Step Cuts:            0
    Solution 2-Norm:   4.4757297349886E+05
    Residual 2-Norm:   3.9766412760389E-05
 -- SOLUTION: Transport --
-   Time (seconds):   5.9099197387695E-03
    Time Steps:           18
    Newton Iterations:           18
-   Solver Iterations:           18
+   Linear Solver Iterations:           18
    Time Step Cuts:            0
    Solution 2-Norm:   2.6336174127787E-10
    Residual 2-Norm:   7.0997481469891E-30

@@ -4,7 +4,7 @@ module HDF5_module
   use petscvec
 
   use Logging_module
-
+  use HDF5_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -19,7 +19,6 @@ module HDF5_module
 #error "PETSc must be configured with HDF5 to run PFLOTRAN"
 #endif
   PetscMPIInt :: hdf5_err
-  PetscMPIInt :: io_rank
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -103,9 +102,9 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
                                       hdf5_err)
   ! divide across all processes
   temp_int = int(num_integers_in_file)
-  read_block_size = temp_int / option%comm%mycommsize
-  remainder = temp_int - read_block_size*option%comm%mycommsize
-  if (option%myrank < temp_int - read_block_size*option%comm%mycommsize) &
+  read_block_size = temp_int / option%comm%size
+  remainder = temp_int - read_block_size*option%comm%size
+  if (option%myrank < temp_int - read_block_size*option%comm%size) &
     read_block_size = read_block_size + 1
   if (local_size > 0 .and. local_size /= read_block_size) then
     write(string,*) local_size, read_block_size
@@ -152,7 +151,7 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
 
   call h5pclose_f(prop_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   call PetscLogEventEnd(logging%event_read_int_array_hdf5,ierr);CHKERRQ(ierr)
 
@@ -190,8 +189,8 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
-  integer(HSIZE_T) :: dims(3),mem_dims(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  integer(HSIZE_T) :: dims(3)
+  PetscMPIInt :: rank_mpi
   PetscInt :: i, j, k, count, id
   integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscInt :: ny_local_X_nz_local
@@ -303,7 +302,7 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
     endif
   endif
   call h5pclose_f(prop_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
   call h5sclose_f(memory_space_id,hdf5_err)
 
@@ -339,7 +338,6 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   PetscInt :: dataset_size
   integer(HID_T) :: file_id
   PetscInt, pointer :: indices(:)
-  PetscInt :: num_indices
 
   integer(HID_T) :: file_space_id
   integer(HID_T) :: memory_space_id
@@ -434,7 +432,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call h5pclose_f(prop_id,hdf5_err)
   call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   cell_id_bounds(1) = minval(indices(1:iend-istart))
   cell_id_bounds(2) = maxval(indices(1:iend-istart))
@@ -445,7 +443,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > grid%nmax) then
     option%io_buffer = 'One or more "Cell Ids" in HDF5 dataset &
       &are outside the range of valid cell IDs: 1-' // &
-      adjustl(StringWrite(grid%nmax))
+      trim(adjustl(StringWrite(grid%nmax)))
     call PrintErrMsg(option)
   endif
 
@@ -466,6 +464,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   !
   use hdf5
 
+  use HDF5_Aux_module
   use Option_module
   use Grid_module
   use Discretization_module
@@ -481,7 +480,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   PetscInt :: dataset_size
   integer(HID_T) :: file_id
   PetscInt, pointer :: indices(:)
-  PetscInt :: num_indices
   Vec :: global_vec
   integer(HID_T) :: data_type
 
@@ -594,7 +592,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   call h5pclose_f(prop_id,hdf5_err)
   if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
@@ -638,24 +636,16 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   PetscBool, intent (out) :: face_ids_exists
   PetscBool, intent (out) :: vert_ids_exists
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
-  integer(HID_T) :: prop_id
-
-  PetscBool :: grp_exists
 
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   ! Open the Regions group
   string = 'Regions'
@@ -677,11 +667,11 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   string = "Vertex Ids"
   call h5lexists_f(grp_id2, string, vert_ids_exists, hdf5_err)
 
-  call h5gclose_f(grp_id2,hdf5_err)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id2,option)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
 end subroutine HDF5QueryRegionDefinition
 
@@ -707,32 +697,24 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   implicit none
 
-  type(option_type), pointer :: option
+  type(option_type) :: option
   type(region_type) :: region
   character(len=MAXSTRINGLENGTH) :: filename
 
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch
 
   character(len=MAXSTRINGLENGTH) :: string
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
-  integer(HID_T) :: prop_id
 
-  PetscInt :: num_integers
   PetscBool :: grp_exists
 
   call PetscLogEventBegin(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
 
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   ! Open the Regions group
   string = 'Regions'
@@ -778,13 +760,13 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   option%io_buffer = 'Closing group: ' // trim(region%name)
   call PrintMsg(option)
-  call h5gclose_f(grp_id2,hdf5_err)
+  call HDF5GroupClose(grp_id2,option)
   option%io_buffer = 'Closing group: Regions'
   call PrintMsg(option)
-  call h5gclose_f(grp_id,hdf5_err)
+  call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
 
@@ -814,18 +796,17 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   implicit none
 
   !class(realization_subsurface_type) :: realization
-  type(option_type), pointer :: option
+  type(option_type) :: option
   type(region_type) :: region
   type(region_sideset_type),pointer :: sideset
   character(len=MAXSTRINGLENGTH) :: filename
 
   ! local
-  !type(option_type), pointer :: option
+  !type(option_type) :: option
   PetscMPIInt :: hdf5_err
   PetscMPIInt :: rank_mpi
   PetscInt :: remainder
   PetscInt :: istart, iend, ii, jj
-  PetscInt, pointer :: int_buffer_1d(:)
   ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_buffer_2d(:,:)
@@ -842,16 +823,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   integer(SIZE_T) :: string_size
   integer :: ndims_h5
 
-  ! Setup file access property with parallel I/O access
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-
-  ! Open the file collectively
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   ! Open dataset
   string = 'Regions/' // trim(region%name) // '/Vertex Ids'
@@ -886,8 +858,8 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   region%sideset => RegionCreateSideset()
   sideset => region%sideset
 
-  sideset%nfaces = int(dims_h5(2)/option%comm%mycommsize)
-  remainder = int(dims_h5(2)) - sideset%nfaces*option%comm%mycommsize
+  sideset%nfaces = int(dims_h5(2)/option%comm%size)
+  remainder = int(dims_h5(2)) - sideset%nfaces*option%comm%size
   if (option%myrank < remainder) sideset%nfaces = sideset%nfaces + 1
 
   ! Find istart and iend
@@ -950,8 +922,8 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   call h5pclose_f(prop_id,hdf5_err)
   call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(data_space_id,hdf5_err)
-  call h5dclose_f(data_set_id,hdf5_err)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
+  call HDF5FileClose(file_id,option)
 
 end subroutine HDF5ReadRegionDefinedByVertex
 
@@ -998,12 +970,10 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: prop_id
 
   PetscLogDouble :: tstart, tend
 
   PetscInt, pointer :: indices(:)
-  PetscInt, allocatable :: integer_array(:)
 
   nullify(indices)
 
@@ -1018,12 +988,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   option%io_buffer = 'Setting up grid cell indices'
   call PrintMsg(option)
@@ -1079,11 +1044,11 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   if (file_id /= grp_id) then
     option%io_buffer = 'Closing group: ' // trim(group_name)
     call PrintMsg(option)
-    call h5gclose_f(grp_id,hdf5_err)
+    call HDF5GroupClose(grp_id,option)
   endif
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_cell_indx_int_read_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1132,12 +1097,10 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: prop_id
 
   PetscLogDouble :: tstart, tend
 
   PetscInt, pointer :: indices(:)
-  PetscReal, allocatable :: real_array(:)
 
   nullify(indices)
 
@@ -1152,12 +1115,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   option%io_buffer = 'Setting up grid cell indices'
   call PrintMsg(option)
@@ -1211,11 +1169,11 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   if (file_id /= grp_id) then
     option%io_buffer = 'Closing group: ' // trim(group_name)
     call PrintMsg(option)
-    call h5gclose_f(grp_id,hdf5_err)
+    call HDF5GroupClose(grp_id,option)
   endif
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   call PetscLogEventEnd(logging%event_cell_indx_real_read_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1300,12 +1258,10 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
 
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
+  type(option_type) :: option
   PetscReal, pointer :: vec_ptr(:)
 
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
   integer(HID_T) :: data_set_id
@@ -1409,7 +1365,7 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
     call h5pclose_f(prop_id,hdf5_err)
   endif
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5WriteDataSetFromVec
@@ -1438,12 +1394,10 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
 
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
+  type(option_type) :: option
   PetscReal, pointer :: vec_ptr(:)
 
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
   integer(HID_T) :: data_set_id
@@ -1549,7 +1503,7 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
     call h5pclose_f(prop_id,hdf5_err)
   endif
 
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5ReadDataSetInVec

@@ -12,22 +12,11 @@ module Output_Aux_module
   PetscInt, parameter, public :: INSTANTANEOUS_VARS = 1
   PetscInt, parameter, public :: AVERAGED_VARS = 2
 
-  PetscInt, parameter, public :: CHECKPOINT_BINARY = 1
-  PetscInt, parameter, public :: CHECKPOINT_HDF5 = 2
-  PetscInt, parameter, public :: CHECKPOINT_BOTH = 3
-
-  type, public :: checkpoint_option_type
-    character(len=MAXWORDLENGTH) :: tunit
-    PetscReal :: tconv
-    PetscReal :: periodic_time_incr
-    PetscInt :: periodic_ts_incr
-    PetscInt :: format
-  end type checkpoint_option_type
-
   type, public :: output_option_type
 
     character(len=MAXWORDLENGTH) :: tunit
     PetscReal :: tconv
+    PetscBool :: output_read
 
     PetscBool :: print_initial_obs
     PetscBool :: print_final_obs
@@ -58,6 +47,7 @@ module Output_Aux_module
 
     PetscBool :: print_vtk
     PetscBool :: print_vtk_vel_cent
+    PetscBool :: vtk_acknowledgment
 
     PetscBool :: print_observation
     PetscBool :: print_column_ids
@@ -177,8 +167,6 @@ module Output_Aux_module
             OpenAndWriteInputRecord, &
             OutputOptionDestroy, &
             OutputVariableListDestroy, &
-            CheckpointOptionCreate, &
-            CheckpointOptionDestroy, &
             OutputH5Create, &
             OutputH5Destroy
 
@@ -201,6 +189,7 @@ function OutputOptionCreate()
   type(output_option_type), pointer :: output_option
 
   allocate(output_option)
+  output_option%output_read = PETSC_FALSE
   output_option%print_hdf5 = PETSC_FALSE
   output_option%print_obs_hdf5 = PETSC_FALSE
   output_option%extend_hdf5_time_format = PETSC_FALSE
@@ -220,6 +209,7 @@ function OutputOptionCreate()
   output_option%print_tecplot_vel_face = PETSC_FALSE
   output_option%print_vtk = PETSC_FALSE
   output_option%print_vtk_vel_cent = PETSC_FALSE
+  output_option%vtk_acknowledgment = PETSC_FALSE
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
   output_option%print_explicit_primal_grid = PETSC_FALSE
@@ -328,6 +318,7 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_tecplot_vel_face = output_option%print_tecplot_vel_face
   output_option2%print_vtk = output_option%print_vtk
   output_option2%print_vtk_vel_cent = output_option%print_vtk_vel_cent
+  output_option2%vtk_acknowledgment = output_option%vtk_acknowledgment
   output_option2%print_observation = output_option%print_observation
   output_option2%print_column_ids = output_option%print_column_ids
   output_option2%print_initial_obs = output_option%print_initial_obs
@@ -389,34 +380,6 @@ function OutputOptionDuplicate(output_option)
   OutputOptionDuplicate => output_option2
 
 end function OutputOptionDuplicate
-
-! ************************************************************************** !
-
-function CheckpointOptionCreate()
-  !
-  ! Creates output options object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/07/07
-  !
-
-  implicit none
-
-  type(checkpoint_option_type), pointer :: CheckpointOptionCreate
-
-  type(checkpoint_option_type), pointer :: checkpoint_option
-
-  allocate(checkpoint_option)
-  checkpoint_option%tunit = ''
-  checkpoint_option%tconv = 0.d0
-  checkpoint_option%periodic_time_incr = UNINITIALIZED_DOUBLE
-  checkpoint_option%periodic_ts_incr = 0
-  !checkpoint_option%periodic_ts_incr = huge(checkpoint_option%periodic_ts_incr)
-  checkpoint_option%format = CHECKPOINT_BINARY
-
-  CheckpointOptionCreate => checkpoint_option
-
-end function CheckpointOptionCreate
 
 ! ************************************************************************** !
 
@@ -870,6 +833,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = '1/Pa-s'
       category = OUTPUT_GENERIC
       id = GAS_MOBILITY
+    case ('GAS_VISCOSITY')
+      name = 'Gas Viscosity'
+      units = 'Pa-s'
+      category = OUTPUT_GENERIC
+      id = GAS_VISCOSITY
     case ('GAS_ENERGY')
       name = 'Gas Energy'
       units = 'MJ/kmol'
@@ -1010,7 +978,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
    case ('PERMEABILITY_XY')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_XY only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1020,7 +988,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
     case ('PERMEABILITY_XZ')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_XZ only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1030,7 +998,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
     case ('PERMEABILITY_YZ')
       if (.not.option%flow%full_perm_tensor) then
         option%io_buffer = 'PERMEABILITY_YZ only supported for &
-          full tensor permeability.'
+          &full tensor permeability.'
         call PrintErrMsg(option)
       endif
       units = 'm^2'
@@ -1351,7 +1319,6 @@ subroutine OutputVariableAppendDefaults(output_variable_list,option)
   type(output_variable_list_type), pointer :: output_variable_list
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
 
@@ -1416,7 +1383,7 @@ subroutine OpenAndWriteInputRecord(option)
     write(id,'(a18)',advance='no') 'group: '
     write(id,*) trim(option%group_prefix)
 
-    write(word,*) option%comm%mycommsize
+    write(word,*) option%comm%size
     write(id,'(a18)',advance='no') 'n processors: '
     write(id,*) trim(adjustl(word))
   endif
@@ -1469,27 +1436,6 @@ recursive subroutine OutputVariableDestroy(output_variable)
   nullify(output_variable)
 
 end subroutine OutputVariableDestroy
-
-! ************************************************************************** !
-
-subroutine CheckpointOptionDestroy(checkpoint_option)
-  !
-  ! Deallocates an output option
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/07/07
-  !
-
-  implicit none
-
-  type(checkpoint_option_type), pointer :: checkpoint_option
-
-  if (.not.associated(checkpoint_option)) return
-
-  deallocate(checkpoint_option)
-  nullify(checkpoint_option)
-
-end subroutine CheckpointOptionDestroy
 
 ! ************************************************************************** !
 

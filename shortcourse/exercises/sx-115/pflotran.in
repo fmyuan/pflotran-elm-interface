@@ -308,23 +308,23 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 1.e5 ! 200 meter piezometric head (200*997.32*9.81)
+  LIQUID_PRESSURE 1.e5 ! 200 meter piezometric head (200*997.32*9.81)
 /
 
 FLOW_CONDITION boundary
   TYPE
-    FLUX neumann
+    LIQUID_FLUX neumann
   /
-  FLUX 2.53678e-9 ! 0.08 m/yr
+  LIQUID_FLUX 2.53678e-9 ! 0.08 m/yr
 /
 
 FLOW_CONDITION water_table
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 1.4e5 ! 200 meter piezometric head (200*997.32*9.81)
+  LIQUID_PRESSURE 1.4e5 ! 200 meter piezometric head (200*997.32*9.81)
 /
 
 FLOW_CONDITION source

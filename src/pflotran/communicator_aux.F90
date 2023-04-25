@@ -9,24 +9,30 @@ module Communicator_Aux_module
   private
 
   type, public :: comm_type
-    PetscMPIInt :: global_comm      ! MPI_COMM_WORLD
-    PetscMPIInt :: global_rank      ! rank in MPI_COMM_WORLD
-    PetscMPIInt :: global_commsize  ! size of MPI_COMM_WORLD
-    PetscMPIInt :: global_group     ! id of group in MPI_COMM_WORLD
-
-    PetscMPIInt :: mycomm           ! PETSC_COMM_WORLD
-    PetscMPIInt :: myrank           ! rank in PETSC_COMM_WORLD
-    PetscMPIInt :: mycommsize       ! size of PETSC_COMM_WORLD
-    PetscMPIInt :: mygroup          ! id of group in PETSC_COMM_WORLD
-    PetscMPIInt :: mygroup_id
+    PetscMPIInt :: communicator ! communicator
+    PetscMPIInt :: rank         ! rank in communicator
+    PetscMPIInt :: size         ! size of communicator
+    PetscMPIInt :: group        ! id of group in communicator
 
     PetscLogDouble :: start_time
+    PetscInt :: group_id     ! PFLOTRAN centric group id
+    PetscMPIInt :: io_rank
+
+    type(comm_type), pointer :: parent
   end type comm_type
+
+  interface CommIsIORank
+    module procedure :: CommIsIORank1
+    module procedure :: CommIsIORank2
+  end interface
 
   public :: CommCreate, &
             CommInitPetsc, &
+            CommResetStartTime, &
             CommPopulate, &
-            CommCreateProcessorGroups, &
+            CommIsIORank, &
+            CommCreateProcessGroups, &
+            CommStrip, &
             CommDestroy
 
 contains
@@ -47,18 +53,16 @@ function CommCreate()
   type(comm_type), pointer :: CommCreate
 
   allocate(comm)
-  comm%global_comm = 0
-  comm%global_rank = 0
-  comm%global_commsize = 0
-  comm%global_group = 0
-
-  comm%mycomm = 0
-  comm%myrank = 0
-  comm%mycommsize = 0
-  comm%mygroup = 0
-  comm%mygroup_id = 0
+  comm%communicator = MPI_COMM_NULL
+  comm%rank = 0
+  comm%size = 0
+  comm%group = MPI_GROUP_NULL
 
   comm%start_time = 0.d0
+  comm%group_id = 0
+  comm%io_rank = 0
+
+  nullify(comm%parent)
 
   CommCreate => comm
 
@@ -79,11 +83,25 @@ subroutine CommInitPetsc(comm,communicator)
   if (present(communicator)) PETSC_COMM_WORLD = communicator
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr);CHKERRQ(ierr)
 
-  comm%global_comm = PETSC_COMM_WORLD
-  call PetscTime(comm%start_time,ierr);CHKERRQ(ierr)
+  comm%communicator = PETSC_COMM_WORLD
+  call CommResetStartTime(comm)
   call CommPopulate(comm)
 
 end subroutine CommInitPetsc
+
+! ************************************************************************** !
+
+subroutine CommResetStartTime(comm)
+
+  implicit none
+
+  type(comm_type) :: comm
+
+  PetscErrorCode :: ierr
+
+  call PetscTime(comm%start_time,ierr);CHKERRQ(ierr)
+
+end subroutine CommResetStartTime
 
 ! ************************************************************************** !
 
@@ -95,59 +113,125 @@ subroutine CommPopulate(comm)
 
   PetscErrorCode :: ierr
 
-  call MPI_Comm_rank(comm%global_comm,comm%global_rank,ierr);CHKERRQ(ierr)
-  call MPI_Comm_size(comm%global_comm,comm%global_commsize, &
-                     ierr);CHKERRQ(ierr)
-  call MPI_Comm_group(comm%global_comm,comm%global_group,ierr);CHKERRQ(ierr)
-  comm%mycomm = comm%global_comm
-  comm%myrank = comm%global_rank
-  comm%mycommsize = comm%global_commsize
-  comm%mygroup = comm%global_group
+  call MPI_Comm_rank(comm%communicator,comm%rank,ierr);CHKERRQ(ierr)
+  call MPI_Comm_size(comm%communicator,comm%size,ierr);CHKERRQ(ierr)
+  call MPI_Comm_group(comm%communicator,comm%group,ierr);CHKERRQ(ierr)
 
 end subroutine CommPopulate
 
 ! ************************************************************************** !
 
-subroutine CommCreateProcessorGroups(comm,num_groups)
+function CommIsIORank1(comm)
+
+  implicit none
+
+  type(comm_type) comm
+
+  PetscBool :: CommIsIORank1
+
+  CommIsIORank1 = (comm%rank == comm%io_rank)
+
+end function CommIsIORank1
+
+! ************************************************************************** !
+
+function CommIsIORank2(comm,rank)
+
+  implicit none
+
+  type(comm_type) comm
+  PetscMPIInt :: rank
+
+  PetscBool :: CommIsIORank2
+
+  CommIsIORank2 = (rank == comm%io_rank)
+
+end function CommIsIORank2
+
+! ************************************************************************** !
+
+subroutine CommCreateProcessGroups(parent_comm,num_groups, &
+                                   force_equal_sized_groups,child_comm,ierr)
   !
-  ! Splits MPI_COMM_WORLD into N separate
-  ! processor groups
+  ! Splits an MPI communicator into N separate processor groups
   !
   ! Author: Glenn Hammond
   ! Date: 08/11/09
   !
   implicit none
 
-  type(comm_type) :: comm
+  type(comm_type), target :: parent_comm
   PetscInt :: num_groups
+  PetscBool :: force_equal_sized_groups
+  type(comm_type), pointer :: child_comm
+  PetscErrorCode :: ierr
 
   PetscInt :: local_commsize
   PetscInt :: offset, delta, remainder
   PetscInt :: igroup
   PetscMPIInt :: mycolor_mpi, mykey_mpi
-  PetscErrorCode :: ierr
 
-  local_commsize = comm%global_commsize / num_groups
-  remainder = comm%global_commsize - num_groups * local_commsize
+  ierr = 0
+  if (associated(child_comm)) then
+    ierr = 1
+    return
+  endif
+
+  local_commsize = parent_comm%size / num_groups
+  remainder = parent_comm%size - num_groups * local_commsize
+  if (force_equal_sized_groups .and. remainder > 0) then
+    ierr = 1
+    return
+  endif
   offset = 0
   do igroup = 1, num_groups
     delta = local_commsize
     if (igroup < remainder) delta = delta + 1
-    if (comm%global_rank >= offset .and. &
-        comm%global_rank < offset + delta) exit
+    if (parent_comm%rank >= offset .and. &
+        parent_comm%rank < offset + delta) exit
     offset = offset + delta
   enddo
   mycolor_mpi = igroup
-  comm%mygroup_id = igroup
-  mykey_mpi = comm%global_rank - offset
-  call MPI_Comm_split(comm%global_comm,mycolor_mpi,mykey_mpi,comm%mycomm, &
+  mykey_mpi = parent_comm%rank - offset
+  child_comm => CommCreate()
+  child_comm%group_id = igroup
+  call MPI_Comm_split(parent_comm%communicator,mycolor_mpi,mykey_mpi, &
+                      child_comm%communicator,ierr);CHKERRQ(ierr)
+  call MPI_Comm_rank(child_comm%communicator,child_comm%rank, &
+                     ierr);CHKERRQ(ierr)
+  call MPI_Comm_size(child_comm%communicator,child_comm%size, &
+                     ierr);CHKERRQ(ierr)
+  call MPI_Comm_group(child_comm%communicator,child_comm%group, &
                       ierr);CHKERRQ(ierr)
-  call MPI_Comm_group(comm%mycomm,comm%mygroup,ierr);CHKERRQ(ierr)
 
-  call MPI_Comm_rank(comm%mycomm,comm%myrank,ierr);CHKERRQ(ierr)
-  call MPI_Comm_size(comm%mycomm,comm%mycommsize,ierr);CHKERRQ(ierr)
+  child_comm%parent => parent_comm
 
-end subroutine CommCreateProcessorGroups
+end subroutine CommCreateProcessGroups
+
+! ************************************************************************** !
+
+subroutine CommStrip(comm)
+
+  ! deallocate MPI objects prior to PetscFinalize
+
+  implicit none
+
+  type(comm_type) :: comm
+
+  PetscErrorCode :: ierr
+
+  if (comm%group /= MPI_GROUP_NULL) then
+    call MPI_Group_free(comm%group,ierr);CHKERRQ(ierr)
+    comm%group = MPI_GROUP_NULL
+  endif
+
+  if (comm%communicator /= PETSC_COMM_WORLD .and. &
+      comm%communicator /= MPI_COMM_NULL) then
+    call MPI_Comm_free(comm%communicator,ierr);CHKERRQ(ierr)
+    comm%communicator = MPI_COMM_NULL
+  endif
+
+end subroutine CommStrip
 
 ! ************************************************************************** !
 
@@ -157,7 +241,9 @@ subroutine CommDestroy(comm)
 
   type(comm_type), pointer :: comm
 
-  PetscErrorCode :: ierr
+  if (.not.associated(comm)) return
+
+  call CommStrip(comm)
 
   deallocate(comm)
   nullify(comm)

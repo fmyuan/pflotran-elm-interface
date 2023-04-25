@@ -25,6 +25,10 @@ module Output_Obs_H5_module
 
   character(len=MAXSTRINGLENGTH) :: h5_filename
 
+  ! attribute information 
+  character(len=MAXWORDLENGTH) :: sim_time 
+  character(len=MAXWORDLENGTH) :: version
+
   ! information used to describe data
   PetscInt :: num_regions  ! Total number of defined regions
 
@@ -52,6 +56,9 @@ contains
   subroutine OutputObsH5Init(num_steps)
     !
     ! Initializes module variables for HDF5 output
+    ! Gets date/time information for simulation as
+    ! well as version information and stores these
+    ! to be output as attributes.
     !
     ! Author: R. McKeown
     ! Date: 01/26/2022
@@ -61,8 +68,25 @@ contains
 
     PetscInt :: num_steps
 
+    character(len=8) :: date_word
+    character(len=10) :: time_word
+    character(len=5) :: zone_word
+
     if (num_steps == 0) then
       observation_hdf5_first = PETSC_TRUE
+      
+      call date_and_time(date_word,time_word,zone_word)
+      write(sim_time,'(a)') date_word(5:6) // '/'         &
+                            // date_word(7:8) // '/'      &
+                            // date_word(1:4) // ' '      &
+                            // time_word(1:2) // ':'      &
+                            // time_word(3:4) // ' ('     &
+                            // zone_word(1:3) // ':'      &
+                            // zone_word(4:5) // ' UTC)'
+
+    ! retrieve version
+    version = GetVersion()
+      
     else
       observation_hdf5_first = PETSC_FALSE
     endif
@@ -86,9 +110,6 @@ contains
     class(realization_base_type) :: realization_base
     type(option_type), pointer   :: option
 
-    PetscInt :: i_obs
-
-    PetscMPIInt :: h5_err
     PetscMPIInt :: mpi_err
 
     option => realization_base%option
@@ -155,12 +176,85 @@ contains
     call h5fcreate_f(h5_filename, H5F_ACC_TRUNC_F, file_id, h5_err, &
                      access_prp=fapl_id)
 
+    ! add version and date attributes
+    call AddVersionAndDateAttributes(file_id)
+
     call h5pclose_f(fapl_id, h5_err)
 
     call h5fclose_f(file_id, h5_err)
 
   end subroutine CreateH5ObservationFile
 
+
+  subroutine AddVersionAndDateAttributes(file_id)
+    !
+    ! Output the verion and build date of PFLOTRAN as
+    ! attributes in the HDF5 observation output file.
+    !
+    !
+    ! Author: R. McKeown
+    ! Date: 10/28/2022
+    !
+
+    implicit none
+
+    PetscMPIInt :: h5_err
+
+    character(len=16), parameter :: vname = "version"
+    character(len=16), parameter :: dname = "simulation date"
+
+    integer        :: arank = 1   ! Attribute rank
+    integer(HID_T) :: file_id     ! HDF5 file handle
+    integer(HID_T) :: atype_id    ! Attribute type
+    integer(HID_T) :: attr_id     ! Attribute identifier
+    integer(HID_T) :: attr_space  ! Attribute space
+    integer(HSIZE_T) :: attrlen   ! Length of attribute string
+    integer(HSIZE_T), dimension(1) :: adims = (/1/)   ! Attribute dimension
+    integer(HSIZE_T), dimension(1) :: data_dims 
+  
+
+    attrlen = MAXWORDLENGTH
+  
+    ! create scalar data space for the version attribute
+    call h5screate_simple_f(arank, adims, attr_space, h5_err)
+
+    ! create datatype for the version attribute
+    call h5tcopy_f(H5T_NATIVE_CHARACTER, atype_id, h5_err)
+    call h5tset_size_f(atype_id, attrlen, h5_err)
+
+    ! create the version attribute for observation output file
+    call h5acreate_f(file_id, vname, atype_id, attr_space, attr_id, h5_err)
+
+    ! write the attribute data
+    data_dims(1) = 2
+    call h5awrite_f(attr_id, atype_id, version, data_dims, h5_err)
+
+    ! close the attribute, type, and data space
+    call h5aclose_f(attr_id, h5_err)
+    call h5tclose_f(atype_id, h5_err)
+    call h5sclose_f(attr_space, h5_err)
+  
+    ! create scalar data space for the simulation time attribute
+    call h5screate_simple_f(arank, adims, attr_space, h5_err)
+
+    ! create datatype for the simulation date attribute
+    call h5tcopy_f(H5T_NATIVE_CHARACTER, atype_id, h5_err)
+    call h5tset_size_f(atype_id, attrlen, h5_err)
+
+    ! create the simulation date attribute for observation output file
+    call h5acreate_f(file_id, dname, atype_id, attr_space, attr_id, h5_err)
+
+    ! write the attribute data
+    data_dims(1) = 2
+    call h5awrite_f(attr_id, atype_id, sim_time, data_dims, h5_err)
+
+    ! close the attribute, type, and data space
+    call h5aclose_f(attr_id, h5_err)
+    call h5tclose_f(atype_id, h5_err)
+    call h5sclose_f(attr_space, h5_err)
+
+
+  end subroutine AddVersionAndDateAttributes
 
   subroutine GetH5ObservationRegionMetadata(realization_base)
     !
@@ -236,15 +330,16 @@ contains
 
       tmp_region_id = 0
 
-      if (associated(observation) .and.      &
-          associated(observation%region) ) then
+      if (associated(observation)) then
+        if (associated(observation%region)) then
 
-        tmp_region_id = observation%region%id
+          tmp_region_id = observation%region%id
 
-        ! fill some array elements
-        obs_region_ids(tmp_region_id) = tmp_region_id
-        obs_region_numcells(comm_rank+1, tmp_region_id) =   &
-                            observation%region%num_cells
+          ! fill some array elements
+          obs_region_ids(tmp_region_id) = tmp_region_id
+          obs_region_numcells(comm_rank+1, tmp_region_id) =   &
+                              observation%region%num_cells
+        endif
 
       endif
 
@@ -407,9 +502,7 @@ contains
     type(region_type), pointer           :: region
 
     integer(HID_T)               :: file_id
-    integer(HID_T)               :: fapl_id
     integer(HID_T)               :: group_id
-    integer(HID_T)               :: dset_id
 
     PetscInt   :: icell
     PetscInt   :: local_id, ghosted_id
@@ -517,11 +610,9 @@ contains
     integer(HID_T) :: fapl_id
     integer(HID_T) :: tgroup_id
     integer(HID_T) :: rgroup_id
-    integer(HID_T) :: data_id
 
     PetscMPIInt :: h5_err
     PetscInt    :: icell
-    PetscInt    :: ireg
     PetscInt    :: local_id, ghosted_id
     PetscInt    :: region_id
     PetscReal   :: tmp_real
@@ -659,8 +750,6 @@ contains
 
     implicit none
 
-    type(patch_type), pointer    :: patch
-    type(region_type), pointer   :: region
     type(output_variable_type), pointer :: cur_variable
     type(output_option_type), pointer   :: output_option
 
@@ -751,8 +840,6 @@ contains
     integer(HID_T) :: space_id
     integer(HID_T) :: dset_id
     integer(HSIZE_T) :: dset_size(1)
-
-    character(len=MAXWORDLENGTH) :: v_name
 
     ! create data space entire dataset
     dset_size(1) = obs_region_total_numcells(region_id)

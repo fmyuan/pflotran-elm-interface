@@ -193,8 +193,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-  PetscViewer :: viewer
-
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
 
   if (this%dm_wrapper%dm /= PETSC_NULL_DM) then
@@ -214,13 +212,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
 
-  ! set read file access property
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5FileOpenReadOnly(this%filename,file_id,PETSC_TRUE,'',option)
 
   string = trim(this%hdf5_dataset_name) // '/Data'
   if (this%realization_dependent) then
@@ -241,7 +233,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   if (ndims > 1) then
     file_rank2_size = int(dims(2))
   else
-    if (option%comm%mycommsize > 1) then
+    if (option%comm%size > 1) then
       option%io_buffer = 'Dataset "' // trim(this%hdf5_dataset_name) // &
         '" in file "' // trim (this%filename) // &
         '" must be a 2D dataset (time,cell) if PFLOTRAN is run in parallel.'
@@ -339,10 +331,10 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   string = trim(this%hdf5_dataset_name) // '/Data'
   option%io_buffer = 'Closing data set: ' // trim(string)
   call PrintMsg(option)
-  call h5dclose_f(data_set_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
-  call h5fclose_f(file_id,hdf5_err)
+  call HDF5FileClose(file_id,option)
 
   istart = 0
   do i = 1, min(buffer_rank2_size,file_rank2_size-this%buffer_slice_offset)

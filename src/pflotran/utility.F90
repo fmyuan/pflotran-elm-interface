@@ -51,6 +51,11 @@ module Utility_module
     module procedure DeallocateArray2DString
   end interface
 
+  interface UtilitySortArray
+    module procedure UtilitySortArrayReal
+    module procedure UtilitySortArrayInt
+  end interface
+
   interface InterfaceApprox
     module procedure InterfaceApproxWithDeriv
     module procedure InterfaceApproxWithoutDeriv
@@ -71,6 +76,7 @@ module Utility_module
             CrossProduct, &
             ReallocateArray, &
             UtilityReadArray, &
+            UtilitySortArray, &
             DeallocateArray, &
             InterfaceApprox, &
             Interpolate, &
@@ -117,7 +123,7 @@ function rnd()
 
   iseed = iseed*125
   iseed = iseed - (iseed/2796203) * 2796203
-  rnd   = iseed/2796203.0
+  rnd   = dble(iseed)/2796203.0
   return
 
 end function rnd
@@ -191,11 +197,11 @@ function ran2(idum)
 
   parameter (IA = 16807)
   parameter (IM = 2147483647)
-  parameter (AM = 1.0/IM)
+  parameter (AM = 1.0/dble(IM))
   parameter (IQ = 127773)
   parameter (IR = 2836)
   parameter (NTAB = 32)
-  parameter (NDIV = 1+(IM-1)/NTAB)
+  parameter (NDIV = int(1+(IM-1)/dble(NTAB)))
   parameter (EPS  = 1.2e-7)
   parameter (RNMX = 1.0-EPS)
 
@@ -573,7 +579,7 @@ subroutine LUDecomposition2(A,N,INDX,D)
   implicit none
 
   PetscInt :: N
-  PetscReal :: A(N,N),VV(N)
+  PetscReal :: A(N,N)
   PetscInt :: INDX(N)
   PetscInt :: D
 
@@ -1552,7 +1558,7 @@ subroutine UtilityEnforceUseOfContinuation(input,option,comment)
   PetscInt, parameter :: max_char_in_line = 480
 
   if (len_trim(input%buf) > max_char_in_line) then
-    word = StringWrite(max_char_in_line)
+    word = trim(StringWrite(max_char_in_line))
     option%io_buffer = 'The number of characters in the input buffer in &
       &UtilityReadIntArray() exceeds ' // trim(word)
     if (len_trim(comment) > 0) then
@@ -2325,12 +2331,12 @@ subroutine InterfaceApproxWithoutDeriv(v_up, v_dn, dv_up2dn, &
   PetscReal, intent(out) :: v_interf
 
   PetscReal :: dummy_in
-  PetscReal :: dummy_out
+  PetscReal :: dummy_out, dummy_out2
 
   dummy_in = 1.d0
 
   call InterfaceApproxWithDeriv(v_up, v_dn, dummy_in, dummy_in, dv_up2dn, &
-                                approx_type, v_interf, dummy_out, dummy_out)
+                                approx_type, v_interf, dummy_out, dummy_out2)
 
 end subroutine InterfaceApproxWithoutDeriv
 
@@ -2624,6 +2630,74 @@ end function expm1
 
 ! ************************************************************************** !
 
+subroutine UtilitySortArrayInt(array)
+  !
+  ! Sorts an integer array from lowest value to highest
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/25/22
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscBool :: swapped
+  PetscInt :: i
+  PetscInt :: array(:)
+  PetscInt :: tempint
+
+  do
+    swapped = PETSC_FALSE
+    do i = 1, size(array)-1
+      if (array(i) > array(i+1)) then
+        tempint = array(i)
+        array(i) = array(i+1)
+        array(i+1) = tempint
+        swapped = PETSC_TRUE
+      endif
+    enddo
+    if (.not.swapped) exit
+  enddo
+
+end subroutine UtilitySortArrayInt
+
+! ************************************************************************** !
+
+subroutine UtilitySortArrayReal(array)
+  !
+  ! Sorts a double precision array from lowest value to highest
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/25/22
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscBool :: swapped
+  PetscInt :: i
+  PetscReal :: array(:)
+  PetscReal :: tempreal
+
+  do
+    swapped = PETSC_FALSE
+    do i = 1, size(array)-1
+      if (array(i) > array(i+1)) then
+        tempreal = array(i)
+        array(i) = array(i+1)
+        array(i+1) = tempreal
+        swapped = PETSC_TRUE
+      endif
+    enddo
+    if (.not.swapped) exit
+  enddo
+
+end subroutine UtilitySortArrayReal
+
+! ************************************************************************** !
+
 subroutine PrintHeader(header,option)
   !
   ! Prints a header to screen and/or file output
@@ -2652,7 +2726,6 @@ subroutine PrintHeader(header,option)
   call PrintMsg(option,string)
 
 end subroutine PrintHeader
-
 
 ! ************************************************************************** !
 

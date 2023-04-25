@@ -127,6 +127,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_General_class
+  use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
@@ -321,6 +322,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           endif
         class is(pm_general_type)
               add_pre_check = PETSC_TRUE
+        class is(pm_hydrate_type)
+              add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
               add_pre_check = PETSC_TRUE
         class is(pm_zflow_type)
@@ -458,7 +461,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
                                   this%pm_ptr,PETSC_NULL_FUNCTION, &
                                   ierr);CHKERRQ(ierr)
     endif
-    if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
+    if (this%pm_ptr%pm%print_EKG .or. option%use_sc .or. &
         check_post_convergence) then
       select case(solver%snes_type)
         case(SNESNEWTONLS)
@@ -657,7 +660,6 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   use PFLOTRAN_Constants_module
   use Material_Aux_module
   use Material_module
-  use Variables_module, only : POROSITY
 
   implicit none
 
@@ -675,7 +677,6 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   PetscInt :: ghosted_id
 
   PetscErrorCode :: ierr
-  PetscViewer :: viewer
 
 #ifdef GEOMECH_DEBUG
   print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
@@ -754,7 +755,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
   PetscScalar, pointer :: temp_p(:)
-  PetscScalar, pointer :: sub_por_loc_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
 

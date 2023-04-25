@@ -18,8 +18,8 @@
   \item[] \verb|  RATE|
   \item[] \verb|DATUM|
   \item[] \verb|GRADIENT|
-  \item[] \verb|PRESSURE|
-  \item[] \verb|FLUX|
+  \item[] \verb|LIQUID_PRESSURE|
+  \item[] \verb|LIQUID_FLUX|
   \item[] \verb|RATE|
 \end{itemize}
 \end{itemize}
@@ -32,7 +32,7 @@
 \begin{semiverbatim}
 FLOW_CONDITION river
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM LIST
@@ -42,7 +42,7 @@ FLOW_CONDITION river
     50.d0 0.d0 0.d0 33.d0
     100.d0 0.d0 0.d0 34.d0
   /
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 \end{semiverbatim}
 
@@ -54,9 +54,9 @@ END
 \begin{semiverbatim}
 FLOW_CONDITION recharge
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX LIST
+  LIQUID_FLUX LIST
     TIME_UNITS yr
     DATA_UNITS cm/yr
     0.d0 25.d0

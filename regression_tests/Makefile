@@ -77,6 +77,7 @@ STANDARD_CFG = \
 	default/materials/materials.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
+	default/materials/strata_surface/strata_surface.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/numerical/numerical.cfg \
 	default/output/compare/compare.cfg \
@@ -124,6 +125,7 @@ STANDARD_CFG = \
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
+	general/cpr_general/cpr_general.cfg \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
@@ -162,7 +164,8 @@ FLOW_CFG = \
 	default/scco2/mphase/mphase.cfg \
 	default/zflow/zflow.cfg \
 	general/general.cfg \
-	pnf/unit_cube/unit_cube.cfg \
+	general/cpr_general/cpr_general.cfg \
+        pnf/unit_cube/unit_cube.cfg \
 	ntrdc/ntrdc.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
@@ -258,6 +261,7 @@ transport :
 geophysics :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(GEOPHYSICS_CFG) --suite geophysics
+
 inverse :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(INVERSE_CFG) --suite inverse

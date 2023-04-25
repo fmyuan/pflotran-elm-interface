@@ -53,11 +53,11 @@ plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
 #plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
 
 plt.twiny()
-plt.xlabel('Saturation [-]')
+plt.xlabel('Liquid Saturation [-]')
 plt.xlim(0.,1.05)
 data = pft.Dataset(filenames[ifile],5,3)
 plt.plot(data.get_array('x'),data.get_array('y'), \
-         label='Saturation',color='black',ls='--')
+         label='Liquid Saturation',color='black',ls='--')
 plt.legend(loc=1)
 # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
 plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')

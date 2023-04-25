@@ -82,8 +82,7 @@ subroutine RegressionRead(regression,input,option)
   type(input_type), pointer :: input
   type(option_type), pointer :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
-  type(output_variable_type), pointer :: cur_variable, new_variable
+  character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: count, max_cells
   PetscInt, pointer :: int_array(:)
   PetscErrorCode :: ierr
@@ -190,14 +189,13 @@ subroutine RegressionCreateMapping(regression,realization)
 
   IS :: is_petsc
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: i, upper_bound, lower_bound, count, temp_int
+  PetscInt :: i, count, temp_int
   PetscInt :: local_id
   PetscReal, pointer :: vec_ptr(:)
   character(len=MAXWORDLENGTH) :: word
   Vec :: temp_vec
   VecScatter :: temp_scatter
   IS :: temp_is
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   type(grid_type), pointer :: grid
@@ -323,8 +321,7 @@ subroutine RegressionCreateMapping(regression,realization)
                    ierr);CHKERRQ(ierr)
     if (OptionIsIORank(option)) then
       call VecSetSizes(regression%cells_per_process_vec, &
-                       regression%num_cells_per_process*option%comm% &
-                         mycommsize, &
+                       regression%num_cells_per_process*option%comm%size, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
       call VecSetSizes(regression%cells_per_process_vec,ZERO_INTEGER, &
@@ -349,7 +346,7 @@ subroutine RegressionCreateMapping(regression,realization)
 
     ! create temporary scatter to transfer values to io_rank
     if (OptionIsIORank(option)) then
-      count = option%comm%mycommsize*regression%num_cells_per_process
+      count = option%comm%size*regression%num_cells_per_process
       ! determine how many of the natural cell ids are local
       allocate(int_array(count))
       do i = 1, count
@@ -379,7 +376,7 @@ subroutine RegressionCreateMapping(regression,realization)
 
     ! transfer cell ids into array for creating new scatter
     if (OptionIsIORank(option)) then
-      count = option%comm%mycommsize*regression%num_cells_per_process
+      count = option%comm%size*regression%num_cells_per_process
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       do i = 1, count
@@ -420,7 +417,7 @@ subroutine RegressionCreateMapping(regression,realization)
     ! fill in natural ids of these cells on the io_rank
     if (OptionIsIORank(option)) then
       allocate(regression%cells_per_process_natural_ids( &
-               regression%num_cells_per_process*option%comm%mycommsize))
+               regression%num_cells_per_process*option%comm%size))
     endif
 
     call VecGetArrayF90(realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
@@ -597,12 +594,12 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
         if (cur_variable%iformat == 0) then
-          do i = 1, regression%num_cells_per_process*option%comm%mycommsize
+          do i = 1, regression%num_cells_per_process*option%comm%size
             write(OUTPUT_UNIT,100) &
               regression%cells_per_process_natural_ids(i),vec_ptr(i)
           enddo
         else
-          do i = 1, regression%num_cells_per_process*option%comm%mycommsize
+          do i = 1, regression%num_cells_per_process*option%comm%size
             write(OUTPUT_UNIT,101) &
               regression%cells_per_process_natural_ids(i),int(vec_ptr(i))
           enddo
@@ -737,7 +734,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
             call VecGetArrayF90(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
-            do i = 1, regression%num_cells_per_process*option%comm%mycommsize
+            do i = 1, regression%num_cells_per_process*option%comm%size
               write(OUTPUT_UNIT,104) &
                 regression%cells_per_process_natural_ids(i),vec_ptr(i), &
                   y_ptr(i),z_ptr(i)

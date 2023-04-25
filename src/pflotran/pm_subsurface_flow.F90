@@ -172,7 +172,7 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
     case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
+      option%use_sc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')
       this%replace_init_params_on_restart = PETSC_TRUE
     case('REVERT_PARAMETERS_ON_RESTART')
@@ -238,7 +238,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
-      
+
     case default
       found = PETSC_FALSE
   end select
@@ -264,11 +264,10 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   class(pm_subsurface_flow_type) :: this
   type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
-  character(len=MAXSTRINGLENGTH) :: error_string, string
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
-  PetscErrorCode :: ierr
 
 !  found = PETSC_FALSE
 !  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
@@ -333,7 +332,6 @@ subroutine PMSubsurfaceFlowSetup(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  PetscErrorCode :: ierr
   class(characteristic_curves_type), pointer :: cur_cc
 
   ! set the communicator
@@ -404,7 +402,7 @@ subroutine PMSubsurfaceFlowSetRealization(this,realization)
   this%realization_base => realization
 
   ! scale pressures down to the range near saturation (0 to 1)
-  if (this%option%flow%scale_all_pressure) then 
+  if (this%option%flow%scale_all_pressure) then
     this%solution_vec = realization%field%flow_scaled_xx
   else
     this%solution_vec = realization%field%flow_xx
@@ -425,15 +423,13 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Condition_Control_module
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE, &
-                                 POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE
   use String_module, only : StringWrite
   use Utility_module, only : Equal
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-  PetscBool :: update_initial_porosity
 
   ! must come before RealizUnInitializedVarsTran
   call PMSubsurfaceFlowSetSoilRefPres(this%realization)
@@ -441,45 +437,36 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call RealizUnInitializedVarsTran(this%realization)
 
   if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity) then
-      call RealizationCalcMineralPorosity(this%realization)
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_BASE)
-      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_INITIAL)
-      call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                    this%realization%field%porosity0)
+    if (this%realization%reaction%calculate_initial_porosity) then
+      ! cannot calculate porosity if restarting, even if reverting flow
+      ! parameters
+      if (this%option%restart_flag .and. &
+          this%revert_parameters_on_restart) then
+        this%option%io_buffer = 'Cannot revert flow parameters when &
+          &calculating initial porosity as a function of mineral volume &
+          &fractions.'
+        call PrintErrMsg(this%option)
+      else if (.not.this%option%restart_flag) then
+        call RealizationCalcMineralPorosity(this%realization)
+        call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                     this%realization%field%work_loc, &
+                                     POROSITY,POROSITY_BASE)
+        call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                     this%realization%field%work_loc, &
+                                     POROSITY,POROSITY_INITIAL)
+        call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                      this%realization%field%porosity0)
+      endif
     endif
   endif
 
   ! update material properties that are a function of mineral vol fracs
-  update_initial_porosity = PETSC_TRUE
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
         this%realization%reaction%update_mineral_surface_area) then
       call RealizationUpdatePropertiesTS(this%realization)
-      update_initial_porosity = PETSC_FALSE
-    endif
-  endif
-
-  if (update_initial_porosity) then
-    call this%comm1%GlobalToLocal(this%realization%field%porosity0, &
-                                  this%realization%field%work_loc)
-    ! push values to porosity_base
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_INITIAL)
-    if (.not.this%realization%option%restart_flag .or. &
-        this%revert_parameters_on_restart) then
-      ! POROSITY_BASE should not be updated to porosity0 if we are
-      ! restarting unless the revert_parameters on restart flag is true.
-      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_BASE)
     endif
   endif
 
@@ -526,7 +513,6 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_type), pointer :: Material
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(material_property_type), pointer :: material_property
   type(option_type), pointer :: option
@@ -642,10 +628,9 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   ! Date: 04/21/14
 
   use Global_module
-  use Variables_module, only : POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : POROSITY
   use Material_module
-  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE
 
   implicit none
 
@@ -683,18 +668,16 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   ! Date: 04/21/14
 
   use Global_module
-  use Variables_module, only : POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : POROSITY
   use Material_module
   use Material_Aux_module, only : POROSITY_CURRENT, POROSITY_BASE
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
 
-  if (this%option%ntrandof > 0) then ! store initial saturations for transport
+  if (this%option%flow%store_state_variables_in_global) then
+    ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
     if (this%store_porosity_for_transport) then
       ! store time t properties for transport
@@ -766,9 +749,9 @@ subroutine PMSubsurfaceFlowPreSolve(this)
     inverse_factor = this%option%flow%pressure_scaling_factor**(-1.d0)
     call VecStrideScale(this%realization%field%flow_scaled_xx,ZERO_INTEGER, &
                         inverse_factor, ierr);CHKERRQ(ierr)
-  endif 
+  endif
 
-  this%norm_history = 0.d0  
+  this%norm_history = 0.d0
   call DataMediatorUpdate(this%realization%flow_data_mediator_list, &
                           this%realization%field%flow_mass_transfer, &
                           this%realization%option)
@@ -890,7 +873,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   ! Date: 04/21/14
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE
 
   implicit none
 
@@ -935,8 +918,6 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  PetscErrorCode :: ierr
-
   this%option%flow_dt = this%option%dt
 
   if (this%option%ngeomechdof > 0) then
@@ -965,7 +946,7 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  if (this%option%ntrandof > 0) then
+  if (this%option%flow%store_state_variables_in_global) then
     ! store final saturations, etc. for transport
     call GlobalUpdateAuxVars(this%realization,TIME_TpDT,this%option%time)
     if (this%store_porosity_for_transport) then
@@ -1192,7 +1173,6 @@ subroutine PMSubsurfaceFlowInputRecord(this)
 
   class(pm_subsurface_flow_type) :: this
 
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
 
   id = INPUT_RECORD_UNIT

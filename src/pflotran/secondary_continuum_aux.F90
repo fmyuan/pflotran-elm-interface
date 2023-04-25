@@ -13,8 +13,7 @@ module Secondary_Continuum_Aux_module
 #include "petsc/finclude/petscsys.h"
 
   type, public :: slab_type
-    PetscReal :: length                       ! input - length of slab
-    PetscReal :: area                         ! input - surface area
+    PetscReal :: half_matrix_width            ! input - length of half width of slab
   end type slab_type
 
   type, public :: nested_cube_type
@@ -36,7 +35,7 @@ module Secondary_Continuum_Aux_module
 
   type, public :: sec_heat_type
     PetscInt :: ncells                         ! number of secondary grid cells
-    PetscReal :: aperture                      ! fracture aperture
+    PetscReal :: half_aperture                      ! fracture aperture
     PetscReal :: epsilon                       ! vol. frac. of primary continuum
     type(sec_continuum_type) :: sec_continuum
     PetscReal, pointer :: sec_temp(:)          ! array of temp. at secondary grid cells
@@ -51,7 +50,7 @@ module Secondary_Continuum_Aux_module
 
   type, public :: sec_transport_type
     PetscInt :: ncells                         ! number of secondary grid cells
-    PetscReal :: aperture                      ! fracture aperture
+    PetscReal :: half_aperture                      ! fracture aperture
     PetscReal :: epsilon                       ! vol. frac. of primary continuum
     type(sec_continuum_type) :: sec_continuum
     type(reactive_transport_auxvar_type), pointer :: sec_rt_auxvar(:)  ! for each secondary grid cell

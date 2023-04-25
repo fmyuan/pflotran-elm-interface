@@ -106,7 +106,7 @@ subroutine FlexBioHillReadInput(this,input,option)
       case('MAX_SPECIFIC_UTILIZATION_RATE')
         call InputReadDouble(input,option,this%k_max)
         call InputErrorMsg(input,option,word,error_string)
-        call InputReadAndConvertUnits(input,this%k_max,'1/sec', &
+        call InputReadAndConvertUnits(input,this%k_max,'1/sec|mol/mol-sec', &
                                       trim(error_string)//','//word,option)
       case('AAQ_HALF_SATURATION_CONSTANT')
         call InputReadDouble(input,option,K_Aaq)

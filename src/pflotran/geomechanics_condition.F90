@@ -235,7 +235,6 @@ subroutine GeomechConditionRead(condition,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
   type(geomech_sub_condition_type), pointer :: sub_condition_ptr,  &
                                        displacement_x, displacement_y, &
@@ -245,10 +244,7 @@ subroutine GeomechConditionRead(condition,input,option)
   PetscInt :: default_iphase
   character(len=MAXWORDLENGTH) :: default_ctype
   PetscInt :: default_itype
-  PetscInt :: array_size, idof
-  PetscBool :: found
-  PetscBool :: destroy_if_null
-  PetscErrorCode :: ierr
+  PetscInt :: idof
   PetscInt :: num_sub_conditions
   PetscInt :: count
   !geh: may not need default_time_storage

@@ -40,7 +40,7 @@ function SimulationInverseCreate(driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-   use Driver_module
+   use Driver_class
 
   class(simulation_inverse_type), pointer :: SimulationInverseCreate
   class(driver_type), pointer :: driver
@@ -59,7 +59,7 @@ subroutine SimulationInverseInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Driver_module
+  use Driver_class
 
   class(simulation_inverse_type) :: this
   class(driver_type), pointer :: driver
@@ -84,7 +84,6 @@ subroutine SimulationInverseRead(this,option)
   use Utility_module
   use Inversion_ERT_class
   use Inversion_Subsurface_class
-  use Inversion_Tao_class
   use Inversion_ZFlow_class
 
   class(simulation_inverse_type) :: this
@@ -122,8 +121,6 @@ subroutine SimulationInverseRead(this,option)
         select case(word)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
-          case('TAO')
-            this%inversion => InversionTaoCreate(this%driver)
           case('TEST_SENSITIVITY_JACOBIAN')
             this%inversion => InversionSubsurfaceCreate(this%driver)
           case('ZFLOW')
@@ -158,9 +155,71 @@ subroutine SimulationInverseInitializeRun(this)
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
+  type(comm_type), pointer :: invcomm, forcomm, forcomm_i
+  PetscInt :: num_process_groups
+  PetscMPIInt :: mycolor_mpi, mykey_mpi
+
+  PetscReal :: array(3)
+
+  PetscErrorCode :: ierr
+
+  nullify(invcomm)
+  nullify(forcomm)
+  nullify(forcomm_i)
+
+  num_process_groups = this%inversion%inversion_option%num_process_groups
+
+  ! create process groups here
+  call CommCreateProcessGroups(this%driver%comm,num_process_groups, &
+                               PETSC_TRUE,invcomm,ierr)
+  if (ierr /= 0) then
+    call this%driver%PrintErrMsg('Unevenly sized MPI comm groups.')
+  endif
+  if (invcomm%group_id > 1) then
+    call CommDestroy(invcomm)
+  endif
+  call CommCreateProcessGroups(this%driver%comm,num_process_groups, &
+                               PETSC_TRUE,forcomm,ierr)
+  if (forcomm%group_id > 1) then
+!    call CommDestroy(this%inversion%inversion_option%forcomm)
+  endif
+
+  if (num_process_groups > 1) then
+    forcomm_i => CommCreate()
+    mycolor_mpi = forcomm%rank
+    mykey_mpi = forcomm%group_id-1
+    call MPI_Comm_split(this%driver%comm%communicator,mycolor_mpi,mykey_mpi, &
+                        forcomm_i%communicator,ierr);CHKERRQ(ierr)
+    call MPI_Comm_rank(forcomm_i%communicator,forcomm_i%rank, &
+                       ierr);CHKERRQ(ierr)
+    call MPI_Comm_size(forcomm_i%communicator,forcomm_i%size, &
+                       ierr);CHKERRQ(ierr)
+    call MPI_Comm_group(forcomm_i%communicator,forcomm_i%group, &
+                        ierr);CHKERRQ(ierr)
+    forcomm_i%group_id = forcomm%rank + 1
+
+    array = UNINITIALIZED_DOUBLE
+#if 0
+    ierr = UNINITIALIZED_DOUBLE
+    if (associated(invcomm)) ierr = invcomm%rank
+    print *, this%driver%comm%rank, ' : ranks : ', ierr, forcomm%rank, forcomm_i%rank
+
+    if (forcomm_i%rank == 0) array = [1.,2.,3.]
+    print *, forcomm_i%rank, array
+    call MPI_Bcast(array,3,MPI_DOUBLE_PRECISION,0, &
+                   forcomm_i%communicator,ierr);CHKERRQ(ierr)
+    print *, forcomm_i%rank, array
+    stop
+#endif
+  endif
+
+  this%inversion%inversion_option%invcomm => invcomm
+  this%inversion%inversion_option%forcomm => forcomm
+  this%inversion%inversion_option%forcomm_i => forcomm_i
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
+  call OptionSetComm(option,this%driver%comm) ! doesn't matter which comm
   call SimulationBaseInitializeRun(this)
   call OptionDestroy(option)
 
@@ -199,7 +258,7 @@ subroutine SimulationInverseFinalizeRun(this)
 
   call this%inversion%Finalize()
   call SimulationBaseFinalizeRun(this)
-  if (this%driver%comm%global_rank == this%driver%io_rank) then
+  if (this%driver%IsIORank()) then
     call SimulationBaseWriteTimes(this,this%driver%fid_out)
   endif
 

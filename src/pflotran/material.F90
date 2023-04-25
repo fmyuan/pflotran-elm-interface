@@ -77,7 +77,6 @@ module Material_module
     PetscReal :: thermal_conductivity_frozen
     PetscReal :: alpha_fr
 
-    PetscReal :: thermal_expansitivity
     PetscReal :: dispersivity(3)
     PetscReal :: tortuosity_pwr
     PetscReal :: tortuosity_func_porosity_pwr
@@ -97,16 +96,15 @@ module Material_module
 
   type, public :: multicontinuum_property_type
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: length
-    class(dataset_base_type), pointer :: length_dataset
+    PetscReal :: half_matrix_width
+    class(dataset_base_type), pointer :: half_matrix_width_dataset
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
-    PetscReal :: area
     PetscInt :: ncells
     PetscReal :: epsilon
     class(dataset_base_type), pointer :: epsilon_dataset
-    PetscReal :: aperture
+    PetscReal :: half_aperture
     PetscReal :: init_temp
     PetscReal :: init_conc
     PetscReal :: porosity
@@ -116,6 +114,7 @@ module Material_module
     PetscBool :: log_spacing
     PetscReal :: outer_spacing
     PetscReal :: area_scaling
+    PetscReal :: tortuosity
   end type multicontinuum_property_type
 
   type, public :: material_property_ptr_type
@@ -230,23 +229,21 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE
   material_property%alpha_fr = 0.95d0
 
-  material_property%thermal_expansitivity = 0.d0
   material_property%dispersivity = 0.d0
   material_property%min_pressure = 0.d0
   material_property%max_pressure = 1.d6
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
 
-  if (option%use_mc) then
+  if (option%use_sc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
-    material_property%multicontinuum%length = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%half_matrix_width = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%matrix_block_size = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%fracture_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%radius = UNINITIALIZED_DOUBLE
-    material_property%multicontinuum%area = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%epsilon = UNINITIALIZED_DOUBLE
-    material_property%multicontinuum%aperture = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%half_aperture = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%init_temp = 100.d0
     material_property%multicontinuum%init_conc = 0.d0
     material_property%multicontinuum%diff_coeff(1) = 1.d-9
@@ -258,8 +255,9 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%log_spacing = PETSC_FALSE
     material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
+    material_property%multicontinuum%tortuosity = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
-    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%half_matrix_width_dataset)
   endif
 
   nullify(material_property%next)
@@ -291,9 +289,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXSTRINGLENGTH) :: tcc_name
 
   PetscInt :: length
@@ -303,6 +300,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
   PetscBool :: perm_iso_read
+  PetscBool :: perm_horizontal_read
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
@@ -450,11 +448,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
                   material_property%soil_reference_pressure_dataset, &
                   'soil reference pressure','MATERIAL_PROPERTY',option)
         endif
-      case('THERMAL_EXPANSITIVITY')
-        call InputReadDouble(input,option, &
-                             material_property%thermal_expansitivity)
-        call InputErrorMsg(input,option,'thermal expansitivity', &
-                           'MATERIAL_PROPERTY')
       case('POROSITY')
         call DatasetReadDoubleOrDataset(input,material_property%porosity, &
                                         material_property%porosity_dataset, &
@@ -494,6 +487,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('PERMEABILITY')
         ! if PERM_ISO is read, we cannot assign anisotropy
         perm_iso_read = PETSC_FALSE
+        ! if PERM_HORIZTONAL is read, we can assign vertical anisotropy
+        perm_horizontal_read = PETSC_FALSE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -617,6 +612,15 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                    MAXWORDLENGTH,PETSC_TRUE)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
+            case('PERM_HORIZONTAL')
+              perm_horizontal_read = PETSC_TRUE
+              call InputReadDouble(input,option, &
+                                   material_property%permeability(1,1))
+              call InputErrorMsg(input,option,'horizontal permeability', &
+                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              material_property%permeability(2,2) = &
+                material_property%permeability(1,1)
+              material_property%permeability(3,3) = UNINITIALIZED_DOUBLE
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
@@ -629,6 +633,18 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &anisotropic permeability options in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '".'
           call PrintErrMsg(option)
+        endif
+        if (perm_horizontal_read) then
+          if (Uninitialized(material_property%vertical_anisotropy_ratio)) then
+            option%io_buffer = 'VERTICAL_ANISOTROPY_RATIO must be specified &
+              &when PERM_HORIZONTAL is specified in  MATERIAL_PROPERTY "' // &
+              trim(material_property%name) // '".'
+            call PrintErrMsg(option)
+          else
+            material_property%permeability(3,3) = &
+              material_property%permeability(1,1) * &
+              material_property%vertical_anisotropy_ratio
+          endif
         endif
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
@@ -837,19 +853,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 call PrintErrMsg(option)
               endif
               call DatasetReadDoubleorDataset(input, &
-                material_property%multicontinuum%length, &
-                material_property%multicontinuum%length_dataset, &
+                material_property%multicontinuum%half_matrix_width, &
+                material_property%multicontinuum%half_matrix_width_dataset, &
                 'length', 'MATERIAL_PROPERTY',option)
             case('AREA')
-              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
-                option%io_buffer = 'AREA is &
-                                    &only supported for SLAB.'
-                call PrintErrMsg(option)
-              endif
-              call InputReadDouble(input,option, &
-                                   material_property%multicontinuum%area)
-              call InputErrorMsg(input,option,'area', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call PrintErrMsg(option,'AREA has been removed as input &
+                               &in multiple continuum model.')
             case('NUM_CELLS')
               call InputReadInt(input,option, &
                                    material_property%multicontinuum%ncells)
@@ -867,7 +876,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
-                             material_property%multicontinuum%aperture)
+                             material_property%multicontinuum%half_aperture)
               call InputErrorMsg(input,option,'aperture', &
                            'MATERIAL_PROPERTY')
             case('TEMPERATURE')
@@ -928,6 +937,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%area_scaling)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
+            case('TORTUOSITY')
+              call InputReadDouble(input,option, &
+                        material_property%multicontinuum%tortuosity)
+              call InputErrorMsg(input,option,'secondary continuum tortuosity', &
+                               'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')                           
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
@@ -1122,8 +1136,6 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   type(option_type) :: option
 
   type(material_property_type), pointer :: cur_material_property
-  type(material_property_type), pointer :: prev_material_property
-  type(material_property_type), pointer :: next_material_property
   PetscInt :: i, j, length1,length2, max_internal_id, max_external_id
   PetscInt, allocatable :: id_count(:)
   PetscBool :: error_flag
@@ -1558,7 +1570,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_reference_pressure_index = 0
   max_material_index = 0
   epsilon_index = 0
-  matrix_length_index = 0
+  half_matrix_width_index = 0
 
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
@@ -1624,9 +1636,9 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
         icount = icount + 1
         epsilon_index = icount
       endif
-      if (matrix_length_index == 0) then
+      if (half_matrix_width_index == 0) then
         icount = icount + 1
-        matrix_length_index = icount
+        half_matrix_width_index = icount
       endif
     endif
 !    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
@@ -1782,9 +1794,9 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         material_auxvars(i)%soil_properties(epsilon_index) = value
       enddo
-    case(MATRIX_LENGTH)
+    case(HALF_MATRIX_WIDTH)
       do i=1, Material%num_aux
-        material_auxvars(i)%soil_properties(matrix_length_index) = value
+        material_auxvars(i)%soil_properties(half_matrix_width_index) = value
       enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
@@ -1891,10 +1903,10 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)%&
           soil_properties(epsilon_index) = vec_loc_p(ghosted_id)
       enddo
-    case(MATRIX_LENGTH)
+    case(HALF_MATRIX_WIDTH)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%&
-          soil_properties(matrix_length_index) = vec_loc_p(ghosted_id)
+          soil_properties(half_matrix_width_index) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
@@ -2127,7 +2139,6 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
 
   use Option_module
   use Communicator_Base_class
-  use Variables_module, only : POROSITY
 
   implicit none
 
@@ -2239,8 +2250,7 @@ subroutine MaterialPropInputRecord(material_property_list)
   type(material_property_type), pointer :: material_property_list
 
   type(material_property_type), pointer :: cur_matprop
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') ' '
@@ -2458,7 +2468,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%soil_reference_pressure_dataset)
 
   if (associated(material_property%multicontinuum)) then
-    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%half_matrix_width_dataset)
     nullify(material_property%multicontinuum%epsilon_dataset)
     deallocate(material_property%multicontinuum)
     nullify(material_property%multicontinuum)

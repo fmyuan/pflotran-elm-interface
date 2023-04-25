@@ -50,13 +50,13 @@ basecolors = ['red','green','blue']
 
 #Temperature
 titles.append('Temperature')
-files.append('./heater-obs-0.tec')
+files.append('./heater-obs-0.pft')
 columns.append(2)
 name.append('Buffer1')
-files.append('./heater-obs-0.tec')
+files.append('./heater-obs-0.pft')
 columns.append(22)
 name.append('Buffer2')
-files.append('./heater-obs-0.tec')
+files.append('./heater-obs-0.pft')
 columns.append(42)
 name.append('Buffer3')
 
@@ -65,13 +65,13 @@ colors.extend(basecolors)
 
 #Liquid saturation
 titles.append('Liquid Saturation')
-files.append('./heater-obs-0.tec')
+files.append('./heater-obs-0.pft')
 columns.append(5)
 name.append('Buffer1')
-files.append('./heater-obs-0.tec')
+files.append('./heater-obs-0.pft')
 columns.append(25)
 name.append('Buffer2')
-files.append('./heater-obs-0.tec')
+files.append('./heater-obs-0.pft')
 columns.append(45)
 name.append('Buffer3')
 

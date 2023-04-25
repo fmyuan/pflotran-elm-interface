@@ -426,17 +426,17 @@ END
 \begin{semiverbatim}
 FLOW_CONDITION initial_pressure \bluecomment{! named \greencomment{initial_pressure}}
   TYPE
-    PRESSURE HYDROSTATIC \bluecomment{! type is \redcomment{hydrostatic}}
-  /                      \bluecomment{!   for pressure}
-  DATUM 0.d0 0.d0 1.d0   \bluecomment{! water table at 1 m}
-  PRESSURE 101325.d0     \bluecomment{! pressure set to atmospheric}
-END                      \bluecomment{!   at water table}
+    LIQUID_PRESSURE HYDROSTATIC \bluecomment{! type is \redcomment{hydrostatic}}
+  /                             \bluecomment{!   for pressure}
+  DATUM 0.d0 0.d0 1.d0          \bluecomment{! water table at 1 m}
+  LIQUID_PRESSURE 101325.d0     \bluecomment{! pressure set to atmos-}
+END                             \bluecomment{!   pheric at water table}
 
-FLOW_CONDITION recharge  \bluecomment{! named \greencomment{recharge}}
+FLOW_CONDITION recharge   \bluecomment{! named \greencomment{recharge}}
   TYPE
-    FLUX NEUMANN         \bluecomment{! type is \redcomment{neumann} for a flux}
+    LIQUID_FLUX NEUMANN   \bluecomment{! type is \redcomment{neumann} for a flux}
   /
-  FLUX 10.d0 cm/y        \bluecomment{! Darcy velocity of 10 cm/y}
+  LIQUID_FLUX 10.d0 cm/y  \bluecomment{! Darcy velocity of 10 cm/y}
 END
 \end{semiverbatim}
 
@@ -500,15 +500,17 @@ END
 
 \begin{semiverbatim}
 
-LINEAR_SOLVER FLOW     \bluecomment{! flow solver}
-  SOLVER DIRECT        \bluecomment{! sets both the below}
+NUMERICAL_METHODS FLOW
+  LINEAR_SOLVER        \bluecomment{! flow solver}
+    SOLVER DIRECT      \bluecomment{! sets both the below}
+  /
 END
 
-\bluecomment{! could also use:}
-LINEAR_SOLVER FLOW
-  KSP_TYPE PREONLY     \bluecomment{! turn off Krylov solver}
-  PC_TYPE PCLU         \bluecomment{! turn on LU preconditioner}
-END
+  \bluecomment{! could also use:}
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY   \bluecomment{! turn off Krylov solver}
+    PC_TYPE PCLU       \bluecomment{! turn on LU preconditioner}
+  /
 
 \end{semiverbatim}
 
@@ -607,10 +609,10 @@ Input File Modifications
 
 FLOW_CONDITION recharge
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  \magentacomment{#}FLUX 10.d0 cm/y   \bluecomment{! comment out constant value}
-  \magentacomment{FLUX LIST          \bluecomment{! flux is now a transient dataset}
+  \magentacomment{#}LIQUID_FLUX 10.d0 cm/y  \bluecomment{! comment out constant value}
+  \magentacomment{LIQUID_FLUX LIST   \bluecomment{! flux is now a transient dataset}
     TIME_UNITS y     \bluecomment{! units of time value: \redcomment{year}}
     DATA_UNITS cm/y  \bluecomment{! units of dataset: \redcomment{cm/year}}
     0. 100.          \bluecomment{! start pulse at 0. years}

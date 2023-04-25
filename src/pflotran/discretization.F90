@@ -135,19 +135,15 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid, grid2
+  type(grid_type), pointer :: grid
   type(grid_structured_type), pointer :: str_grid
   type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
 
-  character(len=MAXSTRINGLENGTH) :: string
-
   PetscInt :: structured_grid_itype
   PetscInt :: unstructured_grid_itype
   PetscInt :: nx, ny, nz
-  PetscInt :: i
-  PetscReal :: tempreal
 
   nx = 0
   ny = 0
@@ -235,7 +231,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
            'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL', &
-           '2ND_ORDER_BOUNDARY_CONDITION','IMPLICIT_GRID_AREA_CALCULATION')
+           '2ND_ORDER_BOUNDARY_CONDITION','IMPLICIT_GRID_AREA_CALCULATION', &
+           'RIGHT_HAND_RULE_CHECK_ALL')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word)
       case default
@@ -331,17 +328,10 @@ subroutine DiscretizationRead(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid, grid2
-  type(grid_structured_type), pointer :: str_grid
-  type(grid_unstructured_type), pointer :: un_str_grid
-  character(len=MAXWORDLENGTH) :: structured_grid_ctype
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string
+  type(grid_type), pointer :: grid
 
-  PetscInt :: structured_grid_itype
   PetscInt :: nx, ny, nz
   PetscInt :: i
-  PetscReal :: tempreal
   PetscBool :: bounds_read
   PetscBool :: dxyz_read
 
@@ -588,6 +578,9 @@ subroutine DiscretizationRead(discretization,input,option)
                                     'GRID, IMPLICIT_GRID_AREA_CALCULATION', &
                                     option)
         end select
+      case('RIGHT_HAND_RULE_CHECK_ALL')
+        discretization%grid%unstructured_grid% &
+                         check_all_points_rh_rule = PETSC_TRUE         
       case default
         call InputKeywordUnrecognized(input,word,'GRID',option)
     end select
@@ -639,8 +632,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
 
   PetscInt :: ndof
   !PetscInt, parameter :: stencil_width = 1
-  PetscErrorCode :: ierr
-  PetscInt :: i
   type(grid_unstructured_type), pointer :: ugrid
 
   select case(discretization%itype)
@@ -751,7 +742,6 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   PetscInt :: stencil_width
   PetscEnum :: stencil_type
   type(option_type) :: option
-  PetscErrorCode :: ierr
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -783,7 +773,6 @@ subroutine DiscretizationCreateVector(discretization,dm_index,vector, &
   Vec :: vector
   PetscInt :: vector_type
   type(option_type) :: option
-  PetscInt :: ndof
   PetscErrorCode :: ierr
 
   type(dm_ptr_type), pointer :: dm_ptr
@@ -902,13 +891,7 @@ subroutine DiscretizationCreateMatrix(discretization,dm_index,mat_type, &
   MatType :: mat_type
   Mat :: Matrix
   type(option_type) :: option
-  PetscInt :: ndof, stencilsize
-  PetscInt, pointer :: indices(:)
-  PetscInt :: ngmax
-  PetscInt :: imax, nlevels, ln, npatches, pn, i
   type(dm_ptr_type), pointer :: dm_ptr
-  ISLocalToGlobalMapping :: ptmap
-  PetscInt :: islocal
 
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
 
@@ -1264,7 +1247,6 @@ subroutine DiscretizationUpdateTVDGhosts(discretization,global_vec, &
   type(discretization_type) :: discretization
   Vec :: global_vec
   Vec :: tvd_ghost_vec
-  PetscInt :: dm_index
   PetscErrorCode :: ierr
 
   call VecScatterBegin(discretization%tvd_ghost_scatter,global_vec, &
@@ -1409,7 +1391,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       if (OptionPrintToScreen(option)) then
         write(*,'(/," Requested processors and decomposition = ", &
                  & i5,", npx,y,z= ",3i4)') &
-            option%comm%mycommsize,grid%structured_grid%npx, &
+            option%comm%size,grid%structured_grid%npx, &
             grid%structured_grid%npy,grid%structured_grid%npz
         write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
@@ -1418,7 +1400,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors and decomposition = ", &
                              & i5,", npx,y,z= ",3i4)') &
-            option%comm%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
+            option%comm%size,grid%structured_grid%npx,grid%structured_grid%npy, &
             grid%structured_grid%npz
         write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
@@ -1426,11 +1408,11 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       endif
     case default
       if (OptionPrintToScreen(option)) then
-        write(*,'(/," Requested processors = ",i5)') option%comm%mycommsize
+        write(*,'(/," Requested processors = ",i5)') option%comm%size
       endif
       if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors = ",i5)') &
-          option%comm%mycommsize
+          option%comm%size
       endif
   end select
 

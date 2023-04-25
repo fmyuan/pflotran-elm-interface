@@ -98,7 +98,6 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
   type(tran_constraint_list_type), pointer :: transport_constraints
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word
   class(tran_constraint_base_type), pointer :: base_constraint
@@ -171,7 +170,6 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      constraint%free_ion_guess => tran_constraint%free_ion_guess
      constraint%minerals => tran_constraint%minerals
      constraint%surface_complexes => tran_constraint%surface_complexes
-     constraint%colloids => tran_constraint%colloids
      constraint_coupler%global_auxvar => global_auxvars
      constraint_coupler%rt_auxvar => rt_auxvars
 
@@ -207,7 +205,7 @@ program pflotran_rxn
   use Reaction_Database_module
   use Communicator_Aux_module
   use Option_module
-  use Driver_module
+  use Driver_class
   use Input_Aux_module
   use String_module
 
@@ -234,8 +232,6 @@ program pflotran_rxn
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
   type(material_auxvar_type), pointer :: material_auxvars
 
-  character(len=MAXWORDLENGTH) :: card
-  character(len=MAXWORDLENGTH) :: word
   type(tran_constraint_list_type), pointer :: transport_constraints
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
 

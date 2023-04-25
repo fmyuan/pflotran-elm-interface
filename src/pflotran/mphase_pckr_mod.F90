@@ -276,8 +276,8 @@ subroutine pflow_pckr_noderiv_exec(ipckrtype,ikrtype,pckr_sir,kr0, &
   PetscReal, intent(out) :: pc(1:2)
   PetscReal, intent(out) :: kr(1:2)
 
-  PetscReal :: se,swir,sgir,sw0,lam,ala,um,un,upc,upc_s,kr_s,krg_s
-  PetscReal :: temp,ser,pcmax,sw
+  PetscReal :: se,swir,sgir,sw0,lam,ala,um,un,upc
+  PetscReal :: temp,pcmax,sw
   PetscReal :: uum,pckr_betac,betac,st
   PetscReal :: se0,upc0,upc_s0
 
