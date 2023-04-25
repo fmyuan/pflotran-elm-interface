@@ -1,8 +1,6 @@
 module PM_Well_class
 
-#include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscsnes.h"
-  use petscsys
   use petscsnes
   use PM_Base_class
   use Option_module
@@ -3912,8 +3910,6 @@ subroutine PMWellCalcJacobianValues(this,Jac,ierr)
 ! called from the fully-coupled source/sink update in WIPP FLOW mode.
 ! Author: Michael Nole
 ! Date: 01/16/2023
-
-  use petscsnes
 
   implicit none
 
