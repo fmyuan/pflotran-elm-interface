@@ -451,7 +451,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
     class is (sf_pchip_type)
-      error_string = trim(error_string) // sf%name()
+      error_string = trim(error_string) // sf%Label()
   end select
 
   call InputPushBlock(input,option)
@@ -1153,7 +1153,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
     class is(rpf_pchip_type)
-      error_string = trim(error_string) // rpf%Name()
+      error_string = trim(error_string) // rpf%Label()
   end select
 
   call InputPushBlock(input,option)
