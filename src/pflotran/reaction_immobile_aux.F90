@@ -293,7 +293,7 @@ function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
 
   if (return_error .and. GetImmobileSpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
-      '" not founds among immobile species in GetImmobileSpeciesIDFromName().'
+      '" not found among immobile species in GetImmobileSpeciesIDFromName().'
     call PrintErrMsg(option)
   endif
 
