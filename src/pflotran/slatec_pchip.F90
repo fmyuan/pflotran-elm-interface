@@ -23,7 +23,7 @@ implicit none
 ! 5. PCHFD
 
 ! Importer: Matthew Paul
-! Date:     05/23/2022
+! Date:     04/25/2023
 !
 ! **************************************************************************** !
 
@@ -581,7 +581,7 @@ end subroutine XERMSG
 !
       PetscReal :: ONE, ZERO
       SAVE ZERO, ONE
-      DATA  ZERO /0./,  ONE /1./
+      DATA  ZERO /0d0/,  ONE /1d0/
 !
 !  PERFORM THE TEST.
 !
