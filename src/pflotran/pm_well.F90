@@ -4114,6 +4114,8 @@ subroutine PMWellQISolveTran(this)
   ierr = 0
   this%tran_soln%cut_ts_flag = PETSC_FALSE
 
+  if (any(this%option%myrank /= this%well_grid%h_rank_id)) return
+
   if (initialize_well_tran) then
     call PMWellInitializeWellTran(this)
   endif
