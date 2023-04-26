@@ -394,8 +394,9 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscReal :: wipp_s_min, wipp_s_effmin
   PetscBool :: wipp_pct_ignore
   PetscInt :: spline
-  type(knot_queue_type) :: knots
-  PetscReal :: x, y
+
+  ! Buffer to parse datasets
+  class(dataset_ascii_type), pointer :: pc_dataset
 
   nullify(sf_swap)
   ! Default values for unspecified parameters
@@ -909,13 +910,15 @@ function SaturationFunctionRead(saturation_function,input,option) &
     !------------------------------------------
       class is (sf_pchip_type)
         select case(keyword)
-        case('KNOT')
-          ! Spline type ony contains knot pairs
-          ! but keyword will contain the 1st token
-          spline = spline + 1
-          call InputReadDouble(input,option,x)
-          call InputReadDouble(input,option,y)
-          call knots%enqueue(x, y)
+        case('FILE')
+          pc_dataset => DatasetAsciiCreate()
+          internal_units = 'Pa'
+          call InputReadFilename(input,option,table_name)
+          call DatasetAsciiReadFile(pc_dataset,table_name, &
+                                    temp_string, internal_units, &
+                                    error_string,option)
+          ! Note, saturation is stored as "time"
+          spline = pc_dataset%time_storage%max_time_index
         end select
       class default
         option%io_buffer = 'Read routine not implemented for ' &
@@ -1009,8 +1012,11 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (spline > 0) then
     select type (sf => saturation_function)
-    class is (sf_pchip_type) ! Splines from knots
-      sf_swap => SFPCHIPCtorQueue(knots)
+    class is (sf_pchip_type) ! Splines from data
+      ! Pass arrays from dataset_type and deallocate
+      ! Note "time" is saturation and "rbuffer" is Pc
+      sf_swap => SFPCHIPCtorArray(pc_dataset%time_storage%times, pc_dataset%rbuffer, spline)
+      call DatasetAsciiDestroy(pc_dataset)
     class default ! Splines from any function
       if (.not. associated(sf_swap)) then 
         sf_swap => SFPCHIPCtorFunction(spline, saturation_function)

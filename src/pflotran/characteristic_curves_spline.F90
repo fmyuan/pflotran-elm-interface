@@ -127,11 +127,13 @@ private SFPCHIPAllocate
 public  SFPCHIPCreate
 public  SFPCHIPCtorFunction
 public  SFPCHIPCtorQueue
+public  SFPCHIPCtorArray
 
 private RPFPCHIPAllocate
 public  RPFPCHIPCreate
 public  RPFPCHIPCtorFunction
 public  RPFPCHIPCtorQueue
+public  RPFPCHIPCtorArray
 
 contains
 
@@ -368,6 +370,30 @@ function SFPCHIPCtorQueue(queue) result (new)
   call PCHIPCoefficients(new%N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
 
 end function SFPCHIPCtorQueue
+
+! **************************************************************************** !
+
+function SFPCHIPCtorArray(Sw, Pc, N) result (new)
+  implicit none
+  PetscReal, Dimension(:) :: Sw, Pc
+  PetscInt :: N
+  class(sf_pchip_type), pointer :: new
+
+  new => SFPCHIPAllocate(N)
+  if (.not. associated(new)) return
+
+! Vector copy passed array to internal array
+  new%x = Sw
+  new%coef%y = Pc
+
+! Set base class attributes with limiting knots
+  new%Sr    = new%x(1)
+  new%Pcmax = new%coef(1)%y
+
+! Calculate the PCHIP splines
+  call PCHIPCoefficients(new%N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
+
+end function SFPCHIPCtorArray
 
 ! **************************************************************************** !
 
@@ -693,6 +719,30 @@ function RPFPCHIPCtorQueue(queue) result (new)
   call PCHIPCoefficients(N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
 
 end function RPFPCHIPCtorQueue
+
+! **************************************************************************** !
+
+function RPFPCHIPCtorArray(Sw, Kr, N) result (new)
+  implicit none
+  PetscReal, Dimension(:) :: Sw, Kr
+  PetscInt :: N
+  class(rpf_pchip_type), pointer :: new
+
+  new => RPFPCHIPAllocate(N)
+  if (.not. associated(new)) return
+
+! Vector copy passed array to internal array
+  new%x = Sw
+  new%coef%y = Kr
+
+! Set base class attributes with limiting knots
+  new%Sr = new%x(1)
+  new%Srg = 1d0 - new%x(N)
+
+! Calculate the PCHIP splines
+  call PCHIPCoefficients(new%N, new%x, new%coef%y, new%coef%dy, new%coef%c2, new%coef%c3)
+
+end function RPFPCHIPCtorArray
 
 ! **************************************************************************** !
 
