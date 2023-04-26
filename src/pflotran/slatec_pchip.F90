@@ -11,10 +11,10 @@ implicit none
 !    native Fortran types.
 ! 2. Replacing fixed format continuation characters with free-format ampersands.
 ! 3. Removing declaration of local functions 
-! 4. Replace DATA/SAVE statements with PARAMETER for constants
+! 4. Replacing DATA/SAVE statements with PARAMETER for constants
 !
-! XERMSG functionality has not been replicated, but could be integrated with
-! existing PFLOTRAN error message routines.
+! XERMSG functionality has not been replicated, but could call PFLOTRAN
+! error message routines.
 !
 ! Imported SLATEC/PCHIP decks
 ! 1. PCHDOC
@@ -536,7 +536,7 @@ end subroutine XERMSG
       END
 
 !DECK PCHST
-      REAL FUNCTION PCHST (ARG1, ARG2)
+      PetscReal FUNCTION PCHST (ARG1, ARG2)
 !***BEGIN PROLOGUE  PCHST
 !***SUBSIDIARY
 !***PURPOSE  PCHIP Sign-Testing Routine
