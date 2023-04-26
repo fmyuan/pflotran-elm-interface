@@ -349,6 +349,8 @@ function SFPCHIPCtorQueue(queue) result (new)
   PetscInt :: i
   PetscReal :: x, y
 
+  print *, "Entering queue ctor with depth ", queue%depth()
+
   new => SFPCHIPAllocate(queue%depth())
   if (.not. associated(new)) return
 
@@ -426,18 +428,21 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
 
+  PetscReal, parameter :: pi = 4*atan(1d0)
   PetscInt :: i, j, k
-  PetscReal :: x, dx
+  PetscReal :: x, dx, y
   PetscReal :: a, b, c
-  PetscReal :: q, r, s
-  PetscReal :: theta, pi
+  PetscReal :: q, r, s, t
+
+  ! Truncate capillary pressure to be within bounds
+  y = min(max(capillary_pressure, this%coef(this%N)%y), this%Pcmax)
 
   ! Binary search to find correct polynomial
   i = 1
   j = this%n
-  do while (j - 1 > 1)
-    k = (i + j) /2
-    if (this%coef(i)%y > capillary_pressure) then
+  do while (j - i > 1)
+    k = (i + j) / 2
+    if (this%coef(k)%y < y) then
      j = k
     else
      i = k
@@ -446,59 +451,60 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
 
   ! Find root of polynomial of up to 3rd order
   if (this%coef(i)%c3 /= 0d0) then ! Cubic
-    a = this%coef(i)%c2 / this%coef(i)%c3
-    b = this%coef(i)%dy / this%coef(i)%c3
-    c = (capillary_pressure - this%coef(i)%y)  / this%coef(i)%c3
+    a = this%coef(i)%c2       / this%coef(i)%c3
+    b = this%coef(i)%dy       / this%coef(i)%c3
+    c = (this%coef(i)%y - y)  / this%coef(i)%c3
 
-    q = (a**2-3*b)/9
-    r = (2*a**3-9*a*b+27*c)/54
+    q = (    a**2 - 3d0*  b         ) /  9d0
+    r = (2d0*a**3 - 9d0*a*b + 27d0*c) / 54d0
+    s = r**2 - q**3
 
-    if (r**2 < q**3) then ! Three real roots, must determine which is in domain
-      theta = acos(r/q**(1/3))
-      x = -2*sqrt(q)*cos(theta/3) - a/3 ! Guess and check first root
-      if (x < this%x(i) .or. x > this%x(i+1)) then ! Try 2nd root
-        pi = 4d0*atan(1d0) ! Define pi
-        x = -2*sqrt(q)*cos((theta + 2*pi)/3) - a/3
-        if (x < this%x(i) .or. x > this%x(i+1)) then ! Must be 3rd root
-          x = -2*sqrt(q)*cos((theta - 2*pi)/3) - a/3
+    if (s < 0d0) then
+      ! Three real roots, but only one in the domain
+      t = acos(r/sqrt(q**3)) ! Angle in radians
+      ! 1st root
+      x = -2d0*sqrt(q)*cos(t/3d0) - a/3d0
+      if (x < 0d0 .or. x > (this%x(i+1) - this%x(i))) then
+        ! 2nd root
+        x = -2d0*sqrt(q)*cos((t + 2d0*pi)/3d0) - a/3d0
+        if (x < 0d0 .or. x > (this%x(i+1) - this%x(i))) then
+          ! 3rd root
+          x = -2d0*sqrt(q)*cos((t - 2d0*pi)/3d0) - a/3d0
         end if
       end if
-    else ! One real root, ignore complex roots
-      c = -sign( (abs(r)+sqrt(r**2-q**3))**(1/3), r)
-      if (c /= 0d0) then
-        b = 0
+    else ! One real root, complex roots are ignored
+      t = sign( (abs(r)+sqrt(s))**(1d0/3d0), -r)
+      if (t /= 0d0) then
+        x = t + q/t - a/3d0
       else
-        b = q/a
+        x = -a/3d0
       end if
-      x = c + b - a/3
     end if
 
     dx =   this%coef(i)%dy + x* ( 2*this%coef(i)%c2 + 3*x*this%coef(i)%c3)
   else if (this%coef(i)%c2 /= 0d0) then ! Quadratic
     a = this%coef(i)%c2
     b = this%coef(i)%dy
-    c = this%coef(i)%y - capillary_pressure
+    c = this%coef(i)%y - y
 
     q = (b + sign(sqrt(b**2 - 4d0*a*c), b)) / (-2d0)
 
     x = q/a ! Check if this root is within spline domain
-    if (x < this%x(i) .or. x > this%x(i+1)) then
+    if (x < 0d0 .or. x > (this%x(i+1) - this%x(i))) then
       x = c/q ! If not, the other must be
     end if
 
     dx = this%coef(i)%dy + 2*x*this%coef(i)%c2
   else if (this%coef(i)%dy /= 0d0) then ! Linear
-    x = (capillary_pressure - this%coef(i)%y) / this%coef(i)%dy
-
+    x = (y - this%coef(i)%y) / this%coef(i)%dy
     dx = this%coef(i)%dy
   else ! Degenerate
-    x = this%x(i)
-
+    x = 0d0
     dx = tiny(this%coef(i)%dy)
   end if
 
-  liquid_saturation = x
-  dsat_dpres = 1d0 / dx
+  liquid_saturation = x + this%x(i) ! Linear translation to saturation space
+  dsat_dpres = 1d0 / dx ! Invert 1st derivative
 
 end subroutine SFPCHIPSaturation
 
@@ -552,6 +558,7 @@ subroutine SFPCHIPTest(this,cc_name,option)
   string = trim(cc_name) // '_pc_knots.dat'
   open(unit=87,file=string)
   write(87,*) '#Index, Sw, Pc, dPc/dSw'
+
   do i = 1, this%N
     write(87,*) i, this%x(i), this%coef(i)%y, this%coef(i)%dy
   end do
