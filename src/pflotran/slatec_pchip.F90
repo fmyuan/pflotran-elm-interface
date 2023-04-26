@@ -11,6 +11,7 @@ implicit none
 !    native Fortran types.
 ! 2. Replacing fixed format continuation characters with free-format ampersands.
 ! 3. Removing declaration of local functions 
+! 4. Replace DATA/SAVE statements with PARAMETER for constants
 !
 ! XERMSG functionality has not been replicated, but could be integrated with
 ! existing PFLOTRAN error message routines.
@@ -398,9 +399,8 @@ end subroutine XERMSG
 !
       PetscInt :: I, NLESS1
       PetscReal :: DEL1, DEL2, DMAX, DMIN, DRAT1, DRAT2, DSAVE, &
-            H1, H2, HSUM, HSUMT3, THREE, W1, W2, ZERO
-      SAVE ZERO, THREE
-      DATA  ZERO /0./,  THREE /3./
+            H1, H2, HSUM, HSUMT3, W1, W2
+      PetscReal, parameter :: ZERO = 0d0, THREE = 3d0
 !
 !  VALIDITY-CHECK ARGUMENTS.
 !
@@ -579,9 +579,7 @@ end subroutine XERMSG
 !
 !  DECLARE LOCAL VARIABLES.
 !
-      PetscReal :: ONE, ZERO
-      SAVE ZERO, ONE
-      DATA  ZERO /0d0/,  ONE /1d0/
+      PetscReal, parameter :: ONE = 1d0, ZERO = 0d0
 !
 !  PERFORM THE TEST.
 !
@@ -693,9 +691,8 @@ end subroutine XERMSG
 !  DECLARE LOCAL VARIABLES.
 !
       PetscInt :: I
-      PetscReal :: C2, C2T2, C3, C3T3, DEL1, DEL2, DELTA, H, X, XMI, XMA, ZERO
-      SAVE ZERO
-      DATA  ZERO /0./
+      PetscReal :: C2, C2T2, C3, C3T3, DEL1, DEL2, DELTA, H, X, XMI, XMA
+      PetscReal, parameter :: ZERO = 0d0
 !
 !  VALIDITY-CHECK ARGUMENTS.
 !
