@@ -396,7 +396,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscInt :: spline
 
   ! Buffer to parse datasets
-  class(dataset_ascii_type), pointer :: pc_dataset
+  class(dataset_ascii_type), pointer :: sf_dataset
 
   nullify(sf_swap)
   ! Default values for unspecified parameters
@@ -901,7 +901,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
       class is (sat_func_Table_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless , Pa'
+            internal_units = 'Pa' ! Note, saturation is stored as "time"
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(sf%pc_dataset,table_name, &
                                       temp_string, internal_units, &
@@ -909,17 +909,21 @@ function SaturationFunctionRead(saturation_function,input,option) &
         end select
     !------------------------------------------
       class is (sf_pchip_type)
+        sf_dataset => DatasetAsciiCreate()
+        internal_units = 'Pa'
         select case(keyword)
         case('FILE')
-          pc_dataset => DatasetAsciiCreate()
-          internal_units = 'Pa'
           call InputReadFilename(input,option,table_name)
-          call DatasetAsciiReadFile(pc_dataset,table_name, &
+          call DatasetAsciiReadFile(sf_dataset,table_name, &
                                     temp_string, internal_units, &
                                     error_string,option)
-          ! Note, saturation is stored as "time"
-          spline = pc_dataset%time_storage%max_time_index
+        case('LIST')
+          call DatasetAsciiReadList(sf_dataset,input, &
+                                    temp_string,internal_units, &
+                                                error_string,option)
         end select
+        ! Note: saturation domain is stored as "time" in sf_dataset
+        spline = sf_dataset%time_storage%max_time_index
       class default
         option%io_buffer = 'Read routine not implemented for ' &
                            // trim(error_string) // '.'
@@ -1015,8 +1019,9 @@ function SaturationFunctionRead(saturation_function,input,option) &
     class is (sf_pchip_type) ! Splines from data
       ! Pass arrays from dataset_type and deallocate
       ! Note "time" is saturation and "rbuffer" is Pc
-      sf_swap => SFPCHIPCtorArray(pc_dataset%time_storage%times, pc_dataset%rbuffer, spline)
-      call DatasetAsciiDestroy(pc_dataset)
+      sf_swap => SFPCHIPCtorArray(sf_dataset%time_storage%times, &
+                                  sf_dataset%rbuffer, spline)
+      call DatasetAsciiDestroy(sf_dataset)
     class default ! Splines from any function
       if (.not. associated(sf_swap)) then 
         sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
@@ -1057,12 +1062,12 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   PetscBool :: found
   PetscBool :: smooth
   PetscInt  :: spline
-  type(knot_queue_type) :: knots
-  PetscReal :: x, y
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
   PetscReal :: m, Srg, Sr
+
+  class(dataset_ascii_type), pointer :: rpf_dataset
 
   nullify(rpf_swap)
 
@@ -1775,13 +1780,21 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         end select
     !------------------------------------------
       class is(rpf_pchip_type)
+        rpf_dataset => DatasetAsciiCreate()
+        internal_units = 'unitless'
         select case(keyword)
-        case('KNOT')
-          spline = spline + 1
-          call InputReadDouble(input,option,x)
-          call InputReadDouble(input,option,y)
-          call knots%enqueue(x,y)
+        case('FILE')
+          call InputReadFilename(input,option,table_name)
+          call DatasetAsciiReadFile(rpf_dataset,table_name, &
+                                    temp_string, internal_units, &
+                                    error_string,option)
+        case('LIST')
+          call DatasetAsciiReadList(rpf_dataset,input, &
+                                    temp_string,internal_units, &
+                                                error_string,option)
         end select
+        ! Note, saturation is stored as "time"
+        spline = rpf_dataset%time_storage%max_time_index
     !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
@@ -1885,11 +1898,12 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (spline > 0) then
     select type (rpf => permeability_function)
     class is (rpf_pchip_type) ! Splines from knots
-      rpf_swap => RPFPCHIPCtorQueue(knots)
+      rpf_swap => RPFPCHIPCtorArray(rpf_dataset%time_storage%times, &
+                                    rpf_dataset%rbuffer, spline)
     class default ! Splines from any function
       if (.not. associated(rpf_swap)) then
         rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
-      else ! If swap space is occupied
+      else ! If 1st swap space is occupied, use 2nd, then redirect 1st
         rpf_swap2 => RPFPCHIPCtorFunction(spline, permeability_function)
         deallocate(rpf_swap)
         rpf_swap => rpf_swap2
