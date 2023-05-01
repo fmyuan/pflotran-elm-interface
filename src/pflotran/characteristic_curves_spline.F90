@@ -8,6 +8,7 @@ use PFLOTRAN_constants_module ! UNINITIALIZED_DOUBLE
 use Option_module ! Unused argument option in Pc and Sl
 
 implicit none
+
 private
 
 ! **************************************************************************** !
@@ -126,7 +127,7 @@ contains
 ! **************************************************************************** !
 
 subroutine PCHIPCoefficients(N, x, y, dy, c2, c3)
-  PetscInt, intent(in)   :: N
+  PetscInt, intent(in)   :: N ! Number of knots, 1 more than splines
   PetscReal, intent(in)  :: x(N), y(N)
   PetscReal, intent(out) :: dy(N), c2(N), c3(N)
   PetscInt :: I
@@ -140,7 +141,6 @@ subroutine PCHIPCoefficients(N, x, y, dy, c2, c3)
   ! Note, Hermite polynomials fully define the cubic using the value and
   ! 1st derivative of the bounding knots.
   ! Here, the Hermite polynomials are cached instead in standard polynomial form
-  ! Consequently, N knots generates N-1 splines
   do I = 1, N-1
     h     =  x(i+1)  - x(i)
     delta = (y(i+1)  - y(i))/h
@@ -228,7 +228,7 @@ end subroutine
 
 function SFPCHIPCtorFunction(N, sf_analytic) result (new)
   implicit none
-  PetscInt, intent(in) :: N
+  PetscInt, intent(in) :: N ! Number of splines
   class(sat_func_base_type), intent(in) :: sf_analytic
   class(sf_pchip_type), pointer :: new
 
@@ -258,7 +258,7 @@ end function SFPCHIPCtorFunction
 function SFPCHIPCtorArray(Sw, Pc, N) result (new)
   implicit none
   PetscReal, Dimension(:) :: Sw, Pc
-  PetscInt :: N
+  PetscInt :: N ! Number of knots
   class(sf_pchip_type), pointer :: new
 
   new => SFPCHIPAllocate(N)
@@ -520,7 +520,7 @@ function RPFPCHIPAllocate(N) result (new)
 
   ! Allocate subordinate dynamic objects
   allocate(new%Sw(N))
-  allocate(new%coef(N)) ! Allocating for N knots/N-1 splines)
+  allocate(new%coef(N)) ! Allocating for N knots/N-1 splines
   if (.not. allocated(new%Sw) .or. .not. allocated(new%coef)) then
     ! Note, final method will deallocate if only one is allocated
     deallocate(new)
@@ -556,20 +556,17 @@ function RPFPCHIPCtorFunction(N, rpf_analytic) result (new)
 ! Copy attributes of relative permeability function to be approximated
   new%Sr  = rpf_analytic%Sr
   new%Srg = rpf_analytic%Srg
-  ! Caveat, liquid relative perm functions may have an "uninitialized" gas residual
+! Caveat, liquid relative perm functions may have an "uninitialized" gas residual
   if (rpf_analytic%Srg == UNINITIALIZED_DOUBLE) new%Srg = 0d0
 
 ! Generate N+1 evenly spaced knots starting at Sr and ending at 1-Srg
-  do I = 1, N
+  do I = 1, N+1
     new%Sw(i) = (1d0 - new%Srg - new%Sr) * dble(I-1)/dble(N) + new%Sr
     call rpf_analytic%RelativePermeability(new%Sw(I), new%coef(I)%Kr, new%coef(I)%dKr, option)
   end do
-! Ensure the gas residual endpoint is precise
-  new%Sw(N+1) = 1d0 - new%Srg
-  call rpf_analytic%RelativePermeability(new%Sw(N+1), new%coef(N+1)%Kr, new%coef(I+1)%dKr, option)
 
 ! Calculate the PCHIP splines
-  call PCHIPCoefficients(N+1, new%Sw, new%coef%Kr, new%coef%dKr, new%coef%c2, new%coef%c3)
+  call PCHIPCoefficients(new%N, new%Sw, new%coef%Kr, new%coef%dKr, new%coef%c2, new%coef%c3)
 
 end function RPFPCHIPCtorFunction
 

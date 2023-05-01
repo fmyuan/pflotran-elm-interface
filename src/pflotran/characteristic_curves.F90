@@ -399,6 +399,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   class(dataset_ascii_type), pointer :: sf_dataset
 
   nullify(sf_swap)
+  sf_dataset => DatasetAsciiCreate()
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
   unsat_ext = ''
@@ -909,7 +910,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
         end select
     !------------------------------------------
       class is (sf_pchip_type)
-        sf_dataset => DatasetAsciiCreate()
         internal_units = 'Pa'
         select case(keyword)
         case('FILE')
@@ -1021,7 +1021,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
       ! Note "time" is saturation and "rbuffer" is Pc
       sf_swap => SFPCHIPCtorArray(sf_dataset%time_storage%times, &
                                   sf_dataset%rbuffer, spline)
-      call DatasetAsciiDestroy(sf_dataset)
     class default ! Splines from any function
       if (.not. associated(sf_swap)) then 
         sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
@@ -1032,6 +1031,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       end if
     end select
   end if
+
+  call DatasetAsciiDestroy(sf_dataset)
 
 end function SaturationFunctionRead
 
@@ -1070,6 +1071,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   class(dataset_ascii_type), pointer :: rpf_dataset
 
   nullify(rpf_swap)
+  rpf_dataset => DatasetAsciiCreate()
 
   ! Default values for unspecified parameters
   spline = 0
@@ -1780,7 +1782,6 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         end select
     !------------------------------------------
       class is(rpf_pchip_type)
-        rpf_dataset => DatasetAsciiCreate()
         internal_units = 'unitless'
         select case(keyword)
         case('FILE')
@@ -1897,14 +1898,14 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
 
   if (spline > 0) then
     select type (rpf => permeability_function)
-    class is (rpf_pchip_type) ! Splines from knots
+    class is (rpf_pchip_type) ! Splines from data
       rpf_swap => RPFPCHIPCtorArray(rpf_dataset%time_storage%times, &
                                     rpf_dataset%rbuffer, spline)
-    class default ! Splines from any function
+    class default ! Splines from any function 
       if (.not. associated(rpf_swap)) then
         rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
       else ! If 1st swap space is occupied, use 2nd, then redirect 1st
-        rpf_swap2 => RPFPCHIPCtorFunction(spline, permeability_function)
+        rpf_swap2 => RPFPCHIPCtorFunction(spline, rpf_swap)
         deallocate(rpf_swap)
         rpf_swap => rpf_swap2
       end if
@@ -1925,6 +1926,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         call PrintWrnMsg(option)
       endif
   end select
+
+  call DatasetAsciiDestroy(rpf_dataset)
 
 end function PermeabilityFunctionRead
 
@@ -2282,6 +2285,17 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
     end if
   end if
 
+  if (associated(characteristic_curves%saturation_function) .and. &
+      associated(characteristic_curves%liq_rel_perm_function)) then
+      ! Warn if Pc residual is below Kr residual
+    if (characteristic_curves%saturation_function%Sr < &
+        characteristic_curves%liq_rel_perm_function%Sr) then
+        option%io_buffer = 'The saturation function residual is below the &
+                           & liquid relative permeability residual. This  &
+                           & may cause numerical instability if capillary &
+                           & pressure is not extended below residual.'
+    end if
+  end if
 
 end subroutine CharacteristicCurvesVerify
 
