@@ -18,6 +18,9 @@ auxiliary.o : \
   wipp_flow_aux.o \
   zflow_aux.o
 block_solve.o :
+block_tridiag.o : \
+  pflotran_constants.o \
+  utility.o
 characteristic_curves.o : \
   characteristic_curves_base.o \
   characteristic_curves_common.o \
@@ -49,9 +52,6 @@ characteristic_curves_spline.o : \
   characteristic_curves_base.o \
   option.o \
   slatec_pchip.o
-block_tridiag.o : \
-  pflotran_constants.o \
-  utility.o
 characteristic_curves_thermal.o : \
   input_aux.o \
   option.o \

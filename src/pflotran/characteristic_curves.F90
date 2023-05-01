@@ -155,7 +155,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFIGHCC2CompCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
-          case('PCHIP_SPLINE')
+          case('PCHIP')
             this%saturation_function => SFPCHIPCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
@@ -306,10 +306,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('CONSTANT')
             rel_perm_function_ptr => RPFConstantCreate()
             ! phase_keyword = 'NONE'
-          case('PCHIP_SPLINE_GAS')
+          case('PCHIP_GAS')
             rel_perm_function_ptr => RPFPCHIPCreate()
             phase_keyword = 'GAS'
-          case('PCHIP_SPLINE_LIQ')
+          case('PCHIP_LIQ')
             rel_perm_function_ptr => RPFPCHIPCreate()
             phase_keyword = 'LIQUID'
           case default
@@ -377,6 +377,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   type(input_type), pointer :: input
   type(option_type) :: option
   class(sat_func_base_type), pointer :: sf_swap, sf_swap2
+  class(dataset_ascii_type), pointer :: sf_dataset
 
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
@@ -389,17 +390,14 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscInt :: vg_rpf_opt
   PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg
 
-  PetscInt :: wipp_krp, wipp_kpc
+  PetscInt :: wipp_krp, wipp_kpc, spline
   PetscReal :: wipp_expon, wipp_pct_alpha, wipp_pct_expon
   PetscReal :: wipp_s_min, wipp_s_effmin
   PetscBool :: wipp_pct_ignore
-  PetscInt :: spline
-
-  ! Buffer to parse datasets
-  class(dataset_ascii_type), pointer :: sf_dataset
 
   nullify(sf_swap)
   sf_dataset => DatasetAsciiCreate()
+
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
   unsat_ext = ''
@@ -453,7 +451,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
     class is (sf_pchip_type)
-      error_string = trim(error_string) // 'PCHIP_SPLINE'
+      error_string = trim(error_string) // 'PCHIP'
   end select
 
   call InputPushBlock(input,option)
@@ -1055,6 +1053,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   type(input_type), pointer :: input
   type(option_type) :: option
   class(rel_perm_func_base_type), pointer :: rpf_swap, rpf_swap2
+  class(dataset_ascii_type), pointer :: rpf_dataset
 
   character(len=MAXWORDLENGTH) :: keyword, new_phase_keyword
   character(len=MAXWORDLENGTH) :: internal_units
@@ -1067,8 +1066,6 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
   PetscReal :: m, Srg, Sr
-
-  class(dataset_ascii_type), pointer :: rpf_dataset
 
   nullify(rpf_swap)
   rpf_dataset => DatasetAsciiCreate()
@@ -1166,7 +1163,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
     class is(rpf_pchip_type)
-      error_string = trim(error_string) // 'PCHIP_SPLINE'
+      error_string = trim(error_string) // 'PCHIP'
   end select
 
   call InputPushBlock(input,option)
@@ -1753,7 +1750,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       class is(rpf_Table_liq_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless , unitless'
+            internal_units = 'unitless'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
                                       temp_string, internal_units, &
@@ -1767,7 +1764,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       class is(rpf_Table_gas_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless , unitless'
+            internal_units = 'unitless'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
                                       temp_string, internal_units, &
