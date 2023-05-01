@@ -4114,19 +4114,24 @@ subroutine PMWellQISolveTran(this)
   ierr = 0
   this%tran_soln%cut_ts_flag = PETSC_FALSE
 
-  if (any(this%option%myrank /= this%well_grid%h_rank_id)) return
+  !if (any(this%option%myrank == this%well_grid%h_rank_id)) then
+  if (this%well_comm%comm /= MPI_COMM_NULL) then
 
-  if (initialize_well_tran) then
-    call PMWellInitializeWellTran(this)
+    if (initialize_well_tran) then
+      call PMWellInitializeWellTran(this)
+    endif
+
+    call PMWellUpdatePropertiesTran(this)
+    this%dt_tran = this%option%tran_dt 
+
+    call PMWellSolveTran(this,ierr)
+    if (this%tran_soln%cut_ts_flag) return
+
+    call PMWellUpdateReservoirSrcSinkTran(this)
+    
+  else
+    return
   endif
-
-  call PMWellUpdatePropertiesTran(this)
-  this%dt_tran = this%option%tran_dt 
-
-  call PMWellSolveTran(this,ierr)
-  if (this%tran_soln%cut_ts_flag) return
-
-  call PMWellUpdateReservoirSrcSinkTran(this)
 
 end subroutine PMWellQISolveTran
 
@@ -5060,8 +5065,8 @@ subroutine PMWellSolve(this,time,ierr)
 
   if (this%transport) then
     if (this%tran_QI_coupling) then
-      write(out_string,'(" TRAN Step          Quasi-implicit wellbore flow &
-                      &coupling is being used.")')
+      write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
+                      &transport coupling is being used.")')
       call PrintMsg(this%option,out_string)
       this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
       this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
@@ -5528,13 +5533,15 @@ subroutine PMWellSolveTran(this,ierr)
       endif
 
       soln%residual = 0.d0
-      ! Get fixed accumulation term (not yet divided by dt)
-      do k = 1,this%well_grid%nsegments
-        istart = soln%ndof*(k-1)+1
-        iend = soln%ndof*k
-        call PMWellAccumulationTran(this,k,res_fixed(istart:iend))
-      enddo
-      soln%residual = res_fixed / this%dt_tran
+      if (any(this%option%myrank == this%well_grid%h_rank_id)) then
+        ! Get fixed accumulation term (not yet divided by dt)
+        do k = 1,this%well_grid%nsegments
+          istart = soln%ndof*(k-1)+1
+          iend = soln%ndof*k
+          call PMWellAccumulationTran(this,k,res_fixed(istart:iend))
+        enddo
+        soln%residual = res_fixed / this%dt_tran
+      endif
 
       call PMWellNewtonTran(this,n_iter)
 
@@ -5791,6 +5798,8 @@ subroutine PMWellNewtonTran(this,n_iter)
 
   PetscInt :: nm, dummy
   PetscInt :: indx(this%nspecies*this%well_grid%nsegments)
+
+  if (.not. any(this%option%myrank == this%well_grid%h_rank_id)) return
 
   nm = this%nspecies * this%well_grid%nsegments
 
@@ -6146,13 +6155,15 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   PetscReal :: max_update
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
   PetscInt :: loc_max_update
-  PetscInt :: k, n, j
+  PetscInt :: k, n, j, S
   PetscInt :: isegment, ispecies
+  PetscErrorCode :: ierr
 
   soln => this%tran_soln
 
   n_iter = n_iter + 1
   soln%n_newton = soln%n_newton + 1
+  S = this%well_grid%nsegments*this%tran_soln%ndof
 
   cnvgd_due_to_residual = PETSC_FALSE
   cnvgd_due_to_abs_res = PETSC_FALSE
@@ -6162,53 +6173,66 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
 
   ! Update the residual
   soln%residual = 0.d0
-  soln%residual = fixed_accum/this%dt_tran 
-  call PMWellResidualTran(this)
+  if (any(this%option%myrank == this%well_grid%h_rank_id)) then
+    soln%residual = fixed_accum/this%dt_tran 
+    call PMWellResidualTran(this)
 
-  do k = 1,(this%well_grid%nsegments*soln%ndof)
-    ! Absolute Residual
-    temp_real = dabs(soln%residual(k))
-    if (temp_real < soln%itol_abs_res) then
-      cnvgd_due_to_abs_res(k) = PETSC_TRUE
-    endif
-    ! Scaled Residual
-    temp_real = dabs(soln%residual(k)/(fixed_accum(k)/this%dt_tran))
-    if (temp_real < soln%itol_scaled_res) then
-      cnvgd_due_to_scaled_res(k) = PETSC_TRUE
-    endif
-  enddo
-
-  ! Relative Update
-  do n = 1,this%well_grid%nsegments
-    isegment = n
-    do k = 1, soln%ndof
-      ispecies = k
-      j = ((isegment-1)*soln%ndof) + ispecies
-      vol_vec(j) = this%well%volume(isegment)
-      aq_mass_vec(j) = this%well%aqueous_mass(ispecies,isegment)
-      temp_real = dabs(soln%update(j)*vol_vec(j)/aq_mass_vec(j))
-      if (temp_real < soln%itol_rel_update) then
-        cnvgd_due_to_update(j) = PETSC_TRUE
+    do k = 1,(this%well_grid%nsegments*soln%ndof)
+      ! Absolute Residual
+      temp_real = dabs(soln%residual(k))
+      if (temp_real < soln%itol_abs_res) then
+        cnvgd_due_to_abs_res(k) = PETSC_TRUE
+      endif
+      ! Scaled Residual
+      temp_real = dabs(soln%residual(k)/(fixed_accum(k)/this%dt_tran))
+      if (temp_real < soln%itol_scaled_res) then
+        cnvgd_due_to_scaled_res(k) = PETSC_TRUE
       endif
     enddo
-  enddo
 
-  max_absolute_residual = maxval(dabs(soln%residual))
-  loc_max_abs_residual = maxloc(dabs(soln%residual),1)
+    ! Relative Update
+    do n = 1,this%well_grid%nsegments
+      isegment = n
+      do k = 1, soln%ndof
+        ispecies = k
+        j = ((isegment-1)*soln%ndof) + ispecies
+        vol_vec(j) = this%well%volume(isegment)
+        aq_mass_vec(j) = this%well%aqueous_mass(ispecies,isegment)
+        temp_real = dabs(soln%update(j)*vol_vec(j)/aq_mass_vec(j))
+        if (temp_real < soln%itol_rel_update) then
+          cnvgd_due_to_update(j) = PETSC_TRUE
+        endif
+      enddo
+    enddo
+  
+    max_absolute_residual = maxval(dabs(soln%residual))
+    loc_max_abs_residual = maxloc(dabs(soln%residual),1)
 
-  max_scaled_residual = maxval(dabs(soln%residual/ &
-                                    (fixed_accum/this%dt_tran)))
-  loc_max_scaled_residual = maxloc(dabs(soln%residual/ &
-                                        (fixed_accum/this%dt_tran)),1)
+    max_scaled_residual = maxval(dabs(soln%residual/ &
+                                      (fixed_accum/this%dt_tran)))
+    loc_max_scaled_residual = maxloc(dabs(soln%residual/ &
+                                          (fixed_accum/this%dt_tran)),1)
 
-  max_update = maxval(dabs(soln%update*vol_vec/aq_mass_vec))
-  loc_max_update = maxloc(dabs(soln%update*vol_vec/aq_mass_vec),1)
+    max_update = maxval(dabs(soln%update*vol_vec/aq_mass_vec))
+    loc_max_update = maxloc(dabs(soln%update*vol_vec/aq_mass_vec),1)
 
-  do k = 1,(this%well_grid%nsegments*soln%ndof)
-    if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
-      cnvgd_due_to_residual(k) = PETSC_TRUE
-    endif
-  enddo
+    do k = 1,(this%well_grid%nsegments*soln%ndof)
+      if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
+        cnvgd_due_to_residual(k) = PETSC_TRUE
+      endif
+    enddo
+  endif
+
+  ! call MPI_Bcast(cnvgd_due_to_abs_res,S,MPI_LOGICAL, &
+  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                ierr);CHKERRQ(ierr)
+  ! call MPI_Bcast(cnvgd_due_to_scaled_res,S,MPI_LOGICAL, &
+  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                ierr);CHKERRQ(ierr)
+   call MPI_Bcast(cnvgd_due_to_update,S,MPI_LOGICAL, &
+                  this%well_grid%h_rank_id(1),this%well_comm%comm, &
+                  ierr);CHKERRQ(ierr)
+  
   if (all(cnvgd_due_to_abs_res)) then
     rsn_string = trim(rsn_string) // ' aR '
   endif
@@ -6219,10 +6243,31 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     rsn_string = trim(rsn_string) // ' rU '
   endif
 
+  if (this%well_comm%comm /= MPI_COMM_NULL) then
+  ! call MPI_Bcast(n_iter,1,MPI_INTEGER,this%well_grid%h_rank_id(1), &
+  !                this%well_comm%comm,ierr);CHKERRQ(ierr)
+  ! call MPI_Bcast(max_absolute_residual,1,MPI_DOUBLE_PRECISION, &
+  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                ierr);CHKERRQ(ierr)
+  ! call MPI_Bcast(max_scaled_residual,1,MPI_DOUBLE_PRECISION, &
+  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                ierr);CHKERRQ(ierr)
+  !   call MPI_Bcast(max_update,1,MPI_DOUBLE_PRECISION, &
+  !                  this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                  ierr);CHKERRQ(ierr)
+  endif
+
   write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", es10.3)')&
         n_iter,max_absolute_residual,max_scaled_residual, &
         max_update
   call PrintMsg(this%option,out_string)
+
+  ! call MPI_Bcast(cnvgd_due_to_residual,S,MPI_LOGICAL, &
+  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                ierr);CHKERRQ(ierr)
+  ! call MPI_Bcast(cnvgd_due_to_update,S,MPI_LOGICAL, &
+  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
+  !                ierr);CHKERRQ(ierr)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     soln%converged = PETSC_TRUE
