@@ -155,7 +155,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFIGHCC2CompCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
-          case('SPLINE')
+          case('PCHIP_SPLINE')
             this%saturation_function => SFPCHIPCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
@@ -306,10 +306,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('CONSTANT')
             rel_perm_function_ptr => RPFConstantCreate()
             ! phase_keyword = 'NONE'
-          case('SPLINE_GAS')
+          case('PCHIP_SPLINE_GAS')
             rel_perm_function_ptr => RPFPCHIPCreate()
             phase_keyword = 'GAS'
-          case('SPLINE_LIQ')
+          case('PCHIP_SPLINE_LIQ')
             rel_perm_function_ptr => RPFPCHIPCreate()
             phase_keyword = 'LIQUID'
           case default
@@ -453,7 +453,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
     class is (sf_pchip_type)
-      error_string = trim(error_string) // sf%Label()
+      error_string = trim(error_string) // 'PCHIP_SPLINE'
   end select
 
   call InputPushBlock(input,option)
@@ -1019,8 +1019,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
     class is (sf_pchip_type) ! Splines from data
       ! Pass arrays from dataset_type and deallocate
       ! Note "time" is saturation and "rbuffer" is Pc
-      sf_swap => SFPCHIPCtorArray(sf_dataset%time_storage%times, &
-                                  sf_dataset%rbuffer, spline)
+      sf_swap => SFPCHIPCtorArray(spline, sf_dataset%time_storage%times, &
+                                  sf_dataset%rbuffer)
     class default ! Splines from any function
       if (.not. associated(sf_swap)) then 
         sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
@@ -1166,7 +1166,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
     class is(rpf_pchip_type)
-      error_string = trim(error_string) // rpf%Label()
+      error_string = trim(error_string) // 'PCHIP_SPLINE'
   end select
 
   call InputPushBlock(input,option)
@@ -1899,8 +1899,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (spline > 0) then
     select type (rpf => permeability_function)
     class is (rpf_pchip_type) ! Splines from data
-      rpf_swap => RPFPCHIPCtorArray(rpf_dataset%time_storage%times, &
-                                    rpf_dataset%rbuffer, spline)
+      rpf_swap => RPFPCHIPCtorArray(spline, rpf_dataset%time_storage%times, &
+                                    rpf_dataset%rbuffer)
     class default ! Splines from any function 
       if (.not. associated(rpf_swap)) then
         rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
@@ -2293,7 +2293,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
         option%io_buffer = 'The saturation function residual is below the &
                            & liquid relative permeability residual. This  &
                            & may cause numerical instability if capillary &
-                           & pressure is not extended below residual.'
+                           & pressure is not defined below residual.'
     end if
   end if
 
