@@ -67,8 +67,6 @@ module Characteristic_Curves_Base_module
     procedure, public :: GetM_ => RPFBaseGetNeedsToBeExtended
     procedure, public :: SetResidualSaturation => RPFBaseSetResidualSaturation
     procedure, public :: SetM_ => RPFBaseSetNeedsToBeExtended
-
-    procedure, public :: Dtor => RPFBaseDtor
   end type rel_perm_func_base_type
 
   public :: PolynomialCreate, &
@@ -582,12 +580,6 @@ end subroutine RPFBaseGasEffectiveSaturation
 
 ! ************************************************************************** !
 
-subroutine RPFBaseDtor(this)
-  class(rel_perm_func_base_type) :: this
-
-end subroutine
-
-! ************************************************************************** !
 subroutine RPFBaseTest(this,cc_name,phase,option)
 
   use Option_module
@@ -704,8 +696,6 @@ subroutine PermeabilityFunctionDestroy(rpf)
   class(rel_perm_func_base_type), pointer :: rpf
 
   if (.not.associated(rpf)) return
-
-  call rpf%Dtor()
 
   call PolynomialDestroy(rpf%poly)
   deallocate(rpf)
