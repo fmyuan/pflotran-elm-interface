@@ -60,7 +60,7 @@ private
 
 type, public, extends(sat_func_base_type) :: sf_pchip_type
   private
-    PetscInt  :: N ! Number of knots, 1 more than splines
+    PetscInt  :: n ! Number of knots, 1 more than splines
     PetscReal, dimension(:), allocatable :: Sw ! Saturation reference points
     PetscReal, dimension(:,:), allocatable :: Pc ! Cubic polynomials
   contains
@@ -76,7 +76,7 @@ end type sf_pchip_type
 
 type, public, extends(rel_perm_func_base_type) :: rpf_pchip_type
   private
-    PetscInt :: N ! Number of knots, 1 more than splines
+    PetscInt :: n ! Number of knots, 1 more than splines
     PetscReal, dimension(:), allocatable :: Sw ! Saturation reference points
     PetscReal, dimension(:,:), allocatable :: Kr ! Cubic polynomials
   contains
@@ -148,7 +148,7 @@ function SFPCHIPCreate() result (new)
   call new%Init()
 end function
 
-! ************************************************************************** !
+! **************************************************************************** !
 
 subroutine SFPCHIPInit(this)
   implicit none
@@ -226,11 +226,13 @@ function SFPCHIPCtorFunction(n, sf_analytic) result (new)
   ! Generate N+1 evenly spaced knots starting at 0 and ending at 1
   do i = 1, n+1
     new%Sw(i) = dble(i-1)/dble(n)
-    call sf_analytic%CapillaryPressure(new%Sw(i), new%Pc(0,i), new%Pc(1,i), option)
+    call sf_analytic%CapillaryPressure(new%Sw(i), new%Pc(0,i), new%Pc(1,i), &
+                                       option)
   end do
  
 ! Calculate the PCHIP splines
-  call PCHIPCoefficients(new%n, new%Sw, new%Pc(0,:), new%Pc(1,:), new%Pc(2,:), new%Pc(3,:))
+  call PCHIPCoefficients(new%n, new%Sw, new%Pc(0,:), new%Pc(1,:), &
+                                        new%Pc(2,:), new%Pc(3,:))
 
 end function SFPCHIPCtorFunction
 
@@ -254,7 +256,8 @@ function SFPCHIPCtorArray(n, Sw, Pc) result (new)
   new%Pcmax = new%Pc(0,1)
 
 ! Calculate the PCHIP splines
-  call PCHIPCoefficients(new%n, new%Sw, new%Pc(0,:), new%Pc(1,:), new%Pc(2,:), new%Pc(3,:))
+  call PCHIPCoefficients(new%n, new%Sw, new%Pc(0,:), new%Pc(1,:), &
+                                        new%Pc(2,:), new%Pc(3,:))
 
 end function SFPCHIPCtorArray
 
@@ -273,7 +276,7 @@ subroutine SFPCHIPCapillaryPressure(this, liquid_saturation, &
   PetscBool :: mask
 
 ! Truncate saturation to be within bounds
-  Sw = min(max(liquid_saturation,this%Sw(1)),this%Sw(this%N))
+  Sw = min(max(liquid_saturation,this%Sw(1)),this%Sw(this%n))
 
 ! Branchless binary search for polynomial index
   i = 1
@@ -311,7 +314,7 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
 
-  PetscReal, parameter :: pi = 4*atan(1d0) ! More precise than in constants module
+  PetscReal, parameter :: PI = 4*atan(1d0)
   PetscInt :: i, j, k
   PetscReal :: Sw, Pc, dPc
   PetscReal :: a, b, c
@@ -319,7 +322,7 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
   PetscBool :: mask
 
   ! Truncate capillary pressure to be within bounds
-  Pc = min(max(capillary_pressure, this%Pc(0,this%N)), this%Pc(0,1))
+  Pc = min(max(capillary_pressure, this%Pc(0,this%n)), this%Pc(0,1))
 
   ! Branchless binary search for polynomial index
   i = 1
@@ -333,10 +336,10 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
   end do
 
   ! Find root of polynomial of up to 3rd order
-  if (this%Pc(3,I) /= 0d0) then ! Cubic
-    a =  this%Pc(2,I)       / this%Pc(3,I)
-    b =  this%Pc(1,I)       / this%Pc(3,I)
-    c = (this%Pc(0,I) - Pc) / this%Pc(3,I)
+  if (this%Pc(3,i) /= 0d0) then ! Cubic
+    a =  this%Pc(2,i)       / this%Pc(3,i)
+    b =  this%Pc(1,i)       / this%Pc(3,i)
+    c = (this%Pc(0,i) - Pc) / this%Pc(3,i)
 
     q = (    a**2 - 3d0*  b         ) /  9d0
     r = (2d0*a**3 - 9d0*a*b + 27d0*c) / 54d0
@@ -349,10 +352,10 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
       Sw = -2d0*sqrt(q)*cos(t/3d0) - a/3d0
       if (Sw < 0d0 .or. Sw > (this%Sw(i+1) - this%Sw(i))) then
         ! 2nd root
-        Sw = -2d0*sqrt(q)*cos((t + 2d0*pi)/3d0) - a/3d0
+        Sw = -2d0*sqrt(q)*cos((t + 2d0*PI)/3d0) - a/3d0
         if (Sw < 0d0 .or. Sw > (this%Sw(i+1) - this%Sw(i))) then
           ! 3rd root
-          Sw = -2d0*sqrt(q)*cos((t - 2d0*pi)/3d0) - a/3d0
+          Sw = -2d0*sqrt(q)*cos((t - 2d0*PI)/3d0) - a/3d0
         end if
       end if
     else ! One real root, complex roots are ignored
@@ -364,9 +367,9 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
       end if
     end if
 
-    dPc =     this%Pc(1,I) + Sw * &
-          ( 2*this%Pc(2,I) + Sw * &
-            3*this%Pc(3,I) )
+    dPc =     this%Pc(1,i) + Sw * &
+          ( 2*this%Pc(2,i) + Sw * &
+            3*this%Pc(3,i) )
 
   else if (this%Pc(2,I) /= 0d0) then ! Quadratic
     a = this%Pc(2,I)
@@ -380,17 +383,17 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
       Sw = c/q ! If not, the other must be
     end if
 
-    dPc =     this%Pc(1,I) + Sw * &
-            2*this%Pc(2,I)
+    dPc =     this%Pc(1,i) + Sw * &
+            2*this%Pc(2,i)
 
-  else if (this%Pc(1,I) /= 0d0) then ! Linear
-    Sw = (Pc - this%Pc(0,I)) / this%Pc(1,I)
+  else if (this%Pc(1,i) /= 0d0) then ! Linear
+    Sw = (Pc - this%Pc(0,i)) / this%Pc(1,i)
 
-    dPc = this%Pc(1,I)
+    dPc = this%Pc(1,i)
 
   else ! Degenerate
     Sw = 0d0
-    dPc = tiny(this%Pc(0,I))
+    dPc = tiny(this%Pc(0,i))
   end if
 
   liquid_saturation = Sw + this%Sw(i) ! Linear translation to saturation space
@@ -398,7 +401,7 @@ subroutine SFPCHIPSaturation(this, capillary_pressure, &
 
 end subroutine SFPCHIPSaturation
 
-! **************************************************************************** !a
+! **************************************************************************** !
 
 subroutine SFPCHIPD2SatDP2(this,Pc, d2s_dp2, option)
   implicit none
@@ -418,14 +421,14 @@ subroutine SFPCHIPD2SatDP2(this,Pc, d2s_dp2, option)
   j = this%n
   do while (j - 1 > 1)
     k = (i + j) /2
-    if (this%Pc(0,I) > Pc) then
+    if (this%Pc(0,i) > Pc) then
      j = k
     else
      i = k
     end if
   end do
 
-  d2s_dp2 = -( 2*this%Pc(2,I) + 6*Sw*this%Pc(3,I) ) / dSw_dPc**3
+  d2s_dp2 = -( 2*this%Pc(2,i) + 6*Sw*this%Pc(3,i) ) / dSw_dPc**3
 
 end subroutine SFPCHIPD2SatDP2
 
@@ -446,7 +449,7 @@ subroutine SFPCHIPTest(this,cc_name,option)
   open(unit=87,file=string)
   write(87,*) '#Index, Sw, Pc, dPc/dSw'
 
-  do i = 1, this%N
+  do i = 1, this%n
     write(87,*) i, this%Sw(i), this%Pc(0,i), this%Pc(1,i)
   end do
 
@@ -496,7 +499,7 @@ function RPFPCHIPAllocate(n) result (new)
   allocate(new)
   if (.not. associated(new)) return ! Return null as allocation failed
   call new%Init()
-  new%N = n
+  new%n = n
 
   ! Allocate subordinate dynamic objects
   allocate(new%Sw(n))
@@ -541,16 +544,19 @@ function RPFPCHIPCtorFunction(n, rpf_analytic) result (new)
 
 ! Generate N+1 evenly spaced knots starting at Sr and ending at 1-Srg
   do i = 1, n
-    new%Sw(i) = (1d0 - new%Srg - new%Sr) * dble(I-1)/dble(n) + new%Sr
-    call rpf_analytic%RelativePermeability(new%Sw(i), new%Kr(0,i), new%Kr(1,i), option)
+    new%Sw(i) = (1d0 - new%Srg - new%Sr) * dble(i-1)/dble(n) + new%Sr
+    call rpf_analytic%RelativePermeability(new%Sw(i), new%Kr(0,i), new%Kr(1,i),&
+                                           option)
   end do
   ! Ensure gas residual is precise
   i = n + 1
   new%Sw(i) = 1d0 - new%Srg 
-  call rpf_analytic%RelativePermeability(new%Sw(i), new%Kr(0,i), new%Kr(1,i), option)
+  call rpf_analytic%RelativePermeability(new%Sw(i), new%Kr(0,i), new%Kr(1,i),  &
+                                         option)
 
 ! Calculate the PCHIP splines
-  call PCHIPCoefficients(new%N, new%Sw, new%Kr(0,:), new%Kr(1,:), new%Kr(2,:), new%Kr(3,:))
+  call PCHIPCoefficients(new%n, new%Sw, new%Kr(0,:), new%Kr(1,:), &
+                                        new%Kr(2,:), new%Kr(3,:))
 
 end function RPFPCHIPCtorFunction
 
@@ -574,7 +580,8 @@ function RPFPCHIPCtorArray(n, Sw, Kr) result (new)
   new%Srg = 1d0 - new%Sw(n)
 
 ! Calculate the PCHIP splines
-  call PCHIPCoefficients(new%n, new%Sw, new%Kr(0,:), new%Kr(1,:), new%Kr(2,:), new%Kr(3,:))
+  call PCHIPCoefficients(new%n, new%Sw, new%Kr(0,:), new%Kr(1,:), &
+                                        new%Kr(2,:), new%Kr(3,:))
 
 end function RPFPCHIPCtorArray
 
@@ -593,7 +600,7 @@ subroutine RPFPCHIPRelativePermeability(this, liquid_saturation, &
   PetscBool :: mask
 
 ! Truncate saturation to be within bounds
-  Sw = min(max(liquid_saturation,this%Sw(1)), this%Sw(this%N))
+  Sw = min(max(liquid_saturation,this%Sw(1)), this%Sw(this%n))
 
 ! Branchless binary search for polynomial index
   i = 1
@@ -638,7 +645,7 @@ subroutine RPFPCHIPTest(this,cc_name,phase,option)
   string = trim(cc_name) // '_' //  trim(phase) // '_Kr_knots.dat'
   open(unit=87,file=string)
   write(87,*) '#Index, Sw, Kr, dKr/dSw'
-  do i = 1, this%N
+  do i = 1, this%n
     write(87,*) i, this%Sw(i), this%Kr(0,i), this%Kr(1,i)
   end do
   close(87)
