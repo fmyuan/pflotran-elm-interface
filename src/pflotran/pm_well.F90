@@ -4114,24 +4114,19 @@ subroutine PMWellQISolveTran(this)
   ierr = 0
   this%tran_soln%cut_ts_flag = PETSC_FALSE
 
-  !if (any(this%option%myrank == this%well_grid%h_rank_id)) then
-  if (this%well_comm%comm /= MPI_COMM_NULL) then
+  if (this%well_comm%comm == MPI_COMM_NULL) return
 
-    if (initialize_well_tran) then
-      call PMWellInitializeWellTran(this)
-    endif
-
-    call PMWellUpdatePropertiesTran(this)
-    this%dt_tran = this%option%tran_dt 
-
-    call PMWellSolveTran(this,ierr)
-    if (this%tran_soln%cut_ts_flag) return
-
-    call PMWellUpdateReservoirSrcSinkTran(this)
-    
-  else
-    return
+  if (initialize_well_tran) then
+    call PMWellInitializeWellTran(this)
   endif
+
+  call PMWellUpdatePropertiesTran(this)
+  this%dt_tran = this%option%tran_dt 
+
+  call PMWellSolveTran(this,ierr)
+  if (this%tran_soln%cut_ts_flag) return
+
+  call PMWellUpdateReservoirSrcSinkTran(this)
 
 end subroutine PMWellQISolveTran
 
@@ -5542,9 +5537,9 @@ subroutine PMWellSolveTran(this,ierr)
         enddo
         soln%residual = res_fixed / this%dt_tran
       endif
-
+      call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
       call PMWellNewtonTran(this,n_iter)
-
+      call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
       call PMWellCheckConvergenceTran(this,n_iter,res_fixed)
 
     enddo
@@ -6155,9 +6150,11 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   PetscReal :: max_update
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
   PetscInt :: loc_max_update
-  PetscInt :: k, n, j, S
+  PetscInt :: k,n,j,S,TAG,last_rank
   PetscInt :: isegment, ispecies
   PetscErrorCode :: ierr
+
+  if (this%well_comm%comm == MPI_COMM_NULL) return
 
   soln => this%tran_soln
 
@@ -6223,16 +6220,32 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     enddo
   endif
 
-  ! call MPI_Bcast(cnvgd_due_to_abs_res,S,MPI_LOGICAL, &
-  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                ierr);CHKERRQ(ierr)
-  ! call MPI_Bcast(cnvgd_due_to_scaled_res,S,MPI_LOGICAL, &
-  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                ierr);CHKERRQ(ierr)
-   call MPI_Bcast(cnvgd_due_to_update,S,MPI_LOGICAL, &
-                  this%well_grid%h_rank_id(1),this%well_comm%comm, &
-                  ierr);CHKERRQ(ierr)
-  
+  call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
+  last_rank = this%well_comm%petsc_rank_list(this%well_comm%commsize)
+  if (this%well_comm%commsize > 1) then
+    TAG = 0
+    if (this%option%myrank == last_rank) then
+      call MPI_Send(cnvgd_due_to_abs_res,S,MPI_LOGICAL,0,TAG, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+      call MPI_Send(cnvgd_due_to_scaled_res,S,MPI_LOGICAL,0,TAG+1, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+      call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+2, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+    endif
+    if (this%option%myrank == 0) then
+      call MPI_Recv(cnvgd_due_to_abs_res,S,MPI_LOGICAL, &
+                    last_rank,TAG,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+      call MPI_Recv(cnvgd_due_to_scaled_res,S,MPI_LOGICAL, &
+                    last_rank,TAG+1,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+      call MPI_Recv(cnvgd_due_to_update,S,MPI_LOGICAL, &
+                    last_rank,TAG+2,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+    endif
+  endif
+
+  call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
   if (all(cnvgd_due_to_abs_res)) then
     rsn_string = trim(rsn_string) // ' aR '
   endif
@@ -6243,32 +6256,54 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     rsn_string = trim(rsn_string) // ' rU '
   endif
 
-  if (this%well_comm%comm /= MPI_COMM_NULL) then
-  ! call MPI_Bcast(n_iter,1,MPI_INTEGER,this%well_grid%h_rank_id(1), &
-  !                this%well_comm%comm,ierr);CHKERRQ(ierr)
-  ! call MPI_Bcast(max_absolute_residual,1,MPI_DOUBLE_PRECISION, &
-  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                ierr);CHKERRQ(ierr)
-  ! call MPI_Bcast(max_scaled_residual,1,MPI_DOUBLE_PRECISION, &
-  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                ierr);CHKERRQ(ierr)
-  !   call MPI_Bcast(max_update,1,MPI_DOUBLE_PRECISION, &
-  !                  this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                  ierr);CHKERRQ(ierr)
+  if (this%well_comm%commsize > 1) then
+    TAG = 0
+    if (this%option%myrank == last_rank) then
+      call MPI_Send(max_update,1,MPI_DOUBLE_PRECISION,0,TAG, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+      call MPI_Send(max_absolute_residual,1,MPI_DOUBLE_PRECISION,0,TAG+1, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+      call MPI_Send(max_scaled_residual,1,MPI_DOUBLE_PRECISION,0,TAG+2, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+    endif
+    if (this%option%myrank == 0) then
+      call MPI_Recv(max_update,1,MPI_DOUBLE_PRECISION, &
+                    last_rank,TAG,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+      call MPI_Recv(max_absolute_residual,1,MPI_DOUBLE_PRECISION, &
+                    last_rank,TAG+1,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+      call MPI_Recv(max_scaled_residual,1,MPI_DOUBLE_PRECISION, &
+                    last_rank,TAG+2,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+    endif
   endif
 
+  call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
   write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", es10.3)')&
         n_iter,max_absolute_residual,max_scaled_residual, &
         max_update
   call PrintMsg(this%option,out_string)
 
-  ! call MPI_Bcast(cnvgd_due_to_residual,S,MPI_LOGICAL, &
-  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                ierr);CHKERRQ(ierr)
-  ! call MPI_Bcast(cnvgd_due_to_update,S,MPI_LOGICAL, &
-  !                this%well_grid%h_rank_id(1),this%well_comm%comm, &
-  !                ierr);CHKERRQ(ierr)
+  if (this%well_comm%commsize > 1) then
+    TAG = 0
+    if (this%option%myrank == last_rank) then
+      call MPI_Send(cnvgd_due_to_residual,S,MPI_LOGICAL,0,TAG, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+      call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+1, &
+                    this%well_comm%comm,ierr);CHKERRQ(ierr)
+    endif
+    if (this%option%myrank == 0) then
+      call MPI_Recv(cnvgd_due_to_residual,S,MPI_LOGICAL, &
+                    last_rank,TAG,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+      call MPI_Recv(cnvgd_due_to_update,S,MPI_LOGICAL, &
+                    last_rank,TAG+1,this%well_comm%comm,MPI_STATUS_IGNORE, &
+                    ierr);CHKERRQ(ierr)
+    endif
+  endif
 
+  call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     soln%converged = PETSC_TRUE
     soln%not_converged = PETSC_FALSE
