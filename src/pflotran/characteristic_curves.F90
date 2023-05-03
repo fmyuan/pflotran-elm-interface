@@ -1765,7 +1765,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       class is(rpf_Table_gas_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless'
+            internal_units = 'unitless , unitless'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
                                       temp_string, internal_units, &
