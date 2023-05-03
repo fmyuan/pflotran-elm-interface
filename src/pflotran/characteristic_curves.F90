@@ -900,7 +900,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
       class is (sat_func_Table_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless, Pa'
+            internal_units = 'unitless , Pa'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(sf%pc_dataset,table_name, &
                                       temp_string, internal_units, &
@@ -1751,7 +1751,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       class is(rpf_Table_liq_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless, unitless'
+            internal_units = 'unitless , unitless'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
                                       temp_string, internal_units, &
