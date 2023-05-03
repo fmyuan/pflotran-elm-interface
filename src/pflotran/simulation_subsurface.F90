@@ -674,7 +674,7 @@ subroutine SimSubsurfExecuteRun(this)
   ! Date: 02/15/21
   !
   use Waypoint_module
-  use Timestepper_Base_class, only : TS_CONTINUE
+  use Timestepper_Base_class, only : TS_CONTINUE, TS_STOP_END_SIMULATION
   use Checkpoint_module
 
   implicit none
@@ -709,9 +709,12 @@ subroutine SimSubsurfExecuteRun(this)
     call this%RunToTime(min(final_time,cur_waypoint%time))
     cur_waypoint => cur_waypoint%next
   enddo
-  append_name = '-restart'
-  if (associated(this%option%checkpoint)) then
-    call this%process_model_coupler_list%Checkpoint(append_name)
+  ! only checkpoint successful simulations
+  if (this%stop_flag == TS_STOP_END_SIMULATION) then
+    append_name = '-restart'
+    if (associated(this%option%checkpoint)) then
+      call this%process_model_coupler_list%Checkpoint(append_name)
+    endif
   endif
 
 end subroutine SimSubsurfExecuteRun
