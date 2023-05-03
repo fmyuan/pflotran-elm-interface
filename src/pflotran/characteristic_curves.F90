@@ -900,7 +900,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
       class is (sat_func_Table_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'Pa' ! Note, saturation is stored as "time"
+            internal_units = 'unitless, Pa'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(sf%pc_dataset,table_name, &
                                       temp_string, internal_units, &
@@ -908,6 +908,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
         end select
     !------------------------------------------
       class is (sf_pchip_type)
+        ! Note, saturation is stored as "time" to utilize dataset_ascii
+        ! User provided saturation is assumed normalized to 1, unitless
         internal_units = 'Pa'
         select case(keyword)
         case('FILE')
@@ -920,7 +922,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
                                     temp_string,internal_units, &
                                                 error_string,option)
         end select
-        ! Note: saturation domain is stored as "time" in sf_dataset
         spline = sf_dataset%time_storage%max_time_index
       class default
         option%io_buffer = 'Read routine not implemented for ' &
@@ -1750,7 +1751,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       class is(rpf_Table_liq_type)
         select case(keyword)
           case('FILE')
-            internal_units = 'unitless'
+            internal_units = 'unitless, unitless'
             call InputReadFilename(input,option,table_name)
             call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
                                       temp_string, internal_units, &
@@ -1779,6 +1780,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         end select
     !------------------------------------------
       class is(rpf_pchip_type)
+        ! Note, saturation is stored as "time" to utilize dataset_ascii
+        ! User provided saturation is assumed normalized to 1, unitless
         internal_units = 'unitless'
         select case(keyword)
         case('FILE')
@@ -1791,7 +1794,6 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
                                     temp_string,internal_units, &
                                                 error_string,option)
         end select
-        ! Note, saturation is stored as "time"
         spline = rpf_dataset%time_storage%max_time_index
     !------------------------------------------
       class default
@@ -1896,6 +1898,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (spline > 0) then
     select type (rpf => permeability_function)
     class is (rpf_pchip_type) ! Splines from data
+      ! Pass arrays from dataset_type and deallocate
+      ! Note "time" is saturation and "rbuffer" is Kr
       rpf_swap => RPFPCHIPCtorArray(spline, rpf_dataset%time_storage%times, &
                                     rpf_dataset%rbuffer)
     class default ! Splines from any function 
