@@ -1896,7 +1896,8 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   cur_flow_condition => realization%flow_conditions%first
   do
     if (.not.associated(cur_flow_condition)) exit
-    if (cur_flow_condition%sync_time_with_update) then
+    if (FlowConditionHasRateOrFlux(cur_flow_condition) .or. &
+        cur_flow_condition%sync_time_with_update) then
       do isub_condition = 1, cur_flow_condition%num_sub_conditions
         sub_condition => cur_flow_condition%sub_condition_ptr(isub_condition)%ptr
         !TODO(geh): check if this updated more than simply the flow_dataset (i.e. datum and gradient)

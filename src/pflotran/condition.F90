@@ -161,6 +161,7 @@ module Condition_module
             TranConditionUpdate, &
             FlowConditionIsTransient, &
             FlowConditionIsHydrostatic, &
+            FlowConditionHasRateOrFlux, &
             ConditionReadValues, &
             GetSubConditionType, &
             FlowConditionUnknownItype, &
@@ -1653,6 +1654,11 @@ subroutine FlowConditionRead(condition,input,option)
           condition%sub_condition_ptr(idof)%ptr => concentration
         endif
       endif
+
+      allocate(condition%itype(idof))
+      do idof = 1, size(condition%itype)
+        condition%itype(idof) = condition%sub_condition_ptr(idof)%ptr%itype
+      enddo
 
     case(PNF_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)) then
@@ -4004,6 +4010,45 @@ function FlowConditionIsHydrostatic(condition)
   endif
 
 end function FlowConditionIsHydrostatic
+
+! ************************************************************************** !
+
+function FlowConditionHasRateOrFlux(condition)
+  !
+  ! Determines whether a flow condition has non-Dirichlet component (e.g.,
+  ! flux, volumetric or mass rate, etc.)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/12/23
+  !
+  implicit none
+
+  type(flow_condition_type) :: condition
+
+  PetscBool :: FlowConditionHasRateOrFlux
+
+  PetscInt :: i
+
+  FlowConditionHasRateOrFlux = PETSC_FALSE
+
+  do i = 1, condition%num_sub_conditions
+    select case(condition%itype(i))
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+           ! these are transport, but may have overlap with flow
+           DIRICHLET_ZERO_GRADIENT_BC,ZERO_GRADIENT_BC, &
+           HYDROSTATIC_CONDUCTANCE_BC,UNIT_GRADIENT_BC, &
+           SATURATION_BC,HET_DIRICHLET_BC, &
+           ! surface bcs, may not matter
+           HET_SURF_HYDROSTATIC_SEEPAGE_BC,SPILLOVER_BC,SURFACE_DIRICHLET, &
+           SURFACE_ZERO_GRADHEIGHT,SURFACE_SPILLOVER, &
+           HET_HYDROSTATIC_SEEPAGE_BC,HET_HYDROSTATIC_CONDUCTANCE_BC, &
+           DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
+      case default
+        FlowConditionHasRateOrFlux = PETSC_TRUE
+    end select
+  enddo
+
+end function FlowConditionHasRateOrFlux
 
 ! ************************************************************************** !
 
