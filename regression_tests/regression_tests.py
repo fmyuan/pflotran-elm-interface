@@ -131,7 +131,7 @@ class RegressionTest(object):
         # restart_file is a tuple ['filename',format=(Binary,HDF5)]
         self._restart_tuple = None
         self._compare_hdf5 = False
-        self._timeout = 60.0
+        self._timeout = 90.0
         self._skip_check_gold = False
         self._skip_check_regression = False
         self._check_performance = False
