@@ -175,6 +175,9 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                             0,ierr);CHKERRQ(ierr)
 
   if (option%convergence /= CONVERGENCE_CONVERGED .and. reason == -9) then
+    write(out_string,'(i3," 2r:",es9.2," 2x:",es9.2," 2u:",es9.2, &
+          & " -diverged")') i_iteration, fnorm, xnorm, unorm
+    call PrintMsg(option,out_string)
     return
   endif
 
