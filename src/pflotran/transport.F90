@@ -642,6 +642,9 @@ subroutine TSrcSinkCoef(rt_parameter,global_auxvar,qsrc, &
       ! in this case, rt_auxvar_bc%total actually holds the mass rate
       T_in = 0.d0
       T_out = -1.d0
+    case(MEMBRANE_BC)
+      T_in = 0.d0
+      T_out = 0.d0
     case default
       ! qsrc always in m^3/sec
       do iphase = 1, rt_parameter%nphase

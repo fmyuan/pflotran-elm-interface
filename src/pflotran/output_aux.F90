@@ -1400,7 +1400,7 @@ subroutine OpenAndWriteInputRecord(option)
     write(id,'(a18)',advance='no') 'group: '
     write(id,*) trim(option%group_prefix)
 
-    write(word,*) option%comm%mycommsize
+    write(word,*) option%comm%size
     write(id,'(a18)',advance='no') 'n processors: '
     write(id,*) trim(adjustl(word))
   endif

@@ -170,6 +170,7 @@ condition_control.o : \
   reactive_transport_aux.o \
   realization_subsurface.o \
   region.o \
+  secondary_continuum_aux.o \
   transport_constraint_base.o \
   transport_constraint_nwt.o \
   transport_constraint_rt.o \
@@ -312,9 +313,11 @@ dm_kludge.o : \
   pflotran_constants.o
 driver.o : \
   communicator_aux.o \
-  pflotran_constants.o
+  pflotran_constants.o \
+  print.o
 eos.o : \
   co2_span_wagner.o \
+  communicator_aux.o \
   eos_database.o \
   eos_gas.o \
   eos_water.o \
@@ -387,6 +390,7 @@ factory_forward.o : \
   pm_base.o \
   pm_geomechanics_force.o \
   pmc_base.o \
+  print.o \
   realization_subsurface.o \
   simulation_base.o \
   simulation_geomechanics.o \
@@ -449,6 +453,7 @@ factory_pflotran.o : \
   logging.o \
   option.o \
   pflotran_constants.o \
+  print.o \
   simulation_base.o \
   simulation_geomechanics.o \
   simulation_inverse.o \
@@ -612,6 +617,7 @@ factory_subsurface_read.o : \
   pmc_geophysics.o \
   pmc_subsurface.o \
   pmc_subsurface_osrt.o \
+  print.o \
   reaction.o \
   reaction_aux.o \
   reaction_mineral.o \
@@ -1363,6 +1369,7 @@ material_aux.o : \
   utility.o \
   variables.o
 material_transform.o : \
+  global_aux.o \
   input_aux.o \
   material_aux.o \
   option.o \
@@ -1406,6 +1413,7 @@ mphase.o : \
   realization_subsurface.o \
   secondary_continuum.o \
   secondary_continuum_aux.o \
+  utility.o \
   variables.o
 mphase_aux.o : \
   co2_span_wagner.o \
@@ -1483,7 +1491,9 @@ option.o : \
   option_geophysics.o \
   option_inversion.o \
   option_transport.o \
-  pflotran_constants.o
+  pflotran_constants.o \
+  print.o \
+  string.o
 option_checkpoint.o : \
   pflotran_constants.o
 option_flow.o : \
@@ -1517,6 +1527,7 @@ output.o : \
   output_vtk.o \
   patch.o \
   pflotran_constants.o \
+  print.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
@@ -1925,6 +1936,7 @@ pm_inversion.o : \
 pm_material_transform.o : \
   discretization.o \
   field.o \
+  global.o \
   global_aux.o \
   grid.o \
   hdf5.o \
@@ -2360,6 +2372,7 @@ pmc_base.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
+  print.o \
   simulation_aux.o \
   solver.o \
   string.o \
@@ -2505,6 +2518,10 @@ pnf_aux.o : \
   utility.o
 preconditioner_cpr.o : \
   option.o \
+  pflotran_constants.o \
+  string.o
+print.o : \
+  communicator_aux.o \
   pflotran_constants.o \
   string.o
 reaction.o : \
@@ -2711,6 +2728,7 @@ reaction_sandbox.o : \
   reaction_sandbox_gas.o \
   reaction_sandbox_pnnl_cyber.o \
   reaction_sandbox_pnnl_lambda.o \
+  reaction_sandbox_radon.o \
   reaction_sandbox_simple.o \
   reaction_sandbox_ufd_wp.o \
   reactive_transport_aux.o \
@@ -2859,6 +2877,17 @@ reaction_sandbox_pnnl_lambda.o : \
   string.o \
   units.o \
   utility.o
+reaction_sandbox_radon.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_sandbox_base.o \
+  reactive_transport_aux.o \
+  string.o \
+  units.o
 reaction_sandbox_simple.o : \
   global_aux.o \
   material_aux.o \
@@ -2949,7 +2978,8 @@ reactive_transport.o : \
   string.o \
   transport.o \
   transport_constraint_rt.o \
-  transport_np.o
+  transport_np.o \
+  utility.o
 reactive_transport_aux.o : \
   matrix_block_aux.o \
   matrix_zeroing.o \
@@ -3106,9 +3136,6 @@ saturation_function.o : \
 secondary_continuum.o : \
   block_solve.o \
   block_tridiag.o \
-  condition.o \
-  coupler.o \
-  eos_water.o \
   global_aux.o \
   grid.o \
   material.o \
@@ -3124,8 +3151,6 @@ secondary_continuum.o : \
   realization_subsurface.o \
   secondary_continuum_aux.o \
   string.o \
-  transport_constraint.o \
-  transport_constraint_rt.o \
   utility.o \
   variables.o
 secondary_continuum_aux.o : \

@@ -63,7 +63,7 @@ program pflotran_interface_main
    end select
 
   ! Set up CLM cell ids
-  if (pflotran_m%option%comm%mycommsize == 1) then
+  if (pflotran_m%option%comm%size == 1) then
     clm_npts = 5000*10
     clm_surf_npts = 5000
     allocate (clm_cell_ids(clm_npts))
@@ -75,7 +75,7 @@ program pflotran_interface_main
       clm_surf_cell_ids(ii) = (ii-1)*10
     enddo
   else
-    if (pflotran_m%option%comm%mycommsize == 2) then
+    if (pflotran_m%option%comm%size == 2) then
       clm_surf_npts = 5000/2
       clm_npts       = clm_surf_npts*10
       allocate (clm_cell_ids(clm_npts))

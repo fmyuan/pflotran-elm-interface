@@ -70,6 +70,7 @@ module Grid_Unstructured_Aux_module
     PetscReal, pointer :: face_area(:)
     PetscInt, pointer :: nat_ids_of_other_grid(:)
     PetscBool :: project_face_area_along_normal
+    PetscBool :: check_all_points_rh_rule ! checks all point combinations for right hand rule
   end type grid_unstructured_type
 
   type, public :: unstructured_explicit_type
@@ -280,7 +281,8 @@ function UGridCreate()
 
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
   unstructured_grid%project_face_area_along_normal = PETSC_TRUE
-
+  unstructured_grid%check_all_points_rh_rule = PETSC_FALSE
+  
   UGridCreate => unstructured_grid
 
 end function UGridCreate
@@ -1083,10 +1085,10 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
 #endif
 
   ! calculate the number of local grid cells on each processor
-  allocate(cell_counts(option%comm%mycommsize))
+  allocate(cell_counts(option%comm%size))
   ! ISPartitioningCount takes a ISPartitioning and determines the number of
   ! resulting elements on each (partition) process - petsc
-  tempint = option%comm%mycommsize
+  tempint = option%comm%size
   call ISPartitioningCount(is_new,tempint,cell_counts,ierr);CHKERRQ(ierr)
   num_cells_local_new = cell_counts(option%myrank+1)
   call MPI_Allreduce(num_cells_local_new,iflag,ONE_INTEGER_MPI,MPIU_INTEGER, &
@@ -1727,15 +1729,15 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     !                 ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
 
     send_size_mpi = ugrid%nlmax*stride
-    !allocate(rcv_sizes_mpi(option%comm%mycommsize))
-    allocate(rcv_sizes_mpi(0:(option%comm%mycommsize-1)))
+    !allocate(rcv_sizes_mpi(option%comm%size))
+    allocate(rcv_sizes_mpi(0:(option%comm%size-1)))
     rcv_sizes_mpi = 0
     call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                        rcv_sizes_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                        option%mycomm,ierr);CHKERRQ(ierr)
 
-    !allocate(disp_mpi(option%comm%mycommsize))
-    allocate(disp_mpi(0:(option%comm%mycommsize-1)))
+    !allocate(disp_mpi(option%comm%size))
+    allocate(disp_mpi(0:(option%comm%size-1)))
     disp_mpi = 0
 
     !displacement with 0-based index
@@ -1817,14 +1819,14 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 
       !build array of number of ghost of each proc for use in MPI_Allgatherv
       send_size_mpi = ugrid%num_ghost_cells
-      allocate(rcv_sizes_mpi(0:(option%comm%mycommsize-1)))
+      allocate(rcv_sizes_mpi(0:(option%comm%size-1)))
       rcv_sizes_mpi = 0
       call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                          rcv_sizes_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
                          option%mycomm,ierr);CHKERRQ(ierr)
       !
       !build array of pointers to ghost section petsc ids for each proc
-      allocate(disp_mpi(0:(option%comm%mycommsize-1)))
+      allocate(disp_mpi(0:(option%comm%size-1)))
       disp_mpi = 0
       !displacement with 0-based index
       ghost_global_offset = 0

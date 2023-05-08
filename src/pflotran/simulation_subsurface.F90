@@ -543,7 +543,6 @@ subroutine SimSubsurfOverwriteInvParameters(this)
   class(realization_subsurface_type), pointer :: realization
   type(inversion_aux_type), pointer :: inversion_aux
   type(inversion_perturbation_type), pointer :: perturbation
-  PetscInt :: i
   PetscInt :: iqoi(2)
   PetscReal :: rmax, rmin
   PetscErrorCode :: ierr
@@ -567,6 +566,9 @@ subroutine SimSubsurfOverwriteInvParameters(this)
                                   realization%field%work_loc, &
                                   iqoi(1),iqoi(2))
   else
+#if 1
+    call InvAuxParamVecToMaterial(inversion_aux)
+#else
     call InvAuxCopyParamToFromParamVec(inversion_aux, &
                                        INVAUX_PARAMETER_VALUE, &
                                        INVAUX_COPY_FROM_VEC)
@@ -574,31 +576,34 @@ subroutine SimSubsurfOverwriteInvParameters(this)
       call InvAuxCopyParameterValue(inversion_aux,i, &
                                     INVAUX_OVERWRITE_MATERIAL_VALUE)
     enddo
+#endif
     ! update material auxvars
     call InitSubsurfAssignMatProperties(realization)
   endif
 
   if (associated(perturbation)) then
     ! on first pass, store and set thereafter
-    if (perturbation%idof_pert <= 0) then
-      if (perturbation%base_parameter_vec == PETSC_NULL_VEC) then
-        if (inversion_aux%qoi_is_full_vector) then
-          call VecDuplicate(inversion_aux%dist_parameter_vec, &
-                            perturbation%base_parameter_vec, &
-                            ierr);CHKERRQ(ierr)
-        else
-          call VecDuplicate(inversion_aux%parameter_vec, &
-                            perturbation%base_parameter_vec, &
-                            ierr);CHKERRQ(ierr)
-        endif
+    if (perturbation%base_parameter_vec == PETSC_NULL_VEC) then
+      if (inversion_aux%qoi_is_full_vector) then
+        call VecDuplicate(inversion_aux%dist_parameter_vec, &
+                          perturbation%base_parameter_vec, &
+                          ierr);CHKERRQ(ierr)
+      else
+        call VecDuplicate(inversion_aux%parameter_vec, &
+                          perturbation%base_parameter_vec, &
+                          ierr);CHKERRQ(ierr)
+        call VecCopy(inversion_aux%parameter_vec, &
+                     perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
       endif
+    endif
+    if (perturbation%idof_pert <= 0) then
       if (inversion_aux%qoi_is_full_vector) then
         call VecCopy(inversion_aux%dist_parameter_vec, &
                      perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
       else
         if (perturbation%idof_pert == 0) then
-          call VecCopy(inversion_aux%parameter_vec, &
-                       perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
+!          call VecCopy(inversion_aux%parameter_vec, &
+!                       perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
         endif
       endif
     else
@@ -606,7 +611,7 @@ subroutine SimSubsurfOverwriteInvParameters(this)
       if (inversion_aux%qoi_is_full_vector) then
         call VecZeroEntries(inversion_aux%dist_parameter_vec, &
                             ierr);CHKERRQ(ierr)
-        if (this%driver%comm%myrank == 0) then
+        if (this%driver%comm%rank == 0) then
           call VecSetValue(inversion_aux%dist_parameter_vec, &
                            perturbation%idof_pert-1, &
                            perturbation%tolerance,INSERT_VALUES, &
@@ -915,11 +920,10 @@ subroutine SimSubsurfStrip(this)
 #endif
 
   call SimulationBaseStrip(this)
-
   call SimAuxDestroy(this%sim_aux)
   call OutputOptionDestroy(this%output_option)
   if (associated(this%process_model_coupler_list)) then
-call this%process_model_coupler_list%Destroy()
+    call this%process_model_coupler_list%Destroy()
     ! destroy does not currently destroy; it strips
     deallocate(this%process_model_coupler_list)
     nullify(this%process_model_coupler_list)

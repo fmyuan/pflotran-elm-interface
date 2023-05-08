@@ -50,7 +50,6 @@ subroutine UGridRead(unstructured_grid,filename,option)
   ! Author: Glenn Hammond
   ! Date: 09/30/09
   !
-
   use Input_Aux_module
   use Option_module
   use String_module
@@ -119,10 +118,10 @@ subroutine UGridRead(unstructured_grid,filename,option)
   call InputErrorMsg(input,option,'number of vertices',hint)
 
   ! divide cells across ranks
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -138,7 +137,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_int_array = UNINITIALIZED_INTEGER
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -206,7 +205,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
 #endif
     int_mpi = num_cells_local*unstructured_grid%max_nvert_per_cell
     call MPI_Recv(unstructured_grid%cell_vertices,int_mpi,MPIU_INTEGER, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -215,10 +214,10 @@ subroutine UGridRead(unstructured_grid,filename,option)
 
   ! divide vertices across ranks
   num_vertices_local = unstructured_grid%num_vertices_global/ &
-                                         option%comm%mycommsize
+                                         option%comm%size
   num_vertices_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                  num_vertices_local + 1
 
@@ -230,7 +229,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       num_to_read = num_vertices_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
       do ivertex = 1, num_to_read
@@ -242,7 +241,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
         enddo
       enddo
 
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
         vertex_coordinates(:,1:num_vertices_local) = &
           temp_real_array(:,1:num_vertices_local)
       else
@@ -255,7 +254,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
   else
     int_mpi = num_vertices_local*3
     call MPI_Recv(vertex_coordinates,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -357,10 +356,10 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   call InputErrorMsg(input,option,'number of vertices',hint)
 
   ! divide cells across ranks
-  !num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  !num_cells_local = unstructured_grid%nmax/option%comm%size
   !num_cells_local_save = num_cells_local
   !remainder = unstructured_grid%nmax - &
-  !            num_cells_local*option%comm%mycommsize
+  !            num_cells_local*option%comm%size
   !if (option%myrank < remainder) num_cells_local = &
   !                               num_cells_local + 1
 
@@ -409,10 +408,10 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 
   ! divide vertices across ranks
   num_vertices_local = unstructured_grid%num_vertices_global/ &
-                                         option%comm%mycommsize
+                                         option%comm%size
   num_vertices_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                  num_vertices_local + 1
 
@@ -424,7 +423,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   if (OptionIsIORank(option)) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       num_to_read = num_vertices_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
       do ivertex = 1, num_to_read
@@ -436,7 +435,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
         enddo
       enddo
 
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
         vertex_coordinates(:,1:num_vertices_local) = &
           temp_real_array(:,1:num_vertices_local)
       else
@@ -449,7 +448,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   else
     int_mpi = num_vertices_local*3
     call MPI_Recv(vertex_coordinates,int_mpi,MPI_DOUBLE_PRECISION, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -482,10 +481,10 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   call InputErrorMsg(input,option,'number of cells',hint)
 
   ! divide cells across ranks
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -501,7 +500,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%comm%mycommsize-1
+    do irank = 0, option%comm%size-1
       temp_int_array = UNINITIALIZED_INTEGER
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -526,7 +525,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
       enddo
 
       ! if the faces reside on io_rank
-      if (irank == option%driver%io_rank) then
+      if (OptionIsIORank(option,irank)) then
 #if UGRID_DEBUG
         write(string,*) num_cells_local
         string = trim(adjustl(string)) // ' cells stored on p0'
@@ -560,7 +559,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 #endif
     int_mpi = num_cells_local*unstructured_grid%max_nvert_per_cell
     call MPI_Recv(unstructured_grid%cell_vertices,int_mpi,MPIU_INTEGER, &
-                  option%driver%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
                   ierr);CHKERRQ(ierr)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -624,16 +623,8 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T) :: offset(2), length(2)
   integer :: ndims_h5
 
-  ! Setup file access property with parallel I/O access
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-
   ! Open the file collectively
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   !
   ! Regions/top
@@ -668,10 +659,10 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 
   ! Determine the number of cells each that will be saved on each processor
   unstructured_grid%nmax = INT(dims_h5(2))
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                   num_cells_local + 1
 
@@ -727,7 +718,8 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
     enddo
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   deallocate(int_buffer)
   nullify(int_buffer)
@@ -739,7 +731,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   !
 
   ! Open dataset
-  call h5dopen_f(file_id, "Domain/Vertices", data_set_id, hdf5_err)
+  call HDF5DatasetOpen(file_id,"Domain/Vertices",data_set_id,option)
 
   ! Get dataset's dataspace
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
@@ -764,10 +756,10 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   unstructured_grid%num_vertices_global = INT(dims_h5(2))
   num_vertices_local  = &
                                        unstructured_grid%num_vertices_global/ &
-                                       option%comm%mycommsize
+                                       option%comm%size
   num_cells_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                   num_vertices_local + 1
 
@@ -809,10 +801,9 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   ! Read the dataset collectively
   call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
                  dims_h5, hdf5_err, memory_space_id, data_space_id)
-
-  call h5dclose_f(data_set_id, hdf5_err)
-  !call h5gclose_f(grp_id, hdf5_err)
-  call h5fclose_f(file_id, hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
+  call HDF5FileClose(file_id,option)
 
 
   ! fill the vertices data structure
@@ -890,16 +881,8 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T) :: offset(2), length(2)
   integer :: ndims_h5
 
-  ! Setup file access property with parallel I/O access
-  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
-
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm, MPI_INFO_NULL, hdf5_err)
-#endif
-
   ! Open the file collectively
-  call HDF5FileOpenReadOnly(filename,file_id,prop_id,'',option)
-  call h5pclose_f(prop_id, hdf5_err)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
 
   !
   ! Domain/Cells
@@ -934,10 +917,10 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
   ! Determine the number of cells each that will be saved on each processor
   unstructured_grid%nmax = INT(dims_h5(2))
-  num_cells_local = unstructured_grid%nmax/option%comm%mycommsize
+  num_cells_local = unstructured_grid%nmax/option%comm%size
   num_cells_local_save = num_cells_local
   remainder = unstructured_grid%nmax - &
-              num_cells_local*option%comm%mycommsize
+              num_cells_local*option%comm%size
   if (option%myrank < remainder) num_cells_local = &
                                   num_cells_local + 1
 
@@ -1013,7 +996,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
     enddo
   enddo
 
-  call h5dclose_f(data_set_id, hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
 
   deallocate(int_buffer)
   nullify(int_buffer)
@@ -1050,10 +1033,10 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   unstructured_grid%num_vertices_global = INT(dims_h5(2))
   num_vertices_local  = &
                                        unstructured_grid%num_vertices_global/ &
-                                       option%comm%mycommsize
+                                       option%comm%size
   num_cells_local_save = num_vertices_local
   remainder = unstructured_grid%num_vertices_global - &
-              num_vertices_local*option%comm%mycommsize
+              num_vertices_local*option%comm%size
   if (option%myrank < remainder) num_vertices_local = &
                                   num_vertices_local + 1
 
@@ -1097,10 +1080,8 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
                  dims_h5, hdf5_err, memory_space_id, data_space_id)
 
-  call h5dclose_f(data_set_id, hdf5_err)
-  !call h5gclose_f(grp_id, hdf5_err)
-  call h5fclose_f(file_id, hdf5_err)
-
+  call HDF5DatasetClose(data_set_id,option)
+  call HDF5FileClose(file_id,option)
 
   ! fill the vertices data structure
   allocate(unstructured_grid%vertices(num_vertices_local))
@@ -1189,7 +1170,7 @@ subroutine UGridDecompose(unstructured_grid,option)
 !  cell distribution across processors (size = num_cores + 1)
 !  core i owns cells cell_distribution(i):cell_distribution(i+1), note
 !  the zero-based indexing
-!  allocate(cell_distribution(option%comm%mycommsize+1))
+!  allocate(cell_distribution(option%comm%size+1))
 !  call MPI_Scan(unstructured_grid%nlmax,
 !  cell_distribution(1) = 0
 !  cell_distribution(2:) = unstructured_grid%num_cells
@@ -2785,9 +2766,9 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  type(point3d_type) :: point, point1, point2, point3
+  type(point3d_type) :: point, point1, point2, point3, point4
   type(plane_type) :: plane1
-  PetscReal :: distance
+  PetscReal :: distance, distance2, distance3, distance4
   PetscInt :: cell_vertex_ids_before(8), cell_vertex_ids_after(8)
   PetscInt :: face_vertex_ids(4)
   type(point3d_type) :: vertex_8(8)
@@ -2795,7 +2776,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
   PetscInt :: num_vertices, iface, cell_type, num_faces, face_type, i
   PetscInt :: num_face_vertices
   character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: error_found
+  PetscBool :: error_found, flag
 
   error_found = PETSC_FALSE
   do local_id = 1, unstructured_grid%nlmax
@@ -2833,89 +2814,111 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
       distance = GeomComputeDistanceFromPlane(plane1,point)
 
       if (distance > 0.d0) then
-        ! need to swap so that distance is negative (point lies below plane)
-        if (cell_type == TRI_TYPE .or. cell_type == QUAD_TYPE) then
-          ! Error message for 2D cell type
-          option%io_buffer = 'Cell:'
-          write(string,'(i13)') nG2A(nL2G(local_id))
-          option%io_buffer = trim(option%io_buffer) // ' ' // &
-            trim(adjustl(string)) // ' of type "' // &
-            trim(UCellTypeToWord(cell_type,option)) // '" with vertices:'
-          do i = 1, num_vertices
-            write(string,'(i13)') &
-              unstructured_grid%vertex_ids_natural(cell_vertex_ids_before(i))
-            option%io_buffer = trim(option%io_buffer) // ' ' // &
-              trim(adjustl(string))
-          enddo
-          option%io_buffer = trim(option%io_buffer) // &
-            ' violates right hand rule at face "' // &
-            trim(UCellFaceTypeToWord(face_type,option)) // &
-            '" based on face vertices:'
-          do i = 1, num_face_vertices
-            write(string,'(i13)') face_vertex_ids(i)
-            option%io_buffer = trim(option%io_buffer) // ' ' // &
-              trim(adjustl(string))
-          enddo
-          do ivertex = 1, unstructured_grid%cell_vertices(0,ghosted_id)
-            vertex_id = unstructured_grid%cell_vertices(ivertex,ghosted_id)
-            vertex_8(ivertex)%x = &
-              unstructured_grid%vertices(vertex_id)%x
-            vertex_8(ivertex)%y = &
-              unstructured_grid%vertices(vertex_id)%y
-            vertex_8(ivertex)%z = &
-              unstructured_grid%vertices(vertex_id)%z
-          enddo
-          write(string,'(es12.4)') &
-            UCellComputeArea(cell_type,vertex_8,option)
-          option%io_buffer = trim(option%io_buffer) // ' and area: ' // &
-            trim(adjustl(string)) // '.'
-          call PrintMsgAnyRank(option)
-          error_found = PETSC_TRUE
-        else
-          ! Error message for 3D cell type
-          option%io_buffer = 'Cell:'
-          write(string,'(i13)') nG2A(nL2G(local_id))
-          option%io_buffer = trim(option%io_buffer) // ' ' // &
-            trim(adjustl(string)) // ' of type "' // &
-            trim(UCellTypeToWord(cell_type,option)) // '" with vertices:'
-          do i = 1, num_vertices
-            write(string,'(i13)') &
-              unstructured_grid%vertex_ids_natural(cell_vertex_ids_before(i))
-            option%io_buffer = trim(option%io_buffer) // ' ' // &
-              trim(adjustl(string))
-          enddo
-          option%io_buffer = trim(option%io_buffer) // &
-            ' violates right hand rule at face "' // &
-            trim(UCellFaceTypeToWord(face_type,option)) // &
-            '" based on face vertices:'
-          do i = 1, num_face_vertices
-            write(string,'(i13)') face_vertex_ids(i)
-            option%io_buffer = trim(option%io_buffer) // ' ' // &
-              trim(adjustl(string))
-          enddo
-          do ivertex = 1, unstructured_grid%cell_vertices(0,ghosted_id)
-            vertex_id = unstructured_grid%cell_vertices(ivertex,ghosted_id)
-            vertex_8(ivertex)%x = &
-              unstructured_grid%vertices(vertex_id)%x
-            vertex_8(ivertex)%y = &
-              unstructured_grid%vertices(vertex_id)%y
-            vertex_8(ivertex)%z = &
-              unstructured_grid%vertices(vertex_id)%z
-          enddo
-          write(string,'(es12.4)') &
-            UCellComputeVolume(cell_type,vertex_8,option)
-          option%io_buffer = trim(option%io_buffer) // ' and volume: ' // &
-            trim(adjustl(string)) // '.'
-          call PrintMsgAnyRank(option)
-          error_found = PETSC_TRUE
+        flag = PETSC_TRUE
+        ! need to test all combinations of points 
+        if (face_type == QUAD_FACE_TYPE .and. unstructured_grid%check_all_points_rh_rule) then
+          point4 =  &
+               unstructured_grid%vertices(cell_vertex_ids_before(face_vertex_ids(4)))
+          call GeometryComputePlaneWithPoints(plane1,point2,point3,point4)
+          distance2 = GeomComputeDistanceFromPlane(plane1,point)
+          call GeometryComputePlaneWithPoints(plane1,point3,point4,point1)
+          distance3 = GeomComputeDistanceFromPlane(plane1,point)
+          call GeometryComputePlaneWithPoints(plane1,point4,point1,point2)
+          distance4 = GeomComputeDistanceFromPlane(plane1,point)
+          flag = (min(distance2,distance3,distance4) > 0.d0)
         endif
-      endif
+        if (flag) then
+          ! need to swap so that distance is negative (point lies below plane)
+          if (cell_type == TRI_TYPE .or. cell_type == QUAD_TYPE) then
+            ! Error message for 2D cell type
+            option%io_buffer = 'Cell:'
+            write(string,'(i13)') nG2A(nL2G(local_id))
+            option%io_buffer = trim(option%io_buffer) // ' ' // &
+              trim(adjustl(string)) // ' of type "' // &
+              trim(UCellTypeToWord(cell_type,option)) // '" with vertices:'
+            do i = 1, num_vertices
+              write(string,'(i13)') &
+                unstructured_grid%vertex_ids_natural(cell_vertex_ids_before(i))
+              option%io_buffer = trim(option%io_buffer) // ' ' // &
+                trim(adjustl(string))
+            enddo
+            option%io_buffer = trim(option%io_buffer) // &
+              ' violates right hand rule at face "' // &
+              trim(UCellFaceTypeToWord(face_type,option)) // &
+              '" based on face vertices:'
+            do i = 1, num_face_vertices
+              write(string,'(i13)') face_vertex_ids(i)
+              option%io_buffer = trim(option%io_buffer) // ' ' // &
+                trim(adjustl(string))
+            enddo
+            do ivertex = 1, unstructured_grid%cell_vertices(0,ghosted_id)
+              vertex_id = unstructured_grid%cell_vertices(ivertex,ghosted_id)
+              vertex_8(ivertex)%x = &
+                unstructured_grid%vertices(vertex_id)%x
+              vertex_8(ivertex)%y = &
+                unstructured_grid%vertices(vertex_id)%y
+              vertex_8(ivertex)%z = &
+                unstructured_grid%vertices(vertex_id)%z
+            enddo
+            write(string,'(es12.4)') &
+              UCellComputeArea(cell_type,vertex_8,option)
+            option%io_buffer = trim(option%io_buffer) // ' and area: ' // &
+              trim(adjustl(string)) // '.'
+            call PrintMsgAnyRank(option)
+            error_found = PETSC_TRUE
+          else
+            ! Error message for 3D cell type
+            option%io_buffer = 'Cell:'
+            write(string,'(i13)') nG2A(nL2G(local_id))
+            option%io_buffer = trim(option%io_buffer) // ' ' // &
+              trim(adjustl(string)) // ' of type "' // &
+              trim(UCellTypeToWord(cell_type,option)) // '" with vertices:'
+            do i = 1, num_vertices
+              write(string,'(i13)') &
+                unstructured_grid%vertex_ids_natural(cell_vertex_ids_before(i))
+              option%io_buffer = trim(option%io_buffer) // ' ' // &
+                trim(adjustl(string))
+            enddo
+            option%io_buffer = trim(option%io_buffer) // &
+              ' violates right hand rule at face "' // &
+              trim(UCellFaceTypeToWord(face_type,option)) // &
+              '" based on face vertices:'
+            do i = 1, num_face_vertices
+              write(string,'(i13)') face_vertex_ids(i)
+              option%io_buffer = trim(option%io_buffer) // ' ' // &
+                trim(adjustl(string))
+            enddo
+            do ivertex = 1, unstructured_grid%cell_vertices(0,ghosted_id)
+              vertex_id = unstructured_grid%cell_vertices(ivertex,ghosted_id)
+              vertex_8(ivertex)%x = &
+                unstructured_grid%vertices(vertex_id)%x
+              vertex_8(ivertex)%y = &
+                unstructured_grid%vertices(vertex_id)%y
+              vertex_8(ivertex)%z = &
+                unstructured_grid%vertices(vertex_id)%z
+            enddo
+            write(string,'(es12.4)') &
+              UCellComputeVolume(cell_type,vertex_8,option)
+            option%io_buffer = trim(option%io_buffer) // ' and volume: ' // &
+              trim(adjustl(string)) // '.'
+            call PrintMsgAnyRank(option)
+            error_found = PETSC_TRUE
+          endif
+        endif
+      endif 
     enddo
   enddo
 
   if (error_found) then
-    option%io_buffer = 'Cells founds that violate right hand rule.'
-    call PrintErrMsgByRank(option)
+    if (face_type == QUAD_FACE_TYPE) then
+      option%io_buffer = 'Cells founds that violate right hand rule.' // &
+        ' Keyword: "RIGHT_HAND_RULE_CHECK_ALL" can be used under' // &
+        ' GRID to check all combinatons of points on face'
+      call PrintErrMsgByRank(option)
+    else
+      option%io_buffer = 'Cells found that violate right hand rule.'
+      call PrintErrMsgByRank(option)
+    endif      
   endif
 
 end subroutine UGridEnsureRightHandRule
@@ -3621,7 +3624,7 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     ! From the MPI-Matrix get the local-matrix
     call MatMPIAIJGetLocalMat(Mat_face,MAT_INITIAL_MATRIX,Mat_face_loc, &
                               ierr);CHKERRQ(ierr)
@@ -3679,7 +3682,7 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
     endif
   enddo
 
-  if (option%comm%mycommsize>1) then
+  if (option%comm%size>1) then
     call MatSeqAIJRestoreArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
     call MatDestroy(Mat_face_loc,ierr);CHKERRQ(ierr)
   else
@@ -3919,7 +3922,7 @@ subroutine UGridGrowStencilSupport(unstructured_grid,stencil_width, &
 
   ! There are no ghost cells when running with a single processor, so get out
   ! of here
-  if (option%comm%mycommsize==1) return
+  if (option%comm%size==1) return
 
   allocate(real_arrayV(unstructured_grid%max_nvert_per_cell))
   allocate(int_arrayV(unstructured_grid%max_nvert_per_cell))
@@ -4155,7 +4158,7 @@ subroutine UGridFindCellIDsAfterGrowingStencilWidthByOne(Mat_vert_to_cell, &
                     ierr);CHKERRQ(ierr)
   call MatDestroy(Mat_proc_to_cell,ierr);CHKERRQ(ierr)
 
-  if (option%comm%mycommsize > 1) then
+  if (option%comm%size > 1) then
     ! From the MPI-Matrix get the local-matrix
     call MatMPIAIJGetLocalMat(Mat_cell_to_proc,MAT_INITIAL_MATRIX, &
                               Mat_cell_to_proc_loc,ierr);CHKERRQ(ierr)

@@ -14,7 +14,7 @@ module Reaction_Sandbox_Lambda_class
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_lambda_type
     character(len=MAXSTRINGLENGTH) :: reaction_network_filename
-
+    character(len=MAXWORDLENGTH) :: scaling_mineral_name
     PetscReal, pointer :: stoich(:,:)
     PetscInt, pointer :: i_donor(:)
 
@@ -32,6 +32,7 @@ module Reaction_Sandbox_Lambda_class
     PetscInt :: i_o2
     PetscInt :: i_biomass
     PetscInt :: i_nh4
+    PetscInt :: i_scaling_mineral
 
   contains
     procedure, public :: ReadInput => LambdaRead
@@ -58,6 +59,7 @@ function LambdaCreate()
 
   allocate(LambdaCreate)
   LambdaCreate%reaction_network_filename = ''
+  LambdaCreate%scaling_mineral_name = ''
 
   LambdaCreate%n_species = UNINITIALIZED_INTEGER
   LambdaCreate%n_rxn = UNINITIALIZED_INTEGER
@@ -65,6 +67,7 @@ function LambdaCreate()
   LambdaCreate%i_o2 = UNINITIALIZED_INTEGER
   LambdaCreate%i_biomass = UNINITIALIZED_INTEGER
   LambdaCreate%i_nh4 = UNINITIALIZED_INTEGER
+  LambdaCreate%i_scaling_mineral = UNINITIALIZED_INTEGER
 
   LambdaCreate%mu_max = UNINITIALIZED_DOUBLE
   LambdaCreate%vh = 1.d0 ! m^3
@@ -148,6 +151,10 @@ subroutine LambdaRead(this,input,option)
         call InputReadAndConvertUnits(input,this%nh4_inhibit,'M',&
                           trim(error_string)//',nh4_inhibit',option)
 
+      case('SCALING_MINERAL')
+        call InputReadWord(input,option,this%scaling_mineral_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,word,trim(error_string))
+
       case default
         call InputKeywordUnrecognized(input,word,error_string ,option)
     end select
@@ -169,6 +176,7 @@ subroutine LambdaSetup(this,reaction,option)
   use Option_module
   use Utility_module
   use Reaction_Aux_module
+  use Reaction_Mineral_Aux_module
 
   implicit none
 
@@ -215,6 +223,12 @@ subroutine LambdaSetup(this,reaction,option)
   word = 'BIOMASS'
   this%i_biomass = &
     GetPrimarySpeciesIDFromName(word,reaction,option)
+
+  if (len_trim(this%scaling_mineral_name) > 0) then
+    this%i_scaling_mineral = &
+      GetKineticMineralIDFromName(this%scaling_mineral_name, &
+                                  reaction%mineral,option)
+  endif
 
   ! Input file must have carbon species indicated by the word "DONOR"
   ! to be used as donor
@@ -271,12 +285,15 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: molality_to_molarity
   PetscReal :: vh_L, sumkin, Biomass_mod
   PetscReal :: nh4_inhibition, tempreal, threshold_f
+  PetscReal :: C_reactant_inhibit
 
+  PetscReal :: Reactant_inhibition(this%n_species)
   PetscReal :: C_aq(this%n_species)
   PetscReal :: rkin(this%n_rxn)
   PetscReal :: R(this%n_rxn)
   PetscReal :: Rate(this%n_species)
   PetscReal :: u(this%n_rxn)
+  PetscReal :: mu_max
 
   PetscInt :: icomp, irxn, i_carbon
 
@@ -285,6 +302,11 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3
   ! concentrations are molarities [M]
+
+  mu_max = this%mu_max
+  if (Initialized(this%i_scaling_mineral)) then
+    mu_max = mu_max * rt_auxvar%mnrl_volfrac(this%i_scaling_mineral)
+  endif
 
   do icomp = 1, this%n_species
     C_aq(icomp) = rt_auxvar%pri_molal(icomp)* &
@@ -295,13 +317,13 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   do irxn = 1, this%n_rxn
     i_carbon = this%i_donor(irxn)
-    rkin(irxn) = this%mu_max * &
+
+    rkin(irxn) = mu_max * &
                  exp(-(ABS(this%stoich(i_carbon,irxn)) / &
                    (vh_L * C_aq(i_carbon)))) * &
                  exp(-(ABS(this%stoich(this%i_o2,irxn)) / &
                    (vh_L * C_aq(this%i_o2))))  ![1/sec]
   enddo
-
   ! Cybernetic Formulation
   ! Relative contribution, ui (unitless)
   sumkin = 0.d0
@@ -313,9 +335,19 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   R = u * rkin ![1/sec]
 
   ! NH4 inhibition (Threshold)
-  threshold_f = 1.d8
-  tempreal = (C_aq(this%i_nh4) - this%nh4_inhibit) * threshold_f
-  nh4_inhibition = 0.5d0 + atan(tempreal)/PI
+  threshold_f = 1.d5/dabs(this%nh4_inhibit)
+  tempreal = (C_aq(this%i_nh4) - dabs(this%nh4_inhibit)) * threshold_f
+  nh4_inhibition = 0.5d0 + sign(1.d0,this%nh4_inhibit) * &
+                           atan(tempreal)/PI
+
+  ! Reactant inhibition (Threshold)
+  C_reactant_inhibit = 1.d-18
+  threshold_f = 1.d5/C_reactant_inhibit
+  do icomp = 1, this%n_species
+    tempreal = (C_aq(icomp) - dabs(C_reactant_inhibit)) * threshold_f
+    Reactant_inhibition(icomp) = 0.5d0 + sign(1.d0,C_reactant_inhibit) * &
+                                         atan(tempreal)/PI
+  enddo
 
   ! Reactions are modulated by biomass concentration
   ! Biomass is moduluated by a carrying capacity (CC)
@@ -325,16 +357,34 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   Rate = 0.d0
 
   do irxn = 1, this%n_rxn
-    if (this%stoich(this%i_nh4,irxn) < 0.d0) then
-      R(irxn) = R(irxn) * nh4_inhibition
+    do icomp = 1, this%n_species
+      if (this%stoich(icomp,irxn) < 0.d0) then
+        if (icomp == this%i_nh4) then
+          R(irxn) = R(irxn) * nh4_inhibition
+        else
+          R(irxn) = R(irxn) * Reactant_inhibition(icomp)
+        endif
+      endif
+    enddo
+    if (C_aq(this%i_biomass) > this%cc) then
+      R(irxn) = 0
     endif
     Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
   enddo
-  Rate(this%i_biomass) = Rate(this%i_biomass) - this%k_deg
   Rate(:) = Rate(:) * Biomass_mod * L_water
+  Rate(this%i_biomass) = Rate(this%i_biomass) - &
+                         this%k_deg * C_aq(this%i_biomass) * L_water
 
   ! Residuals
   Residual(:) = Residual(:) - Rate(:)
+
+  if (compute_derivative) then
+    option%io_buffer = 'REACTION_SANDBOX LAMBDA must be run with &
+      &NUMERICAL_JACOBIAN listed in the NUMERICAL_METHODS TRANSPORT &
+      &NEWTON_SOLVER block as analytical derivatives are not calculated &
+      &in the sandbox evaluate routine.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine LambdaEvaluate
 

@@ -9,6 +9,7 @@ util_obj = \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
 	${common_src}matrix_block_aux.o \
+	${common_src}matrix_zeroing.o \
 	${common_src}option.o \
 	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
@@ -16,10 +17,10 @@ util_obj = \
 	${common_src}option_transport.o \
 	${common_src}option_geophysics.o \
 	${common_src}output_aux.o \
-	${common_src}matrix_zeroing.o \
 	${common_src}petsc_utility.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
+	${common_src}print.o \
 	${common_src}string.o \
 	${common_src}timer.o \
 	${common_src}units.o \
@@ -134,18 +135,19 @@ chem_obj = \
 	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
+	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_calcite.o \
 	${common_src}reaction_sandbox_chromium.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_equilibrate.o \
-	${common_src}reaction_sandbox_biohill.o \
 	${common_src}reaction_sandbox_flexbiohill.o \
+	${common_src}reaction_sandbox_gas.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_pnnl_lambda.o \
-	${common_src}reaction_sandbox_gas.o \
+	${common_src}reaction_sandbox_radon.o \
 	${common_src}reaction_sandbox_simple.o \
-	${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \

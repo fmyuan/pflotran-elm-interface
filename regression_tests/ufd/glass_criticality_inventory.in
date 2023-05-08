@@ -411,12 +411,13 @@ WASTE_FORM_GENERAL
   /
   
   SPACER_DEGRADATION_MECHANISM
-    NAME           spc_01
-    MASS           1.67040D+05 g
-    SURFACE_AREA   2.37309D+04 dm^2
-    EXPOSURE_LEVEL 9.93317D-01
-    C              3.47000D+07 mg/s-dm^2
-    Q              2.26750D+04 cal/mol
+    NAME             spc_01
+    METAL_LOSS_RATIO 4.42953d-04 m^3/kg
+    THICKNESS        5.00000d-04 m
+    EXPOSURE_LEVEL   9.93317d-01
+    C                3.47000d+07 mg/day-dm^2
+    Q                2.27570d+04 cal/mol
+    RAD_FACTOR       1.00000d+00
   /
 
 END_WASTE_FORM_GENERAL

@@ -2581,7 +2581,7 @@ subroutine PMWSSSetup(this)
   ! point the waste panel region to the desired region
   call PMWSSAssociateRegion(this,this%realization%patch%region_list)
 
-  allocate(ranks(option%comm%mycommsize))
+  allocate(ranks(option%comm%size))
 
   waste_panel_id = 0
   nullify(prev_waste_panel)
@@ -2605,19 +2605,19 @@ subroutine PMWSSSetup(this)
       ranks(option%myrank+1) = 0
     endif
     ! count the number of processes that own the waste panel
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%size,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_panel%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%comm%mycommsize
+    do i = 1,option%comm%size
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_panel%rank_list(j) = (i - 1)
       endif
     enddo
     ! create an MPI group and communicator for each waste panel
-    call MPI_Group_incl(option%comm%mygroup,newcomm_size, &
+    call MPI_Group_incl(option%comm%group,newcomm_size, &
                         cur_waste_panel%rank_list,cur_waste_panel%myMPIgroup, &
                         ierr);CHKERRQ(ierr)
     call MPI_Comm_create(option%mycomm,cur_waste_panel%myMPIgroup, &

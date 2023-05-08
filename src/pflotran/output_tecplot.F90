@@ -2029,13 +2029,13 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       real_data(1:local_size_mpi-iend) = real_data(iend+1:local_size_mpi)
       num_in_array = local_size_mpi-iend
     endif
-    do iproc_mpi=1,option%comm%mycommsize-1
+    do iproc_mpi=1,option%comm%size-1
 #ifdef HANDSHAKE
       if (option%io_handshake_buffer_size > 0 .and. &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
         call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                       option%driver%io_rank,option%mycomm, &
+                       option%comm%io_rank,option%mycomm, &
                        ierr);CHKERRQ(ierr)
       endif
 #endif
@@ -2100,7 +2100,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
       call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                     option%driver%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+                     option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
     endif
 #endif
     ! Print the remaining values, if they exist
@@ -2128,24 +2128,24 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%comm%io_rank, &
                        option%mycomm,ierr);CHKERRQ(ierr)
       enddo
     endif
 #endif
     if (datatype == TECPLOT_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
-                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    option%comm%io_rank,local_size_mpi,option%mycomm, &
                     ierr);CHKERRQ(ierr)
     else
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
-                    option%driver%io_rank,local_size_mpi,option%mycomm, &
+                    option%comm%io_rank,local_size_mpi,option%mycomm, &
                     ierr);CHKERRQ(ierr)
     endif
 #ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%comm%io_rank, &
                        option%mycomm,ierr);CHKERRQ(ierr)
         if (max_proc < 0) exit
       enddo

@@ -374,6 +374,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   PetscInt :: temp_int
   PetscInt :: nphase
+  PetscBool :: iflag
   PetscErrorCode :: ierr
 
   ! boundary conditions
@@ -584,7 +585,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                                       transport_conditions)
         if (.not.associated(coupler%tran_condition)) then
           option%io_buffer = 'Transport condition "' // &
-                   trim(coupler%flow_condition_name) // &
+                   trim(coupler%tran_condition_name) // &
                    '" in source/sink "' // &
                    trim(coupler%name) // &
                    '" not found in transport condition list'
@@ -607,8 +608,10 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   strata => patch%strata_list%first
   do
     if (.not.associated(strata)) exit
+    iflag = PETSC_FALSE
     ! pointer to region
     if (len_trim(strata%region_name) > 0) then
+      iflag = PETSC_TRUE
       strata%region => RegionGetPtrFromList(strata%region_name, &
                                                   patch%region_list)
       if (.not.associated(strata%region)) then
@@ -616,20 +619,24 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                  '" in strata not found in region list'
         call PrintErrMsg(option)
       endif
-      if (strata%active) then
-        ! pointer to material
-        strata%material_property => &
-          MaterialPropGetPtrFromArray(strata%material_property_name, &
-                                      patch%material_property_array)
-        if (.not.associated(strata%material_property)) then
-          option%io_buffer = 'Material "' // &
-                            trim(strata%material_property_name) // &
-                            '" not found in material list'
-          call PrintErrMsg(option)
-        endif
-      endif
     else
       nullify(strata%region)
+    endif
+    if (len_trim(strata%dataset_name) > 0) then
+      iflag = PETSC_TRUE
+    endif
+    if (iflag .and. strata%active) then
+      ! pointer to material
+      strata%material_property => &
+        MaterialPropGetPtrFromArray(strata%material_property_name, &
+                                    patch%material_property_array)
+      if (.not.associated(strata%material_property)) then
+        option%io_buffer = 'Material "' // &
+                          trim(strata%material_property_name) // &
+                          '" not found in material list'
+        call PrintErrMsg(option)
+      endif
+    else
       nullify(strata%material_property)
     endif
     strata => strata%next
@@ -2775,8 +2782,8 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
         HG_STATE
     case(HA_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = HA_STATE
-      if (associated(hydrate%liquid_pressure) .and.  hydrate% &
-                              liquid_pressure%itype == HYDROSTATIC_BC) then
+      if (associated(hydrate%liquid_pressure)) then
+      if (hydrate%liquid_pressure%itype == HYDROSTATIC_BC) then
         if (hydrate%temperature%itype /= DIRICHLET_BC) then
           option%io_buffer = 'Hydrostatic Hydrate-Aq. state pressure BC for &
             &flow condition "' // trim(flow_condition%name) // &
@@ -2785,6 +2792,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
         endif
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
         dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
+      endif
       endif
     case(HI_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
