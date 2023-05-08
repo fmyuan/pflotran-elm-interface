@@ -198,18 +198,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 2
       option%nflowspec = 2
     class is (pm_general_type)
-      option%iflowmode = G_MODE
-      option%nphase = 2
-      option%air_pressure_id = 3
-      option%capillary_pressure_id = 4
-      option%vapor_pressure_id = 5
-      option%saturation_pressure_id = 6
-      option%water_id = 1
-      option%air_id = 2
-      option%energy_id = 3
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%use_isothermal = PETSC_FALSE
+      call PMGeneralSetFlowMode(pm_flow,option)
     class is (pm_hydrate_type)
       call PMHydrateSetFlowMode(option)
     class is (pm_mphase_type)
