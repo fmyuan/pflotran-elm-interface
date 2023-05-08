@@ -757,6 +757,9 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
         ! this should only be done during the first petsc residual call,
         ! not both, which is the reason for the check against option%time
         call PMWellQISolveTran(pmwell_ptr)
+        call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
+        call MPI_Bcast(pmwell_ptr%tran_soln%tran_time,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,0,option%mycomm,ierr);CHKERRQ(ierr)
         if (pmwell_ptr%tran_soln%cut_ts_flag) return
       endif
     endif
