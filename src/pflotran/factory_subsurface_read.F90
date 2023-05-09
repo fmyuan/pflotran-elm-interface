@@ -805,6 +805,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Dataset_module
   use Dataset_Common_HDF5_class
   use Fluid_module
+  use Realization_Common_module
   use Realization_Subsurface_class
   use Realization_Base_class
   use Region_module

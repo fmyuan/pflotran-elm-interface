@@ -508,6 +508,7 @@ factory_subsurface.o : \
   reaction_database.o \
   reactive_transport.o \
   realization_base.o \
+  realization_common.o \
   realization_subsurface.o \
   regression.o \
   simulation_subsurface.o \
@@ -623,6 +624,7 @@ factory_subsurface_read.o : \
   reaction_mineral.o \
   reaction_solid_solution.o \
   realization_base.o \
+  realization_common.o \
   realization_subsurface.o \
   region.o \
   regression.o \
@@ -3015,6 +3017,14 @@ realization_base.o : \
   reaction_aux.o \
   reaction_base.o \
   waypoint.o
+realization_common.o : \
+  coupler.o \
+  grid.o \
+  option.o \
+  patch.o \
+  region.o \
+  strata.o \
+  string.o
 realization_subsurface.o : \
   characteristic_curves.o \
   characteristic_curves_thermal.o \

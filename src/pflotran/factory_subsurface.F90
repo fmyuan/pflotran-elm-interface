@@ -445,6 +445,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Init_Subsurface_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
+  use Realization_Common_module
   use Option_module
   use Logging_module
   use Waypoint_module
