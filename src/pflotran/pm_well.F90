@@ -3090,13 +3090,13 @@ subroutine PMWellInitializeTimestep(this)
     this%dt_tran = this%dt_flow
   endif
 
-  if (this%update_for_wippflo_qi_coupling) return
-
   ! update the reservoir object with current reservoir properties
   call PMWellUpdateReservoir(this,-999)
   call PMWellComputeWellIndex(this)
 
   call PMWellUpdateStrata(this,curr_time)
+
+!  if (this%update_for_wippflo_qi_coupling) return
 
   if (initialize_well_flow) then
     ! enter here if its the very first timestep
@@ -5063,9 +5063,11 @@ subroutine PMWellSolve(this,time,ierr)
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
     this%update_for_wippflo_qi_coupling = PETSC_FALSE
-  else 
-    call PMWellSolveFlow(this,ierr)
+!  else 
   endif
+  
+  call PMWellSolveFlow(this,ierr)
+!  endif
 
   if (this%transport) then
     if (this%tran_QI_coupling) then
