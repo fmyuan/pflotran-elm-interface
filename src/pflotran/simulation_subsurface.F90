@@ -710,12 +710,12 @@ subroutine SimSubsurfExecuteRun(this)
     cur_waypoint => cur_waypoint%next
   enddo
   ! only checkpoint successful simulations
-  if (this%stop_flag == TS_STOP_END_SIMULATION) then
+!  if (this%stop_flag == TS_STOP_END_SIMULATION) then
     append_name = '-restart'
     if (associated(this%option%checkpoint)) then
       call this%process_model_coupler_list%Checkpoint(append_name)
     endif
-  endif
+!  endif
 
 end subroutine SimSubsurfExecuteRun
 
