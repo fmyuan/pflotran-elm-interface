@@ -5068,7 +5068,7 @@ subroutine PMWellSolve(this,time,ierr)
   
   call PMWellSolveFlow(this,ierr)
 !  endif
-
+!  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
   if (this%transport) then
     if (this%tran_QI_coupling) then
       write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
@@ -6329,6 +6329,8 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     soln%converged = PETSC_FALSE
     soln%not_converged = PETSC_TRUE
   endif
+
+  this%tran_soln%cut_ts_flag = PETSC_FALSE
 
 end subroutine PMWellCheckConvergenceTran
 
