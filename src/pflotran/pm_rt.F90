@@ -497,6 +497,8 @@ recursive subroutine PMRTInitializeRun(this)
     call PrintErrMsg(this%option)
   endif
 
+  call RealizationPrintStateAtCells(this%realization)
+
 end subroutine PMRTInitializeRun
 
 ! ************************************************************************** !
