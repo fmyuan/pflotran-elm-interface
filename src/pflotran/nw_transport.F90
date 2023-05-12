@@ -760,6 +760,8 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
         call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
         call MPI_Bcast(pmwell_ptr%tran_soln%tran_time,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,0,option%mycomm,ierr);CHKERRQ(ierr)
+        call MPI_Bcast(pmwell_ptr%tran_soln%cut_ts_flag,ONE_INTEGER_MPI, &
+                       MPI_LOGICAL,0,option%mycomm,ierr);CHKERRQ(ierr)
         if (pmwell_ptr%tran_soln%cut_ts_flag) return
       endif
     endif

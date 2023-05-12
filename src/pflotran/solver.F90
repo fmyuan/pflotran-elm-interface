@@ -1683,6 +1683,8 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
       else
         error_string = 'SNES_DIVERGED_DTOL'
       endif
+    case(-80808)
+      error_string = 'WELLBORE_CUT_TS'
     case default
       write(word,*) snes_reason
       error_string = 'Unknown(' // &

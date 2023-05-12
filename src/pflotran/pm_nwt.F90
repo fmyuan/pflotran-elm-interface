@@ -1268,7 +1268,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   ! check if well model requires ts cut
   if (this%controls%well_cut_dt) then
     option%convergence = CONVERGENCE_CUT_TIMESTEP
-    reason = -88
+    reason = -80808
     return
   endif
 
