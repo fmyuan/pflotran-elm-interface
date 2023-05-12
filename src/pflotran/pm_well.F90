@@ -3077,6 +3077,8 @@ subroutine PMWellInitializeTimestep(this)
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
+  
+  call PMWellInitializeTimestepFlow(this,curr_time)
 
   if (this%tran_QI_coupling) return
 
@@ -3090,13 +3092,27 @@ subroutine PMWellInitializeTimestep(this)
     this%dt_tran = this%dt_flow
   endif
 
+end subroutine PMWellInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellInitializeTimestepFlow(this,curr_time)
+!
+! Initializes and takes the time step for the well process model - flow.
+!
+! Author: Jennifer M. Frederick
+! Date: 05/11/2023
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal :: curr_time
+
   ! update the reservoir object with current reservoir properties
   call PMWellUpdateReservoir(this,-999)
   call PMWellComputeWellIndex(this)
 
   call PMWellUpdateStrata(this,curr_time)
-
-!  if (this%update_for_wippflo_qi_coupling) return
 
   if (initialize_well_flow) then
     ! enter here if its the very first timestep
@@ -3117,7 +3133,7 @@ subroutine PMWellInitializeTimestep(this)
                         this%realization%patch%characteristic_curves_array,&
                         this%realization%option)
 
-end subroutine PMWellInitializeTimestep
+end subroutine PMWellInitializeTimestepFlow
 
 ! ************************************************************************** !
 
@@ -4118,10 +4134,12 @@ subroutine PMWellQISolveTran(this)
 
   class(pm_well_type) :: this
   
+  PetscReal :: curr_time 
   PetscErrorCode :: ierr
 
   ierr = 0
   this%tran_soln%cut_ts_flag = PETSC_FALSE
+  curr_time = this%option%time
 
   if (this%well_comm%comm == MPI_COMM_NULL) return
 
@@ -4131,6 +4149,10 @@ subroutine PMWellQISolveTran(this)
 
   call PMWellUpdatePropertiesTran(this)
   this%dt_tran = this%option%tran_dt 
+
+  ! required for the reservoir and the flow solution to sync across ranks
+  call PMWellInitializeTimestepFlow(this,curr_time)
+  !call PMWellSolveFlow(this,ierr)
 
   call PMWellSolveTran(this,ierr)
   if (this%tran_soln%cut_ts_flag) return
@@ -5063,12 +5085,9 @@ subroutine PMWellSolve(this,time,ierr)
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
     this%update_for_wippflo_qi_coupling = PETSC_FALSE
-!  else 
   endif
-  
-  call PMWellSolveFlow(this,ierr)
-!  endif
-!  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
+
+  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
   if (this%transport) then
     if (this%tran_QI_coupling) then
       write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
@@ -5077,6 +5096,7 @@ subroutine PMWellSolve(this,time,ierr)
       this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
       this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
     else 
+      call PMWellSolveFlow(this,ierr)
       call PMWellSolveTran(this,ierr)
     endif
   endif
