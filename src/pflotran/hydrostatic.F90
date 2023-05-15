@@ -106,6 +106,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
   select case(option%iflowmode)
     case(G_MODE)
+      call HydrostaticHDF5DatasetError(condition%general%temperature, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%general%mole_fraction, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%general%liquid_pressure, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%general%gas_pressure, &
+                                       condition%name,option)
       temperature_at_datum = &
         condition%general%temperature%dataset%rarray(1)
       if (associated(condition%general%temperature%gradient)) then
@@ -144,6 +152,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
     case(H_MODE)
+      call HydrostaticHDF5DatasetError(condition%hydrate%temperature, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%hydrate%mole_fraction, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%hydrate%liquid_pressure, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%hydrate%gas_pressure, &
+                                       condition%name,option)
       temperature_at_datum = &
         condition%hydrate%temperature%dataset%rarray(1)
       if (associated(condition%hydrate%temperature%gradient)) then
@@ -180,6 +196,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(HYDRATE_GAS_SATURATION_INDEX) = 2
     case(WF_MODE)
+      call HydrostaticHDF5DatasetError(condition%general%liquid_pressure, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%general%liquid_pressure, &
+                                       condition%name,option)
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)
       ! gradient is in m/m; needs conversion to Pa/m
@@ -189,6 +209,12 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
       coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = 1
     case default
+      call HydrostaticHDF5DatasetError(condition%temperature, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%concentration, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%pressure, &
+                                       condition%name,option)
       ! for now, just set it; in future need to account for a different
       ! temperature datum
       !geh: this is a trick to determine if the dataset is hdf5 type.
@@ -678,6 +704,37 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   nullify(datum_dataset)
 
 end subroutine HydrostaticUpdateCoupler
+
+! ************************************************************************** !
+
+subroutine HydrostaticHDF5DatasetError(sub_condition,condition_name,option)
+  !
+  ! Reports an error if an HDF5 dataset is assigned to a dataset
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/15/23
+
+  use Condition_module
+  use Option_module 
+  use Dataset_Common_HDF5_class
+
+  type(flow_sub_condition_type), pointer :: sub_condition
+  character(len=*) :: condition_name
+  type(option_type) :: option
+  
+  if (.not.associated(sub_condition)) return
+
+  if (associated(DatasetCommonHDF5Cast(sub_condition%dataset)) .or. &
+      associated(DatasetCommonHDF5Cast(sub_condition%gradient))) then
+    option%io_buffer = 'HDF5-type datasets for ' // &
+      trim(sub_condition%name) // &
+      ' are not supported in combination with hydrostatic, seepage, or &
+      &conductance boundary conditions for pressure specified in &
+      &FLOW_CONDITION ' // trim(condition_name) // '.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine HydrostaticHDF5DatasetError
 
 ! ************************************************************************** !
 
