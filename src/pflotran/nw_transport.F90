@@ -1355,7 +1355,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   ! weighted harmonic average of diffusivity divided by distance
    harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
-                      (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
+                      (diffusivity_up(:)*dist_dn + diffusivity_dn(:)*dist_up)
 
   ! All residual entries for flux terms should be in [mol-species].
 
@@ -1973,7 +1973,7 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   ! weighted harmonic average of diffusivity divided by distance
    harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
-                      (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
+                      (diffusivity_up(:)*dist_dn + diffusivity_dn(:)*dist_up)
 
   ! Note: For dispersion, do a git pull - Glenn updated transport.F90
   ! When adding dispersion, look at TDispersion() and the routine that
