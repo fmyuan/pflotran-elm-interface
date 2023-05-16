@@ -2133,11 +2133,6 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 
   !Check Well Model convergence
   if (associated(this%pmwell_ptr)) then
-    call MPI_Allreduce(MPI_IN_PLACE,this%pmwell_ptr%well_force_ts_cut, &
-               ONE_INTEGER,MPIU_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
-  endif
-
-!  if (associated(this%pmwell_ptr)) then
 !    if (.not.this%pmwell_ptr%well_on) then
 !      if (Initialized(this%pmwell_ptr%intrusion_time_start) .and. &
 !          option%time >= this%pmwell_ptr%intrusion_time_start) then
@@ -2146,8 +2141,18 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 !        this%pmwell_ptr%well_on = PETSC_TRUE
 !      endif
 !    endif   
-!    call this%pmwell_ptr%InitializeTimestep()
-!  endif
+    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_FALSE
+    call this%pmwell_ptr%InitializeTimestep()
+    if (any(this%pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
+        call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ierr)
+    endif
+    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_TRUE
+  endif
+
+  if (associated(this%pmwell_ptr)) then
+    call MPI_Allreduce(MPI_IN_PLACE,this%pmwell_ptr%well_force_ts_cut, &
+              ONE_INTEGER,MPIU_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  endif
 
   ! Update well model with new state variables.
 

@@ -354,6 +354,7 @@ module PM_Well_class
     type(well_type), pointer :: well
     type(well_type), pointer :: well_pert(:)
     type(well_reservoir_type), pointer :: reservoir
+    type(well_reservoir_type), pointer :: reservoir_save
     type(well_soln_flow_type), pointer :: flow_soln
     type(well_soln_tran_type), pointer :: tran_soln
     type(strata_list_type), pointer :: strata_list
@@ -429,7 +430,8 @@ function PMWellCreate()
   allocate(this%well_pert(TWO_INTEGER))
   call PMWellVarCreate(this%well_pert(ONE_INTEGER))
   call PMWellVarCreate(this%well_pert(TWO_INTEGER))
-  call PMWellResCreate(this)
+  call PMWellResCreate(this%reservoir)
+  call PMWellResCreate(this%reservoir_save)
   call PMWellFlowCreate(this)
   call PMWellTranCreate(this)
 
@@ -607,7 +609,7 @@ end subroutine PMWellTranCreate
 
 ! ************************************************************************** !
 
-subroutine PMWellResCreate(this)
+subroutine PMWellResCreate(reservoir)
   !
   ! Creates reservoir variables.
   !
@@ -616,32 +618,32 @@ subroutine PMWellResCreate(this)
 
   implicit none
 
-  class(pm_well_type), pointer :: this
+  type(well_reservoir_type), pointer :: reservoir
 
   ! create the reservoir object:
-  allocate(this%reservoir)
-  nullify(this%reservoir%p_l)
-  nullify(this%reservoir%p_g)
-  nullify(this%reservoir%s_l)
-  nullify(this%reservoir%s_g)
-  nullify(this%reservoir%mobility_l)
-  nullify(this%reservoir%mobility_g)
-  nullify(this%reservoir%kr_l)
-  nullify(this%reservoir%kr_g)
-  nullify(this%reservoir%rho_l)
-  nullify(this%reservoir%rho_g)
-  nullify(this%reservoir%visc_l)
-  nullify(this%reservoir%visc_g)
-  nullify(this%reservoir%e_por)
-  nullify(this%reservoir%aqueous_conc)
-  nullify(this%reservoir%aqueous_mass)
-  nullify(this%reservoir%kx)
-  nullify(this%reservoir%ky)
-  nullify(this%reservoir%kz)
-  nullify(this%reservoir%dx)
-  nullify(this%reservoir%dy)
-  nullify(this%reservoir%dz)
-  nullify(this%reservoir%volume)
+  allocate(reservoir)
+  nullify(reservoir%p_l)
+  nullify(reservoir%p_g)
+  nullify(reservoir%s_l)
+  nullify(reservoir%s_g)
+  nullify(reservoir%mobility_l)
+  nullify(reservoir%mobility_g)
+  nullify(reservoir%kr_l)
+  nullify(reservoir%kr_g)
+  nullify(reservoir%rho_l)
+  nullify(reservoir%rho_g)
+  nullify(reservoir%visc_l)
+  nullify(reservoir%visc_g)
+  nullify(reservoir%e_por)
+  nullify(reservoir%aqueous_conc)
+  nullify(reservoir%aqueous_mass)
+  nullify(reservoir%kx)
+  nullify(reservoir%ky)
+  nullify(reservoir%kz)
+  nullify(reservoir%dx)
+  nullify(reservoir%dy)
+  nullify(reservoir%dz)
+  nullify(reservoir%volume)
 
 end subroutine PMWellResCreate
 
@@ -2751,6 +2753,7 @@ recursive subroutine PMWellInitializeRun(this)
                            this%option%flow%reference_density)
 
   call PMWellInitRes(this%reservoir,nsegments)
+  call PMWellInitRes(this%reservoir_save,nsegments)
   call PMWellInitFlowSoln(this%flow_soln,this%nphase,nsegments)
   if (this%transport) then
     call PMWellInitTranSoln(this%tran_soln,this%nspecies,nsegments)
@@ -3090,7 +3093,10 @@ subroutine PMWellInitializeTimestep(this)
     this%dt_tran = this%dt_flow
   endif
 
+  if (this%update_for_wippflo_qi_coupling) return
+
   ! update the reservoir object with current reservoir properties
+  call PMWellCopyReservoir(this%reservoir,this%reservoir_save,this%transport)
   call PMWellUpdateReservoir(this,-999)
   call PMWellComputeWellIndex(this)
 
@@ -5063,11 +5069,11 @@ subroutine PMWellSolve(this,time,ierr)
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
     this%update_for_wippflo_qi_coupling = PETSC_FALSE
-!  else 
-  endif
-  
-  call PMWellSolveFlow(this,ierr)
+  else 
 !  endif
+  
+    call PMWellSolveFlow(this,ierr)
+  endif
 !  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
   if (this%transport) then
     if (this%tran_QI_coupling) then
@@ -5389,6 +5395,8 @@ subroutine PMWellSolveFlow(this,ierr)
 
       if (this%dt_flow <= this%min_dt_flow) then
         this%well_force_ts_cut = 1
+        call PMWellCopyReservoir(this%reservoir_save,this%reservoir,&
+                                 this%transport)
         return
       endif
 
@@ -7570,6 +7578,49 @@ subroutine PMWellCopyWell(well,well_copy)
 
 end subroutine PMWellCopyWell
 
+! ************************************************************************** !
+
+subroutine PMWellCopyReservoir(reservoir,reservoir_copy,transport)
+  !
+  ! Copies reservoir object properties from one to another.
+  !
+  ! Author: Michael Nole
+  ! Date: 05/15/2023
+  !
+
+  implicit none
+
+  type(well_reservoir_type) :: reservoir
+  type(well_reservoir_type) :: reservoir_copy
+  PetscBool :: transport
+
+  reservoir_copy%p_l(:) = reservoir%p_l(:)
+  reservoir_copy%p_g(:) = reservoir%p_g(:)
+  reservoir_copy%s_l(:) = reservoir%s_l(:)
+  reservoir_copy%s_g(:) = reservoir%s_g(:)
+  reservoir_copy%mobility_l(:) = reservoir%mobility_l(:)
+  reservoir_copy%mobility_g(:) = reservoir%mobility_g(:)
+  reservoir_copy%kr_l(:) = reservoir%kr_l(:)
+  reservoir_copy%kr_g(:) = reservoir%kr_g(:)
+  reservoir_copy%rho_l(:) = reservoir%rho_l(:)
+  reservoir_copy%rho_g(:) = reservoir%rho_g(:)
+  reservoir_copy%visc_l(:) = reservoir%visc_l(:)
+  reservoir_copy%visc_g(:) = reservoir%visc_g(:)
+  reservoir_copy%e_por(:) = reservoir%e_por(:)
+  reservoir_copy%kx(:) = reservoir%kx(:)
+  reservoir_copy%ky(:) = reservoir%ky(:)
+  reservoir_copy%kz(:) = reservoir%kz(:)
+  reservoir_copy%dx(:) = reservoir%dx(:)
+  reservoir_copy%dy(:) = reservoir%dy(:)
+  reservoir_copy%dz(:) = reservoir%dz(:)
+  reservoir_copy%volume(:) = reservoir%volume(:)
+
+  if (transport) then
+    reservoir_copy%aqueous_conc(:,:) = reservoir%aqueous_conc(:,:)
+    reservoir_copy%aqueous_mass(:,:) = reservoir%aqueous_mass(:,:)
+  endif
+
+end subroutine PMWellCopyReservoir
 ! ************************************************************************** !
 
 subroutine PMWellSetPlotVariables(list,this)
