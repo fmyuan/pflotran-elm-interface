@@ -2752,8 +2752,8 @@ recursive subroutine PMWellInitializeRun(this)
   call PMWellInitFluidVars(this%well_pert(TWO_INTEGER),nsegments, &
                            this%option%flow%reference_density)
 
-  call PMWellInitRes(this%reservoir,nsegments)
-  call PMWellInitRes(this%reservoir_save,nsegments)
+  call PMWellInitRes(this%reservoir,nsegments,this%nspecies)
+  call PMWellInitRes(this%reservoir_save,nsegments,this%nspecies)
   call PMWellInitFlowSoln(this%flow_soln,this%nphase,nsegments)
   if (this%transport) then
     call PMWellInitTranSoln(this%tran_soln,this%nspecies,nsegments)
@@ -2943,7 +2943,7 @@ end subroutine PMWellInitFluidVars
 
 ! ************************************************************************** !
 
-subroutine PMWellInitRes(reservoir,nsegments)
+subroutine PMWellInitRes(reservoir,nsegments,idof)
   !
   ! Initializes well variables.
   !
@@ -2951,7 +2951,7 @@ subroutine PMWellInitRes(reservoir,nsegments)
   ! Date: 03/06/2023
 
   type(well_reservoir_type) :: reservoir
-  PetscInt :: nsegments
+  PetscInt :: nsegments, idof
 
   allocate(reservoir%p_l(nsegments))
   allocate(reservoir%p_g(nsegments))
@@ -2973,6 +2973,9 @@ subroutine PMWellInitRes(reservoir,nsegments)
   allocate(reservoir%dy(nsegments))
   allocate(reservoir%dz(nsegments))
   allocate(reservoir%volume(nsegments))
+
+  allocate(reservoir%aqueous_conc(idof,nsegments))
+  allocate(reservoir%aqueous_mass(idof,nsegments))
 
 end subroutine PMWellInitRes
 
@@ -3639,7 +3642,7 @@ subroutine PMWellFinalizeTimestep(this)
 
   PetscReal :: curr_time
 
-  if (this%update_for_wippflo_qi_coupling) then
+  if (.not. this%update_for_wippflo_qi_coupling) then
     this%flow_soln%soln_save%pl = this%well%pl
     this%flow_soln%soln_save%sg = this%well%gas%s
     return
@@ -4153,10 +4156,6 @@ subroutine PMWellQISolveTran(this)
 
   call PMWellUpdatePropertiesTran(this)
   this%dt_tran = this%option%tran_dt 
-
-  ! required for the reservoir and the flow solution to sync across ranks
-  call PMWellInitializeTimestepFlow(this,curr_time)
-  !call PMWellSolveFlow(this,ierr)
 
   call PMWellSolveTran(this,ierr)
   if (this%tran_soln%cut_ts_flag) return
@@ -5088,14 +5087,11 @@ subroutine PMWellSolve(this,time,ierr)
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    this%update_for_wippflo_qi_coupling = PETSC_FALSE
-  else 
-!  endif
-  
+  else   
     call PMWellSolveFlow(this,ierr)
   endif
-!  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
 
+  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
   if (this%transport) then
     if (this%tran_QI_coupling) then
       write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
@@ -5104,7 +5100,6 @@ subroutine PMWellSolve(this,time,ierr)
       this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
       this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
     else 
-      call PMWellSolveFlow(this,ierr)
       call PMWellSolveTran(this,ierr)
     endif
   endif
