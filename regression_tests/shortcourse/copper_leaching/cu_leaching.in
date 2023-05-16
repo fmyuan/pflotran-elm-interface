@@ -175,6 +175,7 @@ CHEMISTRY
     PH
     TOTAL
     ALL
+    PRINT_CELLS 1 16
   /
 END
 

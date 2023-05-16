@@ -77,6 +77,7 @@ STANDARD_CFG = \
 	default/materials/materials.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
+	default/materials/strata_surface/strata_surface.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/numerical/numerical.cfg \
 	default/output/compare/compare.cfg \
@@ -360,6 +361,7 @@ clean-tests :
 	-rm -f wipp/bragflo/wipp_flow/well_production2-ss_mass-0.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
+	-rm -f wipp/well_model/*.h5
 	-rm -f wipp/wipp_flow/gas_generation/*.h5
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat

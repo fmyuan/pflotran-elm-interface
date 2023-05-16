@@ -762,9 +762,6 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
 
   call InvSubsurfSetupForwardRunLinkage(this)
 
-  call VecDuplicate(this%inversion_aux%dist_parameter_vec,this%dist_parameter_tmp_vec, &
-                    ierr);CHKERRQ(ierr)
-
   ! check to ensure that quantity of interest exists
   exists = PETSC_FALSE
   iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
@@ -795,6 +792,12 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
       &' cannot be performed with the specified process models.'
     call PrintErrMsg(this%realization%option)
   endif
+
+  if (.not.associated(this%inversion_option%invcomm)) return
+
+  call VecDuplicate(this%inversion_aux%dist_parameter_vec, &
+                    this%dist_parameter_tmp_vec, &
+                    ierr);CHKERRQ(ierr)
 
   call InversionZFlowConstrainedArraysFromList(this)
 
@@ -846,10 +849,20 @@ subroutine InversionZFlowCheckConvergence(this)
 
   class(inversion_zflow_type) :: this
 
+  PetscErrorCode :: ierr
+
   this%converged = PETSC_FALSE
-  call this%EvaluateCostFunction()
-  if ((this%current_chi2 <= this%target_chi2) .or. &
-      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  if (associated(this%inversion_option%invcomm)) then
+    call this%EvaluateCostFunction()
+    if ((this%current_chi2 <= this%target_chi2) .or. &
+        (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
+  endif
+  ! need to broadcast in the case of parallel perturbation
+!print *, this%driver%comm%rank, ' Bcast6 all'
+!call MPI_Barrier(this%driver%comm%communicator,ierr);CHKERRQ(ierr)
+  call MPI_Bcast(this%converged,ONE_INTEGER_MPI, &
+                 MPI_LOGICAL,this%driver%comm%io_rank, &
+                 this%driver%comm%communicator,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowCheckConvergence
 
@@ -989,7 +1002,8 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
     this%phi_model = this%beta * dot_product(model_vector,model_vector)
     call MPI_Allreduce(MPI_IN_PLACE,this%phi_model,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
     deallocate(model_vector)
 
@@ -1098,6 +1112,7 @@ subroutine InvZFlowUpdateRegularizParams(this)
   class(inversion_zflow_type) :: this
 
   if (this%iteration == this%start_iteration) return
+  if (.not.associated(this%inversion_option%invcomm)) return
 
   if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
                                                       this%min_phi_red ) then
@@ -1143,6 +1158,8 @@ subroutine InversionZFlowCalculateUpdate(this)
 
   patch => this%realization%patch
   grid => patch%grid
+
+  if (.not.associated(this%inversion_option%invcomm)) return
 
   ! simply setting a local pointer for clarity
   dist_del_param_vec = this%dist_parameter_tmp_vec
@@ -1303,7 +1320,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
   gamma = dot_product(this%s,this%s)
   call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+                     MPI_SUM,this%inversion_option%invcomm%communicator, &
+                     ierr);CHKERRQ(ierr)
 
   norms0 = sqrt(gamma)
   xmax = 0.d0
@@ -1325,7 +1343,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
     if (this%inversion_aux%qoi_is_full_vector) &
       call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
-                         MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                         MPI_DOUBLE_PRECISION,MPI_SUM, &
+                         this%inversion_option%invcomm%communicator, &
                          ierr);CHKERRQ(ierr)
     delta = delta1 + delta2
 
@@ -1343,7 +1362,8 @@ subroutine InversionZFlowCGLSSolve(this)
     gamma1 = gamma
     gamma = dot_product(this%s,this%s)
     call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
 
     norms = sqrt(gamma)
@@ -1352,7 +1372,8 @@ subroutine InversionZFlowCGLSSolve(this)
 
     normx = dot_product(this%del_param,this%del_param)
     call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
     normx = sqrt(normx)
     if (xmax < normx) xmax = normx
@@ -1883,7 +1904,8 @@ subroutine InversionZFlowAllocateWm(this)
 
     this%num_constraints_local = num_constraints
     call MPI_Allreduce(num_constraints,this%num_constraints_total, &
-                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm, &
+                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                       this%inversion_option%invcomm%communicator, &
                        ierr);CHKERRQ(ierr)
     allocate(this%Wm(num_constraints))
     allocate(this%rblock(num_constraints,THREE_INTEGER))
@@ -2318,10 +2340,12 @@ subroutine InvZFlowWriteIterationInfo(this)
 
   class(inversion_zflow_type) :: this
 
-  if (this%info_format == 1) then
-    call InvZFlowWriteIterationInfo2(this)
-  else
-    call InvZFlowWriteIterationInfo1(this)
+  if (associated(this%inversion_option%invcomm)) then
+    if (this%info_format == 1) then
+      call InvZFlowWriteIterationInfo2(this)
+    else
+      call InvZFlowWriteIterationInfo1(this)
+    endif
   endif
 
 end subroutine InvZFlowWriteIterationInfo
@@ -2335,7 +2359,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 10/20/21
   !
-
+  use Print_module
   use String_module
 
   implicit none
@@ -2346,7 +2370,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
   PetscInt, parameter :: zeronum = 0
 
   call InvSubsurfWriteIterationInfo(this)
-  if (this%driver%PrintToScreen()) then
+  if (PrintToScreen(this%driver%print_flags,this%inversion_option%invcomm)) then
     write(*,*)
     write(*,98)
     if (this%string_color) then
@@ -2400,7 +2424,7 @@ subroutine InvZFlowWriteIterationInfo1(this)
     write(*,98)
   endif
 
-  if (this%driver%PrintToFile()) then
+  if (PrintToFile(this%driver%print_flags,this%inversion_option%invcomm)) then
     fid = this%driver%fid_out
     write(fid,*)
     write(fid,98)
@@ -2565,6 +2589,8 @@ subroutine InversionZFlowScaleSensitivity(this)
   PetscReal, pointer :: wdvec_ptr(:)
   PetscErrorCode :: ierr
 
+  if (.not.associated(this%inversion_option%invcomm)) return
+
   num_measurement = size(this%inversion_aux%measurements)
   call VecDuplicate(this%inversion_aux%measurement_vec,wd_vec, &
                     ierr);CHKERRQ(ierr)
@@ -2615,6 +2641,7 @@ subroutine InversionZFlowCheckpoint(this)
   PetscErrorCode :: ierr
 
   if (len_trim(this%checkpoint_filename) == 0) return
+  if (.not.associated(this%inversion_option%invcomm)) return
 
   call this%driver%PrintMsg('Checkpointing inversion iteration ' // &
                             trim(StringWrite(this%iteration)) // '.')

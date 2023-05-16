@@ -1,0 +1,181 @@
+# Test problem for porosity reduction
+# 3 mass balance equations: water, air, solid
+# 1 energy balance equation
+# 1 gridblock problem, salt source term reduces porosity
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+        OPTIONS
+          # this allows the porosity to change due to dissolution and precipitation of salt too (solved for implicitly)
+	  SOLUBLE_MATRIX
+          SOLUTE SALT
+        / 
+      /
+    /
+  /
+END
+
+SUBSURFACE
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-10
+  SALT_DIFFUSION_COEFFICIENT 1.D-10 
+END
+#=========================== equation of state ================================
+EOS WATER
+  DENSITY BATZLE_AND_WANG
+  VISCOSITY BATZLE_AND_WANG
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED 
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2.d0 1.d0 1.d0 
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    2.d0 1.d0 1.d0
+  /
+END
+
+REGION center
+  COORDINATES
+    1.D0 5.D-1 5.D-1
+  /
+/
+
+REGION left_boundary
+  FACE WEST
+  COORDINATES
+    0.D0 0.D0 0.D0
+    0.D0 1.D0 1.D0
+  /
+/
+
+REGION right_boundary
+  FACE EAST
+  COORDINATES
+    2.D0 0.D0 0.D0
+    2.D0 1.D0 1.D0
+  /
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY halite
+  ID 1
+  CHARACTERISTIC_CURVES sf1
+  POROSITY  0.25d0
+  TORTUOSITY 0.1d0
+  ROCK_DENSITY 2170.d-3 kg/L
+  THERMAL_CONDUCTIVITY_DRY 0.5d-6 MW/m-C
+  THERMAL_CONDUCTIVITY_WET 2.d-6 MW/m-C
+  HEAT_CAPACITY 830.d-6 MJ/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.2D0
+    ALPHA 1.D-4
+    M 0.5D0
+    MAX_CAPILLARY_PRESSURE 1.D6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.2D0
+    M 0.5D0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.2D0
+    GAS_RESIDUAL_SATURATION 0.1D0
+    M 0.5D0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    #FORMAT HDF5
+    PERIODIC TIME 1.d1 y
+    VARIABLES
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+      GAS_SATURATION
+      GAS_PRESSURE
+      PRECIPITATE_SATURATION
+      POROSITY
+      LIQUID_DENSITY
+      LIQUID_MOLE_FRACTIONS
+      TEMPERATURE
+      THERMODYNAMIC_STATE
+    /
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1000.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-4 d
+  MAXIMUM_TIMESTEP_SIZE 10.d0 y 
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    POROSITY DIRICHLET  # << porosity is set as an initial condition, rather than a matieral property
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 150000.D0
+  GAS_SATURATION 5.D-1
+  POROSITY 0.25D0  
+  TEMPERATURE 25.D0
+/
+FLOW_CONDITION injection
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    RATE mass_rate
+  /
+  # injecting solid has the same effect as reducing the porosity.
+  #    liq  gas   solid   energy   liq    gas    solid    en
+  RATE 0.0  0.0   1.0E-8  0.0     kg/sec kg/sec  kg/sec   W
+/
+#=========================== condition couplers ===============================
+INITIAL_CONDITION aquifer_ic
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION aquifer_initial
+  REGION all
+/
+SOURCE_SINK well
+  FLOW_CONDITION injection
+  REGION center
+/
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL halite
+  REGION all
+END
+
+END_SUBSURFACE
+
