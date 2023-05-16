@@ -68,6 +68,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Saturation => SFLinearSaturation
     procedure, public :: D2SatDP2 => SFLinearD2SatDP2
   end type sat_func_Linear_type
+  !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_mK_type
     PetscReal :: sigmaz, muz
     PetscReal :: rmax, r0
@@ -78,7 +79,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: CapillaryPressure => SFmKCapillaryPressure
     procedure, public :: Saturation => SFmKSaturation
   end type sat_func_mK_type
-!---------------------------------------------------------------------------
+  !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_IGHCC2_Comp_type
     PetscReal :: alpha
     PetscReal :: m
@@ -87,7 +88,16 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFIGHCC2CompVerify
     procedure, public :: CapillaryPressure => SFIGHCC2CompCapillaryPressure
   end type sat_func_IGHCC2_Comp_type
-!---------------------------------------------------------------------------
+  !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_Exp_Freezing_type
+    PetscReal :: w
+  contains
+    procedure, public :: Init => SFExpFreezingInit
+    procedure, public :: Verify => SFExpFreezingVerify
+    procedure, public :: CapillaryPressure => SFExpFreezingCapillaryPressure
+    procedure, public :: Saturation => SFExpFreezingSaturation
+  end type sat_func_Exp_Freezing_type
+  !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Table_type
     class(dataset_ascii_type), pointer :: pc_dataset
   contains
@@ -300,6 +310,7 @@ module Characteristic_Curves_Common_module
             SFLinearCreate, &
             SFmKCreate, &
             SFIGHCC2CompCreate, &
+            SFExpFreezingCreate, &
             SFTableCreate, &
             ! standard rel. perm. curves:
             RPFDefaultCreate, &
@@ -1023,10 +1034,7 @@ subroutine SFIGHCC2CompInit(this)
 
 end subroutine SFIGHCC2CompInit
 
-
 ! ************************************************************************** !
-
-
 
 subroutine SFIGHCC2CompVerify(this,name,option)
 
@@ -1117,6 +1125,158 @@ subroutine SFIGHCC2CompCapillaryPressure(this,liquid_saturation, &
   endif
 
 end subroutine SFIGHCC2CompCapillaryPressure
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function SFExpFreezingCreate()
+
+  ! Creates the exponential freezing capillary pressure function object
+
+  implicit none
+
+  class(sat_func_Exp_Freezing_type), pointer :: &
+                              SFExpFreezingCreate
+
+  allocate(SFExpFreezingCreate)
+  call SFExpFreezingCreate%Init()
+
+end function SFExpFreezingCreate
+
+! ************************************************************************** !
+
+subroutine SFExpFreezingInit(this)
+
+  ! Creates the exponential freezing capillary pressure function object
+
+  implicit none
+
+  class(sat_func_Exp_Freezing_type) :: this
+
+  call SFBaseInit(this)
+  this%w = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine SFExpFreezingInit
+
+! ************************************************************************** !
+
+subroutine SFExpFreezingVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_Exp_Freezing_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,EXPONENTIAL FREEZING'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%w)) then
+    option%io_buffer = UninitializedMessage('w',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFExpFreezingVerify
+
+! ************************************************************************** !
+
+subroutine SFExpFreezingCapillaryPressure(this,liquid_saturation, &
+                                   capillary_pressure,dpc_dsatl,option)
+  !
+  ! Computes the capillary pressure as a function of saturation based on a
+  ! freezing curve .
+  !
+  ! Author: David Fukuyama
+  ! Date: 04/25/23
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_Exp_Freezing_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: c
+  PetscReal :: Se
+  PetscReal :: dSe_dsatl
+  PetscReal :: ICE_DENSITY = 50.86d0 !mol/L
+  PetscReal :: L_ICE = 6033.54
+
+  dpc_dsatl = 0.d0
+
+  if (liquid_saturation <= this%Sr) then
+    capillary_pressure = this%pcmax
+    return
+  else if (liquid_saturation >= 1.d0) then
+    capillary_pressure = 0.d0
+    return
+  endif
+
+  dSe_dsatl = 1.d0 / (1.d0-this%Sr)
+  Se = (liquid_saturation-this%Sr)*dSe_dsatl
+
+  capillary_pressure = sqrt(-1*log(Se))*this%w * (L_ICE * ICE_DENSITY * 1.D6)/(273.15)
+  c = this%w * L_ICE * ICE_DENSITY * 1.d6 / 273.15
+  dpc_dsatl = c / (2 * (this%sr - liquid_saturation) * (-1.d0 * log((this%sr - liquid_saturation)/(this%sr-1))) ** 0.5d0)
+
+  if (capillary_pressure > this%pcmax) then
+    capillary_pressure = this%pcmax
+    dpc_dsatl = 0.d0
+  endif
+
+end subroutine SFExpFreezingCapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFExpFreezingSaturation(this,capillary_pressure, &
+                            liquid_saturation,dsat_dpres,option)
+  !
+  ! Computes the saturation (and associated derivatives) as a function of
+  ! capillary pressure
+  !
+  !
+  ! Author: David Fukuyama
+  ! Date: 04/25/23
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_Exp_Freezing_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  PetscReal, parameter :: dpc_dpres = -1.d0
+  PetscReal :: ICE_DENSITY = 50.86D0 !mol/L
+  PetscReal :: L_ICE = 6033.54 !J/mol
+  PetscReal :: dTf
+
+  dsat_dpres = 0.d0
+
+  if (capillary_pressure <= 0.d0) then
+    liquid_saturation = 1.d0
+    return
+  else
+    dTf = -1.d0 * (capillary_pressure * 273.15) /(L_ICE * ICE_DENSITY * 1.D6)
+    liquid_saturation = (1.d0 - this%sr) * exp(-1.d0 * (dTf/this%w)**2) + this%sr
+  endif
+  
+end subroutine SFExpFreezingSaturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !

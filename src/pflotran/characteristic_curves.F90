@@ -152,6 +152,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFKRP12Create()
           case('IGHCC2_COMP')
             this%saturation_function => SFIGHCC2CompCreate()
+          case('EXP_FREEZING')
+            this%saturation_function => SFExpFreezingCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
           case default
@@ -434,6 +436,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
     class is(sat_func_IGHCC2_Comp_type)
       error_string = trim(error_string) // 'IGHCC2_COMP'
+    class is(sat_func_Exp_Freezing_type)
+      error_string = trim(error_string) // 'EXP_FREEZING'
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
   end select
@@ -878,6 +882,17 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputKeywordUnrecognized(input,keyword, &
                    'saturation function IGHCC2 Comparison',option)
         end select
+    !------------------------------------------
+      class is(sat_func_Exp_Freezing_type)
+        select case(keyword)
+          case('W')
+            call InputReadDouble(input,option,sf%w)
+            call InputErrorMsg(input,option,'w',error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+                   'saturation function exponential freezing',option)
+        end select
+    !------------------------------------------
       class is (sat_func_Table_type)
         select case(keyword)
           case('FILE')
