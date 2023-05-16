@@ -1374,28 +1374,28 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
 
   ! units of unit_n = [-] unitless
-  unit_n_up = +1
-  unit_n_dn = -1
+  unit_n_up = -1
+  unit_n_dn = +1
 
   ! upstream weighting
   if (.not.bc) then
     if (q > 0.d0) then ! q flows from _up to _dn (think: upstream to downstream)
-      Res_up(:) = (unit_n_up*area) * &
+      Res_up(:) = (unit_n_dn*area) * &
                    (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
     else               ! q flows from _dn to _up (think: downstream to upstream)
-      Res_up(:) = (unit_n_up*area) * &
+      Res_up(:) = (unit_n_dn*area) * &
                    (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
     endif
   else ! boundary calculation and there is only Res_dn(:)
     if (q > 0.d0) then ! q flows into domain
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
     else               ! q flows out of domain
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
     endif
   endif
@@ -1614,12 +1614,18 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+                                      JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
       if (local_id_dn>0) then
+        JacUp = -JacUp
+        JacDn = -JacDn
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+                                      JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
     enddo
@@ -1655,12 +1661,13 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%boundary_velocities(:,sum_connection), &
                       reaction_nw,option,JacUp,JacDn)
-
+ 
+      JacDn = -JacDn
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
       ! note: Don't need to worry about JacUp because that is outside of
-      ! the domain, and doesn't have a place in A.
+      ! the domain, and doesn't have a place in J.
 
     enddo
 
@@ -1992,10 +1999,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
     dry_out_dn = PETSC_TRUE
   endif
 
-  ! units of unit_n = [-] unitless
-  unit_n_up = +1
-  unit_n_dn = -1
-
   ! units of q = [m3-liq/m2-bulk-sec] Darcy
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
 
@@ -2040,12 +2043,31 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
     !endif
   endif
 
+  ! ! units of unit_n = [-] unitless
+  ! unit_n_up = -1
+  ! unit_n_dn = +1
+  !
+  ! do ispecies=1,nspecies
+  !   ! units of Jac = [m^3-bulk/sec]
+  !   Jac_up(ispecies,ispecies) = (unit_n_dn*area) * &
+  !                               (u - harmonic_D_over_dist(ispecies))
+  !   Jac_dn(ispecies,ispecies) = (unit_n_up*area) * &
+  !                               (u - harmonic_D_over_dist(ispecies))
+  ! enddo
+
   do ispecies=1,nspecies
     ! units of Jac = [m^3-bulk/sec]
-    Jac_up(ispecies,ispecies) = (unit_n_up*area) * &
-                                (u - harmonic_D_over_dist(ispecies))
-    Jac_dn(ispecies,ispecies) = (unit_n_dn*area) * &
-                                (u - harmonic_D_over_dist(ispecies))
+    if (u > 0.d0) then
+      Jac_up(ispecies,ispecies) = (area) * &
+                                  (u + harmonic_D_over_dist(ispecies))
+      Jac_dn(ispecies,ispecies) = (area) * &
+                                  (0.d0 - harmonic_D_over_dist(ispecies))
+    else 
+      Jac_up(ispecies,ispecies) = (area) * &
+                                  (0.d0 + harmonic_D_over_dist(ispecies))
+      Jac_dn(ispecies,ispecies) = (area) * &
+                                  (u - harmonic_D_over_dist(ispecies))      
+    endif
   enddo
 
   deallocate(diffusivity_dn)
