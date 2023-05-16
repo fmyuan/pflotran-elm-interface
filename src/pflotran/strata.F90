@@ -12,6 +12,9 @@ module Strata_module
 
   private
 
+  PetscInt, parameter, public :: SET_MATERIAL_IDS_BELOW_SURFACE = 1
+  PetscInt, parameter, public :: SET_MATERIAL_IDS_ABOVE_SURFACE = 2
+
   type, public :: strata_type
     PetscInt :: id                                       ! id of strata
     PetscBool :: active
@@ -19,6 +22,7 @@ module Strata_module
     character(len=MAXSTRINGLENGTH) :: material_property_filename  ! character string defining name of file containing materia ids
     PetscBool :: realization_dependent
     character(len=MAXWORDLENGTH) :: region_name         ! character string defining name of region to be applied
+    character(len=MAXWORDLENGTH) :: dataset_name
     PetscInt :: imaterial_property                       ! id of material in material array/list
     PetscInt :: iregion                                  ! id of region in region array/list
     type(material_property_type), pointer :: material_property ! pointer to material in material array/list
@@ -26,6 +30,7 @@ module Strata_module
     PetscReal :: start_time
     PetscReal :: final_time
     PetscBool :: well
+    PetscInt :: dataset_mat_id_direction
     type(strata_type), pointer :: next            ! pointer to next strata
   end type strata_type
 
@@ -78,6 +83,7 @@ function StrataCreate1()
   strata%active = PETSC_TRUE
   strata%material_property_name = ""
   strata%material_property_filename = ""
+  strata%dataset_name = ""
   strata%realization_dependent = PETSC_FALSE
   strata%region_name = ""
   strata%iregion = 0
@@ -85,6 +91,7 @@ function StrataCreate1()
   strata%start_time = UNINITIALIZED_DOUBLE
   strata%final_time = UNINITIALIZED_DOUBLE
   strata%well = PETSC_FALSE
+  strata%dataset_mat_id_direction = SET_MATERIAL_IDS_BELOW_SURFACE
   nullify(strata%region)
   nullify(strata%material_property)
   nullify(strata%next)
@@ -122,6 +129,8 @@ function StrataCreateFromStrata(strata)
   new_strata%start_time = strata%start_time
   new_strata%final_time = strata%final_time
   new_strata%well = strata%well
+  new_strata%dataset_name = strata%dataset_name
+  new_strata%dataset_mat_id_direction = strata%dataset_mat_id_direction
   ! keep these null
   nullify(new_strata%region)
   nullify(new_strata%material_property)
@@ -198,6 +207,13 @@ subroutine StrataRead(strata,input,option)
         call InputReadWord(input,option,strata%material_property_name, &
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'material property name','STRATA')
+      case('SURFACE_DATASET')
+        call InputReadWord(input,option,strata%dataset_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'dataset name','STRATA')
+      case('SET_MATERIAL_IDS_BELOW_SURFACE')
+        strata%dataset_mat_id_direction = SET_MATERIAL_IDS_BELOW_SURFACE
+      case('SET_MATERIAL_IDS_ABOVE_SURFACE')
+        strata%dataset_mat_id_direction = SET_MATERIAL_IDS_ABOVE_SURFACE
       case('REALIZATION_DEPENDENT')
         strata%realization_dependent = PETSC_TRUE
       case('START_TIME')
@@ -226,11 +242,12 @@ subroutine StrataRead(strata,input,option)
   call InputPopBlock(input,option)
 
   if (len_trim(strata%region_name) == 0 .and. &
+      len_trim(strata%dataset_name) == 0 .and. &
       len_trim(strata%material_property_name) > 0) then
     option%io_buffer = 'The MATERIAL property "' // &
       trim(strata%material_property_name) // '" must have an associated &
-      &REGION in the STRATA block.  Otherwise, please use "FILE <filename>" &
-      &to read material IDs from a file.'
+      &REGION or SURFACE_DATASET in the STRATA block.  Otherwise, please &
+      &use "FILE <filename>" to read material IDs from a file.'
     call PrintErrMsg(option)
   endif
 
@@ -360,6 +377,11 @@ subroutine StrataInputRecord(strata_list)
     if (len_trim(cur_strata%material_property_filename) > 0) then
       write(id,'(a29)',advance='no') 'from file: '
       write(id,'(a)') adjustl(trim(cur_strata%material_property_filename))
+    endif
+
+    if (len_trim(cur_strata%dataset_name) > 0) then
+      write(id,'(a29)',advance='no') 'from dataset: '
+      write(id,'(a)') adjustl(trim(cur_strata%dataset_name))
     endif
 
     write(id,'(a29)',advance='no') 'associated region name: '

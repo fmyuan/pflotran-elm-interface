@@ -56,6 +56,7 @@ module Option_module
     PetscInt :: gas_phase
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
+    PetscInt :: precipitate_phase
     PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
@@ -79,6 +80,7 @@ module Option_module
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
     PetscInt :: energy_id  ! index of energy dof
+    PetscInt :: salt_id ! index of salt dof
 
     PetscInt :: ntrandof
 
@@ -241,6 +243,7 @@ module Option_module
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
             OptionIsIORank, &
+            OptionCreatePrintHandler, &
             OptionDestroy
 
 contains
@@ -494,6 +497,7 @@ subroutine OptionInitRealization(option)
   option%gas_phase     = UNINITIALIZED_INTEGER
   option%hydrate_phase = UNINITIALIZED_INTEGER
   option%ice_phase = UNINITIALIZED_INTEGER
+  option%precipitate_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -503,6 +507,7 @@ subroutine OptionInitRealization(option)
   option%water_id = 0
   option%air_id = 0
   option%energy_id = 0
+  option%salt_id = 0
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
@@ -658,17 +663,19 @@ subroutine PrintErrMsg2(option,string)
   ! Author: Glenn Hammond
   ! Date: 10/26/07
   !
+  use Print_module
 
   implicit none
 
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool, parameter :: byrank = PETSC_FALSE
+  type(print_handler_type), pointer :: print_handler
 
-  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
-                         string,option%driver%exit_code,option%blocking, &
-                         byrank)
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%byrank = PETSC_FALSE
+  call PrintErrorMessage(print_handler,string)
+  call PrintDestroyHandler(print_handler)
   if (.not.option%blocking) then
     option%error_while_nonblocking = PETSC_TRUE
   endif
@@ -736,17 +743,19 @@ subroutine PrintErrMsgByRank2(option,string)
   ! Author: Glenn Hammond
   ! Date: 11/04/11
   !
+  use Print_module
 
   implicit none
 
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool, parameter :: byrank = PETSC_TRUE
+  type(print_handler_type), pointer :: print_handler
 
-  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
-                         string,option%driver%exit_code,option%blocking, &
-                         byrank)
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%byrank = PETSC_TRUE
+  call PrintErrorMessage(print_handler,string)
+  call PrintDestroyHandler(print_handler)
 
 end subroutine PrintErrMsgByRank2
 
@@ -785,11 +794,13 @@ subroutine PrintErrMsgNoStopByRank2(option,string)
   type(option_type) :: option
   character(len=*) :: string
 
-  PetscBool, parameter :: blocking = PETSC_FALSE ! keeps it from stopping
-  PetscBool, parameter :: byrank = PETSC_TRUE
+  type(print_handler_type), pointer :: print_handler
 
-  call PrintErrorMessage(option%print_flags,option%comm,option%fid_out, &
-                         string,option%driver%exit_code,blocking,byrank)
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%blocking = PETSC_FALSE ! keeps it from stopping
+  print_handler%byrank = PETSC_TRUE
+  call PrintErrorMessage(print_handler,string)
+  call PrintDestroyHandler(print_handler)
 
 end subroutine PrintErrMsgNoStopByRank2
 
@@ -1338,7 +1349,6 @@ subroutine OptionPrintPFLOTRANHeader(option)
 end subroutine OptionPrintPFLOTRANHeader
 
 ! ************************************************************************** !
-
 subroutine OptionSetBlocking(option,flag)
   !
   ! Sets blocking flag
@@ -1355,6 +1365,34 @@ subroutine OptionSetBlocking(option,flag)
   option%blocking = flag
 
 end subroutine OptionSetBlocking
+
+! ************************************************************************** !
+
+function OptionCreatePrintHandler(option)
+  !
+  ! Creates a print handler with flags for file and screen io
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+  !
+  use Print_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  type(print_handler_type), pointer :: OptionCreatePrintHandler
+
+  OptionCreatePrintHandler => &
+    PrintCreateHandler(option%print_flags, &
+                       option%comm, &
+                       option%fid_out, &
+                       option%driver%exit_code, &
+                       PETSC_TRUE, & ! advance
+                       option%blocking, &
+                       PETSC_FALSE)  ! byrank
+
+end function OptionCreatePrintHandler
 
 ! ************************************************************************** !
 

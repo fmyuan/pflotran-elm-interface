@@ -183,4 +183,7 @@ module Variables_module
   PetscInt, parameter, public :: WELL_LIQ_SATURATION       = 148
   PetscInt, parameter, public :: WELL_GAS_SATURATION       = 149
 
+  PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 150
+  PetscInt, parameter, public :: SOLUBLE_MATRIX  = 151
+
 end module Variables_module

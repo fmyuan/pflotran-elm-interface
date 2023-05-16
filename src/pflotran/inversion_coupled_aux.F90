@@ -179,14 +179,10 @@ subroutine InvCoupledUpdateSolnVecs(iparameter,perturbed_solution, &
 
   PetscErrorCode :: ierr
 
-  if (iparameter == 0) then
-    call VecCopy(perturbed_solution,original_solution,ierr);CHKERRQ(ierr)
-  else
-    call VecWAXPY(solution_derivatives(iparameter),-1.d0, &
-                  original_solution,perturbed_solution,ierr);CHKERRQ(ierr)
-    call VecScale(solution_derivatives(iparameter),1.d0/pert, &
-                  ierr);CHKERRQ(ierr)
-  endif
+  call VecWAXPY(solution_derivatives(iparameter),-1.d0, &
+                original_solution,perturbed_solution,ierr);CHKERRQ(ierr)
+  call VecScale(solution_derivatives(iparameter),1.d0/pert, &
+                ierr);CHKERRQ(ierr)
   call VecSet(perturbed_solution,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
 
 end subroutine InvCoupledUpdateSolnVecs

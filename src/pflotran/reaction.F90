@@ -2093,7 +2093,8 @@ end subroutine ReactionEquilibrateConstraint
 
 ! ************************************************************************** !
 
-subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
+subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
+                                   constraint_coupler,reaction,option)
   !
   ! Prints a constraint associated with reactive
   ! transport
@@ -2108,13 +2109,13 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
   implicit none
 
+  type(global_auxvar_type) :: global_auxvar
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  class(tran_constraint_coupler_rt_type) :: constraint_coupler
-  class(reaction_rt_type), pointer :: reaction
 
   class(tran_constraint_rt_type), pointer :: constraint
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
   type(aq_species_constraint_type), pointer :: aq_species_constraint
   type(mineral_constraint_type), pointer :: mineral_constraint
   type(surface_complexation_type), pointer :: surface_complexation
@@ -2144,21 +2145,19 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   PetscReal :: eh,pe
   PetscReal :: affinity
 
-
-  constraint => TranConstraintRTCast(constraint_coupler%constraint)
-
-  aq_species_constraint => constraint%aqueous_species
-  mineral_constraint => constraint%minerals
+  90 format(2x,76('-'))
 
   iphase = 1
 
-  90 format(2x,76('-'))
+  nullify(constraint,aq_species_constraint,mineral_constraint)
+  if (associated(constraint_coupler)) then
+    constraint => TranConstraintRTCast(constraint_coupler%constraint)
+    aq_species_constraint => constraint%aqueous_species
+    mineral_constraint => constraint%minerals
+    write(option%fid_out,'(/,''  Constraint: '',a)') &
+      trim(constraint_coupler%constraint%name)
+  endif
 
-  write(option%fid_out,'(/,''  Constraint: '',a)') &
-    trim(constraint_coupler%constraint%name)
-
-  rt_auxvar => constraint_coupler%rt_auxvar
-  global_auxvar => constraint_coupler%global_auxvar
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
 
@@ -2223,23 +2222,24 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
     endif
 
-    ! CO2-specific
-    if (.not.option%use_isothermal .and. option%iflowmode == MPH_MODE) then
-      if (associated(reaction%gas%paseqlogKcoef)) then
-        do i = 1, reaction%naqcomp
-          if (aq_species_constraint%constraint_type(i) == &
-              CONSTRAINT_SUPERCRIT_CO2) then
-            igas = aq_species_constraint%constraint_spec_id(i)
-            if (abs(reaction%species_idx%co2_gas_id) == igas) then
-              option%io_buffer = 'Adding "scco2_eq_logK" to &
-                &global_auxvar_type solely so you can set reaction%&
-                &%gas%paseqlogK(igas) within ReactionPrintConstraint&
-                & is not acceptable.  Find another way! - Regards, Glenn'
-              call PrintErrMsg(option)
-!geh              reaction%gas%paseqlogK(igas) = global_auxvar%scco2_eq_logK
+    if (associated(aq_species_constraint)) then
+      ! CO2-specific
+      if (.not.option%use_isothermal .and. option%iflowmode == MPH_MODE) then
+        if (associated(reaction%gas%paseqlogKcoef)) then
+          do i = 1, reaction%naqcomp
+            if (aq_species_constraint%constraint_type(i) == &
+                CONSTRAINT_SUPERCRIT_CO2) then
+              igas = aq_species_constraint%constraint_spec_id(i)
+              if (abs(reaction%species_idx%co2_gas_id) == igas) then
+                option%io_buffer = 'Adding "scco2_eq_logK" to &
+                  &global_auxvar_type solely so you can set reaction%&
+                  &%gas%paseqlogK(igas) within ReactionPrintConstraint&
+                  & is not acceptable.  Find another way! - Regards, Glenn'
+                call PrintErrMsg(option)
+              endif
             endif
-          endif
-        enddo
+          enddo
+        endif
       endif
     endif
 
@@ -2248,8 +2248,10 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 204 format(a20,es12.4)
 
     write(option%fid_out,90)
-    write(option%fid_out,201) '      iterations: ', &
-      constraint_coupler%num_iterations
+    if (associated(constraint_coupler)) then
+      write(option%fid_out,201) '      iterations: ', &
+        constraint_coupler%num_iterations
+    endif
 
     if (associated(reaction%species_idx)) then
       ! output pH, Eh, pe
@@ -2326,34 +2328,43 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
     102 format(/,'  primary                   free        total')
     103 format('  species                   molal       molal       act coef     constraint')
+    153 format('  species                   molal       molal       act coef')
     write(option%fid_out,102)
-    write(option%fid_out,103)
+    if (associated(constraint_coupler)) then
+      write(option%fid_out,103)
+    else
+      write(option%fid_out,153)
+    endif
     write(option%fid_out,90)
 
     104 format(2x,a24,es12.4,es12.4,es12.4,4x,a)
     do icomp = 1, reaction%naqcomp
-      select case(aq_species_constraint%constraint_type(icomp))
-        case(CONSTRAINT_NULL,CONSTRAINT_TOTAL)
-          string = 'total aq'
-        case(CONSTRAINT_TOTAL_SORB)
-          string = 'total sorb'
-        case(CONSTRAINT_TOTAL_AQ_PLUS_SORB)
-          string = 'total aq+sorb'
-        case(CONSTRAINT_FREE)
-          string = 'free'
-        case(CONSTRAINT_CHARGE_BAL)
-          string = 'chrg'
-        case(CONSTRAINT_LOG)
-          string = 'log'
-        case(CONSTRAINT_PH)
-          string = 'pH'
-        case(CONSTRAINT_PE)
-          string = 'pe'
-        case(CONSTRAINT_MINERAL,CONSTRAINT_GAS)
-          string = aq_species_constraint%constraint_aux_string(icomp)
-        case(CONSTRAINT_SUPERCRIT_CO2)
-          string = 'SC ' // aq_species_constraint%constraint_aux_string(icomp)
-      end select
+      string = ''
+      if (associated(aq_species_constraint)) then
+        select case(aq_species_constraint%constraint_type(icomp))
+          case(CONSTRAINT_NULL,CONSTRAINT_TOTAL)
+            string = 'total aq'
+          case(CONSTRAINT_TOTAL_SORB)
+            string = 'total sorb'
+          case(CONSTRAINT_TOTAL_AQ_PLUS_SORB)
+            string = 'total aq+sorb'
+          case(CONSTRAINT_FREE)
+            string = 'free'
+          case(CONSTRAINT_CHARGE_BAL)
+            string = 'chrg'
+          case(CONSTRAINT_LOG)
+            string = 'log'
+          case(CONSTRAINT_PH)
+            string = 'pH'
+          case(CONSTRAINT_PE)
+            string = 'pe'
+          case(CONSTRAINT_MINERAL,CONSTRAINT_GAS)
+            string = aq_species_constraint%constraint_aux_string(icomp)
+          case(CONSTRAINT_SUPERCRIT_CO2)
+            string = 'SC ' // &
+                     aq_species_constraint%constraint_aux_string(icomp)
+        end select
+      endif
       write(option%fid_out,104) reaction%primary_species_names(icomp), &
                                 rt_auxvar%pri_molal(icomp), &
                                 rt_auxvar%total(icomp,1)*molar_to_molal, &
@@ -3015,6 +3026,7 @@ subroutine ReactionReadOutput(reaction,input,option)
   use Input_Aux_module
   use String_module
   use Option_module
+  use Utility_module
   use Variables_module, only : PRIMARY_MOLALITY, PRIMARY_MOLARITY, &
                                TOTAL_MOLALITY, TOTAL_MOLARITY
   implicit none
@@ -3025,6 +3037,7 @@ subroutine ReactionReadOutput(reaction,input,option)
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: found
 
   type(aq_species_type), pointer :: cur_aq_spec
@@ -3157,6 +3170,9 @@ subroutine ReactionReadOutput(reaction,input,option)
           endif
           cur_srfcplx_rxn => cur_srfcplx_rxn%next
         enddo
+      case('PRINT_CELLS')
+        string = 'CHEMISTRY,OUTPUT,PRINT_CELLS,array'
+        call UtilityReadArray(reaction%print_cells,0,string,input,option)
       case default
         found = PETSC_FALSE
         ! primary aqueous species

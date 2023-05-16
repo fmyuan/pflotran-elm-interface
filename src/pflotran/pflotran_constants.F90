@@ -255,6 +255,7 @@ module PFLOTRAN_Constants_module
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
+  PetscInt, parameter, public :: PRECIPITATE_PHASE = 3
 
   PetscInt, parameter, public :: MAX_PHASE = 2
 
@@ -283,6 +284,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: PROCEED = 0
   PetscInt, parameter, public :: DONE = 1
   PetscInt, parameter, public :: FAIL = 2
+  PetscInt, parameter, public :: SKIP = 3
 
   ! Grid type
   PetscInt, parameter, public :: NULL_GRID = 0

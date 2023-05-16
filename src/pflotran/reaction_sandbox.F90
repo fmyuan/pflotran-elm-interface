@@ -17,6 +17,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_BioHill_class
   use Reaction_Sand_FlexBioHill_class
   use Reaction_Sandbox_BioTH_class
+  use Reaction_Sandbox_Radon_class
 
   ! Add new reacton sandbox classes here.
 
@@ -182,6 +183,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => GasCreate()
       case('LAMBDA')
         new_sandbox => LambdaCreate()
+      case('RADON')
+        new_sandbox => RadonCreate()
       case('SIMPLE')
         new_sandbox => SimpleCreate()
       case('UFD-WP')
