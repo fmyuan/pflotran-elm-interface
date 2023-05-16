@@ -1087,7 +1087,8 @@ subroutine PMWIPPFloFinalizeTimestep(this)
   endif
   if (associated(this%pmwell_ptr)) then
     this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_TRUE
-    call this%pmwell_ptr%FinalizeTimestep()
+    this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
+    this%pmwell_ptr%flow_soln%soln_save%sg = this%pmwell_ptr%well%gas%s
   endif
   call PMSubsurfaceFlowFinalizeTimestep(this)
 
@@ -2141,12 +2142,10 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 !        this%pmwell_ptr%well_on = PETSC_TRUE
 !      endif
 !    endif   
-    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_FALSE
     call this%pmwell_ptr%InitializeTimestep()
     if (any(this%pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
         call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ierr)
     endif
-    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_TRUE
   endif
 
   if (associated(this%pmwell_ptr)) then

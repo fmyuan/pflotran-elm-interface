@@ -3642,12 +3642,6 @@ subroutine PMWellFinalizeTimestep(this)
 
   PetscReal :: curr_time
 
-  if (this%update_for_wippflo_qi_coupling) then
-    this%flow_soln%soln_save%pl = this%well%pl
-    this%flow_soln%soln_save%sg = this%well%gas%s
-    return
-  endif
-
   curr_time = this%option%time - this%option%flow_dt
 
   if (Initialized(this%intrusion_time_start) .and. &
@@ -5087,6 +5081,7 @@ subroutine PMWellSolve(this,time,ierr)
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
+    this%update_for_wippflo_qi_coupling = PETSC_FALSE
   else   
     call PMWellSolveFlow(this,ierr)
   endif
