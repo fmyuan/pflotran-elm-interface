@@ -3642,7 +3642,7 @@ subroutine PMWellFinalizeTimestep(this)
 
   PetscReal :: curr_time
 
-  if (.not. this%update_for_wippflo_qi_coupling) then
+  if (this%update_for_wippflo_qi_coupling) then
     this%flow_soln%soln_save%pl = this%well%pl
     this%flow_soln%soln_save%sg = this%well%gas%s
     return
@@ -5091,7 +5091,8 @@ subroutine PMWellSolve(this,time,ierr)
     call PMWellSolveFlow(this,ierr)
   endif
 
-  call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
+  !Debugging
+  !call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
   if (this%transport) then
     if (this%tran_QI_coupling) then
       write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
