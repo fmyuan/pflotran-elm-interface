@@ -214,6 +214,9 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   if (first_time .or. OptionIsIORank(option)) then
 #endif
 
+  option%io_buffer = 'Reading Gridded Dataset: ' // trim(this%hdf5_dataset_name)
+  call PrintMsg(option)
+
   ! open the file
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
@@ -223,7 +226,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
   ! the dataset is actually stored in a group.  the group contains
   ! a "data" dataset and optionally a "time" dataset.
-  option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
+  option%io_buffer = 'Opening hdf5 group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
   call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option)
 
@@ -534,7 +537,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 #ifdef BROADCAST_DATASET
   if (first_time .or. OptionIsIORank(option)) then
 #endif
-  option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
+  option%io_buffer = 'Closing hdf5 group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
   call HDF5GroupClose(grp_id,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
