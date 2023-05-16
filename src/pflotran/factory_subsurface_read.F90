@@ -805,6 +805,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Dataset_module
   use Dataset_Common_HDF5_class
   use Fluid_module
+  use Realization_Common_module
   use Realization_Subsurface_class
   use Realization_Base_class
   use Region_module
@@ -1204,7 +1205,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Boundary Condition name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization,coupler)
+        call RealizationAddCoupler(realization%patch,coupler)
         nullify(coupler)
 
 !....................
@@ -1213,7 +1214,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Initial Condition name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization,coupler)
+        call RealizationAddCoupler(realization%patch,coupler)
         nullify(coupler)
 
 !....................
@@ -1222,7 +1223,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Source Sink name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization,coupler)
+        call RealizationAddCoupler(realization%patch,coupler)
         nullify(coupler)
 
 !....................
@@ -1252,7 +1253,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
       case ('STRATIGRAPHY','STRATA')
         strata => StrataCreate()
         call StrataRead(strata,input,option)
-        call RealizationAddStrata(realization,strata)
+        call RealizationAddStrata(realization%patch,strata)
         nullify(strata)
 
 !.....................
