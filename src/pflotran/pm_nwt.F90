@@ -32,7 +32,6 @@ module PM_NWT_class
     PetscBool :: check_post_convergence
     PetscBool :: check_update
     PetscBool :: verbose_newton
-    PetscBool :: scale_update
     PetscBool :: scaling_cut_dt
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
@@ -147,7 +146,6 @@ function PMNWTCreate()
   nullify(nwt_pm%controls%names_itol_abs_res)
   nwt_pm%controls%max_newton_iterations = 10
   nwt_pm%controls%dt_cut = 0.5d0
-  nwt_pm%controls%scale_update = PETSC_TRUE
   nwt_pm%controls%scaling_cut_dt = PETSC_FALSE
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   nwt_pm%controls%check_post_convergence = PETSC_FALSE
@@ -238,8 +236,6 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('NO_UPDATE_SCALING')
-        this%controls%scale_update = PETSC_FALSE
 !geh: yet to be implemented
 !      case('TEMPERATURE_DEPENDENT_DIFFUSION')
 !        this%temperature_dependent_diffusion = PETSC_TRUE
@@ -1531,8 +1527,6 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscInt :: i, k
   PetscReal,parameter :: TOL=1.0d-20
 
-  if (.not. this%controls%scale_update) return 
-
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
   option => this%realization%option
@@ -1552,78 +1546,6 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
                       reaction_nw%params%truncated_concentration)
       endif
     enddo
-  else
-    ! C^p+1 = C^p - dC^p
-    ! if dC is positive and abs(dC) larger than C
-    ! we need to scale the update
-
-    ! compute smallest ratio of C to dC
-
-    ! Check if X_p is non-empty
-    if (size(X_p) < 1) then
-      string = "Error: X_p array is empty in PMNWTCheckUpdatePre,pm_nwt.F90" 
-      call PrintErrMsg(option,string)
-      return
-    endif
-
-
-    min_ratio = MAX_DOUBLE ! large number
-    k = 0
-
-    do i = 1, size(X_p)
-      a = abs(X_p(i))
-      b = abs(dX_p(i))
-      ! Check if dX_p(i) is not zero and not too small to avoid
-      ! division by zero or underflow
-      if (b > TOL) then
-        ! Compute the magnitude of the ratio using a function
-        ! that handles overflow and underflow
-        ! ratio = safe_ratio(abs(X_p(i)), abs(dX_p(i)))
-        if (a < TOL) then
-          ratio = 0.0d0 ! Return zero as the ratio
-        else
-          ! Check if b is too large to avoid overflow
-          if (b > MAX_DOUBLE / a) then
-            ratio = MAX_DOUBLE ! Return the maximum double as the ratio
-          else
-            ratio = a / b ! Return the normal ratio
-          endif
-        endif
-        ! Check if the ratio is smaller than the current minimum
-        if (ratio < min_ratio) then
-          min_ratio = ratio
-          k = i
-        endif
-      else
-        ! If dX_p(i) is zero or too small, set the ratio to zero and update k
-        ratio = 0.0d0
-        min_ratio = ratio
-        k = i
-        ! Exit the loop as the minimum ratio cannot be smaller than zero
-        exit
-      endif
-    enddo
-
-    !WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
-
-    ! get global minimum
-    call MPI_Allreduce(MPI_IN_PLACE,min_ratio,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION, &
-                       MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
-
-    ! scale if necessary
-    if (min_ratio < 1.d0) then
-      if (min_ratio < TOL) then
-        this%controls%scaling_cut_dt = PETSC_TRUE
-        string = " *WARNING* Solution update is being scaled by " // &
-                 " an extremely small value" 
-        call PrintMsg(option,string)
-        string = "           to prevent negative mass. Cutting time step!"
-        call PrintMsg(option,string)
-      endif
-      dX_p = dX_p*min_ratio
-      changed = PETSC_TRUE
-    endif
   endif
 
   call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
