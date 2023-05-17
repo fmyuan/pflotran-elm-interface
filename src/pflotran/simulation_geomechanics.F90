@@ -59,7 +59,9 @@ function GeomechanicsSimulationCreate(driver,option)
 
   class(simulation_geomechanics_type), pointer :: GeomechanicsSimulationCreate
 
+#ifdef GEOMECH_DEBUG
   print *,'GeomechanicsSimulationCreate'
+#endif
 
   allocate(GeomechanicsSimulationCreate)
   call GeomechanicsSimulationInit(GeomechanicsSimulationCreate,driver,option)
@@ -110,7 +112,9 @@ subroutine GeomechanicsSimulationInitializeRun(this)
 
   class(simulation_geomechanics_type) :: this
 
+#ifdef GEOMECH_DEBUG
   call PrintMsg(this%option,'Simulation%InitializeRun()')
+#endif
 
   if (this%option%restart_flag) then
     call PrintErrMsg(this%option,'add code for restart of GeomechanicsSimulation')
@@ -170,7 +174,9 @@ subroutine GeomechanicsSimulationExecuteRun(this)
 
   final_time = SimSubsurfGetFinalWaypointTime(this)
 
+#ifdef GEOMECH_DEBUG
   call PrintMsg(this%option,'GeomechanicsSimulationExecuteRun()')
+#endif
 
   if (.not.associated(this%geomech_realization)) then
     call this%RunToTime(final_time)
@@ -223,7 +229,9 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
 
   class(timestepper_steady_type), pointer :: geomech_timestepper
 
+#ifdef GEOMECH_DEBUG
   call PrintMsg(this%option,'GeomechanicsSimulationFinalizeRun')
+#endif
 
   !call GeomechanicsFinalizeRun(this)
   nullify(geomech_timestepper)
@@ -260,7 +268,9 @@ subroutine GeomechanicsSimulationStrip(this)
 
   class(simulation_geomechanics_type) :: this
 
+#ifdef GEOMECH_DEBUG
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
+#endif
 
   call SimSubsurfStrip(this)
   call GeomechanicsRegressionDestroy(this%geomech_regression)
