@@ -3599,6 +3599,7 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
     case(2) ! Default function
       keff = kdry + phi * (sat(lid)*k_h2o + sat(hid)*k_hyd + &
              sat(iid)*k_ice + sat(gid)*k_ch4)
+    case(3) ! Grenier et al. benchmark
       keff = phi * sat(lid) * 0.6 + phi * sat(iid) * 2.14 + (1-phi) * 9.d0
   end select
 
