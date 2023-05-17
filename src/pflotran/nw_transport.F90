@@ -1303,7 +1303,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   PetscReal :: Res_up(reaction_nw%params%nspecies)
   PetscReal :: Res_dn(reaction_nw%params%nspecies)
 
-  PetscInt :: unit_n_up, unit_n_dn
+  PetscReal :: unit_n_up, unit_n_dn
   PetscInt :: nspecies
   PetscReal :: q
   PetscReal :: sat_up, sat_dn
@@ -1374,8 +1374,8 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
 
   ! units of unit_n = [-] unitless
-  unit_n_up = -1
-  unit_n_dn = +1
+  unit_n_up = -1.d0
+  unit_n_dn = +1.d0
 
   ! upstream weighting
   if (.not.bc) then
