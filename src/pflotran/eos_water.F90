@@ -81,6 +81,8 @@ module EOS_Water_module
     EOSWaterDensityExtPtr => null()
   procedure(EOSWaterEnthalpyExtDummy), pointer :: &
     EOSWaterEnthalpyExtPtr => null()
+  procedure(EOSWaterInternalEnergyIceDummy), pointer :: &
+    EOSWaterInternalEnergyIcePtr => null()
 
   ! interface blocks
   interface
@@ -183,6 +185,16 @@ module EOS_Water_module
       PetscReal, intent(out) :: hw,hwp,hwt
       PetscErrorCode, intent(out) :: ierr
     end subroutine EOSWaterEnthalpyExtDummy
+    subroutine EOSWaterInternalEnergyIceDummy(t,u,calculate_derivatives,&
+                                              du_ice_dT,du_ice_dP,ierr)
+      implicit none
+      PetscReal, intent(in) :: t
+      PetscReal, intent(out) :: u
+      PetscBool, intent(in) :: calculate_derivatives
+      PetscReal, intent(out) :: du_ice_dT
+      PetscReal, intent(out) :: du_ice_dP
+      PetscErrorCode, intent(out) :: ierr
+    end subroutine EOSWaterInternalEnergyIceDummy
   end interface
 
   ! interfaces for derivative/non-derivative versions that are visible outside
@@ -231,6 +243,10 @@ module EOS_Water_module
     procedure EOSWaterEnthalpyExtNoDerive
     procedure EOSWaterEnthalpyExtDerive
   end interface
+  interface EOSWaterInternalEnergyIce
+    procedure EOSWaterInternalEnergyIceNoDerive
+    procedure EOSWaterInternalEnergyIceDerive
+  end interface
 
   ! the "public" definition that makes subroutines visible outside.
   public :: EOSWaterInit, &
@@ -263,6 +279,7 @@ module EOS_Water_module
             EOSWaterSetSaturationPressure, &
             EOSWaterSetSteamDensity, &
             EOSWaterSetSteamEnthalpy, &
+            EOSWaterSetIceInternalEnergy, &
             EOSWaterSetWaterTab, &
             EOSWaterSetSurfaceDensity, &
             EOSWaterGetSurfaceDensity, &
@@ -309,6 +326,7 @@ subroutine EOSWaterInit()
   EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIFC67
   EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIFC67
   EOSWaterDensityIcePtr => EOSWaterDensityIcePainter
+  EOSWaterInternalEnergyIcePtr => EOSWaterInternalEnergyIceDefault
 
   ! extended versions
   EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
@@ -680,6 +698,28 @@ end subroutine EOSWaterSetSteamEnthalpy
 
 ! ************************************************************************** !
 
+subroutine EOSWaterSetIceInternalEnergy(keyword,aux)
+
+  implicit none
+  
+character(len=*), intent(in) :: keyword
+  PetscReal, intent(in), optional :: aux(*)
+
+  select case(keyword)
+    case('DEFAULT')
+      EOSWaterInternalEnergyIcePtr => EOSWaterInternalEnergyIceDefault
+    case('FUKUSAKO')
+      EOSWaterInternalEnergyIcePtr => EOSWaterInternalEnergyIceFukusako
+    case default
+      print *, 'Unknown pointer type "' // trim(keyword) // &
+        '" in EOSWaterSetIceInternalEnergy().'
+      stop
+   end select
+
+end subroutine EOSWaterSetIceInternalEnergy
+   
+! ************************************************************************** !
+
 subroutine EOSWaterSetWaterTab(input,option)
   !
   ! Author: Paolo Orsini
@@ -1014,6 +1054,37 @@ subroutine EOSWaterEnthalpyDerive(t,p,hw,hwp,hwt,ierr)
   call EOSWaterEnthalpyPtr(t,p,PETSC_TRUE,hw,hwp,hwt,ierr)
 
 end subroutine EOSWaterEnthalpyDerive
+
+! ************************************************************************** !
+
+subroutine EOSWaterInternalEnergyIceNoDerive(t,u,ierr)
+  implicit none
+
+  PetscReal, intent(in) :: t
+  PetscReal, intent(out) :: u
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: dum1, dum2
+
+  ierr = 0
+  call EOSWaterInternalEnergyIcePtr(t,u,PETSC_FALSE,dum1,dum2,ierr)
+
+end subroutine EOSWaterInternalEnergyIceNoDerive
+
+! ************************************************************************** !
+
+subroutine EOSWaterInternalEnergyIceDerive(t,u,du_ice_dT,du_ice_dP,ierr)
+  implicit none
+
+  PetscReal, intent(in) :: t
+  PetscReal, intent(out) :: u
+  PetscReal, intent(out) :: du_ice_dT, du_ice_dP
+  PetscErrorCode, intent(out) :: ierr
+
+  ierr = 0
+  call EOSWaterInternalEnergyIcePtr(t,u,PETSC_TRUE,du_ice_dT,du_ice_dP,ierr)
+
+end subroutine EOSWaterInternalEnergyIceDerive
 
 ! ************************************************************************** !
 
@@ -3519,16 +3590,20 @@ end subroutine EOSWaterDensityIcePainter
 
 ! ************************************************************************** !
 
-subroutine EOSWaterInternalEnergyIce(T, u_ice, du_ice_dT)
+subroutine EOSWaterInternalEnergyIceDefault(T, u_ice, calculate_derivatives, &
+                                            du_ice_dT, du_ice_dP, ierr)
   ! Subroutine to calculate the internal energy of ice at given temperature and
   ! pressure
   ! T is in deg C, internal energy is in J/mol
   implicit none
 
   PetscReal, intent(in) :: T
+  PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: u_ice
   PetscReal, intent(out) :: du_ice_dT
-
+  PetscReal, intent(out) :: du_ice_dP
+  PetscErrorCode, intent(out) :: ierr
+  
   PetscReal, parameter :: a = -10.6644d0
   PetscReal, parameter :: b = 0.1698d0
   PetscReal, parameter :: c = 198148.d0
@@ -3540,9 +3615,54 @@ subroutine EOSWaterInternalEnergyIce(T, u_ice, du_ice_dT)
   u_ice = a*(T) + b/2.d0*((T + T_ref)**(2.d0) - T_ref**(2.d0)) + &
           c*(1.d0/T_ref - 1.d0/(T + T_ref))
   u_ice = u_ice - HEAT_OF_FUSION*FMWH2O*1.d-3   ! kJ/kmol
-  du_ice_dT = a + b*(T + T_ref) + c/((T + T_ref)**(2.d0)) !kJ/kmol/K
 
-end subroutine EOSWaterInternalEnergyIce
+  if (calculate_derivatives) then
+    du_ice_dT = a + b*(T + T_ref) + c/((T + T_ref)**(2.d0)) !kJ/kmol/K
+    du_ice_dP = 0.d0
+  endif
+
+end subroutine EOSWaterInternalEnergyIceDefault
+
+! ************************************************************************** !
+
+subroutine EOSWaterInternalEnergyIceFukusako(T, u_ice, calculate_derivatives, &
+                                             du_ice_dT, du_ice_dP,ierr)
+  
+  !Internal energy of ice as f(Temperature) (Fukusako and Yamamoto, 1993)
+  !
+  ! T is in deg C, internal energy is in J/mol
+  !Author: Michael Nole
+  !Date: 04/04/19
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: u_ice
+  PetscReal, intent(out) :: du_ice_dT, du_ice_dP
+  PetscErrorCode, intent(out) :: ierr  
+
+  PetscReal, parameter :: Lw = -6017.1d0 !Latent heat of fusion,  J/mol
+  PetscReal :: T_temp
+
+  T_temp = T + 273.15d0
+
+  if (T_temp >= 90.d0) then
+    u_ice = Lw + 185.d0 * (T_temp-273.15d0) + 3.445 * (T_temp**2 - 273.15d0**2)
+  else
+    u_ice = Lw + 4.475 * (T_temp**2 - 273.15d0**2)
+  endif
+
+  if (calculate_derivatives) then
+    if (T_temp >= 90.d0) then
+      du_ice_dT = 185.d0 + 2 * 3.445 * T_temp
+    else
+      du_ice_dT = 4.475 * 2 * T_temp
+    endif
+    du_ice_dP = 0.d0
+  endif
+
+end subroutine EOSWaterInternalEnergyIceFukusako
 
 ! ************************************************************************** !
 

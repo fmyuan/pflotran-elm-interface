@@ -667,7 +667,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: K_H_tilde, K_H_tilde_hyd
   PetscInt :: apid, cpid, vpid, spid
   PetscReal :: Hg_mixture_fractioned
-  PetscReal :: H_hyd, U_ice, PE_hyd
+  PetscReal :: H_hyd, U_ice, PE_hyd, du_ice_dT, du_ice_dP
   PetscReal :: aux(1)
   PetscReal :: hw
   PetscReal :: dpor_dp
@@ -1561,7 +1561,9 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   hyd_auxvar%H(hid) = H_hyd
   hyd_auxvar%mobility(hid) = 0.d0
 
-  call EOSIceEnergy(hyd_auxvar%temp, U_ice)
+  !call EOSIceEnergy(hyd_auxvar%temp, U_ice)
+  call EOSWaterInternalEnergyIce(hyd_auxvar%temp, U_ice, du_ice_dT, du_ice_dP,ierr)
+  U_ice = U_ice * 1.d-3
   hyd_auxvar%xmol(wid,iid) = 1.d0
   hyd_auxvar%xmol(gid,iid) = 0.d0
   !call EOSWaterDensityIcePainter(hyd_auxvar%temp,hyd_auxvar%pres(lid), &
@@ -3597,6 +3599,7 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
     case(2) ! Default function
       keff = kdry + phi * (sat(lid)*k_h2o + sat(hid)*k_hyd + &
              sat(iid)*k_ice + sat(gid)*k_ch4)
+      keff = phi * sat(lid) * 0.6 + phi * sat(iid) * 2.14 + (1-phi) * 9.d0
   end select
 
 

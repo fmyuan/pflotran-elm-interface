@@ -79,6 +79,7 @@ module TH_Aux_module
     PetscReal :: dden_ice_dT
     PetscReal :: u_ice
     PetscReal :: du_ice_dT
+    PetscReal :: du_ice_dP
     PetscReal :: den_gas
     PetscReal :: dden_gas_dT
     PetscReal :: u_gas
@@ -241,6 +242,7 @@ subroutine THAuxVarInit(auxvar,option)
     auxvar%ice%dden_ice_dT   = uninit_value
     auxvar%ice%u_ice         = uninit_value
     auxvar%ice%du_ice_dT     = uninit_value
+    auxvar%ice%du_ice_dP     = uninit_value
     auxvar%ice%den_gas       = uninit_value
     auxvar%ice%dden_gas_dT   = uninit_value
     auxvar%ice%u_gas         = uninit_value
@@ -321,6 +323,7 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%ice%dden_ice_dT = auxvar%ice%dden_ice_dT
     auxvar2%ice%u_ice = auxvar%ice%u_ice
     auxvar2%ice%du_ice_dT = auxvar%ice%du_ice_dT
+    auxvar2%ice%du_ice_dP = auxvar%ice%du_ice_dP
     auxvar2%ice%pres_fh2o = auxvar%ice%pres_fh2o
     auxvar2%ice%dpres_fh2o_dp = auxvar%ice%dpres_fh2o_dp
     auxvar2%ice%dpres_fh2o_dT = auxvar%ice%dpres_fh2o_dT
@@ -643,7 +646,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: dsg_pl, dsg_temp
   PetscReal :: dsi_pl, dsi_temp
   PetscReal :: den_ice, dden_ice_dT, dden_ice_dP
-  PetscReal :: u_ice, du_ice_dT
+  PetscReal :: u_ice, du_ice_dT, du_ice_dP
   PetscBool :: out_of_table_flag
   PetscReal :: p_th
 
@@ -837,7 +840,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     call PrintMsgByCell(option,natural_id, &
                       'Error in THAuxVarComputeFreezing->EOSWaterDensityIce')
   endif
-  call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
+  call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT, du_ice_dP, ierr)
 
   auxvar%ice%den_ice = den_ice
   auxvar%ice%dden_ice_dT = dden_ice_dT

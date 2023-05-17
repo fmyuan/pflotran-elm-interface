@@ -248,6 +248,17 @@ subroutine EOSRead(input,option)
                        'EOS,WATER,STEAM_ENTHALPY',option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
+          case('ICE_INTERNAL_ENERGY')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'ICE_INTERNAL_ENERGY','EOS,WATER')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('DEFAULT','FUKUSAKO')
+              case default
+                call InputKeywordUnrecognized(input,word, &
+                       'EOS,WATER,ICE_INTERNAL_ENERGY',option)
+            end select
+            call EOSWaterSetIceInternalEnergy(word,temparray)
           case('SATURATION_PRESSURE')
             call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'SATURATION_PRESSURE','EOS,WATER')
