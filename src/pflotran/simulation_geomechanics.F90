@@ -260,7 +260,9 @@ subroutine GeomechanicsSimulationStrip(this)
 
   class(simulation_geomechanics_type) :: this
 
+#ifdef GEOMECH_DEBUG
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
+#endif
 
   call SimSubsurfStrip(this)
   call GeomechanicsRegressionDestroy(this%geomech_regression)
