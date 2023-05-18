@@ -11,7 +11,11 @@ module Factory_Forward_module
 
   public :: FactoryForwardInitialize, &
             FactoryForwardPrerequisite, &
-            FactoryForwardFinalize
+            FactoryForwardFinalize, &
+            FactoryForwardReadCommandLine, &
+            FactoryForwardReadSimProcessModels, &
+            FactoryForwardSetupPMCHierarchy, &
+            FactoryForwardReadRestart
 
 contains
 

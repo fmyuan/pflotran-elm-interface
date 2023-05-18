@@ -67,6 +67,7 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWH2O = 18.01534d0  ! kg/kmol h2o
   PetscReal, parameter, public :: FMWCO2 = 44.0098d0
   PetscReal, parameter, public :: FMWAIR = 28.96d0
+  PetscReal, parameter, public :: FMWCH4 = 16.04d0
 
   ! constants
   PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
@@ -254,6 +255,7 @@ module PFLOTRAN_Constants_module
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
+  PetscInt, parameter, public :: PRECIPITATE_PHASE = 3
 
   PetscInt, parameter, public :: MAX_PHASE = 2
 
@@ -282,6 +284,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: PROCEED = 0
   PetscInt, parameter, public :: DONE = 1
   PetscInt, parameter, public :: FAIL = 2
+  PetscInt, parameter, public :: SKIP = 3
 
   ! Grid type
   PetscInt, parameter, public :: NULL_GRID = 0

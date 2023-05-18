@@ -2078,14 +2078,14 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
   PetscReal :: q10,q11,q12,q20,q21,q22,q23
   PetscReal :: dq1_dp,dq2_dp,dq1x1_dp,dq2x1_dp
   PetscReal :: dq10_dp,dq11_dp,dq12_dp,dq20_dp,dq21_dp,dq22_dp,dq23_dp,dT_h_dp
-  PetscReal :: molal,s,x
+  PetscReal :: s,x, brine_molar_mass
 
   t_c = T
   p_bar = P*Pa_to_bar
 
-  s = aux(1) !mass fraction
-  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
-  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
+  s = aux(1) !mass frac
+  brine_molar_mass = 1.d0 / (s / FMWNACL + (1.d0 - s) / FMWH2O)
+  x = s * brine_molar_mass / FMWNACL
 
   q11 = -32.1724d0 + 0.0621255d0 * p_bar  ! table 5
   q21 = -1.69513d0 - 4.52781d-4 * p_bar - 6.04279d-8  * p_bar**2
@@ -2132,7 +2132,6 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
 end subroutine EOSWaterEnthalpyDriesnerExt
 
 ! ************************************************************************** !
-
 subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
                                    calculate_derivatives, &
                                    dw, dwmol, dwp, dwt, ierr)
@@ -2158,32 +2157,44 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   PetscReal, parameter :: Pa_to_bar = 1.d-5
 
   PetscReal :: T_v ! Scaled temperature for volumetric correlation
-  PetscReal :: x,molal,s
+  PetscReal :: x,s
   PetscReal :: n1,n2,n11,n12,n20,n21,n22,n23,n1x1,n2x1
+  PetscReal :: D_T, n30,n31,n300,n301,n302,n310,n311,n312
 
   PetscReal :: t_C ! temperature in Celcius
   PetscReal :: p_bar
+  PetscReal :: brine_molar_mass
 
   t_C = T
   p_bar = P*Pa_to_bar
 
-  s = aux(1)*100.d0 !mass %
-  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
-  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
-
+  s = aux(1) !mass frac
+  brine_molar_mass = 1.d0 / (s / FMWNACL + (1.d0 - s) / FMWH2O)
+  x = s * brine_molar_mass / FMWNACL
+  
   n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
   n21 = -2.6142d0 - 0.000239092d0 * p_bar
   n22 = 0.0356828d0 + (4.37235d-6 + 2.0566d-9 * p_bar) * p_bar
   n1x1 = 330.47d0 + 0.942876d0 * sqrt(p_bar) + p_bar * (0.0817193d0 &
          + p_bar * (-2.47556d-8 + p_bar * 3.45052d-10)) ! eq 11
-  n2x1 = -0.0370751 + 0.00237723 * sqrt(p_bar) + p_bar * (5.42049d-5 &
+  n2x1 = -0.0370751d0 + 0.00237723d0 * sqrt(p_bar) + p_bar * (5.42049d-5 &
         + p_bar * (5.84709d-9 - p_bar * 5.99373d-13))  ! eq 12
   n12 = -n1x1 - n11
   n20 = 1.d0 - n21 * sqrt(n22)
+  
   n23 = n2x1 - n20 - n21 * sqrt(1.d0 + n22)
   n1  = n1x1 + (1.d0 - x) * n11  + n12 * (1.d0 - x)**2 ! eq 9
   n2  = n20 + n21 * sqrt(x + n22) + n23 * x            ! eq 10
-  T_v = n1 + n2 * t_c ! doesn't include D(T) correction
+  n300 = 7.60664d6 / (p_bar + 472.051d0)**2
+  n301 = -50.d0 - 86.1446d0*exp(-6.21128d-4 * p_bar)
+  n302 = 294.318d0 * exp(-5.66735d-3 * p_bar)
+  n310 = -0.0732761d0 * exp(-2.3772d-3 * p_bar)  - 5.2948d-5 * p_bar
+  n311 = -47.2747d0 + 24.3653d0 * exp(-1.25533d-3 * p_bar)
+  n312 = -0.278529d0 - 0.00081381d0 * p_bar
+  n30 = n300 * (exp(n301*x)-1.d0) + n302*x
+  n31 = n310 * (exp(n311*x)) + n312*x
+  D_T = n30 * exp(n31*T)
+  T_v = n1 + n2 * t_c + D_T! doesn't include D(T) correction
   call EOSWaterDensityIF97(T_v,P,calculate_derivatives,dw,dwmol,dwp,dwt,ierr)
   if (calculate_derivatives) then
     ! calculate derivatives
@@ -2192,7 +2203,9 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
      dwp = UNINITIALIZED_DOUBLE
      dwt = UNINITIALIZED_DOUBLE
   endif
-  dw = dw * (molal+55.508435d0)/55.508435d0
+
+  
+  dw = dw * brine_molar_mass / FMWH2O
 
 end subroutine EOSWaterDensityDriesnerExt
 

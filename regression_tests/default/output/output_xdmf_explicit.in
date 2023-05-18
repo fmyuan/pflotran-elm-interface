@@ -23,7 +23,12 @@ OUTPUT
   /
 END
 
-EXTERNAL_FILE grid_unstructured_explicit_block.txt
+#=========================== discretization ===================================
+GRID
+  TYPE unstructured_explicit ./3.uge
+  DOMAIN_FILENAME output_xdmf.h5
+END
+
 EXTERNAL_FILE subsurface_block.txt
 
 END_SUBSURFACE
