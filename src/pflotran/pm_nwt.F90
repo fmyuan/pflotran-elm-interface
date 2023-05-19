@@ -1239,7 +1239,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscBool :: rsn_pos(this%option%ntrandof)
   PetscBool :: idof_cnvgd(this%option%ntrandof,5)
 
-  PetscMPIInt :: mpi_int
+  PetscMPIInt :: mpi_int1, mpi_int2
   PetscInt, parameter :: MAX_INDEX = 5
 
   grid => this%realization%patch%grid
@@ -1401,12 +1401,13 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     converged_flag = PETSC_FALSE
   endif
 
-  mpi_int = option%ntrandof*MAX_INDEX
+  mpi_int1 = option%ntrandof*5
+  mpi_int2 = option%ntrandof*4
   call MPI_Allreduce(MPI_IN_PLACE,converged_flag,ONE_INTEGER, &
                      MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,idof_cnvgd,mpi_int, &
+  call MPI_Allreduce(MPI_IN_PLACE,idof_cnvgd,mpi_int1, &
                      MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,species_max,mpi_int, &
+  call MPI_Allreduce(MPI_IN_PLACE,species_max,mpi_int2, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
 
   rUP_str = '  rUP:'
