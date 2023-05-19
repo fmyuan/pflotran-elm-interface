@@ -367,7 +367,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   endif
 
   if (.not.first) then
-    call HDF5FileTryOpen(filename,file_id,first,option)
+    call HDF5FileTryOpen(filename,file_id,first,option%comm)
   endif
   if (first) then
     call HDF5FileOpen(filename,file_id,PETSC_TRUE,option)
@@ -522,7 +522,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   grid => patch%grid
 
   if (.not.first) then
-    call HDF5FileTryOpen(filename_path,file_id,first,option)
+    call HDF5FileTryOpen(filename_path,file_id,first,option%comm)
   endif
   if (first) then
     call HDF5FileOpen(filename_path,file_id,PETSC_TRUE,option)
@@ -893,7 +893,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   grid => patch%grid
 
   if (.not.first) then
-    call HDF5FileTryOpen(filename_path,file_id,first,option)
+    call HDF5FileTryOpen(filename_path,file_id,first,option%comm)
   endif
   if (first) then
     call HDF5FileOpen(filename_path,file_id,PETSC_TRUE,option)
@@ -913,6 +913,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   write_xdmf = PETSC_FALSE
   include_cell_centers = PETSC_FALSE
   mesh_type = grid%unstructured_grid%explicit_grid%output_mesh_type
+  if (len_trim(grid%unstructured_grid%explicit_grid%domain_filename) > 0 &
+      .and. output_option%print_explicit_primal_grid) then
+    option%io_buffer = 'PRINT_PRIMAL_GRID under OUTPUT may not be used &
+      &when DOMAIN_FILENAME is defined under GRID. Please remove &
+      &the DOMAIN_FILENAME card.'
+    call PrintErrMsg(option)
+  endif
   if (OptionIsIORank(option) .and. &
       (output_option%print_explicit_primal_grid .or. &
        len_trim(grid%unstructured_grid%explicit_grid% &
@@ -967,8 +974,10 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     write_xdmf = PETSC_TRUE
   endif
 
-  if (first .and. output_option%print_explicit_primal_grid) then
-    call HDF5FileOpen(domain_filename_path,new_file_id,PETSC_TRUE,option)
+  if (OptionIsIORank(option) .and. &
+      first .and. output_option%print_explicit_primal_grid) then
+    call HDF5FileOpen(domain_filename_path,new_file_id,PETSC_TRUE,&
+                      PETSC_FALSE,option)
     ! create a group for the coordinates data set
     string = "Domain"
     call HDF5GroupCreate(new_file_id,string,new_grp_id,option)
@@ -1202,7 +1211,6 @@ function OutputHDF5FilenameID(output_option,option,var_list_type)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/10/13
   !
-
   use Option_module
 
   implicit none
@@ -3403,7 +3411,7 @@ subroutine OutputH5OpenFile(option, h5obj, filename, file_id)
   integer(HID_T), intent(out) :: file_id
 
   if (.not.h5obj%first_write) then
-    call HDF5FileTryOpen(filename,file_id,h5obj%first_write,option)
+    call HDF5FileTryOpen(filename,file_id,h5obj%first_write,option%comm)
   endif
   if (h5obj%first_write) then
     call HDF5FileOpen(filename,file_id,PETSC_TRUE,option)
@@ -3433,7 +3441,7 @@ subroutine OutputH5CloseFile(option, h5file, file_id)
 
   implicit none
 
-  type(option_type), intent(in) :: option
+  type(option_type), intent(in), pointer :: option
   type(output_h5_type) :: h5file
   integer(HID_T), intent(in) :: file_id
 
