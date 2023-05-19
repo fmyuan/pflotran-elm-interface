@@ -1,23 +1,23 @@
 -- CONCENTRATION: Total Bulk Conc. AM241L --
-      Max:   3.1959462775621E-06
-      Min:   5.1643460693867E-19
-     Mean:   6.3979363021380E-07
-        1:   3.1959462775621E-06
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
 -- CONCENTRATION: Total Bulk Conc. PU239L --
-      Max:   6.1594150577985E-06
-      Min:   9.8603046886878E-19
-     Mean:   1.2330477979212E-06
-        1:   6.1594150577985E-06
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
 -- CONCENTRATION: Aq. Conc. AM241L --
-      Max:   1.0653154258540E-05
-      Min:   1.7214486897956E-18
-     Mean:   2.1326454340460E-06
-        1:   1.0653154258540E-05
+      Max:   3.3333333333333E-20
+      Min:   3.3333333333333E-20
+     Mean:   3.3333333333333E-20
+        1:   3.3333333333333E-20
 -- CONCENTRATION: Aq. Conc. PU239L --
-      Max:   2.0531383525995E-05
-      Min:   3.2867682295626E-18
-     Mean:   4.1101593264041E-06
-        1:   2.0531383525995E-05
+      Max:   3.3333333333333E-20
+      Min:   3.3333333333333E-20
+     Mean:   3.3333333333333E-20
+        1:   3.3333333333333E-20
 -- CONCENTRATION: Mnrl. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -54,9 +54,10 @@
      Mean:   3.0000000000000E+00
         1:         3
 -- SOLUTION: Transport --
+   Time (seconds):   2.8664439992099E-03
    Time Steps:           15
-   Newton Iterations:           37
-   Linear Solver Iterations:           37
+   Newton Iterations:           15
+   Linear Solver Iterations:           15
    Time Step Cuts:            0
-   Solution 2-Norm:   6.9392009233499E-06
-   Residual 2-Norm:   2.4918159298753E-17
+   Solution 2-Norm:   3.1622776601684E-20
+   Residual 2-Norm:   1.2399994220515E-27
