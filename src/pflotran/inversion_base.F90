@@ -136,6 +136,7 @@ subroutine InversionBaseStep(this)
 
   type(option_type), pointer :: option
 
+  nullify(option)
   call this%InitializeForwardRun(option)
   call this%SetupForwardRunLinkage()
   call this%ConnectToForwardRun()

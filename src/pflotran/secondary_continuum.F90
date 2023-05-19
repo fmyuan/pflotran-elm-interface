@@ -23,11 +23,12 @@ module Secondary_Continuum_module
   public :: SecondaryContinuumType, &
             SecondaryContinuumSetProperties, &
             SecondaryRTAuxVarInit, &
+            SecondaryHeatAuxVarInit, &
             SecondaryRTResJacMulti, &
             SecondaryRTAuxVarComputeMulti, &
-            THCSecHeatAuxVarCompute, &
-            THSecHeatAuxVarCompute, &
-            MphaseSecHeatAuxVarCompute, &
+            SecHeatAuxVarCompute, &
+            SecondaryHeatResidual, &
+            SecondaryHeatJacobian, &
             SecondaryRTUpdateIterate, &
             SecondaryRTUpdateEquilState, &
             SecondaryRTUpdateKineticState, &
@@ -549,8 +550,7 @@ end subroutine SecondaryRTTimeCut
 ! ************************************************************************** !
 
 subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
-                                 rt_sec_transport_vars, reaction, &
-                                 initial_condition,constraint,option)
+                                 rt_sec_transport_vars,reaction,option)
   !
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -559,47 +559,23 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   ! Date: 02/05/13
   !
 
-  use Coupler_module
-  use Transport_Constraint_module
-  use Condition_module
-  use Global_Aux_module
   use Material_module
   use Option_module
   use Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_module
-  use Transport_Constraint_RT_module
-
-  use EOS_Water_module
 
   implicit none
 
   type(sec_transport_type) :: rt_sec_transport_vars
   type(multicontinuum_property_type) :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
-  type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
-  type(material_auxvar_type), allocatable :: material_auxvar
-  class(tran_constraint_rt_type), pointer :: constraint
-  type(flow_condition_type), pointer :: initial_flow_condition
-
 
   PetscInt :: cell
   PetscReal :: area_per_vol
-  PetscReal :: dum1
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
-  PetscInt :: num_iterations
-  PetscErrorCode :: ierr
-
-  num_iterations = 0
-
-  allocate(material_auxvar)
-  call MaterialAuxVarInit(material_auxvar,option)
-  material_auxvar%porosity = option%flow%reference_porosity
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
@@ -658,71 +634,6 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   allocate(rt_sec_transport_vars% &
            updated_conc(reaction%naqcomp,rt_sec_transport_vars%ncells))
 
-
-  initial_flow_condition => initial_condition%flow_condition
-  do cell = 1, rt_sec_transport_vars%ncells
-    global_auxvar => initial_condition%tran_condition% &
-                       constraint_coupler_list%global_auxvar
-    rt_auxvar => rt_sec_transport_vars%sec_rt_auxvar(cell)
-    if (associated(initial_flow_condition)) then
-      if (associated(initial_flow_condition%pressure)) then
-        if (associated(initial_flow_condition%pressure%dataset)) then
-          global_auxvar%pres = &
-            initial_flow_condition%pressure%dataset%rarray(1)
-        else
-          global_auxvar%pres = option%flow%reference_pressure
-        endif
-      else
-        global_auxvar%pres = option%flow%reference_pressure
-      endif
-      if (associated(initial_flow_condition%temperature)) then
-        if (associated(initial_flow_condition%temperature%dataset)) then
-          global_auxvar%temp  = &
-            initial_flow_condition%temperature%dataset%rarray(1)
-        else
-          global_auxvar%temp = option%flow%reference_temperature
-        endif
-      else
-        global_auxvar%temp = option%flow%reference_temperature
-      endif
-
-      call EOSWaterDensity(global_auxvar%temp, &
-                           global_auxvar%pres(1), &
-                           global_auxvar%den_kg(1), &
-                           dum1,ierr)
-    else
-      global_auxvar%pres = option%flow%reference_pressure
-      global_auxvar%temp = option%flow%reference_temperature
-      global_auxvar%den_kg(option%liquid_phase) = &
-        option%flow%reference_density(option%liquid_phase)
-
-    endif
-    global_auxvar%sat = option%flow%reference_saturation
-
-    if (option%transport%nphase > option%nphase) then
-      ! gas phase not considered explicitly on flow side
-      global_auxvar%den_kg(option%gas_phase) = &
-        option%flow%reference_density(option%gas_phase)
-      global_auxvar%sat(option%gas_phase) = &
-        1.d0 - global_auxvar%sat(option%liquid_phase)
-    endif
-
-    !Use multicontinuum sorption
-    reaction%mc_flag = 1
-    call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
-                          material_auxvar, &
-                          reaction,constraint, &
-                          num_iterations, &
-                          PETSC_FALSE,option)
-    reaction%mc_flag = 0
-
-    rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal
-
-  enddo
-
-  call MaterialAuxVarStrip(material_auxvar)
-  deallocate(material_auxvar)
-
   rt_sec_transport_vars%sec_jac_update = PETSC_FALSE
   rt_sec_transport_vars%sec_jac = 0.d0
   rt_sec_transport_vars%cxm = 0.d0
@@ -732,6 +643,80 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
 
 end subroutine SecondaryRTAuxVarInit
 
+! ************************************************************************** !
+subroutine SecondaryHeatAuxVarInit(multicontinuum, &
+                               epsilon,half_matrix_width, &
+                               sec_heat_vars, initial_condition,option)
+
+  ! Initializes all the secondary continuum heat
+  ! transport variables
+  !
+  ! Author: Rosie Leone
+  ! Date: 03/27/23
+  
+  use Material_module
+  use Coupler_module
+  use Option_module
+
+  implicit none
+
+  type(sec_heat_type) :: sec_heat_vars
+  type(multicontinuum_property_type) :: multicontinuum
+  type(coupler_type), pointer :: initial_condition
+  type(option_type), pointer :: option
+
+  
+  PetscReal :: epsilon
+  PetscReal :: half_matrix_width
+  PetscReal :: area_per_vol
+  
+  call SecondaryContinuumSetProperties( &
+       sec_heat_vars%sec_continuum, &
+       multicontinuum%name, &
+       half_matrix_width, &
+       multicontinuum%matrix_block_size, &
+       multicontinuum%fracture_spacing, &
+       multicontinuum%radius, &
+       multicontinuum%porosity, &
+       option)
+
+  sec_heat_vars%ncells = multicontinuum%ncells
+  sec_heat_vars%half_aperture = multicontinuum%half_aperture
+  sec_heat_vars%epsilon = epsilon
+  sec_heat_vars%log_spacing = multicontinuum%log_spacing
+  sec_heat_vars%outer_spacing = multicontinuum%outer_spacing
+
+  allocate(sec_heat_vars%area(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%vol(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%dm_minus(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%dm_plus(sec_heat_vars%ncells))
+  allocate(sec_heat_vars%sec_continuum%distance(sec_heat_vars%ncells))
+
+  call SecondaryContinuumType(sec_heat_vars%sec_continuum, &
+                              sec_heat_vars%ncells, &
+                              sec_heat_vars%area, &
+                              sec_heat_vars%vol, &
+                              sec_heat_vars%dm_minus, &
+                              sec_heat_vars%dm_plus, &
+                              sec_heat_vars%half_aperture, &
+                              sec_heat_vars%epsilon, &
+                              sec_heat_vars%log_spacing, &
+                              sec_heat_vars%outer_spacing, &
+                              area_per_vol, option)
+
+  sec_heat_vars%interfacial_area = area_per_vol * &
+       (1.d0 - sec_heat_vars%epsilon) * multicontinuum%area_scaling
+
+  allocate(sec_heat_vars%sec_temp(sec_heat_vars%ncells))
+
+  if (option%flow%set_secondary_init_temp) then
+     sec_heat_vars%sec_temp = multicontinuum%init_temp
+  else
+     sec_heat_vars%sec_temp = initial_condition%flow_condition%temperature%dataset%rarray(1)
+  endif
+
+end subroutine SecondaryHeatAuxVarInit
+  
 ! ************************************************************************** !
 
 subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
@@ -2013,9 +1998,9 @@ end subroutine SecondaryRTAuxVarComputeMulti
 
 ! ************************************************************************** !
 
-subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
-                                   therm_conductivity,dencpr, &
-                                   option)
+subroutine SecHeatAuxVarCompute(sec_heat_vars, &
+                                therm_conductivity,dencpr, &
+                                temp_primary_node,option)
   !
   ! Computes secondary auxillary variables for each
   ! grid cell for heat transfer only
@@ -2025,12 +2010,10 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   !
 
   use Option_module
-  use Global_Aux_module
 
   implicit none
 
   type(sec_heat_type) :: sec_heat_vars
-  type(global_auxvar_type) :: global_auxvar
   type(option_type) :: option
   PetscReal :: coeff_left(sec_heat_vars%ncells)
   PetscReal :: coeff_diag(sec_heat_vars%ncells)
@@ -2053,7 +2036,6 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   dm_plus = sec_heat_vars%dm_plus
   dm_minus = sec_heat_vars%dm_minus
   area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_auxvar%temp
 
   coeff_left = 0.d0
   coeff_diag = 0.d0
@@ -2105,205 +2087,7 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
 
   sec_heat_vars%sec_temp = sec_temp
 
-end subroutine THCSecHeatAuxVarCompute
-
-! ************************************************************************** !
-
-subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
-                                   therm_conductivity,dencpr, &
-                                   option)
-  !
-  ! Computes secondary auxillary variables for each
-  ! grid cell for heat transfer only
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/5/12
-  !
-
-  use Option_module
-  use Global_Aux_module
-
-  implicit none
-
-  type(sec_heat_type) :: sec_heat_vars
-  type(global_auxvar_type) :: global_auxvar
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: temp_primary_node
-  PetscReal :: m
-
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  dm_minus = sec_heat_vars%dm_minus
-  area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_auxvar%temp
-
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-  sec_temp = 0.d0
-
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-
-  ! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-
-  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + &
-                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
-                 temp_primary_node
-
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    rhs(i) = rhs(i) - m*rhs(i-1)
-  enddo
-
-  ! Back substitution
-  ! Calculate temperature in the secondary continuum
-  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
-  do i = ngcells-1, 1, -1
-    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
-  enddo
-
-  sec_heat_vars%sec_temp = sec_temp
-
-end subroutine THSecHeatAuxVarCompute
-
-! ************************************************************************** !
-
-subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
-                                   therm_conductivity,dencpr, &
-                                   option)
-  !
-  ! Computes secondary auxillary variables in each
-  ! grid cell for heat transfer only
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/28/12
-  !
-
-  use Option_module
-  use Global_Aux_module
-  use Mphase_Aux_module
-
-  implicit none
-
-  type(sec_heat_type) :: sec_heat_vars
-  type(mphase_auxvar_elem_type) :: auxvar
-  type(global_auxvar_type) :: global_auxvar
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: temp_primary_node
-  PetscReal :: m
-
-
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  dm_minus = sec_heat_vars%dm_minus
-  area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = auxvar%temp
-
-
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-  sec_temp = 0.d0
-
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-
-  ! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + &
-                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
-                 temp_primary_node
-
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    rhs(i) = rhs(i) - m*rhs(i-1)
-  enddo
-
-  ! Back substitution
-  ! Calculate temperature in the secondary continuum
-  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
-  do i = ngcells-1, 1, -1
-    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
-  enddo
-
-! print *,'temp_dcdm= ',(sec_temp(i),i=1,ngcells)
-
-  sec_heat_vars%sec_temp = sec_temp
-
-
-end subroutine MphaseSecHeatAuxVarCompute
+end subroutine SecHeatAuxVarCompute
 
 ! ************************************************************************** !
 
@@ -2343,31 +2127,31 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1,grid%nlmax
         vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(local_id)% &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           updated_conc(isubvar,mc_layer)
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
         vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(local_id)% &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar)
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
         vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(local_id)% &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar)
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
         vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(local_id)% &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
         vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(local_id)% &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
       enddo
   end select
@@ -2420,27 +2204,27 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(local_id)% &
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           updated_conc(isubvar,mc_layer) = vec_p(local_id)
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(local_id)% &
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(local_id)% &
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(local_id)% &
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(local_id)% &
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
       enddo
   end select
@@ -2448,6 +2232,186 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SecondaryRTSetVariable
+
+! ************************************************************************** !
+
+subroutine SecondaryHeatResidual(sec_heat_vars, &
+                                 therm_conductivity,dencpr, &
+                                 temp_primary_node,option,res_heat)
+
+  ! Calculates the source term contribution due to secondary
+  ! continuum in the primary continuum residual
+  !
+  ! Author: Satish, Karra, LANL
+  ! Date 06/2/12
+  
+  use Option_module
+
+  implicit none
+
+  type(sec_heat_type) :: sec_heat_vars
+  type(option_type) :: option
+  PetscReal :: therm_conductivity,dencpr,temp_primary_node
+  PetscReal :: res_heat
+
+  PetscReal :: coeff_left(sec_heat_vars%ncells)
+  PetscReal :: coeff_diag(sec_heat_vars%ncells)
+  PetscReal :: coeff_right(sec_heat_vars%ncells)
+  PetscReal :: rhs(sec_heat_vars%ncells)
+  PetscReal :: area(sec_heat_vars%ncells)
+  PetscReal :: vol(sec_heat_vars%ncells)
+  PetscReal :: dm_plus(sec_heat_vars%ncells)
+  PetscReal :: dm_minus(sec_heat_vars%ncells)
+  PetscInt :: i, ngcells
+  PetscReal :: area_fm
+  PetscReal :: alpha
+  PetscReal :: m
+  PetscReal :: temp_current_N
+
+  ngcells = sec_heat_vars%ncells
+  area = sec_heat_vars%area
+  vol = sec_heat_vars%vol
+  dm_plus = sec_heat_vars%dm_plus
+  dm_minus = sec_heat_vars%dm_minus
+  area_fm = sec_heat_vars%interfacial_area
+
+  coeff_left = 0.d0
+  coeff_diag = 0.d0
+  coeff_right = 0.d0
+  rhs = 0.d0
+
+  alpha = option%flow_dt*therm_conductivity/dencpr
+
+
+! Setting the coefficients
+  do i = 2, ngcells-1
+    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
+    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
+                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
+    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
+  enddo
+
+  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
+  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
+
+  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
+  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
+                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
+                       + 1.d0
+
+  ! secondary continuum values from previous time step
+  rhs = sec_heat_vars%sec_temp
+  rhs(ngcells) = rhs(ngcells) + &
+                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
+                 temp_primary_node
+
+  ! Thomas algorithm for tridiagonal system
+  ! Forward elimination
+  do i = 2, ngcells
+    m = coeff_left(i)/coeff_diag(i-1)
+    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
+    rhs(i) = rhs(i) - m*rhs(i-1)
+  enddo
+
+  ! Back substitution
+  ! We only need the temperature at the outer-most node (closest to
+  ! primary node)
+  temp_current_N = rhs(ngcells)/coeff_diag(ngcells)
+
+  ! Calculate the coupling term
+  res_heat = area_fm*therm_conductivity*(temp_current_N - temp_primary_node)/ &
+             dm_plus(ngcells)
+
+end subroutine SecondaryHeatResidual
+
+! ************************************************************************** !
+
+subroutine SecondaryHeatJacobian(sec_heat_vars,therm_conductivity, &
+                                 dencpr,option,jac_heat)
+  !
+  ! Calculates the source term jacobian contribution
+  ! due to secondary continuum in the primary continuum residual
+  !
+  ! Author: Satish Karra, LANL
+  ! Date: 06/6/12
+  !
+
+  use Option_module
+  use Global_Aux_module
+  use Secondary_Continuum_Aux_module
+
+  implicit none  
+
+  type(sec_heat_type) :: sec_heat_vars
+  type(option_type) :: option
+  PetscReal :: coeff_left(sec_heat_vars%ncells)
+  PetscReal :: coeff_diag(sec_heat_vars%ncells)
+  PetscReal :: coeff_right(sec_heat_vars%ncells)
+  PetscReal :: rhs(sec_heat_vars%ncells)
+  PetscReal :: area(sec_heat_vars%ncells)
+  PetscReal :: vol(sec_heat_vars%ncells)
+  PetscReal :: dm_plus(sec_heat_vars%ncells)
+  PetscReal :: dm_minus(sec_heat_vars%ncells)
+  PetscInt :: i, ngcells
+  PetscReal :: area_fm
+  PetscReal :: alpha, therm_conductivity, dencpr
+  PetscReal :: m
+  PetscReal :: Dtemp_N_Dtemp_prim
+  PetscReal :: jac_heat
+
+  ngcells = sec_heat_vars%ncells
+  area = sec_heat_vars%area
+  vol = sec_heat_vars%vol
+  dm_plus = sec_heat_vars%dm_plus
+  area_fm = sec_heat_vars%interfacial_area
+  dm_minus = sec_heat_vars%dm_minus
+
+  coeff_left = 0.d0
+  coeff_diag = 0.d0
+  coeff_right = 0.d0
+  rhs = 0.d0
+
+  alpha = option%flow_dt*therm_conductivity/dencpr
+
+! Setting the coefficients
+  do i = 2, ngcells-1
+    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
+    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
+                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
+    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
+  enddo
+
+  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
+  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
+
+  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
+  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
+                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
+                       + 1.d0
+
+  ! Thomas algorithm for tridiagonal system
+  ! Forward elimination
+  do i = 2, ngcells
+    m = coeff_left(i)/coeff_diag(i-1)
+    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
+    ! We do not have to calculate rhs terms
+  enddo
+
+  ! We need the temperature derivative at the outer-most node (closest
+  ! to primary node)
+  Dtemp_N_Dtemp_prim = 1.d0/coeff_diag(ngcells)*alpha*area(ngcells)/ &
+                       (dm_plus(ngcells)*vol(ngcells))
+
+  ! Calculate the jacobian term
+  jac_heat = area_fm*therm_conductivity*(Dtemp_N_Dtemp_prim - 1.d0)/ &
+             dm_plus(ngcells)
+
+
+end subroutine SecondaryHeatJacobian
 
 end module Secondary_Continuum_module
 

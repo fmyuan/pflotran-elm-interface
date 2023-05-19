@@ -4,6 +4,7 @@ module Option_Inversion_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use Communicator_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -11,6 +12,10 @@ module Option_Inversion_module
   private
 
   type, public :: inversion_option_type
+    type(comm_type), pointer :: invcomm
+    type(comm_type), pointer :: forcomm
+    type(comm_type), pointer :: forcomm_i
+    PetscInt :: num_process_groups
     PetscBool :: use_perturbation
     PetscBool :: perturbation_run
     PetscBool :: coupled_flow_ert
@@ -71,6 +76,11 @@ subroutine OptionInversionInit(option)
 
   type(inversion_option_type) :: option
 
+  nullify(option%invcomm)
+  nullify(option%forcomm)
+  nullify(option%forcomm_i)
+  option%num_process_groups = 1
+
   option%use_perturbation = PETSC_FALSE
   option%perturbation_run = PETSC_FALSE
   option%coupled_flow_ert = PETSC_FALSE
@@ -104,6 +114,10 @@ subroutine OptionInversionDestroy(option)
   type(inversion_option_type), pointer :: option
 
   if (.not.associated(option)) return
+
+  call CommDestroy(option%invcomm)
+  call CommDestroy(option%forcomm)
+  call CommDestroy(option%forcomm_i)
 
   deallocate(option)
   nullify(option)

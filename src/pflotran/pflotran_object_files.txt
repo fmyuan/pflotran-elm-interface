@@ -135,18 +135,19 @@ chem_obj = \
 	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
+	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_calcite.o \
 	${common_src}reaction_sandbox_chromium.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_equilibrate.o \
-	${common_src}reaction_sandbox_biohill.o \
 	${common_src}reaction_sandbox_flexbiohill.o \
+	${common_src}reaction_sandbox_gas.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_pnnl_lambda.o \
-	${common_src}reaction_sandbox_gas.o \
+	${common_src}reaction_sandbox_radon.o \
 	${common_src}reaction_sandbox_simple.o \
-	${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
@@ -262,6 +263,7 @@ misc_obj = \
 	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
+	${common_src}realization_common.o \
 	${common_src}realization_subsurface.o \
 	${common_src}region.o \
 	${common_src}regression.o \

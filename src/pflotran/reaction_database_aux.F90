@@ -589,6 +589,7 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
   ! Date: 01/07/13
   !
   use Option_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -605,11 +606,13 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
 
   DatabaseCheckLegitimateLogKs = PETSC_TRUE
 
-  if (.not.associated(dbaserxn) .or. option%use_isothermal) return
+  if (.not.associated(dbaserxn)) return
+  if (option%use_isothermal .and. &
+      Equal(option%flow%reference_temperature,25.d0)) return
 
   string = ''
   do itemp = 1, size(dbaserxn%logK)
-    if (dabs(dbaserxn%logK(itemp) - 500.) < 1.d-10) then
+    if (Equal(dabs(dbaserxn%logK(itemp)),500.d0)) then
       write(word,'(f5.1)') temperatures(itemp)
       string = trim(string) // ' ' // word
       DatabaseCheckLegitimateLogKs = PETSC_FALSE
@@ -617,10 +620,10 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
   enddo
 
   if (.not.DatabaseCheckLegitimateLogKs) then
-    option%io_buffer = 'Undefined log Ks for temperatures (' // &
+    option%io_buffer = ' ERROR: Undefined log Ks for temperatures (' // &
                        trim(adjustl(string)) // ') for species "' // &
                        trim(species_name) // '" in database.'
-    call PrintWrnMsg(option)
+    call PrintMsg(option)
   endif
 
 end function DatabaseCheckLegitimateLogKs
