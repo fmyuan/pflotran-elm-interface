@@ -1523,9 +1523,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type), pointer :: option
-  PetscReal :: ratio, min_ratio, a, b
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, k
+  PetscInt :: k
   PetscReal,parameter :: TOL=1.0d-20
 
   grid => this%realization%patch%grid
