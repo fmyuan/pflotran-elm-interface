@@ -1801,27 +1801,31 @@ subroutine PMGeneralMaxChange(this)
   call MPI_Allreduce(max_change_local,max_change_global,max_change_index, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ! print them out
-  if (option%nflowdof == 3) then
-   write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:max_change_index)
-  elseif (option%nflowdof == 4) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-      & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
-      max_change_global(1:max_change_index)
+  if (OptionPrintToScreen(option)) then
+    if (option%nflowdof == 3) then
+     write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+        & " dsg= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    elseif (option%nflowdof == 4) then
+      write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+        & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    endif
   endif
-  if (option%nflowdof == 3) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:max_change_index)
-  elseif (option%nflowdof == 4) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-      & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
-      max_change_global(1:max_change_index)
+  if (OptionPrintToFile(option)) then
+    if (option%nflowdof == 3) then
+      write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
+        & " dsg= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    elseif (option%nflowdof == 4) then
+      write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+        & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    endif
   endif
 
   this%max_pressure_change = maxval(max_change_global(1:2))
