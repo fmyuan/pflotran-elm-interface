@@ -56,7 +56,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: dx_conn, dy_conn, dz_conn
   PetscReal :: rho_kg, rho_one, rho_zero, pressure, pressure0, pressure_at_datum
   PetscReal :: temperature_at_datum, temperature
-  PetscReal :: concentration_at_datum
+  PetscReal :: concentration_at_datum, salt_fraction_at_datum
   PetscReal :: gas_pressure
   PetscReal :: xm_nacl
   PetscReal :: max_z, min_z, temp_real
@@ -85,7 +85,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
   xm_nacl = option%m_nacl * FMWNACL
   xm_nacl = xm_nacl /(1.d3 + xm_nacl)
-  aux(1) = xm_nacl
+  if (general_salt) then
+    aux(1) = condition%general%salt_mole_fraction%dataset%rarray(1)
+  else
+    aux(1) = xm_nacl
+  endif
 
   nullify(pressure_array)
   nullify(datum_dataset)
@@ -130,6 +134,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         concentration_at_datum = GENERAL_IMMISCIBLE_VALUE
         concentration_gradient = 0.d0
       endif
+      if (general_salt) then
+        salt_fraction_at_datum = &
+        condition%general%salt_mole_fraction%dataset%rarray(1)
+      endif
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)
       gas_pressure = option%flow%reference_pressure
@@ -145,6 +153,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_LIQUID_PRESSURE_INDEX) = 1
       coupler%flow_aux_mapping(GENERAL_MOLE_FRACTION_INDEX) = 2
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
+      if (general_salt) then
+        coupler%flow_aux_mapping(GENERAL_SALT_INDEX) = 4
+      endif
       ! for two-phase state
       coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = 1
       ! air pressure here is being hijacked to store capillary pressure
@@ -654,7 +665,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           coupler%flow_aux_real_var(2,iconn) = gas_pressure - pressure
           coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = TWO_PHASE_STATE
         else
-          coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
+           coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
+          if (general_salt) then
+            coupler%flow_aux_real_var(4,iconn) = salt_fraction_at_datum  
+          endif
           coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
         endif
       case(H_MODE)
