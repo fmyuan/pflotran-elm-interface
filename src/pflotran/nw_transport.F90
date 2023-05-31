@@ -452,7 +452,22 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
               nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
                                                           xx_loc_p(istart:iend)
               equilibrate = PETSC_TRUE
+            else 
+              do ispecies = 1,reaction_nw%params%nspecies
+                nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+                                           nwt_auxvar%total_bulk_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = &
+                                           nwt_auxvar%aqueous_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = &
+                                              nwt_auxvar%sorb_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = &
+                                              nwt_auxvar%mnrl_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
+                                             nwt_auxvar%mnrl_vol_frac(ispecies)
+                equilibrate = PETSC_FALSE
+              enddo 
             endif
+
         !---------------------------------------------------
           case default
             option%io_buffer = 'Unrecognized NWT MODE BC type in the &
