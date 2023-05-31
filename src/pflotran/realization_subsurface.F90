@@ -94,7 +94,8 @@ private
             RealizUnInitializedVarsTran, &
             RealizationLimitDTByCFL, &
             RealizationReadGeopSurveyFile, &
-            RealizationCheckConsistency
+            RealizationCheckConsistency, &
+            RealizationPrintStateAtCells
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -1596,13 +1597,96 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
       trim(tran_condition%name)
     select type(c=>constraint_coupler)
       class is (tran_constraint_coupler_rt_type)
-        call ReactionPrintConstraint(c,reaction,option)
+        call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar,c, &
+                                     reaction,option)
         write(option%fid_out,'(/)')
         write(option%fid_out,99)
     end select
   endif
 
 end subroutine RealizationPrintCoupler
+
+! ************************************************************************** !
+
+subroutine RealizationPrintStateAtCells(realization)
+  !
+  ! loops over cells and prints their reactive transport states
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/21/23
+
+  use String_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  PetscInt :: i
+  PetscInt :: icell
+
+  if (.not.associated(realization%reaction%print_cells)) return
+
+  if (realization%option%comm%size > 1) then
+    call PrintErrMsg(realization%option,'Printing of cell states for &
+           &reactive transport not supported in parallel.')
+  endif
+  i = maxval(realization%reaction%print_cells)
+  if (i > realization%discretization%grid%nmax) then
+    realization%option%io_buffer = 'A cell id (' // &
+      StringWrite(i) // ') specified under CHEMISTRY,&
+      &OUTPUT,PRINT_CELLS is larger than the maximum cell id (' // &
+      StringWrite(realization%discretization%grid%nmax) // ').'
+    call PrintErrMsg(realization%option)
+  endif
+
+  write(realization%option%fid_out,'(/,40("+="),//,&
+        &"  States at select cells")')
+  do i = 1, size(realization%reaction%print_cells)
+    icell = realization%reaction%print_cells(i)
+    write(realization%option%fid_out,'(/,80("-"),//,"  State at cell ",a,/)') &
+      StringWrite(icell)
+    call RealizationPrintStateAtCell( &
+           realization%patch%aux%Global%auxvars(icell), &
+           realization%patch%aux%RT%auxvars(icell), &
+           realization%reaction,realization%option)
+  enddo
+  if (i > 1) write(realization%option%fid_out,'(/,40("+="),/)')
+
+end subroutine RealizationPrintStateAtCells
+
+! ************************************************************************** !
+
+subroutine RealizationPrintStateAtCell(global_auxvar,rt_auxvar, &
+                                       reaction,option)
+  !
+  ! Prints reactive transport state variabiables for a given grid cell
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/21/23
+  !
+  use Global_Aux_module
+  use Option_module
+  use Reaction_module
+  use Reaction_Aux_module
+  use Reactive_Transport_Aux_module
+  use Transport_Constraint_RT_module
+
+  implicit none
+
+  type(global_auxvar_type) :: global_auxvar
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  class(tran_constraint_coupler_rt_type), pointer :: null_constraint_coupler
+
+  nullify(null_constraint_coupler)
+
+  call ReactionPrintConstraint(global_auxvar,rt_auxvar, &
+                               null_constraint_coupler, &
+                               reaction,option)
+
+end subroutine RealizationPrintStateAtCell
 
 ! ************************************************************************** !
 
@@ -1896,7 +1980,8 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   cur_flow_condition => realization%flow_conditions%first
   do
     if (.not.associated(cur_flow_condition)) exit
-    if (cur_flow_condition%sync_time_with_update) then
+    if (FlowConditionHasRateOrFlux(cur_flow_condition) .or. &
+        cur_flow_condition%sync_time_with_update) then
       do isub_condition = 1, cur_flow_condition%num_sub_conditions
         sub_condition => cur_flow_condition%sub_condition_ptr(isub_condition)%ptr
         !TODO(geh): check if this updated more than simply the flow_dataset (i.e. datum and gradient)

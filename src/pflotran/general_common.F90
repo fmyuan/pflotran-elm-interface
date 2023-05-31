@@ -23,6 +23,7 @@ module General_Common_module
 #define WATER_SRCSINK
 #define AIR_SRCSINK
 #define ENERGY_SRCSINK
+#define SALT_SRCSINK
 
 !#define DEBUG_FLUXES
 
@@ -72,7 +73,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   PetscBool :: analytical_derivatives
   PetscBool :: debug_cell
 
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: wat_comp_id, air_comp_id, energy_id, salt_id
   PetscInt :: icomp, iphase
 
   PetscReal :: porosity
@@ -81,6 +82,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  salt_id = option%salt_id
 
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
@@ -116,6 +118,14 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   !                 vol[m^3 bulk] / dt[sec]
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
+  if (general_soluble_matrix) then
+    ! Res[kmol/sec] = Res[kmol/sec] + (1-por)[m^3 solid/m^3 bulk] * den[kmol/m^3]
+    !                 * vol[m^3 bulk] / dt[sec]
+    Res(option%salt_id) = Res(option%salt_id) + (1.d0 - porosity) * &
+                            PRECIPITATE_DENSITY * &
+                            volume_over_dt
+    !
+  endif
 
   do iphase = 1, option%nphase
     ! Res[MJ/m^3 void] = sat[m^3 phase/m^3 void] *
@@ -452,7 +462,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: dist_up, dist_dn
   PetscReal :: upweight
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: wat_comp_id, air_comp_id, energy_id, salt_comp_id
   PetscInt :: iphase
 
   PetscReal :: xmol(option%nflowspec)
@@ -461,6 +471,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure, delta_xmol, delta_temp
+  PetscReal :: delta_xsmol
   PetscReal :: xmol_air_up, xmol_air_dn
   PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
   PetscReal :: delta_X_whatever
@@ -468,6 +479,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: gravity_term
   PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
+  PetscReal :: tot_mole_flux1, salt_mole_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist, tempreal
@@ -497,7 +509,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dsatup, dsatdn
   PetscReal :: delta_X_whatever_dxmolup, delta_X_whatever_dxmoldn
   PetscReal :: dxmass_air_up_dxmol_air_up, dxmass_air_dn_dxmol_air_dn
-  PetscReal :: dtot_mole_flux_dstpd, dtot_mole_flux_ddeltaX
+  PetscReal :: dtot_mole_flux_dstpd
+  PetscReal :: dtot_mole_flux_ddeltaX, dtot_mole_flux_ddeltaS
+  PetscReal :: dtot_mole_flux_dstpd1, dtot_mole_flux_ddenave1
   PetscReal :: dtot_mole_flux_ddenave
   PetscReal :: diffusion_scale
   PetscReal :: ddiffusion_coef_dTup, ddiffusion_coef_dTdn
@@ -518,6 +532,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  salt_comp_id = option%salt_id
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
@@ -648,6 +663,10 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
       Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
       Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+      if (general_salt) then
+        salt_mole_flux = tot_mole_flux * xmol(salt_comp_id)
+        Res(salt_comp_id) = Res(salt_comp_id) + salt_mole_flux
+      endif
 
       if (analytical_derivatives) then
         Jlup = 0.d0
@@ -1569,6 +1588,10 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       delta_X_whatever = delta_xmol
       delta_X_whatever_dxmolup = 1.d0
       delta_X_whatever_dxmoldn = -1.d0
+      if (general_salt) then
+        delta_xsmol = gen_auxvar_up%xmol(salt_comp_id,iphase) - &
+                      gen_auxvar_dn%xmol(salt_comp_id,iphase)
+      endif
     else ! delta of mass fraction
       xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
       xmol_air_dn = gen_auxvar_dn%xmol(air_comp_id,iphase)
@@ -1588,11 +1611,22 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
+    dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
+                             general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
+                             area
+
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
+    if (general_salt) then
+      tot_mole_flux1 = dtot_mole_flux_ddeltaS * delta_xsmol
+      dtot_mole_flux_dstpd1 = tot_mole_flux1 / stpd_ave_over_dist
+      dtot_mole_flux_ddenave1 = tot_mole_flux1 / density_ave
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
+      Res(salt_comp_id) = Res(salt_comp_id) + tot_mole_flux1
+    endif
 
     if (analytical_derivatives) then
 
@@ -2490,13 +2524,15 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
   class(cc_thermal_type) :: thermal_cc_dn
-  PetscReal :: J(3,3)
+  PetscReal :: J(option%nflowdof,option%nflowdof)
   PetscBool :: analytical_derivatives
   PetscBool :: update_upwind_direction_
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
+  PetscBool :: dirichlet_solute = PETSC_FALSE
 
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+
+  PetscInt :: wat_comp_id, air_comp_id, energy_id, salt_comp_id
   PetscInt :: iphase
   PetscInt :: bc_type
   PetscReal :: xmol(option%nflowspec)
@@ -2506,9 +2542,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: perm_ave_over_dist
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure, delta_xmol, delta_temp
+  PetscReal :: delta_xsmol
   PetscReal :: gravity_term
   PetscReal :: mobility, q, kr
-  PetscReal :: tot_mole_flux
+  PetscReal :: tot_mole_flux, tot_mole_flux1
   PetscReal :: sat_dn, perm_dn, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist
   PetscReal :: k_eff_dn, k_eff_ave, heat_flux
@@ -2517,7 +2554,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: xmol_air_up, xmol_air_dn
   PetscReal :: tempreal
   PetscReal :: delta_X_whatever
-  PetscReal :: wat_mole_flux, air_mole_flux
+  PetscReal :: wat_mole_flux, air_mole_flux, salt_mole_flux
   PetscBool :: upwind
 
   ! Darcy flux
@@ -2545,6 +2582,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: delta_X_whatever_dxmoldn
   PetscReal :: dxmass_air_dn_dxmol_air_dn
   PetscReal :: dtot_mole_flux_dstpd, dtot_mole_flux_ddeltaX
+  PetscReal :: dtot_mole_flux_ddeltaS
+  PetscReal :: dtot_mole_flux_dstpd1, dtot_mole_flux_ddenave1
   PetscReal :: dtot_mole_flux_ddenave
   PetscReal :: diffusion_scale
   PetscReal :: ddiffusion_coef_dTdn
@@ -2571,6 +2610,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  salt_comp_id = option%salt_id
 
   Res = 0.d0
   J = 0.d0
@@ -2744,8 +2784,14 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       !geh: we should read in the mole fraction for both phases as the
       !     enthalpy, etc. applies to phase, not pure component.
       xmol(iphase) = 1.d0
+      !     if liquid flux is set to 0, SALT_MOLE_FRACTION becomes a dirichlet BC
+      !     if liquid flux is non-zero, SALT_MOLE_FRACTION becomes mole fraction of flux fluid
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
+        if (general_salt) then
+          xmol(option%salt_id) = auxvars(GENERAL_LIQUID_STATE_S_MOLE_DOF)
+          xmol(iphase) = 1.d0 - xmol(option%salt_id)
+        endif
         if (v_darcy(iphase) > 0.d0) then
           density_ave = gen_auxvar_up%den(iphase)
           uH = gen_auxvar_up%H(iphase)
@@ -2777,7 +2823,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
     Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
-
+    if (general_salt) then
+      salt_mole_flux = tot_mole_flux * xmol(salt_comp_id)
+      Res(salt_comp_id) = Res(salt_comp_id) + salt_mole_flux
+    endif
     if (analytical_derivatives) then
       Jl = 0.d0
       select case(global_auxvar_dn%istate)
@@ -3338,8 +3387,21 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! liquid diffusion always exists as the internal cell has a liquid phase,
   ! but gas phase diffusion only occurs if the internal cell has a gas
   ! phase.
+  
+  ! This checks for a dirichlet condition on either solute
+  if (general_salt) then
+    if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
+        ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
+      dirichlet_solute = PETSC_TRUE
+    endif
+  elseif (.not. general_salt) then
+    if (ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
+      dirichlet_solute = PETSC_TRUE
+    endif
+  endif
   sat_dn = gen_auxvar_dn%sat(iphase)
-  if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
+  if ((sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) &
+      .or. (ibndtype(iphase)==NEUMANN_BC .and. dirichlet_solute)) then
     if (general_harmonic_diff_density) then
       ! density_ave in this case is not used.
       density_ave = 1.d0
@@ -3375,9 +3437,18 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     if (general_diffuse_xmol) then ! delta of mole fraction
       delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
                    gen_auxvar_dn%xmol(air_comp_id,iphase)
+      if (general_salt) then
+        delta_xsmol = gen_auxvar_up%xmol(salt_comp_id,iphase) - &
+                      gen_auxvar_dn%xmol(salt_comp_id,iphase)
+      endif
       delta_X_whatever = delta_xmol
       delta_X_whatever_dxmoldn = -1.d0
     else ! delta of mass fraction
+      ! 4th dof not implemented here.
+      if (general_salt) then
+        option%io_buffer = 'Mass-based flux not implented for general mode with fully coupled salt transport.'
+        call PrintErrMsg(option)
+      endif
       xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
       xmol_air_dn = gen_auxvar_dn%xmol(air_comp_id,iphase)
       tempreal = (xmol_air_up*fmw_comp(2) + (1.d0-xmol_air_up)*fmw_comp(1))
@@ -3394,11 +3465,23 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
+    dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
+                             general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
+                             area
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
+    if (general_salt) then
+      tot_mole_flux1 = dtot_mole_flux_ddeltaS * delta_xsmol
+      dtot_mole_flux_dstpd1 = tot_mole_flux1 / stpd_ave_over_dist
+      dtot_mole_flux_ddenave1 = tot_mole_flux1 / density_ave
+      !DF: The diffusion of dissolved air (above) is equal and opposite to water.
+      !    This is not currently being applied to salt.
+      !Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux1
+      Res(salt_comp_id) = Res(salt_comp_id) + tot_mole_flux1
+    endif
 
     if (analytical_derivatives) then
       Jl = 0.d0
@@ -3916,11 +3999,11 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscBool :: aux_var_compute_only
   PetscBool :: debug_cell
 
-  PetscReal :: qsrc(THREE_INTEGER)
+  PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: wat_comp_id, air_comp_id, energy_id, salt_comp_id
   PetscReal :: Jl(option%nflowdof,option%nflowdof)
   PetscReal :: Jg(option%nflowdof,option%nflowdof)
   PetscReal :: Je(option%nflowdof,option%nflowdof)
@@ -3928,15 +4011,17 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscReal :: mob_tot
   PetscReal :: cell_pressure
-  PetscReal :: xxss(THREE_INTEGER)
-  PetscInt :: lid, gid, apid
+  PetscReal :: xxss(option%nflowdof)
+  PetscInt :: lid, gid, pid, apid
 
   lid = option%liquid_phase
   gid = option%gas_phase
+  pid = option%precipitate_phase
   apid = option%air_pressure_id
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  salt_comp_id = option%salt_id
 
   Res = 0.d0
   J = 0.d0
@@ -3946,6 +4031,13 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                      liquid_phase:option%gas_phase))
   xxss(2) = gen_auxvar_ss%sat(gid)
   xxss(3) = gen_auxvar_ss%temp
+  if (general_salt) then
+    if (general_soluble_matrix) then
+      xxss(4) = gen_auxvar_ss%effective_porosity
+    else
+      xxss(4) = gen_auxvar_ss%sat(pid)
+    endif
+  endif  
 
   cell_pressure = maxval(gen_auxvar%pres(option%liquid_phase: &
                          option%gas_phase))
@@ -3956,8 +4048,11 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     xxss(ONE_INTEGER) = cell_pressure
     select case(global_auxvar%istate)
       case(LIQUID_STATE)
-        xxss(TWO_INTEGER) = gen_auxvar%xmol(air_comp_id,wat_comp_id)
+        xxss(TWO_INTEGER) = gen_auxvar%xmol(air_comp_id,lid)
         xxss(THREE_INTEGER) = gen_auxvar%temp
+        if (general_salt) then
+          xxss(FOUR_INTEGER) = gen_auxvar%xmol(salt_comp_id,lid)
+        endif
       case(GAS_STATE)
         if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
           xxss(TWO_INTEGER) = gen_auxvar%pres(apid)
@@ -3979,6 +4074,9 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       case(LIQUID_STATE)
         xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(air_comp_id, wat_comp_id)
         xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id, wat_comp_id)
+        endif
       case(GAS_STATE)
         if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
           xxss(TWO_INTEGER) = gen_auxvar_ss%pres(apid)
@@ -3993,16 +4091,32 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar_ss%pres(apid)
         endif
+        if (general_salt .and. .not. general_soluble_matrix) then
+          xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
+        elseif (general_salt .and. general_soluble_matrix) then
+          xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+        endif
+      case(LGP_STATE)
+        if (general_salt .and. .not. general_soluble_matrix) then
+           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
+        elseif (general_salt .and. general_soluble_matrix) then
+           xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+        endif
     end select
   endif
 
   option%iflag = GENERAL_UPDATE_FOR_SS
 
   ! Compute state variables
-  call GeneralAuxVarCompute(xxss,gen_auxvar_ss, global_auxvar_ss, &
-                            material_auxvar, characteristic_curves, &
-                            natural_id,option)
-
+  if (.not. general_salt) then
+    call GeneralAuxVarCompute(xxss,gen_auxvar_ss, global_auxvar_ss, &
+                              material_auxvar, characteristic_curves, &
+                              natural_id,option)
+  elseif (general_salt) then
+    call GeneralAuxVarCompute4(xxss,gen_auxvar_ss, global_auxvar_ss, &
+                              material_auxvar, characteristic_curves, &
+                              natural_id,option)
+  endif
   if (aux_var_compute_only) return
 
   qsrc_mol = 0.d0
@@ -4092,6 +4206,12 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                          gen_auxvar_ss%den(gid) / &
                          gen_auxvar_ss%den_kg(gid) * &
                          gen_auxvar_ss%h(gid)
+      endif
+
+      if (general_salt) then
+        option%io_buffer = 'TOTAL_MASS_RATE not set up &
+            &for salt in GeneralAuxVarComputeAndSrcSink.'
+        call PrintErrMsg(option)
       endif
   else
 
@@ -4249,8 +4369,52 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     endif
   endif
 
+  if (general_salt) then
+#ifdef SALT_SRCSINK
+    qsrc_mol = 0.d0
+    dden_bool = 0.d0
+    select case(flow_src_sink_type)
+      case(MASS_RATE_SS)
+        qsrc_mol = qsrc(salt_comp_id)/fmw_comp(salt_comp_id) ! kg/sec -> kmol/sec
+      case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
+        qsrc_mol = qsrc(salt_comp_id)/fmw_comp(salt_comp_id)*scale
+      case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+        ! qsrc1 = m^3/sec
+        ! den = kmol/m^3
+        qsrc_mol = qsrc(salt_comp_id)*gen_auxvar_ss%den(salt_comp_id)
+        dden_bool = 1.d0
+      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+        ! qsrc1 = m^3/sec             ! den = kmol/m^3
+        qsrc_mol = qsrc(salt_comp_id)* &
+                   gen_auxvar_ss%den(salt_comp_id)*scale
+        dden_bool = 1.d0
+    end select
+    ss_flow_vol_flux(salt_comp_id) = qsrc_mol / &
+                                    gen_auxvar_ss%den(salt_comp_id)
+    Res(salt_comp_id) = qsrc_mol
+    ! No analytical derivative for the salt phase
+    if (analytical_derivatives) then
+      option%io_buffer = 'Analytical derivatives not implemented in general mode with 4 dof.'
+      call PrintErrMsg(option)
+    endif
+#endif
+    !endif
+
+    if (dabs(qsrc(salt_comp_id)) < 1.d-40 .and. flow_src_sink_type /= &
+            TOTAL_MASS_RATE_SS .and. qsrc(wat_comp_id) < 0.d0) then ! extraction only
+      ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
+      ! remove/add the equivalent mole fraction of air in the liquid phase.
+      qsrc_mol = Res(wat_comp_id)*gen_auxvar_ss% &
+                 xmol(salt_comp_id,wat_comp_id)
+      Res(salt_comp_id) = qsrc_mol
+      ss_flow_vol_flux(salt_comp_id) = qsrc_mol / &
+                                      gen_auxvar_ss%den(salt_comp_id)
+    endif
+endif
+
   ! energy units: MJ/sec
-  if (size(qsrc) == THREE_INTEGER) then
+  if ((.not. general_salt .and. size(qsrc) == THREE_INTEGER).or. &
+      (general_salt .and. size(qsrc) == FOUR_INTEGER)) then
     if (flow_src_sink_type /= TOTAL_MASS_RATE_SS) then
       if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
         if (associated(gen_auxvar_ss%d)) then
@@ -4288,6 +4452,23 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
           Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
         endif
         J = J + Je
+      endif
+      if (general_salt) then
+        if (dabs(qsrc(salt_comp_id)) > 1.d-40) then
+           ! this is pure air, we use the enthalpy of air, NOT the air/water
+           ! mixture in gas
+           ! air enthalpy is only a function of temperature
+           if (associated(gen_auxvar_ss%d)) then
+              ha_dp = gen_auxvar_ss%d%Ha_pg
+              ha_dT = gen_auxvar_ss%d%Ha_T
+           endif
+
+           internal_energy = gen_auxvar_ss%u(salt_comp_id)
+           enthalpy = gen_auxvar_ss%h(salt_comp_id)
+           
+           Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * enthalpy
+           
+        endif
       endif
     endif
     Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
@@ -4620,7 +4801,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
@@ -5310,14 +5491,14 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
   implicit none
 
   character(len=*) :: string
-  PetscReal :: numerical_jacobian(3,3)
-  PetscReal :: analytical_jacobian(3,3)
-  PetscReal :: residual(3)
-  PetscReal :: residual_pert(3,3)
-  PetscReal :: perturbation(3)
-  PetscReal :: perturbation_tolerance
   type(general_auxvar_type) :: general_auxvar(0:)
   type(option_type) :: option
+  PetscReal :: numerical_jacobian(option%nflowdof,option%nflowdof)
+  PetscReal :: analytical_jacobian(option%nflowdof,option%nflowdof)
+  PetscReal :: residual(option%nflowdof)
+  PetscReal :: residual_pert(option%nflowdof,option%nflowdof)
+  PetscReal :: perturbation(option%nflowdof)
+  PetscReal :: perturbation_tolerance
 
   PetscInt :: irow, icol
 
