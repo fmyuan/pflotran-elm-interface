@@ -674,7 +674,7 @@ subroutine SimSubsurfExecuteRun(this)
   ! Date: 02/15/21
   !
   use Waypoint_module
-  use Timestepper_Base_class, only : TS_CONTINUE
+  use Timestepper_Base_class
   use Checkpoint_module
 
   implicit none
@@ -709,9 +709,19 @@ subroutine SimSubsurfExecuteRun(this)
     call this%RunToTime(min(final_time,cur_waypoint%time))
     cur_waypoint => cur_waypoint%next
   enddo
-  append_name = '-restart'
-  if (associated(this%option%checkpoint)) then
-    call this%process_model_coupler_list%Checkpoint(append_name)
+  ! only checkpoint successful simulations
+  if (this%stop_flag /= TS_STOP_FAILURE) then
+    select case(this%stop_flag)
+      case(TS_STOP_MAX_TIME_STEP)
+        append_name = '-restart-max-ts'
+      case(TS_STOP_WALLCLOCK_EXCEEDED)
+        append_name = '-restart-max-wc'
+      case default ! TS_STOP_END_SIMULATION
+        append_name = '-restart'
+    end select
+    if (associated(this%option%checkpoint)) then
+      call this%process_model_coupler_list%Checkpoint(append_name)
+    endif
   endif
 
 end subroutine SimSubsurfExecuteRun

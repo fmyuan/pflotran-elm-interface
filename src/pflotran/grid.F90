@@ -736,7 +736,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           region%num_cells = size(region%cell_ids)
         endif
       case default
-        option%io_buffer = 'GridLocalizeRegions: Region definition not recognized'
+        option%io_buffer = 'GridLocalizeRegions: Region definition not &
+          &recognized for region "' // trim(region%name) // '".'
         call PrintErrMsg(option)
     end select
 

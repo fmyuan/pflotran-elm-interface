@@ -182,12 +182,13 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
                                         num_iterations, &
                                         use_prev_soln_as_guess, &
                                         option)
-     call ReactionPrintConstraint(constraint_coupler, reaction, option)
+     call ReactionPrintConstraint(constraint_coupler%global_auxvar, &
+                                  constraint_coupler%rt_auxvar, &
+                                  constraint_coupler, reaction, option)
      base_constraint => base_constraint%next
   enddo
 
 end subroutine BatchChemProcessConstraints
-
 
 end module BatchChem
 

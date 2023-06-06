@@ -264,6 +264,7 @@ misc_obj = \
 	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
+	${common_src}realization_common.o \
 	${common_src}realization_subsurface.o \
 	${common_src}region.o \
 	${common_src}regression.o \

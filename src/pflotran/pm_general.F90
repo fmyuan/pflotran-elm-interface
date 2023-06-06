@@ -16,17 +16,23 @@ module PM_General_class
   PetscInt, parameter :: RESIDUAL_INDEX = 3
   PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 4
   PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
+  PetscInt, pointer :: general_max_states
+  PetscInt, pointer :: max_change_index
+  PetscBool, public :: general_g_state_air_mass_dof = PETSC_FALSE
+  PetscBool, public :: general_set_solute = PETSC_FALSE
+
+  PetscBool, public :: transient_porosity
 
   type, public, extends(pm_subsurface_flow_type) :: pm_general_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
-    PetscBool :: converged_flag(3,3,MAX_INDEX)
-    PetscInt :: converged_cell(3,3,MAX_INDEX)
-    PetscReal :: converged_real(3,3,MAX_INDEX)
-    PetscReal :: residual_abs_inf_tol(3)
-    PetscReal :: residual_scaled_inf_tol(3)
-    PetscReal :: abs_update_inf_tol(3,3)
-    PetscReal :: rel_update_inf_tol(3,3)
+    PetscBool, pointer :: converged_flag(:,:,:)
+    PetscInt, pointer :: converged_cell(:,:,:)
+    PetscReal, pointer :: converged_real(:,:,:)
+    PetscReal, pointer :: residual_abs_inf_tol(:)
+    PetscReal, pointer :: residual_scaled_inf_tol(:)
+    PetscReal, pointer :: abs_update_inf_tol(:,:)
+    PetscReal, pointer :: rel_update_inf_tol(:,:)
     PetscReal :: damping_factor
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -54,7 +60,8 @@ module PM_General_class
     procedure, public :: Destroy => PMGeneralDestroy
   end type pm_general_type
 
-  public :: PMGeneralCreate
+  public :: PMGeneralCreate, &
+            PMGeneralSetFlowMode
 
 contains
 
@@ -67,49 +74,15 @@ function PMGeneralCreate()
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   !
-  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                               GAS_SATURATION
+
   use Upwind_Direction_module
+  use Option_module
 
   implicit none
 
   class(pm_general_type), pointer :: PMGeneralCreate
 
   class(pm_general_type), pointer :: this
-
-  !MAN optimized:
-  PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
-  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
-  PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
-  PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
-
-  PetscReal, parameter :: abs_update_inf_tol(3,3) = &
-    reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
-            shape(abs_update_inf_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
-
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: rel_update_inf_tol(3,3) = &
-    reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
-            shape(rel_update_inf_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
-
-  !MAN optimized:
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
-  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
-  PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
-
-  PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
-                             a_mass_abs_inf_tol, u_abs_inf_tol/)
-  PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
 #ifdef PM_GENERAL_DEBUG
   print *, 'PMGeneralCreate()'
@@ -120,32 +93,9 @@ function PMGeneralCreate()
   this%name = 'General Multiphase Flow'
   this%header = 'GENERAL MULTIPHASE FLOW'
 
-  allocate(this%max_change_ivar(6))
-  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                                GAS_SATURATION]
-  allocate(this%max_change_isubvar(6))
-                                   ! UNINITIALIZED_INTEGER avoids zeroing of
-                                   ! pressures not represented in phase
-                                       ! 2 = air in xmol(air,liquid)
-  this%max_change_isubvar = [0,0,0,2,0,0]
-  this%damping_factor = -1.d0
-
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
-
-! this should be set explicitly in input file using
-! USE_INFINITY_NORM_CONVERGENCE specified in input block
-!  this%check_post_convergence = PETSC_TRUE
-  this%residual_abs_inf_tol = residual_abs_inf_tol
-  this%residual_scaled_inf_tol = residual_scaled_inf_tol
-  this%abs_update_inf_tol = abs_update_inf_tol
-  this%rel_update_inf_tol = rel_update_inf_tol
-
-  this%converged_flag(:,:,:) = PETSC_TRUE
-  this%converged_real(:,:,:) = 0.d0
-  this%converged_cell(:,:,:) = 0
 
   PMGeneralCreate => this
 
@@ -153,6 +103,191 @@ end function PMGeneralCreate
 
 ! ************************************************************************** !
 
+subroutine PMGeneralSetFlowMode(pm,option)
+  !
+  ! Sets the flow mode for general mode
+  !
+  ! Author: David Fukuyama
+  ! Date: 06/10/21
+  !
+
+  use Option_module
+  use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+                               LIQUID_MOLE_FRACTION, TEMPERATURE, &
+                               GAS_SATURATION, PRECIPITATE_SATURATION, &
+                               LIQUID_SATURATION, POROSITY
+
+  implicit none
+
+  type(option_type) :: option
+  class(pm_general_type) :: pm!, pointer, intent(inout) :: pm
+  !class(pm_general_type), pointer, intent(inout) :: pm
+
+  PetscReal, parameter :: ref_temp = 20.d0 !degrees C
+  PetscReal, parameter :: ref_pres = 101325.d0 !Pa
+  PetscReal, parameter :: ref_sat = 0.5
+  PetscReal, parameter :: ref_xmol = 1.d-6
+
+  !MAN optimized:
+  PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
+  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: sat_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: xmol_abs_inf_tol = 1.d-9
+  PetscReal, parameter :: por_abs_inf_tol = 1.d-5
+
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
+
+  !MAN optimized:
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
+  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
+  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5
+
+  PetscReal, parameter :: ref_density_w = 55.058 !kmol_water/m^3
+  PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
+  PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
+
+!   PetscReal, pointer :: residual_abs_inf_tol(:)
+!   PetscReal, pointer :: residual_scaled_inf_tol(:)
+!   PetscReal, pointer :: abs_update_inf_tol(:,:)
+!   PetscReal, pointer :: rel_update_inf_tol(:,:)
+
+   PetscReal, allocatable :: residual_abs_inf_tol(:)
+   PetscReal, allocatable :: residual_scaled_inf_tol(:)
+   PetscReal, allocatable :: abs_update_inf_tol(:,:)
+   PetscReal, allocatable :: rel_update_inf_tol(:,:)
+  option%iflowmode = G_MODE
+  allocate(general_max_states)
+  allocate(max_change_index)
+
+
+  option%use_isothermal = PETSC_FALSE
+
+  option%liquid_phase = 1  ! liquid_pressure
+  option%gas_phase = 2     ! gas_pressure
+
+  option%air_pressure_id = 3
+  option%capillary_pressure_id = 4
+  option%vapor_pressure_id = 5
+  option%saturation_pressure_id = 6
+
+  option%water_id = 1
+  option%air_id = 2
+
+  if (option%nflowdof == 0 .or. option%nflowdof == 3) then
+    option%nphase = 2
+    option%nflowdof = 3
+    option%nflowspec = 2
+    general_max_states = 3
+    max_change_index = 6
+    option%energy_id = 3
+  elseif (option%nflowdof == 4) then
+    option%nflowspec = 3
+    option%salt_id = 3
+    option%energy_id = 4
+    option%nphase = 3
+    option%precipitate_phase = 3
+    general_max_states = 7
+    max_change_index = 7
+    if (.not.general_set_solute) then
+      option%io_buffer = 'Solute must be acknowledged in the OPTIONS block of GENERAL MODE.'
+      call PrintErrMsg(option)
+    endif
+  else
+    write(option%io_buffer,*) option%nflowdof
+    option%io_buffer = trim(adjustl(option%io_buffer)) // &
+     ' equations not currently supported in GENERAL mode.'
+    call PrintErrMsgByRank(option)
+  endif
+  allocate(abs_update_inf_tol(option%nflowdof,general_max_states))
+  allocate(rel_update_inf_tol(option%nflowdof,general_max_states))
+  allocate(residual_abs_inf_tol(option%nflowdof))
+  allocate(residual_scaled_inf_tol(option%nflowdof))
+
+  allocate(pm%abs_update_inf_tol(option%nflowdof,general_max_states))
+  allocate(pm%rel_update_inf_tol(option%nflowdof,general_max_states))
+  allocate(pm%residual_abs_inf_tol(option%nflowdof))
+  allocate(pm%residual_scaled_inf_tol(option%nflowdof))
+
+  allocate(pm%converged_flag(option%nflowdof,general_max_states,MAX_INDEX))
+  allocate(pm%converged_cell(option%nflowdof,general_max_states,MAX_INDEX))
+  allocate(pm%converged_real(option%nflowdof,general_max_states,MAX_INDEX))
+
+  if (optioN%nflowdof == 3) then
+    rel_update_inf_tol = &
+      reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
+               shape(rel_update_inf_tol))*1.d0 ! change to 0.d0 to zero tolerances
+    abs_update_inf_tol = &
+      reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
+               shape(abs_update_inf_tol))*1.d0 ! change to 0.d0 to zero tolerances
+    residual_abs_inf_tol(:) = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
+                               u_abs_inf_tol]
+    residual_scaled_inf_tol(:) = 1.d-6
+    allocate(pm%max_change_ivar(6))
+    pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+                          LIQUID_MOLE_FRACTION, TEMPERATURE, &
+                          GAS_SATURATION]
+    allocate(pm%max_change_isubvar(6))
+                                     ! UNINITIALIZED_INTEGER avoids zeroing of
+                                     ! pressures not represented in phase
+                                         ! 2 = air in xmol(air,liquid)
+    pm%max_change_isubvar = [0,0,0,2,0,0]
+  elseif (option%nflowdof == 4) then
+    rel_update_inf_tol = &
+      reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol,xmol_rel_inf_tol,&
+               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol,999.d0,&
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol,xmol_rel_inf_tol,&
+               pres_rel_inf_tol,999.d0,temp_rel_inf_tol,999.d0,&
+               pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol,&
+               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol,&
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol], &
+               shape(rel_update_inf_tol)) * &
+               1.d0 ! change to 0.d0 to zero tolerances
+    abs_update_inf_tol = &
+      reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,xmol_abs_inf_tol,&
+               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol,999.d0,&
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol,xmol_abs_inf_tol,&
+               pres_abs_inf_tol,999.d0,temp_abs_inf_tol,999.d0,&
+               pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol,&
+               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol,&
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol], &
+               shape(abs_update_inf_tol)) * &
+               1.d0 ! change to 0.d0 to zero tolerances
+    residual_abs_inf_tol = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
+                            s_mass_abs_inf_tol,u_abs_inf_tol]
+    residual_scaled_inf_tol(:) = 1.d-6
+    allocate(pm%max_change_ivar(7))
+    pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+                          LIQUID_MOLE_FRACTION, TEMPERATURE, &
+                          GAS_SATURATION, POROSITY]
+    allocate(pm%max_change_isubvar(7))
+    pm%max_change_isubvar = [0,0,0,2,0,0,0]
+  endif
+  pm%damping_factor = -1.d0
+  pm%residual_abs_inf_tol = residual_abs_inf_tol
+  pm%residual_scaled_inf_tol = residual_scaled_inf_tol
+  pm%abs_update_inf_tol = abs_update_inf_tol
+  pm%rel_update_inf_tol = rel_update_inf_tol
+
+  pm%converged_flag(:,:,:) = PETSC_TRUE
+  pm%converged_real(:,:,:) = 0.d0
+  pm%converged_cell(:,:,:) = 0
+
+  if (general_g_state_air_mass_dof) then
+    pm%abs_update_inf_tol(2,2)=pm%abs_update_inf_tol(2,1)
+    pm%rel_update_inf_tol(2,2)=pm%rel_update_inf_tol(2,1)
+  endif
+
+end subroutine PMGeneralSetFlowMode
+
+! ************************************************************************** !
 subroutine PMGeneralReadSimOptionsBlock(this,input)
   !
   ! Read simulation options for GENERAL mode
@@ -176,13 +311,14 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
-  PetscInt :: lid, gid, eid
+  PetscInt :: lid, gid, eid, sid
 
   option => this%option
 
-  lid = 1 !option%liquid_phase
-  gid = 2 !option%gas_phase
-  eid = 3 !option%energy_id
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  eid = option%energy_id
+  sid = option%salt_id
 
   error_string = 'General Options'
 
@@ -221,8 +357,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call GeneralAuxSetAirMassDOF(word,option)
-        this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
-        this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
+        general_g_state_air_mass_dof = PETSC_TRUE
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         general_harmonic_diff_density = PETSC_TRUE
       case('NEWTONTRDC_HOLD_INNER_ITERATIONS',&
@@ -269,10 +404,23 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('WINDOW_EPSILON')
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('CALCULATE_SURFACE_TENSION')
+     case('CALCULATE_SURFACE_TENSION')
         general_compute_surface_tension = PETSC_TRUE
       case('VAPOR_PRESSURE_KELVIN')
         general_kelvin_equation = PETSC_TRUE
+      case('SOLUBLE_MATRIX')
+        general_soluble_matrix = PETSC_TRUE
+      case('UPDATE_PERMEABILITY')
+        general_update_permeability = PETSC_TRUE
+        call InputReadDouble(input,option,permeability_func_porosity_exp)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SOLUTE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'solute',error_string)
+        call GeneralAuxSetSolute(word,option)
+        general_salt = PETSC_TRUE
+        general_set_solute = PETSC_TRUE
+        option%nflowdof = FOUR_INTEGER
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
@@ -316,13 +464,14 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
 
   PetscBool :: found
   PetscReal :: tempreal
-  PetscInt :: lid, gid, eid
+  PetscInt :: lid, gid, eid, sid
 
   option => this%option
 
-  lid = 1 !option%liquid_phase
-  gid = 2 !option%gas_phase
-  eid = 3 !option%energy_id
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  eid = option%energy_id
+  sid = option%salt_id
 
   error_string = 'GENERAL Newton Solver'
 
@@ -514,11 +663,11 @@ recursive subroutine PMGeneralInitializeRun(this)
   PetscErrorCode :: ierr
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
+  call VecDuplicateVecsF90(this%realization%field%work,max_change_index, &
                            this%realization%field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
-  do i = 1, 6
+  do i = 1, max_change_index
     call RealizationGetVariable(this%realization, &
                                 this%realization%field%max_change_vecs(i), &
                                 this%max_change_ivar(i), &
@@ -877,6 +1026,33 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
               changed = PETSC_TRUE
             endif
           endif
+        case(LGP_STATE)
+          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+          if (X_p(pgas_index) - dX_p(pgas_index) < &
+               gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+               pres(option%saturation_pressure_id)) then
+             dX_p(pgas_index) = X_p(pgas_index) - &
+                  gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)
+             changed = PETSC_TRUE
+          endif
+        case(LP_STATE)
+          xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
+          pw_index = offset + GENERAL_LIQUID_PRESSURE_DOF
+          if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+            dX_p(xmol_index) = X_p(xmol_index)
+            changed = PETSC_TRUE
+          endif
+          if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
+           dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
+           changed = PETSC_TRUE
+          endif
+        case(GP_STATE)  
+          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+          if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
+            dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+            changed = PETSC_TRUE
+          endif
       end select
     enddo
 
@@ -1058,12 +1234,12 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
   PetscReal :: dX_abs, dX_X0
-  PetscBool :: converged_abs_update_flag(3,3)
-  PetscBool :: converged_rel_update_flag(3,3)
-  PetscInt :: converged_abs_update_cell(3,3)
-  PetscInt :: converged_rel_update_cell(3,3)
-  PetscReal :: converged_abs_update_real(3,3)
-  PetscReal :: converged_rel_update_real(3,3)
+  PetscBool, pointer :: converged_abs_update_flag(:,:)
+  PetscBool, pointer :: converged_rel_update_flag(:,:)
+  PetscInt, pointer :: converged_abs_update_cell(:,:)
+  PetscInt, pointer :: converged_rel_update_cell(:,:)
+  PetscReal, pointer :: converged_abs_update_real(:,:)
+  PetscReal, pointer :: converged_rel_update_real(:,:)
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_relative
@@ -1073,6 +1249,13 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   field => this%realization%field
   patch => this%realization%patch
   global_auxvars => patch%aux%Global%auxvars
+
+  allocate(converged_abs_update_flag(option%nflowdof,general_max_states))
+  allocate(converged_rel_update_flag(option%nflowdof,general_max_states))
+  allocate(converged_abs_update_cell(option%nflowdof,general_max_states))
+  allocate(converged_rel_update_cell(option%nflowdof,general_max_states))
+  allocate(converged_abs_update_real(option%nflowdof,general_max_states))
+  allocate(converged_rel_update_real(option%nflowdof,general_max_states))
 
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
@@ -1184,28 +1367,21 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: offset, ival, idof, itol
   PetscReal :: R, A, R_A
   PetscReal, parameter :: A_zero = 1.d-15
-  PetscBool :: converged_abs_residual_flag(3,3)
-  PetscReal :: converged_abs_residual_real(3,3)
-  PetscInt :: converged_abs_residual_cell(3,3)
-  PetscBool :: converged_scaled_residual_flag(3,3)
-  PetscReal :: converged_scaled_residual_real(3,3)
-  PetscInt :: converged_scaled_residual_cell(3,3)
+  PetscBool, allocatable :: converged_abs_residual_flag(:,:)
+  PetscReal, allocatable :: converged_abs_residual_real(:,:)
+  PetscInt, allocatable :: converged_abs_residual_cell(:,:)
+  PetscBool, allocatable :: converged_scaled_residual_flag(:,:)
+  PetscReal, allocatable :: converged_scaled_residual_real(:,:)
+  PetscInt, allocatable :: converged_scaled_residual_cell(:,:)
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
-  PetscBool :: flags(37)
-  character(len=MAXSTRINGLENGTH) :: string
-
+  PetscBool, allocatable :: flags(:)
   PetscBool :: rho_flag
-
-  character(len=12), parameter :: state_string(3) = &
-    ['Liquid State','Gas State   ','2Phase State']
-  character(len=17), parameter :: dof_string(3,3) = &
-    reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ', &
-             'Gas Pressure     ','Air Pressure     ','Temperature      ', &
-             'Gas Pressure     ','Gas Saturation   ','Temperature      '], &
-             shape(dof_string))
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=12), allocatable :: state_string(:)
+  character(len=17), allocatable :: dof_string(:,:)
   character(len=15), parameter :: tol_string(MAX_INDEX) = &
     ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
 
@@ -1215,6 +1391,46 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
 
+  allocate(flags(MAX_INDEX*option%nflowdof*general_max_states+1))
+  allocate(state_string(general_max_states))
+  allocate(dof_string(option%nflowdof,general_max_states))
+
+  allocate(converged_abs_residual_flag(option%nflowdof,general_max_states))
+  allocate(converged_abs_residual_real(option%nflowdof,general_max_states))
+  allocate(converged_abs_residual_cell(option%nflowdof,general_max_states))
+  allocate(converged_scaled_residual_flag(option%nflowdof,general_max_states))
+  allocate(converged_scaled_residual_real(option%nflowdof,general_max_states))
+  allocate(converged_scaled_residual_cell(option%nflowdof,general_max_states))
+
+  if (option%nflowdof == 3) then
+    state_string = &
+       ['Liquid State','Gas State   ','2Phase State']
+    dof_string = &
+      reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ', &
+               'Gas Pressure     ','Air Pressure     ','Temperature      ', &
+               'Gas Pressure     ','Gas Saturation   ','Temperature      '], &
+               shape(dof_string))
+  elseif (option%nflowdof == 4) then
+    state_string = &
+      ['Liquid State','Gas State   ','LG State    ',&
+       'Precip State','LP State    ','GP State    ',&
+       'LGP State   ']
+    dof_string = &
+    reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ',&
+             'Salt Fraction    ',&
+             'Gas Pressure     ','Air Mole Fraction','Temperature      ',&
+             'Salt Fraction    ',&
+             'Gas Pressure     ','Gas Saturation   ','Temperature      ',&
+             'Salt Fraction    ',&
+             'Liquid Pressure  ','Air Mole Fraction','Temperature      ',&
+             'Salt Fraction    ',&
+             'Liquid Pressure  ','Air Mole Fraction','Temperature      ',&
+             'Salt Fraction    ',&
+             'Gas Pressure     ','Air Pressure     ','Temperature      ',&
+             'Precipitate Sat. ',&
+             'Gas Pressure     ','Gas Saturation   ','Temperature      ',&
+             'Precipitate Sat. '],shape(dof_string))
+  endif
   call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
   if (this%option%flow%using_newtontrdc) then
@@ -1223,9 +1439,6 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     endif
     general_newtontrdc_prev_iter_num = it
   endif
-
-
-
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
@@ -1301,25 +1514,27 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
     ! geh: since we need to pack other flags into this global reduction,
     !      convert to 1D array
-    flags(1:9*MAX_INDEX) = reshape(this%converged_flag,(/9*MAX_INDEX/))
+    flags(1:option%nflowdof*general_max_states*MAX_INDEX) = &
+      reshape(this%converged_flag,(/option%nflowdof*general_max_states*MAX_INDEX/))
     ! due to the 'and' operation, must invert the boolean using .not.
-    flags(37) = .not.general_high_temp_ts_cut
-    mpi_int = 37
-    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int,MPI_LOGICAL,MPI_LAND, &
-                       option%mycomm,ierr);CHKERRQ(ierr)
-    this%converged_flag = reshape(flags(1:9*MAX_INDEX),(/3,3,MAX_INDEX/))
-    ! due to the 'and' operation, must invert the boolean using .not.
-    general_high_temp_ts_cut = .not.flags(37)
+    flags(option%nflowdof*general_max_states*MAX_INDEX+1) =&
+      .not.general_high_temp_ts_cut
+    mpi_int = option%nflowdof*general_max_states*MAX_INDEX+1
+    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
+                       MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
 
-    mpi_int = 9*MAX_INDEX
+    this%converged_flag = reshape(flags(1:option%nflowdof*general_max_states*MAX_INDEX),&
+                            (/option%nflowdof,general_max_states,MAX_INDEX/))
+    ! due to the 'and' operation, must invert the boolean using .not.
+    general_high_temp_ts_cut = .not.flags(option%nflowdof*general_max_states*MAX_INDEX+1)
+
+    mpi_int = option%nflowdof*general_max_states*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
-                       ierr);CHKERRQ(ierr)
+                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
 
     option%convergence = CONVERGENCE_CONVERGED
-
     do itol = 1, MAX_INDEX
-      do istate = 1, 3
+      do istate = 1, general_max_states
         do idof = 1, option%nflowdof
           if (.not.this%converged_flag(idof,istate,itol)) then
             option%convergence = CONVERGENCE_KEEP_ITERATING
@@ -1332,9 +1547,12 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 elseif (idof == 2) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Air Mass'
-                else
+                elseif (idof == 3) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Energy'
+                elseif (idof == 4) then
+                  string = '   ' // trim(tol_string(itol)) // ', ' // &
+                   trim(state_string(istate)) // ', Salt Mass'
                 endif
               else
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
@@ -1522,11 +1740,12 @@ subroutine PMGeneralMaxChange(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal :: max_change_local(6)
-  PetscReal :: max_change_global(6)
+  PetscReal, pointer :: max_change_local(:)
+  PetscReal, pointer :: max_change_global(:)
   PetscReal :: max_change
-  PetscInt :: i, j
+  PetscInt :: i, j, max_change_index
   PetscInt :: ghosted_id
+
 
 
   PetscErrorCode :: ierr
@@ -1538,12 +1757,17 @@ subroutine PMGeneralMaxChange(this)
 
   global_auxvars => realization%patch%aux%global%auxvars
 
+  if (option%nflowdof == 3) then
+    max_change_index = SIX_INTEGER
+  elseif (option%nflowdof == 4) then
+    max_change_index = SEVEN_INTEGER
+  endif
+  allocate(max_change_local(max_change_index))
+  allocate(max_change_global(max_change_index))
   max_change_global = 0.d0
   max_change_local = 0.d0
 
-  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-  !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION]
-  do i = 1, 6
+  do i = 1, max_change_index
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
@@ -1574,27 +1798,46 @@ subroutine PMGeneralMaxChange(this)
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
-  call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
-                     ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(max_change_local,max_change_global,max_change_index, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ! print them out
-  write(option%io_buffer,'("  --> max change: dpl= ",1pe12.4, " dpg= ",&
-                         &1pe12.4," dpa= ",1pe12.4)') max_change_global(1:3)
-  call PrintMsg(option)
-  write(option%io_buffer,'(17x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-                         &" dsg= ",1pe12.4)') max_change_global(4:6)
-  call PrintMsg(option)
+  if (OptionPrintToScreen(option)) then
+    if (option%nflowdof == 3) then
+     write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+        & " dsg= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    elseif (option%nflowdof == 4) then
+      write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+        & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    endif
+  endif
+  if (OptionPrintToFile(option)) then
+    if (option%nflowdof == 3) then
+      write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
+        & " dsg= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    elseif (option%nflowdof == 4) then
+      write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
+        & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    endif
+  endif
 
-  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-  !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION]
-  ! ignore air pressure as it jumps during phase change
   this%max_pressure_change = maxval(max_change_global(1:2))
   this%max_xmol_change = max_change_global(4)
   this%max_temperature_change = max_change_global(5)
-  this%max_saturation_change = max_change_global(6)
+  if (option%nflowdof == 3) then
+    this%max_saturation_change = max_change_global(6)
+  elseif (option%nflowdof == 4) then
+    this%max_saturation_change = maxval(max_change_global(6:7))
+  endif
 
 end subroutine PMGeneralMaxChange
-
 ! ************************************************************************** !
 
 subroutine PMGeneralComputeMassBalance(this,mass_balance_array)

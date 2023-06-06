@@ -198,18 +198,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 2
       option%nflowspec = 2
     class is (pm_general_type)
-      option%iflowmode = G_MODE
-      option%nphase = 2
-      option%air_pressure_id = 3
-      option%capillary_pressure_id = 4
-      option%vapor_pressure_id = 5
-      option%saturation_pressure_id = 6
-      option%water_id = 1
-      option%air_id = 2
-      option%energy_id = 3
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%use_isothermal = PETSC_FALSE
+      call PMGeneralSetFlowMode(pm_flow,option)
     class is (pm_hydrate_type)
       call PMHydrateSetFlowMode(option)
     class is (pm_mphase_type)
@@ -456,6 +445,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Init_Subsurface_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
+  use Realization_Common_module
   use Option_module
   use Logging_module
   use Waypoint_module
@@ -515,9 +505,9 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
-  call InitCommonReadRegionFiles(realization)
+  call InitCommonReadRegionFiles(realization%patch,realization%region_list,realization%option)
   ! clip regions and set up boundary connectivity, distance
-  call RealizationLocalizeRegions(realization)
+  call RealizationLocalizeRegions(realization%patch,realization%region_list,realization%option)
   call RealizationPassPtrsToPatches(realization)
   call RealizationProcessDatasets(realization)
   if (realization%output_option%mass_balance_region_flag) then
