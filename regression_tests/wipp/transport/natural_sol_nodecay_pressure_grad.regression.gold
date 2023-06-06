@@ -1,13 +1,13 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   1.2700012554683E+06
-      Min:   1.0300012555317E+06
-     Mean:   1.1500023715000E+06
-        3:   1.1500034875000E+06
+      Max:   1.0090000013950E+06
+      Min:   1.0010000013950E+06
+     Mean:   1.0050000026350E+06
+        3:   1.0050000038750E+06
 -- PRESSURE: Gas Pressure --
-      Max:   1.2700012554683E+06
-      Min:   1.0300012555317E+06
-     Mean:   1.1500023715000E+06
-        3:   1.1500034875000E+06
+      Max:   1.0090000013950E+06
+      Min:   1.0010000013950E+06
+     Mean:   1.0050000026350E+06
+        3:   1.0050000038750E+06
 -- SATURATION: Liquid Saturation --
       Max:   1.0000000000000E+00
       Min:   1.0000000000000E+00
@@ -19,35 +19,35 @@
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- GENERIC: Liquid Density --
-      Max:   1.2204420734343E+03
-      Min:   1.2203512759218E+03
-     Mean:   1.2203966746780E+03
-        3:   1.2203966746780E+03
+      Max:   1.2203433309864E+03
+      Min:   1.2203403045387E+03
+     Mean:   1.2203418177625E+03
+        3:   1.2203418177625E+03
 -- GENERIC: Gas Density --
-      Max:   1.0327613211836E+00
-      Min:   8.3759402040224E-01
-     Mean:   9.3517857832086E-01
-        3:   9.3517948584880E-01
+      Max:   8.2051586171909E-01
+      Min:   8.1401028502466E-01
+     Mean:   8.1726307438024E-01
+        3:   8.1726307538860E-01
 -- CONCENTRATION: Total Bulk Conc. AM241L --
-      Max:   3.1165056201329E-09
-      Min:   2.9443806280675E-09
-     Mean:   3.0128520967912E-09
-        3:   3.0018051879923E-09
+      Max:   1.1976444050942E-09
+      Min:   4.1398516207218E-12
+     Mean:   3.3017233375773E-10
+        3:   8.4961237502015E-11
 -- CONCENTRATION: Total Bulk Conc. PU239L --
-      Max:   3.1165056201330E-06
-      Min:   2.9443806280675E-06
-     Mean:   3.0128520967913E-06
-        3:   3.0018051879923E-06
+      Max:   1.1976444050924E-06
+      Min:   4.1398516177259E-09
+     Mean:   3.3017233375506E-07
+        3:   8.4961237499100E-08
 -- CONCENTRATION: Aq. Conc. AM241L --
-      Max:   1.0388040408180E-08
-      Min:   9.8137187903683E-09
-     Mean:   1.0041341023821E-08
-        3:   1.0004516468385E-08
+      Max:   3.9921120878046E-09
+      Min:   1.3799491602888E-11
+     Mean:   1.1005653261259E-09
+        3:   2.8320270898853E-10
 -- CONCENTRATION: Aq. Conc. PU239L --
-      Max:   1.0388040408180E-05
-      Min:   9.8137187903681E-06
-     Mean:   1.0041341023821E-05
-        3:   1.0004516468385E-05
+      Max:   3.9921120877986E-06
+      Min:   1.3799491592902E-08
+     Mean:   1.1005653261170E-06
+        3:   2.8320270897882E-07
 -- CONCENTRATION: Mnrl. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -84,16 +84,18 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time Steps:            7
-   Newton Iterations:            9
-   Linear Solver Iterations:            9
+   Time (seconds):   2.0179720004307E-03
+   Time Steps:            6
+   Newton Iterations:            7
+   Linear Solver Iterations:            7
    Time Step Cuts:            0
-   Solution 2-Norm:   2.5784738261729E+06
-   Residual 2-Norm:   5.2772101527075E-16
+   Solution 2-Norm:   2.2472572230347E+06
+   Residual 2-Norm:   4.0645014345601E-16
 -- SOLUTION: Transport --
-   Time Steps:           21
-   Newton Iterations:           94
-   Linear Solver Iterations:           94
-   Time Step Cuts:            6
-   Solution 2-Norm:   5.0622348473859E-03
-   Residual 2-Norm:   5.6607568603248E-07
+   Time (seconds):   1.1895179995918E-03
+   Time Steps:            6
+   Newton Iterations:            6
+   Linear Solver Iterations:            6
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.2493630661838E-06
+   Residual 2-Norm:   1.6352009739640E-25

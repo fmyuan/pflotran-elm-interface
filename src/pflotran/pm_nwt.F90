@@ -1191,6 +1191,8 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
   character(len=MAXSTRINGLENGTH) :: out_string, string, rsn_string
   character(len=6) :: aR_str, sR_str, rUP_str, aUP_str
+  character(len=4) :: rsn
+  character(len=2) :: sign_str
   Vec :: dX
   PetscReal, pointer :: dX_p(:)    ! solution update
   PetscReal, pointer :: X0_p(:)    ! previous solution
@@ -1209,14 +1211,17 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscReal :: species_max_absolute_update(this%option%ntrandof)
   PetscReal :: species_max_scaled_residual(this%option%ntrandof)
   PetscReal :: species_max_absolute_residual(this%option%ntrandof)
+  PetscReal :: species_max(this%option%ntrandof,4)
   PetscInt :: loc_max_scaled_residual
   PetscInt :: loc_max_abs_residual
   PetscInt :: loc_max_abs_update
   PetscInt :: loc_max_rel_update
-  PetscInt :: temp_int, i 
+  PetscInt :: i 
   PetscInt :: local_id, offset, idof, index
-  PetscInt :: converged_flag
-
+  PetscBool :: converged_flag
+  
+  PetscBool :: idof_is_positive(this%option%ntrandof, &
+                                         this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_abs_update(this%option%ntrandof, &
@@ -1227,7 +1232,15 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscBool :: idof_cnvgd_due_to_abs_res(this%option%ntrandof, &
                                          this%realization%patch%grid%nlmax)  
   PetscBool :: idof_cnvgd_due_to_residual(this%option%ntrandof)
-  PetscBool :: rsn_rUP, rsn_aUP, rsn_aR, rsn_sR
+  PetscBool :: rsn_rUP(this%option%ntrandof)
+  PetscBool :: rsn_aUP(this%option%ntrandof)
+  PetscBool :: rsn_aR(this%option%ntrandof)
+  PetscBool :: rsn_sR(this%option%ntrandof)
+  PetscBool :: rsn_pos(this%option%ntrandof)
+  PetscBool :: idof_cnvgd(this%option%ntrandof,5)
+
+  PetscMPIInt :: mpi_int1, mpi_int2
+  PetscInt, parameter :: MAX_INDEX = 5
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -1248,21 +1261,25 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     return
   endif
 
-  converged_flag = 0
+  converged_flag = PETSC_FALSE
+  idof_is_positive = PETSC_FALSE
   idof_cnvgd_due_to_update = PETSC_FALSE
   idof_cnvgd_due_to_rel_update = PETSC_FALSE
   idof_cnvgd_due_to_abs_update = PETSC_FALSE
   idof_cnvgd_due_to_residual = PETSC_FALSE
   idof_cnvgd_due_to_scaled_res = PETSC_FALSE
   idof_cnvgd_due_to_abs_res = PETSC_FALSE
+  idof_cnvgd = PETSC_FALSE
   rsn_aR = PETSC_FALSE
   rsn_sR = PETSC_FALSE
   rsn_rUP = PETSC_FALSE
   rsn_aUP = PETSC_FALSE
+  rsn_pos = PETSC_FALSE
   species_max_relative_update = 0.d0
   species_max_absolute_update = 0.d0
   species_max_absolute_residual = 0.d0
   species_max_scaled_residual = 0.d0
+  species_max = 0.d0
 
   !call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
   !                     this%realization%patch%grid, &
@@ -1290,6 +1307,12 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     offset = (local_id-1)*option%ntrandof
     do idof = 1, option%ntrandof
       index = idof + offset
+    !-----------------------------------------------------------------
+    !---solution-is-positive------------------------------------------
+      tempreal = X1_p(index)
+      if (tempreal > 0.d0) then
+        idof_is_positive(idof,local_id) = PETSC_TRUE
+      endif
     !-----------------------------------------------------------------
     !---relative-update-----------------------------------------------
       tempreal = dabs((dX_p(index))/X0_p(index))
@@ -1324,61 +1347,103 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
           max(species_max_scaled_residual(idof),tempreal)
     !-----------------------------------------------------------------
     enddo 
-  enddo 
-
+  enddo
+  
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
-  aR_str  = '   aR:'
-  sR_str  = '   sR:'
-  rUP_str = '  rUP:'
-  aUP_str = '  aUP:'
+
   do idof = 1, option%ntrandof
+    species_max(idof,1) = species_max_absolute_update(idof)
     if (all(idof_cnvgd_due_to_abs_update(idof,:))) then
-      rsn_aUP = PETSC_TRUE
-      aUP_str = ' *aUP:'
+      rsn_aUP(idof) = PETSC_TRUE
     endif
+    species_max(idof,2) = species_max_relative_update(idof)
     if (all(idof_cnvgd_due_to_rel_update(idof,:))) then
-      rsn_rUP = PETSC_TRUE
+      rsn_rUP(idof) = PETSC_TRUE
       rUP_str = ' *rUP:'
     endif
+    species_max(idof,3) = species_max_absolute_residual(idof)
     if (all(idof_cnvgd_due_to_abs_res(idof,:))) then
-      rsn_aR = PETSC_TRUE
+      rsn_aR(idof) = PETSC_TRUE
       aR_str  = '  *aR:'
     endif
+    species_max(idof,4) = species_max_scaled_residual(idof)
     if (all(idof_cnvgd_due_to_scaled_res(idof,:))) then
-      rsn_sR = PETSC_TRUE
+      rsn_sR(idof) = PETSC_TRUE
       sR_str  = '  *sR:'
     endif
+    if (all(idof_is_positive(idof,:))) then
+      rsn_pos(idof) = PETSC_TRUE
+      sign_str  = ' +'
+    endif
 
-    if (rsn_aUP .or. rsn_rUP) then
+    if (rsn_aUP(idof) .or. rsn_rUP(idof)) then
       idof_cnvgd_due_to_update(idof) = PETSC_TRUE
     endif
-    if (rsn_aR .or. rsn_sR) then
+    if (rsn_aR(idof) .or. rsn_sR(idof)) then
       idof_cnvgd_due_to_residual(idof) = PETSC_TRUE
     endif
+    idof_cnvgd(idof,1)=rsn_aUP(idof)
+    idof_cnvgd(idof,2)=rsn_rUP(idof)
+    idof_cnvgd(idof,3)=rsn_aR(idof)
+    idof_cnvgd(idof,4)=rsn_sR(idof)
+    idof_cnvgd(idof,5)=rsn_pos(idof)
   enddo
 
-  rsn_string = '' 
-  if (rsn_aR) rsn_string = trim(rsn_string) // ' aR,' 
-  if (rsn_sR) rsn_string = trim(rsn_string) // ' sR,' 
-  if (rsn_rUP) rsn_string = trim(rsn_string) // ' rUP,' 
-  if (rsn_aUP) rsn_string = trim(rsn_string) // ' aUP'
-
-  if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual)) then
-    converged_flag = 1
+  if (all(idof_cnvgd_due_to_update) .and. all(idof_cnvgd_due_to_residual) &
+      .and. all(idof_is_positive)) then
+    converged_flag = PETSC_TRUE
   else
-    converged_flag = 0
+    converged_flag = PETSC_FALSE
   endif
 
-  ! get global minimum
-  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+  mpi_int1 = option%ntrandof*5
+  mpi_int2 = option%ntrandof*4
+  call MPI_Allreduce(MPI_IN_PLACE,converged_flag,ONE_INTEGER, &
+                     MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,idof_cnvgd,mpi_int1, &
+                     MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,species_max,mpi_int2, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
 
-  if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
+  rUP_str = '  rUP:'
+  aUP_str = '  aUP:'
+  aR_str  = '   aR:'
+  sR_str  = '   sR:'
+  sign_str = ' -'
+  rsn_string = ''
+  
+  if (all(idof_cnvgd(:,1))) then
+    aUP_str = ' *aUP:'
+    rsn_string = trim(rsn_string) // ' aUP,'
+  endif
+  if (all(idof_cnvgd(:,2))) then
+    rUP_str = ' *rUP:'
+    rsn_string = trim(rsn_string) // ' rUP,' 
+  endif
+  if (all(idof_cnvgd(:,3))) then
+    aR_str = '  *aR:'
+    rsn_string = trim(rsn_string) // ' aR,'
+  endif
+  if (all(idof_cnvgd(:,4))) then
+    sR_str = '  *sR:'
+    rsn_string = trim(rsn_string) // ' sR,'
+  endif  
+  if (all(idof_cnvgd(:,5))) then
+    sign_str = ' +'
+    rsn_string = trim(rsn_string) // ' +'
+  endif
+  
+  if (converged_flag .eqv. PETSC_TRUE) then
+    option%converged = PETSC_TRUE
+    option%convergence = CONVERGENCE_CONVERGED
+    reason = 999
+  else  ! means ITOL_* tolerances were satisfied
+    ! means ITOL_* tolerances were not satisfied:
     option%converged = PETSC_FALSE
     option%convergence = CONVERGENCE_KEEP_ITERATING
     reason = 0
@@ -1386,19 +1451,20 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
       reason = -88
     endif
-  else  ! means ITOL_* tolerances were satisfied
-    option%converged = PETSC_TRUE
-    option%convergence = CONVERGENCE_CONVERGED
-    reason = 999
   endif
 
-  write(out_string,'(i4,a7,es10.3,a7,es10.3,a7,es10.3,a7,es10.3)') &
-        it, aR_str, max_absolute_residual, sR_str, max_scaled_residual, &
-        rUP_str, max_relative_change, aUP_str, max_absolute_change
+  rsn = 'rsn:'
+  write(out_string,'(i4,a6,es10.3,a6,es10.3,a6,es10.3,a6,es10.3,a5,i4,a2)') &
+                    it, aR_str, maxval(species_max(:,3)), &
+                    sR_str, maxval(species_max(:,4)), &
+                    rUP_str, maxval(species_max(:,2)), &
+                    aUP_str, maxval(species_max(:,1)), rsn, reason, &
+                    sign_str
   call PrintMsg(option,out_string)
 
   if (this%controls%verbose_newton) then
-    write(out_string,'(a4,a7,i10,a7,i10,a7,i10,a7,i10)') &
+    ! only works for single core
+    write(out_string,'(a4,a6,i10,a6,i10,a6,i10,a6,i10)') &
         'cell', aR_str, loc_max_abs_residual, sR_str, &
         loc_max_scaled_residual, rUP_str, loc_max_rel_update, aUP_str, &
         loc_max_abs_update
@@ -1457,9 +1523,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type), pointer :: option
-  PetscReal :: ratio, min_ratio
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, k
+  PetscInt :: k
+  PetscReal,parameter :: TOL=1.0d-20
 
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
@@ -1480,48 +1545,6 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
                       reaction_nw%params%truncated_concentration)
       endif
     enddo
-  else
-    ! C^p+1 = C^p - dC^p
-    ! if dC is positive and abs(dC) larger than C
-    ! we need to scale the update
-
-    ! compute smallest ratio of C to dC
-#if 0
-    min_ratio = 1.d0/maxval(dX_p/X_p)
-#else
-    min_ratio = MAX_DOUBLE ! large number
-    k = 0
-    do i = 1, size(X_p)
-      if (X_p(i) <= dX_p(i)) then
-        !WRITE(*,*)  ' i =', i, '  X_p(i) =', X_p(i), '  dX_p(i) =', dX_p(i)
-        ratio = abs(X_p(i)/dX_p(i))
-        if (ratio < min_ratio) then
-          min_ratio = ratio
-          k = i
-        endif
-      endif
-    enddo
-#endif
-    ratio = min_ratio
-    !WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
-
-    ! get global minimum
-    call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                       MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
-
-    ! scale if necessary
-    if (min_ratio < 1.d0) then
-      if (min_ratio < option%min_allowable_scale) then
-        this%controls%scaling_cut_dt = PETSC_TRUE
-        string = " *WARNING* Solution update is being scaled by " // &
-                 " an extremely small value" 
-        call PrintMsg(option,string)
-        string = "           to prevent negative mass. Cutting time step!"
-        call PrintMsg(option,string)
-      endif
-      dX_p = dX_p*min_ratio
-      changed = PETSC_TRUE
-    endif
   endif
 
   call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
