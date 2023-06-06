@@ -1423,6 +1423,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   type(tran_condition_type), pointer :: tran_condition
   type(region_type), pointer :: region
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_rt_coupler
 
 98 format(40('=+'))
 99 format(80('-'))
@@ -1466,8 +1467,12 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
       trim(tran_condition%name)
     select type(c=>constraint_coupler)
       class is (tran_constraint_coupler_rt_type)
-        call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar,c, &
-                                     reaction,option)
+        ! the following three lines are a work around for an intel compiler bug
+        ! claiming that c is not a pointer, though it points to a pointer
+        !call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar,c, &
+        constraint_rt_coupler => c 
+        call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar, &
+                                     constraint_rt_coupler,reaction,option)
         write(option%fid_out,'(/)')
         write(option%fid_out,99)
     end select
