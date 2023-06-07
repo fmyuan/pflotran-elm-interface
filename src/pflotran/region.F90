@@ -544,7 +544,7 @@ subroutine RegionRead(region,input,option)
       case('LIST')
         call InputReadPflotranString(input, option)
         string = trim(input%buf)
-        icount = RegionReadGetNumIntegers(input,option)
+        icount = InputCountWordsInBuffer(input,option)
         input%buf = trim(string)
         select case(icount)
           case(1)
@@ -686,7 +686,7 @@ subroutine RegionReadFromFileId(region,input,option)
   !     line
   call InputReadPflotranString(input, option)
   string = trim(input%buf)
-  count = RegionReadGetNumIntegers(input,option)
+  count = InputCountWordsInBuffer(input,option)
   input%buf = trim(string)
 
   if (count == 0) then
@@ -1085,37 +1085,6 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   call InputDestroy(input)
 
 end subroutine RegionReadExplicitFaceSet
-
-! ************************************************************************** !
-
-function RegionReadGetNumIntegers(input,option)
-  !
-  ! Returns
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/19/23
-  !
-  use Input_Aux_module
-  use Option_module
-  use Utility_module
-
-  implicit none
-
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-  PetscInt :: RegionReadGetNumIntegers
-  PetscInt :: temp_int
-  PetscInt :: icount
-
-  do
-    call InputReadInt(input, option, temp_int)
-    if (InputError(input)) exit
-    icount = icount + 1
-  enddo
-  RegionReadGetNumIntegers = icount
-
-end function RegionReadGetNumIntegers
 
 ! ************************************************************************** !
 
