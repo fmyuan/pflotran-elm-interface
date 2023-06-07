@@ -279,8 +279,7 @@ subroutine PMInversionInversionMeasurement(this,time,ierr)
                   isubvar = UNINITIALIZED_INTEGER
                   select case(measurements(imeasurement)%iobs_var)
                     case(OBS_LIQUID_PRESSURE)
-                      select case(inversion_aux%parameters(1)% &
-                                    iparameter)
+                      select case(inversion_aux%parameters(1)%itype)
                         case(POROSITY)
 !                          isubvar = ZFLOW_LIQ_PRES_WRT_POROS
                       end select

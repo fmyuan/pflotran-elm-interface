@@ -271,7 +271,7 @@ subroutine InvAuxCopyParameterValue(aux,iparam,iflag)
   endif
 
   call InvAuxGetSetParamValueByMat(aux,tempreal, &
-                                   aux%parameters(iparam)%iparameter, &
+                                   aux%parameters(iparam)%itype, &
                                    aux%parameters(iparam)%imat,iflag)
 
   if (iflag == INVAUX_GET_MATERIAL_VALUE) then
@@ -282,7 +282,7 @@ end subroutine InvAuxCopyParameterValue
 
 ! ************************************************************************** !
 
-subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
+subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter_type,imat,iflag)
   !
   ! Copies parameter values back and forth
   !
@@ -299,7 +299,7 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
 
   type(inversion_aux_type) :: aux
   PetscReal :: value
-  PetscInt :: iparameter
+  PetscInt :: iparameter_type
   PetscInt :: imat
   PetscInt :: iflag
 
@@ -309,7 +309,7 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
   PetscReal :: tempreal
 
   material_property => aux%material_property_array(imat)%ptr
-  select case(iparameter)
+  select case(iparameter_type)
     case(ELECTRICAL_CONDUCTIVITY)
       if (iflag == INVAUX_GET_MATERIAL_VALUE) then
         value = material_property%electrical_conductivity
@@ -335,7 +335,7 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
       endif
     case(VG_ALPHA,VG_SR,VG_M)
       cc => aux%cc_array(material_property%saturation_function_id)%ptr
-      select case(iparameter)
+      select case(iparameter_type)
         case(VG_ALPHA)
           if (iflag == INVAUX_GET_MATERIAL_VALUE) then
             value = cc%saturation_function%GetAlpha_()
@@ -392,7 +392,7 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
     case default
       string = 'Unrecognized variable in &
         &InvAuxGetSetParamValueByMat: ' // &
-        trim(StringWrite(iparameter))
+        trim(StringWrite(iparameter_type))
       call aux%driver%PrintErrMsg(string)
   end select
 
@@ -496,7 +496,7 @@ end subroutine InvAuxMaterialToParamVec
 
 ! ************************************************************************** !
 
-subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
+subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
                                      material_auxvar)
   !
   ! Returns the parameter value at the cell
@@ -517,17 +517,19 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
 
   class(inversion_aux_type) :: aux
   PetscReal :: value
-  PetscInt :: iparameter
+  PetscInt :: iparameter_type
   PetscInt :: imat
   type(material_auxvar_type) :: material_auxvar
 
   type(material_property_type), pointer :: material_property
   type(characteristic_curves_type), pointer :: cc
 
-  select case(iparameter)
+  select case(iparameter_type)
     case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
       value = MaterialAuxVarGetValue(material_auxvar,iparameter)
+    case(ELECTRICAL_CONDUCTIVITY)
+      value = MaterialAuxVarGetValue(material_auxvar,ELECTRICAL_CONDUCTIVITY)
     case(PERMEABILITY)
       value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)
     case(POROSITY)
@@ -535,7 +537,7 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
     case(VG_ALPHA,VG_SR,VG_M)
       material_property => aux%material_property_array(imat)%ptr
       cc => aux%cc_array(material_property%saturation_function_id)%ptr
-      select case(iparameter)
+      select case(iparameter_type)
         case(VG_ALPHA)
           value = cc%saturation_function%GetAlpha_()
         case(VG_M)
@@ -546,7 +548,7 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
     case default
       call aux%driver%PrintErrMsg('Unrecognized variable in &
                                    &InvAuxGetParamValueByCell: ' // &
-                                   trim(StringWrite(iparameter)))
+                                   trim(StringWrite(iparameter_type)))
   end select
 
 end subroutine InvAuxGetParamValueByCell
