@@ -24,7 +24,8 @@ module Inversion_Parameter_module
             InversionParameterRead, &
             InversionParameterCopy, &
             InversionParameterMapNameToInt, &
-            InversionParameterGetIDFromName, &
+            InversionParamGetItypeFromName, &
+            InversionParamGetNameFromItype, &
             InversionParameterIntToQOIArray, &
             InversionParameterPrint, &
             InversionParameterPrintUpdate, &
@@ -275,14 +276,14 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver, &
   type(inversion_option_type) :: inversion_option
 
   inversion_parameter%iparameter = &
-    InversionParameterGetIDFromName(inversion_parameter%parameter_name, &
+    InversionParamGetItypeFromName(inversion_parameter%parameter_name, &
                                     driver,inversion_option)
 
 end subroutine InversionParameterMapNametoInt
 
 ! ************************************************************************** !
 
-function InversionParameterGetIDFromName(name_,driver,inversion_option)
+function InversionParamGetItypeFromName(name_,driver,inversion_option)
   !
   ! Maps an inversion parameter_name to subsurface model parameter id
   !
@@ -293,13 +294,16 @@ function InversionParameterGetIDFromName(name_,driver,inversion_option)
   use Option_Inversion_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA, VG_M
+                               VG_SR, VG_ALPHA, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
 
   character(len=MAXWORDLENGTH) :: name_
   class(driver_type) :: driver
   type(inversion_option_type) :: inversion_option
 
-  PetscInt :: InversionParameterGetIDFromName
+  PetscInt :: InversionParamGetItypeFromName
 
   PetscInt :: i
 
@@ -322,15 +326,80 @@ function InversionParameterGetIDFromName(name_,driver,inversion_option)
     case('M')
       i = VG_M
       inversion_option%invert_for_vg_m = PETSC_TRUE
+    case('ARCHIE_CEMENTATION_EXPONENT')
+      i = ARCHIE_CEMENTATION_EXPONENT
+      inversion_option%invert_for_arch_cement_exp = PETSC_TRUE
+    case('ARCHIE_SATURATION_EXPONENT')
+      i = ARCHIE_SATURATION_EXPONENT
+      inversion_option%invert_for_arch_sat_exp = PETSC_TRUE
+    case('ARCHIE_TORTUOSITY_CONSTANT')
+      i = ARCHIE_TORTUOSITY_CONSTANT
+      inversion_option%invert_for_arch_tort_const = PETSC_TRUE
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
-                              &InversionParameterGetIDFromName: ' // &
+                              &InversionParamGetItypeFromName: ' // &
                               trim(name_))
   end select
 
-  InversionParameterGetIDFromName = i
+  InversionParamGetItypeFromName = i
 
-end function InversionParameterGetIDFromName
+end function InversionParamGetItypeFromName
+
+! ************************************************************************** !
+
+function InversionParamGetNameFromItype(itype,driver,inversion_option)
+  !
+  ! Maps an inversion parameter id to subsurface model parameter name
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/07/23
+  !
+  use Driver_class
+  use Option_Inversion_module
+  use String_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, POROSITY, &
+                               VG_SR, VG_ALPHA, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
+
+  PetscInt :: itype
+  class(driver_type) :: driver
+  type(inversion_option_type) :: inversion_option
+
+  character(len=MAXWORDLENGTH) :: InversionParamGetNameFromItype
+
+  character(len=MAXWORDLENGTH) :: word
+
+  select case(itype)
+    case(ELECTRICAL_CONDUCTIVITY)
+      word = 'ELECTRICAL_CONDUCTIVITY'
+    case(PERMEABILITY)
+      word = 'PERMEABILITY'
+    case(POROSITY)
+      word = 'POROSITY'
+    case(VG_ALPHA)
+      word = 'ALPHA'
+    case(VG_SR)
+      word = 'RESIDUAL_SATURATION'
+    case(VG_M)
+      word = 'M'
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      word = 'ARCHIE_CEMENTATION_EXPONENT'
+    case(ARCHIE_SATURATION_EXPONENT)
+      word = 'ARCHIE_SATURATION_EXPONENT'
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      word = 'ARCHIE_TORTUOSITY_CONSTANT'
+    case default
+      call driver%PrintErrMsg('Unrecognized parameter in &
+                              &InversionParamGetNameFromItype: ' // &
+                              StringWrite(itype))
+  end select
+
+  InversionParamGetNameFromItype = word
+
+end function InversionParamGetNameFromItype
 
 ! ************************************************************************** !
 

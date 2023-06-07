@@ -178,4 +178,8 @@ module Variables_module
   PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 142
   PetscInt, parameter, public :: SOLUBLE_MATRIX  = 143
 
+  PetscInt, parameter, public :: ARCHIE_SATURATION_EXPONENT = 144
+  PetscInt, parameter, public :: ARCHIE_CEMENTATION_EXPONENT = 145
+  PetscInt, parameter, public :: ARCHIE_TORTUOSITY_CONSTANT = 146
+
 end module Variables_module

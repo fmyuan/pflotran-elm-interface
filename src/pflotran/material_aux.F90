@@ -45,6 +45,9 @@ module Material_Aux_module
   PetscInt, public :: max_material_index
   PetscInt, public :: epsilon_index
   PetscInt, public :: half_matrix_width_index
+  PetscInt, public :: archie_cementation_exp_index
+  PetscInt, public :: archie_saturation_exp_index
+  PetscInt, public :: archie_tortuosity_index
 
   type, public :: material_auxvar_type
     PetscInt :: id
@@ -668,6 +671,15 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
                                  soil_properties(soil_reference_pressure_index)
     case(ELECTRICAL_CONDUCTIVITY)
       MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(archie_cementation_exp_index)
+    case(ARCHIE_SATURATION_EXPONENT)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(archie_saturation_exp_index)
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(archie_tortuosity_index)
     case default
       print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
       stop
@@ -724,8 +736,12 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(soil_compressibility_index) = value
     case(SOIL_REFERENCE_PRESSURE)
       material_auxvar%soil_properties(soil_reference_pressure_index) = value
-    case(ELECTRICAL_CONDUCTIVITY)
-      material_auxvar%electrical_conductivity(1) = value
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      material_auxvar%soil_properties(archie_cementation_exp_index) = value
+    case(ARCHIE_SATURATION_EXPONENT)
+      material_auxvar%soil_properties(archie_saturation_exp_index) = value
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      material_auxvar%soil_properties(archie_tortuosity_index) = value
     case default
       print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
       stop
