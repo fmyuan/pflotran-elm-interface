@@ -416,6 +416,8 @@ subroutine RegionRead(region,input,option)
   type(input_type), pointer :: input
 
   character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: icount
 
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -540,8 +542,23 @@ subroutine RegionRead(region,input,option)
         call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','REGION')
       case('LIST')
-        option%io_buffer = 'REGION LIST currently not implemented'
-        call PrintErrMsg(option)
+        call InputReadPflotranString(input, option)
+        string = trim(input%buf)
+        icount = InputCountWordsInBuffer(input,option)
+        input%buf = trim(string)
+        select case(icount)
+          case(1)
+            call RegionReadCellList(region,input,PETSC_FALSE,PETSC_FALSE, &
+                                    option)
+          case(2)
+            call RegionReadCellList(region,input,PETSC_TRUE,PETSC_FALSE, &
+                                    option)
+          case default
+            option%io_buffer = 'REGION LIST format only supported for &
+              &CELL_ID or CELL_ID FACE_ID format. One or two integers &
+              &per line.'
+            call PrintErrMsg(option)
+        end select
       case('FACE')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'face','REGION')
@@ -622,10 +639,9 @@ subroutine RegionReadFromFileId(region,input,option)
   type(input_type), pointer :: input
 
   character(len=1) :: backslash
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt, pointer :: temp_int_array(:)
-  PetscInt, pointer :: cell_ids_p(:)
-  PetscInt, pointer :: face_ids_p(:)
   PetscInt, pointer :: vert_id_0_p(:)
   PetscInt, pointer :: vert_id_1_p(:)
   PetscInt, pointer :: vert_id_2_p(:)
@@ -634,28 +650,19 @@ subroutine RegionReadFromFileId(region,input,option)
   PetscInt :: max_size
   PetscInt :: count
   PetscInt :: temp_int
-  PetscInt :: input_data_type
   PetscInt :: ii
   PetscInt :: istart
   PetscInt :: iend
   PetscInt :: remainder
   PetscErrorCode :: ierr
 
-  PetscInt, parameter :: CELL_IDS_ONLY = 1
-  PetscInt, parameter :: CELL_IDS_WITH_FACE_IDS = 2
-  PetscInt, parameter :: VERTEX_IDS = 3
-
   call PetscLogEventBegin(logging%event_region_read_ascii,ierr);CHKERRQ(ierr)
-
-  !TODO(geh): clean and optimize this subroutine
 
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
 
   allocate(temp_int_array(max_size))
-  allocate(cell_ids_p(max_size))
-  allocate(face_ids_p(max_size))
   allocate(vert_id_0_p(max_size))
   allocate(vert_id_0_p(max_size))
   allocate(vert_id_1_p(max_size))
@@ -664,14 +671,11 @@ subroutine RegionReadFromFileId(region,input,option)
   allocate(vert_id_4_p(max_size))
 
   temp_int_array = 0
-  cell_ids_p = 0
-  face_ids_p = 0
   vert_id_0_p = 0
   vert_id_1_p = -1
   vert_id_2_p = -1
   vert_id_3_p = -1
   vert_id_4_p = -1
-
 
   count = 0
 
@@ -680,118 +684,28 @@ subroutine RegionReadFromFileId(region,input,option)
   !  2) Contains cell ids and face ids: TWO entries per line
   !  3) Contains vertex ids that make up the face: MORE than two entries per
   !     line
-  count = 0
   call InputReadPflotranString(input, option)
-  do
-    call InputReadInt(input, option, temp_int)
-    if (InputError(input)) exit
-    count = count + 1
-    temp_int_array(count) = temp_int
-  enddo
+  string = trim(input%buf)
+  count = InputCountWordsInBuffer(input,option)
+  input%buf = trim(string)
 
   if (count == 0) then
      option%io_buffer = 'ERROR while reading the region "' // &
           trim(region%name) // '" from file (zero entries in first row)'
      call PrintErrMsg(option)
   else if (count == 1) then
-    !
-    ! Input data contains only cell ids
-    !
-    input_data_type = CELL_IDS_ONLY
-    cell_ids_p(1) = temp_int_array(1)
-    count = 1
-    region%def_type = DEFINED_BY_CELL_IDS
-
-    ! Read the data
-    do
-      call InputReadPflotranString(input, option)
-      if (InputError(input)) exit
-      call InputReadInt(input, option, temp_int)
-      if (.not.InputError(input)) then
-        count = count + 1
-        cell_ids_p(count) = temp_int
-      endif
-      if (count+1 > max_size) then ! resize temporary array
-        call ReallocateArray(cell_ids_p, max_size)
-      endif
-    enddo
-
-    ! Depending on processor rank, save only a portion of data
-    region%num_cells = count/option%comm%size
-      remainder = count - region%num_cells*option%comm%size
-    if (option%myrank < remainder) region%num_cells = region%num_cells + 1
-    istart = 0
-    iend   = 0
-    call MPI_Exscan(region%num_cells,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                    MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-    call MPI_Scan(region%num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%mycomm,ierr);CHKERRQ(ierr)
-
-    ! Allocate memory and save the data
-    region%num_cells = iend - istart
-    allocate(region%cell_ids(region%num_cells))
-    region%cell_ids(1:region%num_cells) = cell_ids_p(istart+1:iend)
-    deallocate(cell_ids_p)
-
+    ! Input data contains cell ids
+    call RegionReadCellList(region,input,PETSC_FALSE,PETSC_TRUE,option)
   else if (count == 2) then
-    !
     ! Input data contains cell ids + face ids
-    !
-    input_data_type = CELL_IDS_WITH_FACE_IDS
-    cell_ids_p(1) = temp_int_array(1)
-    face_ids_p(1) = temp_int_array(2)
-    count = 1 ! reset the counter to represent the num of rows read
-    region%def_type = DEFINED_BY_CELL_AND_FACE_IDS
-
-    ! Read the data
-    do
-      call InputReadPflotranString(input, option)
-      if (InputError(input)) exit
-      call InputReadInt(input, option, temp_int)
-      if (InputError(input)) exit
-      count = count + 1
-      cell_ids_p(count) = temp_int
-
-      call InputReadInt(input,option,temp_int)
-      if (InputError(input)) then
-        option%io_buffer = 'ERROR while reading the region "' // &
-          trim(region%name) // '" from file'
-        call PrintErrMsg(option)
-      endif
-      face_ids_p(count) = temp_int
-      if (count+1 > max_size) then ! resize temporary array
-        call ReallocateArray(cell_ids_p, max_size)
-        ! since ReallocateArray doubles max_size, we need to divide by 2
-        ! before calling again
-        max_size = max_size / 2
-        call ReallocateArray(face_ids_p, max_size)
-      endif
-    enddo
-
-    ! Depending on processor rank, save only a portion of data
-    region%num_cells = count/option%comm%size
-      remainder = count - region%num_cells*option%comm%size
-    if (option%myrank < remainder) region%num_cells = region%num_cells + 1
-    istart = 0
-    iend   = 0
-    call MPI_Exscan(region%num_cells,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                    MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-    call MPI_Scan(region%num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                  option%mycomm,ierr);CHKERRQ(ierr)
-
-    ! Allocate memory and save the data
-    allocate(region%cell_ids(region%num_cells))
-    allocate(region%faces(region%num_cells))
-    region%cell_ids(1:region%num_cells) = cell_ids_p(istart + 1:iend)
-    region%faces(1:region%num_cells) = face_ids_p(istart + 1:iend)
-    deallocate(cell_ids_p)
-    deallocate(face_ids_p)
-
+    call RegionReadCellList(region,input,PETSC_TRUE,PETSC_TRUE,option)
   else
-    !
+    option%io_buffer = 'The number of integers per line listed in &
+      &region "' // trim(region%filename) // '" suggests that &
+      &unstructured grid vertices are specified. Please use a .ss &
+      &or .ex file for unstructured regions.'
+!    call PrintErrMsg(option)
     ! Input data contains vertices
-    !
-    input_data_type = VERTEX_IDS
     vert_id_0_p(1) = temp_int_array(1)
     vert_id_1_p(1) = temp_int_array(2)
     vert_id_2_p(1) = temp_int_array(3)
@@ -802,7 +716,8 @@ subroutine RegionReadFromFileId(region,input,option)
 
     ! Read the data
     do
-      call InputReadPflotranString(input,option)
+      ! InputReadPflotranString is at bottom since string has
+      ! been read on first pass
       if (InputError(input)) exit
       call InputReadInt(input,option,temp_int)
       if (InputError(input)) exit
@@ -843,6 +758,7 @@ subroutine RegionReadFromFileId(region,input,option)
           call ReallocateArray(vert_id_4_p,max_size)
         endif
       enddo
+      call InputReadPflotranString(input,option)
     enddo
 
     ! Depending on processor rank, save only a portion of data
@@ -1169,6 +1085,115 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   call InputDestroy(input)
 
 end subroutine RegionReadExplicitFaceSet
+
+! ************************************************************************** !
+
+subroutine RegionReadCellList(region,input,read_faces,from_file,option)
+  !
+  ! Reads a list of cells (and optional faces) from an ASCII file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/19/23
+  !
+  use Input_Aux_module
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  type(region_type) :: region
+  type(input_type), pointer :: input
+  PetscBool :: read_faces
+  PetscBool :: from_file ! true if read from a file (no block terminator)
+  type(option_type) :: option
+
+  PetscInt :: array_size
+  PetscInt, pointer :: cell_ids(:)
+  PetscInt, pointer :: face_ids(:)
+  PetscInt :: temp_int
+  PetscInt :: icount
+  PetscInt :: istart
+  PetscInt :: iend
+  PetscInt :: remainder
+  PetscErrorCode :: ierr
+
+  if (read_faces) then
+    region%def_type = DEFINED_BY_CELL_AND_FACE_IDS
+  else
+    region%def_type = DEFINED_BY_CELL_IDS
+  endif
+
+  array_size = 1000
+  allocate(cell_ids(array_size))
+  allocate(face_ids(array_size))
+  cell_ids(:) = 0
+  face_ids(:) = 0
+
+  ! Read the data
+  icount = 0
+  input%ierr = 0 ! first pass must be success
+  do
+    ! InputReadPflotranString is at bottom since string has
+    ! been read on first pass
+    if (from_file) then
+      if (InputError(input)) exit
+    else
+      if (InputCheckExit(input,option)) exit
+    endif
+    call InputReadInt(input, option, temp_int)
+    if (InputError(input)) then
+      if (from_file) then
+        exit
+      else
+        option%io_buffer = 'ERROR reading cell ID in REGION "' // &
+          trim(region%name) // '".'
+        call PrintErrMsg(option)
+      endif
+    endif
+    icount = icount + 1
+    cell_ids(icount) = temp_int
+
+    if (read_faces) then
+      call InputReadInt(input,option,temp_int)
+      if (InputError(input)) then
+        option%io_buffer = 'ERROR reading face ID in REGION "' // &
+          trim(region%name) // '".'
+        call PrintErrMsg(option)
+      endif
+      face_ids(icount) = temp_int
+    endif
+    if (icount+1 > array_size) then ! resize temporary array
+      call ReallocateArray(cell_ids,array_size)
+      ! since ReallocateArray doubles max_size, we need to divide by 2
+      ! before calling again
+      if (read_faces) then
+        array_size = array_size / 2
+        call ReallocateArray(face_ids,array_size)
+      endif
+    endif
+    call InputReadPflotranString(input, option)
+  enddo
+
+  ! Depending on processor rank, save only a portion of data
+  region%num_cells = icount/option%comm%size
+  remainder = icount - region%num_cells*option%comm%size
+  if (option%myrank < remainder) region%num_cells = region%num_cells + 1
+  istart = 0
+  iend   = 0
+  call MPI_Exscan(region%num_cells,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                  MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Scan(region%num_cells,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                option%mycomm,ierr);CHKERRQ(ierr)
+
+  ! Allocate memory and save the data
+  allocate(region%cell_ids(region%num_cells))
+  allocate(region%faces(region%num_cells))
+  region%cell_ids(1:region%num_cells) = cell_ids(istart+1:iend)
+  region%faces(1:region%num_cells) = face_ids(istart+1:iend)
+  call DeallocateArray(cell_ids)
+  call DeallocateArray(face_ids)
+
+end subroutine RegionReadCellList
 
 ! ************************************************************************** !
 

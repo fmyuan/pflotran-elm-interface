@@ -297,9 +297,9 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
       if (pm%check_post_convergence) then
         select case(solver%snes_type)
-          case(SNESNEWTONTR)
-            call SNESNewtonTRSetPostCheck(solver%snes,PMCheckUpdatePostTRPtr, &
-                                          this%pm_ptr,ierr);CHKERRQ(ierr)
+!          case(SNESNEWTONTR)
+!            call SNESNewtonTRSetPostCheck(solver%snes,PMCheckUpdatePostTRPtr, &
+!                                          this%pm_ptr,ierr);CHKERRQ(ierr)
           case(SNESNEWTONLS)
             call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
                                             this%pm_ptr,ierr);CHKERRQ(ierr)
@@ -338,9 +338,9 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
       if (add_pre_check) then
         select case(solver%snes_type)
-          case(SNESNEWTONTR)
-            call SNESNewtonTRSetPreCheck(solver%snes,PMCheckUpdatePreTRPtr, &
-                                         this%pm_ptr,ierr);CHKERRQ(ierr)
+!          case(SNESNEWTONTR)
+!            call SNESNewtonTRSetPreCheck(solver%snes,PMCheckUpdatePreTRPtr, &
+!                                         this%pm_ptr,ierr);CHKERRQ(ierr)
           case(SNESNEWTONLS)
             call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
                                            this%pm_ptr,ierr);CHKERRQ(ierr)

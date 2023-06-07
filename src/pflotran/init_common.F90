@@ -212,7 +212,7 @@ end subroutine InitCommonVerifyCoupler
 
 ! ************************************************************************** !
 
-subroutine InitCommonReadRegionFiles(realization)
+subroutine InitCommonReadRegionFiles(patch,region_list,option)
   !
   ! Reads in grid cell ids stored in files
   !
@@ -224,25 +224,26 @@ subroutine InitCommonReadRegionFiles(realization)
   use Region_module
   use HDF5_module
   use Option_module
+  use Patch_module
 
   implicit none
 
-  class(realization_subsurface_type) :: realization
-
+  type(patch_type), pointer :: patch
+  type(region_list_type), pointer :: region_list
   type(option_type), pointer :: option
+
   type(region_type), pointer :: region
   PetscBool :: cell_ids_exists
   PetscBool :: face_ids_exists
   PetscBool :: vert_ids_exists
 
-  option => realization%option
-  region => realization%region_list%first
+  region => region_list%first
   do
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
         call HDF5QueryRegionDefinition(region, region%filename, &
-                                       realization%option, cell_ids_exists, &
+                                       option, cell_ids_exists, &
                                        face_ids_exists, vert_ids_exists)
         if ((.not. cell_ids_exists) .and. &
             (.not. face_ids_exists) .and. &
@@ -252,26 +253,26 @@ subroutine InitCommonReadRegionFiles(realization)
           call PrintErrMsg(option)
         end if
         if (cell_ids_exists .or. face_ids_exists) then
-          call HDF5ReadRegionFromFile(realization%patch%grid,region, &
+          call HDF5ReadRegionFromFile(patch%grid,region, &
                                       region%filename,option)
         else
-          call HDF5ReadRegionDefinedByVertex(realization%option, &
+          call HDF5ReadRegionDefinedByVertex(option, &
                                              region, region%filename)
         end if
       else if (index(region%filename,'.ss') > 0) then
         region%def_type = DEFINED_BY_SIDESET_UGRID
         region%sideset => RegionCreateSideset()
         call RegionReadFromFile(region%sideset,region%filename, &
-                                realization%option)
+                                option)
       else if (index(region%filename,'.ex') > 0) then
         region%def_type = DEFINED_BY_FACE_UGRID_EXP
         call RegionReadFromFile(region%explicit_faceset,region%cell_ids, &
-                                region%filename,realization%option)
+                                region%filename,option)
         if (associated(region%cell_ids)) then
           region%num_cells = size(region%cell_ids)
         endif
       else
-        call RegionReadFromFile(region,realization%option, &
+        call RegionReadFromFile(region,option, &
                                 region%filename)
       endif
     endif

@@ -27,6 +27,8 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/characteristic_curves_wipp.o \
 	$(EXE_DIR)/characteristic_curves_wipp_invariant.o \
 	$(EXE_DIR)/characteristic_curves_thermal.o \
+	$(EXE_DIR)/characteristic_curves_spline.o \
+	$(EXE_DIR)/slatec_pchip.o \
 	$(EXE_DIR)/dataset_ascii.o \
 	$(EXE_DIR)/dataset_base.o \
 	$(EXE_DIR)/time_storage.o \

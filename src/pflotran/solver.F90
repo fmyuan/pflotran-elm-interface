@@ -446,7 +446,7 @@ subroutine SolverCreateSNES(solver,comm,options_prefix,option)
     case(SNESNEWTONLS,SNESNEWTONTR)
 
     case(SNESNEWTONTRDC)
-
+      
     case default
       option%io_buffer = 'Unsupported SNES type: ' // trim(solver%snes_type)
       call PrintErrMsg(option)
@@ -1079,14 +1079,18 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
         case('LINE_SEARCH')
           solver%snes_type = SNESNEWTONLS
         case('TRUST_REGION')
-          solver%snes_type = SNESNEWTONTR
+          solver%snes_type = SNESNEWTONTRDC
         case('NTRDC','NEWTONTRDC')
           option%flow%using_newtontrdc = PETSC_TRUE
           solver%snes_type = SNESNEWTONTRDC
           string = trim(prefix) // 'snes_trdc_use_cauchy'
           call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                     trim(string),trim('TRUE'), &
-                                    ierr);CHKERRQ(ierr)
+                                    ierr);CHKERRQ(ierr)          
+!          string = trim(prefix) // 'snes_tr_fallback_type'
+!          call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+!                                    trim(string),trim('dogleg'), &
+!                                    ierr);CHKERRQ(ierr)
         case('NTR','NEWTONTR')
           option%flow%using_newtontrdc = PETSC_TRUE
           solver%snes_type = SNESNEWTONTRDC

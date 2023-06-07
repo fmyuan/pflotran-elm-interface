@@ -229,7 +229,24 @@ REGION North
 END
 
 REGION South
-  FILE ./south_inactive.txt
+#  FILE ./south_inactive.txt
+  LIST
+    1  3
+    2  3
+    3  3
+    4  3
+    5  3
+    21 3
+    22 3
+    22 6
+    23 3
+    23 6
+    24 3
+    25 3
+    41 3
+    44 3
+    45 3
+  /
 END
 
 #=========================== flow conditions ==================================

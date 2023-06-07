@@ -182,6 +182,7 @@ relations_obj = \
 	${common_src}characteristic_curves_thermal.o \
 	${common_src}material_transform.o \
 	${common_src}characteristic_curves_loop_invariant.o \
+	${common_src}characteristic_curves_spline.o \
 	${common_src}characteristic_curves_wipp_invariant.o \
 	${common_src}mphase_pckr_mod.o
 
@@ -263,6 +264,7 @@ misc_obj = \
 	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
+	${common_src}realization_common.o \
 	${common_src}realization_subsurface.o \
 	${common_src}region.o \
 	${common_src}regression.o \
@@ -274,6 +276,7 @@ misc_obj = \
 	${common_src}simulation_inverse.o \
 	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
+	${common_src}slatec_pchip.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \

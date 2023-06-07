@@ -796,13 +796,11 @@ subroutine DatabaseRead(reaction,option)
   enddo
 
   if (flag) call PrintErrMsg(option,'Species not found in database.')
-  if (.not.option%use_isothermal) then
-    !geh: only stop if running with temperature dependent log Ks.
-    if (logK_error_flag) then
-      option%io_buffer = 'Non-isothermal reactions not possible due to &
-        &missing logKs in database.'
-      call PrintErrMsg(option)
-    endif
+  if (logK_error_flag) then
+    option%io_buffer = 'Reactions not at reference temperature 25C or &
+      &non-isothermal reactions are not possible due to &
+      &missing logKs in database.'
+    call PrintErrMsg(option)
   endif
 
   call InputDestroy(input)

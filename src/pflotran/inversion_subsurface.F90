@@ -1366,11 +1366,23 @@ subroutine InvSubsurfExecuteForwardRun(this)
   ! Author: Glenn Hammond
   ! Date: 03/21/22
 
+  use Option_module
+  use Timestepper_Base_class, only : TS_STOP_END_SIMULATION
+
   class(inversion_subsurface_type) :: this
 
-  if (this%realization%option%status == PROCEED) then
+  type(option_type), pointer :: option
+ 
+  option => this%realization%option
+  if (option%status == PROCEED) then
     call this%forward_simulation%ExecuteRun()
-    call InvSubsurfPostProcMeasurements(this)
+    if (this%forward_simulation%stop_flag == TS_STOP_END_SIMULATION) then
+      call InvSubsurfPostProcMeasurements(this)
+    else
+      option%io_buffer = 'Inversion forward simulation "' // &
+        trim(option%group_prefix) // '" failed.'
+      call PrintErrMsg(option)
+    endif
   endif
 
 end subroutine InvSubsurfExecuteForwardRun
