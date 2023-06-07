@@ -94,10 +94,7 @@ END
 # the top of the hole.
 WELLBORE_MODEL
 
-  #SINGLE_PHASE
   TWO_PHASE
-
-#  CHECK_FOR_SS
 
   WELL_GRID
     NUMBER_OF_SEGMENTS 30
@@ -105,7 +102,7 @@ WELLBORE_MODEL
     BOTTOM_OF_HOLE 5.0d0 1.5d0  0.0d0  # [x,y,z] in meters
   /
 
-#  WIPP_INTRUSION_START_TIME 1.d-1 yr
+  WIPP_INTRUSION_START_TIME 2.d-2 yr
   
   # The number of values listed in the WELL sub-block needs to match the
   # number of segments. If all segments have the same value, then you can
@@ -113,8 +110,6 @@ WELLBORE_MODEL
   WELL
     DIAMETER 2.d-1 #1.2d0 1.3d0 1.4d0
     FRICTION_COEFFICIENT 0.d0 #1.0d-5
-    # Sequential coupling results in oscillation when well is open
-    #WELL_INDEX 1.d0 1.d0 1.d0 1.d0 1.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0
     WELL_INDEX 1.d0
     WELL_INDEX_MODEL PEACEMAN_ISO #PEACEMAN_ANISOTROPIC
   /
@@ -270,7 +265,7 @@ FLOW_CONDITION initial
     LIQUID_PRESSURE DIRICHLET
     LIQUID_SATURATION DIRICHLET
   /
-  LIQUID_PRESSURE 1.d7 Pa #1.1d5 Pa #1.0d7 Pa
+  LIQUID_PRESSURE 1.d7 Pa
   LIQUID_SATURATION 0.99d0
 END
 
@@ -297,13 +292,9 @@ noskip
 
 TIME
   FINAL_TIME 1.d-1 y
-#  INITIAL_TIMESTEP_SIZE 1.d-5 y
   INITIAL_TIMESTEP_SIZE 1.d-2 y
-#  MAXIMUM_TIMESTEP_SIZE 1.d-2 y
   MAXIMUM_TIMESTEP_SIZE 1.d-1 y
 
-#   INITIAL_TIMESTEP_SIZE 1.d0 y
-#   MAXIMUM_TIMESTEP_SIZE 1.d0 y
 END
 
 

@@ -179,7 +179,8 @@ TRANSPORT_CFG = \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
-	wipp/transport/wipp_regular.cfg
+	wipp/transport/wipp_regular.cfg \
+	wipp/well_model/well.cfg
 
 GEOPHYSICS_CFG = \
 	geophys/ert/ert.cfg

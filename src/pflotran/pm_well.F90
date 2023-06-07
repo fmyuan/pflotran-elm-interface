@@ -5056,11 +5056,10 @@ subroutine PMWellSolve(this,time,ierr)
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: curr_time, curr_time_converted
 
-  if (this%update_for_wippflo_qi_coupling .and. &
-      this%tran_QI_coupling) then
+  curr_time = this%option%time
+
+  if (this%tran_QI_coupling) then
     curr_time = this%option%time + this%cumulative_dt_tran
-  else
-    curr_time = this%option%time - this%option%flow_dt
   endif
 
   curr_time_converted = curr_time/this%output_option%tconv
