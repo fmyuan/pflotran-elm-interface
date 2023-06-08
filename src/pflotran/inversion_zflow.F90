@@ -1046,8 +1046,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      ! TODO: use iparameter = rblock(iconst,4)
-      iparameter = this%inversion_aux%parameters(1)%itype
+      iparameter = rblock(iconst,4)
 
       call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
                                      iparameter, &
@@ -1575,8 +1574,7 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      ! TODO: use iparameter = rblock(iconst,4)
-      iparameter = this%inversion_aux%parameters(1)%itype
+      iparameter = rblock(iconst,4)
 
       call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
                                      iparameter, &
@@ -1782,8 +1780,7 @@ contains
         case default
       end select
 
-      ! TODO: use iparameter = rblock(iconst,4)
-      iparameter = this%inversion_aux%parameters(1)%itype
+      iparameter = rblock(iconst,4)
 
       call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
                                      iparameter, &

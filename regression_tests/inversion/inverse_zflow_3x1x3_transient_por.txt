@@ -4,4 +4,4 @@
     EXTERNAL_FILE parameter_porosity.txt
     TARGET_CHI2 1d-15
     BETA 0.00001
-    EXTERNAL_FILE inv_zflow_3x1x3_constrained_blocks.txt
+    EXTERNAL_FILE inv_zflow_3x1x3_constrained_blocks-por.txt
