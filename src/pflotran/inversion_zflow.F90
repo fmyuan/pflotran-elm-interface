@@ -181,13 +181,13 @@ subroutine InversionZFlowInit(this,driver)
   ! VG_M bounds
   this%minparam(6) = 0.2d0
   this%maxparam(6) = 1.0d0
-  ! ARCHIES_M bounds
+  ! ARCHIE_CEMENTATION_EXPONENT bounds
   this%minparam(7) = 1.5d0
   this%maxparam(7) = 3.0d0
-  ! ARCHIES_N bounds
+  ! ARCHIE_SATURATION_EXPONENT bounds
   this%minparam(8) = 1.5d0
   this%maxparam(8) = 3.0d0
-  ! ARCHIES_A bounds
+  ! ARCHIE_TORTUOSITY_CONSTANT bounds
   this%minparam(9) = 0.5d0
   this%maxparam(9) = 2.0d0
 
@@ -565,29 +565,29 @@ subroutine InversionZFlowReadBlock(this,input,option)
         call InputReadDouble(input,option,this%maxparam(6))
         call InputErrorMsg(input,option,'MAX_VG_M', &
                            error_string)
-      case('MIN_ARCHIES_M')
+      case('MIN_ARCHIE_CEMENTATION_EXPONENT')
         call InputReadDouble(input,option,this%minparam(7))
-        call InputErrorMsg(input,option,'MIN_ARCHIES_M', &
+        call InputErrorMsg(input,option,'MIN_ARCHIE_CEMENTATION_EXPONENT', &
                            error_string)
-      case('MAX_ARCHIES_M')
+      case('MAX_ARCHIE_CEMENTATION_EXPONENT')
         call InputReadDouble(input,option,this%maxparam(7))
-        call InputErrorMsg(input,option,'MAX_ARCHIES_M', &
+        call InputErrorMsg(input,option,'MAX_ARCHIE_CEMENTATION_EXPONENT', &
                            error_string)
-      case('MIN_ARCHIES_N')
+      case('MIN_ARCHIE_SATURATION_EXPONENT')
         call InputReadDouble(input,option,this%minparam(8))
-        call InputErrorMsg(input,option,'MIN_ARCHIES_N', &
+        call InputErrorMsg(input,option,'MIN_ARCHIE_SATURATION_EXPONENT', &
                            error_string)
-      case('MAX_ARCHIES_N')
+      case('MAX_ARCHIE_SATURATION_EXPONENT')
         call InputReadDouble(input,option,this%maxparam(8))
-        call InputErrorMsg(input,option,'MAX_ARCHIES_N', &
+        call InputErrorMsg(input,option,'MAX_ARCHIE_SATURATION_EXPONENT', &
                            error_string)
-      case('MIN_ARCHIES_A')
+      case('MIN_ARCHIE_TORTUOSITY_CONSTANT')
         call InputReadDouble(input,option,this%minparam(9))
-        call InputErrorMsg(input,option,'MIN_ARCHIES_A', &
+        call InputErrorMsg(input,option,'MIN_ARCHIE_TORTUOSITY_CONSTANT', &
                            error_string)
-      case('MAX_ARCHIES_A')
+      case('MAX_ARCHIE_TORTUOSITY_CONSTANT')
         call InputReadDouble(input,option,this%maxparam(9))
-        call InputErrorMsg(input,option,'MAX_ARCHIES_A', &
+        call InputErrorMsg(input,option,'MAX_ARCHIE_TORTUOSITY_CONSTANT', &
                            error_string)
       case('MIN_CGLS_ITERATION')
         call InputReadInt(input,option,this%miniter)
