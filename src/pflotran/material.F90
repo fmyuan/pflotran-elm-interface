@@ -420,7 +420,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'soil compressibility function', &
                            'MATERIAL_PROPERTY')
-      case('SOIL_COMPRESSIBILITY','BULK_COMPRESSIBILITY','POROSITY_COMPRESSIBILITY')
+      case('SOIL_COMPRESSIBILITY','BULK_COMPRESSIBILITY', &
+           'POROSITY_COMPRESSIBILITY')
         select case(keyword)
           case('SOIL_COMPRESSIBILITY')
             soil_or_bulk_compressibility = TMP_SOIL_COMPRESSIBILITY
@@ -959,6 +960,18 @@ subroutine MaterialPropertyRead(material_property,input,option)
                       material_property%electrical_conductivity, &
                       material_property%electrical_conductivity_dataset, &
                       'electrical conductivity','MATERIAL_PROPERTY',option)
+      case('ARCHIE_CEMENTATION_EXPONENT')
+        call InputReadDouble(input,option, &
+                             material_property%archie_cementation_exponent)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+      case('ARCHIE_SATURATION_EXPONENT')
+        call InputReadDouble(input,option, &
+                             material_property%archie_saturation_exponent)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+      case('ARCHIE_TORTUOSITY_CONSTANT')
+        call InputReadDouble(input,option, &
+                             material_property%archie_tortuosity_constant)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
       case default
         call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select
