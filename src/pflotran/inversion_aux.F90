@@ -292,7 +292,10 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
   use String_module
   use Utility_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
-                               POROSITY, VG_ALPHA, VG_SR, VG_M
+                               POROSITY, VG_ALPHA, VG_SR, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
 
   type(inversion_aux_type) :: aux
   PetscReal :: value
@@ -368,6 +371,24 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
             call cc%liq_rel_perm_function%SetResidualSaturation(value)
           endif
       end select
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%archie_cementation_exponent
+      else
+        material_property%archie_cementation_exponent = value
+      endif
+    case(ARCHIE_SATURATION_EXPONENT)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%archie_saturation_exponent
+      else
+        material_property%archie_saturation_exponent = value
+      endif
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%archie_tortuosity_constant
+      else
+        material_property%archie_tortuosity_constant = value
+      endif
     case default
       string = 'Unrecognized variable in &
         &InvAuxGetSetParamValueByMat: ' // &
