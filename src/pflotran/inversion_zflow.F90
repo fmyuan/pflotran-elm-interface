@@ -748,7 +748,10 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
   use Inversion_Parameter_module
   use Option_module
   use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY, &
-                               VG_ALPHA,VG_SR,VG_M
+                               VG_ALPHA,VG_SR,VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
 
   implicit none
 
@@ -766,24 +769,15 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
   exists = PETSC_FALSE
   iqoi = InversionParameterIntToQOIArray(this%inversion_aux%parameters(1))
   select case(iqoi(1))
-    case(PERMEABILITY)
+    case(PERMEABILITY,POROSITY,VG_ALPHA,VG_SR,VG_M)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'PERMEABILITY'
-    case(POROSITY)
-      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'POROSITY'
-    case(ELECTRICAL_CONDUCTIVITY)
+      word = InversionParamGetNameFromItype(iqoi(1),this%driver, &
+                                            this%inversion_option)
+    case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'ELECTRICAL_CONDUCTIVITY'
-    case(VG_ALPHA)
-      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'VG_ALPHA'
-    case(VG_SR)
-      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'VG_SR'
-    case(VG_M)
-      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'VG_M'
+      word = InversionParamGetNameFromItype(iqoi(1),this%driver, &
+                                            this%inversion_option)
     case default
       word = 'unknown_parameter'
   end select
@@ -880,7 +874,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   use Patch_module
   use Material_Aux_module
   use String_module
-  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1419,7 +1412,6 @@ subroutine InversionZFlowCGLSRhs(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1621,7 +1613,6 @@ subroutine InversionZFlowBuildWm(this)
   use Material_Aux_module
   use Option_module
   use String_module
-  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY
 
   implicit none
 

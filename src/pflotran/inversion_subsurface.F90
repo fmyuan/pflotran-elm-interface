@@ -569,7 +569,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   use PM_ERT_class
   use PM_Subsurface_Flow_class
   use String_module
-  use Variables_module, only : PERMEABILITY,POROSITY
+  use Variables_module, only : PERMEABILITY, POROSITY, &
+                  ARCHIE_CEMENTATION_EXPONENT, ARCHIE_SATURATION_EXPONENT, &
+                  ARCHIE_TORTUOSITY_CONSTANT
   use Waypoint_module
   use ZFlow_Aux_module
 
@@ -691,13 +693,14 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     if (this%inversion_option%coupled_flow_ert) then
       do i = 1, size(this%inversion_aux%parameters)
-        param_id = InversionParameterGetIDFromName(this%inversion_aux% &
+        param_id = InversionParamGetItypeFromName(this%inversion_aux% &
                                                      parameters(i)% &
                                                      parameter_name, &
                                                    this%driver, &
                                                    this%inversion_option)
         select case(param_id)
-          case(PERMEABILITY,POROSITY)
+          case(PERMEABILITY,POROSITY,ARCHIE_CEMENTATION_EXPONENT, &
+               ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
           case default
             string = 'COUPLED_ZFLOW_ERT does not currently support &
               &inversion for "' // &
@@ -1162,7 +1165,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   perturbation => this%inversion_aux%perturbation
 
-  ! the allocation of sync_times come before the call to 
+  ! the allocation of sync_times come before the call to
   ! InvCoupledAllocateSolnVecs()
   if (.not.associated(this%inversion_aux%sync_times)) then
     ! insert measurement times into waypoint list. this must come after the
@@ -1324,7 +1327,10 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
   ! Date: 03/30/22
 
   use String_module
-  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, VG_SR
+  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, &
+                               VG_SR, ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
@@ -1349,6 +1355,11 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
       string = 'van Genuchten parameters are unsupported for adjoint-based &
         &inversion.'
       call this%driver%PrintErrMsg(string)
+    case(ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
+         ARCHIE_TORTUOSITY_CONSTANT)
+      string = "Archie's parameters are unsupported for adjoint-based &
+        &inversion."
+      call this%driver%PrintErrMsg(string)
     case default
       string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &
                trim(StringWrite(iparameter))
@@ -1372,7 +1383,7 @@ subroutine InvSubsurfExecuteForwardRun(this)
   class(inversion_subsurface_type) :: this
 
   type(option_type), pointer :: option
- 
+
   option => this%realization%option
   if (option%status == PROCEED) then
     call this%forward_simulation%ExecuteRun()

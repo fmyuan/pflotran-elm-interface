@@ -217,14 +217,14 @@ subroutine PMERTReadSimOptionsBlock(this,input)
                                       // trim(word) // ' unknown.'
             call PrintErrMsg(option)
         end select
-      case('TORTUOSITY_CONSTANT')
-        call InputReadDouble(input,option,this%tortuosity_constant)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('CEMENTATION_EXPONENT')
+      case('ARCHIE_CEMENTATION_EXPONENT')
         call InputReadDouble(input,option,this%cementation_exponent)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('SATURATION_EXPONENT')
+      case('ARCHIE_SATURATION_EXPONENT')
         call InputReadDouble(input,option,this%saturation_exponent)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ARCHIE_TORTUOSITY_CONSTANT')
+        call InputReadDouble(input,option,this%tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_string)
       case('WATER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%water_conductivity)
@@ -766,6 +766,9 @@ subroutine PMERTPreSolve(this)
   PetscReal :: tracer_scale
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal, pointer :: dcond_dpor_vec_ptr(:)
+  PetscBool :: cementation_cell_by_cell
+  PetscBool :: saturation_cell_by_cell
+  PetscBool :: tortuosity_cell_by_cell
   PetscErrorCode :: ierr
 
   option => this%option
@@ -785,6 +788,10 @@ subroutine PMERTPreSolve(this)
   cond_c = this%clay_conductivity
   cond_w0 = cond_w
   tracer_scale = 0.d0
+
+  cementation_cell_by_cell = (archie_cementation_exp_index > 0)
+  saturation_cell_by_cell = (archie_saturation_exp_index > 0)
+  tortuosity_cell_by_cell = (archie_tortuosity_index > 0)
 
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
@@ -849,6 +856,18 @@ subroutine PMERTPreSolve(this)
       cond_w = cond_w0 + cond_sp
     endif
     ! compute conductivity
+    if (cementation_cell_by_cell) then
+      m = material_auxvars(ghosted_id)% &
+                      soil_properties(archie_cementation_exp_index)
+    endif
+    if (saturation_cell_by_cell) then
+      n = material_auxvars(ghosted_id)% &
+                      soil_properties(archie_saturation_exp_index)
+    endif
+    if (tortuosity_cell_by_cell) then
+      a = material_auxvars(ghosted_id)% &
+                      soil_properties(archie_tortuosity_index)
+    endif
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                          cond_c,empirical_law,cond, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
