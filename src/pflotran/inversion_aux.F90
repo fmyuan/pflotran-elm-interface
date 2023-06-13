@@ -527,9 +527,7 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
   select case(iparameter_type)
     case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
-      value = MaterialAuxVarGetValue(material_auxvar,iparameter)
-    case(ELECTRICAL_CONDUCTIVITY)
-      value = MaterialAuxVarGetValue(material_auxvar,ELECTRICAL_CONDUCTIVITY)
+      value = MaterialAuxVarGetValue(material_auxvar,iparameter_type)
     case(PERMEABILITY)
       value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)
     case(POROSITY)
