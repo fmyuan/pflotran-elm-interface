@@ -2774,10 +2774,9 @@ subroutine BasisInit(reaction,option)
             call PrintErrMsg(option)
           endif
         case(NULL_SURFACE)
-          write(word,*) cur_srfcplx_rxn%id
           option%io_buffer = 'No mineral name specified &
-            &for equilibrium surface complexation reaction:' // &
-            trim(adjustl(word))
+            &for equilibrium surface complexation reaction: ' // &
+            StringWrite(cur_srfcplx_rxn%id)
           call PrintWrnMsg(option)
       end select
       surface_complexation%srfcplxrxn_site_density(irxn) = &
@@ -3731,14 +3730,13 @@ subroutine BasisInit(reaction,option)
     write(option%fid_out,110) (mineral%kinmnrl_names(i),i=1,mineral%nkinmnrl)
 
     if (surface_complexation%nsrfcplxrxn > 0) then
-      write(word,*) surface_complexation%nsrfcplxrxn
-      write(option%fid_out,120) trim(adjustl(word)) // &
-        ' Surface Complexation Reactions'
+      write(option%fid_out,100) surface_complexation%nsrfcplxrxn, &
+        'Surface Complexation Reaction Sites' 
       write(option%fid_out,110) &
         (surface_complexation%srfcplxrxn_site_names(i), &
          i=1,surface_complexation%nsrfcplxrxn)
-      write(word,*) surface_complexation%nsrfcplx
-      write(option%fid_out,120) trim(adjustl(word)) // ' Surface Complexes'
+      write(option%fid_out,100) surface_complexation%nsrfcplx, &
+        'Surface Complexes'
       write(option%fid_out,110) (surface_complexation%srfcplx_names(i), &
         i=1,surface_complexation%nsrfcplx)
     endif
@@ -4403,9 +4401,9 @@ subroutine BasisPrint(reaction,title,option)
 
       endif
 #ifdef WRITE_LATEX
-      write(word,130) '', cur_aq_spec%dbaserxn%logK(2)
       write(fid,*) trim(reactant_string) // ' $~\rightleftharpoons~$ ' // &
-        trim(product_string) // ' & ' // trim(adjustl(word)) // ' \\'
+        trim(product_string) // ' & ' // &
+        StringWrite(cur_aq_spec%dbaserxn%logK(2)) // ' \\'
 #endif
       write(option%fid_out,*)
       cur_aq_spec => cur_aq_spec%next
