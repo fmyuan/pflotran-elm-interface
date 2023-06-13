@@ -3703,7 +3703,6 @@ subroutine BasisInit(reaction,option)
 90 format(80('-'))
 100 format(/,2x,i4,2x,a)
 110 format(100(/,14x,3(a20,2x)))
-120 format(/,a)
 
   if (OptionPrintToFile(option)) then
     write(option%fid_out,90)
