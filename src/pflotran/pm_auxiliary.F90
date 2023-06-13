@@ -442,7 +442,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
                                              !   g/L => kg/m^3
       enddo
 
-      ! Save NaCl from pervious timestep
+      ! Save NaCl from previous timestep
       global_auxvars(ghosted_id)%m_nacl(TWO_INTEGER) = &
         global_auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
 
