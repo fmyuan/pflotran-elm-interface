@@ -4,7 +4,7 @@ module Characteristic_Curves_spline_module
 use Characteristic_Curves_Base_module ! Base type
 use slatec_pchip_module ! Imported SLATEC PCHIP library
 use petscsys ! PETSC_TRUE / PETSC_FALSE
-use PFLOTRAN_constants_module ! UNINITIALIZED_DOUBLE
+use PFLOTRAN_Constants_module ! UNINITIALIZED_DOUBLE
 use Option_module ! Unused argument 'option'
 
 implicit none
