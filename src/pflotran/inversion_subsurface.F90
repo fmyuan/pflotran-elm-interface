@@ -569,7 +569,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   use PM_ERT_class
   use PM_Subsurface_Flow_class
   use String_module
-  use Variables_module, only : PERMEABILITY,POROSITY
+  use Variables_module, only : PERMEABILITY, POROSITY, &
+                  ARCHIE_CEMENTATION_EXPONENT, ARCHIE_SATURATION_EXPONENT, &
+                  ARCHIE_TORTUOSITY_CONSTANT
   use Waypoint_module
   use ZFlow_Aux_module
 
@@ -697,7 +699,8 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                                                    this%driver, &
                                                    this%inversion_option)
         select case(param_id)
-          case(PERMEABILITY,POROSITY)
+          case(PERMEABILITY,POROSITY,ARCHIE_CEMENTATION_EXPONENT, &
+               ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
           case default
             string = 'COUPLED_ZFLOW_ERT does not currently support &
               &inversion for "' // &

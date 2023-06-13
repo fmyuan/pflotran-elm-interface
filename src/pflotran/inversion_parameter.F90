@@ -128,15 +128,15 @@ subroutine InversionParameterPrint(fid,inversion_parameter, &
     write(fid,'(/, &
               &" Current values of inversion parameters:",//, &
               &"      # &
-              &Parameter Name      &
+              &Parameter Name                    &
               &Material Name       &
               & Value",/,&
               &"      - &
-              &--------------      &
+              &--------------                    &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i6," ",2a20,es13.6)') &
+  write(string,'(i6," ",a32,2x,a20,es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &

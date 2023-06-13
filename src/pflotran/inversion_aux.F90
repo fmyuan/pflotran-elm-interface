@@ -510,7 +510,10 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, PERMEABILITY_X, &
                                POROSITY, BASE_POROSITY, &
-                               VG_ALPHA, VG_SR, VG_M
+                               VG_ALPHA, VG_SR, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
 
   class(inversion_aux_type) :: aux
   PetscReal :: value
@@ -522,8 +525,9 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
   type(characteristic_curves_type), pointer :: cc
 
   select case(iparameter)
-    case(ELECTRICAL_CONDUCTIVITY)
-      value = MaterialAuxVarGetValue(material_auxvar,ELECTRICAL_CONDUCTIVITY)
+    case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
+      value = MaterialAuxVarGetValue(material_auxvar,iparameter)
     case(PERMEABILITY)
       value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)
     case(POROSITY)
