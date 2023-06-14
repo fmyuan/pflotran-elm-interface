@@ -1131,6 +1131,7 @@ subroutine InversionZFlowCalculateUpdate(this)
   use Discretization_module
   use Patch_module
   use Grid_module
+  use Inversion_Parameter_module
 
   implicit none
 
@@ -1220,11 +1221,10 @@ subroutine InversionZFlowCalculateUpdate(this)
         vec_ptr(iparameter) = this%minparam
 #else
       new_value = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
-      if (new_value > this%maxparam) then
-        new_value = this%maxparam
-      else if (new_value < this%minparam) then
-        new_value = this%minparam
-      endif
+      call InversionParameterBoundParameter(this%inversion_aux% &
+                                              parameters(iparameter+ &
+                                                    this%parameter_offset), &
+                                            new_value)
       vec2_ptr(iparameter) = new_value - vec_ptr(iparameter)
       vec_ptr(iparameter) = new_value
 #endif

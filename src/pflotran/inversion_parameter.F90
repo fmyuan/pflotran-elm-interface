@@ -49,6 +49,7 @@ module Inversion_Parameter_module
             InversionParamInitBounds, &
             InversionParamSetBounds, &
             InversionParamGetBounds, &
+            InversionParameterBoundParameter, &
             InversionParameterIntToQOIArray, &
             InversionParameterPrint, &
             InversionParameterPrintUpdate, &
@@ -459,7 +460,7 @@ subroutine InversionParamInitBounds()
   ! Sets the global upper and lower bounds for each variable
   !
   ! Author: Glenn Hammond
-  ! Date: 06/0147/23
+  ! Date: 06/14/23
   !
 
   PetscInt :: itype
@@ -472,15 +473,11 @@ subroutine InversionParamInitBounds()
   parameter_bounds(:,:) = UNINITIALIZED_DOUBLE
   call InversionParamSetBounds(ELECTRICAL_CONDUCTIVITY, &
                                default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(PERMEABILITY,1.d-17,1.d-7)
-  call InversionParamSetBounds(POROSITY, &
-                               default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(VG_ALPHA, &
-                               default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(VG_SR, &
-                               default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(VG_M, &
-                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(PERMEABILITY,1.d-30,1.d-7)
+  call InversionParamSetBounds(POROSITY,0.d0,1.d0)
+  call InversionParamSetBounds(VG_ALPHA,1.d-6,1.d-3)
+  call InversionParamSetBounds(VG_SR,0.d0,0.6d0) ! not based on data
+  call InversionParamSetBounds(VG_M,0.2d0,0.9d0)
   call InversionParamSetBounds(ARCHIE_CEMENTATION_EXPONENT, &
                                default_lower_bound,default_upper_bound)
   call InversionParamSetBounds(ARCHIE_SATURATION_EXPONENT, &
@@ -497,7 +494,7 @@ subroutine InversionParamSetBounds(itype,lower_bound,upper_bound)
   ! Sets the global upper and lower bounds for each variable
   !
   ! Author: Glenn Hammond
-  ! Date: 06/0147/23
+  ! Date: 06/14/23
   !
 
   PetscInt :: itype
@@ -516,7 +513,7 @@ subroutine InversionParamGetBounds(itype,lower_bound,upper_bound)
   ! Gets the global upper and lower bounds for each variable
   !
   ! Author: Glenn Hammond
-  ! Date: 06/0147/23
+  ! Date: 06/14/23
   !
 
   PetscInt :: itype
@@ -530,6 +527,32 @@ subroutine InversionParamGetBounds(itype,lower_bound,upper_bound)
   upper_bound = parameter_bounds(2,i)
 
 end subroutine InversionParamGetBounds
+
+! ************************************************************************** !
+
+subroutine InversionParameterBoundParameter(inversion_parameter,value)
+  !
+  ! Truncates parameter to within the lower and upper bound
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/14/23
+  !
+  type(inversion_parameter_type) :: inversion_parameter
+  PetscReal :: value
+
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
+
+  if (Initialized(inversion_parameter%bounds(1))) then
+    lower_bound = inversion_parameter%bounds(1)
+    upper_bound = inversion_parameter%bounds(2)
+  else
+    call InversionParamGetBounds(inversion_parameter%itype, &
+                                 lower_bound,upper_bound)
+  endif
+  value = max(min(value,upper_bound),lower_bound)
+
+end subroutine InversionParameterBoundParameter
 
 ! ************************************************************************** !
 
