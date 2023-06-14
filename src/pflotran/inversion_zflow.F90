@@ -771,13 +771,11 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
   select case(iqoi(1))
     case(PERMEABILITY,POROSITY,VG_ALPHA,VG_SR,VG_M)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = InversionParamGetNameFromItype(iqoi(1),this%driver, &
-                                            this%inversion_option)
+      word = InversionParamGetNameFromItype(iqoi(1),this%driver)
     case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
-      word = InversionParamGetNameFromItype(iqoi(1),this%driver, &
-                                            this%inversion_option)
+      word = InversionParamGetNameFromItype(iqoi(1),this%driver)
     case default
       word = 'unknown_parameter'
   end select

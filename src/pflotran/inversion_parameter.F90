@@ -3,10 +3,29 @@ module Inversion_Parameter_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, POROSITY, &
+                               VG_SR, VG_ALPHA, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
 
   implicit none
 
   private
+
+  PetscInt, parameter :: MAP_ELEC_COND = 1
+  PetscInt, parameter :: MAP_PERM = 2
+  PetscInt, parameter :: MAP_POR = 3
+  PetscInt, parameter :: MAP_VG_SR = 4
+  PetscInt, parameter :: MAP_VG_ALPHA = 5
+  PetscInt, parameter :: MAP_VG_M = 6
+  PetscInt, parameter :: MAP_ACE = 7
+  PetscInt, parameter :: MAP_ASE = 8
+  PetscInt, parameter :: MAP_ATC = 9
+
+  ! second index is max MAP # above
+  PetscReal :: parameter_bounds(2,MAP_ATC) = UNINITIALIZED_DOUBLE
 
   type, public :: inversion_parameter_type
     PetscInt :: id
@@ -14,6 +33,7 @@ module Inversion_Parameter_module
     PetscInt :: imat
     PetscReal :: value
     PetscReal :: update
+    PetscReal :: bounds(2)
     character(len=MAXWORDLENGTH) :: parameter_name
     character(len=MAXWORDLENGTH) :: material_name
     type(inversion_parameter_type), pointer :: next
@@ -26,6 +46,9 @@ module Inversion_Parameter_module
             InversionParameterMapNameToInt, &
             InversionParamGetItypeFromName, &
             InversionParamGetNameFromItype, &
+            InversionParamInitBounds, &
+            InversionParamSetBounds, &
+            InversionParamGetBounds, &
             InversionParameterIntToQOIArray, &
             InversionParameterPrint, &
             InversionParameterPrintUpdate, &
@@ -72,6 +95,7 @@ subroutine InversionParameterInit(inversion_parameter)
   inversion_parameter%imat = UNINITIALIZED_INTEGER
   inversion_parameter%value = UNINITIALIZED_DOUBLE
   inversion_parameter%update = UNINITIALIZED_DOUBLE
+  inversion_parameter%bounds = UNINITIALIZED_DOUBLE
   inversion_parameter%parameter_name = ''
   inversion_parameter%material_name = ''
 
@@ -97,6 +121,7 @@ subroutine InversionParameterCopy(inversion_parameter,inversion_parameter2)
   inversion_parameter2%imat = inversion_parameter%imat
   inversion_parameter2%value = inversion_parameter%value
   inversion_parameter2%update = inversion_parameter%update
+  inversion_parameter2%bounds = inversion_parameter%bounds
   inversion_parameter2%parameter_name = inversion_parameter%parameter_name
   inversion_parameter2%material_name = inversion_parameter%material_name
 
@@ -136,7 +161,7 @@ subroutine InversionParameterPrint(fid,inversion_parameter, &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i6," ",a32,2x,a20,es13.6)') &
+  write(string,'(i6," ",a32,2x,a20,2es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &
@@ -216,6 +241,9 @@ function InversionParameterRead(input,error_string,option)
   character(len=MAXWORDLENGTH) :: keyword
   type(inversion_parameter_type), pointer :: new_inversion_parameter
   character(len=MAXWORDLENGTH) :: word
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
+  PetscInt :: itype
 
   new_inversion_parameter => InversionParameterCreate()
 
@@ -241,6 +269,14 @@ function InversionParameterRead(input,error_string,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
         new_inversion_parameter%material_name = word
+      case('INITIAL_VALUE')
+        call InputReadDouble(input,option,new_inversion_parameter%value)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('BOUNDS')
+        call InputReadDouble(input,option,new_inversion_parameter%bounds(1))
+        call InputErrorMsg(input,option,'BOUNDS,LOWER_BOUND',error_string)
+        call InputReadDouble(input,option,new_inversion_parameter%bounds(2))
+        call InputErrorMsg(input,option,'BOUNDS,UPPER_BOUND',error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -260,8 +296,7 @@ end function InversionParameterRead
 
 ! ************************************************************************** !
 
-subroutine InversionParameterMapNametoInt(inversion_parameter,driver, &
-                                          inversion_option)
+subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
   !
   ! Maps an inversion parameter to subsurface model parameter id
   !
@@ -269,21 +304,18 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver, &
   ! Date: 03/25/22
   !
   use Driver_class
-  use Option_Inversion_module
 
   type(inversion_parameter_type) :: inversion_parameter
   class(driver_type) :: driver
-  type(inversion_option_type) :: inversion_option
 
   inversion_parameter%itype = &
-    InversionParamGetItypeFromName(inversion_parameter%parameter_name, &
-                                   driver,inversion_option)
+    InversionParamGetItypeFromName(inversion_parameter%parameter_name,driver)
 
 end subroutine InversionParameterMapNametoInt
 
 ! ************************************************************************** !
 
-function InversionParamGetItypeFromName(name_,driver,inversion_option)
+function InversionParamGetItypeFromName(name_,driver)
   !
   ! Maps an inversion parameter_name to subsurface model parameter id
   !
@@ -291,17 +323,9 @@ function InversionParamGetItypeFromName(name_,driver,inversion_option)
   ! Date: 11/23/22
   !
   use Driver_class
-  use Option_Inversion_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA, VG_M, &
-                               ARCHIE_CEMENTATION_EXPONENT, &
-                               ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
 
   character(len=MAXWORDLENGTH) :: name_
   class(driver_type) :: driver
-  type(inversion_option_type) :: inversion_option
 
   PetscInt :: InversionParamGetItypeFromName
 
@@ -310,31 +334,22 @@ function InversionParamGetItypeFromName(name_,driver,inversion_option)
   select case(name_)
     case('ELECTRICAL_CONDUCTIVITY')
       i = ELECTRICAL_CONDUCTIVITY
-      inversion_option%invert_for_elec_cond = PETSC_TRUE
     case('PERMEABILITY')
       i = PERMEABILITY
-      inversion_option%invert_for_permeability = PETSC_TRUE
     case('POROSITY')
       i = POROSITY
-      inversion_option%invert_for_porosity = PETSC_TRUE
     case('ALPHA')
       i = VG_ALPHA
-      inversion_option%invert_for_vg_alpha = PETSC_TRUE
     case('RESIDUAL_SATURATION')
       i = VG_SR
-      inversion_option%invert_for_vg_sr = PETSC_TRUE
     case('M')
       i = VG_M
-      inversion_option%invert_for_vg_m = PETSC_TRUE
     case('ARCHIE_CEMENTATION_EXPONENT')
       i = ARCHIE_CEMENTATION_EXPONENT
-      inversion_option%invert_for_arch_cement_exp = PETSC_TRUE
     case('ARCHIE_SATURATION_EXPONENT')
       i = ARCHIE_SATURATION_EXPONENT
-      inversion_option%invert_for_arch_sat_exp = PETSC_TRUE
     case('ARCHIE_TORTUOSITY_CONSTANT')
       i = ARCHIE_TORTUOSITY_CONSTANT
-      inversion_option%invert_for_arch_tort_const = PETSC_TRUE
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParamGetItypeFromName: ' // &
@@ -347,7 +362,7 @@ end function InversionParamGetItypeFromName
 
 ! ************************************************************************** !
 
-function InversionParamGetNameFromItype(itype,driver,inversion_option)
+function InversionParamGetNameFromItype(itype,driver)
   !
   ! Maps an inversion parameter id to subsurface model parameter name
   !
@@ -355,18 +370,10 @@ function InversionParamGetNameFromItype(itype,driver,inversion_option)
   ! Date: 06/07/23
   !
   use Driver_class
-  use Option_Inversion_module
   use String_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA, VG_M, &
-                               ARCHIE_CEMENTATION_EXPONENT, &
-                               ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
 
   PetscInt :: itype
   class(driver_type) :: driver
-  type(inversion_option_type) :: inversion_option
 
   character(len=MAXWORDLENGTH) :: InversionParamGetNameFromItype
 
@@ -403,6 +410,129 @@ end function InversionParamGetNameFromItype
 
 ! ************************************************************************** !
 
+function InvParamItypeToItypeInternal(itype)
+  !
+  ! Maps an inversion parameter id to the internal id in this module
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/14/23
+  !
+  PetscInt :: itype
+
+  PetscInt :: InvParamItypeToItypeInternal
+
+  PetscInt :: i
+
+  select case(itype)
+    case(ELECTRICAL_CONDUCTIVITY)
+      i = MAP_ELEC_COND
+    case(PERMEABILITY)
+      i = MAP_PERM
+    case(POROSITY)
+      i = MAP_POR
+    case(VG_ALPHA)
+      i = MAP_VG_ALPHA
+    case(VG_SR)
+      i = MAP_VG_SR
+    case(VG_M)
+      i = MAP_VG_M
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      i = MAP_ACE
+    case(ARCHIE_SATURATION_EXPONENT)
+      i = MAP_ASE
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      i = MAP_ATC
+    case default
+      print *, 'Unrecognized parameter in &
+               &InvParamItypeToItypeInternal: ', itype
+      stop
+  end select
+
+  InvParamItypeToItypeInternal = i
+
+end function InvParamItypeToItypeInternal
+
+! ************************************************************************** !
+
+subroutine InversionParamInitBounds()
+  !
+  ! Sets the global upper and lower bounds for each variable
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/0147/23
+  !
+
+  PetscInt :: itype
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
+
+  PetscReal, parameter :: default_lower_bound = 0.d0
+  PetscReal, parameter :: default_upper_bound = 1.d20
+
+  parameter_bounds(:,:) = UNINITIALIZED_DOUBLE
+  call InversionParamSetBounds(ELECTRICAL_CONDUCTIVITY, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(PERMEABILITY,1.d-17,1.d-7)
+  call InversionParamSetBounds(POROSITY, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(VG_ALPHA, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(VG_SR, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(VG_M, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(ARCHIE_CEMENTATION_EXPONENT, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(ARCHIE_SATURATION_EXPONENT, &
+                               default_lower_bound,default_upper_bound)
+  call InversionParamSetBounds(ARCHIE_TORTUOSITY_CONSTANT, &
+                               default_lower_bound,default_upper_bound)
+
+end subroutine InversionParamInitBounds
+
+! ************************************************************************** !
+
+subroutine InversionParamSetBounds(itype,lower_bound,upper_bound)
+  !
+  ! Sets the global upper and lower bounds for each variable
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/0147/23
+  !
+
+  PetscInt :: itype
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
+
+  parameter_bounds(:,InvParamItypeToItypeInternal(itype)) = &
+    [lower_bound,upper_bound]
+
+end subroutine InversionParamSetBounds
+
+! ************************************************************************** !
+
+subroutine InversionParamGetBounds(itype,lower_bound,upper_bound)
+  !
+  ! Gets the global upper and lower bounds for each variable
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/0147/23
+  !
+
+  PetscInt :: itype
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
+
+  PetscInt i
+
+  i = InvParamItypeToItypeInternal(itype)
+  lower_bound = parameter_bounds(1,i)
+  upper_bound = parameter_bounds(2,i)
+
+end subroutine InversionParamGetBounds
+
+! ************************************************************************** !
+
 function InversionParameterIntToQOIArray(inversion_parameter)
   !
   ! Maps an inverion parameter to subsurface model parameter id
@@ -411,7 +541,6 @@ function InversionParameterIntToQOIArray(inversion_parameter)
   ! Date: 03/25/22
   !
   use String_module
-  use Variables_module, only : POROSITY
   use Material_Aux_module, only : POROSITY_BASE
 
   type(inversion_parameter_type) :: inversion_parameter
