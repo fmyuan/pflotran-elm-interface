@@ -10,7 +10,7 @@ module Inversion_Parameter_module
 
   type, public :: inversion_parameter_type
     PetscInt :: id
-    PetscInt :: iparameter
+    PetscInt :: itype
     PetscInt :: imat
     PetscReal :: value
     PetscReal :: update
@@ -68,7 +68,7 @@ subroutine InversionParameterInit(inversion_parameter)
   type(inversion_parameter_type) :: inversion_parameter
 
   inversion_parameter%id = UNINITIALIZED_INTEGER
-  inversion_parameter%iparameter = UNINITIALIZED_INTEGER
+  inversion_parameter%itype = UNINITIALIZED_INTEGER
   inversion_parameter%imat = UNINITIALIZED_INTEGER
   inversion_parameter%value = UNINITIALIZED_DOUBLE
   inversion_parameter%update = UNINITIALIZED_DOUBLE
@@ -93,7 +93,7 @@ subroutine InversionParameterCopy(inversion_parameter,inversion_parameter2)
   type(inversion_parameter_type) :: inversion_parameter2
 
   inversion_parameter2%id = inversion_parameter%id
-  inversion_parameter2%iparameter = inversion_parameter%iparameter
+  inversion_parameter2%itype = inversion_parameter%itype
   inversion_parameter2%imat = inversion_parameter%imat
   inversion_parameter2%value = inversion_parameter%value
   inversion_parameter2%update = inversion_parameter%update
@@ -275,9 +275,9 @@ subroutine InversionParameterMapNametoInt(inversion_parameter,driver, &
   class(driver_type) :: driver
   type(inversion_option_type) :: inversion_option
 
-  inversion_parameter%iparameter = &
+  inversion_parameter%itype = &
     InversionParamGetItypeFromName(inversion_parameter%parameter_name, &
-                                    driver,inversion_option)
+                                   driver,inversion_option)
 
 end subroutine InversionParameterMapNametoInt
 
@@ -418,8 +418,8 @@ function InversionParameterIntToQOIArray(inversion_parameter)
 
   PetscInt :: InversionParameterIntToQOIArray(2)
 
-  InversionParameterIntToQOIArray(1) = inversion_parameter%iparameter
-  select case(inversion_parameter%iparameter)
+  InversionParameterIntToQOIArray(1) = inversion_parameter%itype
+  select case(inversion_parameter%itype)
     case(POROSITY)
       InversionParameterIntToQOIArray(2) = POROSITY_BASE
     case default

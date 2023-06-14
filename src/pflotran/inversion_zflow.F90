@@ -945,7 +945,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      iparameter = this%inversion_aux%parameters(1)%iparameter
+      iparameter = this%inversion_aux%parameters(1)%itype
 
       call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
                                      iparameter, &
@@ -1029,7 +1029,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
         case default
       end select
 
-      iparameter = this%inversion_aux%parameters(1)%iparameter
+      iparameter = this%inversion_aux%parameters(1)%itype
 
       call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
                                        iparameter, &
@@ -1472,7 +1472,7 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      iparameter = this%inversion_aux%parameters(1)%iparameter
+      iparameter = this%inversion_aux%parameters(1)%itype
 
       call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
                                      iparameter, &
@@ -1546,7 +1546,7 @@ subroutine InversionZFlowCGLSRhs(this)
         case default
       end select
 
-      iparameter = this%inversion_aux%parameters(1)%iparameter
+      iparameter = this%inversion_aux%parameters(1)%itype
 
       call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
                                        iparameter, &
@@ -1679,7 +1679,7 @@ contains
         case default
       end select
 
-      iparameter = this%inversion_aux%parameters(1)%iparameter
+      iparameter = this%inversion_aux%parameters(1)%itype
 
       call InvAuxGetParamValueByCell(this%inversion_aux,param_ce, &
                                      iparameter, &
@@ -1711,7 +1711,7 @@ contains
         case default
       end select
 
-      iparameter = this%inversion_aux%parameters(1)%iparameter
+      iparameter = this%inversion_aux%parameters(1)%itype
 
       call InvAuxGetSetParamValueByMat(this%inversion_aux,param_ce, &
                                        iparameter, &

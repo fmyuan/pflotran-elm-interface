@@ -146,7 +146,7 @@ subroutine InversionERTInit(this,driver)
   ! override default set in InversionSubsurfaceInit
   allocate(this%inversion_aux%parameters(1))
   call InversionParameterInit(this%inversion_aux%parameters(1))
-  this%inversion_aux%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
+  this%inversion_aux%parameters(1)%itype = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -714,7 +714,7 @@ subroutine InvERTSetupForwardRunLinkage(this)
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
     ! theck to ensure that quantity of interest exists
     exists = PETSC_FALSE
-    select case(this%inversion_aux%parameters(1)%iparameter)
+    select case(this%inversion_aux%parameters(1)%itype)
       case(ELECTRICAL_CONDUCTIVITY)
         if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
         word = 'ELECTRICAL_CONDUCTIVITY'
