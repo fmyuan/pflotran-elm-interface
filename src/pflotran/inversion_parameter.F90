@@ -47,8 +47,8 @@ module Inversion_Parameter_module
             InversionParamGetItypeFromName, &
             InversionParamGetNameFromItype, &
             InversionParamInitBounds, &
-            InversionParamSetBounds, &
-            InversionParamGetBounds, &
+            InversionParamSetGlobalBounds, &
+            InversionParamGetGlobalBounds, &
             InversionParameterBoundParameter, &
             InversionParameterIntToQOIArray, &
             InversionParameterPrint, &
@@ -242,9 +242,6 @@ function InversionParameterRead(input,error_string,option)
   character(len=MAXWORDLENGTH) :: keyword
   type(inversion_parameter_type), pointer :: new_inversion_parameter
   character(len=MAXWORDLENGTH) :: word
-  PetscReal :: lower_bound
-  PetscReal :: upper_bound
-  PetscInt :: itype
 
   new_inversion_parameter => InversionParameterCreate()
 
@@ -462,34 +459,29 @@ subroutine InversionParamInitBounds()
   ! Author: Glenn Hammond
   ! Date: 06/14/23
   !
-
-  PetscInt :: itype
-  PetscReal :: lower_bound
-  PetscReal :: upper_bound
-
   PetscReal, parameter :: default_lower_bound = 0.d0
   PetscReal, parameter :: default_upper_bound = 1.d20
 
   parameter_bounds(:,:) = UNINITIALIZED_DOUBLE
-  call InversionParamSetBounds(ELECTRICAL_CONDUCTIVITY, &
-                               default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(PERMEABILITY,1.d-30,1.d-7)
-  call InversionParamSetBounds(POROSITY,0.d0,1.d0)
-  call InversionParamSetBounds(VG_ALPHA,1.d-6,1.d-3)
-  call InversionParamSetBounds(VG_SR,0.d0,0.6d0) ! not based on data
-  call InversionParamSetBounds(VG_M,0.2d0,0.9d0)
-  call InversionParamSetBounds(ARCHIE_CEMENTATION_EXPONENT, &
-                               default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(ARCHIE_SATURATION_EXPONENT, &
-                               default_lower_bound,default_upper_bound)
-  call InversionParamSetBounds(ARCHIE_TORTUOSITY_CONSTANT, &
-                               default_lower_bound,default_upper_bound)
+  call InversionParamSetGlobalBounds(ELECTRICAL_CONDUCTIVITY, &
+                                     default_lower_bound,default_upper_bound)
+  call InversionParamSetGlobalBounds(PERMEABILITY,1.d-30,1.d-7)
+  call InversionParamSetGlobalBounds(POROSITY,0.d0,1.d0)
+  call InversionParamSetGlobalBounds(VG_ALPHA,1.d-6,1.d-3)
+  call InversionParamSetGlobalBounds(VG_SR,0.d0,0.6d0) ! not based on data
+  call InversionParamSetGlobalBounds(VG_M,0.2d0,0.9d0)
+  call InversionParamSetGlobalBounds(ARCHIE_CEMENTATION_EXPONENT, &
+                                     default_lower_bound,default_upper_bound)
+  call InversionParamSetGlobalBounds(ARCHIE_SATURATION_EXPONENT, &
+                                     default_lower_bound,default_upper_bound)
+  call InversionParamSetGlobalBounds(ARCHIE_TORTUOSITY_CONSTANT, &
+                                     default_lower_bound,default_upper_bound)
 
 end subroutine InversionParamInitBounds
 
 ! ************************************************************************** !
 
-subroutine InversionParamSetBounds(itype,lower_bound,upper_bound)
+subroutine InversionParamSetGlobalBounds(itype,lower_bound,upper_bound)
   !
   ! Sets the global upper and lower bounds for each variable
   !
@@ -504,11 +496,11 @@ subroutine InversionParamSetBounds(itype,lower_bound,upper_bound)
   parameter_bounds(:,InvParamItypeToItypeInternal(itype)) = &
     [lower_bound,upper_bound]
 
-end subroutine InversionParamSetBounds
+end subroutine InversionParamSetGlobalBounds
 
 ! ************************************************************************** !
 
-subroutine InversionParamGetBounds(itype,lower_bound,upper_bound)
+subroutine InversionParamGetGlobalBounds(itype,lower_bound,upper_bound)
   !
   ! Gets the global upper and lower bounds for each variable
   !
@@ -526,7 +518,7 @@ subroutine InversionParamGetBounds(itype,lower_bound,upper_bound)
   lower_bound = parameter_bounds(1,i)
   upper_bound = parameter_bounds(2,i)
 
-end subroutine InversionParamGetBounds
+end subroutine InversionParamGetGlobalBounds
 
 ! ************************************************************************** !
 
@@ -547,8 +539,8 @@ subroutine InversionParameterBoundParameter(inversion_parameter,value)
     lower_bound = inversion_parameter%bounds(1)
     upper_bound = inversion_parameter%bounds(2)
   else
-    call InversionParamGetBounds(inversion_parameter%itype, &
-                                 lower_bound,upper_bound)
+    call InversionParamGetGlobalBounds(inversion_parameter%itype, &
+                                       lower_bound,upper_bound)
   endif
   value = max(min(value,upper_bound),lower_bound)
 

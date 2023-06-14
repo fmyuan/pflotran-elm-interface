@@ -1214,14 +1214,6 @@ subroutine InversionZFlowCalculateUpdate(this)
                         vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(dist_del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
     do iparameter = 1, this%num_parameters_local
-#if 0
-      vec_ptr(iparameter) = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
-!      if (vec_ptr(iparameter) > this%maxparam(2)) &
-!        vec_ptr(iparameter) = this%maxparam(2)
-!      if (vec_ptr(iparameter) < this%minparam(2)) &
-!        vec_ptr(iparameter) = this%minparam(2)
-      call UpdateValueBound(iparameter,vec_ptr(iparameter))
-#else
       new_value = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
       call InversionParameterBoundParameter(this%inversion_aux% &
                                               parameters(iparameter+ &
@@ -1229,7 +1221,6 @@ subroutine InversionZFlowCalculateUpdate(this)
                                             new_value)
       vec2_ptr(iparameter) = new_value - vec_ptr(iparameter)
       vec_ptr(iparameter) = new_value
-#endif
     enddo
     call VecRestoreArrayF90(this%inversion_aux%dist_parameter_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
@@ -1830,6 +1821,7 @@ subroutine InversionZFlowAllocateWm(this)
 
   use Patch_module
   use Grid_module
+  use Inversion_Parameter_module
   use Option_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
@@ -1919,8 +1911,10 @@ subroutine InversionZFlowAllocateWm(this)
               num_constraints = num_constraints + 1
               this%rblock(num_constraints,1) = ghosted_id
               this%rblock(num_constraints,3) = iconblock
-              this%rblock(num_constraints,4) = GetIDFromName( &
-                                  constrained_block%parameter_type(iconblock))
+              this%rblock(num_constraints,4) = &
+                InversionParamGetItypeFromName(constrained_block% &
+                                                 parameter_type(iconblock), &
+                                               this%driver)
             else
               num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
               do inbr=1,num_neighbor
@@ -1935,8 +1929,10 @@ subroutine InversionZFlowAllocateWm(this)
                       this%rblock(num_constraints,1) = ghosted_id
                       this%rblock(num_constraints,2) = ghosted_id_nbr
                       this%rblock(num_constraints,3) = iconblock
-                      this%rblock(num_constraints,4) = GetIDFromName( &
-                                  constrained_block%parameter_type(iconblock))
+                      this%rblock(num_constraints,4) = &
+                        InversionParamGetItypeFromName(constrained_block% &
+                                                 parameter_type(iconblock), &
+                                               this%driver)
                     endif
                   enddo
                 else
@@ -1946,8 +1942,10 @@ subroutine InversionZFlowAllocateWm(this)
                     this%rblock(num_constraints,1) = ghosted_id
                     this%rblock(num_constraints,2) = ghosted_id_nbr
                     this%rblock(num_constraints,3) = iconblock
-                    this%rblock(num_constraints,4) = GetIDFromName( &
-                                  constrained_block%parameter_type(iconblock))
+                    this%rblock(num_constraints,4) = &
+                      InversionParamGetItypeFromName(constrained_block% &
+                                                 parameter_type(iconblock), &
+                                               this%driver)
                   endif
                 endif
               enddo
@@ -1991,8 +1989,10 @@ subroutine InversionZFlowAllocateWm(this)
           num_constraints = num_constraints + 1
           this%rblock(num_constraints,1) = imat_id
           this%rblock(num_constraints,3) = iconblock
-          this%rblock(num_constraints,4) = GetIDFromName( &
-                                  constrained_block%parameter_type(iconblock))
+          this%rblock(num_constraints,4) = &
+            InversionParamGetItypeFromName(constrained_block% &
+                                             parameter_type(iconblock), &
+                                           this%driver)
         else
           do ilink=1,constrained_block%block_link(iconblock,1)
             imat_id_nb = constrained_block%block_link(iconblock,1+ilink)
@@ -2000,50 +2000,16 @@ subroutine InversionZFlowAllocateWm(this)
             this%rblock(num_constraints,1) = imat_id
             this%rblock(num_constraints,2) = imat_id_nb
             this%rblock(num_constraints,3) = iconblock
-            this%rblock(num_constraints,4) = GetIDFromName( &
-                                  constrained_block%parameter_type(iconblock))
+            this%rblock(num_constraints,4) = &
+              InversionParamGetItypeFromName(constrained_block% &
+                                               parameter_type(iconblock), &
+                                             this%driver)
           enddo
         endif
       endif
     enddo
 
   endif
-
-contains
-
-function GetIDFromName(name_)
-  ! Maps parameter name to parameter id
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/08/23
-
-  implicit none
-
-  character(len=MAXWORDLENGTH) :: name_
-
-  PetscInt :: GetIDFromName
-  PetscInt :: i
-
-  select case(name_)
-    case('PERMEABILITY')
-      i = PERMEABILITY
-    case('POROSITY')
-      i = POROSITY
-    case('ALPHA')
-      i = VG_ALPHA
-    case('RESIDUAL_SATURATION')
-      i = VG_SR
-    case('M')
-      i = VG_M
-    case default
-      call this%driver%PrintErrMsg('Unrecognized parameter in &
-                              &InversionZFlowAllocateWm: ' // &
-                              trim(name_))
-  end select
-
-  GetIDFromName = i
-
-end function
 
 end subroutine InversionZFlowAllocateWm
 

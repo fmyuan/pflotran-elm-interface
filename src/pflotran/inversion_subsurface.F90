@@ -386,7 +386,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             call InputReadDouble(input,option,upper_bound)
             call InputErrorMsg(input,option,'BOUNDS,UPPER_BOUND',error_string)
             i = InversionParamGetItypeFromName(word,this%driver)
-            call InversionParamSetBounds(i,lower_bound,upper_bound)
+            call InversionParamSetGlobalBounds(i,lower_bound,upper_bound)
             cycle ! skip appending to parameter list below
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
