@@ -20,7 +20,6 @@ module Inversion_ZFlow_class
 
     PetscReal :: beta                    ! regularization parameter
     PetscReal :: beta_red_factor         ! beta reduction factor
-    PetscReal :: minparam(9),maxparam(9) ! min/max paramter value
     PetscReal :: target_chi2             ! target CHI^2 norm
     PetscReal :: current_chi2
 
@@ -165,34 +164,6 @@ subroutine InversionZFlowInit(this,driver)
 
   this%beta = 100.d0
   this%beta_red_factor = 0.5d0
-  ! Electrical conductivity bounds
-  this%minparam(1) = 1d-04
-  this%maxparam(1) = 1d01
-  ! Permeability bounds
-  this%minparam(2) = 1d-17
-  this%maxparam(2) = 1d-07
-  ! Porosity bounds
-  this%minparam(3) = 5d-02
-  this%maxparam(3) = 5d-01
-  ! VG_ALPHA bounds
-  this%minparam(4) = 1d-04
-  this%maxparam(4) = 1d-03
-  ! VG_SR bounds
-  this%minparam(5) = 0.1d0
-  this%maxparam(5) = 0.2d0
-  ! VG_M bounds
-  this%minparam(6) = 0.2d0
-  this%maxparam(6) = 1.0d0
-  ! ARCHIE_CEMENTATION_EXPONENT bounds
-  this%minparam(7) = 1.5d0
-  this%maxparam(7) = 3.0d0
-  ! ARCHIE_SATURATION_EXPONENT bounds
-  this%minparam(8) = 1.5d0
-  this%maxparam(8) = 3.0d0
-  ! ARCHIE_TORTUOSITY_CONSTANT bounds
-  this%minparam(9) = 0.5d0
-  this%maxparam(9) = 2.0d0
-
   this%target_chi2 = 1.d0
   this%min_phi_red = 0.2d0
 
@@ -525,78 +496,6 @@ subroutine InversionZFlowReadBlock(this,input,option)
     if (found) cycle
 
     select case(trim(keyword))
-      case('MIN_ELECTRICAL_CONDUCTIVITY')
-        call InputReadDouble(input,option,this%minparam(1))
-        call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
-                           error_string)
-      case('MAX_ELECTRICAL_CONDUCTIVITY')
-        call InputReadDouble(input,option,this%maxparam(1))
-        call InputErrorMsg(input,option,'MAX_ELECTRICAL_CONDUCTIVITY', &
-                           error_string)
-      case('MIN_PERMEABILITY','MIN_PARAMETER')
-        call InputReadDouble(input,option,this%minparam(2))
-        call InputErrorMsg(input,option,'MIN_PARAMETER', &
-                           error_string)
-      case('MAX_PERMEABILITY','MAX_PARAMETER')
-        call InputReadDouble(input,option,this%maxparam(2))
-        call InputErrorMsg(input,option,'MAX_PARAMETER', &
-                           error_string)
-      case('MIN_POROSITY')
-        call InputReadDouble(input,option,this%minparam(3))
-        call InputErrorMsg(input,option,'MIN_POROSITY', &
-                           error_string)
-      case('MAX_POROSITY')
-        call InputReadDouble(input,option,this%maxparam(3))
-        call InputErrorMsg(input,option,'MAX_POROSITY', &
-                           error_string)
-      case('MIN_VG_ALPHA')
-        call InputReadDouble(input,option,this%minparam(4))
-        call InputErrorMsg(input,option,'MIN_VG_ALPHA', &
-                           error_string)
-      case('MAX_VG_ALPHA')
-        call InputReadDouble(input,option,this%maxparam(4))
-        call InputErrorMsg(input,option,'MAX_VG_ALPHA', &
-                           error_string)
-      case('MIN_VG_SR')
-        call InputReadDouble(input,option,this%minparam(5))
-        call InputErrorMsg(input,option,'MIN_VG_SR', &
-                           error_string)
-      case('MAX_VG_SR')
-        call InputReadDouble(input,option,this%maxparam(5))
-        call InputErrorMsg(input,option,'MAX_VG_SR', &
-                           error_string)
-      case('MIN_VG_M')
-        call InputReadDouble(input,option,this%minparam(6))
-        call InputErrorMsg(input,option,'MIN_VG_M', &
-                           error_string)
-      case('MAX_VG_M')
-        call InputReadDouble(input,option,this%maxparam(6))
-        call InputErrorMsg(input,option,'MAX_VG_M', &
-                           error_string)
-      case('MIN_ARCHIE_CEMENTATION_EXPONENT')
-        call InputReadDouble(input,option,this%minparam(7))
-        call InputErrorMsg(input,option,'MIN_ARCHIE_CEMENTATION_EXPONENT', &
-                           error_string)
-      case('MAX_ARCHIE_CEMENTATION_EXPONENT')
-        call InputReadDouble(input,option,this%maxparam(7))
-        call InputErrorMsg(input,option,'MAX_ARCHIE_CEMENTATION_EXPONENT', &
-                           error_string)
-      case('MIN_ARCHIE_SATURATION_EXPONENT')
-        call InputReadDouble(input,option,this%minparam(8))
-        call InputErrorMsg(input,option,'MIN_ARCHIE_SATURATION_EXPONENT', &
-                           error_string)
-      case('MAX_ARCHIE_SATURATION_EXPONENT')
-        call InputReadDouble(input,option,this%maxparam(8))
-        call InputErrorMsg(input,option,'MAX_ARCHIE_SATURATION_EXPONENT', &
-                           error_string)
-      case('MIN_ARCHIE_TORTUOSITY_CONSTANT')
-        call InputReadDouble(input,option,this%minparam(9))
-        call InputErrorMsg(input,option,'MIN_ARCHIE_TORTUOSITY_CONSTANT', &
-                           error_string)
-      case('MAX_ARCHIE_TORTUOSITY_CONSTANT')
-        call InputReadDouble(input,option,this%maxparam(9))
-        call InputErrorMsg(input,option,'MAX_ARCHIE_TORTUOSITY_CONSTANT', &
-                           error_string)
       case('MIN_CGLS_ITERATION')
         call InputReadInt(input,option,this%miniter)
         call InputErrorMsg(input,option,'MIN_CGLS_ITERATION',error_string)
@@ -1294,11 +1193,10 @@ subroutine InversionZFlowCalculateUpdate(this)
         ghosted_id = grid%nL2G(iparameter)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
-      vec_ptr(iparameter) = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
-      if (vec_ptr(iparameter) > this%maxparam(2)) &
-        vec_ptr(iparameter) = this%maxparam(2)
-      if (vec_ptr(iparameter) < this%minparam(2)) &
-        vec_ptr(iparameter) = this%minparam(2)
+      new_value = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
+      call InversionParameterBoundParameter(this%inversion_aux%parameters(1), &
+                                            new_value)
+      vec_ptr(iparameter) = new_value
     enddo
     call VecRestoreArrayF90(work_dup,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(this%realization%field%work,vec2_ptr, &
