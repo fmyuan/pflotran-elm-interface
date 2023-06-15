@@ -29,6 +29,7 @@ module Option_Transport_module
     PetscBool :: numerical_derivatives
     PetscBool :: steady_state
     PetscBool :: use_np ! nernst-planck diffusion.
+    PetscBool :: sc_fixed_water_density
 
     PetscInt :: nphase
 
@@ -123,6 +124,7 @@ subroutine OptionTransportInitRealization(option)
   option%no_restart_mineral_vol_frac = PETSC_FALSE
   option%steady_state = PETSC_FALSE
   option%use_np = PETSC_FALSE
+  option%sc_fixed_water_density = PETSC_FALSE
 
   option%tran_weight_t0 = 0.d0
   option%tran_weight_t1 = 0.d0
