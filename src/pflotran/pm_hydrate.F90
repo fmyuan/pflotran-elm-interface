@@ -327,6 +327,9 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_GAS',option)
         end select
+      case('NO_ICE_VOLUME_CHANGE')
+        ! This sets the ice density to the water density (no volume change)
+        hydrate_no_ice_density_change = PETSC_TRUE
       case('NO_EFFECTIVE_SATURATION_SCALING')
         ! This turns off normalizing the liquid and gas saturations by the
         ! sum of mobile phases when computing relative permeabilities.
