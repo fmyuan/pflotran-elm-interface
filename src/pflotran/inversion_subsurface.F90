@@ -140,6 +140,7 @@ subroutine InversionSubsurfaceInit(this,driver)
 
   ! initialize measurement reporting verbosity
   inv_meas_reporting_verbosity = 1
+  call InversionParamInitBounds()
 
 end subroutine InversionSubsurfaceInit
 
@@ -239,6 +240,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   PetscInt :: i
   PetscInt :: observed_variable
   PetscReal :: measurement_time
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
   character(len=4) :: measurement_time_units
   character(len=MAXWORDLENGTH) :: internal_units
 
@@ -374,6 +377,17 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         select case(trim(keyword))
           case('PARAMETER')
             new_parameter => InversionParameterRead(input,string,option)
+          case('BOUNDS')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'BOUNDS,PARAMETER_NAME', &
+                               error_string)
+            call InputReadDouble(input,option,lower_bound)
+            call InputErrorMsg(input,option,'BOUNDS,LOWER_BOUND',error_string)
+            call InputReadDouble(input,option,upper_bound)
+            call InputErrorMsg(input,option,'BOUNDS,UPPER_BOUND',error_string)
+            i = InversionParamGetItypeFromName(word,this%driver)
+            call InversionParamSetGlobalBounds(i,lower_bound,upper_bound)
+            cycle ! skip appending to parameter list below
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
@@ -647,7 +661,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     num_parameters = 0
     do i = 1, size(this%inversion_aux%parameters)
       call InversionParameterMapNameToInt(this%inversion_aux%parameters(i), &
-                                          this%driver,this%inversion_option)
+                                          this%driver)
       if (len_trim(this%inversion_aux%parameters(i)%material_name) > 0) then
         material_property => &
             MaterialPropGetPtrFromArray(this%inversion_aux% &
@@ -696,8 +710,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
         param_id = InversionParamGetItypeFromName(this%inversion_aux% &
                                                      parameters(i)% &
                                                      parameter_name, &
-                                                   this%driver, &
-                                                   this%inversion_option)
+                                                   this%driver)
         select case(param_id)
           case(PERMEABILITY,POROSITY,ARCHIE_CEMENTATION_EXPONENT, &
                ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
@@ -1250,7 +1263,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                     INVAUX_SCATFORWARD)
     else
       ! load the original parameter values
-      call InvAuxMaterialToParamVec(this%inversion_aux)
+      call InvAuxInitializeParameterValues(this%inversion_aux)
     endif
     ! must come after the copying of parameters above
     call this%RestartReadData()

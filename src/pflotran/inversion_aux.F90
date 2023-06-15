@@ -87,7 +87,8 @@ module Inversion_Aux_module
             InvAuxScatGlobalToDistParam, &
             InvAuxBCastVecForCommI, &
             InvAuxParamVecToMaterial, &
-            InvAuxMaterialToParamVec
+            InvAuxMaterialToParamVec, &
+            InvAuxInitializeParameterValues
 
 contains
 
@@ -493,6 +494,30 @@ subroutine InvAuxMaterialToParamVec(aux)
                                      INVAUX_COPY_TO_VEC)
 
 end subroutine InvAuxMaterialToParamVec
+
+! ************************************************************************** !
+
+subroutine InvAuxInitializeParameterValues(aux)
+  !
+  ! Initializes parameters based on values in the forward simulation input
+  ! file or the values set in the inversion parameters file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/14/23
+
+  class(inversion_aux_type) :: aux
+
+  PetscInt :: i
+
+  do i = 1, size(aux%parameters)
+    if (Uninitialized(aux%parameters(i)%value)) then
+      call InvAuxCopyParameterValue(aux,i,INVAUX_GET_MATERIAL_VALUE)
+    endif
+  enddo
+  call InvAuxCopyParamToFromParamVec(aux,INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_TO_VEC)
+
+end subroutine InvAuxInitializeParameterValues
 
 ! ************************************************************************** !
 

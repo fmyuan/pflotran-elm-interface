@@ -1,5 +1,7 @@
 PARAMETERS
   PARAMETER
     NAME POROSITY
+    BOUNDS 0.05d0 0.5d0
+#    BOUNDS 1.d-17 1.d-7 
   /
 /
