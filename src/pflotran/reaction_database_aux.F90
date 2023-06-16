@@ -126,6 +126,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
   PetscInt :: midpoint
   PetscInt :: i, j, idum
   PetscReal :: value
+  PetscReal :: tempreal
   PetscBool :: negative_flag
   PetscBool :: found
   PetscErrorCode :: ierr
@@ -205,8 +206,16 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
         string2 = word
         if (.not.StringStartsWithAlpha(string2) .and. &
             StringIntegerDoubleOrWord(string2) /= STRING_IS_A_WORD) then
-          ! negate if a product
-          call InputReadDouble(string2,option,value,ierr)
+          i = index(string2,'/')
+          if (i > 0) then ! fraction exists
+            string2 = word(:i-1)
+            call InputReadDouble(string2,option,value,ierr)
+            string2 = word(i+1:)
+            call InputReadDouble(string2,option,tempreal,ierr)
+            value = value / tempreal
+          else
+            call InputReadDouble(string2,option,value,ierr)
+          endif
           if (ierr /= 0) then
             option%io_buffer = 'Keyword "' // trim(word) // &
                '" not recognized in reaction string "' // &
