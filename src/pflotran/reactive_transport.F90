@@ -259,7 +259,7 @@ subroutine RTSetup(realization)
           'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
         call PrintErrMsg(option)
       endif
-    enddo 
+    enddo
   endif
 
 !===============================================================================
@@ -841,7 +841,7 @@ subroutine RTUpdateEquilibriumState(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
           soil_properties(epsilon_index)),1.d0)) cycle
-      sec_porosity = patch%material_property_array(patch%imat(ghosted_id))% & 
+      sec_porosity = patch%material_property_array(patch%imat(ghosted_id))% &
                       ptr%multicontinuum%porosity
       call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                         global_auxvars(ghosted_id), &
@@ -1943,11 +1943,9 @@ subroutine RTReact(realization)
     iendaq = istart + reaction%naqcomp - 1
 
 
-    call RReact(tran_xx_p,rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
-                material_auxvars(ghosted_id), &
-!                tran_xx_p(istart:iend), &
-                num_iterations,reaction,grid%nG2A(ghosted_id),option, &
-                PETSC_TRUE,PETSC_TRUE,ierror)
+    call RStep(tran_xx_p,rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
+               material_auxvars(ghosted_id), &
+               num_iterations,reaction,grid%nG2A(ghosted_id),option,ierror)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
     if (reaction%immobile%nimmobile > 0) then

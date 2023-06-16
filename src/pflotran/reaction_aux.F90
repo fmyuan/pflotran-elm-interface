@@ -150,6 +150,14 @@ module Reaction_Aux_module
     PetscBool :: print_total_mass_kg
     PetscInt :: num_dbase_temperatures
     PetscInt :: num_dbase_parameters
+
+    PetscInt :: logging_verbosity
+    PetscInt :: maximum_reaction_cuts
+    PetscInt :: maximum_reaction_iterations
+    PetscInt :: io_rank
+    PetscBool :: stop_on_rreact_failure
+    PetscBool :: use_total_as_guess
+
     PetscReal, pointer :: dbase_temperatures(:)
     type(species_idx_type), pointer :: species_idx
 
@@ -280,8 +288,10 @@ module Reaction_Aux_module
     PetscReal, pointer :: eqdynamickdpower(:)
 
     PetscReal :: max_dlnC
+    PetscReal :: max_dlnC_rreact
     PetscReal :: max_relative_change_tolerance
     PetscReal :: max_residual_tolerance
+    PetscReal :: max_rel_residual_tolerance
 
     PetscBool :: update_permeability
     PetscBool :: update_tortuosity
@@ -410,6 +420,13 @@ function ReactionCreate()
   reaction%print_tot_conc_type = 0
   reaction%print_secondary_conc_type = 0
 
+  reaction%logging_verbosity = 0
+  reaction%maximum_reaction_cuts = 10
+  reaction%maximum_reaction_iterations = 20
+  reaction%io_rank = UNINITIALIZED_INTEGER
+  reaction%stop_on_rreact_failure = PETSC_TRUE
+  reaction%use_total_as_guess = PETSC_FALSE
+
   nullify(reaction%species_idx)
 
   nullify(reaction%primary_species_list)
@@ -511,8 +528,10 @@ function ReactionCreate()
   nullify(reaction%eqdynamickdpower)
 
   reaction%max_dlnC = 5.d0
+  reaction%max_dlnC_rreact = 5.d0
   reaction%max_relative_change_tolerance = 1.d-6
   reaction%max_residual_tolerance = 1.d-12
+  reaction%max_rel_residual_tolerance = 1.d-8
 
   reaction%update_permeability = PETSC_FALSE
   reaction%update_tortuosity = PETSC_FALSE

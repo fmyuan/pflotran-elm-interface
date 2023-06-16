@@ -198,7 +198,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: sum_linear_iterations_temp
   PetscInt :: sum_wasted_linear_iterations
   PetscInt :: icut
-  PetscInt :: rreact_error
+  PetscInt :: rstep_error
   PetscInt :: tempint
   PetscReal :: tconv
   PetscReal :: tempreal
@@ -296,7 +296,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
     call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
-    rreact_error = 0
+    rstep_error = 0
 
 !    call RTCalculateRHS_t0(realization)
 
@@ -387,12 +387,12 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
         guess(reaction%offset_immobile+1:nimmobile) = &
           rt_auxvars(ghosted_id)%immobile
       endif
-      call RReact(guess,rt_auxvars(ghosted_id), &
-                  global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
-                  num_iterations,reaction,grid%nG2A(ghosted_id),option, &
-                  PETSC_TRUE,PETSC_TRUE,rreact_error)
+      call RStep(guess,rt_auxvars(ghosted_id), &
+                 global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
+                 num_iterations,reaction,grid%nG2A(ghosted_id),option, &
+                 rstep_error)
       sum_newton_iterations = sum_newton_iterations + num_iterations
-      if (rreact_error /= 0) exit
+      if (rstep_error /= 0) exit
       ! set primary dependent var back to free-ion molality
       iend = offset_global + reaction%naqcomp
       tran_xx_p(istart:iend) = rt_auxvars(ghosted_id)%pri_molal(:)
@@ -403,7 +403,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
 
-    call MPI_Allreduce(MPI_IN_PLACE,rreact_error,ONE_INTEGER_MPI,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,rstep_error,ONE_INTEGER_MPI,MPI_INTEGER, &
                        MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
@@ -412,7 +412,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     process_model%cumulative_newton_iterations = &
       process_model%cumulative_newton_iterations + sum_newton_iterations
 
-    if (rreact_error /= 0) then
+    if (rstep_error /= 0) then
       !TODO(geh): move to timestepper base and call from daughters.
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
         sum_linear_iterations_temp
