@@ -850,6 +850,23 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
       case('USE_FULL_GEOCHEMISTRY')
         reaction%use_full_geochemistry = PETSC_TRUE
+      case('LOGGING_VERBOSITY')
+        call InputReadInt(input,option,reaction%logging_verbosity)
+        call InputErrorMsg(input,option,'logging verbosity','CHEMISTRY')
+      case('LOGGING_PROCESS_ID')
+        call InputReadInt(input,option,reaction%io_rank)
+        call InputErrorMsg(input,option,'logging process id','CHEMISTRY')
+      case('MAXIMUM_REACTION_CUTS')
+        call InputReadInt(input,option,reaction%maximum_reaction_cuts)
+        call InputErrorMsg(input,option,'maximum_reaction_cuts','CHEMISTRY')
+      case('MAXIMUM_REACTION_ITERATIONS')
+        call InputReadInt(input,option,reaction%maximum_reaction_iterations)
+        call InputErrorMsg(input,option,'maximum_reaction_cuts','CHEMISTRY')
+      case('DONT_STOP_ON_RREACT_FAILURE')
+        reaction%stop_on_rreact_failure = PETSC_FALSE
+      case('USE_TOTAL_CONCENTRATION_AS_GUESS')
+        reaction%use_total_as_guess = PETSC_TRUE
+
       case default
         call InputKeywordUnrecognized(input,word,'CHEMISTRY',option)
     end select
@@ -1257,7 +1274,6 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   aq_species_constraint%constraint_spec_id = constraint_id
   aq_species_constraint%constraint_conc = constraint_conc
   aq_species_constraint%external_dataset = external_dataset
-
 
   if (.not.reaction%use_full_geochemistry) return
 
@@ -3578,6 +3594,13 @@ subroutine RStep(guess,rt_auxvar,global_auxvar,material_auxvar, &
   PetscBool :: value_is_initially_small(reaction%ncomp)
   PetscReal :: initial_small_value(reaction%ncomp)
 
+  ! skip chemistry if species nonreacting
+  if (.not.reaction%use_full_geochemistry) then
+    rt_auxvar%pri_molal(:) = rt_auxvar%total(:,1) / &
+                             global_auxvar%den_kg(1)*1.d3
+    return
+  endif
+
   info = 'Process ' // trim(StringWrite(option%myrank)) // &
          ' Cell ' // trim(StringWrite(natural_id)) // ' :'
 
@@ -3777,14 +3800,6 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
   num_iterations = 0
   ierror = 0
   option%ierror = 0
-
-  !TODO(geh): move outside
-  ! skip chemistry if species nonreacting
-  if (.not.reaction%use_full_geochemistry) then
-    rt_auxvar%pri_molal(:) = rt_auxvar%total(:,iphase) / &
-                             global_auxvar%den_kg(iphase)*1.d3
-    return
-  endif
 
   if (.not.option%use_isothermal) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_FALSE,option)
