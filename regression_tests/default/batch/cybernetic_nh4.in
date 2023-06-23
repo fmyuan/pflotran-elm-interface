@@ -18,7 +18,6 @@ EXTERNAL_FILE ./cybernetic.txt
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    C5H7O2N(aq)
     CH2O(aq)
     CO2(aq)
     NH4+
@@ -28,6 +27,7 @@ CHEMISTRY
     O2(aq)
   /
   IMMOBILE_SPECIES
+    C5H7O2N(im)
     C_consumption
   /
   REACTION_SANDBOX 
@@ -35,27 +35,26 @@ CHEMISTRY
       F1    0.65
       F2    0.99d0
       F3    0.2167d0
-      K1    28.26d0 1/d
+                    ! mol solute/mol biomass
+      K1    28.26d0 mol/mol-d
       Ka1   0.001d0 mM
       Kd1   0.25d0 mM
-      K2    23.28d0 1/d
+      K2    23.28d0 mol/mol-d
       Ka2   0.004d0 mM
       Kd2   0.25d0 mM
-      K3    84.78d0 1/d
+      K3    84.78d0 mol/mol-d
       Ka3   0.001d0 mM
       Kd3   0.25d0 mM
       Kdeg  0.242d0 1/d
-      MOBILE_BIOMASS
       REFERENCE_TEMPERATURE 25.d0 ! degrees C
       ACTIVATION_ENERGY 89.d0 kJ/mol
-      STORE_CONSUMPTION_PRODUCTION
-      CARBON_CONSUMPTION_SPECIES C_consumption
+      INHIBIT_BY_NH4 1.d-5
+      INHIBITION_SCALING_FACTOR 1.d13
     /
   /
   DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
-  TRUNCATE_CONCENTRATION 1.d-40
   OUTPUT
     ALL
     TOTAL
@@ -66,16 +65,16 @@ END
 #=========================== constraints ======================================
 CONSTRAINT initial
   CONCENTRATIONS
-    C5H7O2N(aq) 1.d-5    T
-    CH2O(aq)    61.13d-3 T
+    CH2O(aq)    3.d0     T
     CO2(aq)     1.d-3    T
     N2(aq)      1.d-10   T
-    NH4+        1.d0     T
-    NO2-        1.d-10   T
-    NO3-        18.25d-3 T
-    O2(aq)      1.d-3    T
+    NH4+        1.d-2    T
+    NO2-        1.d0     T
+    NO3-        1.d0     T
+    O2(aq)      1.d0     T
   /
   IMMOBILE
+    C5H7O2N(im)   2.5d-3
     C_consumption 1.d-10
   /
 END

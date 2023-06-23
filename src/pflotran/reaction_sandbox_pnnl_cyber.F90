@@ -192,7 +192,7 @@ subroutine CyberRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, word2
   character(len=MAXSTRINGLENGTH) :: error_string
 
   error_string = 'CHEMISTRY,REACTION_SANDBOX,CYBERNETIC'
@@ -301,16 +301,33 @@ subroutine CyberRead(this,input,option)
         call InputReadDouble(input,option,this%inhibit_by_reactants)
         call InputErrorMsg(input,option,'reactant inhibition concentration', &
                            trim(error_string)//','//trim(word))
-      case('INHIBIT_FUNC_ARCTAN')
-        this%inhibit_func = INHIBIT_FUNC_ARCTAN2
-        call InputReadDouble(input,option,this%inhibit_func_constant)
-        call InputErrorMsg(input,option,'reactant inhibition function arctan', &
-                           trim(error_string)//','//trim(word))
-      case('INHIBIT_FUNC_SMOOTHSTEP')
-        this%inhibit_func = INHIBIT_FUNC_SMOOTHSTEP
-        call InputReadDouble(input,option,this%inhibit_func_constant)
-        call InputErrorMsg(input,option,'reactant inhibition function smoothstep', &
-                           trim(error_string)//','//trim(word))
+      case('INHIBITION_FUNCTION')
+        error_string = trim(error_string)//','//trim(word)
+        call InputReadWord(input,option,word2,PETSC_TRUE)
+        call InputErrorMsg(input,option,'reactant inhibition function', &
+                           trim(error_string))
+        call StringToUpper(word2)
+        error_string = trim(error_string)//','//trim(word2)
+        select case(trim(word2))
+          case('ARCTAN')
+            this%inhibit_func = INHIBIT_FUNC_ARCTAN1
+          case('ARCTAN2')
+            this%inhibit_func = INHIBIT_FUNC_ARCTAN2
+            call InputReadDouble(input,option,this%inhibit_func_constant)
+            call InputErrorMsg(input,option,'scaling factor (f)', &
+                               trim(error_string))
+          case('SMOOTHSTEP')
+            this%inhibit_func = INHIBIT_FUNC_SMOOTHSTEP
+            call InputReadDouble(input,option,this%inhibit_func_constant)
+            if (InputError(input)) then
+              input%err_buf = 'Smoothstep inhibition internal'
+              call InputDefaultMsg(input,option)
+              this%inhibit_func_constant = 1.d-3
+            endif
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
+        error_string = 'CHEMISTRY,REACTION_SANDBOX,CYBERNETIC'
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select

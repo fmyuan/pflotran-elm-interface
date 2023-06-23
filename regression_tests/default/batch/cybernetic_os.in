@@ -13,37 +13,7 @@ END
 
 SUBSURFACE
 
-#=========================== numerical methods ================================
-NUMERICAL_METHODS TRANSPORT
-
-  NEWTON_SOLVER
-    MAXIMUM_NUMBER_OF_ITERATIONS 12
-    # Uncomment to debug reactions
-    #NUMERICAL_JACOBIAN
-  /
-
-  LINEAR_SOLVER
-    SOLVER DIRECT
-  /
-
-END
-
-#=========================== regression =======================================
-REGRESSION
-  CELL_IDS
-    1
-  /
-END
-
-#=========================== flow mode ========================================
-# Uniform velocity (see below). No flow mode specified.
-
-#=========================== useful tranport parameters ==================
-SPECIFIED_VELOCITY
-  UNIFORM? YES
-  DATASET 0.d0 0.d0 0.d0 
-END
-REFERENCE_TEMPERATURE 24.d0 C
+EXTERNAL_FILE ./cybernetic.txt
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -65,9 +35,6 @@ CHEMISTRY
       F1    0.65
       F2    0.99d0
       F3    0.2167d0
-#      F1    1.d0
-#      F2    1.d0
-#      F3    1.d0
                     ! mol solute/mol biomass
       K1    28.26d0 mol/mol-d
       Ka1   0.001d0 mM
@@ -79,9 +46,6 @@ CHEMISTRY
       Ka3   0.001d0 mM
       Kd3   0.25d0 mM
       Kdeg  0.242d0 1/d
-#      Kdeg  0.d0
-#      F_act 0.126d0
-#      F_act 1.d0
       REFERENCE_TEMPERATURE 25.d0 ! degrees C
       ACTIVATION_ENERGY 89.d0 kJ/mol
       STORE_CONSUMPTION_PRODUCTION
@@ -101,73 +65,6 @@ CHEMISTRY
   /
 END
 
-#=========================== solver options ===================================
-
-
-#=========================== discretization ===================================
-GRID
-  TYPE STRUCTURED
-  NXYZ 1 1 1
-  BOUNDS
-    0.d0 0.d0 0.d0
-    1.d0 1.d0 1.d0
-  /
-END
-
-#=========================== fluid properties =================================
-FLUID_PROPERTY
-  DIFFUSION_COEFFICIENT 1.d-9
-END
-
-#=========================== material properties ==============================
-MATERIAL_PROPERTY soil1
-  ID 1
-  POROSITY 0.25d0
-  TORTUOSITY 1.d0
-END
-
-#=========================== output options ===================================
-OUTPUT
-#  TIMES y 5. 10. 15. 20.
-#  FORMAT TECPLOT POINT
-  PERIODIC_OBSERVATION TIMESTEP 1
-END
-
-#=========================== times ============================================
-TIME
-#  To match Hyun's model, must run to 10 years
-#  FINAL_TIME 10.d0 d 
-  FINAL_TIME 1.d0 d 
-#  INITIAL_TIMESTEP_SIZE 1.d0 h
-  INITIAL_TIMESTEP_SIZE 1.d0 s
-  MAXIMUM_TIMESTEP_SIZE 1.d0 h
-END
-
-#=========================== regions ==========================================
-REGION all
-  COORDINATES
-    -1.d20 -1.d20 -1.d20
-    1.d20 1.d20 1.d20
-  /
-END
-
-REGION pt
-  COORDINATE 0.5d0 0.5d0 0.5d0
-END
-
-#=========================== observation points ===============================
-OBSERVATION
-  REGION pt
-END
-
-#=========================== transport conditions =============================
-TRANSPORT_CONDITION initial
-  TYPE ZERO_GRADIENT
-  CONSTRAINT_LIST
-    0.d0 initial
-  /
-END
-
 #=========================== constraints ======================================
 CONSTRAINT initial
   CONCENTRATIONS
@@ -176,7 +73,6 @@ CONSTRAINT initial
     N2(aq)      1.d-10   T
     NH4+        1.d0     T
     NO2-        1.d-10   T
-#    NO2-        1.d-2   T
     NO3-        18.25d-3 T
     O2(aq)      1.d-3    T
   /
@@ -184,19 +80,6 @@ CONSTRAINT initial
     C5H7O2N(im)   2.5d-3
     C_consumption 1.d-10
   /
-END
-
-#=========================== condition couplers ===============================
-# initial condition
-INITIAL_CONDITION
-  TRANSPORT_CONDITION initial
-  REGION all
-END
-
-#=========================== stratigraphy couplers ============================
-STRATA
-  REGION all
-  MATERIAL soil1
 END
 
 END_SUBSURFACE

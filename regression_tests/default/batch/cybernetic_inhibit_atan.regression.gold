@@ -1,0 +1,58 @@
+-- CONCENTRATION: Total C5H7O2N(aq) --
+      Max:   2.1671223934913E-05
+      Min:   2.1671223934913E-05
+     Mean:   2.1671223934913E-05
+        1:   2.1671223934913E-05
+-- CONCENTRATION: Total CH2O(aq) --
+      Max:   6.0794649847850E-02
+      Min:   6.0794649847850E-02
+     Mean:   6.0794649847850E-02
+        1:   6.0794649847850E-02
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   1.2769940324752E-03
+      Min:   1.2769940324752E-03
+     Mean:   1.2769940324752E-03
+        1:   1.2769940324752E-03
+-- CONCENTRATION: Total NH4+ --
+      Max:   9.9850417852135E-03
+      Min:   9.9850417852135E-03
+     Mean:   9.9850417852135E-03
+        1:   9.9850417852135E-03
+-- CONCENTRATION: Total NO2- --
+      Max:   1.0084866729855E-02
+      Min:   1.0084866729855E-02
+     Mean:   1.0084866729855E-02
+        1:   1.0084866729855E-02
+-- CONCENTRATION: Total NO3- --
+      Max:   1.7977484736108E-02
+      Min:   1.7977484736108E-02
+     Mean:   1.7977484736108E-02
+        1:   1.7977484736108E-02
+-- CONCENTRATION: Total N2(aq) --
+      Max:   9.3824367257947E-05
+      Min:   9.3824367257947E-05
+     Mean:   9.3824367257947E-05
+        1:   9.3824367257947E-05
+-- CONCENTRATION: Total O2(aq) --
+      Max:   9.9999999872135E-07
+      Min:   9.9999999872135E-07
+     Mean:   9.9999999872135E-07
+        1:   9.9999999872135E-07
+-- CONCENTRATION: C_consumption --
+      Max:   1.0000000000000E-10
+      Min:   1.0000000000000E-10
+     Mean:   1.0000000000000E-10
+        1:   1.0000000000000E-10
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.5128544999968E-02
+   Time Steps:           37
+   Newton Iterations:          145
+   Linear Solver Iterations:          145
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.5147161643082E-02
+   Residual 2-Norm:   3.7572818598838E-18
