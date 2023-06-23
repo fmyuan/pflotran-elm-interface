@@ -312,15 +312,18 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   type(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
-  PetscInt :: irxn, i, ii, icomp, jcomp, ncomp
+  PetscInt :: irxn, i, ii, jj, icomp, jcomp, ncomp
   PetscInt :: imonod, iinhibition, ibiomass
-  PetscReal :: Im
-  PetscReal :: rate_constant
+  PetscReal :: rate
+  PetscReal :: effective_rate_constant
   PetscReal :: concentration(reaction%naqcomp)
   PetscReal :: dconcentration_dmolal(reaction%naqcomp)
   PetscReal :: conc
   PetscReal :: dconc_dmolal
-  PetscReal :: monod(MAX_NUM_INHIBITION_TERMS)
+  PetscReal :: monod_terms
+  PetscReal :: inhibition_terms
+  PetscReal :: biomass_term
+  PetscReal :: monod(MAX_NUM_MONOD_TERMS)
   PetscReal :: inhibition(MAX_NUM_INHIBITION_TERMS)
   PetscReal :: biomass_conc, yield, dbiomass_conc_dconc
   PetscReal :: denominator, dR_dX, dX_dc, dR_dc, dR_dbiomass
@@ -357,18 +360,19 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     !   with biomass: mol/L-sec * (m^3 bulk / mol biomass)
 
     ncomp = microbial%specid(0,irxn)
-    rate_constant = microbial%rate_constant(irxn)
-    Im = rate_constant
+    effective_rate_constant = microbial%rate_constant(irxn)
     if (associated(microbial%activation_energy)) then
       ! ideal gas constant units: J/mol-K
-      Im = Im * exp(microbial%activation_energy(irxn)/IDEAL_GAS_CONSTANT* &
-                    (1.d0/298.15d0-1.d0/(global_auxvar%temp+273.15d0)))
+      effective_rate_constant = effective_rate_constant * &
+        exp(microbial%activation_energy(irxn)/IDEAL_GAS_CONSTANT* &
+            (1.d0/298.15d0-1.d0/(global_auxvar%temp+273.15d0)))
     endif
     yield = 0.d0
     biomass_conc = 0.d0
     dbiomass_conc_dconc = 0.d0
 
     ! monod expressions
+    monod_terms = 1.d0
     do ii = 1, microbial%monodid(0,irxn)
       imonod = microbial%monodid(ii,irxn)
       icomp = microbial%monod_specid(imonod)
@@ -376,10 +380,11 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       monod(ii) = (conc - microbial%monod_Cth(imonod)) / &
                   (microbial%monod_K(imonod) + conc - &
                    microbial%monod_Cth(imonod))
-      Im = Im*monod(ii)
+      monod_terms = monod_terms*monod(ii)
     enddo
 
     ! inhibition expressions
+    inhibition_terms = 1.d0
     do ii = 1, microbial%inhibitionid(0,irxn)
       iinhibition = microbial%inhibitionid(ii,irxn)
       icomp = microbial%inhibition_specid(iinhibition)
@@ -415,39 +420,50 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
           endif
           inhibition(ii) = tempreal
       end select
-      Im = Im*inhibition(ii)
+      inhibition_terms = inhibition_terms*inhibition(ii)
     enddo
 
     ! biomass term
     ibiomass = microbial%biomassid(irxn)
+    biomass_term = 1.d0
     if (ibiomass /= 0) then
-      ! Im units (before): mol/mol biomass-sec
+      ! before: [mol/mol biomass-sec]
       if (ibiomass > 0) then
+        ! aqueous biomass [mol biomass/L water]
         biomass_conc = concentration(ibiomass)
-        Im = Im*biomass_conc*L_water
+        biomass_term = biomass_term*biomass_conc*L_water
+        ! after: [mol/sec]
         dbiomass_conc_dconc = dconcentration_dmolal(ibiomass)
       else
         ibiomass = -ibiomass
+        ! immobile biomass [mol biomass/m^3 bulk]
         biomass_conc = rt_auxvar%immobile(ibiomass)
         ! change to immobile offset
         ibiomass = reaction%offset_immobile + ibiomass
-        Im = Im*biomass_conc*material_auxvar%volume
+        biomass_term = biomass_term*biomass_conc*material_auxvar%volume
+        ! after: [mol/sec]
         dbiomass_conc_dconc = 1.d0
       endif
       yield = microbial%biomass_yield(irxn)
     else
-      ! Im units (before): mol/L-sec
-      Im = Im * L_water
+      ! before: [mol/L-sec]
+      biomass_term = biomass_term * L_water
+      ! after: [mol/sec]
     endif
-    ! Im units (after): mol/sec
+    ! rate units (after): mol/sec
 
+    ! [mol/sec]
+    rate = effective_rate_constant* &
+           monod_terms* &
+           inhibition_terms* &
+           biomass_term
     do i = 1, ncomp
       icomp = microbial%specid(i,irxn)
-      Res(icomp) = Res(icomp) - microbial%stoich(i,irxn)*Im
+      Res(icomp) = Res(icomp) - microbial%stoich(i,irxn)*rate
     enddo
 
     if (ibiomass > 0) then
-      Res(ibiomass) = Res(ibiomass) - yield*Im
+      Res(ibiomass) = Res(ibiomass) - yield*rate
     endif
 
     if (.not. compute_derivative) cycle
@@ -459,8 +475,16 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       conc = concentration(jcomp)
       dconc_dmolal = dconcentration_dmolal(jcomp)
 
-      dR_dX = Im / monod(ii)
-
+      dR_dX = effective_rate_constant* &
+!              monod_terms* &
+              inhibition_terms* &
+              biomass_term
+      do jj = 1, ii-1
+        dR_dX = dR_dX*monod(jj)
+      enddo
+      do jj = ii+1, microbial%monodid(0,irxn)
+        dR_dX = dR_dX*monod(jj)
+      enddo
       denominator = microbial%monod_K(imonod) + conc - &
                     microbial%monod_Cth(imonod)
 
@@ -487,9 +511,16 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       conc = concentration(jcomp)
       dconc_dmolal = dconcentration_dmolal(jcomp)
 
-      if (dabs(inhibition(ii)) > 0.d0) then
-        dR_dX = Im / inhibition(ii)
-      endif
+      dR_dX = effective_rate_constant* &
+              monod_terms* &
+!              inhibition_terms* &
+              biomass_term
+      do jj = 1, ii-1
+        dR_dX = dR_dX*inhibition(jj)
+      enddo
+      do jj = ii+1, microbial%inhibitionid(0,irxn)
+        dR_dX = dR_dX*inhibition(jj)
+      enddo
 
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
@@ -540,7 +571,11 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
     ! biomass expression
     if (ibiomass > 0) then
-      dR_dbiomass = -1.d0*Im / biomass_conc * dbiomass_conc_dconc
+      dR_dbiomass = effective_rate_constant* &
+                    monod_terms* &
+                    inhibition_terms!* &
+!                    biomass_term
+      dR_dbiomass = -1.d0* dR_dbiomass * dbiomass_conc_dconc
       do i = 1, ncomp
         icomp = microbial%specid(i,irxn)
         ! units = (mol/sec)*(kg water/mol) = kg water/sec (mobile)
