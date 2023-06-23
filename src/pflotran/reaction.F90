@@ -1531,16 +1531,19 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         endif
         if (flag) then
           option%io_buffer = 'pe constraint for species "' // &
-            trim(reaction%primary_species_names(icomp)) // '" requires &
+            trim(reaction%primary_species_names(icomp)) // &
+            '" in constraint "' // trim(constraint%name) // '" requires &
             &that H+ and O2(g) be found among chemical species.'
           call PrintErrMsg(option)
         endif
         if (.not. &
-            (StringCompare(aq_species_constraint%names(icomp),'H+') .or. &
-             StringCompare(aq_species_constraint%names(icomp),'O2(aq)'))) then
-          option%io_buffer = 'pe constraint may only be used with "H+" or &
+            (StringCompare(reaction%primary_species_names(icomp),'H+') .or. &
+             StringCompare(reaction%primary_species_names(icomp), &
+                           'O2(aq)'))) then
+          option%io_buffer = 'pe constraint in constraint "' // &
+            trim(constraint%name) // '" may only be used with "H+" or &
             &"O2(aq)", not "' // &
-            trim(aq_species_constraint%names(icomp)) // '".'
+            trim(reaction%primary_species_names(icomp)) // '".'
           call PrintErrMsg(option)
         endif
       case(CONSTRAINT_MINERAL)
