@@ -74,8 +74,6 @@ module Reaction_Sandbox_Cyber_class
     PetscInt :: offset_auxiliary
     PetscBool :: store_cumulative_mass
     PetscBool :: mobile_biomass
-    PetscReal :: inhibit_by_nh4
-    PetscReal :: inhibition_threshold_f
     PetscReal :: inhibit_by_reactants
     PetscInt :: inhibit_func
     PetscReal :: inhibit_func_constant
@@ -158,8 +156,6 @@ function CyberCreate()
   CyberCreate%carbon_consumption_species = ''
   CyberCreate%store_cumulative_mass = PETSC_FALSE
   CyberCreate%mobile_biomass = PETSC_FALSE
-  CyberCreate%inhibit_by_nh4 = UNINITIALIZED_DOUBLE
-  CyberCreate%inhibition_threshold_f = UNINITIALIZED_DOUBLE
   CyberCreate%inhibit_by_reactants = UNINITIALIZED_DOUBLE
   CyberCreate%inhibit_func = INHIBIT_FUNC_ARCTAN2
   CyberCreate%inhibit_func_constant = UNINITIALIZED_DOUBLE
@@ -289,14 +285,6 @@ subroutine CyberRead(this,input,option)
         this%store_cumulative_mass = PETSC_TRUE
       case('MOBILE_BIOMASS')
         this%mobile_biomass = PETSC_TRUE
-      case('INHIBIT_BY_NH4')
-        call InputReadDouble(input,option,this%inhibit_by_nh4)
-        call InputErrorMsg(input,option,'NH4 inhibition concentration', &
-                           trim(error_string)//','//trim(word))
-      case('INHIBITION_SCALING_FACTOR')
-        call InputReadDouble(input,option,this%inhibition_threshold_f)
-        call InputErrorMsg(input,option,'NH4 inhibition threshold &
-                           &scaling factor',error_string)
       case('INHIBIT_BY_REACTANTS')
         call InputReadDouble(input,option,this%inhibit_by_reactants)
         call InputErrorMsg(input,option,'reactant inhibition concentration', &
@@ -528,15 +516,6 @@ subroutine CyberSetup(this,reaction,option)
   this%icol(2,irxn) = this%no3_id
   this%icol(3,irxn) = this%no2_id
   this%icol(4,irxn) = this%o2_id
-  endif
-
-  if (Initialized(this%inhibit_by_reactants) .and. &
-      Uninitialized(this%inhibit_by_nh4)) then
-    this%inhibit_by_nh4 = this%inhibit_by_reactants
-  endif
-  if (Initialized(this%inhibit_by_nh4) .and. &
-      Uninitialized(this%inhibition_threshold_f)) then
-    this%inhibition_threshold_f = 1.d5/this%inhibit_by_nh4
   endif
 
 end subroutine CyberSetup
@@ -776,17 +755,17 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
 
   nh4_inhibition = 1.d0
   dnh4_inhibition_dnh4 = 0.d0
-  if (Initialized(this%inhibit_by_nh4)) then
+  if (Initialized(this%inhibit_by_reactants)) then
     select case(this%inhibit_func)
       case(INHIBIT_FUNC_ARCTAN1)
-        call ReactionThresholdInhibition(Cnh4,this%inhibit_by_nh4, &
-                                        nh4_inhibition,dnh4_inhibition_dnh4)
+        call ReactionThresholdInhibition(Cnh4,this%inhibit_by_reactants, &
+                                         nh4_inhibition,dnh4_inhibition_dnh4)
       case(INHIBIT_FUNC_ARCTAN2)
-        call ReactionThresholdInhibition2(Cnh4,this%inhibit_by_nh4, &
-                                          this%inhibition_threshold_f, &
+        call ReactionThresholdInhibition2(Cnh4,this%inhibit_by_reactants, &
+                                          this%inhibit_func_constant, &
                                           nh4_inhibition,dnh4_inhibition_dnh4)
       case(INHIBIT_FUNC_SMOOTHSTEP)
-        call ReactionThreshInhibitSmoothstep(Cnh4,this%inhibit_by_nh4, &
+        call ReactionThreshInhibitSmoothstep(Cnh4,this%inhibit_by_reactants, &
                                              this%inhibit_func_constant, &
                                              nh4_inhibition, &
                                              dnh4_inhibition_dnh4)

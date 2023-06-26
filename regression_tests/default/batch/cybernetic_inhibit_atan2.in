@@ -14,6 +14,7 @@ END
 SUBSURFACE
 
 EXTERNAL_FILE ./cybernetic.txt
+EXTERNAL_FILE ./cybernetic_constraint.txt
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -49,34 +50,16 @@ CHEMISTRY
       REFERENCE_TEMPERATURE 25.d0 ! degrees C
       ACTIVATION_ENERGY 89.d0 kJ/mol
       INHIBIT_BY_REACTANTS 1.d-5
-      INHIBITION_FUNCTION ARCTAN2 1.d10
+      INHIBITION_FUNCTION ARCTAN2 1.d11
     /
   /
   DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
-  TRUNCATE_CONCENTRATION 1.d-40
   OUTPUT
     ALL
     TOTAL
     AUXILIARY
-  /
-END
-
-#=========================== constraints ======================================
-CONSTRAINT initial
-  CONCENTRATIONS
-    C5H7O2N(aq) 1.d-5    T
-    CH2O(aq)    61.13d-3 T
-    CO2(aq)     1.d-3    T
-    N2(aq)      1.d-10   T
-    NH4+        1.d-2    T
-    NO2-        1.d-2    T
-    NO3-        1.d-6    T
-    O2(aq)      1.d-6    T
-  /
-  IMMOBILE
-    C_consumption 1.d-10
   /
 END
 

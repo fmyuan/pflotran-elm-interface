@@ -14,6 +14,7 @@ END
 SUBSURFACE
 
 EXTERNAL_FILE ./cybernetic.txt
+EXTERNAL_FILE ./cybernetic_constraint.txt
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -55,28 +56,10 @@ CHEMISTRY
   DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
-  TRUNCATE_CONCENTRATION 1.d-40
   OUTPUT
     ALL
     TOTAL
     AUXILIARY
-  /
-END
-
-#=========================== constraints ======================================
-CONSTRAINT initial
-  CONCENTRATIONS
-    C5H7O2N(aq) 1.d-5    T
-    CH2O(aq)    61.13d-3 T
-    CO2(aq)     1.d-3    T
-    N2(aq)      1.d-10   T
-    NH4+        1.d0     T
-    NO2-        1.d-10   T
-    NO3-        18.25d-3 T
-    O2(aq)      1.d-3    T
-  /
-  IMMOBILE
-    C_consumption 1.d-10
   /
 END
 

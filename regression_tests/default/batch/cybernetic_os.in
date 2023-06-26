@@ -50,14 +50,13 @@ CHEMISTRY
       ACTIVATION_ENERGY 89.d0 kJ/mol
       STORE_CONSUMPTION_PRODUCTION
       CARBON_CONSUMPTION_SPECIES C_consumption
-      INHIBIT_BY_NH4 1.d-2
-      INHIBITION_SCALING_FACTOR 1.d8
+      INHIBIT_BY_REACTANTS 1.d-5
+      INHIBITION_FUNCTION SMOOTHSTEP 1.d-3
     /
   /
   DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
-  TRUNCATE_CONCENTRATION 1.d-40
   OUTPUT
     ALL
     TOTAL
@@ -68,16 +67,16 @@ END
 #=========================== constraints ======================================
 CONSTRAINT initial
   CONCENTRATIONS
-    CH2O(aq)    61.13d-3 T
+    CH2O(aq)    1.d-3    T
     CO2(aq)     1.d-3    T
     N2(aq)      1.d-10   T
-    NH4+        1.d0     T
-    NO2-        1.d-10   T
-    NO3-        18.25d-3 T
+    NH4+        1.d-3    T
+    NO2-        1.d-3    T
+    NO3-        1.d-3    T
     O2(aq)      1.d-3    T
   /
   IMMOBILE
-    C5H7O2N(im)   2.5d-3
+    C5H7O2N(im)   1.d-3
     C_consumption 1.d-10
   /
 END
