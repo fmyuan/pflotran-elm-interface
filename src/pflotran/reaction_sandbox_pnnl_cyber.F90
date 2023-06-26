@@ -699,6 +699,8 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   if (Initialized(this%inhibit_by_reactants)) then
     select case(this%inhibit_func)
       case(INHIBIT_FUNC_ARCTAN1)
+        call ReactionThresholdInhibition(Cnh4,this%inhibit_by_reactants, &
+                                         nh4_inhibition,dnh4_inhibition_dnh4)
         call ReactionThresholdInhibition(Cdoc,this%inhibit_by_reactants, &
                                          doc_inhibition,drate_ddoc_inhib)
         call ReactionThresholdInhibition(Co2,this%inhibit_by_reactants, &
@@ -708,6 +710,9 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
         call ReactionThresholdInhibition(Cno2,this%inhibit_by_reactants, &
                                          no2_inhibition,drate_dno2_inhib)
       case(INHIBIT_FUNC_ARCTAN2)
+        call ReactionThresholdInhibition2(Cnh4,this%inhibit_by_reactants, &
+                                          this%inhibit_func_constant, &
+                                          nh4_inhibition,dnh4_inhibition_dnh4)
         call ReactionThresholdInhibition2(Cdoc,this%inhibit_by_reactants, &
                                           this%inhibit_func_constant, &
                                           doc_inhibition,drate_ddoc_inhib)
@@ -721,6 +726,10 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
                                           this%inhibit_func_constant, &
                                           no2_inhibition,drate_dno2_inhib)
       case(INHIBIT_FUNC_SMOOTHSTEP)
+        call ReactionThreshInhibitSmoothstep(Cnh4,this%inhibit_by_reactants, &
+                                             this%inhibit_func_constant, &
+                                             nh4_inhibition, &
+                                             dnh4_inhibition_dnh4)
         call ReactionThreshInhibitSmoothstep(Cdoc,this%inhibit_by_reactants, &
                                              this%inhibit_func_constant, &
                                              doc_inhibition,drate_ddoc_inhib)
@@ -747,33 +756,16 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
                        rt_auxvar%pri_act_coef(this%no2_id) * &
                        molality_to_molarity
   else
+    nh4_inhibition = 1.d0; dnh4_inhibition_dnh4 = 0.d0
     doc_inhibition = 1.d0; drate_ddoc_inhib = 0.d0
     o2_inhibition = 1.d0;  drate_do2_inhib = 0.d0
     no3_inhibition = 1.d0; drate_dno3_inhib = 0.d0
     no2_inhibition = 1.d0; drate_dno2_inhib = 0.d0
   endif
 
-  nh4_inhibition = 1.d0
-  dnh4_inhibition_dnh4 = 0.d0
-  if (Initialized(this%inhibit_by_reactants)) then
-    select case(this%inhibit_func)
-      case(INHIBIT_FUNC_ARCTAN1)
-        call ReactionThresholdInhibition(Cnh4,this%inhibit_by_reactants, &
-                                         nh4_inhibition,dnh4_inhibition_dnh4)
-      case(INHIBIT_FUNC_ARCTAN2)
-        call ReactionThresholdInhibition2(Cnh4,this%inhibit_by_reactants, &
-                                          this%inhibit_func_constant, &
-                                          nh4_inhibition,dnh4_inhibition_dnh4)
-      case(INHIBIT_FUNC_SMOOTHSTEP)
-        call ReactionThreshInhibitSmoothstep(Cnh4,this%inhibit_by_reactants, &
-                                             this%inhibit_func_constant, &
-                                             nh4_inhibition, &
-                                             dnh4_inhibition_dnh4)
-    end select
-    dnh4_inhibition_dnh4 = dnh4_inhibition_dnh4 * &
-                           rt_auxvar%pri_act_coef(this%nh4_id) * &
-                           molality_to_molarity
-  endif
+  dnh4_inhibition_dnh4 = dnh4_inhibition_dnh4 * &
+                          rt_auxvar%pri_act_coef(this%nh4_id) * &
+                          molality_to_molarity
 
   k1_scaled = this%k1 * temperature_scaling_factor
   k2_scaled = this%k2 * temperature_scaling_factor
@@ -834,7 +826,6 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   ! note the addition
   ! mol/sec
   Residual(this%doc_id) = Residual(this%doc_id) - &
-!                          k_deg_scaled/this%f_act * X * L_water
                           5.d0*k_deg_scaled * X * volume
 
   ! calculate carbon consumption
