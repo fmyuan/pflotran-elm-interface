@@ -300,10 +300,13 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
         this%realization%patch%boundary_condition_list%first
       do
         if (.not.associated(boundary_condition)) exit
-        if (FlowConditionIsHydrostatic(boundary_condition%flow_condition)) then
-          this%option%io_buffer = 'Hydrostatic flow conditions are currently &
-            &not supported by the SALINITY process model.'
-          call PrintErrMsg(this%option)
+        if (associated(boundary_condition%flow_condition)) then
+          if (FlowConditionIsHydrostatic(boundary_condition% &
+                                           flow_condition)) then
+            this%option%io_buffer = 'Hydrostatic flow conditions are &
+              &currently not supported by the SALINITY process model.'
+            call PrintErrMsg(this%option)
+          endif
         endif
         boundary_condition => boundary_condition%next
       enddo
