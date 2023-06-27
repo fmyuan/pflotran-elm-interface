@@ -11,6 +11,12 @@ module NW_Transport_Aux_module
   private
 
   PetscReal, public :: MIN_LIQ_SAT = 1.0d-5
+  PetscBool, public :: nwt_well_quasi_imp_coupled = PETSC_FALSE
+
+  type, public :: nwt_well_aux_type
+    PetscReal, pointer :: AQ_conc(:)   ! aqueous concentration for each species
+    PetscReal, pointer :: AQ_mass(:)   ! aqueous mass for each species
+  end type nwt_well_aux_type
 
   type, public :: nw_transport_auxvar_type
     ! total mass as bulk concentration
@@ -27,6 +33,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
     PetscInt, pointer :: constraint_type(:)
+    type(nwt_well_aux_type) :: well
   end type nw_transport_auxvar_type
 
   type, public :: nw_transport_type
@@ -231,6 +238,11 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   auxvar%mnrl_vol_frac = 0.d0
   allocate(auxvar%constraint_type(nspecies))
   auxvar%constraint_type = 0
+
+  allocate(auxvar%well%AQ_conc(nspecies))
+  auxvar%well%AQ_conc = UNINITIALIZED_DOUBLE
+  allocate(auxvar%well%AQ_mass(nspecies))
+  auxvar%well%AQ_mass = UNINITIALIZED_DOUBLE
 
   if (nauxiliary > 0) then
     allocate(auxvar%auxiliary_data(nauxiliary))

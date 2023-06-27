@@ -688,7 +688,7 @@ end subroutine LUDecomposition1
 
 subroutine LUBackSubstitution(A,N,INDX,B)
   !
-  ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
+  ! Solves the set of N linear equations A.X=B. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
   ! vector returned by LUDecomposition. B is input as the right-hand side
   ! vector B, and returns with the solution vector X.

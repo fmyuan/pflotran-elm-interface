@@ -1468,6 +1468,7 @@ nw_transport.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   realization_subsurface.o \
   string.o \
   transport_constraint_nwt.o \
@@ -2010,6 +2011,7 @@ pm_nwt.o : \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
+  pm_well.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
@@ -2297,10 +2299,13 @@ pm_well.o : \
   transport_constraint_base.o \
   transport_constraint_nwt.o \
   utility.o \
+  variables.o \
   wipp_flow_aux.o
 pm_wipp_flow.o : \
   checkpoint.o \
+  connection.o \
   convergence.o \
+  coupler.o \
   dataset.o \
   dataset_base.o \
   dataset_common_hdf5.o \
@@ -2319,6 +2324,7 @@ pm_wipp_flow.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
+  pm_well.o \
   pm_wipp_srcsink.o \
   realization_base.o \
   realization_subsurface.o \
@@ -3611,6 +3617,7 @@ wipp_flow.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   pm_wipp_srcsink.o \
   realization_subsurface.o \
   srcsink_sandbox.o \
