@@ -199,15 +199,15 @@ subroutine InversionParameterPrintUpdate(fid,inversion_parameter, &
     write(fid,'(/, &
               &" Current values of inversion parameter updates:",//, &
               &"      # &
-              &Parameter Name      &
+              &Parameter Name                    &
               &Material Name       &
               & Update",/,&
               &"      - &
-              &--------------      &
+              &--------------                    &
               &-------------       &
               & -----")')
   endif
-  write(string,'(i6," ",2a20,es13.6)') &
+  write(string,'(i6," ",a32,2x,a20,2es13.6)') &
     inversion_parameter%id, &
     inversion_parameter%parameter_name, &
     inversion_parameter%material_name, &
