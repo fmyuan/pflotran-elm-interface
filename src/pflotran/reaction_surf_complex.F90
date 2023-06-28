@@ -692,7 +692,7 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
 
   ncplx = surface_complexation%srfcplxrxn_to_complex(0,irxn)
 
-  free_site_conc = external_free_site_conc
+  free_site_conc = max(external_free_site_conc,1.d-40)
   srfcplx_conc = 0.d0
 
   select case(surface_complexation%srfcplxrxn_surf_type(irxn))
@@ -715,7 +715,17 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
     ! isite == 1 - immobile (colloids, minerals, etc.)
     ! isite == 2 - mobile (colloids)
 
-    if (site_density(isite) < 1.d-40) cycle
+    if (site_density(isite) < 1.d-40) then
+      external_free_site_conc = 0.d0
+      if (associated(external_srfcplx_conc)) then
+        do j = 1, ncplx
+          icplx = surface_complexation%srfcplxrxn_to_complex(j,irxn)
+          external_srfcplx_conc(icplx) = 0.d0
+        enddo
+      endif
+      ! external_total_sorb and external_dtotal_sorb have nothing to be added
+      cycle
+    endif
 
     ! get a pointer to the first complex (there will always be at least 1)
     ! in order to grab free site conc

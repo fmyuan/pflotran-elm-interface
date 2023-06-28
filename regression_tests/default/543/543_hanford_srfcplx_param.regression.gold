@@ -399,8 +399,8 @@
        31:   5.1803859682478E+00
 -- CONCENTRATION: Free >SOH --
       Max:   2.8056795655698E+01
-      Min:   1.0000000000000E-09
-     Mean:   1.6160040996404E+01
+      Min:   0.0000000000000E+00
+     Mean:   1.6160040996388E+01
        29:   1.2080311686991E+01
         1:   2.7012011975007E+01
        31:   5.1803859423920E+00
@@ -640,6 +640,7 @@
         1:   1.7617702348986E-02 -9.6502560583815E-04 -8.0086946328361E-04
        31:   2.5578704112122E-01  2.2363909790982E-02  1.8169543176494E-02
 -- SOLUTION: Flow --
+   Time (seconds):   1.1222039000131E-02
    Time Steps:           14
    Newton Iterations:           28
    Linear Solver Iterations:           28
@@ -647,6 +648,7 @@
    Solution 2-Norm:   1.8527721282346E+06
    Residual 2-Norm:   3.7495263161587E-13
 -- SOLUTION: Transport --
+   Time (seconds):   1.5302073250002E+00
    Time Steps:           14
    Newton Iterations:           46
    Linear Solver Iterations:           46
