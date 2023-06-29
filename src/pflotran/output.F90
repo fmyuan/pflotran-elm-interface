@@ -36,6 +36,7 @@ module Output_module
             OutputFileRead, &
             OutputInputRecord, &
             OutputEnsureVariablesExist, &
+            OutputListEnsureVariablesExist, &
             OutputFindNaNOrInfInVec
 
 contains
@@ -2506,7 +2507,11 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   !
   use Option_module
   use Material_Aux_module, only : soil_compressibility_index, &
-                                 soil_reference_pressure_index
+                                  soil_reference_pressure_index, &
+                                  archie_cementation_exp_index, &
+                                  archie_saturation_exp_index, &
+                                  archie_tortuosity_index
+
   use Variables_module
 
   implicit none
@@ -2514,20 +2519,39 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   type(output_variable_list_type), pointer :: output_variable_list
   type(option_type) :: option
 
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(output_variable_type), pointer :: cur_variable
   PetscBool :: error_flag
   PetscInt :: error_count
+
+  if (.not.associated(output_variable_list)) return
 
   cur_variable => output_variable_list%first
   error_count =  0
   do
     if (.not.associated(cur_variable)) exit
     error_flag = PETSC_FALSE
+    error_string = ''
     select case(cur_variable%ivar)
       case(SOIL_COMPRESSIBILITY)
         if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
       case(SOIL_REFERENCE_PRESSURE)
         if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
+      case(ARCHIE_CEMENTATION_EXPONENT)
+        if (archie_cementation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_SATURATION_EXPONENT)
+        if (archie_saturation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_TORTUOSITY_CONSTANT)
+        if (archie_tortuosity_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
     end select
     if (error_flag) then
       error_count = error_count + 1
@@ -2540,7 +2564,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
         endif
       endif
       if (OptionPrintToScreen(option)) then
-        print *, '  ' // trim(cur_variable%name)
+        print *, '  ' // trim(cur_variable%name) // trim(error_string)
       endif
     endif
     cur_variable => cur_variable%next
