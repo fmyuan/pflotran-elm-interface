@@ -184,10 +184,10 @@ module Variables_module
   PetscInt, parameter, public :: WELL_GAS_SATURATION       = 149
 
   PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 150
-  PetscInt, parameter, public :: SOLUBLE_MATRIX  = 151
+  PetscInt, parameter, public :: SOLUBLE_MATRIX          = 151
 
-  PetscInt, parameter, public :: ARCHIE_SATURATION_EXPONENT = 144
-  PetscInt, parameter, public :: ARCHIE_CEMENTATION_EXPONENT = 145
-  PetscInt, parameter, public :: ARCHIE_TORTUOSITY_CONSTANT = 146
+  PetscInt, parameter, public :: ARCHIE_CEMENTATION_EXPONENT = 152
+  PetscInt, parameter, public :: ARCHIE_SATURATION_EXPONENT = 153
+  PetscInt, parameter, public :: ARCHIE_TORTUOSITY_CONSTANT = 154
 
 end module Variables_module

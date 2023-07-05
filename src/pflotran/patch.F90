@@ -6702,7 +6702,9 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY)
+         SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY, &
+         ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
+         ARCHIE_TORTUOSITY_CONSTANT)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
@@ -6938,7 +6940,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             vec_ptr(local_id) = &
               patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%Qg
           enddo
-      end select 
+      end select
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -7783,7 +7785,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
-         ELECTRICAL_CONDUCTIVITY)
+         ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT, &
+         ARCHIE_TORTUOSITY_CONSTANT)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -7943,11 +7947,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                   well%AQ_mass(isubvar)
         case(WELL_LIQ_Q)
           value = &
-            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Ql 
+            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Ql
         case(WELL_GAS_Q)
           value = &
-            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg 
-      end select 
+            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg
+      end select
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -8676,7 +8680,9 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         case(TOTAL_MOLALITY)
           call PrintErrMsg(option,'Setting of total molality at grid cell not supported.')
       end select
-    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY, &
+         ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
+         ARCHIE_TORTUOSITY_CONSTANT)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
