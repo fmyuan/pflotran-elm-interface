@@ -712,8 +712,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                                                      parameter_name, &
                                                    this%driver)
         select case(param_id)
-          case(PERMEABILITY,POROSITY,ARCHIE_CEMENTATION_EXPONENT, &
-               ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
+          case(PERMEABILITY,POROSITY)
           case default
             string = 'COUPLED_ZFLOW_ERT does not currently support &
               &inversion for "' // &
