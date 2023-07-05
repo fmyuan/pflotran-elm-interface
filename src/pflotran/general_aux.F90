@@ -336,7 +336,9 @@ function GeneralAuxCreate(option)
   aux%general_parameter%diffusion_coefficient(LIQUID_PHASE) = &
                                                            UNINITIALIZED_DOUBLE
   aux%general_parameter%diffusion_coefficient(GAS_PHASE) = 2.13d-5
-  aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
+  if (general_salt) then
+    aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
+  endif 
   aux%general_parameter%newton_inf_scaled_res_tol = 1.d-50
   aux%general_parameter%check_post_converged = PETSC_FALSE
 
