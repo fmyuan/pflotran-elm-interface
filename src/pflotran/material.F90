@@ -59,6 +59,8 @@ module Material_module
     PetscReal :: archie_cementation_exponent
     PetscReal :: archie_saturation_exponent
     PetscReal :: archie_tortuosity_constant
+    PetscReal :: surface_electrical_conductivity
+    PetscReal :: waxman_smits_clay_conductivity
 
     class(fracture_type), pointer :: fracture
 
@@ -217,6 +219,8 @@ function MaterialPropertyCreate(option)
   material_property%archie_cementation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_saturation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_tortuosity_constant = UNINITIALIZED_DOUBLE
+  material_property%surface_electrical_conductivity = UNINITIALIZED_DOUBLE
+  material_property%waxman_smits_clay_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(material_property%fracture)
   nullify(material_property%geomechanics_subsurface_properties)
@@ -972,6 +976,14 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadDouble(input,option, &
                              material_property%archie_tortuosity_constant)
         call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+      case('SURFACE_ELECTRICAL_CONDUCTIVITY')
+        call InputReadDouble(input,option, &
+                             material_property%surface_electrical_conductivity)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+      case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+        call InputReadDouble(input,option, &
+                             material_property%waxman_smits_clay_conductivity)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
       case default
         call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select
@@ -1580,6 +1592,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_archie_cement_exp
   PetscInt :: num_archie_sat_exp
   PetscInt :: num_archie_tort_const
+  PetscInt :: num_surf_elec_conduct
+  PetscInt :: num_ws_clay_conduct
   type(multicontinuum_property_type), pointer :: multicontinuum
 
   procedure(MaterialCompressSoilDummy), pointer :: &
@@ -1593,6 +1607,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   num_archie_cement_exp = 0
   num_archie_sat_exp = 0
   num_archie_tort_const = 0
+  num_surf_elec_conduct = 0
+  num_ws_clay_conduct = 0
 
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
@@ -1706,6 +1722,22 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       endif
       num_archie_tort_const = num_archie_tort_const + 1
     endif
+    if (Initialized(material_property_ptrs(i)% &
+                      ptr%surface_electrical_conductivity)) then
+      if (surf_elec_conduct_index == 0) then
+        icount = icount + 1
+        surf_elec_conduct_index = icount
+      endif
+      num_surf_elec_conduct = num_surf_elec_conduct + 1
+    endif
+    if (Initialized(material_property_ptrs(i)% &
+                      ptr%waxman_smits_clay_conductivity)) then
+      if (ws_clay_conduct_index == 0) then
+        icount = icount + 1
+        ws_clay_conduct_index = icount
+      endif
+      num_ws_clay_conduct = num_ws_clay_conduct + 1
+    endif
     ! ADD_SOIL_PROPERTY_INDEX_HERE
   enddo
   max_material_index = icount
@@ -1760,6 +1792,18 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   if (num_archie_tort_const > 0 .and. &
       num_archie_tort_const /= num_material_properties) then
     option%io_buffer = 'ARCHIE_TORTUOSITY_CONSTANT must be defined &
+      &for all materials.'
+    call PrintErrMsg(option)
+  endif
+  if (num_surf_elec_conduct > 0 .and. &
+      num_surf_elec_conduct /= num_material_properties) then
+    option%io_buffer = 'SURFACE_ELECTRIAL_CONDUCTIVITY must be defined &
+      &for all materials.'
+    call PrintErrMsg(option)
+  endif
+  if (num_ws_clay_conduct > 0 .and. &
+      num_ws_clay_conduct /= num_material_properties) then
+    option%io_buffer = 'WAXMAN_SMITS_CLAY_CONDUCTIVITY must be defined &
       &for all materials.'
     call PrintErrMsg(option)
   endif

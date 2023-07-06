@@ -8,7 +8,9 @@ module Inversion_Parameter_module
                                VG_SR, VG_ALPHA, VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   implicit none
 
@@ -23,6 +25,8 @@ module Inversion_Parameter_module
   PetscInt, parameter :: MAP_ACE = 7
   PetscInt, parameter :: MAP_ASE = 8
   PetscInt, parameter :: MAP_ATC = 9
+  PetscInt, parameter :: MAP_SURF_ELEC_COND = 10
+  PetscInt, parameter :: MAP_WS_CLAY_COND = 11
 
   ! second index is max MAP # above
   PetscReal :: parameter_bounds(2,MAP_ATC) = UNINITIALIZED_DOUBLE
@@ -348,6 +352,10 @@ function InversionParamGetItypeFromName(name_,driver)
       i = ARCHIE_SATURATION_EXPONENT
     case('ARCHIE_TORTUOSITY_CONSTANT')
       i = ARCHIE_TORTUOSITY_CONSTANT
+    case('SURFACE_ELECTRICAL_CONDUCTIVITY')
+      i = SURFACE_ELECTRICAL_CONDUCTIVITY
+    case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+      i = WAXMAN_SMITS_CLAY_CONDUCTIVITY
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParamGetItypeFromName: ' // &
@@ -396,6 +404,10 @@ function InversionParamGetNameFromItype(itype,driver)
       word = 'ARCHIE_SATURATION_EXPONENT'
     case(ARCHIE_TORTUOSITY_CONSTANT)
       word = 'ARCHIE_TORTUOSITY_CONSTANT'
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      word = 'SURFACE_ELECTRICAL_CONDUCTIVITY'
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      word = 'WAXMAN_SMITS_CLAY_CONDUCTIVITY'
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParamGetNameFromItype: ' // &
@@ -440,6 +452,10 @@ function InvParamItypeToItypeInternal(itype)
       i = MAP_ASE
     case(ARCHIE_TORTUOSITY_CONSTANT)
       i = MAP_ATC
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      i = MAP_SURF_ELEC_COND
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      i = MAP_WS_CLAY_COND
     case default
       print *, 'Unrecognized parameter in &
                &InvParamItypeToItypeInternal: ', itype
@@ -476,6 +492,10 @@ subroutine InversionParamInitBounds()
                                      default_lower_bound,default_upper_bound)
   call InversionParamSetGlobalBounds(ARCHIE_TORTUOSITY_CONSTANT, &
                                      default_lower_bound,default_upper_bound)
+  call InversionParamSetGlobalBounds(SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                                     0.d0,0.1d0)
+  call InversionParamSetGlobalBounds(WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                                     0.d0,0.1d0)
 
 end subroutine InversionParamInitBounds
 

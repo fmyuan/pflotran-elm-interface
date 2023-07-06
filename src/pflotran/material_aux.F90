@@ -47,6 +47,8 @@ module Material_Aux_module
   PetscInt, public :: archie_cementation_exp_index
   PetscInt, public :: archie_saturation_exp_index
   PetscInt, public :: archie_tortuosity_index
+  PetscInt, public :: surf_elec_conduct_index
+  PetscInt, public :: ws_clay_conduct_index
   PetscInt, public :: max_material_index
 
   type, public :: material_auxvar_type
@@ -758,6 +760,12 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(ARCHIE_TORTUOSITY_CONSTANT)
       MaterialAuxVarGetValue = &
         material_auxvar%soil_properties(archie_tortuosity_index)
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(surf_elec_conduct_index)
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(ws_clay_conduct_index)
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     case default
       print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
@@ -821,6 +829,10 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(archie_saturation_exp_index) = value
     case(ARCHIE_TORTUOSITY_CONSTANT)
       material_auxvar%soil_properties(archie_tortuosity_index) = value
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      material_auxvar%soil_properties(surf_elec_conduct_index) = value
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      material_auxvar%soil_properties(ws_clay_conduct_index) = value
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     case default
       print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar

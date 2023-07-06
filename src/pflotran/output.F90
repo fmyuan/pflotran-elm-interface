@@ -2510,7 +2510,9 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
                                   soil_reference_pressure_index, &
                                   archie_cementation_exp_index, &
                                   archie_saturation_exp_index, &
-                                  archie_tortuosity_index
+                                  archie_tortuosity_index, &
+                                  surf_elec_conduct_index, &
+                                  ws_clay_conduct_index
 
   use Variables_module
 
@@ -2549,6 +2551,16 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
         endif
       case(ARCHIE_TORTUOSITY_CONSTANT)
         if (archie_tortuosity_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+        if (surf_elec_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+        if (ws_clay_conduct_index == 0) then
           error_flag = PETSC_TRUE
           error_string = ' - must be defined under MATERIAL_PROPERTY'
         endif

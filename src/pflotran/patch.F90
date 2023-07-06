@@ -6708,7 +6708,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          EPSILON,HALF_MATRIX_WIDTH, &
          SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
-         ARCHIE_TORTUOSITY_CONSTANT)
+         ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
+         WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
@@ -7791,8 +7792,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
          EPSILON,HALF_MATRIX_WIDTH, &
          ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
-         ARCHIE_SATURATION_EXPONENT, &
-         ARCHIE_TORTUOSITY_CONSTANT)
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -8692,7 +8693,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY, &
          EPSILON,HALF_MATRIX_WIDTH, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
-         ARCHIE_TORTUOSITY_CONSTANT)
+         ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
+         WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &

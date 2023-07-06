@@ -189,5 +189,7 @@ module Variables_module
   PetscInt, parameter, public :: ARCHIE_CEMENTATION_EXPONENT = 152
   PetscInt, parameter, public :: ARCHIE_SATURATION_EXPONENT = 153
   PetscInt, parameter, public :: ARCHIE_TORTUOSITY_CONSTANT = 154
+  PetscInt, parameter, public :: SURFACE_ELECTRICAL_CONDUCTIVITY = 155
+  PetscInt, parameter, public :: WAXMAN_SMITS_CLAY_CONDUCTIVITY = 156
 
 end module Variables_module
