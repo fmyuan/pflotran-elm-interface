@@ -1617,6 +1617,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   archie_cementation_exp_index = 0
   archie_saturation_exp_index = 0
   archie_tortuosity_index = 0
+  surf_elec_conduct_index = 0
+  ws_clay_conduct_index = 0
   ! ADD_SOIL_PROPERTY_INDEX_HERE - also need to add num_xxx counter above
   max_material_index = 0
 
@@ -1869,17 +1871,15 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
       material_auxvar%soil_properties(archie_tortuosity_index) = &
         material_property%archie_tortuosity_constant
     endif
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
-    ! the following conditional catches potential misalignments of the
-    ! indices above indexing %soil_properties
-#if 0
-    if (Uninitialized(minval(material_auxvar%soil_properties))) then
-      option%io_buffer = 'Uninitialized value within material_auxvar%&
-        &soil_properties in MaterialAssignPropertyToAux(). Please email &
-        &your input deck to pflotran-dev@googlegroups.com.'
-      call PrintErrMsg(option)
+    if (surf_elec_conduct_index > 0) then
+      material_auxvar%soil_properties(surf_elec_conduct_index) = &
+        material_property%surface_electrical_conductivity
     endif
-#endif
+    if (ws_clay_conduct_index > 0) then
+      material_auxvar%soil_properties(ws_clay_conduct_index) = &
+        material_property%waxman_smits_clay_conductivity
+    endif
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
   endif
 
 end subroutine MaterialAssignPropertyToAux
@@ -2104,6 +2104,16 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)% &
           soil_properties(archie_tortuosity_index) = vec_loc_p(ghosted_id)
       enddo
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)% &
+          soil_properties(surf_elec_conduct_index) = vec_loc_p(ghosted_id)
+      enddo
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)% &
+          soil_properties(ws_clay_conduct_index) = vec_loc_p(ghosted_id)
+      enddo
     ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
@@ -2244,6 +2254,26 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           vec_loc_p(ghosted_id) = &
             material_auxvars(ghosted_id)% &
               soil_properties(archie_tortuosity_index)
+        enddo
+      else
+        vec_loc_p(:) = UNINITIALIZED_DOUBLE
+      endif
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      if (surf_elec_conduct_index > 0) then
+        do ghosted_id=1, Material%num_aux
+          vec_loc_p(ghosted_id) = &
+            material_auxvars(ghosted_id)% &
+              soil_properties(surf_elec_conduct_index)
+        enddo
+      else
+        vec_loc_p(:) = UNINITIALIZED_DOUBLE
+      endif
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      if (ws_clay_conduct_index > 0) then
+        do ghosted_id=1, Material%num_aux
+          vec_loc_p(ghosted_id) = &
+            material_auxvars(ghosted_id)% &
+              soil_properties(ws_clay_conduct_index)
         enddo
       else
         vec_loc_p(:) = UNINITIALIZED_DOUBLE

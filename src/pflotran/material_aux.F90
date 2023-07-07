@@ -159,7 +159,9 @@ function MaterialAuxCreate(option)
                                EPSILON, HALF_MATRIX_WIDTH, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   implicit none
 
@@ -202,6 +204,12 @@ function MaterialAuxCreate(option)
     call MaterialAuxInitSoilPropertyMap(aux,archie_tortuosity_index, &
                                         ARCHIE_TORTUOSITY_CONSTANT, &
                                         'Archie Tortuosity Constant')
+    call MaterialAuxInitSoilPropertyMap(aux,surf_elec_conduct_index, &
+                                        SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                                        'Surface Electrical Conductivity')
+    call MaterialAuxInitSoilPropertyMap(aux,ws_clay_conduct_index, &
+                                        WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                                        'Waxman-Smits Clay Conductivity')
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     do i = 1, max_material_index
       if (Uninitialized(aux%soil_properties_ivar(i))) then
