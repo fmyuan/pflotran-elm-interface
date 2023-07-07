@@ -126,7 +126,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
-  pm_ert%surface_conductivity = 0.d0 ! to modifie Archie's equation
+  pm_ert%surface_conductivity = 0.d0 ! to modify Archie's equation
   pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
@@ -236,6 +236,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,this%tracer_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+        this%conductivity_mapping_law = WAXMAN_SMITS
         call InputReadDouble(input,option,this%clay_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CLAY_VOLUME_FACTOR','SHALE_VOLUME_FACTOR')
