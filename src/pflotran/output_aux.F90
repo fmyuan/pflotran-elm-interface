@@ -741,9 +741,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
            'Z_COORDINATE', &
            'ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
            'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
-           'ARCHIE_CEMENTATION_EXPONENT','ARCHIE_SATURATION_EXPONENT', &
-           'ARCHIE_TORTUOSITY_CONSTANT','SURFACE_ELECTRICAL_CONDUCTIVITY', &
-           'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+           'SURFACE_ELECTRICAL_CONDUCTIVITY','WAXMAN_SMITS_CLAY_CONDUCTIVITY')
       case default
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a flow mode.')
