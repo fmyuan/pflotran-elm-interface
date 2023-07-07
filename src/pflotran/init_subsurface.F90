@@ -99,7 +99,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       end select
     endif
 
-    cur_patch%aux%Material => MaterialAuxCreate()
+    cur_patch%aux%Material => MaterialAuxCreate(option)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)

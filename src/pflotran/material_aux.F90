@@ -38,16 +38,16 @@ module Material_Aux_module
   ! of permeability
   PetscInt :: perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
 
-!  PetscInt, public :: soil_thermal_conductivity_index
-!  PetscInt, public :: soil_heat_capacity_index
+  ! when adding a new index, add it above max_material_index and grep on
+  ! "ADD_SOIL_PROPERTY_INDEX_HERE" to see whereall you must update the code.
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
-  PetscInt, public :: max_material_index
   PetscInt, public :: epsilon_index
   PetscInt, public :: half_matrix_width_index
   PetscInt, public :: archie_cementation_exp_index
   PetscInt, public :: archie_saturation_exp_index
   PetscInt, public :: archie_tortuosity_index
+  PetscInt, public :: max_material_index
 
   type, public :: material_auxvar_type
     PetscInt :: id
@@ -90,6 +90,8 @@ module Material_Aux_module
   type, public :: material_type
     PetscReal :: time_t, time_tpdt
     PetscInt :: num_aux
+    PetscInt, pointer :: soil_properties_ivar(:)
+    character(len=MAXWORDLENGTH), pointer :: soil_properties_name(:)
     type(material_parameter_type), pointer :: material_parameter
     type(material_auxvar_type), pointer :: auxvars(:)
   end type material_type
@@ -132,7 +134,6 @@ module Material_Aux_module
             MaterialAuxVarStrip, &
             MaterialAuxVarGetValue, &
             MaterialAuxVarSetValue, &
-            MaterialAuxIndexToPropertyName, &
             MaterialAuxDestroy, &
             MaterialAuxVarFractureStrip, &
             MaterialAuxSetPermTensorModel
@@ -143,27 +144,75 @@ contains
 
 ! ************************************************************************** !
 
-function MaterialAuxCreate()
+function MaterialAuxCreate(option)
   !
   ! Allocate and initialize auxiliary object
   !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   !
-
   use Option_module
+  use Variables_module, only : SOIL_COMPRESSIBILITY, &
+                               SOIL_REFERENCE_PRESSURE, &
+                               EPSILON, HALF_MATRIX_WIDTH, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT
 
   implicit none
+
+  type(option_type) :: option
 
   type(material_type), pointer :: MaterialAuxCreate
 
   type(material_type), pointer :: aux
+  PetscInt :: i
 
   allocate(aux)
   nullify(aux%auxvars)
   allocate(aux%material_parameter)
   nullify(aux%material_parameter%soil_heat_capacity)
   nullify(aux%material_parameter%soil_thermal_conductivity)
+  if (max_material_index > 0) then
+    allocate(aux%soil_properties_ivar(max_material_index))
+    aux%soil_properties_ivar = UNINITIALIZED_INTEGER
+    allocate(aux%soil_properties_name(max_material_index))
+    aux%soil_properties_name = 'UNINITIALIZED_STRING'
+
+    call MaterialAuxInitSoilPropertyMap(aux,soil_compressibility_index, &
+                                        SOIL_COMPRESSIBILITY, &
+                                        'Soil Compressibility')
+    call MaterialAuxInitSoilPropertyMap(aux,soil_reference_pressure_index, &
+                                        SOIL_REFERENCE_PRESSURE, &
+                                        'Soil Reference Pressure')
+    call MaterialAuxInitSoilPropertyMap(aux,epsilon_index, &
+                                        EPSILON, &
+                                        'Multicontinuum Epsilon')
+    call MaterialAuxInitSoilPropertyMap(aux,half_matrix_width_index, &
+                                        HALF_MATRIX_WIDTH, &
+                                        'Multicontinuum Half Matrix Width')
+    call MaterialAuxInitSoilPropertyMap(aux,archie_cementation_exp_index, &
+                                        ARCHIE_CEMENTATION_EXPONENT, &
+                                        'Archie Cementation Exponent')
+    call MaterialAuxInitSoilPropertyMap(aux,archie_saturation_exp_index, &
+                                        ARCHIE_SATURATION_EXPONENT, &
+                                        'Archie Saturation Exponent')
+    call MaterialAuxInitSoilPropertyMap(aux,archie_tortuosity_index, &
+                                        ARCHIE_TORTUOSITY_CONSTANT, &
+                                        'Archie Tortuosity Constant')
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
+    do i = 1, max_material_index
+      if (Uninitialized(aux%soil_properties_ivar(i))) then
+        option%io_buffer = 'Uninitialized value(s) exist within &
+            &material_auxvar%soil_properties_ivar in MaterialAuxCreate(). &
+            &Please email your input deck to pflotran-dev@googlegroups.com.'
+        call PrintErrMsg(option)
+      endif
+    enddo
+  else
+    nullify(aux%soil_properties_ivar)
+    nullify(aux%soil_properties_name)
+  endif
   aux%num_aux = 0
   aux%time_t = 0.d0
   aux%time_tpdt = 0.d0
@@ -232,6 +281,27 @@ subroutine MaterialAuxVarInit(auxvar,option)
   endif
 
 end subroutine MaterialAuxVarInit
+
+! ************************************************************************** !
+
+subroutine MaterialAuxInitSoilPropertyMap(aux,index,ivar,name)
+  !
+  ! Initializes entry in soil property mapping arrays
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/07/23
+  !
+  type(material_type) :: aux
+  PetscInt :: index
+  PetscInt :: ivar
+  character(len=*) name
+
+  if (index > 0) then
+    aux%soil_properties_ivar(index) = ivar
+    aux%soil_properties_name(index) = trim(name)
+  endif
+
+end subroutine MaterialAuxInitSoilPropertyMap
 
 ! ************************************************************************** !
 
@@ -654,21 +724,29 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
       if (size(material_auxvar%permeability) > 3) then
         select case(ivar)
           case(PERMEABILITY_XY)
-            MaterialAuxVarGetValue = material_auxvar%permeability(perm_xy_index)
+            MaterialAuxVarGetValue = &
+              material_auxvar%permeability(perm_xy_index)
           case(PERMEABILITY_YZ)
-            MaterialAuxVarGetValue = material_auxvar%permeability(perm_yz_index)
+            MaterialAuxVarGetValue = &
+              material_auxvar%permeability(perm_yz_index)
           case(PERMEABILITY_XZ)
-            MaterialAuxVarGetValue = material_auxvar%permeability(perm_xz_index)
+            MaterialAuxVarGetValue = &
+              material_auxvar%permeability(perm_xz_index)
         end select
       else
         MaterialAuxVarGetValue = 0.d0
       endif
     case(SOIL_COMPRESSIBILITY)
-      MaterialAuxVarGetValue = material_auxvar% &
-                                 soil_properties(soil_compressibility_index)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(soil_compressibility_index)
     case(SOIL_REFERENCE_PRESSURE)
-      MaterialAuxVarGetValue = material_auxvar% &
-                                 soil_properties(soil_reference_pressure_index)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(soil_reference_pressure_index)
+    case(EPSILON)
+      MaterialAuxVarGetValue = material_auxvar%soil_properties(epsilon_index)
+    case(HALF_MATRIX_WIDTH)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(half_matrix_width_index)
     case(ELECTRICAL_CONDUCTIVITY)
       MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)
     case(ARCHIE_CEMENTATION_EXPONENT)
@@ -680,6 +758,7 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(ARCHIE_TORTUOSITY_CONSTANT)
       MaterialAuxVarGetValue = &
         material_auxvar%soil_properties(archie_tortuosity_index)
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
     case default
       print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
       stop
@@ -742,6 +821,7 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(archie_saturation_exp_index) = value
     case(ARCHIE_TORTUOSITY_CONSTANT)
       material_auxvar%soil_properties(archie_tortuosity_index) = value
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
     case default
       print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
       stop
@@ -937,40 +1017,6 @@ end subroutine MaterialCompressSoilQuadratic
 
 ! ************************************************************************** !
 
-function MaterialAuxIndexToPropertyName(i)
-  !
-  ! Returns the name of the soil property associated with an index
-  !
-  ! Author: Glenn Hammond
-  ! Date: 07/06/16
-  !
-
-  implicit none
-
-  PetscInt :: i
-
-  character(len=MAXWORDLENGTH) :: MaterialAuxIndexToPropertyName
-
-  if (i == soil_compressibility_index) then
-    MaterialAuxIndexToPropertyName = 'soil compressibility'
-  else if (i == soil_reference_pressure_index) then
-    MaterialAuxIndexToPropertyName = 'soil reference pressure'
-  else if (i == epsilon_index) then
-   MaterialAuxIndexToPropertyName = 'multicontinuum epsilon'
-  else if (i == half_matrix_width_index) then
-    MaterialAuxIndexToPropertyName = 'half matrix width'
-!  else if (i == soil_thermal_conductivity_index) then
-!    MaterialAuxIndexToPropertyName = 'soil thermal conductivity'
-!  else if (i == soil_heat_capacity_index) then
-!    MaterialAuxIndexToPropertyName = 'soil heat capacity'
-  else
-    MaterialAuxIndexToPropertyName = 'unknown property'
-  end if
-
-end function MaterialAuxIndexToPropertyName
-
-! ************************************************************************** !
-
 subroutine MaterialAuxVarFractureStrip(fracture)
   !
   ! Deallocates a fracture auxiliary object
@@ -1051,6 +1097,8 @@ subroutine MaterialAuxDestroy(aux)
   endif
   deallocate(aux%material_parameter)
   nullify(aux%material_parameter)
+  call DeallocateArray(aux%soil_properties_ivar)
+  call DeallocateArray(aux%soil_properties_name)
 
   deallocate(aux)
   nullify(aux)

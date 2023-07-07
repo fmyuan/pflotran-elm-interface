@@ -2552,6 +2552,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
           error_flag = PETSC_TRUE
           error_string = ' - must be defined under MATERIAL_PROPERTY'
         endif
+      ! ADD_SOIL_PROPERTY_INDEX_HERE
     end select
     if (error_flag) then
       error_count = error_count + 1

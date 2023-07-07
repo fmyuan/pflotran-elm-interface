@@ -1575,9 +1575,12 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_soil_compress
   PetscInt :: num_soil_ref_press
   PetscInt :: num_material_properties
+  PetscInt :: num_epsilon
+  PetscInt :: num_half_matrix_width
   PetscInt :: num_archie_cement_exp
   PetscInt :: num_archie_sat_exp
   PetscInt :: num_archie_tort_const
+  type(multicontinuum_property_type), pointer :: multicontinuum
 
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp
@@ -1585,20 +1588,21 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   num_soil_compress_func = 0
   num_soil_compress = 0
   num_soil_ref_press = 0
+  num_epsilon = 0
+  num_half_matrix_width = 0
   num_archie_cement_exp = 0
   num_archie_sat_exp = 0
   num_archie_tort_const = 0
 
-!  soil_thermal_conductivity_index = 0
-!  soil_heat_capacity_index = 0
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
-  max_material_index = 0
   epsilon_index = 0
   half_matrix_width_index = 0
   archie_cementation_exp_index = 0
   archie_saturation_exp_index = 0
   archie_tortuosity_index = 0
+  ! ADD_SOIL_PROPERTY_INDEX_HERE - also need to add num_xxx counter above
+  max_material_index = 0
 
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
@@ -1659,44 +1663,50 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       endif
       num_soil_ref_press = num_soil_ref_press + 1
     endif
-    if (associated(material_property_ptrs(i)%ptr%multicontinuum)) then
-      if (epsilon_index == 0) then
-        icount = icount + 1
-        epsilon_index = icount
+    multicontinuum => material_property_ptrs(i)%ptr%multicontinuum
+    if (associated(multicontinuum)) then
+      if (Initialized(multicontinuum%epsilon) .or. &
+          associated(multicontinuum%epsilon_dataset)) then
+        if (epsilon_index == 0) then
+          icount = icount + 1
+          epsilon_index = icount
+        endif
+        num_epsilon = num_epsilon + 1
       endif
-      if (half_matrix_width_index == 0) then
-        icount = icount + 1
-        half_matrix_width_index = icount
+      if (Initialized(multicontinuum%half_matrix_width) .or. &
+          associated(multicontinuum%half_matrix_width_dataset)) then
+        if (half_matrix_width_index == 0) then
+          icount = icount + 1
+          half_matrix_width_index = icount
+        endif
+        num_half_matrix_width = num_half_matrix_width + 1
       endif
     endif
     if (Initialized(material_property_ptrs(i)% &
                       ptr%archie_cementation_exponent)) then
-      icount = icount + 1
-      archie_cementation_exp_index = icount
+      if (archie_cementation_exp_index == 0) then
+        icount = icount + 1
+        archie_cementation_exp_index = icount
+      endif
       num_archie_cement_exp = num_archie_cement_exp + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
                       ptr%archie_saturation_exponent)) then
-      icount = icount + 1
-      archie_saturation_exp_index = icount
+      if (archie_saturation_exp_index == 0) then
+        icount = icount + 1
+        archie_saturation_exp_index = icount
+      endif
       num_archie_sat_exp = num_archie_sat_exp + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
                       ptr%archie_tortuosity_constant)) then
-      icount = icount + 1
-      archie_tortuosity_index = icount
+      if (archie_tortuosity_index == 0) then
+        icount = icount + 1
+        archie_tortuosity_index = icount
+      endif
       num_archie_tort_const = num_archie_tort_const + 1
     endif
-!    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
-!        soil_heat_capacity_index == 0) then
-!      icount = icount + 1
-!      soil_heat_capacity_index = icount
-!    endif
-!    if (material_property_ptrs(i)%ptr%thermal_conductivity_wet > 0.d0 .and. &
-!        soil_thermal_conductivity_index == 0) then
-!      icount = icount + 1
-!      soil_thermal_conductivity_index = icount
-!    endif
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
   enddo
   max_material_index = icount
 
@@ -1723,10 +1733,16 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       &materials.'
     call PrintErrMsg(option)
   endif
-  if (soil_compressibility_index > 0 .and. &
-      soil_reference_pressure_index == 0) then
-    option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined to model &
-      &soil compressibility.'
+  if (epsilon_index > 0 .and. &
+      num_epsilon /= num_material_properties) then
+    option%io_buffer = 'SECONDARY_CONTINUUM,EPSILON must be defined for all &
+      &materials.'
+    call PrintErrMsg(option)
+  endif
+  if (half_matrix_width_index > 0 .and. &
+      num_half_matrix_width /= num_material_properties) then
+    option%io_buffer = 'SECONDARY_CONTINUUM,LENGTH must be defined for all &
+      &materials.'
     call PrintErrMsg(option)
   endif
   if (num_archie_cement_exp > 0 .and. &
@@ -1747,6 +1763,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       &for all materials.'
     call PrintErrMsg(option)
   endif
+  ! ADD_SOIL_PROPERTY_INDEX_HERE
 
 end subroutine MaterialInitAuxIndices
 
@@ -1783,38 +1800,43 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   call FracturePropertytoAux(material_auxvar%fracture, &
                              material_property%fracture)
 
-  if (soil_compressibility_index > 0) then
-    material_auxvar%soil_properties(soil_compressibility_index) = &
-      material_property%soil_compressibility
-  endif
-  if (soil_reference_pressure_index > 0) then
-    ! soil reference pressure may be assigned as the initial cell pressure, and
-    ! in that case, it will be assigned elsewhere
-    if (Initialized(material_property%soil_reference_pressure)) then
-      material_auxvar%soil_properties(soil_reference_pressure_index) = &
-        material_property%soil_reference_pressure
+  if (associated(material_auxvar%soil_properties)) then
+    if (soil_compressibility_index > 0) then
+      material_auxvar%soil_properties(soil_compressibility_index) = &
+        material_property%soil_compressibility
     endif
+    if (soil_reference_pressure_index > 0) then
+      ! soil reference pressure may be assigned as the initial cell
+      ! pressure, and in that case, it will be assigned elsewhere
+      if (Initialized(material_property%soil_reference_pressure)) then
+        material_auxvar%soil_properties(soil_reference_pressure_index) = &
+          material_property%soil_reference_pressure
+      endif
+    endif
+    if (archie_cementation_exp_index > 0) then
+      material_auxvar%soil_properties(archie_cementation_exp_index) = &
+        material_property%archie_cementation_exponent
+    endif
+    if (archie_saturation_exp_index > 0) then
+      material_auxvar%soil_properties(archie_saturation_exp_index) = &
+        material_property%archie_saturation_exponent
+    endif
+    if (archie_tortuosity_index > 0) then
+      material_auxvar%soil_properties(archie_tortuosity_index) = &
+        material_property%archie_tortuosity_constant
+    endif
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
+    ! the following conditional catches potential misalignments of the
+    ! indices above indexing %soil_properties
+#if 0
+    if (Uninitialized(minval(material_auxvar%soil_properties))) then
+      option%io_buffer = 'Uninitialized value within material_auxvar%&
+        &soil_properties in MaterialAssignPropertyToAux(). Please email &
+        &your input deck to pflotran-dev@googlegroups.com.'
+      call PrintErrMsg(option)
+    endif
+#endif
   endif
-  if (archie_cementation_exp_index > 0) then
-    material_auxvar%soil_properties(archie_cementation_exp_index) = &
-      material_property%archie_cementation_exponent
-  endif
-  if (archie_saturation_exp_index > 0) then
-    material_auxvar%soil_properties(archie_saturation_exp_index) = &
-      material_property%archie_saturation_exponent
-  endif
-  if (archie_tortuosity_index > 0) then
-    material_auxvar%soil_properties(archie_tortuosity_index) = &
-      material_property%archie_tortuosity_constant
-  endif
-!  if (soil_heat_capacity_index > 0) then
-!    material_auxvar%soil_properties(soil_heat_capacity_index) = &
-!      material_property%specific_heat
-!  endif
-!  if (soil_thermal_conductivity_index > 0) then
-!    material_auxvar%soil_properties(soil_thermal_conductivity_index) = &
-!      material_property%thermal_conductivity_wet
-!  endif
 
 end subroutine MaterialAssignPropertyToAux
 
@@ -2038,6 +2060,7 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)% &
           soil_properties(archie_tortuosity_index) = vec_loc_p(ghosted_id)
       enddo
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
@@ -2181,7 +2204,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       else
         vec_loc_p(:) = UNINITIALIZED_DOUBLE
       endif
-
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
