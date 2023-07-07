@@ -1594,6 +1594,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_archie_tort_const
   PetscInt :: num_surf_elec_conduct
   PetscInt :: num_ws_clay_conduct
+  PetscBool :: error_found
   type(multicontinuum_property_type), pointer :: multicontinuum
 
   procedure(MaterialCompressSoilDummy), pointer :: &
@@ -1749,67 +1750,82 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   endif
 
   ! check of uninitialized values
+  error_found = PETSC_FALSE
   if (num_soil_compress_func > 0 .and. &
       num_soil_compress_func /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION must be defined for all &
       &materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (soil_compressibility_index > 0 .and. &
       num_soil_compress /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'SOIL_COMPRESSIBILITY must be defined for all &
       &materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (soil_reference_pressure_index > 0 .and. &
       num_soil_ref_press /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined for all &
       &materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (epsilon_index > 0 .and. &
       num_epsilon /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'SECONDARY_CONTINUUM,EPSILON must be defined for all &
       &materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (half_matrix_width_index > 0 .and. &
       num_half_matrix_width /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'SECONDARY_CONTINUUM,LENGTH must be defined for all &
       &materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (num_archie_cement_exp > 0 .and. &
       num_archie_cement_exp /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'ARCHIE_CEMENTATION_EXPONENT must be defined &
       &for all materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (num_archie_sat_exp > 0 .and. &
       num_archie_sat_exp /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'ARCHIE_SATURATION_EXPONENT must be defined &
       &for all materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (num_archie_tort_const > 0 .and. &
       num_archie_tort_const /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'ARCHIE_TORTUOSITY_CONSTANT must be defined &
       &for all materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (num_surf_elec_conduct > 0 .and. &
       num_surf_elec_conduct /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'SURFACE_ELECTRIAL_CONDUCTIVITY must be defined &
       &for all materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   if (num_ws_clay_conduct > 0 .and. &
       num_ws_clay_conduct /= num_material_properties) then
+    error_found = PETSC_TRUE
     option%io_buffer = 'WAXMAN_SMITS_CLAY_CONDUCTIVITY must be defined &
       &for all materials.'
-    call PrintErrMsg(option)
+    call PrintMsg(option)
   endif
   ! ADD_SOIL_PROPERTY_INDEX_HERE
+  if (error_found) then
+    option%io_buffer = 'Undefined material properties above.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine MaterialInitAuxIndices
 
