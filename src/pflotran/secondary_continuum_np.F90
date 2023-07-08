@@ -212,7 +212,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
   ! Compute totals and its derivatives total_upd dtotal
   call RTAuxVarInit(rt_auxvar,reaction,option)
   do i = 1, ngcells
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     mc_pri_molal(:, i) = conc_upd(:,i)
 
@@ -585,7 +585,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -742,7 +742,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
   enddo
 
   ! Update the secondary continuum totals at the outer matrix node
-  call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
+  call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(ngcells),rt_auxvar, &
                     option)
   rt_auxvar%pri_molal = conc_current_M ! in mol/kg
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -937,7 +937,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
       coeff_left_pert = coeff_left_copy
       coeff_right_pert = coeff_right_copy
 
-      call RTAuxVarCopy(rt_auxvar,auxvar,option)
+      call RTAuxVarCopy(auxvar,rt_auxvar,option)
       rt_auxvar%pri_molal = conc_prim_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_primary_node_pert = rt_auxvar%total(:,1)
@@ -1211,7 +1211,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
       enddo
 
       ! Update the secondary continuum totals at the outer matrix node
-      call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
+      call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(ngcells),rt_auxvar, &
                         option)
       rt_auxvar%pri_molal = conc_current_M_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1625,7 +1625,7 @@ subroutine SecondaryRTCheckResidual_np(sec_transport_vars,auxvar, &
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
   do i = 1, ngcells
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     ! sec_transport_vars%sec_rt_auxvar(i)%pri_molal =  conc_upd(:,i)
     mc_pri_molal(:, i) =  conc_upd(:,i)
@@ -1869,7 +1869,7 @@ subroutine SecondaryRTCheckResidual_np(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
