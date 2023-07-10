@@ -1773,10 +1773,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
               .and. hydrate_gas_methane) .or. & ! methane gas + water
                (hyd_auxvar%pres(vpid) <= hyd_auxvar% &
                pres(spid)*(1.d0-window_epsilon) &
-               .and. hydrate_gas_air .and. hyd_auxvar%temp > 0.d0)) then       ! air + water
-              istatechng = PETSC_FALSE !PETSC_TRUE
-              !global_auxvar%istate = GA_STATE
-              !liq_epsilon = hydrate_phase_chng_epsilon
+               .and. hydrate_gas_air .and. hyd_auxvar%temp > Tf_ice)) then       ! air + water
+              istatechng = PETSC_TRUE !PETSC_TRUE
+              global_auxvar%istate = GA_STATE
+              liq_epsilon = hydrate_phase_chng_epsilon
           else
             istatechng = PETSC_FALSE
           endif
@@ -1795,7 +1795,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             liq_epsilon = hydrate_phase_chng_epsilon
           endif
         elseif (hyd_auxvar%pres(vpid) <= hyd_auxvar%pres(spid) * &
-                (1.d0-window_epsilon) .and. hydrate_gas_air .and. hyd_auxvar%temp > 0.d0) then
+                (1.d0-window_epsilon) .and. hydrate_gas_air .and. hyd_auxvar%temp <= Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GAI_STATE
         else
@@ -1815,7 +1815,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = GAI_STATE
         elseif (K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
-                pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_air .and. hyd_auxvar%temp > 0.d0) then
+                pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_air .and. hyd_auxvar%temp <= Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GAI_STATE
         else
@@ -2551,7 +2551,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
         pert(HYDRATE_L_STATE_X_MOLE_DOF) = perturbation_tolerance
       endif
       pert(HYDRATE_ENERGY_DOF) = &
-        (perturbation_tolerance*x(HYDRATE_ENERGY_DOF))
+       (perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation)
     case(G_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
@@ -4075,7 +4075,7 @@ subroutine IceSalinityOffset(xmass,dTd)
   PetscReal, intent(out) :: dTd
 
   dTd = -0.0575d0*(xmass*1000) + 0.000112d0*(xmass*1000)**2
-
+  
 end subroutine IceSalinityOffset
 
 ! ************************************************************************** !
