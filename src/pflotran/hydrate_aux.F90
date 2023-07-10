@@ -677,7 +677,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: solid_sat_eff
   PetscReal :: sigma, dP
   PetscReal :: sat_temp
-  PetscReal :: t_den
   PetscErrorCode :: ierr
 
   lid = option%liquid_phase
