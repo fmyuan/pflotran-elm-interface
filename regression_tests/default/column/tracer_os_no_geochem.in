@@ -1,12 +1,10 @@
-#Description: 1D microbial degradation problem without biomass
+#Description: 1D tracer problem.  Run until tracer breakthrough at midpoint.
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      MODE GIRT
-      OPTIONS
-      /
+      MODE OSRT
     /
   /
 END
@@ -15,10 +13,6 @@ SUBSURFACE
 
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
-
-  NEWTON_SOLVER
-    NUMERICAL_JACOBIAN
-  /
 
   LINEAR_SOLVER
     SOLVER DIRECT
@@ -32,11 +26,17 @@ REGRESSION
   CELL_IDS
     1
     20
+    25
     30
+    35
     40
+    45
     50
+    55
     60
+    65
     70
+    75
     80
     100
   /
@@ -54,47 +54,11 @@ END
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    A(aq)
-    B(aq)
-    C(aq)
+    Tracer
   /
-  IMMOBILE_SPECIES
-    D(im)
-  /
-  MICROBIAL_REACTION
-    CONCENTRATION_UNITS ACTIVITY
-    REACTION A(aq) + 2 B(aq) <-> 3/2 C(aq)
-    RATE_CONSTANT 1.d-6
-    MONOD 
-      SPECIES_NAME A(aq) 
-      HALF_SATURATION_CONSTANT 1.d-5        ! A is the donor
-      THRESHOLD_CONCENTRATION 1.d-20
-    /
-    MONOD
-      SPECIES_NAME B(aq) 
-      HALF_SATURATION_CONSTANT 1.d-4        ! B is the acceptor
-      THRESHOLD_CONCENTRATION 1.d-11
-    /
-    INHIBITION
-      SPECIES_NAME C(aq)
-      TYPE INVERSE_MONOD
-      INHIBITION_CONSTANT 6.d-4   ! C is the product and inhibits when too high
-    /
-    BIOMASS
-      SPECIES_NAME D(im)
-      YIELD 0.01d0
-    /
-  /
-  IMMOBILE_DECAY_REACTION
-    SPECIES_NAME D(im)
-    RATE_CONSTANT 1.d-9
-  /
-  DATABASE ../../../database/hanford.dat
-  LOG_FORMULATION
-  ACTIVITY_COEFFICIENTS OFF
   OUTPUT
-    ALL
     TOTAL
+    ALL
   /
 END
 
@@ -125,25 +89,22 @@ END
 #=========================== output options ===================================
 OUTPUT
 #  TIMES y 5. 10. 15. 20.
-skip
   FORMAT TECPLOT POINT
-  PERIODIC_OBSERVATION TIMESTEP 1
-noskip
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 25.d0 y            ! A(aq) at 50m midpoint
+#  FINAL_TIME 25.d0 y
+  FINAL_TIME 12.5d0 y            ! tracer at 50m midpoint
   INITIAL_TIMESTEP_SIZE 1.d0 h
   MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
-#  MAXIMUM_TIMESTEP_SIZE 1.d-3 y
 END
 
 #=========================== regions ==========================================
 REGION all
   COORDINATES
-    -1.d20 -1.d20 -1.d20
-    1.d20 1.d20 1.d20
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
   /
 END
 
@@ -155,13 +116,6 @@ REGION west
   /
 END
 
-REGION biozone
-  COORDINATES
-    25.d0 0.d0 0.d0
-    75.d0 1.d0 1.d0
-  /
-END
-
 REGION east
   FACE EAST
   COORDINATES
@@ -170,27 +124,11 @@ REGION east
   /
 END
 
-REGION pt
-  COORDINATE 50.d0 0.5d0 0.5d0
-END
-
-#=========================== observation points ===============================
-OBSERVATION
-  REGION pt
-END
-
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
   TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
-  /
-END
-
-TRANSPORT_CONDITION biozone
-  TYPE ZERO_GRADIENT
-  CONSTRAINT_LIST
-    0.d0 initial_biozone
   /
 END
 
@@ -204,31 +142,13 @@ END
 #=========================== constraints ======================================
 CONSTRAINT initial
   CONCENTRATIONS
-    A(aq) 1.d-7  T
-    B(aq) 1.d-7  T
-    C(aq) 1.d-7  T
-  /
-  IMMOBILE
-    D(im) 1.d-7
-  /
-END
-
-CONSTRAINT initial_biozone
-  CONCENTRATIONS
-    A(aq) 1.d-7  T
-    B(aq) 1.d-7  T
-    C(aq) 1.d-7  T
-  /
-  IMMOBILE
-    D(im) 1.d-3
+    Tracer 1.d-7  T
   /
 END
 
 CONSTRAINT inlet
   CONCENTRATIONS
-    A(aq) 1.d-4  T
-    B(aq) 1.d-3  T
-    C(aq) 1.d-7  T
+    Tracer 1.d-3  T
   /
 END
 
@@ -237,11 +157,6 @@ END
 INITIAL_CONDITION
   TRANSPORT_CONDITION initial
   REGION all
-END
-
-INITIAL_CONDITION
-  TRANSPORT_CONDITION biozone
-  REGION biozone
 END
 
 BOUNDARY_CONDITION outlet
@@ -259,5 +174,6 @@ STRATA
   REGION all
   MATERIAL soil1
 END
+
 
 END_SUBSURFACE

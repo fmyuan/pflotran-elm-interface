@@ -1,0 +1,16 @@
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    C5H7O2N(aq) 1.d-5    T
+    CH2O(aq)    1.d-3    T
+    CO2(aq)     1.d-3    T
+    N2(aq)      1.d-10   T
+    NH4+        1.d-3    T
+    NO2-        1.d-3    T
+    NO3-        1.d-3    T
+    O2(aq)      1.d-3    T
+  /
+  IMMOBILE
+    C_consumption 1.d-10
+  /
+END

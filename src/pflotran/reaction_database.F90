@@ -3180,6 +3180,13 @@ subroutine BasisInit(reaction,option)
       cur_microbial_rxn => cur_microbial_rxn%next
     enddo
     nullify(cur_microbial_rxn)
+    if (max_inhibition_count > MAX_NUM_INHIBITION_TERMS) then
+      option%io_buffer = 'The number of microbial inhibition terms (' // &
+        StringWrite(max_inhibition_count) // ') exceeds &
+        &MAX_NUM_INHIBITION_TERMS defined in reaction_microbial_aux.F90. &
+        &Please increase the values.'
+      call PrintErrMsg(option)
+    endif
 
     ! rate constant
     allocate(microbial%rate_constant(microbial%nrxn))
