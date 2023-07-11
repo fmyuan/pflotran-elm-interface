@@ -712,8 +712,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
                                                      parameter_name, &
                                                    this%driver)
         select case(param_id)
-          case(PERMEABILITY,POROSITY,ARCHIE_CEMENTATION_EXPONENT, &
-               ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
+          case(PERMEABILITY,POROSITY)
           case default
             string = 'COUPLED_ZFLOW_ERT does not currently support &
               &inversion for "' // &
@@ -1343,7 +1342,9 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter_type)
   use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, &
                                VG_SR, ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
@@ -1364,14 +1365,13 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter_type)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
     case(POROSITY)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
-    case(VG_ALPHA,VG_M,VG_SR)
-      string = 'van Genuchten parameters are unsupported for adjoint-based &
-        &inversion.'
-      call this%driver%PrintErrMsg(string)
-    case(ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
-         ARCHIE_TORTUOSITY_CONSTANT)
-      string = "Archie's parameters are unsupported for adjoint-based &
-        &inversion."
+    case(VG_ALPHA,VG_M,VG_SR,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      string = InversionParamGetNameFromItype(iparameter_type, &
+                                              this%driver)
+      string = trim(string) // &
+               'is not supported for adjoint-based inversion.'
       call this%driver%PrintErrMsg(string)
     case default
       string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &

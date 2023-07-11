@@ -1282,8 +1282,8 @@ subroutine RealProcessTranConditions(realization)
         endif
         cur_constraint_coupler => cur_constraint_coupler%next
       enddo
-    endif 
-         
+    endif
+
 !TODO(geh) remove this?
     if (associated(cur_condition%constraint_coupler_list%next)) then
       ! there are more than one
@@ -1470,7 +1470,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
         ! the following three lines are a work around for an intel compiler bug
         ! claiming that c is not a pointer, though it points to a pointer
         !call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar,c, &
-        constraint_rt_coupler => c 
+        constraint_rt_coupler => c
         call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar, &
                                      constraint_rt_coupler,reaction,option)
         write(option%fid_out,'(/)')
@@ -2665,7 +2665,6 @@ subroutine RealizUnInitializedVarsFlow(realization)
 
   class(realization_subsurface_type) :: realization
 
-  character(len=MAXWORDLENGTH) :: var_name
   PetscInt :: i
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
@@ -2680,8 +2679,9 @@ subroutine RealizUnInitializedVarsFlow(realization)
     call RealizUnInitializedVar1(realization,PERMEABILITY_YZ,'permeability YZ')
   endif
   do i = 1, max_material_index
-    var_name = MaterialAuxIndexToPropertyName(i)
-    call RealizUnInitializedVar1(realization,i,var_name)
+    call RealizUnInitializedVar1(realization, &
+                   realization%patch%aux%Material%soil_properties_ivar(i), &
+                   realization%patch%aux%Material%soil_properties_name(i))
   enddo
 
 end subroutine RealizUnInitializedVarsFlow
@@ -2767,7 +2767,7 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
       // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
-    call PrintErrMsgToDev(option,'send your input deck.')
+    call PrintErrMsgToDev(option,'send your input deck')
   endif
 
 end subroutine RealizUnInitializedVar1

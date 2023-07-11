@@ -296,7 +296,9 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter_type,imat,iflag)
                                POROSITY, VG_ALPHA, VG_SR, VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   type(inversion_aux_type) :: aux
   PetscReal :: value
@@ -389,6 +391,18 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter_type,imat,iflag)
         value = material_property%archie_tortuosity_constant
       else
         material_property%archie_tortuosity_constant = value
+      endif
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%surface_electrical_conductivity
+      else
+        material_property%surface_electrical_conductivity = value
+      endif
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%waxman_smits_clay_conductivity
+      else
+        material_property%waxman_smits_clay_conductivity = value
       endif
     case default
       string = 'Unrecognized variable in &
@@ -538,7 +552,9 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
                                VG_ALPHA, VG_SR, VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   class(inversion_aux_type) :: aux
   PetscReal :: value
@@ -551,7 +567,8 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
 
   select case(iparameter_type)
     case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
-         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvar,iparameter_type)
     case(PERMEABILITY)
       value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)

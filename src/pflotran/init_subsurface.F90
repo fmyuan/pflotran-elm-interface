@@ -99,7 +99,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       end select
     endif
 
-    cur_patch%aux%Material => MaterialAuxCreate()
+    cur_patch%aux%Material => MaterialAuxCreate(option)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
@@ -489,10 +489,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
         compress_p(local_id) = material_property%soil_compressibility
       endif
     endif
-    if (associated(material_auxvars)) then
-      call MaterialAssignPropertyToAux(material_auxvars(ghosted_id), &
-                                       material_property,option)
-    endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
     if (epsilon_index > 0) then
@@ -504,6 +500,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
 
     if (option%ngeopdof > 0) then
       cond_p(local_id) = material_property%electrical_conductivity
+    endif
+    if (associated(material_auxvars)) then
+      call MaterialAssignPropertyToAux(material_auxvars(ghosted_id), &
+                                       material_property,option)
     endif
   enddo
 

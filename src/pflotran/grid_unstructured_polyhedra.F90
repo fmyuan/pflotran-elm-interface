@@ -78,20 +78,22 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     fileid = 86
     input => InputCreate(fileid,filename,option)
 
-    call InputReadPflotranString(input,option)
-    ! read CELL card, though we already know the
-    call InputReadCard(input,option,card,PETSC_FALSE)
-    word = 'CELLS'
-    call InputErrorMsg(input,option,word,card)
-    if (.not.StringCompare(word,card)) then
-      option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
-        '" in explicit grid file.'
-      call PrintErrMsg(option)
-    endif
+    if (.not.InputError(input)) then
+      call InputReadPflotranString(input,option)
+      ! read CELL card, though we already know the
+      call InputReadCard(input,option,card,PETSC_FALSE)
+      word = 'CELLS'
+      call InputErrorMsg(input,option,word,card)
+      if (.not.StringCompare(word,card)) then
+        option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
+          '" in explicit grid file.'
+        call PrintErrMsg(option)
+      endif
 
-    hint = 'Polyhedra Unstructured Grid CELLS'
-    call InputReadInt(input,option,temp_int)
-    call InputErrorMsg(input,option,'number of cells',hint)
+      hint = 'Polyhedra Unstructured Grid CELLS'
+      call InputReadInt(input,option,temp_int)
+      call InputErrorMsg(input,option,'number of cells',hint)
+    endif
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)

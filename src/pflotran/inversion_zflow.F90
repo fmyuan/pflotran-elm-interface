@@ -753,7 +753,9 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
                                VG_ALPHA,VG_SR,VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
-                               ARCHIE_TORTUOSITY_CONSTANT
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   implicit none
 
@@ -775,7 +777,8 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
       word = InversionParamGetNameFromItype(iqoi(1),this%driver)
     case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
-         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT)
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
       word = InversionParamGetNameFromItype(iqoi(1),this%driver)
     case default

@@ -126,7 +126,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
-  pm_ert%surface_conductivity = 0.d0 ! to modifie Archie's equation
+  pm_ert%surface_conductivity = 0.d0 ! to modify Archie's equation
   pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
@@ -229,13 +229,14 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       case('WATER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%water_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('SURFACE_CONDUCTIVITY')
+      case('SURFACE_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%surface_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('TRACER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%tracer_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('CLAY_CONDUCTIVITY')
+      case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+        this%conductivity_mapping_law = WAXMAN_SMITS
         call InputReadDouble(input,option,this%clay_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CLAY_VOLUME_FACTOR','SHALE_VOLUME_FACTOR')
@@ -769,6 +770,8 @@ subroutine PMERTPreSolve(this)
   PetscBool :: cementation_cell_by_cell
   PetscBool :: saturation_cell_by_cell
   PetscBool :: tortuosity_cell_by_cell
+  PetscBool :: surf_cond_cell_by_cell
+  PetscBool :: clay_cond_cell_by_cell
   PetscErrorCode :: ierr
 
   option => this%option
@@ -792,6 +795,8 @@ subroutine PMERTPreSolve(this)
   cementation_cell_by_cell = (archie_cementation_exp_index > 0)
   saturation_cell_by_cell = (archie_saturation_exp_index > 0)
   tortuosity_cell_by_cell = (archie_tortuosity_index > 0)
+  surf_cond_cell_by_cell = (surf_elec_conduct_index > 0)
+  clay_cond_cell_by_cell = (ws_clay_conduct_index > 0)
 
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
@@ -867,6 +872,14 @@ subroutine PMERTPreSolve(this)
     if (tortuosity_cell_by_cell) then
       a = material_auxvars(ghosted_id)% &
                       soil_properties(archie_tortuosity_index)
+    endif
+    if (surf_cond_cell_by_cell) then
+      cond_s = material_auxvars(ghosted_id)% &
+                      soil_properties(surf_elec_conduct_index)
+    endif
+    if (clay_cond_cell_by_cell) then
+      cond_c = material_auxvars(ghosted_id)% &
+                      soil_properties(ws_clay_conduct_index)
     endif
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                          cond_c,empirical_law,cond, &

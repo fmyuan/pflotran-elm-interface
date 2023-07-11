@@ -434,7 +434,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   ! must come before RealizUnInitializedVarsTran
   call PMSubsurfaceFlowSetSoilRefPres(this%realization)
   ! check for uninitialized flow variables
-  call RealizUnInitializedVarsTran(this%realization)
+  call RealizUnInitializedVarsFlow(this%realization)
 
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%calculate_initial_porosity) then
