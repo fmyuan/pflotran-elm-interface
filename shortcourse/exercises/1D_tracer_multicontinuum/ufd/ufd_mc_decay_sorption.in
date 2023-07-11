@@ -1,0 +1,229 @@
+#================================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /
+    UFD_DECAY ufd_decay
+    /
+  /
+END
+
+
+SUBSURFACE
+
+
+SPECIFIED_VELOCITY #Darcy flux / specific discharge (vol/area/time)
+  UNIFORM? YES
+  DATASET 5d-7 0.d0 0.d0 m/d
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 100 1 1
+  BOUNDS 
+    0.d0   0.d0  0.d0
+    10.d0 1.0d0 1.0d0
+  / 
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+CHEMISTRY
+  PRIMARY_SPECIES
+    Am241
+    Np237
+  /
+    MINERALS
+    Am241(s)
+    Np237(s)
+  /
+  MINERAL_KINETICS
+    Am241(s)
+      RATE_CONSTANT 0.d0
+    /
+    Np237(s)
+      RATE_CONSTANT 0.d0
+    /
+  /
+ DATABASE ./ufd_decay.dat
+  OUTPUT
+    ALL
+    TOTAL
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.0d0 
+  TORTUOSITY 1.0d0 
+  ROCK_DENSITY 2700.d0
+  LONGITUDINAL_DISPERSIVITY 0.5
+  SECONDARY_CONTINUUM
+    TYPE SLAB
+    LENGTH 1.0 
+    NUM_CELLS 20
+    EPSILON 0.00005  
+    LIQUID_DIFFUSION_COEFFICIENT 1.6d-10
+    POROSITY 0.01
+  /
+END
+
+#=========================== output options ===================================
+
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT TECPLOT POINT
+    TIMES d 800. 1100. 1140. 1180. 
+#    NO_PRINT_INITIAL
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+    PRINT_COLUMN_IDS
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 5000.d0 d
+  INITIAL_TIMESTEP_SIZE 0.006d0 d
+  MAXIMUM_TIMESTEP_SIZE 100.0d0 d 
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+     -1.d20 -1.d20 -1.d20
+     1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0 1.d20 1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 -1.d20 -1.d20
+    10.d0 1.d20 1.d20
+  /
+END
+
+REGION obs
+  COORDINATE 1.0 0.5 0.5
+END
+#=========================== flow conditions ==================================
+
+OBSERVATION obs
+  REGION obs
+  SECONDARY_CONCENTRATION  
+END
+
+TRANSPORT_CONDITION initial
+  TYPE dirichlet
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE dirichlet
+  CONSTRAINT_LIST
+    0.d0 inlet
+  /
+END
+
+TRANSPORT_CONDITION outlet
+  TYPE ZERO_GRADIENT
+    CONSTRAINT_LIST
+      0.d0 initial
+  /  
+END
+
+#=========================== constraints ==================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    Am241 1.d-7 T
+    Np237 3.9d-9 T
+  /
+  MINERALS
+    Am241(s)   0.d0  1.d0
+    Np237(s)   0.d0  1.d0
+  /
+END
+
+CONSTRAINT inlet
+  CONCENTRATIONS
+    Am241 4.0d-7 T
+    Np237 1.0d-12 T  
+  /
+  MINERALS
+    Am241(s)   0.d0  1.d0
+    Np237(s)   0.d0  1.d0
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION INFLOW
+  TRANSPORT_CONDITION inlet
+  REGION west
+END
+
+BOUNDARY_CONDITION OUTFLOW
+  TRANSPORT_CONDITION outlet
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
+
+UFD_DECAY
+  IMPLICIT_SOLUTION
+  ELEMENT Am
+    SOLUBILITY 4.d-7
+    KD
+      soil1 0.0 1.075d2
+    /
+  /
+  ISOTOPE Am241
+    ELEMENT Am
+    DECAY_RATE 5.08d-11 ! 1 s
+    DAUGHTER Np237 1.d0
+  /
+  ELEMENT Np
+    SOLUBILITY 4.d-9
+    KD
+      soil1 0.0d0 5.37d3
+    /
+  /
+  ISOTOPE Np237
+    ELEMENT Np
+    DECAY_RATE 1.03d-14 ! 1 s
+  /
+END
