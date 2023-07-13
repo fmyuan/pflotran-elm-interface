@@ -1567,6 +1567,8 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   PetscReal, parameter :: six = 6.d0
   PetscReal, parameter :: ten = 10.d0
 
+  ierr = 0
+
   data aa/ &
 !-----data aa0,aa1,aa2,aa3/
         6.824687741d03,-5.422063673d02,-2.096666205d04, 3.941286787d04, &
@@ -1711,6 +1713,8 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
                                      -38,-39,-40,-41]
   PetscReal :: pi, tao, g_pi, T_temp
   PetscReal :: dg_pi_dT, dv_dt, dg_pi_dp, dv_dp
+
+  ierr = 0
 
 ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
 
