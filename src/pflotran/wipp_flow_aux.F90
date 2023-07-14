@@ -338,13 +338,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   PetscReal :: prev_effective_porosity
   PetscErrorCode :: ierr
 
-  ! from init.F90
-!  option%nphase = 2
-!  option%liquid_phase = 1  ! liquid_pressure
-!  option%gas_phase = 2     ! gas_pressure
-
-!  option%capillary_pressure_id = 3
-!  option%saturation_pressure_id = 4
+  ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase
