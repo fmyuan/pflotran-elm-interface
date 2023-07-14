@@ -738,7 +738,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
 
 #if 1
   !== Well Model ==============================================
-  if (nwt_well_quasi_imp_coupled .and. associated(pmwell_ptr)) then
+  if (associated(pmwell_ptr)) then
     if (pmwell_ptr%well_on) then
       if (pmwell_ptr%tran_soln%tran_time <= option%time) then
         ! loads the source_sink object with well model transport sol'n
