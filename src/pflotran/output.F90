@@ -2508,6 +2508,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   use Option_module
   use Material_Aux_module, only : soil_compressibility_index, &
                                   soil_reference_pressure_index, &
+                                  electrical_conductivity_index, &
                                   archie_cementation_exp_index, &
                                   archie_saturation_exp_index, &
                                   archie_tortuosity_index, &
@@ -2539,6 +2540,11 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
         if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
       case(SOIL_REFERENCE_PRESSURE)
         if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
+      case(ELECTRICAL_CONDUCTIVITY)
+        if (electrical_conductivity_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
       case(ARCHIE_CEMENTATION_EXPONENT)
         if (archie_cementation_exp_index == 0) then
           error_flag = PETSC_TRUE

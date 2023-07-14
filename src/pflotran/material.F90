@@ -1589,6 +1589,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_material_properties
   PetscInt :: num_epsilon
   PetscInt :: num_half_matrix_width
+  PetscInt :: num_elec_cond
   PetscInt :: num_archie_cement_exp
   PetscInt :: num_archie_sat_exp
   PetscInt :: num_archie_tort_const
@@ -1605,6 +1606,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   num_soil_ref_press = 0
   num_epsilon = 0
   num_half_matrix_width = 0
+  num_elec_cond = 0
   num_archie_cement_exp = 0
   num_archie_sat_exp = 0
   num_archie_tort_const = 0
@@ -1615,6 +1617,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_reference_pressure_index = 0
   epsilon_index = 0
   half_matrix_width_index = 0
+  electrical_conductivity_index = 0
   archie_cementation_exp_index = 0
   archie_saturation_exp_index = 0
   archie_tortuosity_index = 0
@@ -1702,6 +1705,16 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       endif
     endif
     if (Initialized(material_property_ptrs(i)% &
+                      ptr%electrical_conductivity) .or. &
+        associated(material_property_ptrs(i)%ptr%&
+                     electrical_conductivity_dataset)) then
+      if (electrical_conductivity_index == 0) then
+        icount = icount + 1
+        electrical_conductivity_index = icount
+      endif
+      num_elec_cond = num_elec_cond + 1
+    endif
+    if (Initialized(material_property_ptrs(i)% &
                       ptr%archie_cementation_exponent)) then
       if (archie_cementation_exp_index == 0) then
         icount = icount + 1
@@ -1786,6 +1799,13 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       &materials.'
     call PrintMsg(option)
   endif
+  if (num_elec_cond > 0 .and. &
+      num_elec_cond /= num_material_properties) then
+    error_found = PETSC_TRUE
+    option%io_buffer = 'ELECTRICAL_CONDUCTIVITY must be defined &
+      &for all materials.'
+    call PrintMsg(option)
+  endif
   if (num_archie_cement_exp > 0 .and. &
       num_archie_cement_exp /= num_material_properties) then
     error_found = PETSC_TRUE
@@ -1810,7 +1830,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   if (num_surf_elec_conduct > 0 .and. &
       num_surf_elec_conduct /= num_material_properties) then
     error_found = PETSC_TRUE
-    option%io_buffer = 'SURFACE_ELECTRIAL_CONDUCTIVITY must be defined &
+    option%io_buffer = 'SURFACE_ELECTRICAL_CONDUCTIVITY must be defined &
       &for all materials.'
     call PrintMsg(option)
   endif
@@ -1874,6 +1894,10 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
         material_auxvar%soil_properties(soil_reference_pressure_index) = &
           material_property%soil_reference_pressure
       endif
+    endif
+    if (electrical_conductivity_index > 0) then
+      material_auxvar%soil_properties(electrical_conductivity_index) = &
+        material_property%electrical_conductivity
     endif
     if (archie_cementation_exp_index > 0) then
       material_auxvar%soil_properties(archie_cementation_exp_index) = &
@@ -1948,14 +1972,6 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         material_auxvars(i)%tortuosity = value
       enddo
-    case(EPSILON)
-      do i=1, Material%num_aux
-        material_auxvars(i)%soil_properties(epsilon_index) = value
-      enddo
-    case(HALF_MATRIX_WIDTH)
-      do i=1, Material%num_aux
-        material_auxvars(i)%soil_properties(half_matrix_width_index) = value
-      enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
         material_auxvars(i)%permeability(:) = value
@@ -1984,10 +2000,45 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         material_auxvars(i)%permeability(perm_xz_index) = value
       enddo
+    case(EPSILON)
+      do i=1, Material%num_aux
+        material_auxvars(i)%soil_properties(epsilon_index) = value
+      enddo
+    case(HALF_MATRIX_WIDTH)
+      do i=1, Material%num_aux
+        material_auxvars(i)%soil_properties(half_matrix_width_index) = value
+      enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do i=1, Material%num_aux
-        material_auxvars(i)%electrical_conductivity(1) = value
+        material_auxvars(i)% &
+          soil_properties(electrical_conductivity_index) = value
       enddo
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      do i=1, Material%num_aux
+        material_auxvars(i)% &
+          soil_properties(archie_cementation_exp_index) = value
+      enddo
+    case(ARCHIE_SATURATION_EXPONENT)
+      do i=1, Material%num_aux
+        material_auxvars(i)% &
+          soil_properties(archie_saturation_exp_index) = value
+      enddo
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      do i=1, Material%num_aux
+        material_auxvars(i)% &
+          soil_properties(archie_tortuosity_index) = value
+      enddo
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      do i=1, Material%num_aux
+        material_auxvars(i)% &
+          soil_properties(surf_elec_conduct_index) = value
+      enddo
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      do i=1, Material%num_aux
+        material_auxvars(i)% &
+          soil_properties(ws_clay_conduct_index) = value
+      enddo
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
 end subroutine MaterialSetAuxVarScalar
@@ -2102,8 +2153,8 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)%electrical_conductivity(1) = &
-          vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)% &
+          soil_properties(electrical_conductivity_index) = vec_loc_p(ghosted_id)
       enddo
     case(ARCHIE_CEMENTATION_EXPONENT)
       do ghosted_id=1, Material%num_aux
@@ -2240,10 +2291,15 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           material_auxvars(ghosted_id)%permeability(perm_xz_index)
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
-      do ghosted_id=1, Material%num_aux
-        vec_loc_p(ghosted_id) = &
-          material_auxvars(ghosted_id)%electrical_conductivity(1)
-      enddo
+      if (electrical_conductivity_index > 0) then
+        do ghosted_id=1, Material%num_aux
+          vec_loc_p(ghosted_id) = &
+            material_auxvars(ghosted_id)% &
+              soil_properties(electrical_conductivity_index)
+        enddo
+      else
+        vec_loc_p(:) = UNINITIALIZED_DOUBLE
+      endif
     case(ARCHIE_CEMENTATION_EXPONENT)
       if (archie_cementation_exp_index > 0) then
         do ghosted_id=1, Material%num_aux

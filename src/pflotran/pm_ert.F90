@@ -862,30 +862,31 @@ subroutine PMERTPreSolve(this)
     endif
     ! compute conductivity
     if (cementation_cell_by_cell) then
-      m = material_auxvars(ghosted_id)% &
-                      soil_properties(archie_cementation_exp_index)
+      m = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                 ARCHIE_CEMENTATION_EXPONENT)
     endif
     if (saturation_cell_by_cell) then
-      n = material_auxvars(ghosted_id)% &
-                      soil_properties(archie_saturation_exp_index)
+      n = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                 ARCHIE_SATURATION_EXPONENT)
     endif
     if (tortuosity_cell_by_cell) then
-      a = material_auxvars(ghosted_id)% &
-                      soil_properties(archie_tortuosity_index)
+      a = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                 ARCHIE_TORTUOSITY_CONSTANT)
     endif
     if (surf_cond_cell_by_cell) then
-      cond_s = material_auxvars(ghosted_id)% &
-                      soil_properties(surf_elec_conduct_index)
+      cond_s = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                      SURFACE_ELECTRICAL_CONDUCTIVITY)
     endif
     if (clay_cond_cell_by_cell) then
-      cond_c = material_auxvars(ghosted_id)% &
-                      soil_properties(ws_clay_conduct_index)
+      cond_c = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                      WAXMAN_SMITS_CLAY_CONDUCTIVITY)
     endif
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                          cond_c,empirical_law,cond, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
                                          dcond_dpor)
-    material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
+    call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
+                                ELECTRICAL_CONDUCTIVITY,cond)
     if (this%coupled_ert_flow_jacobian) then
       if (local_id > 0) dcond_dsat_vec_ptr(local_id) = dcond_dsat
       if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
@@ -1194,6 +1195,7 @@ subroutine PMERTBuildJacobian(this)
   use String_module
   use Timer_class
   use Utility_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1296,7 +1298,8 @@ subroutine PMERTBuildJacobian(this)
 
       enddo
 
-      cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
+      cond = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                    ELECTRICAL_CONDUCTIVITY)
 
       ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to
       ! +ve unit source so phi_rec -> - phi_rec

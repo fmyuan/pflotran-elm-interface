@@ -35,6 +35,7 @@ subroutine ERTSetup(realization)
   use Patch_module
   use Grid_module
   use Survey_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -51,7 +52,6 @@ subroutine ERTSetup(realization)
   PetscInt :: flag(1)
   PetscInt :: local_id, ghosted_id,num_neighbors
   PetscBool :: error_found
-  PetscReal :: tempreal
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -71,8 +71,9 @@ subroutine ERTSetup(realization)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    tempreal = minval(material_auxvars(ghosted_id)%electrical_conductivity)
-    if (Uninitialized(tempreal) .and. flag(1) == 0) then
+    if (Uninitialized(MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                             ELECTRICAL_CONDUCTIVITY)) .and. &
+        flag(1) == 0) then
       option%io_buffer = 'ERROR: Non-initialized electrical conductivity.'
       call PrintMsgByRank(option)
       flag(1) = 1
@@ -122,6 +123,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   use Coupler_module
   use Connection_module
   use Debug_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -197,8 +199,10 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
       if (patch%imat(ghosted_id_up) <= 0 .or.   &
           patch%imat(ghosted_id_dn) <=0 ) cycle
 
-      cond_up = material_auxvars(ghosted_id_up)%electrical_conductivity(1)
-      cond_dn = material_auxvars(ghosted_id_dn)%electrical_conductivity(1)
+      cond_up = MaterialAuxVarGetValue(material_auxvars(ghosted_id_up), &
+                                       ELECTRICAL_CONDUCTIVITY)
+      cond_dn = MaterialAuxVarGetValue(material_auxvars(ghosted_id_dn), &
+                                       ELECTRICAL_CONDUCTIVITY)
 
       !dist(-1) -> scalar fractional distance up
       !dist(-1) = d_up/d_0
@@ -303,7 +307,8 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 
         if (patch%imat(ghosted_id) <= 0) cycle
 
-        cond_dn = material_auxvars(ghosted_id)%electrical_conductivity(1)
+        cond_dn = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                         ELECTRICAL_CONDUCTIVITY)
 
         dist_0  = cur_connection_set%dist( 0,iconn)
 
@@ -559,6 +564,7 @@ subroutine ERTCalculateAverageConductivity(realization)
   use Grid_module
   use Patch_module
   use Survey_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -587,7 +593,8 @@ subroutine ERTCalculateAverageConductivity(realization)
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     local_average_cond = local_average_cond + &
-                         material_auxvars(ghosted_id)%electrical_conductivity(1)
+                         MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                                ELECTRICAL_CONDUCTIVITY)
   enddo
   local_average_cond = local_average_cond / grid%nmax
 
