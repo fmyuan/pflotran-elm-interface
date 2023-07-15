@@ -72,7 +72,6 @@ END
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
-  ELECTRICAL_CONDUCTIVITY 1.12d0
   ARCHIE_CEMENTATION_EXPONENT 1.9d0
   ARCHIE_SATURATION_EXPONENT 2.d0
   ARCHIE_TORTUOSITY_CONSTANT 1.d0

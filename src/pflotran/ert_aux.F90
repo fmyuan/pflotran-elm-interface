@@ -11,6 +11,7 @@ module ERT_Aux_module
   private
 
   type, public :: ert_auxvar_type
+    PetscReal :: bulk_conductivity
     PetscReal, pointer :: potential(:)    ! ERT potential for all electrodes
     PetscReal, pointer :: jacobian(:)     ! ERT jacobian for all measurements
     PetscReal, pointer :: delM(:)         ! system matrix derivative dM/dcond
@@ -85,6 +86,7 @@ subroutine ERTAuxVarInit(auxvar,survey,num_neighbors,option)
   PetscInt :: num_neighbors
 
   allocate(auxvar%potential(survey%num_electrode))
+  auxvar%bulk_conductivity = 0.d0
   auxvar%potential = 0.d0
 
   nullify(auxvar%jacobian)
@@ -125,6 +127,7 @@ subroutine ERTAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%potential = auxvar%potential
+  auxvar2%bulk_conductivity = auxvar%bulk_conductivity
 
 end subroutine ERTAuxVarCopy
 

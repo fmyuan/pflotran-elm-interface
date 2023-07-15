@@ -2541,9 +2541,12 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
       case(SOIL_REFERENCE_PRESSURE)
         if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
       case(ELECTRICAL_CONDUCTIVITY)
-        if (electrical_conductivity_index == 0) then
+        if (electrical_conductivity_index == 0 .and. &
+            (option%iflowmode == NULL_MODE .and. &
+             option%itranmode == NULL_MODE)) then
           error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
+          error_string = ' - must be defined under MATERIAL_PROPERTY &
+            &(for ERT alone)'
         endif
       case(ARCHIE_CEMENTATION_EXPONENT)
         if (archie_cementation_exp_index == 0) then

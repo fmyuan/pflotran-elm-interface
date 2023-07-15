@@ -6706,7 +6706,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          EPSILON,HALF_MATRIX_WIDTH, &
-         SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY, &
+         SOIL_REFERENCE_PRESSURE, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
          ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
          WAXMAN_SMITS_CLAY_CONDUCTIVITY)
@@ -6828,6 +6828,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             vec_ptr(local_id) = 1.d0
           endif
         endif
+      enddo
+    case(ELECTRICAL_CONDUCTIVITY)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%bulk_conductivity
       enddo
     case(ELECTRICAL_POTENTIAL)
       call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
@@ -7791,7 +7796,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
          EPSILON,HALF_MATRIX_WIDTH, &
-         ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
          SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
@@ -7866,6 +7871,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
+    case(ELECTRICAL_CONDUCTIVITY)
+      value = patch%aux%ERT%auxvars(ghosted_id)%bulk_conductivity
     case(ELECTRICAL_POTENTIAL_DIPOLE)
       call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
                                       potential),isubvar,isubvar2,option)
@@ -8690,7 +8697,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           call PrintErrMsg(option, &
                     'Setting of total molality at grid cell not supported.')
       end select
-    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY, &
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          EPSILON,HALF_MATRIX_WIDTH, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
          ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
@@ -8734,6 +8741,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       else if (vec_format == LOCAL) then
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
+    case(ELECTRICAL_CONDUCTIVITY)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%bulk_conductivity = &
+          vec_ptr(local_id)
+      enddo
     case(ELECTRICAL_POTENTIAL)
       do local_id=1,grid%nlmax
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
