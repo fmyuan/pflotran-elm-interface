@@ -61,6 +61,7 @@ _PRE_PROCESS_ERROR = 7
 _POST_PROCESS_ERROR = 8
 _PYTHON_POST_PROCESS_ERROR = 9
 _TIMEOUT_ERROR = 10
+_NAN_OR_INF_ERROR = 11
 
 class TestStatus(object):
     """
@@ -723,6 +724,7 @@ class RegressionTest(object):
             errors = []
             num_minor_fail = 0
             num_major_fail = 0
+            num_error = 0
 
             if self._debug:
                 print("--- Gold sections:")
@@ -755,8 +757,9 @@ class RegressionTest(object):
                                                testlog)
                         num_minor_fail += report[0]
                         num_major_fail += report[1]
-                        if not report[2] == _NULL_ERROR:
-                            errors.append(report[2])
+                        num_error += report[2]
+                        if report[3]:
+                            errors.append(_NAN_OR_INF_ERROR)
                     except Exception as error:
                         status.error = _CONFIG_ERROR
                         print(error, file=testlog)
@@ -770,7 +773,7 @@ class RegressionTest(object):
             if len(errors) > 0:
                 status.error = errors[0]
                 for i in range(1,len(errors)):
-                    if status.error == errors[1]:
+                    if status.error != errors[1]:
                         status.error = _GENERAL_ERROR
                         break
 
@@ -1408,6 +1411,7 @@ class RegressionTest(object):
         section_num_minor_fail = 0
         section_num_major_fail = 0
         section_num_error = 0
+        section_nan_or_inf_present = False
         section_status = 0
         if self._check_performance is False and \
             data_type.lower() == self._SOLUTION:
@@ -1456,6 +1460,8 @@ class RegressionTest(object):
                                 section_num_minor_fail += report[0]
                                 section_num_major_fail += report[1]
                                 section_num_error += report[2]
+                                if report[3]:
+                                    section_nan_or_inf_present = True
                             except Exception as error:
                                 section_status += 1
                                 print("ERROR: {0} : {1}.\n  {2}".format(
@@ -1466,7 +1472,7 @@ class RegressionTest(object):
                 name, section_status), file=testlog)
 
         return section_num_minor_fail, section_num_major_fail, \
-               section_num_error
+               section_num_error, section_nan_or_inf_present
 
     def _compare_values(self, name, key, previous, current, testlog):
         """
@@ -1481,6 +1487,7 @@ class RegressionTest(object):
         num_minor_fail = 0
         num_major_fail = 0
         num_error = 0
+        nan_or_inf_present = False
         tol = None
         key = key.lower()
         if (key == self._CONCENTRATION or
@@ -1513,9 +1520,17 @@ class RegressionTest(object):
 
         if math.isnan(current) or math.isnan(previous):
             num_error += 1
+            nan_or_inf_present = True
             print("    NAN: {0} : {1} vs {2} (gold)".format(
                   name, current, previous), file=testlog)
-            return num_minor_fail, num_major_fail, num_error
+            return num_minor_fail, num_major_fail, num_error, nan_or_inf_present
+
+        if math.isinf(current) or math.isinf(previous):
+            num_error += 1
+            nan_or_inf_present = True
+            print("    INF: {0} : {1} vs {2} (gold)".format(
+                  name, current, previous), file=testlog)
+            return num_minor_fail, num_major_fail, num_error, nan_or_inf_present
 
         if tolerance_type == self._ABSOLUTE:
             delta = abs(previous - current)
@@ -1565,7 +1580,7 @@ class RegressionTest(object):
                       name, previous, min_threshold, max_threshold),
                   file=testlog)
 
-        return num_minor_fail, num_major_fail, num_error
+        return num_minor_fail, num_major_fail, num_error, nan_or_inf_present
 
     def _compare_solution(self, name, previous, current):
         """
@@ -2083,6 +2098,8 @@ class RegressionTestManager(object):
                 print("A", end='', file=sys.stdout)
             elif status.error == _TIMEOUT_ERROR:
                 print("T", end='', file=sys.stdout)
+            if status.error == _NAN_OR_INF_ERROR:
+                print("N", end='', file=sys.stdout)
             else:
                 print("Unknown error type in regression.py", file=testlog)
                 sys.exit(0)
@@ -2766,6 +2783,7 @@ def main(options):
           "tolerances)")
     print("    M - failed regression test (results are FAR outside error "
           "tolerances)")
+    print("    N - NaNs or Infs in results")
     print("    G - general error")
     print("    U - user error")
     print("    V - simulator failure (e.g. failure to converge)")
