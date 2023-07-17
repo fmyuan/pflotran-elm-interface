@@ -466,6 +466,7 @@ recursive subroutine PMERTInitializeRun(this)
   material_auxvars => patch%aux%Material%auxvars
   if (electrical_conductivity_index > 0) then
     do ghosted_id = 1, grid%ngmax
+      if (patch%imat(ghosted_id) <= 0) cycle
       ert_auxvars(ghosted_id)%bulk_conductivity = &
                MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                       ELECTRICAL_CONDUCTIVITY)
