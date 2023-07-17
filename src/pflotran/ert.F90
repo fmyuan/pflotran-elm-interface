@@ -34,7 +34,12 @@ subroutine ERTSetup(realization)
   use Patch_module
   use Grid_module
   use Survey_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   implicit none
 
@@ -48,12 +53,12 @@ subroutine ERTSetup(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
-!  PetscInt :: flag(1)
+  PetscInt :: flag(6)
   PetscInt :: local_id, ghosted_id,num_neighbors
   PetscBool :: require_electrical_conductivity
   PetscBool :: archies_parameters_defined
-!  PetscBool :: error_found
-!  PetscErrorCode :: ierr
+  PetscBool :: error_found
+  PetscErrorCode :: ierr
 
   option => realization%option
   patch => realization%patch
@@ -97,7 +102,8 @@ subroutine ERTSetup(realization)
     endif
   endif
 
-#if 0
+!call PrintErrMsg(option,'Added error checking to ERTSetup; add error messaing fo rmissing material aux variables; Move global to local within MaterailSetAuxVar???')
+
   ! ensure that material properties specific to this module are properly
   ! initialized i.e. electrical_conductivity is initialized
   error_found = PETSC_FALSE
@@ -118,12 +124,56 @@ subroutine ERTSetup(realization)
       if (archie_cementation_exp_index > 0) then
         if (Uninitialized( &
               MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                     ARCHIE_CEMENTATION_EXP)) .and. &
+                                     ARCHIE_CEMENTATION_EXPONENT)) .and. &
             flag(2) == 0) then
           option%io_buffer = "ERROR: Non-initialized Archie's cementation &
             &exponent."
           call PrintMsgByRank(option)
           flag(2) = 1
+        endif
+      endif
+      if (archie_saturation_exp_index > 0) then
+        if (Uninitialized( &
+              MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                     ARCHIE_SATURATION_EXPONENT)) .and. &
+            flag(3) == 0) then
+          option%io_buffer = "ERROR: Non-initialized Archie's saturation &
+            &exponent."
+          call PrintMsgByRank(option)
+          flag(3) = 1
+        endif
+      endif
+      if (archie_tortuosity_index > 0) then
+        if (Uninitialized( &
+              MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                     ARCHIE_TORTUOSITY_CONSTANT)) .and. &
+            flag(4) == 0) then
+          option%io_buffer = "ERROR: Non-initialized Archie's tortuosity &
+            &constant."
+          call PrintMsgByRank(option)
+          flag(4) = 1
+        endif
+      endif
+      if (surf_elec_conduct_index > 0) then
+        if (Uninitialized( &
+              MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                     SURFACE_ELECTRICAL_CONDUCTIVITY)) .and. &
+            flag(5) == 0) then
+          option%io_buffer = 'ERROR: Non-initialized surface electrical &
+            &conductivity.'
+          call PrintMsgByRank(option)
+          flag(5) = 1
+        endif
+      endif
+      if (ws_clay_conduct_index > 0) then
+        if (Uninitialized( &
+              MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                     WAXMAN_SMITS_CLAY_CONDUCTIVITY)) .and. &
+            flag(6) == 0) then
+          option%io_buffer = 'ERROR: Non-initialized Waxman-Smits clay &
+            &conductivity.'
+          call PrintMsgByRank(option)
+          flag(6) = 1
         endif
       endif
     endif
@@ -136,7 +186,6 @@ subroutine ERTSetup(realization)
     option%io_buffer = 'Material property errors found in ERTSetup.'
     call PrintErrMsg(option)
   endif
-#endif
 
   survey => realization%survey
 
