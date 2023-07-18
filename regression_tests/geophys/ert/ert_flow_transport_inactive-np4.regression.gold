@@ -13,9 +13,9 @@
        94:   9.3993327261498E+04
 -- GENERIC: Electrical Conductivity --
       Max:   7.1813168047020E-04
-      Min:  -9.9900000000000E+02
-     Mean:  -4.9949411671790E+01
-       93:  -9.9900000000000E+02
+      Min:   0.0000000000000E+00
+     Mean:   5.8832821012764E-04
+       93:   0.0000000000000E+00
         1:   7.1813167851047E-04
        31:   7.1813167851049E-04
         4:   7.1813167851051E-04
@@ -116,6 +116,7 @@
        64:         1
        94:         1
 -- SOLUTION: Flow --
+   Time (seconds):   1.1272799900007E-01
    Time Steps:            9
    Newton Iterations:           17
    Linear Solver Iterations:           89
@@ -123,6 +124,7 @@
    Solution 2-Norm:   1.0909528104426E+06
    Residual 2-Norm:   9.1103722176920E-16
 -- SOLUTION: Transport --
+   Time (seconds):   3.0000354999629E-02
    Time Steps:            9
    Newton Iterations:            9
    Linear Solver Iterations:            9
