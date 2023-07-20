@@ -352,14 +352,6 @@ subroutine THSetupPatch(realization)
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => TH_sec_heat_vars
-    do i = 1, size(patch%material_property_array)
-      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
-           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
-        option%io_buffer = &
-          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
-        call PrintErrMsg(option)
-      endif
-    enddo
   endif
 
 

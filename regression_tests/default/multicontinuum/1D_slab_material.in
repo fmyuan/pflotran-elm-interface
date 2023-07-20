@@ -88,7 +88,7 @@ MATERIAL_PROPERTY soil2
   SECONDARY_CONTINUUM
     TYPE SLAB 
     LENGTH 1 #half distance between fractures - BC location in the matrix
-    NUM_CELLS 5 #in secondary continuum (matrix)
+    NUM_CELLS 8 #in secondary continuum (matrix)
     EPSILON 1.0 #fracture volume fraction (b/(L+b))
     LIQUID_DIFFUSION_COEFFICIENT 1.6d-10  #effective diffusion coefficient, includes tortuosity
     POROSITY 0.01 #diffusion coefficient and porosity are multiplied, no tortuosity in eqn

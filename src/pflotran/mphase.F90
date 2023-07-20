@@ -134,7 +134,7 @@ subroutine MphaseSetupPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
 
-  PetscInt :: ghosted_id, iconn, sum_connection, ipara, i, local_id
+  PetscInt :: ghosted_id, iconn, sum_connection, ipara, local_id
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(Mphase_auxvar_type), pointer :: auxvars_bc(:)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
@@ -204,14 +204,6 @@ subroutine MphaseSetupPatch(realization)
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => mphase_sec_heat_vars
-    do i = 1, size(patch%material_property_array)
-      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
-           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
-        option%io_buffer = &
-          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
-        call PrintErrMsg(option)
-      endif
-    enddo
   endif
 
 

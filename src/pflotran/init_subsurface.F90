@@ -609,6 +609,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
                  material_property%multicontinuum%half_matrix_width_dataset, &
                  material_property%internal_id,PETSC_FALSE,matrixlength0)
         endif
+        if (associated(material_property%multicontinuum%ncells_dataset)) then
+          call SubsurfReadDatasetToVecWithMask(realization, &
+                 material_property%multicontinuum%ncells_dataset, &
+                 material_property%internal_id,PETSC_FALSE,numseccells0)
+        endif
       endif
     endif
   enddo
