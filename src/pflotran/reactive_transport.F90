@@ -248,6 +248,8 @@ subroutine RTSetup(realization)
                                    soil_properties(epsilon_index), &
                                  material_auxvars(ghosted_id)% &
                                    soil_properties(half_matrix_width_index), &
+                                 INT(material_auxvars(ghosted_id)% &
+                                   soil_properties(num_sec_cells_index)), &
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,option)
     enddo

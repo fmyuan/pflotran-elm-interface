@@ -192,4 +192,6 @@ module Variables_module
   PetscInt, parameter, public :: SURFACE_ELECTRICAL_CONDUCTIVITY = 155
   PetscInt, parameter, public :: WAXMAN_SMITS_CLAY_CONDUCTIVITY = 156
 
+  PetscInt, parameter, public :: NUM_SEC_CELLS = 157
+
 end module Variables_module

@@ -6705,7 +6705,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         EPSILON,HALF_MATRIX_WIDTH, &
+         EPSILON,HALF_MATRIX_WIDTH, NUM_SEC_CELLS, &
          SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
          ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
@@ -7085,7 +7085,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%TH%auxvars(ghosted_id)%u
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
-            value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
+            if (size(patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp) < isubvar) then
+              value = -999
+            else
+              value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
+            endif
           case default
             call PatchUnsupportedVariable('TH',ivar,option)
         end select
@@ -7222,7 +7226,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%Global%auxvars(ghosted_id)%fugacoeff(1)
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
-            value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
+            if (size(patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp) < isubvar) then
+              value = -999
+            else
+              value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
+            endif
           case default
             call PatchUnsupportedVariable('MPHASE',ivar,option)
         end select
@@ -7655,7 +7663,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(PRIMARY_MOLARITY)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar)*xmass * &
                   patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase) / 1000.d0
-        case(SECONDARY_MOLALITY)
+        case(SECONDARY_MOLALITY)  
           value = patch%aux%RT%auxvars(ghosted_id)%sec_molal(isubvar)
         case(SECONDARY_MOLARITY)
           value = patch%aux%RT%auxvars(ghosted_id)%sec_molal(isubvar)*xmass * &
@@ -7749,7 +7757,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             patch%aux%RT%auxvars(ghosted_id)%kinsrfcplx_free_site_conc(isubvar)
         case(PRIMARY_ACTIVITY_COEF)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)
-        case(SECONDARY_ACTIVITY_COEF)
+        case(SECONDARY_ACTIVITY_COEF)  
           value = patch%aux%RT%auxvars(ghosted_id)%sec_act_coef(isubvar)
         case(PRIMARY_KD)
           call ReactionComputeKd(isubvar,value, &
@@ -7886,29 +7894,54 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
     ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13
     case(SECONDARY_CONCENTRATION)
       ! Note that the units are in mol/kg
-      local_id = grid%nG2L(ghosted_id)
-      value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-                                   sec_rt_auxvar(isubvar)%total(isubvar2,1)
+       local_id = grid%nG2L(ghosted_id)
+       if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
+                sec_rt_auxvar) < isubvar) then
+          value = -999
+       else
+         value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
+                 sec_rt_auxvar(isubvar)%total(isubvar2,1)
+       endif
     case(SECONDARY_CONCENTRATION_GAS)
       local_id = grid%nG2L(ghosted_id)
-      value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-                                   sec_rt_auxvar(isubvar)%gas_pp(isubvar2)
+      if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
+               sec_rt_auxvar) < isubvar) then
+        value = -999
+      else
+        value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
+                sec_rt_auxvar(isubvar)%gas_pp(isubvar2)
+      endif
     case(SEC_MIN_VOLFRAC)
       local_id = grid%nG2L(ghosted_id)
-      value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-              sec_rt_auxvar(isubvar)%mnrl_volfrac(isubvar2)
+      if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
+               sec_rt_auxvar) < isubvar) then
+        value = -999
+      else
+        value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
+                sec_rt_auxvar(isubvar)%mnrl_volfrac(isubvar2)
+      endif
     case(SEC_MIN_RATE)
       local_id = grid%nG2L(ghosted_id)
-      value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-              sec_rt_auxvar(isubvar)%mnrl_rate(isubvar2)
+      if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
+               sec_rt_auxvar) < isubvar) then
+        value = -999
+      else
+        value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
+                sec_rt_auxvar(isubvar)%mnrl_rate(isubvar2)
+      endif
     case(SEC_MIN_SI)
       local_id = grid%nG2L(ghosted_id)
-      value = RMineralSaturationIndex(isubvar2,&
-                                      patch%aux%SC_RT% &
-                                      sec_transport_vars(local_id)% &
-                                      sec_rt_auxvar(isubvar), &
-                                      patch%aux%Global%auxvars(ghosted_id),&
-                                      reaction,option)
+      if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
+               sec_rt_auxvar) < isubvar) then
+        value = -999
+      else
+        value = RMineralSaturationIndex(isubvar2,&
+                                        patch%aux%SC_RT% &
+                                        sec_transport_vars(local_id)% &
+                                        sec_rt_auxvar(isubvar), &
+                                        patch%aux%Global%auxvars(ghosted_id),&
+                                        reaction,option)
+      endif
     case(SALINITY)
       value = patch%aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
     case(SMECTITE)

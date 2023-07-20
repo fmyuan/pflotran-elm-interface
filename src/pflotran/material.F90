@@ -106,7 +106,8 @@ module Material_module
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
-    PetscInt :: ncells
+    PetscReal :: ncells
+    class(dataset_base_type), pointer :: ncells_dataset
     PetscReal :: epsilon
     class(dataset_base_type), pointer :: epsilon_dataset
     PetscReal :: half_aperture
@@ -268,6 +269,7 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%tortuosity = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
     nullify(material_property%multicontinuum%half_matrix_width_dataset)
+    nullify(material_property%multicontinuum%ncells_dataset)
   endif
 
   nullify(material_property%next)
@@ -871,10 +873,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call PrintErrMsg(option,'AREA has been removed as input &
                                &in multiple continuum model.')
             case('NUM_CELLS')
-              call InputReadInt(input,option, &
-                                   material_property%multicontinuum%ncells)
-              call InputErrorMsg(input,option,'number of cells', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call DatasetReadDoubleorDataset(input, &
+                material_property%multicontinuum%ncells, &
+                material_property%multicontinuum%ncells_dataset, &
+                'num cells', 'MATERIAL_PROPERTY',option)
             case('EPSILON')
               call DatasetReadDoubleorDataset(input, &
                 material_property%multicontinuum%epsilon, &
@@ -1594,6 +1596,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_archie_tort_const
   PetscInt :: num_surf_elec_conduct
   PetscInt :: num_ws_clay_conduct
+  PetscInt :: num_sec_cells
   PetscBool :: error_found
   type(multicontinuum_property_type), pointer :: multicontinuum
 
@@ -1610,6 +1613,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   num_archie_tort_const = 0
   num_surf_elec_conduct = 0
   num_ws_clay_conduct = 0
+  num_sec_cells = 0
 
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
@@ -1620,6 +1624,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   archie_tortuosity_index = 0
   surf_elec_conduct_index = 0
   ws_clay_conduct_index = 0
+  num_sec_cells_index = 0
   ! ADD_SOIL_PROPERTY_INDEX_HERE - also need to add num_xxx counter above
   max_material_index = 0
 
@@ -1699,6 +1704,14 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
           half_matrix_width_index = icount
         endif
         num_half_matrix_width = num_half_matrix_width + 1
+      endif
+      if (Initialized(multicontinuum%ncells) .or. &
+          associated(multicontinuum%ncells_dataset)) then
+        if (num_sec_cells_index == 0) then
+          icount = icount + 1
+          num_sec_cells_index = icount
+        endif
+        num_sec_cells = num_sec_cells + 1
       endif
     endif
     if (Initialized(material_property_ptrs(i)% &
@@ -1819,6 +1832,13 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
     error_found = PETSC_TRUE
     option%io_buffer = 'WAXMAN_SMITS_CLAY_CONDUCTIVITY must be defined &
       &for all materials.'
+    call PrintMsg(option)
+  endif
+  if (num_sec_cells_index > 0 .and. &
+      num_sec_cells /= num_material_properties) then
+    error_found = PETSC_TRUE
+    option%io_buffer = 'SECONDARY_CONTINUUM,NUM_CELLS must be defined for all &
+      &materials.'
     call PrintMsg(option)
   endif
   ! ADD_SOIL_PROPERTY_INDEX_HERE
@@ -2130,6 +2150,11 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)% &
           soil_properties(ws_clay_conduct_index) = vec_loc_p(ghosted_id)
       enddo
+    case(NUM_SEC_CELLS)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)%&
+          soil_properties(num_sec_cells_index) = vec_loc_p(ghosted_id)
+      enddo 
     ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
@@ -2705,6 +2730,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   if (associated(material_property%multicontinuum)) then
     nullify(material_property%multicontinuum%half_matrix_width_dataset)
     nullify(material_property%multicontinuum%epsilon_dataset)
+    nullify(material_property%multicontinuum%ncells_dataset)
     deallocate(material_property%multicontinuum)
     nullify(material_property%multicontinuum)
   endif

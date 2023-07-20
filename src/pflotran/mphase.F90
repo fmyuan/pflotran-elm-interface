@@ -198,6 +198,7 @@ subroutine MphaseSetupPatch(realization)
            patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
            patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
            patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
+           INT(patch%aux%Material%auxvars(ghosted_id)%soil_properties(num_sec_cells_index)), &
            mphase_sec_heat_vars(local_id), initial_condition, option)
            
     enddo

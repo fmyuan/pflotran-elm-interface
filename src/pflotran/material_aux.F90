@@ -49,6 +49,7 @@ module Material_Aux_module
   PetscInt, public :: archie_tortuosity_index
   PetscInt, public :: surf_elec_conduct_index
   PetscInt, public :: ws_clay_conduct_index
+  PetscInt, public :: num_sec_cells_index
   PetscInt, public :: max_material_index
 
   type, public :: material_auxvar_type
@@ -161,7 +162,8 @@ function MaterialAuxCreate(option)
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
-                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                               NUM_SEC_CELLS
 
   implicit none
 
@@ -210,6 +212,9 @@ function MaterialAuxCreate(option)
     call MaterialAuxInitSoilPropertyMap(aux,ws_clay_conduct_index, &
                                         WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                         'Waxman-Smits Clay Conductivity')
+    call MaterialAuxInitSoilPropertyMap(aux,num_sec_cells_index, &
+                                        NUM_SEC_CELLS, &
+                                        'Number secondary cells')
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     do i = 1, max_material_index
       if (Uninitialized(aux%soil_properties_ivar(i))) then
@@ -774,6 +779,9 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       MaterialAuxVarGetValue = &
         material_auxvar%soil_properties(ws_clay_conduct_index)
+    case(NUM_SEC_CELLS)
+      MaterialAuxVarGetValue = &
+        material_auxvar%soil_properties(num_sec_cells_index)
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     case default
       print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
@@ -841,6 +849,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(surf_elec_conduct_index) = value
     case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       material_auxvar%soil_properties(ws_clay_conduct_index) = value
+    case(NUM_SEC_CELLS)
+      material_auxvar%soil_properties(num_sec_cells_index) = value
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     case default
       print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar

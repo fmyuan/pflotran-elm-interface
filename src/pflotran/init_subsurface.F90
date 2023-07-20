@@ -313,7 +313,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, ELECTRICAL_CONDUCTIVITY, &
-                               HALF_MATRIX_WIDTH
+                               HALF_MATRIX_WIDTH, NUM_SEC_CELLS
 
   use HDF5_module
   use Utility_module, only : DeallocateArray
@@ -326,6 +326,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: tor0_p(:)
   PetscReal, pointer :: eps0_p(:)
   PetscReal, pointer :: length0_p(:)
+  PetscReal, pointer :: ncells0_p(:)
   PetscReal, pointer :: perm_xx_p(:)
   PetscReal, pointer :: perm_yy_p(:)
   PetscReal, pointer :: perm_zz_p(:)
@@ -336,7 +337,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: compress_p(:)
   PetscReal, pointer :: cond_p(:)
 
-  Vec :: epsilon0,matrixlength0
+  Vec :: epsilon0,matrixlength0,numseccells0
 
   character(len=MAXSTRINGLENGTH) :: string
   type(material_property_type), pointer :: material_property
@@ -386,6 +387,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                        matrixlength0);
     call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
   endif
+  if (num_sec_cells_index > 0) then
+    call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
+                                       numseccells0);
+    call VecGetArrayF90(numseccells0,ncells0_p,ierr);CHKERRQ(ierr)
+  endif
+
 
   ! geophysics
   if (option%ngeopdof > 0) then
@@ -497,6 +504,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (half_matrix_width_index > 0) then
       length0_p(local_id) = material_property%multicontinuum%half_matrix_width
     endif
+    if (num_sec_cells_index > 0) then
+      ncells0_p(local_id) = material_property%multicontinuum%ncells
+    endif
+
 
     if (option%ngeopdof > 0) then
       cond_p(local_id) = material_property%electrical_conductivity
@@ -530,6 +541,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   if (half_matrix_width_index > 0) then
     call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
+  endif
+  if (num_sec_cells_index > 0) then
+    call VecRestoreArrayF90(numseccells0,ncells0_p,ierr);CHKERRQ(ierr)
   endif
 
   if (option%ngeopdof > 0) then
@@ -669,6 +683,14 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                  HALF_MATRIX_WIDTH,ZERO_INTEGER)
     call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr)
   endif
+  if (num_sec_cells_index > 0) then
+    call DiscretizationGlobalToLocal(discretization,numseccells0, &
+                                     field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 NUM_SEC_CELLS,ZERO_INTEGER)
+    call VecDestroy(numseccells0,ierr);CHKERRQ(ierr)
+  endif
+
 
   if (option%ngeopdof > 0) then
      call DiscretizationGlobalToLocal(discretization, &
