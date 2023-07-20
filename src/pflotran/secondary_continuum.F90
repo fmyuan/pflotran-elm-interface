@@ -718,6 +718,94 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
 end subroutine SecondaryHeatAuxVarInit
 
 ! ************************************************************************** !
+subroutine SecondaryRTAuxVarCopy(auxvar,auxvar2,option)
+
+  use Option_module
+  use Reactive_Transport_Aux_module
+  use Matrix_Block_Aux_module
+  
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: auxvar, auxvar2
+  type(option_type) :: option
+
+  auxvar2%pri_molal = auxvar%pri_molal
+
+  auxvar2%total = auxvar%total
+
+  call MatrixBlockAuxVarCopy(auxvar%aqueous,auxvar2%aqueous,option)
+
+  if (associated(auxvar%sec_molal)) &
+       auxvar2%sec_molal = auxvar%sec_molal
+
+  if (associated(auxvar%total_sorb_eq) .and. .not.associated(auxvar2%total_sorb_eq)) then
+    allocate(auxvar2%total_sorb_eq(size(auxvar%total_sorb_eq,1)))
+  endif
+
+  if (associated(auxvar%total_sorb_eq)) then
+    auxvar2%total_sorb_eq = auxvar%total_sorb_eq
+  endif
+  if (associated(auxvar%dtotal_sorb_eq)) then
+    auxvar2%dtotal_sorb_eq = auxvar%dtotal_sorb_eq
+  endif
+
+  if (associated(auxvar%gas_pp)) &
+    auxvar2%gas_pp = auxvar%gas_pp
+
+  if (associated(auxvar%srfcplxrxn_free_site_conc)) then
+    auxvar2%srfcplxrxn_free_site_conc = auxvar%srfcplxrxn_free_site_conc
+  endif
+
+  if (associated(auxvar%eqsrfcplx_conc)) then
+    auxvar2%eqsrfcplx_conc = auxvar%eqsrfcplx_conc
+  endif
+
+  if (associated(auxvar%kinsrfcplx_conc)) then
+    auxvar2%kinsrfcplx_conc = auxvar%kinsrfcplx_conc
+    auxvar2%kinsrfcplx_conc_kp1 = auxvar%kinsrfcplx_conc_kp1
+    auxvar2%kinsrfcplx_free_site_conc = auxvar%kinsrfcplx_free_site_conc
+  endif
+
+  if (associated(auxvar%eqionx_ref_cation_sorbed_conc)) then
+    auxvar2%eqionx_ref_cation_sorbed_conc = &
+      auxvar%eqionx_ref_cation_sorbed_conc
+    auxvar2%eqionx_conc = auxvar%eqionx_conc
+  endif
+
+  if (associated(auxvar%mnrl_volfrac)) then
+    auxvar2%mnrl_volfrac0 = auxvar%mnrl_volfrac0
+    auxvar2%mnrl_volfrac = auxvar%mnrl_volfrac
+    auxvar2%mnrl_area0 = auxvar%mnrl_area0
+    auxvar2%mnrl_area = auxvar%mnrl_area
+    auxvar2%mnrl_rate = auxvar%mnrl_rate
+  endif
+
+  auxvar2%ln_act_h2o = auxvar%ln_act_h2o
+
+  auxvar2%pri_act_coef = auxvar%pri_act_coef
+  if (associated(auxvar%sec_act_coef)) &
+    auxvar2%sec_act_coef = auxvar%sec_act_coef
+
+  if (associated(auxvar%mass_balance)) then
+    auxvar2%mass_balance = auxvar%mass_balance
+    auxvar2%mass_balance_delta = auxvar%mass_balance_delta
+  endif
+
+  if (associated(auxvar%kinmr_total_sorb)) then
+    auxvar2%kinmr_total_sorb = auxvar%kinmr_total_sorb
+  endif
+
+  if (associated(auxvar%immobile)) then
+    auxvar2%immobile = auxvar%immobile
+  endif
+
+  if (associated(auxvar%auxiliary_data)) then
+    auxvar2%auxiliary_data = auxvar%auxiliary_data
+  endif
+
+end subroutine SecondaryRTAuxVarCopy
+
+! ************************************************************************** !
 
 subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                   fracture_global_auxvar,prim_vol, &
@@ -899,7 +987,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
   do i = 1, ngcells
-    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
+    call SecondaryRTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
@@ -1841,7 +1929,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
   do i = 1, ngcells
-    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
+    call SecondaryRTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
