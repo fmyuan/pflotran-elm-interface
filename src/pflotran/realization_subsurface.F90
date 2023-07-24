@@ -366,13 +366,6 @@ subroutine RealizationCreateDiscretization(realization)
 
   endif
 
-  ! geophysics
-  if (option%ngeopdof > 0) then
-    ! 1 dof
-    call DiscretizationDuplicateVector(discretization,field%work, &
-                                       field%electrical_conductivity)
-  endif
-
   grid => discretization%grid
   select case(discretization%itype)
     case(STRUCTURED_GRID)
