@@ -1473,6 +1473,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     if (option%iflag /= HYDRATE_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = hyd_auxvar%effective_porosity
     endif
+
   endif
 
   solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
@@ -1494,7 +1495,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
   ! ALWAYS UPDATE THERMODYNAMIC PROPERTIES
 
-  T_temp = hyd_auxvar%temp - Tf_ice
+  T_temp = hyd_auxvar%temp
 
   ! Liquid phase thermodynamic properties
   ! must use cell_pressure as the pressure, not %pres(lid)
@@ -1564,25 +1565,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
   endif
 
-  if (hydrate_eff_sat_scaling) then
-    if (hyd_auxvar%sat(lid) > 0.d0 .or. hyd_auxvar%sat(gid) > 0.d0) then
-      l_sat_eff = hyd_auxvar%sat(lid) / (hyd_auxvar%sat(lid)+hyd_auxvar%sat(gid))
-      g_sat_eff = 1.d0 - l_sat_eff
-    else
-      l_sat_eff = 0.d0
-      g_sat_eff = 0.d0
-    endif
-  else
-    l_sat_eff = hyd_auxvar%sat(lid)
-    g_sat_eff = hyd_auxvar%sat(gid)
-  endif
-
-  if (l_sat_eff > 0.d0) then
-    if (l_sat_eff >= 1.d0) then
+  if (hyd_auxvar%sat(lid) > 0.d0) then
+    if (hyd_auxvar%sat(lid) >= 1.d0) then
       krl = 1.d0
     else
       call characteristic_curves%liq_rel_perm_function% &
-           RelativePermeability(l_sat_eff,krl,dkrl_dsatl,option)
+           RelativePermeability(hyd_auxvar%sat(lid),krl,dkrl_dsatl,option)
       krl = max(0.d0,krl)
     endif
     call EOSWaterViscosity(T_temp,cell_pressure, &
@@ -1591,12 +1579,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     hyd_auxvar%kr(lid) = krl
   endif
 
-  if (g_sat_eff > 0.d0) then
-    if (g_sat_eff >=1.d0) then
+  if (hyd_auxvar%sat(gid) > 0.d0) then
+    if (hyd_auxvar%sat(gid) >=1.d0) then
       krg = 1.d0
     else
       call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(l_sat_eff,krg,dkrg_dsatl,option)
+           RelativePermeability(1.d0 - hyd_auxvar%sat(gid),krg,dkrg_dsatl,option)
       krg = max(0.d0,krg)
     endif
     call EOSGasViscosity(T_temp,hyd_auxvar%pres(apid), &

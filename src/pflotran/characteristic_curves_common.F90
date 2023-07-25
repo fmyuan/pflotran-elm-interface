@@ -80,14 +80,15 @@ module Characteristic_Curves_Common_module
     procedure, public :: Saturation => SFmKSaturation
   end type sat_func_mK_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_IGHCC2_Comp_type
+  type, public, extends(sat_func_base_type) :: sat_func_IGHCC2_type
     PetscReal :: alpha
     PetscReal :: m
   contains
-    procedure, public :: Init => SFIGHCC2CompInit
-    procedure, public :: Verify => SFIGHCC2CompVerify
-    procedure, public :: CapillaryPressure => SFIGHCC2CompCapillaryPressure
-  end type sat_func_IGHCC2_Comp_type
+    procedure, public :: Init => SFIGHCC2Init
+    procedure, public :: Verify => SFIGHCC2Verify
+    procedure, public :: CapillaryPressure => SFIGHCC2CapillaryPressure
+    procedure, public :: Saturation => SFIGHCC2Saturation
+  end type sat_func_IGHCC2_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Exp_Freezing_type
     PetscReal :: w
@@ -242,24 +243,24 @@ module Characteristic_Curves_Common_module
   end type rpf_mK_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                     rpf_IGHCC2_Comp_liq_type
+                                     rpf_IGHCC2_liq_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => RPFIGHCC2CompLiqInit
-    procedure, public :: Verify => RPFIGHCC2CompLiqVerify
+    procedure, public :: Init => RPFIGHCC2LiqInit
+    procedure, public :: Verify => RPFIGHCC2LiqVerify
     procedure, public :: RelativePermeability => &
-                                  RPFIGHCC2CompLiqRelPerm
-  end type rpf_IGHCC2_Comp_liq_type
+                                  RPFIGHCC2LiqRelPerm
+  end type rpf_IGHCC2_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                       rpf_IGHCC2_Comp_gas_type
+                                       rpf_IGHCC2_gas_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => RPFIGHCC2CompGasInit
-    procedure, public :: Verify => RPFIGHCC2CompGasVerify
+    procedure, public :: Init => RPFIGHCC2GasInit
+    procedure, public :: Verify => RPFIGHCC2GasVerify
     procedure, public :: RelativePermeability => &
-                                  RPFIGHCC2CompGasRelPerm
-  end type rpf_IGHCC2_Comp_gas_type
+                                  RPFIGHCC2GasRelPerm
+  end type rpf_IGHCC2_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
                                      rpf_mod_Brooks_Corey_liq_type
@@ -309,7 +310,7 @@ module Characteristic_Curves_Common_module
             SFBCCreate, &
             SFLinearCreate, &
             SFmKCreate, &
-            SFIGHCC2CompCreate, &
+            SFIGHCC2Create, &
             SFExpFreezingCreate, &
             SFTableCreate, &
             ! standard rel. perm. curves:
@@ -330,8 +331,8 @@ module Characteristic_Curves_Common_module
             RPFmKLiqCreate, &
             RPFmKGasCreate, &
             RPFMualemVGLiqRelPerm, &
-            RPFIGHCC2CompLiqCreate, &
-            RPFIGHCC2CompGasCreate, &
+            RPFIGHCC2LiqCreate, &
+            RPFIGHCC2GasCreate, &
             RPFModBrooksCoreyLiqCreate, &
             RPFModBrooksCoreyGasCreate, &
             RPFTableLiqCreate, &
@@ -1002,29 +1003,29 @@ end subroutine SFVGSetM
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SFIGHCC2CompCreate()
+function SFIGHCC2Create()
 
   ! Creates the IGHCC2 Comparison capillary pressure function object
 
   implicit none
 
-  class(sat_func_IGHCC2_Comp_type), pointer :: &
-                              SFIGHCC2CompCreate
+  class(sat_func_IGHCC2_type), pointer :: &
+                              SFIGHCC2Create
 
-  allocate(SFIGHCC2CompCreate)
-  call SFIGHCC2CompCreate%Init()
+  allocate(SFIGHCC2Create)
+  call SFIGHCC2Create%Init()
 
-end function SFIGHCC2CompCreate
+end function SFIGHCC2Create
 
 ! ************************************************************************** !
 
-subroutine SFIGHCC2CompInit(this)
+subroutine SFIGHCC2Init(this)
 
   ! Creates the IGHCC2 Comparison capillary pressure function object
 
   implicit none
 
-  class(sat_func_IGHCC2_Comp_type) :: this
+  class(sat_func_IGHCC2_type) :: this
 
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -1032,17 +1033,17 @@ subroutine SFIGHCC2CompInit(this)
 
   this%analytical_derivative_available = PETSC_TRUE
 
-end subroutine SFIGHCC2CompInit
+end subroutine SFIGHCC2Init
 
 ! ************************************************************************** !
 
-subroutine SFIGHCC2CompVerify(this,name,option)
+subroutine SFIGHCC2Verify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(sat_func_IGHCC2_Comp_type) :: this
+  class(sat_func_IGHCC2_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1063,11 +1064,11 @@ subroutine SFIGHCC2CompVerify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine SFIGHCC2CompVerify
+end subroutine SFIGHCC2Verify
 
 ! ************************************************************************** !
 
-subroutine SFIGHCC2CompCapillaryPressure(this,liquid_saturation, &
+subroutine SFIGHCC2CapillaryPressure(this,liquid_saturation, &
                                    capillary_pressure,dpc_dsatl,option)
   !
   ! Computes the capillary_pressure as a function of saturation, adapted to
@@ -1080,7 +1081,7 @@ subroutine SFIGHCC2CompCapillaryPressure(this,liquid_saturation, &
 
   implicit none
 
-  class(sat_func_IGHCC2_Comp_type) :: this
+  class(sat_func_IGHCC2_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
@@ -1124,7 +1125,79 @@ subroutine SFIGHCC2CompCapillaryPressure(this,liquid_saturation, &
     dpc_dsatl = 0.d0
   endif
 
-end subroutine SFIGHCC2CompCapillaryPressure
+end subroutine SFIGHCC2CapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFIGHCC2Saturation(this,capillary_pressure, &
+                          liquid_saturation,dsat_dpres,option)
+  !
+  ! Computes the saturation (and associated derivatives) as a function of
+  ! capillary pressure
+  !
+  ! Author: Michael Nole
+  ! Date: 07/24/2023
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_IGHCC2_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  PetscReal, parameter :: pc_alpha_n_epsilon = 1.d-15
+  PetscReal :: n
+  PetscReal :: pc_alpha
+  PetscReal :: pc_alpha_n
+  PetscReal :: one_plus_pc_alpha_n
+  PetscReal :: Se
+  PetscReal :: dSe_dpc
+  PetscReal, parameter :: dpc_dpres = -1.d0
+
+  dsat_dpres = 0.d0
+
+  if (associated(this%pres_poly)) then
+    if (capillary_pressure < this%pres_poly%low) then
+      liquid_saturation = 1.d0
+      return
+    else if (capillary_pressure < this%pres_poly%high) then
+      call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
+                                   capillary_pressure,Se,dSe_dpc)
+      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+      dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+      return
+    endif
+  endif
+
+  if (capillary_pressure <= 0.d0) then
+    liquid_saturation = 1.d0
+    return
+  else
+    n = 1.d0/(1.d0-this%m)
+    pc_alpha = capillary_pressure*this%alpha
+    pc_alpha_n = pc_alpha**(1.d0/this%m)
+    !geh:  This conditional does not catch potential cancelation in
+    !      the dkr_sat deriviative calculation.  Therefore, I am setting
+    !      an epsilon here
+    !   if (1.d0 + pc_alpha_n == 1.d0) then ! check for zero perturbation
+    if (pc_alpha_n < pc_alpha_n_epsilon) then
+      liquid_saturation = 1.d0
+      !switch_to_saturated = PETSC_TRUE
+      return
+    endif
+    one_plus_pc_alpha_n = 1.d0+pc_alpha_n
+    Se = one_plus_pc_alpha_n**(-this%m)
+    dSe_dpc = -this%m*n*this%alpha*pc_alpha_n/ &
+            (pc_alpha*one_plus_pc_alpha_n**(this%m+1.d0))
+    liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+    dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+  endif
+
+end subroutine SFIGHCC2Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -2641,40 +2714,40 @@ end subroutine RPFBurdineBCLiqRelPerm
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPFIGHCC2CompLiqCreate()
+function RPFIGHCC2LiqCreate()
 
   ! Creates the IGHCC2 Comparison relative permeability function object
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_liq_type), pointer :: &
-                        RPFIGHCC2CompLiqCreate
+  class(rpf_IGHCC2_liq_type), pointer :: &
+                        RPFIGHCC2LiqCreate
 
-  allocate(RPFIGHCC2CompLiqCreate)
-  call RPFIGHCC2CompLiqCreate%Init()
+  allocate(RPFIGHCC2LiqCreate)
+  call RPFIGHCC2LiqCreate%Init()
 
-end function RPFIGHCC2CompLiqCreate
+end function RPFIGHCC2LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPFIGHCC2CompLiqInit(this)
+subroutine RPFIGHCC2LiqInit(this)
 
   ! Initializes the IGHCC2 Comparison relative permeability function object
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_liq_type) :: this
+  class(rpf_IGHCC2_liq_type) :: this
 
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
 
   this%analytical_derivative_available = PETSC_TRUE
 
-end subroutine RPFIGHCC2CompLiqInit
+end subroutine RPFIGHCC2LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPFIGHCC2CompLiqVerify(this,name,option)
+subroutine RPFIGHCC2LiqVerify(this,name,option)
 
   ! Initializes the IGHCC2 Comparison relative permeability function object
 
@@ -2682,7 +2755,7 @@ subroutine RPFIGHCC2CompLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_liq_type) :: this
+  class(rpf_IGHCC2_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2691,7 +2764,7 @@ subroutine RPFIGHCC2CompLiqVerify(this,name,option)
   if (index(name,'PERMEABILITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'PERMEABILITY_FUNCTION,IGHCC2_COMP'
+    string = trim(name) // 'PERMEABILITY_FUNCTION,IGHCC2'
   endif
   call RPFBaseVerify(this,name,option)
   if (Uninitialized(this%lambda)) then
@@ -2699,11 +2772,11 @@ subroutine RPFIGHCC2CompLiqVerify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine RPFIGHCC2CompLiqVerify
+end subroutine RPFIGHCC2LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPFIGHCC2CompLiqRelPerm(this,liquid_saturation, &
+subroutine RPFIGHCC2LiqRelPerm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
   !
   ! Computes the relative permeability (and associated derivatives) as a
@@ -2716,7 +2789,7 @@ subroutine RPFIGHCC2CompLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_liq_type) :: this
+  class(rpf_IGHCC2_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -2745,7 +2818,7 @@ subroutine RPFIGHCC2CompLiqRelPerm(this,liquid_saturation, &
   dSe_sat = 1.d0 / (1.d0 - this%Sr)
   dkr_sat = dkr_Se * dSe_sat
 
-end subroutine RPFIGHCC2CompLiqRelPerm
+end subroutine RPFIGHCC2LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -3118,47 +3191,47 @@ end subroutine RPFBurdineBCGasRelPerm
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPFIGHCC2CompGasCreate()
+function RPFIGHCC2GasCreate()
 
   ! Creates the IGHCC2 Comparison gas relative permeability function
   ! object
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_gas_type), pointer :: &
-                        RPFIGHCC2CompGasCreate
+  class(rpf_IGHCC2_gas_type), pointer :: &
+                        RPFIGHCC2GasCreate
 
-  allocate(RPFIGHCC2CompGasCreate)
-  call RPFIGHCC2CompGasCreate%Init()
+  allocate(RPFIGHCC2GasCreate)
+  call RPFIGHCC2GasCreate%Init()
 
-end function RPFIGHCC2CompGasCreate
+end function RPFIGHCC2GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPFIGHCC2CompGasInit(this)
+subroutine RPFIGHCC2GasInit(this)
 
   ! Initializes the IGHCC2 Comparison gas relative permeability function
   ! object
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_gas_type) :: this
+  class(rpf_IGHCC2_gas_type) :: this
 
   call RPFBaseInit(this)
 
   this%analytical_derivative_available = PETSC_TRUE
 
-end subroutine RPFIGHCC2CompGasInit
+end subroutine RPFIGHCC2GasInit
 
 ! ************************************************************************** !
 
-subroutine RPFIGHCC2CompGasVerify(this,name,option)
+subroutine RPFIGHCC2GasVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(rpf_IGHCC2_Comp_gas_type) :: this
+  class(rpf_IGHCC2_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3167,7 +3240,7 @@ subroutine RPFIGHCC2CompGasVerify(this,name,option)
   if (index(name,'PERMEABILITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'PERMEABILITY_FUNCTION,IGHCC2_Comp'
+    string = trim(name) // 'PERMEABILITY_FUNCTION,IGHCC2_'
   endif
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
@@ -3179,53 +3252,53 @@ subroutine RPFIGHCC2CompGasVerify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine RPFIGHCC2CompGasVerify
+end subroutine RPFIGHCC2GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPFIGHCC2CompGasRelPerm(this,liquid_saturation, &
+subroutine RPFIGHCC2GasRelPerm(this,liquid_saturation, &
   relative_permeability,dkr_sat,option)
-!
-! Computes the relative permeability (and associated derivatives) as a
-! function of saturation, to benchmark against IGHCC2 study.
-!
-! Author: Michael Nole
-! Date: 05/16/19
-!
-use Option_module
+  !
+  ! Computes the relative permeability (and associated derivatives) as a
+  ! function of saturation, to benchmark against IGHCC2 study.
+  !
+  ! Author: Michael Nole
+  ! Date: 05/16/19
+  !
+  use Option_module
 
-implicit none
+  implicit none
 
-class(rpf_IGHCC2_Comp_gas_type) :: this
-PetscReal, intent(in) :: liquid_saturation
-PetscReal, intent(out) :: relative_permeability
-PetscReal, intent(out) :: dkr_sat
-type(option_type), intent(inout) :: option
+  class(rpf_IGHCC2_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
 
-PetscReal :: Se
-PetscReal :: power
-PetscReal :: dkr_Se
-PetscReal :: dSe_sat
+  PetscReal :: Se
+  PetscReal :: power
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
 
-relative_permeability = 0.d0
-dkr_sat = 0.d0
+  relative_permeability = 0.d0
+  dkr_sat = 0.d0
 
-Se = (1.d0 - liquid_saturation - this%Srg) / (1.d0 - this%Sr)
-if (Se >= 1.d0) then
-relative_permeability = 1.d0
-return
-else if (Se <= 0.d0) then
-relative_permeability = 0.d0
-return
-endif
+  Se = (1.d0 - liquid_saturation - this%Srg) / (1.d0 - this%Sr)
+  if (Se >= 1.d0) then
+    relative_permeability = 1.d0
+    return
+  elseif (Se <= 0.d0) then
+    relative_permeability = 0.d0
+    return
+  endif
 
-power = this%lambda
-relative_permeability = Se**power
-dkr_Se = power*relative_permeability/Se
-dSe_sat = 1.d0 / (1.d0 - this%Sr)
-dkr_sat = dkr_Se * dSe_sat
+  power = this%lambda
+  relative_permeability = Se**power
+  dkr_Se = power*relative_permeability/Se
+  dSe_sat = 1.d0 / (1.d0 - this%Sr)
+  dkr_sat = dkr_Se * dSe_sat
 
-end subroutine RPFIGHCC2CompGasRelPerm
+end subroutine RPFIGHCC2GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
