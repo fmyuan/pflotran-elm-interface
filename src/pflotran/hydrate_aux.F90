@@ -1696,7 +1696,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
   PetscReal :: ha_epsilon
   PetscReal :: x(option%nflowdof)
-  PetscReal :: PE_hyd, dP, Tf_ice, dTf, dTfs, T_temp
+  PetscReal :: PE_hyd, dP, Tf_ice, dTfs, T_temp
   PetscReal :: h_sat_eff,g_sat_eff,i_sat_eff
   PetscReal :: K_H_tilde, K_H_tilde_hyd
   PetscInt :: apid, cpid, vpid, spid
@@ -3759,7 +3759,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
-  PetscReal :: T_temp, dTf, dTfs, Tf_ice
+  PetscReal :: T_temp, dTf, Tf_ice
 
   T_temp = T + 273.15d0
   dP = 0.d0
@@ -4020,7 +4020,7 @@ subroutine CalcFreezingTempDepression(sat,Tf_ice,characteristic_curves,dTf,optio
 
   PetscReal, intent(out) :: dTf
 
-  PetscReal :: Pc,dw,Tb,dpc_dsatl
+  PetscReal :: Pc,dw,dpc_dsatl
   PetscReal :: sigma, theta
 
   sigma = 0.073d0 !interfacial tension
