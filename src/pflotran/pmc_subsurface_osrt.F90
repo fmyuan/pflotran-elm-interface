@@ -380,12 +380,12 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       istart = offset_global + 1
       iend = offset_global + reaction%ncomp
       ! guess has to be free ion concentration
-      guess(:) = rt_auxvars(ghosted_id)%pri_molal(:)
+      guess(1:reaction%naqcomp) = rt_auxvars(ghosted_id)%pri_molal(:)
       if (nimmobile > 0) then
         tempint = istart+reaction%offset_immobile
         rt_auxvars(ghosted_id)%immobile = tran_xx_p(tempint:tempint+nimmobile-1)
-        guess(reaction%offset_immobile+1:nimmobile) = &
-          rt_auxvars(ghosted_id)%immobile
+        tempint = reaction%offset_immobile
+        guess(tempint+1:tempint+nimmobile) = rt_auxvars(ghosted_id)%immobile
       endif
       call RStep(guess,rt_auxvars(ghosted_id), &
                  global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
