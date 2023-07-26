@@ -1612,9 +1612,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
     if (general_salt) then
-    dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
-                             general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
-                             area
+      dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
+                               general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
+                               area
     endif
 
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
@@ -3468,9 +3468,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                              general_parameter%diffusion_coefficient(iphase) * &
                              area
     if (general_salt) then
-    dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
-                             general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
-                             area
+      dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
+                               general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
+                               area
     endif
 
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
