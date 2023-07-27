@@ -1,5 +1,4 @@
 stages:
-  - petsc
   - pflotran
   - pflotran-interface
   - final-status
@@ -23,38 +22,39 @@ before_script:
   - apk add --no-cache bash curl
   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
-petsc:
-  stage: petsc
-  script:
-    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
-    - docker --version
-    - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
-    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
-    - docker pull $IMAGE || true
-    - >
-      docker build 
-      -f ./.gitlab/dockerfile-petsc 
-      --build-arg PETSC_VERSION=$PETSC_VERSION
-      --cache-from $IMAGE
-      --tag $IMAGE
-      .
-    - docker push $IMAGE
-    # copy log files from image by launching container, copying
-    # and destorying the container
-    - id=$(docker create $IMAGE)
-    - docker cp $id:/scratch/petsc/petsc-arch/lib/petsc/conf/configure.log .
-    - docker cp $id:/scratch/petsc/petsc-arch/lib/petsc/conf/make.log .
-    - docker rm -v $id
-  artifacts:
-    paths:
-      - "*.log"
+#petsc:
+#  stage: petsc
+#  script:
+#    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
+#    - docker --version
+#    - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
+#    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+#    - docker pull $IMAGE || true
+#    - >
+#      docker build 
+#      -f ./.gitlab/dockerfile-petsc 
+#      --build-arg PETSC_VERSION=$PETSC_VERSION
+#      --cache-from $IMAGE
+#      --tag $IMAGE
+#      .
+#    - docker push $IMAGE
+#    # copy log files from image by launching container, copying
+#    # and destorying the container
+#    - id=$(docker create $IMAGE)
+#    - docker cp $id:/scratch/petsc/petsc-arch/lib/petsc/conf/configure.log .
+#    - docker cp $id:/scratch/petsc/petsc-arch/lib/petsc/conf/make.log .
+#    - docker rm -v $id
+#  artifacts:
+#    paths:
+#      - "*.log"
 
 pflotran:
   stage: pflotran
   script:
     - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
-    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+#    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+    - export IMAGE=pflotran/petsc:$PETSC_VERSION
     - export NEW_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker pull $IMAGE || true
     - >
