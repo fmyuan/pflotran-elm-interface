@@ -121,6 +121,7 @@ function DatasetCommonHDF5Cast(this)
   class(dataset_common_hdf5_type), pointer :: DatasetCommonHDF5Cast
 
   nullify(DatasetCommonHDF5Cast)
+  if (.not.associated(this)) return
   select type (this)
     class is (dataset_common_hdf5_type)
       DatasetCommonHDF5Cast => this
