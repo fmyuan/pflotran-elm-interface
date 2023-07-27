@@ -80,7 +80,8 @@ pflotran-interface:
   stage: pflotran-interface
   script:
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
-    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+#    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+    - export IMAGE=pflotran/petsc:$PETSC_VERSION
     - export NEW_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker pull $IMAGE || true
     - >
