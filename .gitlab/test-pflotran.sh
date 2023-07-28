@@ -14,6 +14,8 @@ REGRESSION_EXIT_CODE=-999
 # rebuild it inadvertently below as error checking flags will be missing
 if [ ! -f pflotran ]; then
   echo 'The PFLOTRAN executable does not exist for testing.'
+  rm -Rf $ARTIFACT_DIR
+  mkdir -p $ARTIFACT_DIR
   echo 'failed' > $ARTIFACT_DIR/status
   exit 1
 fi
