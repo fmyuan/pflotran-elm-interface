@@ -10,6 +10,14 @@ cd $SRC_DIR
 UNIT_EXIT_CODE=-999
 REGRESSION_EXIT_CODE=-999
 
+# Check to ensure that the pflotran executable exists as we do not want to
+# rebuild it inadvertently below as error checking flags will be missing
+if [ ! -f pflotran ]; then
+  echo 'The PFLOTRAN executable does not exist for testing.'
+  echo 'failed' > $ARTIFACT_DIR/status
+  exit 1
+fi
+
 # Run unit tests
 UTEST_LOG='utest.log'
 make gnu_code_coverage=1 utest 2>&1 | tee $UTEST_LOG
