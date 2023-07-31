@@ -35,7 +35,9 @@ fi
 
 # Run regression tests
 RTEST_LOG='rtest.log'
-make rtest 2>&1 | tee $RTEST_LOG
+# RUNTIME_ERROR_CHECKING toggles on tests for planned errors to ensure that 
+# runtime error checking is enabled.
+make RUNTIME_ERROR_CHECKING=1 rtest 2>&1 | tee $RTEST_LOG
 if [ $(grep -c "Failed : \|Errors : " "$RTEST_LOG") -ne 0 ]; then
   echo "\n----- Regression tests failed -----\n" >&2
   REGRESSION_EXIT_CODE=1
