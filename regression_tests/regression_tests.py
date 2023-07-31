@@ -2127,7 +2127,7 @@ class RegressionTestManager(object):
                 print("A", end='', file=sys.stdout)
             elif status.error == _TIMEOUT_ERROR:
                 print("T", end='', file=sys.stdout)
-            if status.error == _NAN_OR_INF_ERROR:
+            elif status.error == _NAN_OR_INF_ERROR:
                 print("N", end='', file=sys.stdout)
             elif status.error == _PLANNED_ERROR_NOT_CAUGHT:
                 print("P", end='', file=sys.stdout)
