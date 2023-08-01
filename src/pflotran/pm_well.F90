@@ -2732,7 +2732,7 @@ recursive subroutine PMWellInitializeRun(this)
   do k = 1,2
     allocate(this%well_pert(k)%diameter(nsegments))
     allocate(this%well_pert(k)%WI_base(nsegments))
-    allocate(this%well_pert(k)%f(nsegments))
+    allocate(this%well_pert(k)%f(size(this%well%f)))
     this%well_pert(k)%diameter = this%well%diameter
     this%well_pert(k)%WI_base = this%well%WI_base
     this%well_pert(k)%f = this%well%f
