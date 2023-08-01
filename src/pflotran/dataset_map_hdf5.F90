@@ -102,6 +102,7 @@ function DatasetMapHDF5Cast(this)
   class(dataset_map_hdf5_type), pointer :: DatasetMapHDF5Cast
 
   nullify(DatasetMapHDF5Cast)
+  if (.not.associated(this)) return
   select type (this)
     class is (dataset_map_hdf5_type)
       DatasetMapHDF5Cast => this

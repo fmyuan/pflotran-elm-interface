@@ -147,6 +147,7 @@ function SimSubsurfCast(simulation)
   class(simulation_subsurface_type), pointer :: SimSubsurfCast
 
   nullify(SimSubsurfCast)
+  if (.not.associated(simulation)) return
   select type(simulation)
     class is(simulation_subsurface_type)
       SimSubsurfCast=> simulation
