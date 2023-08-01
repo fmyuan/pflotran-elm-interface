@@ -1570,7 +1570,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       krl = 1.d0
     else
       call characteristic_curves%liq_rel_perm_function% &
-           RelativePermeability(hyd_auxvar%sat(lid),krl,dkrl_dsatl,option)
+           RelativePermeability(l_sat_eff,krl,dkrl_dsatl,option)
       krl = max(0.d0,krl)
     endif
     call EOSWaterViscosity(T_temp,cell_pressure, &
