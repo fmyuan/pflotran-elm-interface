@@ -1189,13 +1189,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                     h_sat_eff,i_sat_eff)
 
-      if (hydrate_eff_sat_scaling) then
-        l_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
-                    hyd_auxvar%sat(gid))
-      else
-        l_sat_eff = hyd_auxvar%sat(lid)
-      endif
-
       call HydratePE(T_temp, h_sat_eff, PE_hyd, dP,&
                       characteristic_curves, material_auxvar,option)
       if (hydrate_no_pc) then
@@ -1474,6 +1467,13 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       material_auxvar%porosity = hyd_auxvar%effective_porosity
     endif
 
+  endif
+
+  if (hydrate_eff_sat_scaling) then
+    l_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
+                hyd_auxvar%sat(gid))
+  else
+    l_sat_eff = hyd_auxvar%sat(lid)
   endif
 
   solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
