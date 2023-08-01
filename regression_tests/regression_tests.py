@@ -406,13 +406,24 @@ class RegressionTest(object):
             if pflotran_status == self._PFLOTRAN_FAILURE:
                 # error was not properly caught
                 status.error = _PLANNED_ERROR_NOT_CAUGHT
-                string = 'failed due to inability to catch planned error'
                 message = self._txtwrap.fill(
                     "ERROR : {name} : pflotran returned an error "
-                    "code ({status}) indicating that the simulation {s}"
-                    ". Please check '{name}.stdout' for error messages "
+                    "code ({status}) indicating that the simulation "
+                    "failed due to inability to catch planned error."
+                    "Please check '{name}.stdout' for more information "
                     "(included below).".format(
-                    s=string, name=test_name, status=pflotran_status))
+                    name=test_name, status=pflotran_status))
+                print("".join(['\n', message, '\n']), file=testlog)
+            elif pflotran_status == self._PFLOTRAN_SUCCESS:
+                # error was not properly spawned
+                status.error = _PLANNED_ERROR_NOT_CAUGHT
+                message = self._txtwrap.fill(
+                    "ERROR : {name} : pflotran returned a exit "
+                    "code ({status}) indicating that the simulation "
+                    "completed successfully when it should have failed "
+                    "due to an intentionally thrown error in "
+                    "utility.F90:ThrowRuntimeError().".format(
+                    name=test_name, status=pflotran_status))
                 print("".join(['\n', message, '\n']), file=testlog)
             return None
         # pflotran returns 0 on an error (e.g. can't find an input
