@@ -1467,17 +1467,26 @@ subroutine InvSubsurfCalculateSensitivity(this)
   ! Author: Glenn Hammond
   ! Date: 03/25/22
   !
-  use Option_module
-  use String_module
-  use Units_module
-  use Utility_module
 
   class(inversion_subsurface_type) :: this
+
+  PetscBool :: assembled
+  PetscErrorCode :: ierr
 
   if (associated(this%inversion_aux%perturbation)) then
     call InvSubsurfPertCalcSensitivity(this)
   else
     call InvSubsurfAdjointCalcSensitivity(this)
+  endif
+  if (associated(this%inversion_option%invcomm)) then
+    call MatAssembled(this%inversion_aux%JsensitivityT,assembled, &
+                      ierr);CHKERRQ(ierr)
+  endif
+  call MPI_Bcast(assembled,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                 this%driver%comm%io_rank,this%driver%comm%communicator, &
+                 ierr);CHKERRQ(ierr)
+  if (.not.assembled) then
+    call this%driver%PrintErrMsg('JsensitivityT was not assembled.')
   endif
 
   if (associated(this%inversion_option%invcomm)) then
@@ -2187,6 +2196,7 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
   PetscInt :: i
   PetscInt :: igroup
   PetscInt :: iparameter
+  PetscInt :: max_iparameter
   PetscInt :: num_measurements
   PetscMPIInt :: mpi_int
   PetscMPIInt :: status(MPI_STATUS_SIZE)
@@ -2266,6 +2276,8 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
 
   if (my_dof == 0) return
 
+  iparameter = UNINITIALIZED_INTEGER
+  max_iparameter = 0
   if (associated(this%inversion_option%invcomm)) then
     do igroup = 1, this%inversion_option%num_process_groups
       if (my_dof + igroup - 1 > &
@@ -2291,6 +2303,10 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
       else
         iparameter = my_dof
       endif
+      ! do to a potential race condition with MPI_Probe above (the group
+      ! with iparameter = pertubration%ndof may send is row earlier than
+      ! one with iparameter < pertubration%ndof), we must use the max value.
+      max_iparameter = max(iparameter,max_iparameter)
 
       ! don't need to use the distributed vec, but why not
       call InvAuxScatMeasToDistMeas(this%inversion_aux, &
@@ -2331,7 +2347,7 @@ subroutine InvSubsurfPerturbationFillRow(this,my_dof)
   endif
 
   if (associated(this%inversion_option%invcomm) .and. &
-      iparameter == this%inversion_aux%perturbation%ndof) then
+      max_iparameter == this%inversion_aux%perturbation%ndof) then
     call MatAssemblyBegin(this%inversion_aux%JsensitivityT, &
                           MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(this%inversion_aux%JsensitivityT, &
