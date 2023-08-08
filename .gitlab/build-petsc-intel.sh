@@ -7,6 +7,7 @@ cd $PETSC_DIR
 --with-cc=icc --COPTFLAGS='-g -O0 -diag-disable=10441' \
 --with-cxx=icpc --CXXOPTFLAGS='-g -O0 -diag-disable=10441' \
 --with-fc=ifort --FOPTFLAGS='-g -O0 -diag-disable=10441 -diag-disable=5462' \
---with-clanguage=c --with-debug=1 --with-shared-libraries=0 --download-openmpi --download-hdf5 --download-metis --download-parmetis --download-hypre --download-hdf5-fortran-bindings=yes --download-fblaslapack
+--with-clanguage=c --with-debug=1 --with-shared-libraries=0 --download-hdf5 --download-metis --download-parmetis --download-hypre --download-hdf5-fortran-bindings=yes --download-fblaslapack \
+--download-mpich
 make
 rm -Rf petsc-arch/externalpackages

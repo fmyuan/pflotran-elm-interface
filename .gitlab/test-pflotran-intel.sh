@@ -1,10 +1,5 @@
 #!/bin/sh
 
-# configure intel oneapi paths
-source /opt/intel/oneapi/setvars.sh
-export PATH=/opt/intel/oneapi/compiler/latest/linux/bin/intel64:/opt/intel/oneapi/compiler/latest/linux/bin:$PATH
-export LD_LIBRARY_PATH=/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin
-
 export PFLOTRAN_DIR=$PWD
 export SRC_DIR=$PFLOTRAN_DIR/src/pflotran
 export ARTIFACT_DIR=/tmp/test-pflotran
