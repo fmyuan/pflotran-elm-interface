@@ -1,3 +1,5 @@
+# Contributed by Calvin Madsen
+
 FROM ubuntu:jammy
 
 RUN apt-get update -qq && \
