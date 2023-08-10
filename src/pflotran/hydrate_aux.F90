@@ -1195,7 +1195,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         hyd_auxvar%pres(cpid) = 0.d0
       else
         call characteristic_curves%saturation_function%CapillaryPressure( &
-                l_sat_eff, hyd_auxvar%pres(cpid), &
+                1.d0 - g_sat_eff, hyd_auxvar%pres(cpid), &
                 dpc_dsatl,option)
       endif
 
@@ -1426,7 +1426,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         hyd_auxvar%pres(cpid) = 0.d0
       else
         call characteristic_curves%saturation_function% &
-             CapillaryPressure(hyd_auxvar%sat(lid), &
+             CapillaryPressure(1.d0 - g_sat_eff, &
                                hyd_auxvar%pres(cpid),dpc_dsatl,option)
       endif
       !IFT calculation
@@ -1467,13 +1467,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       material_auxvar%porosity = hyd_auxvar%effective_porosity
     endif
 
-  endif
-
-  if (hydrate_eff_sat_scaling) then
-    l_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
-                hyd_auxvar%sat(gid))
-  else
-    l_sat_eff = hyd_auxvar%sat(lid)
   endif
 
   solid_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
@@ -1565,6 +1558,16 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
   endif
 
+  ! Relative Permeability
+  if (hydrate_eff_sat_scaling) then
+    l_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
+                hyd_auxvar%sat(gid))
+    g_sat_eff = 1.d0 - l_sat_eff
+  else
+    l_sat_eff = hyd_auxvar%sat(lid)
+    g_sat_eff = hyd_auxvar%sat(gid)
+  endif
+
   if (hyd_auxvar%sat(lid) > 0.d0) then
     if (hyd_auxvar%sat(lid) >= 1.d0) then
       krl = 1.d0
@@ -1584,7 +1587,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       krg = 1.d0
     else
       call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(1.d0 - hyd_auxvar%sat(gid),krg,dkrg_dsatl,option)
+           RelativePermeability(1.d0 - g_sat_eff,krg,dkrg_dsatl,option)
       krg = max(0.d0,krg)
     endif
     call EOSGasViscosity(T_temp,hyd_auxvar%pres(apid), &
@@ -1823,21 +1826,28 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         endif
       else !Frozen
         if (hydrate_gas_methane) then
-          if (hyd_auxvar%pres(apid) >= hyd_auxvar%pres(lid)* &
-              (1.d0-window_epsilon)) then
+          if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
+              K_H_tilde_hyd*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+              pres(lid)*(1.d0-window_epsilon)) then
 
-            if (hyd_auxvar%pres(gid) < PE_hyd) then
-              istatechng = PETSC_TRUE
-              global_auxvar%istate = GA_STATE
-              liq_epsilon = hydrate_phase_chng_epsilon
-            elseif (hyd_auxvar%pres(gid) > PE_hyd) then
-              istatechng = PETSC_TRUE
-              global_auxvar%istate = HAI_STATE
-            else
-              istatechng = PETSC_TRUE
-              global_auxvar%istate = HGAI_STATE
-              liq_epsilon = hydrate_phase_chng_epsilon
-            endif
+            istatechng = PETSC_TRUE
+            global_auxvar%istate = HAI_STATE
+
+          elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
+             K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+             pres(lid)*(1.d0-window_epsilon)) then
+
+            istatechng = PETSC_TRUE
+            global_auxvar%istate = GA_STATE
+            liq_epsilon = hydrate_phase_chng_epsilon
+
+          elseif (hyd_auxvar%pres(lid) == PE_hyd .and. &
+            K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
+            pres(lid)*(1.d0-window_epsilon)) then
+
+            istatechng = PETSC_TRUE
+            global_auxvar%istate = HGAI_STATE
+            liq_epsilon = hydrate_phase_chng_epsilon
 
           else
 
