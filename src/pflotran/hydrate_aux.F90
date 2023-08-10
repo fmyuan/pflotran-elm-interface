@@ -32,6 +32,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_force_iteration = PETSC_FALSE
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
   PetscReal, public :: hydrate_bc_reference_pressure = 101325
+  PetscReal, public :: hydrate_min_xmol = 1.d-10
 
   !Salinity
   PetscReal, public :: hydrate_xmol_nacl = 0.d0
@@ -1771,6 +1772,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   K_H_tilde_hyd = K_H_tilde
   call EOSGasHenry(T_temp,hyd_auxvar%pres(spid),K_H_tilde, &
                    ierr)
+  ! minimum mole fraction = no gas
+  K_H_tilde = min(K_h_tilde,hyd_auxvar%pres(lid)/hydrate_min_xmol)
 
   if (hydrate_adjust_ghsz_solubility) then
         call HydrateGHSZSolubilityCorrection(T_temp,hyd_auxvar% &
