@@ -1876,7 +1876,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       if (hyd_auxvar%pres(vpid) >= hyd_auxvar%pres(spid)* &
          (1.d0-window_epsilon)) then
 
-        if (hyd_auxvar%pres(apid) < PE_hyd .or. hydrate_gas_air) then
+        !if (hyd_auxvar%pres(apid) < PE_hyd .or. hydrate_gas_air) then
+        if (hyd_auxvar%pres(gid) < PE_hyd .or. hydrate_gas_air) then
 
           if (hyd_auxvar%temp >= Tf_ice) then
             istatechng = PETSC_TRUE
@@ -1903,8 +1904,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
 
     case(H_STATE)
-      if (hyd_auxvar%pres(apid) < PE_hyd) then
-      !if (hyd_auxvar%pres(gid) < PE_hyd) then
+      !if (hyd_auxvar%pres(apid) < PE_hyd) then
+      if (hyd_auxvar%pres(gid) < PE_hyd) then
 
         if (hyd_auxvar%temp > Tf_ice) then
           istatechng = PETSC_TRUE
@@ -1923,53 +1924,61 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
       endif
 
-   case(GA_STATE)
-     if (hydrate_gas_air) then
-       if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
-         istatechng = PETSC_FALSE
-       elseif (hyd_auxvar%sat(gid) <= 0.d0) then
-         istatechng = PETSC_TRUE
-         global_auxvar%istate = L_STATE
-         two_phase_epsilon = hydrate_phase_chng_epsilon
-       elseif (hyd_auxvar%sat(gid) >= 1.d0) then
-         istatechng = PETSC_TRUE
-         global_auxvar%istate = G_STATE
-         two_phase_epsilon = hydrate_phase_chng_epsilon
-       endif
-     else
-       if (hyd_auxvar%pres(apid) < PE_hyd) then
-        !if (hyd_auxvar%pres(gid) < PE_hyd) then
+    case(I_STATE)
+      if (hyd_auxvar%temp > Tf_ice) then
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = L_STATE
+      else
+        istatechng = PETSC_FALSE
+      endif
 
-         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
-            istatechng = PETSC_FALSE
-         elseif (hyd_auxvar%sat(gid) <= 0.d0) then
+    case(GA_STATE)
+      if (hydrate_gas_air) then
+        if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
+          istatechng = PETSC_FALSE
+        elseif (hyd_auxvar%sat(gid) <= 0.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = L_STATE
+          two_phase_epsilon = hydrate_phase_chng_epsilon
+        elseif (hyd_auxvar%sat(gid) >= 1.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = G_STATE
+          two_phase_epsilon = hydrate_phase_chng_epsilon
+        endif
+      else
+        !if (hyd_auxvar%pres(apid) < PE_hyd) then
+        if (hyd_auxvar%pres(gid) < PE_hyd) then
+
+          if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
+             istatechng = PETSC_FALSE
+          elseif (hyd_auxvar%sat(gid) <= 0.d0) then
+             istatechng = PETSC_TRUE
+             global_auxvar%istate = L_STATE
+             two_phase_epsilon = hydrate_phase_chng_epsilon
+          elseif (hyd_auxvar%sat(gid) >= 1.d0) then
+             istatechng = PETSC_TRUE
+             global_auxvar%istate = G_STATE
+             two_phase_epsilon = hydrate_phase_chng_epsilon
+          endif
+
+        else
+
+          if (hyd_auxvar%temp > Tf_ice) then
             istatechng = PETSC_TRUE
-            global_auxvar%istate = L_STATE
+            global_auxvar%istate = HGA_STATE
             two_phase_epsilon = hydrate_phase_chng_epsilon
-         elseif (hyd_auxvar%sat(gid) >= 1.d0) then
+          else
             istatechng = PETSC_TRUE
-            global_auxvar%istate = G_STATE
+            global_auxvar%istate = HGAI_STATE
             two_phase_epsilon = hydrate_phase_chng_epsilon
-         endif
+          endif
 
-       else
-
-         if (hyd_auxvar%temp > Tf_ice) then
-           istatechng = PETSC_TRUE
-           global_auxvar%istate = HGA_STATE
-           two_phase_epsilon = hydrate_phase_chng_epsilon
-         else
-           istatechng = PETSC_TRUE
-           global_auxvar%istate = HGAI_STATE
-           two_phase_epsilon = hydrate_phase_chng_epsilon
-         endif
-
-       endif
-     endif
+        endif
+      endif
 
     case(HG_STATE)
-      if (hyd_auxvar%pres(apid) > PE_hyd) then
-      !if (hyd_auxvar%pres(gid) > PE_hyd) then
+      !if (hyd_auxvar%pres(apid) > PE_hyd) then
+      if (hyd_auxvar%pres(gid) > PE_hyd) then
 
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -2002,8 +2011,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
 
     case(HA_STATE)
-      !if (hyd_auxvar%pres(gid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
-      if (hyd_auxvar%pres(apid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
+      if (hyd_auxvar%pres(gid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
+      !if (hyd_auxvar%pres(apid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
 
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -2020,7 +2029,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         global_auxvar%istate = HGA_STATE
         ha_epsilon = hydrate_phase_chng_epsilon
 
-      elseif (hyd_auxvar%pres(apid) > PE_hyd) then
+      !elseif (hyd_auxvar%pres(apid) > PE_hyd) then
+      elseif (hyd_auxvar%pres(gid) > PE_hyd) then
        istatechng = PETSC_TRUE
        global_auxvar%istate = HAI_STATE
 
@@ -2032,8 +2042,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
     case(HI_STATE)
 
-      if (hyd_auxvar%pres(apid) >= PE_hyd) then
-      !if (hyd_auxvar%pres(gid) > PE_hyd) then
+      !if (hyd_auxvar%pres(apid) >= PE_hyd) then
+      if (hyd_auxvar%pres(gid) > PE_hyd) then
 
         if (hyd_auxvar%temp < Tf_ice) then
           istatechng = PETSC_FALSE
@@ -2054,10 +2064,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
       endif
     case(GI_STATE)
-      if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(apid) < PE_hyd &
+      !if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(apid) < PE_hyd &
+      !    .and. hydrate_gas_methane) then
+      if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(gid) < PE_hyd &
           .and. hydrate_gas_methane) then
-      !if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(gid) < PE_hyd) then
-
         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(gid) > 0.d0) then
@@ -2084,7 +2094,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGI_STATE
 
-      elseif ((hyd_auxvar%pres(apid) < PE_hyd .and. hydrate_gas_methane) &
+      !elseif ((hyd_auxvar%pres(apid) < PE_hyd .and. hydrate_gas_methane) &
+      !        .or. (hydrate_gas_air)) then
+      elseif ((hyd_auxvar%pres(gid) < PE_hyd .and. hydrate_gas_methane) &
               .or. (hydrate_gas_air)) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = GA_STATE
@@ -2160,8 +2172,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
     case(HAI_STATE)
 
-      if (hyd_auxvar%pres(apid) >= PE_hyd*(1.d0-window_epsilon)) then
-      !if (hyd_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
+      !if (hyd_auxvar%pres(apid) >= PE_hyd*(1.d0-window_epsilon)) then
+      if (hyd_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
         if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(hid) > 0.d0 &
             .and. hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -2234,7 +2246,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       !MAN: state transition doesn't naturally enter this state anymore.
       !     May be useful for initialization.
       if (hydrate_gas_methane) then
-        if (hyd_auxvar%pres(apid) < PE_hyd) then !Gas phase is stable
+        !if (hyd_auxvar%pres(apid) < PE_hyd) then !Gas phase is stable
+        if (hyd_auxvar%pres(gid) < PE_hyd) then !Gas phase is stable
           if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0 &
               .and. hyd_auxvar%sat(iid) > 0.d0) then
 
