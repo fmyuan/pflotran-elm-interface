@@ -1174,14 +1174,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       T_temp = hyd_auxvar%temp - Tf_ice
 
+      hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
+      hyd_auxvar%sat(hid) = max(0.d0,min(1.d0,hyd_auxvar%sat(hid)))
+
       if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid) > 1.d0) then
         sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid)
         hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
         hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid)/sat_temp
       endif
-
-      hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
-      hyd_auxvar%sat(hid) = max(0.d0,min(1.d0,hyd_auxvar%sat(hid)))
 
       hyd_auxvar%sat(gid) = max(0.d0,1.d0 - hyd_auxvar%sat(lid) - &
                                 hyd_auxvar%sat(hid))
@@ -1232,14 +1232,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(lid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
 
+      hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
+      hyd_auxvar%sat(iid) = min(max(0.d0,hyd_auxvar%sat(iid)),1.d0)
+
       if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(iid) > 1.d0) then
         sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(iid)
         hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
         hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
       endif
-
-      hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
-      hyd_auxvar%sat(iid) = min(max(0.d0,hyd_auxvar%sat(iid)),1.d0)
 
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(iid)
@@ -1284,14 +1284,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       T_temp = hyd_auxvar%temp - Tf_ice
 
+      hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
+      hyd_auxvar%sat(hid) = min(max(hyd_auxvar%sat(hid),0.d0),1.d0)
+
       if (hyd_auxvar%sat(iid) + hyd_auxvar%sat(hid) > 1.d0) then
         sat_temp = hyd_auxvar%sat(iid) + hyd_auxvar%sat(hid)
         hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
         hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid)/sat_temp
       endif
-
-      hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
-      hyd_auxvar%sat(hid) = min(max(hyd_auxvar%sat(hid),0.d0),1.d0)
 
       hyd_auxvar%sat(lid) = 0.d0
       hyd_auxvar%sat(gid) = 1.d0 - hyd_auxvar%sat(hid) - hyd_auxvar%sat(iid)
@@ -1331,14 +1331,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call characteristic_curves%saturation_function% &
              Saturation(Pc,hyd_auxvar%sat(lid),dsat_dpres,option)
 
+      hyd_auxvar%sat(gid) = min(max(hyd_auxvar%sat(gid),0.d0),1.d0)
+      hyd_auxvar%sat(lid) = min(max(hyd_auxvar%sat(lid),0.d0),1.d0)
+
       if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(gid) > 1.d0) then
         sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(gid)
         hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid)/sat_temp
         hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid)/sat_temp
       endif
-
-      hyd_auxvar%sat(lid) = min(max(hyd_auxvar%sat(lid),0.d0),1.d0)
-      hyd_auxvar%sat(gid) = min(max(hyd_auxvar%sat(gid),0.d0),1.d0)
 
       hyd_auxvar%sat(iid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(gid)
       hyd_auxvar%sat(hid) = 0.d0
@@ -1385,6 +1385,10 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%sat(iid) = x(HYDRATE_ENERGY_DOF)
 
+      hyd_auxvar%sat(lid) = min(max(hyd_auxvar%sat(lid),0.d0),1.d0)
+      hyd_auxvar%sat(gid) = min(max(hyd_auxvar%sat(gid),0.d0),1.d0)
+      hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
+
       if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(gid) + hyd_auxvar%sat(iid) > &
           1.d0) then
         sat_temp = hyd_auxvar%sat(lid) + hyd_auxvar%sat(gid) + &
@@ -1393,10 +1397,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid)/sat_temp
         hyd_auxvar%sat(iid) = hyd_auxvar%sat(iid)/sat_temp
       endif
-      hyd_auxvar%sat(lid) = min(max(hyd_auxvar%sat(lid),0.d0),1.d0)
-      hyd_auxvar%sat(gid) = min(max(hyd_auxvar%sat(gid),0.d0),1.d0)
-      hyd_auxvar%sat(iid) = min(max(hyd_auxvar%sat(iid),0.d0),1.d0)
-
       hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(gid) &
                             - hyd_auxvar%sat(iid)
 
@@ -2074,9 +2074,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
         else
-          !istatechng = PETSC_FALSE
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = I_STATE
+          istatechng = PETSC_FALSE
+          !istatechng = PETSC_TRUE
+          !global_auxvar%istate = I_STATE
         endif
 
       elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_gas_air) then
@@ -2197,9 +2197,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = H_STATE
         elseif (hyd_auxvar%sat(iid) > 0.d0) then
-          !istatechng = PETSC_FALSE
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = I_STATE
+          istatechng = PETSC_FALSE
+          !istatechng = PETSC_TRUE
+          !global_auxvar%istate = I_STATE
         endif
 
       else
@@ -2226,9 +2226,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = GI_STATE
         elseif (hyd_auxvar%sat(iid) > 0.d0) then
-          !istatechng = PETSC_FALSE
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = I_STATE
+          istatechng = PETSC_FALSE
+          !istatechng = PETSC_TRUE
+          !global_auxvar%istate = I_STATE
         elseif (hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
@@ -2384,9 +2384,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = G_STATE
       else
-        !istatechng = PETSC_FALSE
-        istatechng = PETSC_TRUE
-        global_auxvar%istate = I_STATE
+        istatechng = PETSC_FALSE
+        !istatechng = PETSC_TRUE
+        !global_auxvar%istate = I_STATE
       endif
   end select
 
