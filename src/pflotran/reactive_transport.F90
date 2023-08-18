@@ -38,7 +38,6 @@ module Reactive_Transport_module
             RTCalculateRHS_t0, &
             RTCalculateRHS_t1, &
             RTCalculateTransportMatrix, &
-            RTReact, &
             RTJumpStartKineticSorption, &
             RTCheckpointKineticSorptionBinary, &
             RTCheckpointKineticSorptionHDF5, &
@@ -890,6 +889,7 @@ subroutine RTUpdateKineticState(realization)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscInt :: ghosted_id, local_id
   PetscReal :: sec_porosity
+  PetscBool :: kinetic_state_updated
 
   option => realization%option
   patch => realization%patch
@@ -916,7 +916,7 @@ subroutine RTUpdateKineticState(realization)
     call RUpdateKineticState(rt_auxvars(ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
-                             reaction,option)
+                             reaction,kinetic_state_updated,option)
   enddo
 
   ! update secondary continuum variables
@@ -1844,208 +1844,6 @@ subroutine RTCalculateTransportMatrix(realization,T)
   endif
 
 end subroutine RTCalculateTransportMatrix
-
-! ************************************************************************** !
-
-subroutine RTReact(realization)
-  !
-  ! Calculate reaction
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/03/10
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Connection_module
-  use Coupler_module
-  use Option_module
-  use Field_module
-  use Grid_module
-  use Secondary_Continuum_Aux_module
-  use Logging_module
-
-!$ use omp_lib
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  class(reaction_rt_type), pointer :: reaction
-  type(option_type), pointer :: option
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: istart, iend, iendaq
-  PetscInt :: iphase
-  PetscInt :: ithread
-  PetscReal, pointer :: tran_xx_p(:)
-  PetscInt :: num_iterations
-  PetscInt :: ierror
-#ifdef OS_STATISTICS
-  PetscInt :: sum_iterations
-  PetscInt :: max_iterations
-#endif
-  PetscErrorCode :: ierr
-
-#ifdef OS_STATISTICS
-  PetscInt :: call_count
-  PetscInt :: sum_newton_iterations
-  PetscReal :: ave_newton_iterations_in_a_cell
-  PetscInt :: max_newton_iterations_in_a_cell
-  PetscInt :: max_newton_iterations_on_a_core
-  PetscInt :: min_newton_iterations_on_a_core
-  PetscInt :: temp_int_in(3)
-  PetscInt :: temp_int_out(3)
-#endif
-
-  call PetscLogEventBegin(logging%event_rt_react,ierr);CHKERRQ(ierr)
-
-#ifdef OS_STATISTICS
-  call_count = 0
-  sum_newton_iterations = 0
-  max_newton_iterations_in_a_cell = -99999999
-  max_newton_iterations_on_a_core = -99999999
-  min_newton_iterations_on_a_core = 99999999
-#endif
-
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  global_auxvars => patch%aux%Global%auxvars
-  rt_auxvars => patch%aux%RT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-  grid => patch%grid
-  reaction => realization%reaction
-
-  ! need up update aux vars based on current density/saturation,
-  ! but NOT activity coefficients
-  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
-
-  ! Get vectors
-  call VecGetArrayReadF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
-
-  iphase = 1
-  ithread = 1
-#ifdef OS_STATISTICS
-  sum_iterations = 0
-  max_iterations = 0
-  icount = 0
-#endif
-
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-
-    istart = (local_id-1)*reaction%ncomp+1
-    iend = istart + reaction%ncomp - 1
-    iendaq = istart + reaction%naqcomp - 1
-
-
-    call RStep(tran_xx_p,rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
-               material_auxvars(ghosted_id), &
-               num_iterations,reaction,grid%nG2A(ghosted_id),option,ierror)
-    ! set primary dependent var back to free-ion molality
-    tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
-    if (reaction%immobile%nimmobile > 0) then
-      tran_xx_p(reaction%offset_immobile: &
-                reaction%offset_immobile + reaction%immobile%nimmobile) = &
-        rt_auxvars(ghosted_id)%immobile
-    endif
-#ifdef OS_STATISTICS
-    if (num_iterations > max_iterations) then
-      max_iterations = num_iterations
-    endif
-    sum_iterations = sum_iterations + num_iterations
-    icount = icount + 1
-#endif
-  enddo
-
-#ifdef OS_STATISTICS
-  patch%aux%RT%rt_parameter%newton_call_count = icount
-  patch%aux%RT%rt_parameter%sum_newton_call_count = &
-    patch%aux%RT%rt_parameter%sum_newton_call_count + dble(icount)
-  patch%aux%RT%rt_parameter%newton_iterations = sum_iterations
-  patch%aux%RT%rt_parameter%sum_newton_iterations = &
-    patch%aux%RT%rt_parameter%sum_newton_iterations + dble(sum_iterations)
-  patch%aux%RT%rt_parameter%max_newton_iterations = max_iterations
-#endif
-
-  ! Restore vectors
-  call VecRestoreArrayReadF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
-
-  if (option%compute_mass_balance_new) then
-    call RTZeroMassBalanceDelta(realization)
-    call RTComputeBCMassBalanceOS(realization)
-  endif
-
-#ifdef OS_STATISTICS
-  call_count = call_count + cur_patch%aux%RT%rt_parameter%newton_call_count
-  sum_newton_iterations = sum_newton_iterations + &
-    cur_patch%aux%RT%rt_parameter%newton_iterations
-  if (cur_patch%aux%RT%rt_parameter%max_newton_iterations > &
-      max_newton_iterations_in_a_cell) then
-    max_newton_iterations_in_a_cell = &
-      cur_patch%aux%RT%rt_parameter%max_newton_iterations
-  endif
-  if (cur_patch%aux%RT%rt_parameter%max_newton_iterations > &
-      cur_patch%aux%RT%rt_parameter%overall_max_newton_iterations) then
-    cur_patch%aux%RT%rt_parameter%overall_max_newton_iterations = &
-      cur_patch%aux%RT%rt_parameter%max_newton_iterations
-  endif
-#endif
-
-  ! Logging must come before statistics since the global reductions
-  ! will synchonize the cores
-  call PetscLogEventEnd(logging%event_rt_react,ierr);CHKERRQ(ierr)
-
-#ifdef OS_STATISTICS
-  temp_int_in(1) = call_count
-  temp_int_in(2) = sum_newton_iterations
-  call MPI_Allreduce(temp_int_in,temp_int_out,TWO_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-  ave_newton_iterations_in_a_cell = float(temp_int_out(2)) / temp_int_out(1)
-
-  temp_int_in(1) = max_newton_iterations_in_a_cell
-  temp_int_in(2) = sum_newton_iterations ! to calc max # iteration on a core
-  temp_int_in(3) = -sum_newton_iterations ! to calc min # iteration on a core
-  call MPI_Allreduce(temp_int_in,temp_int_out,THREE_INTEGER_MPI,MPIU_INTEGER, &
-                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
-  max_newton_iterations_in_a_cell = temp_int_out(1)
-  max_newton_iterations_on_a_core = temp_int_out(2)
-  min_newton_iterations_on_a_core = -temp_int_out(3)
-
-  if (option%print_screen_flag) then
-    write(*, '(" OS Reaction Statistics: ",/, &
-             & "   Ave Newton Its / Cell: ",1pe12.4,/, &
-             & "   Max Newton Its / Cell: ",i4,/, &
-             & "   Max Newton Its / Core: ",i6,/, &
-             & "   Min Newton Its / Core: ",i6)') &
-               ave_newton_iterations_in_a_cell, &
-               max_newton_iterations_in_a_cell, &
-               max_newton_iterations_on_a_core, &
-               min_newton_iterations_on_a_core
-  endif
-
-  if (option%print_file_flag) then
-    write(option%fid_out, '(" OS Reaction Statistics: ",/, &
-             & "   Ave Newton Its / Cell: ",1pe12.4,/, &
-             & "   Max Newton Its / Cell: ",i4,/, &
-             & "   Max Newton Its / Core: ",i6,/, &
-             & "   Min Newton Its / Core: ",i6)') &
-               ave_newton_iterations_in_a_cell, &
-               max_newton_iterations_in_a_cell, &
-               max_newton_iterations_on_a_core, &
-               min_newton_iterations_on_a_core
-  endif
-
-#endif
-
-end subroutine RTReact
 
 ! ************************************************************************** !
 

@@ -1174,7 +1174,7 @@ end subroutine PMRTUpdateSolution1
 
 ! ************************************************************************** !
 
-subroutine PMRTUpdateSolution2(this, update_kinetics)
+subroutine PMRTUpdateSolution2(this,update_kinetics)
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -1198,7 +1198,10 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   ! end from RealizationUpdate()
   ! The update of status must be in this order!
   call RTUpdateEquilibriumState(this%realization)
-  if (update_kinetics) &
+  if (update_kinetics .and. &
+      ! for operator splitting, kinetic state is updated at the end of each
+      ! reaction step at each grid cell
+      this%option%transport%reactive_transport_coupling /= OPERATOR_SPLIT) &
     call RTUpdateKineticState(this%realization)
 
 !TODO(geh): MassTransfer

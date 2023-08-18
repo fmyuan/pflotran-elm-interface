@@ -323,8 +323,6 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('RTJacReaction',logging%class_pflotran, &
                              logging%event_rt_jac_reaction, &
                              ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('RTReact',logging%class_pflotran, &
-                             logging%event_rt_react,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('RTAuxVars',logging%class_pflotran, &
                              logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('RTAuxVarsBC',logging%class_pflotran, &
