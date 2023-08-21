@@ -143,6 +143,7 @@ subroutine THSetupPatch(realization)
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscInt :: i, iphase, material_id, icct
   PetscBool :: error_found
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -339,6 +340,7 @@ subroutine THSetupPatch(realization)
     initial_condition => patch%initial_condition_list%first
     allocate(TH_sec_heat_vars(grid%nlmax))
 
+    tempreal = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -348,7 +350,6 @@ subroutine THSetupPatch(realization)
            patch%aux%Material%auxvars(ghosted_id)%secondary_prop%half_matrix_width, &
            patch%aux%Material%auxvars(ghosted_id)%secondary_prop%ncells, &
            TH_sec_heat_vars(local_id), initial_condition, option)
-           
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => TH_sec_heat_vars

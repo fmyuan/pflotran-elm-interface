@@ -140,6 +140,7 @@ subroutine MphaseSetupPatch(realization)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
+  PetscReal :: tempreal
 
   option => realization%option
   patch => realization%patch
@@ -191,6 +192,7 @@ subroutine MphaseSetupPatch(realization)
     initial_condition => patch%initial_condition_list%first
     allocate(mphase_sec_heat_vars(grid%nlmax))
 
+    tempreal = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -199,8 +201,7 @@ subroutine MphaseSetupPatch(realization)
            patch%aux%Material%auxvars(ghosted_id)%secondary_prop%epsilon, &
            patch%aux%Material%auxvars(ghosted_id)%secondary_prop%half_matrix_width, &
            patch%aux%Material%auxvars(ghosted_id)%secondary_prop%ncells, &
-           mphase_sec_heat_vars(local_id), initial_condition, option)
-           
+           mphase_sec_heat_vars(local_id), initial_condition, option)           
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => mphase_sec_heat_vars

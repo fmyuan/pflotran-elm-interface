@@ -4146,7 +4146,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
     Res_orig = 0.d0
     option%iflag = 0 ! be sure not to allocate mass_balance array
     call RTAuxVarInit(rt_auxvar_pert,reaction,option)
-    call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
+    call RTAuxVarCopy(rt_auxvar,rt_auxvar_pert,option)
 
     call RReaction(Res_orig,Jac_dummy,compute_derivative,rt_auxvar, &
                    global_auxvar,material_auxvar,reaction,option)
@@ -4154,7 +4154,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
     ! aqueous species
     do jcomp = 1, reaction%naqcomp
       Res_pert = 0.d0
-      call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
+      call RTAuxVarCopy(rt_auxvar,rt_auxvar_pert,option)
       pert = rt_auxvar_pert%pri_molal(jcomp)*perturbation_tolerance
       rt_auxvar_pert%pri_molal(jcomp) = rt_auxvar_pert%pri_molal(jcomp) + pert
 
@@ -4170,7 +4170,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
     ! immobile species
     do jcomp = 1, reaction%immobile%nimmobile
       Res_pert = 0.d0
-      call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
+      call RTAuxVarCopy(rt_auxvar,rt_auxvar_pert,option)
       ! leave pri_molal, total, total sorbed as is; just copy
       pert = rt_auxvar_pert%immobile(jcomp)*perturbation_tolerance
       rt_auxvar_pert%immobile(jcomp) = rt_auxvar_pert%immobile(jcomp) + pert
@@ -5570,7 +5570,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   call RTAuxVarInit(rt_auxvar_pert,reaction,option)
   do jcomp = 1, reaction%naqcomp
     Res_pert = 0.d0
-    call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
+    call RTAuxVarCopy(rt_auxvar,rt_auxvar_pert,option)
     if (reaction%neqcplx > 0) then
       rt_auxvar%sec_molal = 0.d0
     endif

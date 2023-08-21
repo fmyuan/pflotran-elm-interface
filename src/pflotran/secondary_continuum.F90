@@ -901,8 +901,12 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   pordiff = porosity*diffusion_coefficient * 1.d3 * global_auxvar%sat
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
+  !Needed for ufd decay
+  if (associated(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq) .and. .not.associated(rt_auxvar%total_sorb_eq)) then
+    allocate(rt_auxvar%total_sorb_eq(size(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq,1)))
+  endif
   do i = 1, ngcells
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
@@ -1056,7 +1060,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1214,7 +1218,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   enddo
 
   ! Update the secondary continuum totals at the outer matrix node
-  call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
+  call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(ngcells),rt_auxvar, &
                     option)
   rt_auxvar%pri_molal = conc_current_M ! in mol/kg
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1365,7 +1369,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       coeff_left_pert = coeff_left_copy
       coeff_right_pert = coeff_right_copy
 
-      call RTAuxVarCopy(rt_auxvar,auxvar,option)
+      call RTAuxVarCopy(auxvar,rt_auxvar,option)
       rt_auxvar%pri_molal = conc_prim_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_primary_node_pert = rt_auxvar%total(:,1)
@@ -1463,7 +1467,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       enddo
 
       ! Update the secondary continuum totals at the outer matrix node
-      call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
+      call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(ngcells),rt_auxvar, &
                         option)
       rt_auxvar%pri_molal = conc_current_M_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1843,8 +1847,12 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   material_auxvar%porosity = porosity
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
+  !Needed for ufd decay
+  if (associated(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq) .and. .not.associated(rt_auxvar%total_sorb_eq)) then
+    allocate(rt_auxvar%total_sorb_eq(size(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq,1)))
+  endif
   do i = 1, ngcells
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
@@ -1911,7 +1919,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)

@@ -1230,7 +1230,7 @@ subroutine NWTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
   type(nw_transport_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
-  auxvar%total_bulk_conc = auxvar2%total_bulk_conc
+  auxvar2%total_bulk_conc = auxvar%total_bulk_conc
 
 end subroutine NWTAuxVarCopyInitialGuess
 

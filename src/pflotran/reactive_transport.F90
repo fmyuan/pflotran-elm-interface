@@ -135,6 +135,7 @@ subroutine RTSetup(realization)
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
   PetscInt :: flag(10)
+  PetscReal :: tempreal
 
   option => realization%option
   patch => realization%patch
@@ -242,7 +243,6 @@ subroutine RTSetup(realization)
     do ghosted_id = 1, grid%ngmax
       ! Ignore inactive cells with inactive materials
       if (patch%imat(ghosted_id) <= 0) cycle
-      ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                                  multicontinuum,material_auxvars(ghosted_id)% &
                                    secondary_prop%epsilon, &

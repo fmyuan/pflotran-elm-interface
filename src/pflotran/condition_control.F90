@@ -1432,8 +1432,9 @@ subroutine CondControlAssignRTTranInitCond(realization)
           option%iflag = grid%nG2A(grid%nL2G(local_id))
           if (prev_equilibrated_ghosted_id > 0) then
             ! copy molalities from previous equilibrated auxvar as initial guess
-            call RTAuxVarCopyInitialGuess(rt_auxvars(ghosted_id), &
-              rt_auxvars(prev_equilibrated_ghosted_id),option)
+            call RTAuxVarCopyInitialGuess( &
+                         rt_auxvars(prev_equilibrated_ghosted_id), &
+                         rt_auxvars(ghosted_id),option)
           endif
           call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
             global_auxvars(ghosted_id),material_auxvars(ghosted_id), &

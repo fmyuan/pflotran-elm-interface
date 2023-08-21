@@ -27,9 +27,11 @@ module Inversion_Parameter_module
   PetscInt, parameter :: MAP_ATC = 9
   PetscInt, parameter :: MAP_SURF_ELEC_COND = 10
   PetscInt, parameter :: MAP_WS_CLAY_COND = 11
+  ! MAX_MAP must be updated when new MAP_XXX parameters are added
+  PetscInt, parameter :: MAX_MAP = 11
 
-  ! second index is max MAP # above
-  PetscReal :: parameter_bounds(2,MAP_ATC) = UNINITIALIZED_DOUBLE
+  ! second index is MAX_MAP above
+  PetscReal :: parameter_bounds(2,MAX_MAP) = UNINITIALIZED_DOUBLE
 
   type, public :: inversion_parameter_type
     PetscInt :: id

@@ -93,6 +93,7 @@ function DatasetGlobalHDF5Cast(this)
   class(dataset_global_hdf5_type), pointer :: DatasetGlobalHDF5Cast
 
   nullify(DatasetGlobalHDF5Cast)
+  if (.not.associated(this)) return
   select type (this)
     class is (dataset_global_hdf5_type)
       DatasetGlobalHDF5Cast => this
