@@ -196,9 +196,9 @@ subroutine MphaseSetupPatch(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
       call SecondaryHeatAuxVarInit( &
            patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
-           patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
-           patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
-           INT(patch%aux%Material%auxvars(ghosted_id)%soil_properties(num_sec_cells_index)), &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%epsilon, &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%half_matrix_width, &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%ncells, &
            mphase_sec_heat_vars(local_id), initial_condition, option)
            
     enddo
@@ -1154,7 +1154,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
@@ -1262,7 +1262,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     if (.not.associated(mphase_parameter%dencpr)) print *,'no para'
@@ -2615,7 +2615,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     call MphaseAccumulation(auxvars(ghosted_id)%auxvar_elem(0), &
@@ -2642,7 +2642,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
       if (Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       iend = local_id*option%nflowdof
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
@@ -3463,7 +3463,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
     if (option%use_sc) then
       if (Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       call SecondaryHeatJacobian(sec_heat_vars(local_id), &
                                  mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                                  mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &

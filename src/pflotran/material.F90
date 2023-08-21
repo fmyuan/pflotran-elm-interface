@@ -106,7 +106,7 @@ module Material_module
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
-    PetscReal :: ncells
+    PetscInt :: ncells
     class(dataset_base_type), pointer :: ncells_dataset
     PetscReal :: epsilon
     class(dataset_base_type), pointer :: epsilon_dataset
@@ -873,10 +873,22 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call PrintErrMsg(option,'AREA has been removed as input &
                                &in multiple continuum model.')
             case('NUM_CELLS')
-              call DatasetReadDoubleorDataset(input, &
-                material_property%multicontinuum%ncells, &
-                material_property%multicontinuum%ncells_dataset, &
-                'num cells', 'MATERIAL_PROPERTY',option)
+              string = trim(input%buf)
+              call InputReadNChars(input,option,word,MAXSTRINGLENGTH,PETSC_TRUE)
+              call InputErrorMsg(input,option,'num cells','MATERIAL_PROPERTY')
+              call StringToUpper(word)
+              if (StringCompare(word,'DATASET',SEVEN_INTEGER)) then
+                 material_property%multicontinuum%ncells_dataset => DatasetBaseCreate()
+                 call InputReadNChars(input,option, &
+                                      material_property% &
+                                        multicontinuum%ncells_dataset%name, &
+                                      MAXWORDLENGTH,PETSC_TRUE)
+                 call InputErrorMsg(input,option,'DATASET,NAME','MATERIAL_PROPERTY,num cells')
+              else
+                 input%buf = string
+                 call InputReadInt(input,option,material_property%multicontinuum%ncells)
+                 call InputErrorMsg(input,option,'num cells','MATERIAL_PROPERTY')
+              endif
             case('EPSILON')
               call DatasetReadDoubleorDataset(input, &
                 material_property%multicontinuum%epsilon, &
@@ -1589,15 +1601,12 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_soil_compress
   PetscInt :: num_soil_ref_press
   PetscInt :: num_material_properties
-  PetscInt :: num_epsilon
-  PetscInt :: num_half_matrix_width
   PetscInt :: num_elec_cond
   PetscInt :: num_archie_cement_exp
   PetscInt :: num_archie_sat_exp
   PetscInt :: num_archie_tort_const
   PetscInt :: num_surf_elec_conduct
   PetscInt :: num_ws_clay_conduct
-  PetscInt :: num_sec_cells
   PetscBool :: error_found
   type(multicontinuum_property_type), pointer :: multicontinuum
 
@@ -1607,27 +1616,21 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   num_soil_compress_func = 0
   num_soil_compress = 0
   num_soil_ref_press = 0
-  num_epsilon = 0
-  num_half_matrix_width = 0
   num_elec_cond = 0
   num_archie_cement_exp = 0
   num_archie_sat_exp = 0
   num_archie_tort_const = 0
   num_surf_elec_conduct = 0
   num_ws_clay_conduct = 0
-  num_sec_cells = 0
 
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
-  epsilon_index = 0
-  half_matrix_width_index = 0
   electrical_conductivity_index = 0
   archie_cementation_exp_index = 0
   archie_saturation_exp_index = 0
   archie_tortuosity_index = 0
   surf_elec_conduct_index = 0
   ws_clay_conduct_index = 0
-  num_sec_cells_index = 0
   ! ADD_SOIL_PROPERTY_INDEX_HERE - also need to add num_xxx counter above
   max_material_index = 0
 
@@ -1689,33 +1692,6 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
         soil_reference_pressure_index = icount
       endif
       num_soil_ref_press = num_soil_ref_press + 1
-    endif
-    multicontinuum => material_property_ptrs(i)%ptr%multicontinuum
-    if (associated(multicontinuum)) then
-      if (Initialized(multicontinuum%epsilon) .or. &
-          associated(multicontinuum%epsilon_dataset)) then
-        if (epsilon_index == 0) then
-          icount = icount + 1
-          epsilon_index = icount
-        endif
-        num_epsilon = num_epsilon + 1
-      endif
-      if (Initialized(multicontinuum%half_matrix_width) .or. &
-          associated(multicontinuum%half_matrix_width_dataset)) then
-        if (half_matrix_width_index == 0) then
-          icount = icount + 1
-          half_matrix_width_index = icount
-        endif
-        num_half_matrix_width = num_half_matrix_width + 1
-      endif
-      if (Initialized(multicontinuum%ncells) .or. &
-          associated(multicontinuum%ncells_dataset)) then
-        if (num_sec_cells_index == 0) then
-          icount = icount + 1
-          num_sec_cells_index = icount
-        endif
-        num_sec_cells = num_sec_cells + 1
-      endif
     endif
     if (Initialized(material_property_ptrs(i)% &
                       ptr%electrical_conductivity) .or. &
@@ -1798,20 +1774,6 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       &materials.'
     call PrintMsg(option)
   endif
-  if (epsilon_index > 0 .and. &
-      num_epsilon /= num_material_properties) then
-    error_found = PETSC_TRUE
-    option%io_buffer = 'SECONDARY_CONTINUUM,EPSILON must be defined for all &
-      &materials.'
-    call PrintMsg(option)
-  endif
-  if (half_matrix_width_index > 0 .and. &
-      num_half_matrix_width /= num_material_properties) then
-    error_found = PETSC_TRUE
-    option%io_buffer = 'SECONDARY_CONTINUUM,LENGTH must be defined for all &
-      &materials.'
-    call PrintMsg(option)
-  endif
   if (num_elec_cond > 0 .and. &
       num_elec_cond /= num_material_properties) then
     error_found = PETSC_TRUE
@@ -1854,13 +1816,6 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       &for all materials.'
     call PrintMsg(option)
   endif
-  if (num_sec_cells_index > 0 .and. &
-      num_sec_cells /= num_material_properties) then
-    error_found = PETSC_TRUE
-    option%io_buffer = 'SECONDARY_CONTINUUM,NUM_CELLS must be defined for all &
-      &materials.'
-    call PrintMsg(option)
-  endif
   ! ADD_SOIL_PROPERTY_INDEX_HERE
   if (error_found) then
     option%io_buffer = 'Undefined material properties above.'
@@ -1901,7 +1856,21 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
 
   call FracturePropertytoAux(material_auxvar%fracture, &
                              material_property%fracture)
-
+  if (associated(material_auxvar%secondary_prop)) then
+    if (Initialized(material_property%multicontinuum%epsilon)) then
+      material_auxvar%secondary_prop%epsilon = &
+        material_property%multicontinuum%epsilon
+    endif
+    if (Initialized(material_property%multicontinuum%half_matrix_width)) then
+      material_auxvar%secondary_prop%half_matrix_width = &
+        material_property%multicontinuum%half_matrix_width
+    endif   
+    if (Initialized(material_property%multicontinuum%ncells)) then
+      material_auxvar%secondary_prop%ncells = &
+        material_property%multicontinuum%ncells
+    endif
+  endif
+ 
   if (associated(material_auxvar%soil_properties)) then
     if (soil_compressibility_index > 0) then
       material_auxvar%soil_properties(soil_compressibility_index) = &
@@ -2019,15 +1988,7 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
     case(PERMEABILITY_XZ)
       do i=1, Material%num_aux
         material_auxvars(i)%permeability(perm_xz_index) = value
-      enddo
-    case(EPSILON)
-      do i=1, Material%num_aux
-        material_auxvars(i)%soil_properties(epsilon_index) = value
-      enddo
-    case(HALF_MATRIX_WIDTH)
-      do i=1, Material%num_aux
-        material_auxvars(i)%soil_properties(half_matrix_width_index) = value
-      enddo
+      enddo 
     case(ELECTRICAL_CONDUCTIVITY)
       do i=1, Material%num_aux
         material_auxvars(i)% &
@@ -2127,16 +2088,6 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
       enddo
-    case(EPSILON)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)%&
-          soil_properties(epsilon_index) = vec_loc_p(ghosted_id)
-      enddo
-    case(HALF_MATRIX_WIDTH)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)%&
-          soil_properties(half_matrix_width_index) = vec_loc_p(ghosted_id)
-      enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
@@ -2171,6 +2122,19 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)%permeability(perm_xz_index) = &
           vec_loc_p(ghosted_id)
       enddo
+    case(EPSILON)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)%secondary_prop%epsilon = vec_loc_p(ghosted_id)
+      enddo
+    case(HALF_MATRIX_WIDTH)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)%secondary_prop%half_matrix_width = vec_loc_p(ghosted_id)
+      enddo
+    case(NUM_SEC_CELLS)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)% &
+          secondary_prop%ncells = INT(vec_loc_p(ghosted_id))
+      enddo 
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)% &
@@ -2201,11 +2165,6 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         material_auxvars(ghosted_id)% &
           soil_properties(ws_clay_conduct_index) = vec_loc_p(ghosted_id)
       enddo
-    case(NUM_SEC_CELLS)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)%&
-          soil_properties(num_sec_cells_index) = vec_loc_p(ghosted_id)
-      enddo 
     ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 

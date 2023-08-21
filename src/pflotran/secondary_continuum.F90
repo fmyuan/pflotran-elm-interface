@@ -537,7 +537,7 @@ subroutine SecondaryRTTimeCut(realization)
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
     if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-        soil_properties(epsilon_index)),1.d0)) cycle
+        secondary_prop%epsilon),1.d0)) cycle
     do comp = 1, ncomp
       ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
@@ -1557,7 +1557,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_diffusion_coefficient = realization%patch% &
                                   material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                                   multicontinuum%diff_coeff

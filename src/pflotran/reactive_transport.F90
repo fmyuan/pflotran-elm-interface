@@ -245,11 +245,11 @@ subroutine RTSetup(realization)
       ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                                  multicontinuum,material_auxvars(ghosted_id)% &
-                                   soil_properties(epsilon_index), &
+                                   secondary_prop%epsilon, &
                                  material_auxvars(ghosted_id)% &
-                                   soil_properties(half_matrix_width_index), &
-                                 INT(material_auxvars(ghosted_id)% &
-                                   soil_properties(num_sec_cells_index)), &
+                                   secondary_prop%half_matrix_width, &
+                                 material_auxvars(ghosted_id)% &
+                                   secondary_prop%ncells, &
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,option)
     enddo
@@ -523,7 +523,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
     porosity = material_auxvars(ghosted_id)%porosity
     if (option%use_sc) then
       volume = material_auxvars(ghosted_id)%volume * &
-          material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+          material_auxvars(ghosted_id)%secondary_prop%epsilon
     else
       volume = material_auxvars(ghosted_id)%volume ! [m^3]
     endif
@@ -834,7 +834,7 @@ subroutine RTUpdateEquilibriumState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_porosity = patch%material_property_array(patch%imat(ghosted_id))% &
                       ptr%multicontinuum%porosity
       call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
@@ -917,7 +917,7 @@ subroutine RTUpdateKineticState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_porosity = patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                       multicontinuum%porosity
 
@@ -2777,7 +2777,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       offset = (local_id-1)*reaction%ncomp
       istartall = offset + 1
       iendall = offset + reaction%ncomp
@@ -3496,7 +3496,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
           jac_transport = rt_sec_transport_vars(ghosted_id)%sec_jac
         else
           if (.not.Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) then
+          secondary_prop%epsilon),1.d0)) then
             option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
             call PrintErrMsg(option)
