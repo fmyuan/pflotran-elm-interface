@@ -302,7 +302,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, buffer_save
   character(len=MAXSTRINGLENGTH) :: tcc_name
 
   PetscInt :: length
@@ -873,11 +873,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call PrintErrMsg(option,'AREA has been removed as input &
                                &in multiple continuum model.')
             case('NUM_CELLS')
-              string = trim(input%buf)
-              call InputReadNChars(input,option,word,MAXSTRINGLENGTH,PETSC_TRUE)
+              buffer_save = trim(input%buf)
+              call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
               call InputErrorMsg(input,option,'num cells','MATERIAL_PROPERTY')
-              call StringToUpper(word)
-              if (StringCompare(word,'DATASET',SEVEN_INTEGER)) then
+              call StringToUpper(string)
+              if (StringCompare(string,'DATASET',SEVEN_INTEGER)) then
                  material_property%multicontinuum%ncells_dataset => DatasetBaseCreate()
                  call InputReadNChars(input,option, &
                                       material_property% &
@@ -885,7 +885,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                       MAXWORDLENGTH,PETSC_TRUE)
                  call InputErrorMsg(input,option,'DATASET,NAME','MATERIAL_PROPERTY,num cells')
               else
-                 input%buf = string
+                 input%buf = buffer_save
                  call InputReadInt(input,option,material_property%multicontinuum%ncells)
                  call InputErrorMsg(input,option,'num cells','MATERIAL_PROPERTY')
               endif
@@ -1608,7 +1608,6 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_surf_elec_conduct
   PetscInt :: num_ws_clay_conduct
   PetscBool :: error_found
-  type(multicontinuum_property_type), pointer :: multicontinuum
 
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp

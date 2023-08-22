@@ -135,7 +135,6 @@ subroutine RTSetup(realization)
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
   PetscInt :: flag(10)
-  PetscReal :: tempreal
 
   option => realization%option
   patch => realization%patch
