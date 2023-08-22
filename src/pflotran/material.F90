@@ -2129,10 +2129,10 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%secondary_prop%half_matrix_width = vec_loc_p(ghosted_id)
       enddo
-    case(NUM_SEC_CELLS)
+    case(NUMBER_SECONDARY_CELLS)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)% &
-          secondary_prop%ncells = INT(vec_loc_p(ghosted_id))
+          secondary_prop%ncells = int(vec_loc_p(ghosted_id))
       enddo 
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux

@@ -313,7 +313,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, ELECTRICAL_CONDUCTIVITY, &
-                               HALF_MATRIX_WIDTH, NUM_SEC_CELLS
+                               HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS
 
   use HDF5_module
   use Utility_module, only : DeallocateArray
@@ -568,7 +568,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                  material_property%internal_id,PETSC_FALSE,field%work)
           call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
                                                material_property%internal_id, &
-                                               NUM_SEC_CELLS)
+                                               NUMBER_SECONDARY_CELLS)
         endif
       endif
     endif
@@ -691,7 +691,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, patch%grid%ngmax
       material_auxvars(ghosted_id)%secondary_prop%ncells = &
-         INT(vec_p(ghosted_id))
+         int(vec_p(ghosted_id))
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr) 
   endif

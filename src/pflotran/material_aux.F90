@@ -167,7 +167,7 @@ function MaterialAuxCreate(option)
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
-                               NUM_SEC_CELLS
+                               NUMBER_SECONDARY_CELLS
 
   implicit none
 
@@ -830,8 +830,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%secondary_prop%epsilon = value
     case(HALF_MATRIX_WIDTH)
       material_auxvar%secondary_prop%half_matrix_width = value
-    case(NUM_SEC_CELLS)
-      material_auxvar%secondary_prop%ncells = INT(value)
+    case(NUMBER_SECONDARY_CELLS)
+      material_auxvar%secondary_prop%ncells = int(value)
     case(ELECTRICAL_CONDUCTIVITY)
       material_auxvar%soil_properties(electrical_conductivity_index) = value
     case(ARCHIE_CEMENTATION_EXPONENT)

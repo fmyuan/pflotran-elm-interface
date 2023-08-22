@@ -6705,7 +6705,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         EPSILON,HALF_MATRIX_WIDTH, NUM_SEC_CELLS,&
+         EPSILON,HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS,&
          SOIL_REFERENCE_PRESSURE, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
          ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
@@ -7091,7 +7091,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
             if (size(patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp) < isubvar) then
-              value = -999
+              value = UNINITIALIZED_DOUBLE
             else
               value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
             endif
@@ -7232,7 +7232,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
             if (size(patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp) < isubvar) then
-              value = -999
+              value = UNINITIALIZED_DOUBLE
             else
               value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
             endif
@@ -7904,7 +7904,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
        local_id = grid%nG2L(ghosted_id)
        if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
                 sec_rt_auxvar) < isubvar) then
-          value = -999
+          value = UNINITIALIZED_DOUBLE
        else
          value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
                  sec_rt_auxvar(isubvar)%total(isubvar2,1)
@@ -7913,7 +7913,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       local_id = grid%nG2L(ghosted_id)
       if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
                sec_rt_auxvar) < isubvar) then
-        value = -999
+        value = UNINITIALIZED_DOUBLE
       else
         value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
                 sec_rt_auxvar(isubvar)%gas_pp(isubvar2)
@@ -7922,7 +7922,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       local_id = grid%nG2L(ghosted_id)
       if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
                sec_rt_auxvar) < isubvar) then
-        value = -999
+        value = UNINITIALIZED_DOUBLE
       else
         value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
                 sec_rt_auxvar(isubvar)%mnrl_volfrac(isubvar2)
@@ -7931,7 +7931,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       local_id = grid%nG2L(ghosted_id)
       if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
                sec_rt_auxvar) < isubvar) then
-        value = -999
+        value = UNINITIALIZED_DOUBLE
       else
         value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
                 sec_rt_auxvar(isubvar)%mnrl_rate(isubvar2)
@@ -7940,7 +7940,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       local_id = grid%nG2L(ghosted_id)
       if (size(patch%aux%SC_RT%sec_transport_vars(local_id)% &
                sec_rt_auxvar) < isubvar) then
-        value = -999
+        value = UNINITIALIZED_DOUBLE
       else
         value = RMineralSaturationIndex(isubvar2,&
                                         patch%aux%SC_RT% &

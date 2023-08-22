@@ -2177,7 +2177,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
       do local_id=1,grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
                  sec_rt_auxvar) < mc_layer) then
-          vec_p(local_id) = -999
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
         else   
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
@@ -2188,7 +2188,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
                  sec_rt_auxvar) < mc_layer) then
-           vec_p(local_id) = -999
+           vec_p(local_id) = UNINITIALIZED_DOUBLE
         else
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
@@ -2199,7 +2199,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
                  sec_rt_auxvar) < mc_layer) then  
-          vec_p(local_id) = -999
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
         else
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
@@ -2210,7 +2210,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
                  sec_rt_auxvar) < mc_layer) then  
-          vec_p(local_id) = -999
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
         else  
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
@@ -2221,7 +2221,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
                  sec_rt_auxvar) < mc_layer) then  
-          vec_p(local_id) = -999  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
         else
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
@@ -2278,35 +2278,35 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1, grid%nlmax
-        if (vec_p(local_id) /= -999) then
+        if (Initialized(vec_p(local_id))) then
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             updated_conc(isubvar,mc_layer) = vec_p(local_id)
         endif
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        if (vec_p(local_id) /= -999) then   
+        if (Initialized(vec_p(local_id))) then   
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
         endif  
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        if (vec_p(local_id) /= -999) then  
+        if (Initialized(vec_p(local_id))) then 
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
         endif 
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        if (vec_p(local_id) /= -999) then
+        if (Initialized(vec_p(local_id))) then
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
         endif
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        if (vec_p(local_id) /= -999) then  
+        if (Initialized(vec_p(local_id))) then 
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
         endif

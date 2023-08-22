@@ -915,7 +915,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       endif
       if (associated(cur_material_property%multicontinuum%ncells_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-                 '),NUM_SEC_CELLS'
+                 '),NUM_CELLS'
         dataset => &
           DatasetBaseGetPointer(realization%datasets, &
                                 cur_material_property% &
