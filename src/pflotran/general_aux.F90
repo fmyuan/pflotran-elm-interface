@@ -4591,7 +4591,100 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
        endif
 
        x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+#ifdef HEEHO_PERTURBATION
+       pert(GENERAL_GAS_PRESSURE_DOF) = &
+            max(perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF), &
+            min_pres_tol)
+       if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > 1.d0) then
+          tempreal = max(perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF), &
+               min_airu_tol)
+       else
+          tempreal = max(perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF), &
+               min_airl_tol)
+       endif
+       if (x(GENERAL_GAS_PRESSURE_DOF) - &
+            x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+          pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+       else
+          pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+       endif
+       pert(GENERAL_ENERGY_DOF) = max(perturbation_tolerance*x(GENERAL_ENERGY_DOF), &
+            min_temp_tol)
+#else
+#ifdef LEGACY_PERTURBATION
+       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
+       !pert(GENERAL_GAS_PRESSURE_DOF) = &
+       !  -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
 
+       ! perturb air pressure towards gas pressure unless the perturbed
+       ! air pressure exceeds the gas pressure
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+             perturbation_tolerance* &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)) then
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+             perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+             -1.d0*perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
+       else
+         if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+            1.d3 * perturbation_tolerance) then
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
+       endif
+       pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF)
+#else
+       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
+       !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+       !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+
+       !MAN: Try perturbing upward, because lower gas pressure is associated with
+       !     lower gas saturation (i.e. two-phase)
+       pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
+                                x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
+
+       ! perturb air pressure towards gas pressure unless the perturbed
+       ! air pressure exceeds the gas pressure
+       tempreal = perturbation_tolerance* &
+                  x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+         else
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         endif
+       else
+         if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+            1.d3 * perturbation_tolerance) then
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
+       endif
+
+       if (x(GENERAL_POROSITY_DOF) > &
+            1.d3 * perturbation_tolerance) then
+          pert(GENERAL_POROSITY_DOF) = -1.d0 * perturbation_tolerance
+       else
+          pert(GENERAL_POROSITY_DOF) = perturbation_tolerance
+       endif
+       pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
+#endif
+#endif
     case(LGP_STATE)
       if (x(GENERAL_PRECIPITATE_SAT_DOF) > 0.50) THEN
          pert(GENERAL_PRECIPITATE_SAT_DOF) = -1.d0 * perturbation_tolerance
