@@ -151,8 +151,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFKRP11Create()
           case('BRAGFLO_KRP12')
             this%saturation_function => SFKRP12Create()
-          case('IGHCC2_COMP')
-            this%saturation_function => SFIGHCC2CompCreate()
+          case('IGHCC2')
+            this%saturation_function => SFIGHCC2Create()
+          case('EXP_FREEZING')
+            this%saturation_function => SFExpFreezingCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
           case('PCHIP')
@@ -285,11 +287,11 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('MODIFIED_KOSUGI_GAS')
             rel_perm_function_ptr => RPFmKGasCreate()
             phase_keyword = 'GAS'
-          case('IGHCC2_COMP_LIQ')
-            rel_perm_function_ptr => RPFIGHCC2CompLiqCreate()
+          case('IGHCC2_LIQ')
+            rel_perm_function_ptr => RPFIGHCC2LiqCreate()
             phase_keyword = 'LIQUID'
-          case('IGHCC2_COMP_GAS')
-            rel_perm_function_ptr => RPFIGHCC2CompGasCreate()
+          case('IGHCC2_GAS')
+            rel_perm_function_ptr => RPFIGHCC2GasCreate()
             phase_keyword = 'GAS'
           case('MODIFIED_BROOKS_COREY','MODIFIED_BROOKS_COREY_LIQ')
             rel_perm_function_ptr => RPFModBrooksCoreyLiqCreate()
@@ -446,8 +448,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
       error_string = trim(error_string) // 'BRAGFLO_KRP11'
     class is(sat_func_KRP12_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
-    class is(sat_func_IGHCC2_Comp_type)
-      error_string = trim(error_string) // 'IGHCC2_COMP'
+    class is(sat_func_IGHCC2_type)
+      error_string = trim(error_string) // 'IGHCC2'
+    class is(sat_func_Exp_Freezing_type)
+      error_string = trim(error_string) // 'EXP_FREEZING'
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
     class is (sf_pchip_type)
@@ -885,7 +889,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
         end select
     !------------------------------------------
-      class is(sat_func_IGHCC2_Comp_type)
+      class is(sat_func_IGHCC2_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,sf%m)
@@ -897,6 +901,17 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputKeywordUnrecognized(input,keyword, &
                    'saturation function IGHCC2 Comparison',option)
         end select
+    !------------------------------------------
+      class is(sat_func_Exp_Freezing_type)
+        select case(keyword)
+          case('W')
+            call InputReadDouble(input,option,sf%w)
+            call InputErrorMsg(input,option,'w',error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+                   'saturation function exponential freezing',option)
+        end select
+    !------------------------------------------
       class is (sat_func_Table_type)
         select case(keyword)
           case('FILE')
@@ -1149,10 +1164,10 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_LIQ'
     class is(rpf_mK_gas_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_GAS'
-    class is(rpf_IGHCC2_Comp_liq_type)
-      error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
-    class is(rpf_IGHCC2_Comp_gas_type)
-      error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
+    class is(rpf_IGHCC2_liq_type)
+      error_string = trim(error_string) // 'IGHCC2_LIQ'
+    class is(rpf_IGHCC2_gas_type)
+      error_string = trim(error_string) // 'IGHCC2_GAS'
       class is(rpf_mod_Brooks_Corey_liq_type)
       error_string = trim(error_string) // 'MODIFIED_BROOKS_COREY_LIQ'
     class is(rpf_mod_Brooks_Corey_gas_type)
@@ -1689,7 +1704,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_IGHCC2_Comp_liq_type)
+      class is(rpf_IGHCC2_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1700,7 +1715,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_IGHCC2_Comp_gas_type)
+      class is(rpf_IGHCC2_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -2133,9 +2148,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
             gas_res_sat = rpf%Sr
           class is(rel_perm_func_default_type)
             gas_res_sat = rpf%Sr
-          class is (rpf_IGHCC2_comp_liq_type)
+          class is (rpf_IGHCC2_liq_type)
             gas_res_sat = rpf%Sr
-          class is (rpf_IGHCC2_comp_gas_type)
+          class is (rpf_IGHCC2_gas_type)
             gas_res_sat = rpf%Srg
           class default
             option%io_buffer = 'Relative permeability class not supported in &
