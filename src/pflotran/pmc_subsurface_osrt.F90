@@ -197,6 +197,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_linear_iterations_temp
   PetscInt :: sum_wasted_linear_iterations
+  PetscInt :: num_timesteps
+  PetscInt :: num_kinetic_state_updates
+  PetscInt :: max_num_kinetic_state_updates
   PetscInt :: icut
   PetscInt :: rstep_error
   PetscInt :: tempint
@@ -372,6 +375,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     log_start_time = log_end_time
 
     ! react all chemical components
+    max_num_kinetic_state_updates = 0
     call VecGetArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -389,9 +393,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       endif
       call RStep(guess,rt_auxvars(ghosted_id), &
                  global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
-                 num_iterations,reaction,grid%nG2A(ghosted_id),option, &
-                 rstep_error)
+                 num_timesteps,num_iterations,num_kinetic_state_updates, &
+                 reaction,grid%nG2A(ghosted_id),option,rstep_error)
       sum_newton_iterations = sum_newton_iterations + num_iterations
+      max_num_kinetic_state_updates = max(max_num_kinetic_state_updates, &
+                                          num_kinetic_state_updates)
       if (rstep_error /= 0) exit
       ! set primary dependent var back to free-ion molality
       iend = offset_global + reaction%naqcomp
@@ -413,6 +419,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       process_model%cumulative_newton_iterations + sum_newton_iterations
 
     if (rstep_error /= 0) then
+      if (max_num_kinetic_state_updates > 1) then
+        option%io_buffer = 'RStep() failed with > 1 substeps. You must use &
+          &global implicit reactive transport (GIRT).'
+        call PrintErrMsg(option)
+      endif
       !TODO(geh): move to timestepper base and call from daughters.
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
         sum_linear_iterations_temp
@@ -443,7 +454,6 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
            sum_linear_iterations,timestepper%cumulative_linear_iterations, &
            icut,timestepper%cumulative_time_step_cuts
   call PrintMsg(option)
-
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + &
