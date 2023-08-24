@@ -765,6 +765,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       hyd_auxvar%xmol(acid,lid) = max(0.d0,hyd_auxvar%xmol(acid,lid))
 
+
       hyd_auxvar%xmol(wid,lid) = 1.d0 - hyd_auxvar%xmol(acid,lid)
       hyd_auxvar%xmol(wid,gid) = 0.d0
       hyd_auxvar%xmol(acid,gid) = 0.d0

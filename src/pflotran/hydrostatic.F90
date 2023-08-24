@@ -144,18 +144,20 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
     case(H_MODE)
-      temperature_at_datum = &
-        condition%hydrate%temperature%dataset%rarray(1)
-      if (associated(condition%hydrate%temperature%gradient)) then
-        temperature_gradient(1:3) = &
-          condition%hydrate%temperature%gradient%rarray(1:3)
-      endif
-      if (associated(condition%hydrate%mole_fraction)) then
-        concentration_at_datum = &
-          condition%hydrate%mole_fraction%dataset%rarray(1)
-        if (associated(condition%hydrate%mole_fraction%gradient)) then
-          concentration_gradient(1:3) = &
-          condition%hydrate%mole_fraction%gradient%rarray(1:3)
+      if (associated(condition%hydrate%temperature)) then
+        temperature_at_datum = &
+          condition%hydrate%temperature%dataset%rarray(1)
+        if (associated(condition%hydrate%temperature%gradient)) then
+          temperature_gradient(1:3) = &
+            condition%hydrate%temperature%gradient%rarray(1:3)
+        endif
+        if (associated(condition%hydrate%mole_fraction)) then
+          concentration_at_datum = &
+            condition%hydrate%mole_fraction%dataset%rarray(1)
+          if (associated(condition%hydrate%mole_fraction%gradient)) then
+            concentration_gradient(1:3) = &
+            condition%hydrate%mole_fraction%gradient%rarray(1:3)
+          endif
         endif
       endif
       pressure_at_datum = &
