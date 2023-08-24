@@ -10,7 +10,8 @@ module Inversion_Parameter_module
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
-                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                               VERTICAL_PERM_ANISOTROPY_RATIO
 
   implicit none
 
@@ -27,8 +28,9 @@ module Inversion_Parameter_module
   PetscInt, parameter :: MAP_ATC = 9
   PetscInt, parameter :: MAP_SURF_ELEC_COND = 10
   PetscInt, parameter :: MAP_WS_CLAY_COND = 11
+  PetscInt, parameter :: MAP_VERT_PERM_ANISO_RATIO = 12
   ! MAX_MAP must be updated when new MAP_XXX parameters are added
-  PetscInt, parameter :: MAX_MAP = 11
+  PetscInt, parameter :: MAX_MAP = 12
 
   ! second index is MAX_MAP above
   PetscReal :: parameter_bounds(2,MAX_MAP) = UNINITIALIZED_DOUBLE
@@ -358,6 +360,8 @@ function InversionParamGetItypeFromName(name_,driver)
       i = SURFACE_ELECTRICAL_CONDUCTIVITY
     case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
       i = WAXMAN_SMITS_CLAY_CONDUCTIVITY
+    case('VERTICAL_PERM_ANISOTROPY_RATIO')
+      i = VERTICAL_PERM_ANISOTROPY_RATIO
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParamGetItypeFromName: ' // &
@@ -410,6 +414,8 @@ function InversionParamGetNameFromItype(itype,driver)
       word = 'SURFACE_ELECTRICAL_CONDUCTIVITY'
     case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       word = 'WAXMAN_SMITS_CLAY_CONDUCTIVITY'
+    case(VERTICAL_PERM_ANISOTROPY_RATIO)
+      word = 'VERTICAL_PERM_ANISOTROPY_RATIO'
     case default
       call driver%PrintErrMsg('Unrecognized parameter in &
                               &InversionParamGetNameFromItype: ' // &
@@ -458,6 +464,8 @@ function InvParamItypeToItypeInternal(itype)
       i = MAP_SURF_ELEC_COND
     case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       i = MAP_WS_CLAY_COND
+    case(VERTICAL_PERM_ANISOTROPY_RATIO)
+      i = MAP_VERT_PERM_ANISO_RATIO
     case default
       print *, 'Unrecognized parameter in &
                &InvParamItypeToItypeInternal: ', itype
@@ -498,6 +506,8 @@ subroutine InversionParamInitBounds()
                                      0.d0,0.1d0)
   call InversionParamSetGlobalBounds(WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                      0.d0,0.1d0)
+  call InversionParamSetGlobalBounds(VERTICAL_PERM_ANISOTROPY_RATIO, &
+                                     0.01d0,100.d0)
 
 end subroutine InversionParamInitBounds
 
