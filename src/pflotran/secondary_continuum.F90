@@ -75,7 +75,9 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
   data icall/0/
 
   igeom = sec_continuum%itype
-  option%nsec_cells = nmat
+  if (option%nsec_cells < nmat) then
+    option%nsec_cells = nmat
+  endif
 
   select case (igeom)
     case(SLAB)
@@ -535,7 +537,7 @@ subroutine SecondaryRTTimeCut(realization)
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
     if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-        soil_properties(epsilon_index)),1.d0)) cycle
+        secondary_prop%epsilon),1.d0)) cycle
     do comp = 1, ncomp
       ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
@@ -550,7 +552,7 @@ end subroutine SecondaryRTTimeCut
 ! ************************************************************************** !
 
 subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
-                                 rt_sec_transport_vars,reaction,option)
+                                 ncells,rt_sec_transport_vars,reaction,option)
   !
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -572,7 +574,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
 
-  PetscInt :: cell
+  PetscInt :: cell, ncells
   PetscReal :: area_per_vol
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
@@ -586,7 +588,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
         multicontinuum%radius, &
         multicontinuum%porosity, option)
 
-  rt_sec_transport_vars%ncells = multicontinuum%ncells
+  rt_sec_transport_vars%ncells = ncells
   rt_sec_transport_vars%half_aperture = multicontinuum%half_aperture
   rt_sec_transport_vars%epsilon = epsilon
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
@@ -645,7 +647,7 @@ end subroutine SecondaryRTAuxVarInit
 
 ! ************************************************************************** !
 subroutine SecondaryHeatAuxVarInit(multicontinuum, &
-                               epsilon,half_matrix_width, &
+                               epsilon,half_matrix_width,ncells, &
                                sec_heat_vars, initial_condition,option)
 
   ! Initializes all the secondary continuum heat
@@ -669,6 +671,7 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
   PetscReal :: area_per_vol
+  PetscInt :: ncells
 
   call SecondaryContinuumSetProperties( &
        sec_heat_vars%sec_continuum, &
@@ -680,7 +683,7 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
        multicontinuum%porosity, &
        option)
 
-  sec_heat_vars%ncells = multicontinuum%ncells
+  sec_heat_vars%ncells = ncells
   sec_heat_vars%half_aperture = multicontinuum%half_aperture
   sec_heat_vars%epsilon = epsilon
   sec_heat_vars%log_spacing = multicontinuum%log_spacing
@@ -1558,7 +1561,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_diffusion_coefficient = realization%patch% &
                                   material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                                   multicontinuum%diff_coeff
@@ -2172,33 +2175,58 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1,grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          updated_conc(isubvar,mc_layer)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else   
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            updated_conc(isubvar,mc_layer)
+        endif
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then
+           vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar)
+        endif
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar)
+        endif
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else  
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
+        endif
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
+        endif
       enddo
   end select
 
@@ -2250,28 +2278,38 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          updated_conc(isubvar,mc_layer) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            updated_conc(isubvar,mc_layer) = vec_p(local_id)
+        endif
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then   
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
+        endif  
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then 
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
+        endif 
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
+        endif
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then 
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
+        endif
       enddo
   end select
 

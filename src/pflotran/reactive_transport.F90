@@ -134,7 +134,6 @@ subroutine RTSetup(realization)
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
   PetscInt :: flag(10)
-  PetscReal :: tempreal
 
   option => realization%option
   patch => realization%patch
@@ -242,26 +241,17 @@ subroutine RTSetup(realization)
     do ghosted_id = 1, grid%ngmax
       ! Ignore inactive cells with inactive materials
       if (patch%imat(ghosted_id) <= 0) cycle
-      if (half_matrix_width_index > 0) then
-        tempreal = material_auxvars(ghosted_id)% &
-                     soil_properties(half_matrix_width_index)
-      endif
-      ! Assuming the same secondary continuum type for all regions
-      call SecondaryRTAuxVarInit( &
-                patch%material_property_array(patch%imat(ghosted_id))%ptr% &
-                  multicontinuum, &
-                material_auxvars(ghosted_id)%soil_properties(epsilon_index), &
-                tempreal,rt_sec_transport_vars(ghosted_id),reaction,option)
+      call SecondaryRTAuxVarInit(patch%material_property_array(patch%imat(ghosted_id))%ptr% &
+                                 multicontinuum,material_auxvars(ghosted_id)% &
+                                   secondary_prop%epsilon, &
+                                 material_auxvars(ghosted_id)% &
+                                   secondary_prop%half_matrix_width, &
+                                 material_auxvars(ghosted_id)% &
+                                   secondary_prop%ncells, &
+                                 rt_sec_transport_vars(ghosted_id), &
+                                 reaction,option)
     enddo
     patch%aux%SC_RT%sec_transport_vars => rt_sec_transport_vars
-    do i = 1, size(patch%material_property_array)
-      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
-           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
-        option%io_buffer = &
-          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
-        call PrintErrMsg(option)
-      endif
-    enddo
   endif
 
 !===============================================================================
@@ -531,7 +521,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
     porosity = material_auxvars(ghosted_id)%porosity
     if (option%use_sc) then
       volume = material_auxvars(ghosted_id)%volume * &
-          material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+          material_auxvars(ghosted_id)%secondary_prop%epsilon
     else
       volume = material_auxvars(ghosted_id)%volume ! [m^3]
     endif
@@ -842,7 +832,7 @@ subroutine RTUpdateEquilibriumState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_porosity = patch%material_property_array(patch%imat(ghosted_id))% &
                       ptr%multicontinuum%porosity
       call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
@@ -926,7 +916,7 @@ subroutine RTUpdateKineticState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_porosity = patch%material_property_array(patch%imat(ghosted_id))%ptr% &
                       multicontinuum%porosity
 
@@ -2584,7 +2574,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       offset = (local_id-1)*reaction%ncomp
       istartall = offset + 1
       iendall = offset + reaction%ncomp
@@ -3303,7 +3293,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
           jac_transport = rt_sec_transport_vars(ghosted_id)%sec_jac
         else
           if (.not.Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) then
+          secondary_prop%epsilon),1.d0)) then
             option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
             call PrintErrMsg(option)

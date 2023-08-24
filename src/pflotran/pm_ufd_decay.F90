@@ -1439,7 +1439,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 
           if (this%option%use_sc) then
             if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
-                soil_properties(epsilon_index)),1.d0)) cycle
+                secondary_prop%epsilon),1.d0)) cycle
             rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
             if (UnInitialized(this%element_Kd(iele,imat,2))) then
               element_Kd => &
@@ -1702,7 +1702,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       por = patch%material_property_array(patch%imat(ghosted_id)) &
             %ptr%multicontinuum%porosity
       if (.not.Equal((material_auxvars(ghosted_id)% &
-           soil_properties(epsilon_index)),1.d0)) then
+           secondary_prop%epsilon),1.d0)) then
         do cell = 1, rt_sec_transport_vars%ncells
           vol = rt_sec_transport_vars%vol(cell)
           vps = vol * por * sat
@@ -1714,7 +1714,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
         enddo
       endif
       vol = material_auxvars(ghosted_id)%volume * material_auxvars(ghosted_id)% &
-              soil_properties(epsilon_index)
+              secondary_prop%epsilon
     else
       vol = material_auxvars(ghosted_id)%volume
     endif
