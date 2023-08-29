@@ -5882,95 +5882,19 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   PetscBool :: kinetic_state_updated
   type(option_type) :: option
 
-  PetscInt :: imnrl, iaqspec, ncomp, icomp
-  PetscInt :: k, irate, irxn, icplx, ncplx, ikinrxn
-  PetscReal :: kdt, one_plus_kdt, k_over_one_plus_kdt
-  PetscReal :: delta_volfrac
-  PetscReal :: res(reaction%ncomp)
-  PetscReal :: jac(reaction%ncomp,reaction%ncomp)
-
-  ! update mineral volume fractions
+  ! toggled true if any kinetic states are updated in the routines below
   kinetic_state_updated = PETSC_FALSE
-  if (reaction%mineral%nkinmnrl > 0) then
-    kinetic_state_updated = PETSC_TRUE
 
-    ! Updates the mineral rates, res is not needed
-    call RKineticMineral(res,jac,PETSC_FALSE,rt_auxvar,global_auxvar, &
-                         material_auxvar,reaction,option)
+  call MineralUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
+                                 reaction,kinetic_state_updated,option)
 
-    do imnrl = 1, reaction%mineral%nkinmnrl
-      ! rate = mol/m^3/sec
-      ! dvolfrac = m^3 mnrl/m^3 bulk = rate (mol mnrl/m^3 bulk/sec) *
-      !                                mol_vol (m^3 mnrl/mol mnrl)
-      delta_volfrac = rt_auxvar%mnrl_rate(imnrl)* &
-                      reaction%mineral%kinmnrl_molar_vol(imnrl)* &
-                      option%tran_dt
-      rt_auxvar%mnrl_volfrac(imnrl) = rt_auxvar%mnrl_volfrac(imnrl) + &
-                                      delta_volfrac
-      if (rt_auxvar%mnrl_volfrac(imnrl) < 0.d0) &
-        rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
-
-      ! CO2-specific
-      if (option%iflowmode == MPH_MODE) then
-        ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
-        do iaqspec = 1, ncomp
-          icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)
-          if (icomp == reaction%species_idx%co2_aq_id) then
-            global_auxvar%reaction_rate(2) &
-              = global_auxvar%reaction_rate(2) &
-              + rt_auxvar%mnrl_rate(imnrl)*option%tran_dt &
-              * reaction%mineral%kinmnrlstoich(iaqspec,imnrl) /option%flow_dt
-            cycle
-          endif
-        enddo
-
-!       water rate
-        if (reaction%mineral%kinmnrlh2ostoich(imnrl) /= 0) then
-          global_auxvar%reaction_rate(1) &
-            = global_auxvar%reaction_rate(1) &
-            + rt_auxvar%mnrl_rate(imnrl)*option%tran_dt &
-            * reaction%mineral%kinmnrlh2ostoich(imnrl) /option%flow_dt
-        endif
-      endif
-    enddo
-  endif
-
-  ! update multirate sorption concentrations
-! WARNING: below assumes site concentration multiplicative factor
-  if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0) then
-    kinetic_state_updated = PETSC_TRUE
-    do irxn = 1, reaction%surface_complexation%nkinmrsrfcplxrxn
-      do irate = 1, reaction%surface_complexation%kinmr_nrate(irxn)
-        kdt = reaction%surface_complexation%kinmr_rate(irate,irxn) * &
-              option%tran_dt
-        one_plus_kdt = 1.d0 + kdt
-        k_over_one_plus_kdt = &
-          reaction%surface_complexation%kinmr_rate(irate,irxn)/one_plus_kdt
-        rt_auxvar%kinmr_total_sorb(:,irate,irxn) = &
-          (rt_auxvar%kinmr_total_sorb(:,irate,irxn) + &
-          kdt * reaction%surface_complexation%kinmr_frac(irate,irxn) * &
-          rt_auxvar%kinmr_total_sorb(:,0,irxn))/one_plus_kdt
-      enddo
-    enddo
-  endif
-
-  ! update kinetic sorption concentrations
-  if (reaction%surface_complexation%nkinsrfcplxrxn > 0) then
-    kinetic_state_updated = PETSC_TRUE
-    do ikinrxn = 1, reaction%surface_complexation%nkinsrfcplxrxn
-      irxn = reaction%surface_complexation%&
-                kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
-      ncplx = reaction%surface_complexation%srfcplxrxn_to_complex(0,irxn)
-      do k = 1, ncplx ! ncplx in rxn
-        icplx = reaction%surface_complexation%srfcplxrxn_to_complex(k,irxn)
-        rt_auxvar%kinsrfcplx_conc(icplx,ikinrxn) = &
-          rt_auxvar%kinsrfcplx_conc_kp1(icplx,ikinrxn)
-      enddo
-    enddo
-  endif
+  call RSrfCplxMRUpdateKinState(rt_auxvar,reaction, &
+                                kinetic_state_updated,option)
+  call RSrfCplxUpdateKinState(rt_auxvar,reaction, &
+                              kinetic_state_updated,option)
 
   if (associated(rxn_sandbox_list)) then
-    kinetic_state_updated = PETSC_TRUE
+    kinetic_state_updated = PETSC_TRUE ! we assume true for all
     call RSandboxUpdateKineticState(rt_auxvar,global_auxvar, &
                                     material_auxvar,reaction,option)
   endif

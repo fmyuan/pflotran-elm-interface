@@ -22,7 +22,8 @@ module Reaction_Mineral_module
             RKineticMineral, &
             RMineralSaturationIndex, &
             MineralUpdateTempDepCoefs, &
-            MineralUpdateSpecSurfaceArea
+            MineralUpdateSpecSurfaceArea, &
+            MineralUpdateKineticState
 
 contains
 
@@ -800,7 +801,7 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
       if (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0) cycle
 
 !    if ((mineral%kinmnrl_irreversible(imnrl) == 0 &
-!      .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0)) &
+!      .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0)) &
 !      .or. (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0)) then
 
 !     check for supersaturation threshold for precipitation
@@ -1083,7 +1084,7 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
                         prefactor,ln_prefactor_spec,cycle_, &
                         reaction,mineral,option)
   !
-  ! Calculates the mineral saturation index
+  ! Calculates the mineral kinetic rate for a single mineral
   !
   ! Author: Glenn Hammond
   ! Date: 08/29/11
@@ -1147,14 +1148,14 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
 
   sign_ = sign(1.d0,affinity_factor)
 
-  if (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0) then
+  if (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0) then
     if (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0) then
       cycle_ = PETSC_TRUE
       return
     endif
 
 !  if ((mineral%kinmnrl_irreversible(imnrl) == 0 &
-!    .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0)) &
+!    .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0)) &
 !    .or. (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0)) then
 
 !     check for supersaturation threshold for precipitation
@@ -1449,5 +1450,78 @@ subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
   enddo
 
 end subroutine MineralUpdateSpecSurfaceArea
+
+! ************************************************************************** !
+
+subroutine MineralUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
+                                     reaction,kinetic_state_updated,option)
+  !
+  ! Update the mineral volume fraction and mass exchange due to mineral
+  ! precipitation-dissolution
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/18/23
+  !
+  use Option_module
+  use Material_Aux_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+  class(reaction_rt_type) :: reaction
+  PetscBool :: kinetic_state_updated
+  type(option_type) :: option
+
+  PetscInt :: imnrl, iaqspec, ncomp, icomp
+  PetscReal :: delta_volfrac
+  PetscReal :: res(reaction%ncomp) ! has to be sized accurately
+  PetscReal :: jac(1,1) ! strictly a dummy array
+
+  if (reaction%mineral%nkinmnrl == 0) return
+
+  kinetic_state_updated = PETSC_TRUE
+
+  ! Updates the mineral rates, res is not needed
+  call RKineticMineral(res,jac,PETSC_FALSE,rt_auxvar,global_auxvar, &
+                       material_auxvar,reaction,option)
+
+  do imnrl = 1, reaction%mineral%nkinmnrl
+    ! rate = mol/m^3/sec
+    ! dvolfrac = m^3 mnrl/m^3 bulk = rate (mol mnrl/m^3 bulk/sec) *
+    !                                mol_vol (m^3 mnrl/mol mnrl)
+    delta_volfrac = rt_auxvar%mnrl_rate(imnrl)* &
+                    reaction%mineral%kinmnrl_molar_vol(imnrl)* &
+                    option%tran_dt
+    rt_auxvar%mnrl_volfrac(imnrl) = rt_auxvar%mnrl_volfrac(imnrl) + &
+                                    delta_volfrac
+    if (rt_auxvar%mnrl_volfrac(imnrl) < 0.d0) &
+      rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
+
+    ! CO2-specific
+    if (option%iflowmode == MPH_MODE) then
+      ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
+      do iaqspec = 1, ncomp
+        icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)
+        if (icomp == reaction%species_idx%co2_aq_id) then
+          global_auxvar%reaction_rate(2) = &
+            global_auxvar%reaction_rate(2) + &
+            rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
+            reaction%mineral%kinmnrlstoich(iaqspec,imnrl)/option%flow_dt
+          cycle
+        endif
+      enddo
+      ! water rate
+      if (reaction%mineral%kinmnrlh2ostoich(imnrl) /= 0) then
+        global_auxvar%reaction_rate(1) = &
+          global_auxvar%reaction_rate(1) + &
+          rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
+          reaction%mineral%kinmnrlh2ostoich(imnrl)/option%flow_dt
+      endif
+    endif
+  enddo
+
+end subroutine MineralUpdateKineticState
 
 end module Reaction_Mineral_module
