@@ -22,7 +22,7 @@ SUBSURFACE
       k_deg 1e-2 1/hr
       NH4_inhibit 1e-15 M
       SCALING_MINERAL A(s)
-      INHIBITION_TYPE THRESHOLD
+      INHIBITION_TYPE SMOOTHSTEP
     /
     EQUILIBRATE
       SPECIES_NAME O2(aq)
