@@ -790,7 +790,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: dtotal(reaction%naqcomp,reaction%naqcomp,sec_transport_vars%ncells,option%transport%nphase)
   PetscReal :: dtotal_prim(reaction%naqcomp,reaction%naqcomp,option%transport%nphase)
   PetscInt :: i, j, k, n, l, igas
-  PetscInt :: ngcells, ncomp, nphase, icomp
+  PetscInt :: ngcells, ncomp, nphase
   PetscReal :: area_fm, RT
   PetscReal :: diffusion_coefficient(option%transport%nphase)
   PetscReal :: porosity
@@ -1269,10 +1269,10 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
           do j = 1, ncomp
             jcomp = reaction%gas%acteqspecid(j,igas)
             do l = 1, ncomp
-              icomp = reaction%gas%acteqspecid(i,igas)
+              lcomp = reaction%gas%acteqspecid(l,igas)
               dPsisec_dCprim(jcomp,lcomp,2) = dPsisec_dCprim(jcomp,lcomp,2) + &
-                reaction%gas%acteqstoich(i,igas) * reaction%gas%acteqstoich(j,igas) * &
-                dCsec_dCprim(kcomp,lcomp)* (rt_auxvar%gas_pp(igas) * 1.d5 / RT)
+                reaction%gas%acteqstoich(l,igas) * reaction%gas%acteqstoich(j,igas) * &
+                dCsec_dCprim(jcomp,lcomp)* (rt_auxvar%gas_pp(igas) * 1.d5 / RT)
             enddo
           enddo
         enddo
