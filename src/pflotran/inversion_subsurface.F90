@@ -1344,7 +1344,8 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter_type)
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
-                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                               VERTICAL_PERM_ANISOTROPY_RATIO
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
@@ -1367,7 +1368,8 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter_type)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
     case(VG_ALPHA,VG_M,VG_SR,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
-         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+         VERTICAL_PERM_ANISOTROPY_RATIO)
       string = InversionParamGetNameFromItype(iparameter_type, &
                                               this%driver)
       string = trim(string) // &
