@@ -1,0 +1,19 @@
+ARG IMAGE
+FROM $IMAGE
+
+WORKDIR /scratch
+COPY . .
+RUN ./.gitlab/info.sh
+
+# build rxn first as it is then wiped with a 'make clean'
+WORKDIR /scratch/src/pflotran
+RUN make clean
+RUN make -j4 pflotran_rxn
+RUN make clean
+RUN make -j4 pflotran
+
+WORKDIR /scratch
+# these environment variables bypass an opempi test that prevents execution
+# as root, but root doesn't matter when running GitLab CI
+ENV OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+RUN ./.gitlab/test-pflotran-intel.sh

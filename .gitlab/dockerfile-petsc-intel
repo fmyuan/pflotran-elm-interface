@@ -1,0 +1,13 @@
+FROM pflotran/intel-lite
+
+ENV PETSC_DIR=/scratch/petsc PETSC_ARCH=petsc-arch 
+ARG PETSC_VERSION
+ENV PETSC_VERSION=${PETSC_VERSION}
+
+WORKDIR /scratch
+COPY ./.gitlab/build-petsc-intel.sh .
+RUN /scratch/build-petsc-intel.sh
+
+# must be run from $PFLOTRAN_DIR
+# export MY_PETSC_VERSION=v3.19.3 (or whatever the tag)
+# docker build -f .gitlab/dockerfile-petsc-intel --build-arg PETSC_VERSION=$MY_PETSC_VERSION -t pflotran/petsc:${MY_PETSC_VERSION}-intel .
