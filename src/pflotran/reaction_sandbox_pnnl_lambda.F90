@@ -11,12 +11,16 @@ module Reaction_Sandbox_Lambda_class
 
   private
 
+  PetscInt, parameter :: LAMBDA_THRESHOLD_INHIBITION = 1
+  PetscInt, parameter :: LAMBDA_SMOOTHSTEP_INHIBITION = 2
+
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_lambda_type
     character(len=MAXSTRINGLENGTH) :: reaction_network_filename
     character(len=MAXWORDLENGTH) :: scaling_mineral_name
     PetscReal, pointer :: stoich(:,:)
     PetscInt, pointer :: i_donor(:)
+    PetscInt :: inhibition_type
 
     !Number of species, reactions and carbon sources in problem
     PetscInt :: n_species
@@ -68,6 +72,7 @@ function LambdaCreate()
   LambdaCreate%i_biomass = UNINITIALIZED_INTEGER
   LambdaCreate%i_nh4 = UNINITIALIZED_INTEGER
   LambdaCreate%i_scaling_mineral = UNINITIALIZED_INTEGER
+  LambdaCreate%inhibition_type = LAMBDA_THRESHOLD_INHIBITION
 
   LambdaCreate%mu_max = UNINITIALIZED_DOUBLE
   LambdaCreate%vh = 1.d0 ! m^3
@@ -150,6 +155,20 @@ subroutine LambdaRead(this,input,option)
         call InputErrorMsg(input,option,'nh4_inhibit',error_string)
         call InputReadAndConvertUnits(input,this%nh4_inhibit,'M',&
                           trim(error_string)//',nh4_inhibit',option)
+
+      case('INHIBITION_TYPE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,word,trim(error_string))
+        call STringToUpper(word)
+        select case(word)
+          case('THRESHOLD')
+            this%inhibition_type = LAMBDA_THRESHOLD_INHIBITION
+          case('SMOOTHSTEP')
+            this%inhibition_type = LAMBDA_SMOOTHSTEP_INHIBITION
+          case default
+            error_string = trim(error_string) // ',INHIBITION_TYPE'
+            call InputKeywordUnrecognized(input,word,error_string ,option)
+        end select
 
       case('SCALING_MINERAL')
         call InputReadWord(input,option,this%scaling_mineral_name,PETSC_TRUE)
@@ -284,7 +303,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: L_water
   PetscReal :: molality_to_molarity
   PetscReal :: vh_L, sumkin, Biomass_mod
-  PetscReal :: nh4_inhibition, tempreal, threshold_f
+  PetscReal :: nh4_inhibition, tempreal
   PetscReal :: C_reactant_inhibit
 
   PetscReal :: Reactant_inhibition(this%n_species)
@@ -334,20 +353,28 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   u = rkin / sumkin
   R = u * rkin ![1/sec]
 
-  ! NH4 inhibition (Threshold)
-  threshold_f = 1.d5/dabs(this%nh4_inhibit)
-  tempreal = (C_aq(this%i_nh4) - dabs(this%nh4_inhibit)) * threshold_f
-  nh4_inhibition = 0.5d0 + sign(1.d0,this%nh4_inhibit) * &
-                           atan(tempreal)/PI
 
-  ! Reactant inhibition (Threshold)
   C_reactant_inhibit = 1.d-18
-  threshold_f = 1.d5/C_reactant_inhibit
-  do icomp = 1, this%n_species
-    tempreal = (C_aq(icomp) - dabs(C_reactant_inhibit)) * threshold_f
-    Reactant_inhibition(icomp) = 0.5d0 + sign(1.d0,C_reactant_inhibit) * &
-                                         atan(tempreal)/PI
-  enddo
+  select case(this%inhibition_type)
+    case(LAMBDA_SMOOTHSTEP_INHIBITION)
+      call ReactionThreshInhibitSmoothstep(C_aq(this%i_nh4), &
+                                           dabs(this%nh4_inhibit),1.d-3, &
+                                           nh4_inhibition,tempreal)
+      do icomp = 1, this%n_species
+        call ReactionThreshInhibitSmoothstep(C_aq(icomp),C_reactant_inhibit, &
+                                             1.d-3, &
+                                             Reactant_inhibition(icomp), &
+                                             tempreal)
+      enddo
+    case(LAMBDA_THRESHOLD_INHIBITION)
+      call ReactionThresholdInhibition(C_aq(this%i_nh4), &
+                                       dabs(this%nh4_inhibit), &
+                                       nh4_inhibition,tempreal)
+      do icomp = 1, this%n_species
+        call ReactionThresholdInhibition(C_aq(icomp),C_reactant_inhibit, &
+                                         Reactant_inhibition(icomp),tempreal)
+      enddo
+  end select
 
   ! Reactions are modulated by biomass concentration
   ! Biomass is moduluated by a carrying capacity (CC)
