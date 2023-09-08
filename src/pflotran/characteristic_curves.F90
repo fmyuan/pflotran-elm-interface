@@ -963,6 +963,12 @@ function SaturationFunctionRead(saturation_function,input,option) &
     end if
   end if
 
+  ! Only KPC 1 and 2 are supported in the original WIPP/BRAGFLO implementation
+  ! If KPC other than 1 or 2 is declared, use loop_invariant instead
+  if (wipp_kpc > 2) then
+    loop_invariant = PETSC_TRUE
+  end if
+
   if (loop_invariant) then
     ! Use default junction saturation if not specified
     if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Srg-Sr)
