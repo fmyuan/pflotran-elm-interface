@@ -155,6 +155,7 @@ subroutine RegressionSetup(regression,realization)
   ! Date: 04/14/21
   !
   use Option_module
+  use Output_module
   use Realization_Subsurface_class
 
   implicit none
@@ -162,7 +163,11 @@ subroutine RegressionSetup(regression,realization)
   type(regression_type), pointer :: regression
   class(realization_subsurface_type) :: realization
 
+  if (.not.associated(regression)) return
+
   call RegressionCreateMapping(regression,realization)
+  call OutputListEnsureVariablesExist(regression%variable_list, &
+                                      realization%option)
 
 end subroutine RegressionSetup
 

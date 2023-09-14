@@ -121,7 +121,8 @@ STANDARD_CFG = \
 	wipp/transport/wipp_regular.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-	wipp/wipp_flow/input_format/input_format.cfg 
+	wipp/wipp_flow/input_format/input_format.cfg \
+	wipp/well_model/well.cfg
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
@@ -178,7 +179,8 @@ TRANSPORT_CFG = \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
-	wipp/transport/wipp_regular.cfg
+	wipp/transport/wipp_regular.cfg \
+	wipp/well_model/well.cfg
 
 GEOPHYSICS_CFG = \
 	geophys/ert/ert.cfg
@@ -360,6 +362,7 @@ clean-tests :
 	-rm -f wipp/bragflo/wipp_flow/well_production2-ss_mass-0.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
+	-rm -f wipp/well_model/*.h5
 	-rm -f wipp/wipp_flow/gas_generation/*.h5
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat

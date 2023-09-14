@@ -5,6 +5,7 @@ module NW_Transport_module
   use Global_Aux_module
   use Material_Aux_module
   use NW_Transport_Aux_module
+  use Option_module
 
   use PFLOTRAN_Constants_module
 
@@ -40,7 +41,6 @@ subroutine NWTMaxChange(realization,dcmax)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Field_module
   use Grid_module
 
@@ -74,7 +74,6 @@ subroutine NWTSetup(realization)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Grid_module
   use Material_module
   use Material_Aux_module
@@ -246,7 +245,6 @@ subroutine NWTProcessConstraint(reaction_nw,constraint_name, &
   ! Author: Jenn Frederick
   ! Date: 03/22/2019
   !
-  use Option_module
   use String_module
   use Utility_module
 
@@ -313,9 +311,9 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
   use Realization_Subsurface_class
   use Grid_module
+  use Patch_module
   use Coupler_module
   use Connection_module
-  use Option_module
   use Field_module
   use Logging_module
   use Global_Aux_module
@@ -331,6 +329,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   class(reaction_nw_type), pointer :: reaction_nw
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
@@ -348,38 +347,28 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   PetscInt, save :: icall
 
-  type(species_type), pointer :: cur_species
-  PetscReal, pointer :: solubility(:)  ! [mol/m^3-liq]
-  PetscReal, pointer :: mnrl_molar_density(:)  ! [mol/m^3-mnrl]
-  PetscReal, pointer :: ele_kd(:)  ! [m^3-water/m^3-bulk]
   PetscReal :: aq_mass     ! [mol/m^3-liq]
   PetscReal :: ppt_mass    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass   ! [mol/m^3-bulk]
   PetscReal :: sat
   PetscInt :: ispecies
-  PetscBool :: dry_out
+  PetscBool :: dry_out, equilibrate
 
   data icall/0/
 
   option => realization%option
-  grid => realization%patch%grid
+  patch => realization%patch
+  grid => patch%grid
   field => realization%field
   reaction_nw => realization%reaction_nw
-  material_auxvars => realization%patch%aux%Material%auxvars
-  nwt_auxvars => realization%patch%aux%NWT%auxvars
-  nwt_auxvars_bc => realization%patch%aux%NWT%auxvars_bc
-  global_auxvars => realization%patch%aux%Global%auxvars
-  global_auxvars_bc => realization%patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
+  nwt_auxvars => patch%aux%NWT%auxvars
+  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
 
 
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-
-  allocate(solubility(reaction_nw%params%nspecies))
-  solubility = 0.d0
-  allocate(mnrl_molar_density(reaction_nw%params%nspecies))
-  mnrl_molar_density = 0.d0
-  allocate(ele_kd(reaction_nw%params%nspecies))
-  ele_kd = 0.d0
 
   if (update_cells) then
 
@@ -388,7 +377,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
     do ghosted_id = 1, grid%ngmax
       if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
       !geh - Ignore inactive cells with inactive materials
-      if (realization%patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       offset = (ghosted_id-1)*reaction_nw%params%nspecies
       istart = offset + 1
@@ -403,116 +392,123 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
     enddo
 
-    call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
+    call PetscLogEventEnd(logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)
   endif
 
   if (update_bcs) then
 
-    call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
+    call PetscLogEventBegin(logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)
 
-    boundary_condition => realization%patch%boundary_condition_list%first
+    boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
-    
-    cur_species => reaction_nw%species_list
-    do
-      if (.not.associated(cur_species)) exit
-      solubility(cur_species%id) = cur_species%solubility_limit
-      mnrl_molar_density(cur_species%id) = cur_species%mnrl_molar_density
-      ele_kd(cur_species%id) = cur_species%ele_kd
-      cur_species => cur_species%next
-    enddo
-
+ 
     do
       if (.not.associated(boundary_condition)) exit
       cur_connection_set => boundary_condition%connection_set
       nwt_auxvar => &
         TranConstraintNWTGetAuxVar(boundary_condition%tran_condition% &
                                    cur_constraint_coupler)
-      do iconn = 1, cur_connection_set%num_connections
+      do iconn = 1,cur_connection_set%num_connections
         sum_connection = sum_connection + 1
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
 
-!geh: Since a minimum precipitate concentration of 1.d-20 is always present
-!     (see NWTEqDissPrecipSorb), we must NWTAuxVarCompute() based on the
-!     total bulk concentration at each boundary connection just like we do
-!     for each internal grid cell above. Otherwise, the precipitate
-!     concentration of 1.d-20 is not factored into the boundary concentration
-!     for pure aqueous boundaries, and this generates error. To prove this
-!     change #if 0 -> #if 1 below and run a transport simulation with a
-!     single aqueous constraint (not concentration gradient). You will see
-!     that the Newton solve struggles because slightly different aqueous
-!     concentrations are assigned to the boundary faces than the internal
-!     cell centers.
+        if (patch%imat(ghosted_id) <= 0) cycle
 
-!     ***I propose that we do away with the minimum sorbed and precipitate
-!        concentrations altogether as they add artificial mass to the system.***
+        offset = (ghosted_id-1)*reaction_nw%params%nspecies
+        istart = offset + 1
+        iend = offset + reaction_nw%params%nspecies
 
-!#if 0
+        select case(boundary_condition%tran_condition%itype)
+        !---------------------------------------------------
+          case(DIRICHLET_BC)
+            do ispecies = 1,reaction_nw%params%nspecies
+              if (nwt_auxvar%constraint_type(ispecies) == &
+                  CONSTRAINT_T_EQUILIBRIUM) then
+                nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+                                           nwt_auxvar%total_bulk_conc(ispecies)
+                equilibrate = PETSC_TRUE
+              else
+                nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+                                           nwt_auxvar%total_bulk_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = &
+                                           nwt_auxvar%aqueous_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = &
+                                              nwt_auxvar%sorb_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = &
+                                              nwt_auxvar%mnrl_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
+                                             nwt_auxvar%mnrl_vol_frac(ispecies)
+                equilibrate = PETSC_FALSE
+              endif 
+            enddo
+        !---------------------------------------------------
+          case(DIRICHLET_ZERO_GRADIENT_BC)
+            ! For flow out of domain only, impose ZERO_GRADIENT:
+            if (patch%boundary_velocities(LIQUID_PHASE,sum_connection) < 0) then
+              nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
+                                                          xx_loc_p(istart:iend)
+              equilibrate = PETSC_TRUE
+            else 
+              do ispecies = 1,reaction_nw%params%nspecies
+                nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
+                                           nwt_auxvar%total_bulk_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = &
+                                           nwt_auxvar%aqueous_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = &
+                                              nwt_auxvar%sorb_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = &
+                                              nwt_auxvar%mnrl_eq_conc(ispecies)
+                nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
+                                             nwt_auxvar%mnrl_vol_frac(ispecies)
+                equilibrate = PETSC_FALSE
+              enddo 
+            endif
 
+        !---------------------------------------------------
+          case default
+            option%io_buffer = 'Unrecognized NWT MODE BC type in the &
+                &TRANSPORT_CONDITION block! The only possible options are: &
+                &DIRICHLET or DIRICHLET_ZERO_GRADIENT.'
+            call PrintErrMsg(option)
+        !---------------------------------------------------
+        end select
 
-      do ispecies = 1, reaction_nw%params%nspecies
-        if (nwt_auxvar%constraint_type(ispecies) == CONSTRAINT_T_EQUILIBRIUM) then
-          !nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
-          !               nwt_auxvar%total_bulk_conc(ispecies)
-          !call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
-          !                      global_auxvars_bc(sum_connection), &
-          !                      material_auxvars(ghosted_id), &
-          !                      reaction_nw,option)
-          
-          nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
-                         nwt_auxvar%total_bulk_conc(ispecies)
-          ! check aqueous concentration against solubility limit and update
-          sat = max(MIN_LIQ_SAT,global_auxvars_bc(sum_connection)%sat(LIQUID_PHASE))
+        if (equilibrate) then
+          sat = max(MIN_LIQ_SAT, &
+                    global_auxvars_bc(sum_connection)%sat(LIQUID_PHASE))
           if (sat > 0.d0) then
             dry_out = PETSC_FALSE
           else
             dry_out = PETSC_TRUE
           endif
-          call NWTEqDissPrecipSorb(solubility(ispecies), &
-                                   material_auxvars(ghosted_id), &
-                                   global_auxvars_bc(sum_connection), &
-                                   dry_out,ele_kd(ispecies), &
-                                   nwt_auxvar%total_bulk_conc(ispecies), &
-                                   aq_mass,ppt_mass,sorb_mass)
-          nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = aq_mass
-          nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = sorb_mass
-          nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = ppt_mass
-          nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
-                             nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies)/ &
-                                            (material_auxvars(ghosted_id)%porosity* &
-                                            mnrl_molar_density(ispecies))                                
-        else                      
-!#else
-          nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
-                         nwt_auxvar%total_bulk_conc(ispecies)
-          nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = &
-                         nwt_auxvar%aqueous_eq_conc(ispecies)
-          nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = &
-                         nwt_auxvar%sorb_eq_conc(ispecies)
-          nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = &
-                         nwt_auxvar%mnrl_eq_conc(ispecies)
-          nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
-                         nwt_auxvar%mnrl_vol_frac(ispecies)
+          do ispecies = 1,reaction_nw%params%nspecies
+            call NWTEqDissPrecipSorb( &
+              reaction_nw%species_solubility(ispecies), &
+              material_auxvars(ghosted_id),global_auxvars_bc(sum_connection), &
+              dry_out,reaction_nw%species_ele_kd(ispecies), &
+              nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies), &
+              aq_mass,ppt_mass,sorb_mass)
+            nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(ispecies) = aq_mass
+            nwt_auxvars_bc(sum_connection)%sorb_eq_conc(ispecies) = sorb_mass
+            nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = ppt_mass
+            nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = ppt_mass/ &
+                                  (material_auxvars(ghosted_id)%porosity * &
+                                   reaction_nw%species_mnrl_mol_den(ispecies)) 
+          enddo
         endif
-      enddo
-!#endif
 
       enddo ! iconn
 
       boundary_condition => boundary_condition%next
     enddo
 
-    call PetscLogEventEnd(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
+    call PetscLogEventEnd(logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)
 
   endif
 
   call VecRestoreArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   icall = icall+ 1
-
-  deallocate(solubility)
-  deallocate(mnrl_molar_density)
-  deallocate(ele_kd)
 
 end subroutine NWTUpdateAuxVars
 
@@ -526,8 +522,6 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Jenn Frederick
   ! Date: 05/29/2019
   !
-
-  use Option_module
   use Material_Aux_module
   use NWT_Equilibrium_module
 
@@ -539,13 +533,9 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   class(reaction_nw_type) :: reaction_nw
   type(option_type) :: option
 
-  type(species_type), pointer :: cur_species
-  PetscReal :: solubility(reaction_nw%params%nspecies)  ! [mol/m^3-liq]
   PetscReal :: aq_mass(reaction_nw%params%nspecies)     ! [mol/m^3-liq]
   PetscReal :: ppt_mass(reaction_nw%params%nspecies)    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass(reaction_nw%params%nspecies)   ! [mol/m^3-bulk]
-  PetscReal :: mnrl_molar_density(reaction_nw%params%nspecies)  ! [mol/m^3-mnrl]
-  PetscReal :: ele_kd(reaction_nw%params%nspecies)      ! [m^3-water/m^3-bulk]
   PetscBool :: dry_out
   PetscInt :: ispecies
   PetscReal :: sat, por
@@ -559,19 +549,11 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
     dry_out = PETSC_TRUE
   endif
 
-  cur_species => reaction_nw%species_list
-  do
-    if (.not.associated(cur_species)) exit
-    solubility(cur_species%id) = cur_species%solubility_limit
-    mnrl_molar_density(cur_species%id) = cur_species%mnrl_molar_density
-    ele_kd(cur_species%id) = cur_species%ele_kd
-    cur_species => cur_species%next
-  enddo
-
   ! calculate the equilibrium state and partition the total_bulk_conc
   do ispecies = 1,reaction_nw%params%nspecies
-    call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
-                             global_auxvar,dry_out,ele_kd(ispecies), &
+    call NWTEqDissPrecipSorb(reaction_nw%species_solubility(ispecies), &
+                             material_auxvar,global_auxvar,dry_out, &
+                             reaction_nw%species_ele_kd(ispecies), &
                              nwt_auxvar%total_bulk_conc(ispecies), &
                              aq_mass(ispecies),ppt_mass(ispecies), &
                              sorb_mass(ispecies))
@@ -586,7 +568,8 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   !-------precipitated concentration (equilibrium)
   nwt_auxvar%mnrl_eq_conc(:) = ppt_mass(:)
   nwt_auxvar%mnrl_vol_frac(:) = nwt_auxvar%mnrl_eq_conc(:)/ &
-                              (material_auxvar%porosity*mnrl_molar_density(:))
+                              (material_auxvar%porosity * &
+                               reaction_nw%species_mnrl_mol_den(:))
 
 end subroutine NWTAuxVarCompute
 
@@ -614,7 +597,7 @@ end subroutine NWTInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine NWTResidual(snes,xx,r,realization,ierr)
+subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   !
   ! Computes the residual equation
   !
@@ -627,11 +610,11 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   use Coupler_module
   use Connection_module
   use Discretization_module
-  use Option_module
   use Grid_module
   use Logging_module
   use Debug_module
   use WIPP_Flow_Aux_module
+  use PM_Well_class
 
   implicit none
 
@@ -639,9 +622,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   class(realization_subsurface_type) :: realization
-  PetscReal, pointer :: xx_p(:), log_xx_p(:)
+  class(pm_well_type), pointer :: pmwell_ptr
   PetscErrorCode :: ierr
 
+  PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscReal, pointer :: r_p(:), fixed_accum_p(:)
   PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id, local_id_up, local_id_dn
@@ -753,6 +737,26 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   !WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
 
 #if 1
+  !== Well Model ==============================================
+  if (nwt_well_quasi_imp_coupled .and. associated(pmwell_ptr)) then
+    if (pmwell_ptr%well_on) then
+      if (pmwell_ptr%tran_soln%tran_time <= option%time) then
+        ! loads the source_sink object with well model transport sol'n
+        ! this should only be done during the first petsc residual call,
+        ! not both, which is the reason for the check against option%time
+        call PMWellQISolveTran(pmwell_ptr)
+        call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
+        call MPI_Bcast(pmwell_ptr%tran_soln%tran_time,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,0,option%mycomm,ierr);CHKERRQ(ierr)
+        call MPI_Bcast(pmwell_ptr%tran_soln%cut_ts_flag,ONE_INTEGER_MPI, &
+                       MPI_LOGICAL,0,option%mycomm,ierr);CHKERRQ(ierr)
+        if (pmwell_ptr%tran_soln%cut_ts_flag) return
+      endif
+    endif
+  endif
+#endif
+
+#if 1
   !== Source/Sink Terms =======================================
   source_sink => realization%patch%source_sink_list%first
   sum_connection = 0
@@ -770,7 +774,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               source_sink,realization%patch%ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Res)
+                              sum_connection,reaction_nw,Res,option)
       !WRITE(*,*)  '  SrcSinkName = ', source_sink%name
       !WRITE(*,*)  '   ResSrcSink = ', Res(:)
 
@@ -990,7 +994,6 @@ subroutine NWTUpdateFixedAccumulation(realization)
 
   use Realization_Subsurface_class
   use NW_Transport_Aux_module
-  use Option_module
   use Field_module
   use Grid_module
 
@@ -1013,8 +1016,8 @@ subroutine NWTUpdateFixedAccumulation(realization)
   option => realization%option
   field => realization%field
   nwt_auxvars => realization%patch%aux%NWT%auxvars
-  global_auxvars => realization%patch%aux%Global%auxvars
   material_auxvars => realization%patch%aux%Material%auxvars
+  global_auxvars => realization%patch%aux%Global%auxvars
   grid => realization%patch%grid
   reaction_nw => realization%reaction_nw
 
@@ -1067,8 +1070,6 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   ! Date: 04/18/2019
   !
 
-  use Option_module
-
   implicit none
 
   type(nw_transport_auxvar_type) :: nwt_auxvar
@@ -1116,7 +1117,8 @@ end subroutine NWTResidualAccum
 ! ************************************************************************** !
 
 subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
-                              ss_flow_vol_fluxes,sum_connection,reaction_nw,Res)
+                              ss_flow_vol_fluxes,sum_connection,&
+                              reaction_nw,Res,option)
   !
   ! Computes the source/sink terms in the residual function.
   ! All residual entries should be in [mol-species/sec].
@@ -1137,10 +1139,12 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
   class(reaction_nw_type), pointer :: reaction_nw
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar_out
   PetscReal :: Res(reaction_nw%params%nspecies)
+  type(option_type) :: option
 
   PetscInt :: istart, iend
   PetscReal :: qsrc
   PetscReal :: coef_in, coef_out
+  PetscReal :: density_avg ! [kg/m3]
 
   Res = 0.d0
 
@@ -1148,33 +1152,52 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
     TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
                                    cur_constraint_coupler)
 
-  if (associated(ss_flow_vol_fluxes)) then
-    ! qsrc = [m^3-liq/sec]
-    qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
-  endif
-
   istart = 1
   iend = reaction_nw%params%nspecies
 
   ! -- Aqueous-Component ----------------------------------------
   select case(source_sink%tran_condition%itype)
-    case(EQUILIBRIUM_SS)
-      !TODO(jenn) What is EQUILIBRIUM_SS option?
-    case(MASS_RATE_SS)
-      !TODO(jenn) What is MASS_RATE_SS option?
+  !--------------------------------------------------------------
+    case(EQUILIBRIUM_SS,MASS_RATE_SS,VOLUMETRIC_RATE_SS, &
+         SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
+         CONCENTRATION_SS,HET_VOL_RATE_SS,HET_MASS_RATE_SS, &
+         TOTAL_MASS_RATE_SS)
+      option%io_buffer = 'source_sink%tran_condition%itype not &
+                          &supported.'
+      call PrintErrMsg(option)
+  !---------------------------------------------------------------
+    case(WELL_SS)
+      ! qsrc = [kg-liq/sec]
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      ! density_avg = [kg-liq/m3]
+      density_avg = source_sink%flow_condition%well%aux_real(1)
+      ! qsrc = [m^3-liq/sec]
+      qsrc = qsrc/density_avg 
+  !---------------------------------------------------------------
     case default
-      if (qsrc > 0.d0) then ! source of fluid flux
-        ! represents inside of the domain
-        coef_in = 0.d0
-        ! represents outside of the domain
-        coef_out = qsrc
-      else                  ! sink of fluid flux
-        ! represents inside of the domain
-        coef_in = qsrc
-        ! represents outside of the domain
-        coef_out = 0.d0
+      if (associated(ss_flow_vol_fluxes)) then
+        ! qsrc = [m^3-liq/sec]
+        qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+      else
+        option%io_buffer = 'ss_flow_vol_fluxes not associated.'
+        call PrintErrMsg(option)
       endif
+  !---------------------------------------------------------------
   end select
+
+  coef_in = 0.d0; coef_out = 0.d0 
+  if (qsrc > 0.d0) then                  ! source of fluid flux
+    ! represents inside of the domain
+    coef_in = 0.d0
+    ! represents outside of the domain
+    coef_out = qsrc
+  else if (qsrc < 0.d0) then             ! sink of fluid flux
+    ! represents inside of the domain
+    coef_in = qsrc
+    ! represents outside of the domain
+    coef_out = 0.d0
+  endif
+
   ! units of coef = [m^3-liq/sec]
   ! units of aqueous_eq_conc = [mol-species/m^3-liq]
   ! units of residual entries = [mol-species/sec]
@@ -1205,8 +1228,6 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,reaction_nw,Res)
   ! Author: Jenn Frederick
   ! Date: 05/09/2019
   !
-
-  use Option_module
 
   implicit none
 
@@ -1286,7 +1307,6 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! Date: 05/09/2019
   !
 
-  use Option_module
   use Connection_module
 
   implicit none
@@ -1303,7 +1323,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   PetscReal :: Res_up(reaction_nw%params%nspecies)
   PetscReal :: Res_dn(reaction_nw%params%nspecies)
 
-  PetscInt :: unit_n_up, unit_n_dn
+  PetscReal :: unit_n_up, unit_n_dn
   PetscInt :: nspecies
   PetscReal :: q
   PetscReal :: sat_up, sat_dn
@@ -1355,7 +1375,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   ! weighted harmonic average of diffusivity divided by distance
    harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
-                      (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
+                      (diffusivity_up(:)*dist_dn + diffusivity_dn(:)*dist_up)
 
   ! All residual entries for flux terms should be in [mol-species].
 
@@ -1374,28 +1394,28 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
 
   ! units of unit_n = [-] unitless
-  unit_n_up = +1
-  unit_n_dn = -1
+  unit_n_up = -1.d0
+  unit_n_dn = +1.d0
 
   ! upstream weighting
   if (.not.bc) then
     if (q > 0.d0) then ! q flows from _up to _dn (think: upstream to downstream)
-      Res_up(:) = (unit_n_up*area) * &
+      Res_up(:) = (unit_n_dn*area) * &
                    (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
     else               ! q flows from _dn to _up (think: downstream to upstream)
-      Res_up(:) = (unit_n_up*area) * &
+      Res_up(:) = (unit_n_dn*area) * &
                    (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
     endif
   else ! boundary calculation and there is only Res_dn(:)
     if (q > 0.d0) then ! q flows into domain
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
     else               ! q flows out of domain
-      Res_dn(:) = (unit_n_dn*area) * &
+      Res_dn(:) = (unit_n_up*area) * &
                    (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
     endif
   endif
@@ -1421,7 +1441,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   use petscmat
   use Realization_Subsurface_class
   use Grid_module
-  use Option_module
   use Field_module
   use Logging_module
   use Debug_module
@@ -1545,7 +1564,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       call NWTJacobianSrcSink(material_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id),source_sink, &
                               realization%patch%ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Jac_srcsink)
+                              sum_connection,reaction_nw,Jac_srcsink,option)
 
       !WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
 
@@ -1614,12 +1633,18 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+                                      JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
       if (local_id_dn>0) then
+        JacUp = -JacUp
+        JacDn = -JacDn
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
         call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+                                      JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
     enddo
@@ -1655,12 +1680,13 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%boundary_velocities(:,sum_connection), &
                       reaction_nw,option,JacUp,JacDn)
-
+ 
+      JacDn = -JacDn
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
       ! note: Don't need to worry about JacUp because that is outside of
-      ! the domain, and doesn't have a place in A.
+      ! the domain, and doesn't have a place in J.
 
     enddo
 
@@ -1715,8 +1741,6 @@ subroutine NWTJacobianAccum(material_auxvar,reaction_nw,option,Jac)
   ! Date: 05/14/2019
   !
 
-  use Option_module
-
   implicit none
 
   type(material_auxvar_type) :: material_auxvar
@@ -1745,7 +1769,8 @@ end subroutine NWTJacobianAccum
 ! ************************************************************************** !
 
 subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
-                              ss_flow_vol_fluxes,sum_connection,reaction_nw,Jac)
+                              ss_flow_vol_fluxes,sum_connection,reaction_nw, &
+                              Jac,option)
   !
   ! Computes the source/sink terms in the Jacobian matrix.
   ! All Jacobian entries should be in [m^3-bulk/sec].
@@ -1765,45 +1790,71 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   PetscInt :: sum_connection
   class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: Jac(reaction_nw%params%nspecies,reaction_nw%params%nspecies)
+  type(option_type) :: option
 
   PetscInt :: istart, iend, ispecies
   PetscReal :: qsrc, u, vol, por, sat
   PetscReal :: coef_in, coef_out
+  PetscReal :: density_avg
 
   Jac = 0.d0
 
-  if (associated(ss_flow_vol_fluxes)) then
-    ! qsrc = [m^3-liq/sec]
-    qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
-  endif
-
   ! porosity = [m^3-void/m^3-bulk]
   ! sat = [m^3-liq/m^3-void]
-  ! qsrc = [m^3-liq/sec]
   ! vol = [m^3-bulk]
 
   por = material_auxvar%porosity
   vol = material_auxvar%volume
   sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
 
+  ! -- Aqueous-Component ----------------------------------------
+  select case(source_sink%tran_condition%itype)
+  !--------------------------------------------------------------
+    case(EQUILIBRIUM_SS,MASS_RATE_SS,VOLUMETRIC_RATE_SS, &
+         SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
+         CONCENTRATION_SS,HET_VOL_RATE_SS,HET_MASS_RATE_SS, &
+         TOTAL_MASS_RATE_SS)
+      option%io_buffer = 'source_sink%tran_condition%itype not &
+                          &supported.'
+      call PrintErrMsg(option)
+  !--------------------------------------------------------------
+    case(WELL_SS)
+      ! qsrc = [kg-liq/sec]
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      ! density_avg = [kg-liq/m3]
+      density_avg = source_sink%flow_condition%well%aux_real(1)
+      ! qsrc = [m^3-liq/sec]
+      qsrc = qsrc/density_avg       
+  !--------------------------------------------------------------
+    case default
+      if (associated(ss_flow_vol_fluxes)) then
+        ! qsrc = [m^3-liq/sec]
+        qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+      else
+        option%io_buffer = 'ss_flow_vol_fluxes not associated'
+        call PrintErrMsg(option)
+      endif
+  !--------------------------------------------------------------
+  end select
+
+  ! units of qsrc = [m^3-liq/sec]
   ! units of u = [m^3-bulk/sec]
   u = qsrc/(por*sat)
 
-  ! -- Aqueous-Component ----------------------------------------
-  select case(source_sink%tran_condition%itype)
-    case(EQUILIBRIUM_SS)
-      !TODO(jenn) What is EQUILIBRIUM_SS option?
-    case(MASS_RATE_SS)
-      !TODO(jenn) What is MASS_RATE_SS option?
-    case default
-      if (u > 0.d0) then ! source of fluid flux
-        coef_in = 0.d0 
-        coef_out = 0.d0
-      else               ! sink of fluid flux
-        coef_in = 0.d0 
-        coef_out = u
-      endif
-  end select
+
+  ! Note: We only care about coef_in here, because the Jac is a derivative
+  ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
+  ! On the outside of the domain, we have a specified conc, which is not a
+  ! fn(total_bulk_conc), thus the derivative is zero.
+  if (u > 0.d0) then ! source of fluid flux
+    ! represents inside of the domain
+    coef_in = 0.d0
+    coef_out = 0.d0
+  else               ! sink of fluid flux
+    ! represents inside of the domain
+    coef_in = u
+    coef_out = 0.d0
+  endif
 
   ! units of coef = [m^3-bulk/sec]
   ! units of vol = [m^3-bulk]
@@ -1835,8 +1886,6 @@ subroutine NWTJacobianRx(material_auxvar,reaction_nw,Jac)
   ! Author: Jenn Frederick
   ! Date: 05/14/2019
   !
-
-  use Option_module
 
   implicit none
 
@@ -1909,7 +1958,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! Date: 05/14/2019
   !
 
-  use Option_module
   use Connection_module
 
   implicit none
@@ -1924,7 +1972,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   PetscReal :: Jac_up(reaction_nw%params%nspecies,reaction_nw%params%nspecies)
   PetscReal :: Jac_dn(reaction_nw%params%nspecies,reaction_nw%params%nspecies)
 
-  PetscInt :: unit_n_up, unit_n_dn
   PetscInt :: nspecies, ispecies
   PetscBool :: dry_out_up, dry_out_dn
   PetscReal :: q, u
@@ -1973,7 +2020,7 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   ! weighted harmonic average of diffusivity divided by distance
    harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
-                      (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
+                      (diffusivity_up(:)*dist_dn + diffusivity_dn(:)*dist_up)
 
   ! Note: For dispersion, do a git pull - Glenn updated transport.F90
   ! When adding dispersion, look at TDispersion() and the routine that
@@ -1991,10 +2038,6 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   else
     dry_out_dn = PETSC_TRUE
   endif
-
-  ! units of unit_n = [-] unitless
-  unit_n_up = +1
-  unit_n_dn = -1
 
   ! units of q = [m3-liq/m2-bulk-sec] Darcy
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
@@ -2042,10 +2085,17 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   do ispecies=1,nspecies
     ! units of Jac = [m^3-bulk/sec]
-    Jac_up(ispecies,ispecies) = (unit_n_up*area) * &
-                                (u - harmonic_D_over_dist(ispecies))
-    Jac_dn(ispecies,ispecies) = (unit_n_dn*area) * &
-                                (u - harmonic_D_over_dist(ispecies))
+    if (u > 0.d0) then
+      Jac_up(ispecies,ispecies) = (area) * &
+                                  (u + harmonic_D_over_dist(ispecies))
+      Jac_dn(ispecies,ispecies) = (area) * &
+                                  (0.d0 - harmonic_D_over_dist(ispecies))
+    else 
+      Jac_up(ispecies,ispecies) = (area) * &
+                                  (0.d0 + harmonic_D_over_dist(ispecies))
+      Jac_dn(ispecies,ispecies) = (area) * &
+                                  (u - harmonic_D_over_dist(ispecies))      
+    endif
   enddo
 
   deallocate(diffusivity_dn)
@@ -2066,7 +2116,6 @@ subroutine NWTZeroMassBalanceDelta(realization)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Patch_module
   use Grid_module
 
@@ -2114,7 +2163,6 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Field_module
   use Grid_module
 
@@ -2203,7 +2251,6 @@ subroutine NWTUpdateMassBalance(realization)
   !
 
   use Realization_Subsurface_class
-  use Option_module
   use Grid_module
 
   implicit none

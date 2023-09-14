@@ -336,7 +336,9 @@ function GeneralAuxCreate(option)
   aux%general_parameter%diffusion_coefficient(LIQUID_PHASE) = &
                                                            UNINITIALIZED_DOUBLE
   aux%general_parameter%diffusion_coefficient(GAS_PHASE) = 2.13d-5
-  aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
+  if (general_salt) then
+    aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
+  endif 
   aux%general_parameter%newton_inf_scaled_res_tol = 1.d-50
   aux%general_parameter%check_post_converged = PETSC_FALSE
 
@@ -622,18 +624,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: sigma
 
-  ! from init.F90
-!  option%nphase = 2
-!  option%liquid_phase = 1  ! liquid_pressure
-!  option%gas_phase = 2     ! gas_pressure
-
-!  option%air_pressure_id = 3
-!  option%capillary_pressure_id = 4
-!  option%vapor_pressure_id = 5
-
-!  option%water_id = 1
-!  option%air_id = 2
-!  option%energy_id = 3
+  ierr = 0
+  eos_henry_ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -645,9 +637,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   acid = option%air_id ! air component id
   wid = option%water_id
   eid = option%energy_id
-
-  eos_henry_ierr = 0
-
 
 #ifdef DEBUG_GENERAL
   ! create a NaN
@@ -1684,6 +1673,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: sigma
 
+  ierr = 0
+  eos_henry_ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1697,9 +1688,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   wid = option%water_id
   eid = option%energy_id
   sid = option%salt_id
-
-  eos_henry_ierr = 0
-
 
 #ifdef DEBUG_GENERAL
   ! create a NaN

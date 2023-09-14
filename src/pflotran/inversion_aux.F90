@@ -87,7 +87,8 @@ module Inversion_Aux_module
             InvAuxScatGlobalToDistParam, &
             InvAuxBCastVecForCommI, &
             InvAuxParamVecToMaterial, &
-            InvAuxMaterialToParamVec
+            InvAuxMaterialToParamVec, &
+            InvAuxInitializeParameterValues
 
 contains
 
@@ -271,7 +272,7 @@ subroutine InvAuxCopyParameterValue(aux,iparam,iflag)
   endif
 
   call InvAuxGetSetParamValueByMat(aux,tempreal, &
-                                   aux%parameters(iparam)%iparameter, &
+                                   aux%parameters(iparam)%itype, &
                                    aux%parameters(iparam)%imat,iflag)
 
   if (iflag == INVAUX_GET_MATERIAL_VALUE) then
@@ -282,7 +283,7 @@ end subroutine InvAuxCopyParameterValue
 
 ! ************************************************************************** !
 
-subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
+subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter_type,imat,iflag)
   !
   ! Copies parameter values back and forth
   !
@@ -292,11 +293,16 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
   use String_module
   use Utility_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
-                               POROSITY, VG_ALPHA, VG_SR, VG_M
+                               POROSITY, VG_ALPHA, VG_SR, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   type(inversion_aux_type) :: aux
   PetscReal :: value
-  PetscInt :: iparameter
+  PetscInt :: iparameter_type
   PetscInt :: imat
   PetscInt :: iflag
 
@@ -306,7 +312,7 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
   PetscReal :: tempreal
 
   material_property => aux%material_property_array(imat)%ptr
-  select case(iparameter)
+  select case(iparameter_type)
     case(ELECTRICAL_CONDUCTIVITY)
       if (iflag == INVAUX_GET_MATERIAL_VALUE) then
         value = material_property%electrical_conductivity
@@ -332,7 +338,7 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
       endif
     case(VG_ALPHA,VG_SR,VG_M)
       cc => aux%cc_array(material_property%saturation_function_id)%ptr
-      select case(iparameter)
+      select case(iparameter_type)
         case(VG_ALPHA)
           if (iflag == INVAUX_GET_MATERIAL_VALUE) then
             value = cc%saturation_function%GetAlpha_()
@@ -368,10 +374,40 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter,imat,iflag)
             call cc%liq_rel_perm_function%SetResidualSaturation(value)
           endif
       end select
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%archie_cementation_exponent
+      else
+        material_property%archie_cementation_exponent = value
+      endif
+    case(ARCHIE_SATURATION_EXPONENT)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%archie_saturation_exponent
+      else
+        material_property%archie_saturation_exponent = value
+      endif
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%archie_tortuosity_constant
+      else
+        material_property%archie_tortuosity_constant = value
+      endif
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%surface_electrical_conductivity
+      else
+        material_property%surface_electrical_conductivity = value
+      endif
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      if (iflag == INVAUX_GET_MATERIAL_VALUE) then
+        value = material_property%waxman_smits_clay_conductivity
+      else
+        material_property%waxman_smits_clay_conductivity = value
+      endif
     case default
       string = 'Unrecognized variable in &
         &InvAuxGetSetParamValueByMat: ' // &
-        trim(StringWrite(iparameter))
+        trim(StringWrite(iparameter_type))
       call aux%driver%PrintErrMsg(string)
   end select
 
@@ -475,7 +511,31 @@ end subroutine InvAuxMaterialToParamVec
 
 ! ************************************************************************** !
 
-subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
+subroutine InvAuxInitializeParameterValues(aux)
+  !
+  ! Initializes parameters based on values in the forward simulation input
+  ! file or the values set in the inversion parameters file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/14/23
+
+  class(inversion_aux_type) :: aux
+
+  PetscInt :: i
+
+  do i = 1, size(aux%parameters)
+    if (Uninitialized(aux%parameters(i)%value)) then
+      call InvAuxCopyParameterValue(aux,i,INVAUX_GET_MATERIAL_VALUE)
+    endif
+  enddo
+  call InvAuxCopyParamToFromParamVec(aux,INVAUX_PARAMETER_VALUE, &
+                                     INVAUX_COPY_TO_VEC)
+
+end subroutine InvAuxInitializeParameterValues
+
+! ************************************************************************** !
+
+subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
                                      material_auxvar)
   !
   ! Returns the parameter value at the cell
@@ -489,20 +549,27 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, PERMEABILITY_X, &
                                POROSITY, BASE_POROSITY, &
-                               VG_ALPHA, VG_SR, VG_M
+                               VG_ALPHA, VG_SR, VG_M, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
 
   class(inversion_aux_type) :: aux
   PetscReal :: value
-  PetscInt :: iparameter
+  PetscInt :: iparameter_type
   PetscInt :: imat
   type(material_auxvar_type) :: material_auxvar
 
   type(material_property_type), pointer :: material_property
   type(characteristic_curves_type), pointer :: cc
 
-  select case(iparameter)
-    case(ELECTRICAL_CONDUCTIVITY)
-      value = MaterialAuxVarGetValue(material_auxvar,ELECTRICAL_CONDUCTIVITY)
+  select case(iparameter_type)
+    case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      value = MaterialAuxVarGetValue(material_auxvar,iparameter_type)
     case(PERMEABILITY)
       value = MaterialAuxVarGetValue(material_auxvar,PERMEABILITY_X)
     case(POROSITY)
@@ -510,7 +577,7 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
     case(VG_ALPHA,VG_SR,VG_M)
       material_property => aux%material_property_array(imat)%ptr
       cc => aux%cc_array(material_property%saturation_function_id)%ptr
-      select case(iparameter)
+      select case(iparameter_type)
         case(VG_ALPHA)
           value = cc%saturation_function%GetAlpha_()
         case(VG_M)
@@ -521,7 +588,7 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter,imat, &
     case default
       call aux%driver%PrintErrMsg('Unrecognized variable in &
                                    &InvAuxGetParamValueByCell: ' // &
-                                   trim(StringWrite(iparameter)))
+                                   trim(StringWrite(iparameter_type)))
   end select
 
 end subroutine InvAuxGetParamValueByCell

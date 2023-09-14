@@ -366,13 +366,6 @@ subroutine RealizationCreateDiscretization(realization)
 
   endif
 
-  ! geophysics
-  if (option%ngeopdof > 0) then
-    ! 1 dof
-    call DiscretizationDuplicateVector(discretization,field%work, &
-                                       field%electrical_conductivity)
-  endif
-
   grid => discretization%grid
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -1282,8 +1275,8 @@ subroutine RealProcessTranConditions(realization)
         endif
         cur_constraint_coupler => cur_constraint_coupler%next
       enddo
-    endif 
-         
+    endif
+
 !TODO(geh) remove this?
     if (associated(cur_condition%constraint_coupler_list%next)) then
       ! there are more than one
@@ -1423,6 +1416,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   type(tran_condition_type), pointer :: tran_condition
   type(region_type), pointer :: region
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_rt_coupler
 
 98 format(40('=+'))
 99 format(80('-'))
@@ -1466,8 +1460,12 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
       trim(tran_condition%name)
     select type(c=>constraint_coupler)
       class is (tran_constraint_coupler_rt_type)
-        call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar,c, &
-                                     reaction,option)
+        ! the following three lines are a work around for an intel compiler bug
+        ! claiming that c is not a pointer, though it points to a pointer
+        !call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar,c, &
+        constraint_rt_coupler => c
+        call ReactionPrintConstraint(c%global_auxvar,c%rt_auxvar, &
+                                     constraint_rt_coupler,reaction,option)
         write(option%fid_out,'(/)')
         write(option%fid_out,99)
     end select
@@ -1858,7 +1856,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
         call TimeStorageGetTimes(sub_condition%dataset%time_storage, option, &
                                 final_time, times)
         if (associated(times)) then
-          if (size(times) > 1000) then
+          if (size(times) > 20000) then
             option%io_buffer = 'For flow condition "' // &
               trim(cur_flow_condition%name) // &
               '" dataset "' // trim(sub_condition%name) // &
@@ -2660,7 +2658,6 @@ subroutine RealizUnInitializedVarsFlow(realization)
 
   class(realization_subsurface_type) :: realization
 
-  character(len=MAXWORDLENGTH) :: var_name
   PetscInt :: i
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
@@ -2675,8 +2672,9 @@ subroutine RealizUnInitializedVarsFlow(realization)
     call RealizUnInitializedVar1(realization,PERMEABILITY_YZ,'permeability YZ')
   endif
   do i = 1, max_material_index
-    var_name = MaterialAuxIndexToPropertyName(i)
-    call RealizUnInitializedVar1(realization,i,var_name)
+    call RealizUnInitializedVar1(realization, &
+                   realization%patch%aux%Material%soil_properties_ivar(i), &
+                   realization%patch%aux%Material%soil_properties_name(i))
   enddo
 
 end subroutine RealizUnInitializedVarsFlow
@@ -2762,7 +2760,7 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
       // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
-    call PrintErrMsgToDev(option,'send your input deck.')
+    call PrintErrMsgToDev(option,'send your input deck')
   endif
 
 end subroutine RealizUnInitializedVar1

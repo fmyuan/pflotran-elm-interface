@@ -5528,7 +5528,10 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
 
         select case(ivar)
           case(TEMPERATURE)
-            call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%temp
+            enddo
           case(GAS_SATURATION)
             if (option%transport%nphase == 1) then
               call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
@@ -6723,7 +6726,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY)
+         EPSILON,HALF_MATRIX_WIDTH, &
+         SOIL_REFERENCE_PRESSURE, &
+         ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
+         ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
+         WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
@@ -6843,6 +6850,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           endif
         endif
       enddo
+    case(ELECTRICAL_CONDUCTIVITY)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%bulk_conductivity
+      enddo
     case(ELECTRICAL_POTENTIAL)
       call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
                                       potential),isubvar,isubvar2,option)
@@ -6914,6 +6926,52 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
         end select
       endif
+    ! PM WELL (wellbore model)
+    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+         WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
+         WELL_LIQ_Q,WELL_GAS_Q)
+      select case(ivar)
+        case(WELL_LIQ_PRESSURE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%pl
+          enddo
+        case(WELL_GAS_PRESSURE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%pg
+          enddo
+        case(WELL_LIQ_SATURATION)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%sl
+          enddo
+        case(WELL_GAS_SATURATION)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%sg
+          enddo
+        case(WELL_AQ_CONC)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = patch%aux%nwt%auxvars(grid%nL2G(local_id))%&
+                                well%AQ_conc(isubvar)
+          enddo
+        case(WELL_AQ_MASS)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = patch%aux%nwt%auxvars(grid%nL2G(local_id))%&
+                                well%AQ_mass(isubvar)
+          enddo
+        case(WELL_LIQ_Q)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%Ql
+          enddo
+        case(WELL_GAS_Q)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%Qg
+          enddo
+      end select
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -7060,7 +7118,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       else if (associated(patch%aux%Richards)) then
         select case(ivar)
           case(TEMPERATURE)
-            call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
+            value = patch%aux%Global%auxvars(ghosted_id)%temp
           case(GAS_SATURATION)
             if (option%transport%nphase == 1) then
               call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
@@ -7758,7 +7816,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
-         ELECTRICAL_CONDUCTIVITY)
+         EPSILON,HALF_MATRIX_WIDTH, &
+         ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -7831,6 +7892,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
+    case(ELECTRICAL_CONDUCTIVITY)
+      value = patch%aux%ERT%auxvars(ghosted_id)%bulk_conductivity
     case(ELECTRICAL_POTENTIAL_DIPOLE)
       call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
                                       potential),isubvar,isubvar2,option)
@@ -7893,6 +7956,36 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       value = grid%y(ghosted_id)
     case(Z_COORDINATE)
       value = grid%z(ghosted_id)
+    ! PM Well (wellbore model)
+    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+         WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
+         WELL_LIQ_Q,WELL_GAS_Q)
+      select case(ivar)
+        case(WELL_LIQ_PRESSURE)
+          value = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%pl
+        case(WELL_GAS_PRESSURE)
+          value = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%pg
+        case(WELL_LIQ_SATURATION)
+          value = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%sl
+        case(WELL_GAS_SATURATION)
+          value = &
+              patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%sg
+        case(WELL_AQ_CONC)
+          value = patch%aux%NWT%auxvars(ghosted_id)%&
+                  well%AQ_conc(isubvar)
+        case(WELL_AQ_MASS)
+          value = patch%aux%NWT%auxvars(ghosted_id)%&
+                  well%AQ_mass(isubvar)
+        case(WELL_LIQ_Q)
+          value = &
+            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Ql
+        case(WELL_GAS_Q)
+          value = &
+            patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg
+      end select
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -8613,15 +8706,23 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
          SECONDARY_MOLALITY,SECONDARY_MOLARITY)
       select case(ivar)
         case(PRIMARY_MOLARITY)
-          call PrintErrMsg(option,'Setting of primary molarity at grid cell not supported.')
+          call PrintErrMsg(option, &
+                    'Setting of primary molarity at grid cell not supported.')
         case(SECONDARY_MOLALITY)
-          call PrintErrMsg(option,'Setting of secondary molality at grid cell not supported.')
+          call PrintErrMsg(option, &
+                    'Setting of secondary molality at grid cell not supported.')
         case(SECONDARY_MOLARITY)
-          call PrintErrMsg(option,'Setting of secondary molarity at grid cell not supported.')
+          call PrintErrMsg(option, &
+                    'Setting of secondary molarity at grid cell not supported.')
         case(TOTAL_MOLALITY)
-          call PrintErrMsg(option,'Setting of total molality at grid cell not supported.')
+          call PrintErrMsg(option, &
+                    'Setting of total molality at grid cell not supported.')
       end select
-    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         EPSILON,HALF_MATRIX_WIDTH, &
+         ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
+         ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
+         WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
@@ -8661,6 +8762,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       else if (vec_format == LOCAL) then
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
+    case(ELECTRICAL_CONDUCTIVITY)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%bulk_conductivity = &
+          vec_ptr(local_id)
+      enddo
     case(ELECTRICAL_POTENTIAL)
       do local_id=1,grid%nlmax
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
@@ -8677,6 +8783,36 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
     case(NATURAL_ID)
       call PrintErrMsg(option, &
                        'Cannot set NATURAL_ID through PatchSetVariable()')
+    ! PM Well (wellbore model)
+    case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+         WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
+         WELL_LIQ_Q,WELL_GAS_Q)
+      select case(ivar)
+        case(WELL_LIQ_PRESSURE)
+          call PrintErrMsg(option,'Setting of WELL_LIQ_PRESSURE at grid cell &
+                           &not yet supported.')
+        case(WELL_GAS_PRESSURE)
+          call PrintErrMsg(option,'Setting of WELL_GAS_PRESSURE at grid cell &
+                           &not yet supported.')
+        case(WELL_LIQ_SATURATION)
+          call PrintErrMsg(option,'Setting of WELL_LIQ_SATURATION at grid cell &
+                           &not yet supported.')
+        case(WELL_GAS_SATURATION)
+          call PrintErrMsg(option,'Setting of WELL_GAS_SATURATION at grid cell &
+                           &not yet supported.')
+        case(WELL_AQ_CONC)
+          call PrintErrMsg(option,'Setting of WELL_AQ_CONC at grid cell &
+                           &not yet supported.')
+        case(WELL_AQ_MASS)
+          call PrintErrMsg(option,'Setting of WELL_AQ_MASS at grid cell &
+                           &not yet supported.')
+        case(WELL_LIQ_Q)
+          call PrintErrMsg(option,'Setting of WELL_LIQ_Q at grid &
+                           &cell not yet supported.')
+        case(WELL_GAS_Q)
+          call PrintErrMsg(option,'Setting of WELL_GAS_Q at grid &
+                           &cell not yet supported.')
+      end select
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchSetVariable'')') ivar

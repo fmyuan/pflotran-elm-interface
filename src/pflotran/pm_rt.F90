@@ -198,6 +198,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_sc = PETSC_TRUE
+      case('MULTIPLE_CONTINUUM_FIXED_DENSITY')
+        option%transport%sc_fixed_water_density = PETSC_TRUE
       case('NERNST_PLANCK')
         option%transport%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')

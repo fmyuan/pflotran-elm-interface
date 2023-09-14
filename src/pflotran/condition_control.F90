@@ -1212,11 +1212,11 @@ subroutine CondControlAssignRTTranInitCond(realization)
   field => realization%field
   patch => realization%patch
   reaction => realization%reaction
- 
+
   iphase = 1
   vec1_loc = PETSC_NULL_VEC
   vec2_loc = PETSC_NULL_VEC
-  
+
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -1253,7 +1253,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
         else
           sec_constraint_coupler => constraint_coupler
           sec_tran_constraint => constraint
-        endif   
+        endif
       endif
 
       equilibrate_at_each_cell = constraint_coupler%equilibrate_at_each_cell
@@ -1536,9 +1536,22 @@ subroutine CondControlAssignRTTranInitCond(realization)
         if (option%use_sc) then
           reaction%mc_flag = 1
           do cell = 1, rt_sec_transport_vars(ghosted_id)%ncells
-            call ReactionEquilibrateConstraint(rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell), &
-                                     global_auxvars(ghosted_id), material_auxvars(ghosted_id),reaction, &
-                                     sec_tran_constraint, sec_constraint_coupler%num_iterations, PETSC_FALSE,option)
+            call ReactionEquilibrateConstraint( &
+                                     rt_sec_transport_vars(ghosted_id)% &
+                                       sec_rt_auxvar(cell), &
+                                     global_auxvars(ghosted_id), &
+                                     material_auxvars(ghosted_id),reaction, &
+                                     sec_tran_constraint, &
+                                     sec_constraint_coupler%num_iterations, &
+                                     PETSC_FALSE,option)
+            if (option%transport%sc_fixed_water_density) then
+              ! convert molality to molarity so that secondary continuum is
+              ! solely molarity (independent of fluid density)
+              rt_sec_transport_vars(ghosted_id)% &
+                      sec_rt_auxvar(cell)%pri_molal = &
+                global_auxvars(ghosted_id)%den_kg(1) * 1.d-3 * &
+                rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal
+            endif
             rt_sec_transport_vars(ghosted_id)%updated_conc(:,cell) =  &
               rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal
           enddo

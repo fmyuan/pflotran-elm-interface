@@ -140,6 +140,7 @@ subroutine InversionSubsurfaceInit(this,driver)
 
   ! initialize measurement reporting verbosity
   inv_meas_reporting_verbosity = 1
+  call InversionParamInitBounds()
 
 end subroutine InversionSubsurfaceInit
 
@@ -239,6 +240,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   PetscInt :: i
   PetscInt :: observed_variable
   PetscReal :: measurement_time
+  PetscReal :: lower_bound
+  PetscReal :: upper_bound
   character(len=4) :: measurement_time_units
   character(len=MAXWORDLENGTH) :: internal_units
 
@@ -374,6 +377,17 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         select case(trim(keyword))
           case('PARAMETER')
             new_parameter => InversionParameterRead(input,string,option)
+          case('BOUNDS')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'BOUNDS,PARAMETER_NAME', &
+                               error_string)
+            call InputReadDouble(input,option,lower_bound)
+            call InputErrorMsg(input,option,'BOUNDS,LOWER_BOUND',error_string)
+            call InputReadDouble(input,option,upper_bound)
+            call InputErrorMsg(input,option,'BOUNDS,UPPER_BOUND',error_string)
+            i = InversionParamGetItypeFromName(word,this%driver)
+            call InversionParamSetGlobalBounds(i,lower_bound,upper_bound)
+            cycle ! skip appending to parameter list below
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
@@ -569,7 +583,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
   use PM_ERT_class
   use PM_Subsurface_Flow_class
   use String_module
-  use Variables_module, only : PERMEABILITY,POROSITY
+  use Variables_module, only : PERMEABILITY, POROSITY, &
+                  ARCHIE_CEMENTATION_EXPONENT, ARCHIE_SATURATION_EXPONENT, &
+                  ARCHIE_TORTUOSITY_CONSTANT
   use Waypoint_module
   use ZFlow_Aux_module
 
@@ -645,7 +661,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     num_parameters = 0
     do i = 1, size(this%inversion_aux%parameters)
       call InversionParameterMapNameToInt(this%inversion_aux%parameters(i), &
-                                          this%driver,this%inversion_option)
+                                          this%driver)
       if (len_trim(this%inversion_aux%parameters(i)%material_name) > 0) then
         material_property => &
             MaterialPropGetPtrFromArray(this%inversion_aux% &
@@ -666,9 +682,9 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
     if (.not.associated(this%inversion_aux%perturbation)) then
       do i = 1, size(this%inversion_aux%parameters)
         if (i == 1) then
-          temp_int = this%inversion_aux%parameters(i)%iparameter
+          temp_int = this%inversion_aux%parameters(i)%itype
         else
-          if (temp_int /= this%inversion_aux%parameters(i)%iparameter) then
+          if (temp_int /= this%inversion_aux%parameters(i)%itype) then
             call this%driver%PrintErrMsg('Inversion by multiple &
               &parameters of differing type (e.g. permeability, &
               &porosity) only supported for perturbation.')
@@ -691,11 +707,10 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
 
     if (this%inversion_option%coupled_flow_ert) then
       do i = 1, size(this%inversion_aux%parameters)
-        param_id = InversionParameterGetIDFromName(this%inversion_aux% &
+        param_id = InversionParamGetItypeFromName(this%inversion_aux% &
                                                      parameters(i)% &
                                                      parameter_name, &
-                                                   this%driver, &
-                                                   this%inversion_option)
+                                                   this%driver)
         select case(param_id)
           case(PERMEABILITY,POROSITY)
           case default
@@ -1043,7 +1058,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       endif
     else
       do i = 1, size(this%inversion_aux%parameters)
-        if (this%inversion_aux%parameters(i)%iparameter == PERMEABILITY) then
+        if (this%inversion_aux%parameters(i)%itype == PERMEABILITY) then
           material_property => &
             this%inversion_aux%material_property_array(this%inversion_aux% &
                                                         parameters(i)%imat)%ptr
@@ -1117,7 +1132,7 @@ subroutine InvSubsurfSetupForwardRunLinkage(this)
       endif
     endif
 
-    if (Uninitialized(this%inversion_aux%parameters(1)%iparameter) .and. &
+    if (Uninitialized(this%inversion_aux%parameters(1)%itype) .and. &
         this%inversion_aux%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('Quantity of interest not specified in &
         &InvSubsurfSetupForwardRunLinkage.')
@@ -1162,7 +1177,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   perturbation => this%inversion_aux%perturbation
 
-  ! the allocation of sync_times come before the call to 
+  ! the allocation of sync_times come before the call to
   ! InvCoupledAllocateSolnVecs()
   if (.not.associated(this%inversion_aux%sync_times)) then
     ! insert measurement times into waypoint list. this must come after the
@@ -1247,7 +1262,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                     INVAUX_SCATFORWARD)
     else
       ! load the original parameter values
-      call InvAuxMaterialToParamVec(this%inversion_aux)
+      call InvAuxInitializeParameterValues(this%inversion_aux)
     endif
     ! must come after the copying of parameters above
     call this%RestartReadData()
@@ -1309,14 +1324,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
     ! pass in first parameter as an earlier check prevents adjoint-based
     ! inversion for more than one parameter type
     call InvSubsurfSetAdjointVariable(this,this%inversion_aux% &
-                                             parameters(1)%iparameter)
+                                             parameters(1)%itype)
   endif
 
 end subroutine InvSubsurfConnectToForwardRun
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfSetAdjointVariable(this,iparameter)
+subroutine InvSubsurfSetAdjointVariable(this,iparameter_type)
   !
   ! Sets the adjoint variable for a process model
   !
@@ -1324,11 +1339,16 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
   ! Date: 03/30/22
 
   use String_module
-  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, VG_SR
+  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_M, &
+                               VG_SR, ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY
   use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
-  PetscInt :: iparameter
+  PetscInt :: iparameter_type
 
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -1340,18 +1360,22 @@ subroutine InvSubsurfSetAdjointVariable(this,iparameter)
     call this%driver%PrintErrMsg(string)
   end select
 
-  select case(iparameter)
+  select case(iparameter_type)
     case(PERMEABILITY)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
     case(POROSITY)
       zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
-    case(VG_ALPHA,VG_M,VG_SR)
-      string = 'van Genuchten parameters are unsupported for adjoint-based &
-        &inversion.'
+    case(VG_ALPHA,VG_M,VG_SR,ARCHIE_CEMENTATION_EXPONENT, &
+         ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      string = InversionParamGetNameFromItype(iparameter_type, &
+                                              this%driver)
+      string = trim(string) // &
+               'is not supported for adjoint-based inversion.'
       call this%driver%PrintErrMsg(string)
     case default
       string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &
-               trim(StringWrite(iparameter))
+               trim(StringWrite(iparameter_type))
       call this%driver%PrintErrMsg(string)
   end select
 
@@ -1372,7 +1396,7 @@ subroutine InvSubsurfExecuteForwardRun(this)
   class(inversion_subsurface_type) :: this
 
   type(option_type), pointer :: option
- 
+
   option => this%realization%option
   if (option%status == PROCEED) then
     call this%forward_simulation%ExecuteRun()

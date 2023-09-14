@@ -1175,6 +1175,13 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
       cur_variable => cur_variable%next
       cycle
     endif
+    select case(cur_variable%ivar)
+      case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
+           WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
+           WELL_LIQ_Q,WELL_GAS_Q)
+        cur_variable => cur_variable%next
+        cycle
+    end select
     temp_real = OutputGetVariableAtCell(realization_base,ghosted_id, &
                                         cur_variable)
     if (cur_variable%iformat == 0) then ! real

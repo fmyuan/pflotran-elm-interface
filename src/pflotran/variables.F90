@@ -162,7 +162,6 @@ module Variables_module
   PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 132
   PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 133
 
-
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
   PetscInt, parameter, public :: HALF_MATRIX_WIDTH    = 135
 
@@ -170,12 +169,27 @@ module Variables_module
   PetscInt, parameter, public :: VG_M                    = 137
   PetscInt, parameter, public :: VG_SR                   = 138
 
-  PetscInt, parameter, public :: NWT_AUXILIARY = 139
+  PetscInt, parameter, public :: NWT_AUXILIARY           = 139
 
   PetscInt, parameter, public :: SMECTITE                = 140
   PetscInt, parameter, public :: GAS_PARTIAL_PRESSURE    = 141
 
-  PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 142
-  PetscInt, parameter, public :: SOLUBLE_MATRIX  = 143
+  PetscInt, parameter, public :: WELL_LIQ_PRESSURE       = 142
+  PetscInt, parameter, public :: WELL_GAS_PRESSURE       = 143
+  PetscInt, parameter, public :: WELL_AQ_CONC            = 144
+  PetscInt, parameter, public :: WELL_AQ_MASS            = 145
+  PetscInt, parameter, public :: WELL_LIQ_Q              = 146
+  PetscInt, parameter, public :: WELL_GAS_Q              = 147
+  PetscInt, parameter, public :: WELL_LIQ_SATURATION       = 148
+  PetscInt, parameter, public :: WELL_GAS_SATURATION       = 149
+
+  PetscInt, parameter, public :: PRECIPITATE_SATURATION  = 150
+  PetscInt, parameter, public :: SOLUBLE_MATRIX          = 151
+
+  PetscInt, parameter, public :: ARCHIE_CEMENTATION_EXPONENT = 152
+  PetscInt, parameter, public :: ARCHIE_SATURATION_EXPONENT = 153
+  PetscInt, parameter, public :: ARCHIE_TORTUOSITY_CONSTANT = 154
+  PetscInt, parameter, public :: SURFACE_ELECTRICAL_CONDUCTIVITY = 155
+  PetscInt, parameter, public :: WAXMAN_SMITS_CLAY_CONDUCTIVITY = 156
 
 end module Variables_module

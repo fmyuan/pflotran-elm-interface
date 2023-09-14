@@ -193,7 +193,7 @@ FLOW_CONDITION bc
     LIQUID_PRESSURE DIRICHLET
     LIQUID_SATURATION DIRICHLET
   /
-  LIQUID_PRESSURE 1.3d6 Pa
+  LIQUID_PRESSURE 1.01d6 Pa
   LIQUID_SATURATION 1.0d0
 END
 
@@ -202,7 +202,7 @@ FLOW_CONDITION initial
     LIQUID_PRESSURE DIRICHLET
     LIQUID_SATURATION DIRICHLET
   /
-  LIQUID_PRESSURE 1.d6 Pa
+  LIQUID_PRESSURE 1.0d6 Pa
   LIQUID_SATURATION 1.0d0
 END
 
@@ -239,7 +239,7 @@ END
 
 BOUNDARY_CONDITION
   FLOW_CONDITION initial
-  TRANSPORT_CONDITION transport_initial_condition
+  TRANSPORT_CONDITION transport_bc_condition
   REGION bc_face_east
 END
 
@@ -256,6 +256,21 @@ END
 !=========================== output options ===================================
 OBSERVATION
   REGION rgs_repo
+END
+
+OUTPUT 
+  #FORMAT HDF5
+  OBSERVATION_FILE
+    ! NO_PRINT_INITIAL
+    ! NO_PRINT_FINAL
+    PERIODIC TIMESTEP 1
+    #VARIABLES
+    #  VOLUME
+    #/
+  /
+  #SNAPSHOT_FILE
+  #  PERIODIC TIMESTEP 1
+  #/
 END
 
 !=============================== transport ====================================

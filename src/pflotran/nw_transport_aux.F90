@@ -11,6 +11,12 @@ module NW_Transport_Aux_module
   private
 
   PetscReal, public :: MIN_LIQ_SAT = 1.0d-5
+  PetscBool, public :: nwt_well_quasi_imp_coupled = PETSC_FALSE
+
+  type, public :: nwt_well_aux_type
+    PetscReal, pointer :: AQ_conc(:)   ! aqueous concentration for each species
+    PetscReal, pointer :: AQ_mass(:)   ! aqueous mass for each species
+  end type nwt_well_aux_type
 
   type, public :: nw_transport_auxvar_type
     ! total mass as bulk concentration
@@ -27,6 +33,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
     PetscInt, pointer :: constraint_type(:)
+    type(nwt_well_aux_type) :: well
   end type nw_transport_auxvar_type
 
   type, public :: nw_transport_type
@@ -120,6 +127,9 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: diffusion_coefficient(:,:) !TODO(jenn): move to nwt_params_type
     PetscReal, pointer :: diffusion_activation_energy(:,:) !TODO(jenn): move to nwt_params_type
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
+    PetscReal, pointer :: species_solubility(:)
+    PetscReal, pointer :: species_ele_kd(:)
+    PetscReal, pointer :: species_mnrl_mol_den(:)
     type(species_type), pointer :: species_list
     PetscBool, pointer :: species_print(:)
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
@@ -229,6 +239,11 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   allocate(auxvar%constraint_type(nspecies))
   auxvar%constraint_type = 0
 
+  allocate(auxvar%well%AQ_conc(nspecies))
+  auxvar%well%AQ_conc = UNINITIALIZED_DOUBLE
+  allocate(auxvar%well%AQ_mass(nspecies))
+  auxvar%well%AQ_mass = UNINITIALIZED_DOUBLE
+
   if (nauxiliary > 0) then
     allocate(auxvar%auxiliary_data(nauxiliary))
     auxvar%auxiliary_data = 0.d0
@@ -270,6 +285,9 @@ function NWTReactionCreate()
   nullify(reaction_nw%diffusion_coefficient)
   nullify(reaction_nw%diffusion_activation_energy)
   nullify(reaction_nw%species_names)
+  nullify(reaction_nw%species_solubility)
+  nullify(reaction_nw%species_ele_kd)
+  nullify(reaction_nw%species_mnrl_mol_den)
   nullify(reaction_nw%species_list)
   nullify(reaction_nw%species_print)
   nullify(reaction_nw%rad_decay_rxn_list)
@@ -358,7 +376,7 @@ subroutine NWTRead(reaction_nw,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string_base, error_string
   PetscInt :: num_materials
   PetscInt :: k, j
-  type(species_type), pointer :: new_species, prev_species
+  type(species_type), pointer :: new_species, prev_species, cur_species
   character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
   character(len=MAXWORDLENGTH), pointer :: temp_species_parents(:)
   character(len=MAXWORDLENGTH) :: bh_materials(50)
@@ -632,8 +650,21 @@ subroutine NWTRead(reaction_nw,input,option)
                         reaction_nw%rad_decay_rxn_list,temp_species_names, &
                         temp_species_parents,option)
 
-   deallocate(temp_species_names)
-   deallocate(temp_species_parents)
+  allocate(reaction_nw%species_solubility(k))   ! [mol/m^3-liq]
+  allocate(reaction_nw%species_ele_kd(k))       ! [m^3-water/m^3-bulk]
+  allocate(reaction_nw%species_mnrl_mol_den(k)) ! [mol/m^3-mnrl]
+
+  cur_species => reaction_nw%species_list
+  do
+    if (.not.associated(cur_species)) exit
+    reaction_nw%species_solubility(cur_species%id) = cur_species%solubility_limit
+    reaction_nw%species_mnrl_mol_den(cur_species%id) = cur_species%mnrl_molar_density
+    reaction_nw%species_ele_kd(cur_species%id) = cur_species%ele_kd
+    cur_species => cur_species%next
+  enddo
+
+  deallocate(temp_species_names)
+  deallocate(temp_species_parents)
 
 end subroutine NWTRead
 
@@ -1338,6 +1369,9 @@ subroutine NWTReactionDestroy(reaction_nw,option)
   call DeallocateArray(reaction_nw%diffusion_coefficient)
   call DeallocateArray(reaction_nw%diffusion_activation_energy)
   call DeallocateArray(reaction_nw%species_names)
+  call DeallocateArray(reaction_nw%species_solubility)
+  call DeallocateArray(reaction_nw%species_ele_kd)
+  call DeallocateArray(reaction_nw%species_mnrl_mol_den)
   call DeallocateArray(reaction_nw%species_print)
 
   nullify(reaction_nw%params)

@@ -99,7 +99,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       end select
     endif
 
-    cur_patch%aux%Material => MaterialAuxCreate()
+    cur_patch%aux%Material => MaterialAuxCreate(option)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
@@ -334,7 +334,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: perm_yz_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: compress_p(:)
-  PetscReal, pointer :: cond_p(:)
 
   Vec :: epsilon0,matrixlength0
 
@@ -385,12 +384,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
                                        matrixlength0);
     call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
-  endif
-
-  ! geophysics
-  if (option%ngeopdof > 0) then
-    call VecGetArrayF90(field%electrical_conductivity,cond_p, &
-                        ierr);CHKERRQ(ierr)
   endif
 
   ! have to use Material%auxvars() and not material_auxvars() due to memory
@@ -489,10 +482,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
         compress_p(local_id) = material_property%soil_compressibility
       endif
     endif
-    if (associated(material_auxvars)) then
-      call MaterialAssignPropertyToAux(material_auxvars(ghosted_id), &
-                                       material_property,option)
-    endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
     if (epsilon_index > 0) then
@@ -501,9 +490,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (half_matrix_width_index > 0) then
       length0_p(local_id) = material_property%multicontinuum%half_matrix_width
     endif
-
-    if (option%ngeopdof > 0) then
-      cond_p(local_id) = material_property%electrical_conductivity
+    if (associated(material_auxvars)) then
+      call MaterialAssignPropertyToAux(material_auxvars(ghosted_id), &
+                                       material_property,option)
     endif
   enddo
 
@@ -530,11 +519,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   if (half_matrix_width_index > 0) then
     call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
-  endif
-
-  if (option%ngeopdof > 0) then
-    call VecRestoreArrayF90(field%electrical_conductivity,cond_p, &
-                            ierr);CHKERRQ(ierr)
   endif
 
   ! read in any user-defined property fields
@@ -581,8 +565,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
       if (associated(material_property%electrical_conductivity_dataset)) then
         call SubsurfReadDatasetToVecWithMask(realization, &
                material_property%electrical_conductivity_dataset, &
-               material_property%internal_id,PETSC_FALSE, &
-                        field%electrical_conductivity)
+               material_property%internal_id,PETSC_FALSE,field%work)
+        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
+                                             material_property%internal_id, &
+                                             ELECTRICAL_CONDUCTIVITY)
       endif
       if (associated(material_property%multicontinuum)) then
         if (associated(material_property%multicontinuum%epsilon_dataset)) then
@@ -590,7 +576,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
                  material_property%multicontinuum%epsilon_dataset, &
                  material_property%internal_id,PETSC_FALSE,epsilon0)
         endif
-        if (associated(material_property%multicontinuum%half_matrix_width_dataset)) then
+        if (associated(material_property%multicontinuum% &
+                         half_matrix_width_dataset)) then
           call SubsurfReadDatasetToVecWithMask(realization, &
                  material_property%multicontinuum%half_matrix_width_dataset, &
                  material_property%internal_id,PETSC_FALSE,matrixlength0)
@@ -668,13 +655,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  HALF_MATRIX_WIDTH,ZERO_INTEGER)
     call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr)
-  endif
-
-  if (option%ngeopdof > 0) then
-     call DiscretizationGlobalToLocal(discretization, &
-                     field%electrical_conductivity,field%work_loc,ONEDOF)
-     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               ELECTRICAL_CONDUCTIVITY,ZERO_INTEGER)
   endif
 
   ! copy rock properties to neighboring ghost cells
@@ -1100,6 +1080,54 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SubsurfReadDatasetToVecWithMask
+
+! ************************************************************************** !
+
+subroutine SubsurfMapVecToMatAuxByMaterial(realization,vec,material_id,ivar)
+  !
+  ! Maps values in a global vec to the material auxvar masked by material ID
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/14/23
+  !
+  use Grid_module
+  use Material_Aux_module
+  use Option_module
+  use Patch_module
+  use Realization_Subsurface_class
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  Vec :: vec  ! global vec
+  PetscInt :: material_id
+  PetscInt :: ivar
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscReal, pointer :: vec_p(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+
+  material_auxvars => patch%aux%Material%auxvars
+
+  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) == material_id) then
+      call MaterialAuxVarSetValue(material_auxvars(ghosted_id), &
+                                  ivar,vec_p(local_id))
+    endif
+  enddo
+  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+
+end subroutine SubsurfMapVecToMatAuxByMaterial
 
 ! ************************************************************************** !
 
