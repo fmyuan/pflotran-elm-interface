@@ -1692,6 +1692,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
                      patch%internal_velocities(:,sum_connection), &
                      patch%internal_tran_coefs(:,:,sum_connection), &
                      cur_connection_set%dist(-1,iconn), &
+                     PETSC_TRUE, &
                      coef_up,coef_dn)
 
       if (local_id_up > 0) then
@@ -1930,6 +1931,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,:,sum_connection), &
                      0.5d0, &
+                     PETSC_TRUE, &
                      coef_up,coef_dn)
       ! TFlux accomplishes the same as what TBCFlux would
       call TFlux(rt_parameter, &
@@ -2298,6 +2300,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,:,sum_connection), &
                 cur_connection_set%dist(-1,iconn), &
+                PETSC_TRUE, &
                 coef_up,coef_dn)
 
       call TFlux(rt_parameter, &
@@ -3094,6 +3097,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                 patch%internal_velocities(:,sum_connection), &
                 patch%internal_tran_coefs(:,:,sum_connection), &
                 cur_connection_set%dist(-1,iconn), &
+                PETSC_TRUE, &
                 coef_up,coef_dn)
       call TFluxDerivative(rt_parameter, &
                            rt_auxvars(ghosted_id_up), &

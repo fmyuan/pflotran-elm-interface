@@ -496,7 +496,7 @@ subroutine TFluxCoef(rt_parameter, &
                      global_auxvar_up,global_auxvar_dn, &
                      option,area,velocity, &
                      tran_coefs_over_dist, &
-                     fraction_upwind,T_up,T_dn)
+                     fraction_upwind,check_upwind_saturation,T_up,T_dn)
   !
   ! Computes flux coefficients for transport matrix
   !
@@ -518,6 +518,7 @@ subroutine TFluxCoef(rt_parameter, &
   PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
                                     rt_parameter%nphase)
   PetscReal :: fraction_upwind
+  PetscBool :: check_upwind_saturation
   PetscReal :: T_up(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscReal :: T_dn(rt_parameter%naqcomp,rt_parameter%nphase)
 
@@ -532,8 +533,15 @@ subroutine TFluxCoef(rt_parameter, &
   T_dn(:,:) = 0.d0
 
   ! as long as gas phase chemistry is a function of aqueous, skip both phases
-  if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation .or. &
-      global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) return
+  if (global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) then
+    return
+  else if (check_upwind_saturation) then
+    ! for boundary conditions, we can have a zero aqueous saturation upwind
+    ! and it does not matter
+    if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation) then
+      return
+    endif
+  endif
 
   do iphase = 1, nphase
     q = velocity(iphase)
@@ -595,7 +603,7 @@ subroutine TFluxCoefBC(bctype,rt_parameter, &
                      global_auxvar_up,global_auxvar_dn, &
                      option,area,velocity, &
                      tran_coefs_over_dist, &
-                     fraction_upwind,T_up,T_dn)
+                     fraction_upwind,PETSC_FALSE,T_up,T_dn)
   end select
 
 end subroutine TFluxCoefBC
