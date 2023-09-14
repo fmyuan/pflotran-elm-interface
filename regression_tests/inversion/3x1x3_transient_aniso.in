@@ -1,0 +1,57 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        EXTERNAL_FILE zflow_standard_options.txt
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE 3x1x3_transient.txt
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1_aniso
+  ID 4
+  POROSITY 0.25d0
+  SOIL_COMPRESSIBILITY_FUNCTION LEIJNSE
+  SOIL_COMPRESSIBILITY 1.d-9
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  PERMEABILITY
+    PERM_HORIZONTAL 1.d-12
+    VERTICAL_ANISOTROPY_RATIO 1.d0
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+MATERIAL_PROPERTY soil2_aniso
+  ID 5
+  POROSITY 0.25d0
+  SOIL_COMPRESSIBILITY_FUNCTION LEIJNSE
+  SOIL_COMPRESSIBILITY 1.d-9
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  PERMEABILITY
+    PERM_HORIZONTAL 1.d-18
+    VERTICAL_ANISOTROPY_RATIO 1.d0
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== strata ===========================================
+
+# this overwrites the assignment of soil1 and soil2 in 3x1x3_transient.txt
+STRATA
+  REGION all
+  MATERIAL soil1_aniso
+END
+
+STRATA
+  REGION barrier
+  MATERIAL soil2_aniso
+END
+
+END_SUBSURFACE

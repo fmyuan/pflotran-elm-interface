@@ -22,7 +22,9 @@ module Reaction_Surface_Complexation_module
             RTotalSorbEqSurfCplx, &
             RMultiRateSorption, &
             RKineticSurfCplx, &
-            RTotalSorbMultiRateAsEQ
+            RTotalSorbMultiRateAsEQ, &
+            RSrfCplxMRUpdateKinState, &
+            RSrfCplxUpdateKinState
 
 contains
 
@@ -1099,5 +1101,84 @@ subroutine RKineticSurfCplx(Res,Jac,compute_derivative,rt_auxvar, &
   ! units of dtotal_sorb = kg water/m^3 bulk
 
 end subroutine RKineticSurfCplx
+
+! ************************************************************************** !
+
+subroutine RSrfCplxMRUpdateKinState(rt_auxvar,reaction, &
+                                    kinetic_state_updated,option)
+  !
+  ! Update sorbed concentration for kinetic multirate surface complexation
+  ! reaction where the value at time level k+1 is stored implicitly
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/18/23
+  !
+  use Option_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(reaction_rt_type) :: reaction
+  PetscBool :: kinetic_state_updated
+  type(option_type) :: option
+
+  PetscInt :: irate, irxn
+  PetscReal :: kdt, one_plus_kdt, k_over_one_plus_kdt
+
+  ! update multirate sorption concentrations
+  ! WARNING: below assumes site concentration multiplicative factor
+  do irxn = 1, reaction%surface_complexation%nkinmrsrfcplxrxn
+    kinetic_state_updated = PETSC_TRUE
+    do irate = 1, reaction%surface_complexation%kinmr_nrate(irxn)
+      kdt = reaction%surface_complexation%kinmr_rate(irate,irxn) * &
+            option%tran_dt
+      one_plus_kdt = 1.d0 + kdt
+      k_over_one_plus_kdt = &
+        reaction%surface_complexation%kinmr_rate(irate,irxn)/one_plus_kdt
+      rt_auxvar%kinmr_total_sorb(:,irate,irxn) = &
+        (rt_auxvar%kinmr_total_sorb(:,irate,irxn) + &
+        kdt * reaction%surface_complexation%kinmr_frac(irate,irxn) * &
+        rt_auxvar%kinmr_total_sorb(:,0,irxn))/one_plus_kdt
+    enddo
+  enddo
+
+end subroutine RSrfCplxMRUpdateKinState
+
+! ************************************************************************** !
+
+subroutine RSrfCplxUpdateKinState(rt_auxvar,reaction, &
+                                  kinetic_state_updated,option)
+  !
+  ! Update sorbed concentration for kinetic surface complexation reaction
+  ! where the value at time level k+1 is stored implicitly
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/18/23
+  !
+  use Option_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(reaction_rt_type) :: reaction
+  PetscBool :: kinetic_state_updated
+  type(option_type) :: option
+
+  PetscInt :: k, irxn, icplx, ncplx, ikinrxn
+
+  ! update kinetic sorption concentrations
+  do ikinrxn = 1, reaction%surface_complexation%nkinsrfcplxrxn
+    kinetic_state_updated = PETSC_TRUE
+    irxn = reaction%surface_complexation%&
+              kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
+    ncplx = reaction%surface_complexation%srfcplxrxn_to_complex(0,irxn)
+    do k = 1, ncplx ! ncplx in rxn
+      icplx = reaction%surface_complexation%srfcplxrxn_to_complex(k,irxn)
+      rt_auxvar%kinsrfcplx_conc(icplx,ikinrxn) = &
+        rt_auxvar%kinsrfcplx_conc_kp1(icplx,ikinrxn)
+    enddo
+  enddo
+
+end subroutine RSrfCplxUpdateKinState
 
 end module Reaction_Surface_Complexation_module

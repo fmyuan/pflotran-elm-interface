@@ -1,0 +1,35 @@
+#=========================== simulation =======================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+  # this external file terminates mid chemistry block
+  EXTERNAL_FILE reaction_sandbox_lambda.txt
+
+  REACTION_SANDBOX
+    LAMBDA
+      REACTION_NETWORK reaction_network_lambda.txt  
+      MU_MAX 11 1/hr
+      VH 1 m^3
+      CC 1 M
+      k_deg 1e-2 1/hr
+      NH4_inhibit 1e-15 M
+      SCALING_MINERAL A(s)
+      INHIBITION_TYPE SMOOTHSTEP
+    /
+    EQUILIBRATE
+      SPECIES_NAME O2(aq)
+      EQUILIBRIUM_CONCENTRATION 4.06e-4
+      HALF_LIFE 0.01 h
+    /
+  /
+END
+
+END_SUBSURFACE

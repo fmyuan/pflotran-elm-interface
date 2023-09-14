@@ -571,13 +571,11 @@ function ReactionCast(reaction_base)
   class(reaction_rt_type), pointer :: ReactionCast
 
   nullify(ReactionCast)
-  ! workaround for Intel
-  if (associated(reaction_base)) then
-    select type(r=>reaction_base)
-      class is(reaction_rt_type)
-        ReactionCast => r
-    end select
-  endif
+  if (.not.associated(reaction_base)) return
+  select type(r=>reaction_base)
+    class is(reaction_rt_type)
+      ReactionCast => r
+  end select
 
 end function ReactionCast
 

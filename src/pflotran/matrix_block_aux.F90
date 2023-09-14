@@ -128,7 +128,7 @@ subroutine MatrixBlockAuxVarCopy(auxvar,auxvar2,option)
   type(matrix_block_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
-  auxvar%dtotal = auxvar2%dtotal
+  auxvar2%dtotal = auxvar%dtotal
 
 end subroutine MatrixBlockAuxVarCopy
 

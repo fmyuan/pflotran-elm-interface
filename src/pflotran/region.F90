@@ -1125,9 +1125,13 @@ subroutine RegionReadCellList(region,input,read_faces,from_file,option)
 
   array_size = 1000
   allocate(cell_ids(array_size))
-  allocate(face_ids(array_size))
   cell_ids(:) = 0
-  face_ids(:) = 0
+  if (read_faces) then
+    allocate(face_ids(array_size))
+    face_ids(:) = 0
+  else
+    nullify(face_ids)
+  endif
 
   ! Read the data
   icount = 0
@@ -1187,9 +1191,11 @@ subroutine RegionReadCellList(region,input,read_faces,from_file,option)
 
   ! Allocate memory and save the data
   allocate(region%cell_ids(region%num_cells))
-  allocate(region%faces(region%num_cells))
   region%cell_ids(1:region%num_cells) = cell_ids(istart+1:iend)
-  region%faces(1:region%num_cells) = face_ids(istart+1:iend)
+  if (read_faces) then
+    allocate(region%faces(region%num_cells))
+    region%faces(1:region%num_cells) = face_ids(istart+1:iend)
+  endif
   call DeallocateArray(cell_ids)
   call DeallocateArray(face_ids)
 

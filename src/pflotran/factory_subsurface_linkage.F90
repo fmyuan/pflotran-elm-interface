@@ -319,11 +319,13 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   endif
   if (associated(pm_well)) then
     call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
-    select type(pm_flow)
-      class is (pm_wippflo_type)
-        ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
-        pm_flow%pmwell_ptr => pm_well
-    end select
+    if (associated(pm_flow)) then
+      select type(pm_flow)
+        class is (pm_wippflo_type)
+          ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
+          pm_flow%pmwell_ptr => pm_well
+      end select
+    endif
     if (associated(pm_tran)) then
       select type(pm_tran)
         class is (pm_nwt_type)

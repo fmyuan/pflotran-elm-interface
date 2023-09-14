@@ -33,6 +33,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   use Logging_module
   use String_module
   use Simulation_Base_class
+  use Utility_module
 
   class(driver_type), pointer :: driver
   class(simulation_base_type), pointer :: simulation
@@ -48,7 +49,6 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   option => OptionCreate()
   call OptionSetDriver(option,driver)
   call OptionSetComm(option,driver%comm)
-
   ! check for non-default input filename
   driver%input_filename = 'pflotran.in'
   string = '-pflotranin'
@@ -79,6 +79,12 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
     driver%input_prefix = StringStripFilenameSuffix(driver%input_filename)
   else if (input_prefix_option_found) then
     driver%input_filename = trim(driver%input_prefix) // '.in'
+  endif
+
+  string = '-throw_error'
+  call InputGetCommandLineString(string,string,option_found,option)
+  if (option_found) then
+    call ThrowRuntimeError(trim(string),option)
   endif
 
   driver%global_prefix = driver%input_prefix

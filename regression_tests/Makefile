@@ -130,6 +130,11 @@ STANDARD_CFG += \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
+ifdef RUNTIME_ERROR_CHECKING
+STANDARD_CFG += \
+	runtime/runtime.cfg
+endif
+
 #
 # domain specific problems
 #
@@ -201,6 +206,9 @@ WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/transport/batch/wipp_batch.cfg 
+
+RUNTIME_CFG = \
+	runtime/runtime.cfg
 
 test : standard
 
@@ -294,6 +302,10 @@ tcond_test :
 wipp_test :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(WIPP_CFG)
+
+runtime_error :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(RUNTIME_CFG) --suite runtime
 
 #
 # Try to cleanup the regression test output.

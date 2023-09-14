@@ -111,6 +111,7 @@ function DatasetGriddedHDF5Cast(this)
   class(dataset_gridded_hdf5_type), pointer :: DatasetGriddedHDF5Cast
 
   nullify(DatasetGriddedHDF5Cast)
+  if (.not.associated(this)) return
   select type (this)
     class is (dataset_gridded_hdf5_type)
       DatasetGriddedHDF5Cast => this

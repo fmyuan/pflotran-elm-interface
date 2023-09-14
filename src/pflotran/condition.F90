@@ -2683,6 +2683,10 @@ subroutine FlowConditionHydrateRead(condition,input,option)
             (associated(hydrate%energy_flux) .or. &
              associated(hydrate%temperature))) then
       condition%iphase = HYD_ANY_STATE
+    elseif (associated(hydrate%liquid_pressure) .and. &
+            associated(hydrate%mole_fraction) .and. &
+            associated(hydrate%energy_flux)) then
+      condition%iphase = HYD_ANY_STATE
     else
       if ( associated(hydrate%gas_pressure) .and. &
            associated(hydrate%gas_saturation) .and. &

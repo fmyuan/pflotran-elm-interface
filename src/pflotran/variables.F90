@@ -192,4 +192,8 @@ module Variables_module
   PetscInt, parameter, public :: SURFACE_ELECTRICAL_CONDUCTIVITY = 155
   PetscInt, parameter, public :: WAXMAN_SMITS_CLAY_CONDUCTIVITY = 156
 
+  PetscInt, parameter, public :: NUMBER_SECONDARY_CELLS = 157
+
+  PetscInt, parameter, public :: VERTICAL_PERM_ANISOTROPY_RATIO = 158
+
 end module Variables_module
