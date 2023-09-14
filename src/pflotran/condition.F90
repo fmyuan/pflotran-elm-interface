@@ -4212,6 +4212,7 @@ function FlowConditionGeneralIsTransient(condition)
       FlowSubConditionIsTransient(condition%gas_saturation) .or. &
       FlowSubConditionIsTransient(condition%relative_humidity) .or. &
       FlowSubConditionIsTransient(condition%mole_fraction) .or. &
+      FlowSubConditionIsTransient(condition%salt_mole_fraction) .or. &
       FlowSubConditionIsTransient(condition%temperature) .or. &
       FlowSubConditionIsTransient(condition%rate) .or. &
       FlowSubConditionIsTransient(condition%liquid_flux) .or. &
