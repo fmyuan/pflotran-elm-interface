@@ -85,11 +85,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
   xm_nacl = option%m_nacl * FMWNACL
   xm_nacl = xm_nacl /(1.d3 + xm_nacl)
-  if (general_salt) then
-    aux(1) = condition%general%salt_mole_fraction%dataset%rarray(1)
-  else
-    aux(1) = xm_nacl
-  endif
+  aux(1) = xm_nacl
 
   nullify(pressure_array)
   nullify(datum_dataset)
@@ -110,6 +106,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
   select case(option%iflowmode)
     case(G_MODE)
+      if (general_salt) then
+        aux(1) = condition%general%salt_mole_fraction%dataset%rarray(1)
+      endif
       call HydrostaticHDF5DatasetError(condition%general%temperature, &
                                        condition%name,option)
       call HydrostaticHDF5DatasetError(condition%general%mole_fraction, &
