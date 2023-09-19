@@ -95,7 +95,7 @@ subroutine NWTSetup(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(output_variable_list_type), pointer :: list
 
-  PetscInt :: ghosted_id, local_id
+  PetscInt :: ghosted_id, local_id, p
   PetscInt :: iconn, sum_connection
   PetscInt :: iphase
   PetscInt :: flag(3)
@@ -230,6 +230,17 @@ subroutine NWTSetup(realization)
     list => realization%output_option%output_obs_variable_list
     call NWTSetPlotVariables(list,reaction_nw,option, &
                              realization%output_option%tunit)
+  endif
+
+  ! set screening run dirichlet material ids
+  if (reaction_nw%screening_run) then
+    do p = 1, size(reaction_nw%params%dirichlet_material_names)
+      cur_material_property => MaterialPropGetPtrFromList( &
+                             reaction_nw%params%dirichlet_material_names(p), &
+                             realization%patch%material_properties)
+      reaction_nw%params%dirichlet_material_ids(p) = &
+                                            cur_material_property%internal_id
+    enddo
   endif
 
 end subroutine NWTSetup
@@ -683,7 +694,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   endif
 
   ! Communication -----------------------------------------
-  if (realization%reaction_nw%use_log_formulation) then
+  if (reaction_nw%use_log_formulation) then
     ! have to convert the log concentration to non-log form
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
@@ -770,6 +781,11 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id) <= 0) cycle
+      ! ignore dirichlet materials cells
+      if (reaction_nw%screening_run) then
+        if (any( reaction_nw%params%dirichlet_material_ids == &
+                 realization%patch%imat(ghosted_id) )) cycle
+      endif
 
       call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
@@ -805,6 +821,11 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
     ghosted_id = grid%nL2G(local_id)
     ! ignore inactive cells with inactive materials
     if (realization%patch%imat(ghosted_id) <= 0) cycle
+    ! ignore dirichlet materials cells
+    if (reaction_nw%screening_run) then
+      if (any( reaction_nw%params%dirichlet_material_ids == &
+               realization%patch%imat(ghosted_id) )) cycle
+    endif
 
     call NWTResidualRx(nwt_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
@@ -868,14 +889,32 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
         offset = (local_id_up-1)*nspecies
         istart = offset + 1
         iend = offset + nspecies
-        r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies)
+        if (reaction_nw%screening_run) then 
+          if (any(reaction_nw%params%dirichlet_material_ids == &
+                  realization%patch%imat(ghosted_id_up))) then
+            r_p(istart:iend) = r_p(istart:iend) ! do not modify
+          else 
+            r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies)
+          endif
+        else 
+          r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies)
+        endif
       endif
 
       if (local_id_dn>0) then
         offset = (local_id_dn-1)*nspecies
         istart = offset + 1
         iend = offset + nspecies
-        r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+        if (reaction_nw%screening_run) then
+          if (any(reaction_nw%params%dirichlet_material_ids == &
+                 realization%patch%imat(ghosted_id_dn))) then
+            r_p(istart:iend) = r_p(istart:iend) ! do not modify
+          else 
+            r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+          endif
+        else 
+          r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+        endif
       endif
 
       if (associated(realization%patch%internal_tran_fluxes)) then
@@ -932,7 +971,16 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+      if (reaction_nw%screening_run) then
+        if (any(reaction_nw%params%dirichlet_material_ids == &
+                realization%patch%imat(ghosted_id_dn))) then
+          r_p(istart:iend) = r_p(istart:iend) ! do not modify
+        else 
+          r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+        endif
+      else 
+        r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+      endif
       ! note: Don't need to worry about Res_up because that is outside of
       ! the domain, and doesn't have a place in r_p.
 

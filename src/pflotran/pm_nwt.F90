@@ -816,8 +816,6 @@ subroutine PMNWTInitializeTimestep(this)
   patch => this%realization%patch
   nwt_auxvars => this%realization%patch%aux%NWT%auxvars
 
-  !call PMBasePrintHeader(this)
-
   ! If a material change to borehole materials has happened, remove all
   ! NWT species mass from the borehole material region.
   if (this%params%zero_out_borehole) then
@@ -981,21 +979,59 @@ subroutine PMNWTFinalizeTimestep(this)
   use Material_module, only : MaterialGetAuxVarVecLoc
   use Material_Aux_module, only : POROSITY_BASE
   use Global_module
+  use Patch_module
+  use Field_module
 
   implicit none
 
   class(pm_nwt_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: i, idof
+  PetscInt :: offset, index
+  PetscInt :: istart, iend
+  PetscReal, pointer :: xx_p(:)
   PetscErrorCode :: ierr
 
+  patch => this%realization%patch
+  field => this%realization%field
+  nwt_auxvars => patch%aux%NWT%auxvars
+
   if (this%params%transient_porosity) then
-    call VecCopy(this%realization%field%porosity_tpdt, &
-                 this%realization%field%porosity_t,ierr);CHKERRQ(ierr)
+    call VecCopy(field%porosity_tpdt,field%porosity_t,ierr);CHKERRQ(ierr)
     call RealizationUpdatePropertiesTS(this%realization)
-    call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  POROSITY,POROSITY_BASE)
-    call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                  this%realization%field%porosity_tpdt)
+    call this%comm1%LocalToGlobal(field%work_loc,field%porosity_tpdt)
+  endif
+
+  ! If this is a screening run, then hold the mass in the list of Dirichlet
+  ! materials constant (at initial value).
+  if (this%realization%reaction_nw%screening_run) then
+    do local_id = 1, patch%grid%nlmax
+      ghosted_id = patch%grid%nL2G(local_id)
+      ! loop through the dirichlet material IDs:
+      do i = 1, size(this%params%dirichlet_material_ids)
+        if (patch%imat(ghosted_id) == this%params%dirichlet_material_ids(i)) then
+          ! Means the current grid cell is one of the dirichlet materials
+          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          ! compute offset in solution vector for first dof in grid cell
+          offset = (local_id-1)*this%params%nspecies
+          do idof = 1, this%params%nspecies
+            index = idof + offset
+            xx_p(index) = this%params%init_total_mass_conc
+          enddo
+          ! calculate range of species
+          istart = offset + 1
+          iend = offset + this%params%nspecies
+          nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
+          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+        endif
+      enddo
+    enddo
   endif
 
 end subroutine PMNWTFinalizeTimestep
