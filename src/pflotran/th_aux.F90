@@ -396,6 +396,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: dkr_dsat1
   PetscReal :: dk_ds, dk_dT
 
+  ierr = 0
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
   global_auxvar%sat = 0.d0
@@ -667,6 +668,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk_ice
   PetscReal :: dk_ds, dK_di, dk_dT
 
+  ierr = 0
   out_of_table_flag = PETSC_FALSE
 
   global_auxvar%sat = 0.d0

@@ -336,7 +336,9 @@ function GeneralAuxCreate(option)
   aux%general_parameter%diffusion_coefficient(LIQUID_PHASE) = &
                                                            UNINITIALIZED_DOUBLE
   aux%general_parameter%diffusion_coefficient(GAS_PHASE) = 2.13d-5
-  aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
+  if (general_salt) then
+    aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
+  endif 
   aux%general_parameter%newton_inf_scaled_res_tol = 1.d-50
   aux%general_parameter%check_post_converged = PETSC_FALSE
 
@@ -622,18 +624,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: sigma
 
-  ! from init.F90
-!  option%nphase = 2
-!  option%liquid_phase = 1  ! liquid_pressure
-!  option%gas_phase = 2     ! gas_pressure
-
-!  option%air_pressure_id = 3
-!  option%capillary_pressure_id = 4
-!  option%vapor_pressure_id = 5
-
-!  option%water_id = 1
-!  option%air_id = 2
-!  option%energy_id = 3
+  ierr = 0
+  eos_henry_ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -645,9 +637,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   acid = option%air_id ! air component id
   wid = option%water_id
   eid = option%energy_id
-
-  eos_henry_ierr = 0
-
 
 #ifdef DEBUG_GENERAL
   ! create a NaN
@@ -1684,6 +1673,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: sigma
 
+  ierr = 0
+  eos_henry_ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1697,9 +1688,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   wid = option%water_id
   eid = option%energy_id
   sid = option%salt_id
-
-  eos_henry_ierr = 0
-
 
 #ifdef DEBUG_GENERAL
   ! create a NaN
@@ -4603,7 +4591,100 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
        endif
 
        x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+#ifdef HEEHO_PERTURBATION
+       pert(GENERAL_GAS_PRESSURE_DOF) = &
+            max(perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF), &
+            min_pres_tol)
+       if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > 1.d0) then
+          tempreal = max(perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF), &
+               min_airu_tol)
+       else
+          tempreal = max(perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF), &
+               min_airl_tol)
+       endif
+       if (x(GENERAL_GAS_PRESSURE_DOF) - &
+            x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+          pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+       else
+          pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+       endif
+       pert(GENERAL_ENERGY_DOF) = max(perturbation_tolerance*x(GENERAL_ENERGY_DOF), &
+            min_temp_tol)
+#else
+#ifdef LEGACY_PERTURBATION
+       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
+       !pert(GENERAL_GAS_PRESSURE_DOF) = &
+       !  -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
 
+       ! perturb air pressure towards gas pressure unless the perturbed
+       ! air pressure exceeds the gas pressure
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+             perturbation_tolerance* &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)) then
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+             perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+             -1.d0*perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
+       else
+         if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+            1.d3 * perturbation_tolerance) then
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
+       endif
+       pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF)
+#else
+       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
+       !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+       !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+
+       !MAN: Try perturbing upward, because lower gas pressure is associated with
+       !     lower gas saturation (i.e. two-phase)
+       pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
+                                x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
+
+       ! perturb air pressure towards gas pressure unless the perturbed
+       ! air pressure exceeds the gas pressure
+       tempreal = perturbation_tolerance* &
+                  x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+         else
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         endif
+       else
+         if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+            1.d3 * perturbation_tolerance) then
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
+       endif
+
+       if (x(GENERAL_POROSITY_DOF) > &
+            1.d3 * perturbation_tolerance) then
+          pert(GENERAL_POROSITY_DOF) = -1.d0 * perturbation_tolerance
+       else
+          pert(GENERAL_POROSITY_DOF) = perturbation_tolerance
+       endif
+       pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
+#endif
+#endif
     case(LGP_STATE)
       if (x(GENERAL_PRECIPITATE_SAT_DOF) > 0.50) THEN
          pert(GENERAL_PRECIPITATE_SAT_DOF) = -1.d0 * perturbation_tolerance

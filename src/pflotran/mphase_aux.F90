@@ -267,6 +267,8 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
   PetscReal :: aux(1)
   PetscInt :: iflag
 
+  ierr = 0
+
   auxvar%den = 0.d0
   auxvar%sat = 0.d0
 

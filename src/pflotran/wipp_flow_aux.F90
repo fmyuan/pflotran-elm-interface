@@ -49,6 +49,8 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
   PetscBool, public :: wippflo_use_bragflo_cc = PETSC_FALSE
 
+  PetscBool, public :: wippflo_well_quasi_imp_coupled = PETSC_FALSE
+
   ! debugging
   PetscInt, public :: wippflo_ni_count
   PetscInt, public :: wippflo_ts_cut_count
@@ -85,6 +87,17 @@ module WIPP_Flow_Aux_module
   ! radiolysis
   PetscBool, public :: wippflo_radiolysis = PETSC_FALSE
 
+  type, public :: wippflo_well_aux_type
+    PetscReal :: pl   ! liquid pressure
+    PetscReal :: pg   ! gas pressure
+    PetscReal :: sl
+    PetscReal :: sg
+    PetscReal :: dpl
+    PetscReal :: dpg
+    PetscReal :: Ql   ! liquid exchange flux
+    PetscReal :: Qg   ! gas exchange flux
+  end type wippflo_well_aux_type
+
   type, public :: wippflo_auxvar_type
     PetscReal :: pres(6)   ! (iphase)
     PetscReal :: sat(2)    ! (iphase)
@@ -102,6 +115,7 @@ module WIPP_Flow_Aux_module
     PetscReal :: elevation
     PetscReal :: fracture_perm_scaling_factor
     PetscReal :: klinkenberg_scaling_factor(3)
+    type(wippflo_well_aux_type) :: well
   end type wippflo_auxvar_type
 
   type, public :: wippflo_parameter_type
@@ -227,6 +241,15 @@ subroutine WIPPFloAuxVarInit(auxvar,option)
   auxvar%mobility = 0.d0
   auxvar%kr = 0.d0
   auxvar%mu = 0.d0
+  auxvar%well%pl = UNINITIALIZED_DOUBLE
+  auxvar%well%pg = UNINITIALIZED_DOUBLE
+  auxvar%well%sl = UNINITIALIZED_DOUBLE
+  auxvar%well%sg = UNINITIALIZED_DOUBLE
+  auxvar%well%dpl = UNINITIALIZED_DOUBLE
+  auxvar%well%dpg = UNINITIALIZED_DOUBLE
+  auxvar%well%Ql = UNINITIALIZED_DOUBLE
+  auxvar%well%Qg = UNINITIALIZED_DOUBLE
+
 
 end subroutine WIPPFloAuxVarInit
 
@@ -259,6 +282,7 @@ subroutine WIPPFloAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pert = auxvar%pert
   auxvar2%elevation = auxvar%elevation
   auxvar2%alpha = auxvar%alpha
+  auxvar2%well = auxvar%well
 
 end subroutine WIPPFloAuxVarCopy
 
@@ -314,13 +338,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   PetscReal :: prev_effective_porosity
   PetscErrorCode :: ierr
 
-  ! from init.F90
-!  option%nphase = 2
-!  option%liquid_phase = 1  ! liquid_pressure
-!  option%gas_phase = 2     ! gas_pressure
-
-!  option%capillary_pressure_id = 3
-!  option%saturation_pressure_id = 4
+  ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -332,6 +350,23 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   wippflo_auxvar%pres(lid) = x(WIPPFLO_LIQUID_PRESSURE_DOF)
   wippflo_auxvar%sat(gid) = x(WIPPFLO_GAS_SATURATION_DOF)
   ! calculate saturation pressure as reference.
+
+  ! Prevent well oscillation by capping pressure change
+  ! jmfrede 09/14/2022 I commented this out because it actually seems
+  !                    to make it harder for WIPP_FLOW to converge!
+  !
+  !if (Initialized(wippflo_auxvar%well%pl)) then
+  !  if (wippflo_auxvar%well%dpl > 0.d0) then
+  !    if (wippflo_auxvar%pres(lid) > wippflo_auxvar%well%pl) then
+  !      wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
+  !    endif
+  !  elseif (wippflo_auxvar%well%dpl < 0.d0) then
+  !    if (wippflo_auxvar%pres(lid) < wippflo_auxvar%well%pl) then
+  !      wippflo_auxvar%pres(lid) = wippflo_auxvar%well%pl
+  !    endif
+  !  endif
+  !endif
+
   call EOSWaterSaturationPressure(wippflo_auxvar%temp, &
                                   wippflo_auxvar%pres(spid),ierr)
   wippflo_auxvar%sat(lid) = 1.d0 - wippflo_auxvar%sat(gid)

@@ -121,12 +121,18 @@ STANDARD_CFG = \
 	wipp/transport/wipp_regular.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-	wipp/wipp_flow/input_format/input_format.cfg 
+	wipp/wipp_flow/input_format/input_format.cfg \
+	wipp/well_model/well.cfg
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
 	general/cpr_general/cpr_general.cfg \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
+endif
+
+ifdef RUNTIME_ERROR_CHECKING
+STANDARD_CFG += \
+	runtime/runtime.cfg
 endif
 
 #
@@ -178,7 +184,8 @@ TRANSPORT_CFG = \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
-	wipp/transport/wipp_regular.cfg
+	wipp/transport/wipp_regular.cfg \
+	wipp/well_model/well.cfg
 
 GEOPHYSICS_CFG = \
 	geophys/ert/ert.cfg
@@ -199,6 +206,9 @@ WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/transport/batch/wipp_batch.cfg 
+
+RUNTIME_CFG = \
+	runtime/runtime.cfg
 
 test : standard
 
@@ -293,6 +303,10 @@ wipp_test :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(WIPP_CFG)
 
+runtime_error :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(RUNTIME_CFG) --suite runtime
+
 #
 # Try to cleanup the regression test output.
 #
@@ -360,6 +374,7 @@ clean-tests :
 	-rm -f wipp/bragflo/wipp_flow/well_production2-ss_mass-0.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
+	-rm -f wipp/well_model/*.h5
 	-rm -f wipp/wipp_flow/gas_generation/*.h5
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat

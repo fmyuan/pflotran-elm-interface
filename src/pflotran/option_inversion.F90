@@ -29,6 +29,9 @@ module Option_Inversion_module
     PetscBool :: invert_for_vg_alpha
     PetscBool :: invert_for_vg_m
     PetscBool :: invert_for_vg_sr
+    PetscBool :: invert_for_arch_cement_exp
+    PetscBool :: invert_for_arch_sat_exp
+    PetscBool :: invert_for_arch_tort_const
     character(len=MAXWORDLENGTH) :: iteration_prefix
     character(len=MAXSTRINGLENGTH) :: restart_filename
   end type inversion_option_type
@@ -96,6 +99,9 @@ subroutine OptionInversionInit(option)
   option%invert_for_vg_alpha = PETSC_FALSE
   option%invert_for_vg_m = PETSC_FALSE
   option%invert_for_vg_sr = PETSC_FALSE
+  option%invert_for_arch_cement_exp = PETSC_FALSE
+  option%invert_for_arch_sat_exp = PETSC_FALSE
+  option%invert_for_arch_tort_const = PETSC_FALSE
 
 end subroutine OptionInversionInit
 

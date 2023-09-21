@@ -740,7 +740,8 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
            'MATERIAL_ID_KLUDGE_FOR_VISIT','X_COORDINATE','Y_COORDINATE', &
            'Z_COORDINATE', &
            'ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
-           'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE')
+           'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
+           'SURFACE_ELECTRICAL_CONDUCTIVITY','WAXMAN_SMITS_CLAY_CONDUCTIVITY')
       case default
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a flow mode.')
@@ -749,7 +750,10 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
   if (option%igeopmode == NULL_MODE) then
     select case(word)
       case('ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
-           'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE')
+           'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
+           'ARCHIE_CEMENTATION_EXPONENT','ARCHIE_SATURATION_EXPONENT', &
+           'ARCHIE_TORTUOSITY_CONSTANT','SURFACE_ELECTRICAL_CONDUCTIVITY', &
+           'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a geophysics mode.')
     end select
@@ -1162,6 +1166,31 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Solute Concentration'
       category = OUTPUT_GENERIC
       id = SOLUTE_CONCENTRATION
+    case ('ARCHIE_CEMENTATION_EXPONENT')
+      units = '-'
+      name = "Archie's Cementation Exponent"
+      category = OUTPUT_GENERIC
+      id = ARCHIE_CEMENTATION_EXPONENT
+    case ('ARCHIE_SATURATION_EXPONENT')
+      units = '-'
+      name = "Archie's Saturation Exponent"
+      category = OUTPUT_GENERIC
+      id = ARCHIE_SATURATION_EXPONENT
+    case ('ARCHIE_TORTUOSITY_CONSTANT')
+      units = '-'
+      name = "Archie's Tortuosity Constant"
+      category = OUTPUT_GENERIC
+      id = ARCHIE_TORTUOSITY_CONSTANT
+    case ('SURFACE_ELECTRICAL_CONDUCTIVITY')
+      units = 'S/m'
+      name = 'Surface Electrical Conductivity'
+      category = OUTPUT_GENERIC
+      id = SURFACE_ELECTRICAL_CONDUCTIVITY
+    case ('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+      units = 'S/m'
+      name = 'Waxman-Smits Clay Conductivity'
+      category = OUTPUT_GENERIC
+      id = WAXMAN_SMITS_CLAY_CONDUCTIVITY
   end select
 
 end subroutine OutputVariableToID

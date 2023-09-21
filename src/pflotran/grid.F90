@@ -736,7 +736,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           region%num_cells = size(region%cell_ids)
         endif
       case default
-        option%io_buffer = 'GridLocalizeRegions: Region definition not recognized'
+        option%io_buffer = 'GridLocalizeRegions: Region definition not &
+          &recognized for region "' // trim(region%name) // '".'
         call PrintErrMsg(option)
     end select
 
@@ -800,6 +801,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
 
   use Option_module
   use Region_module
+  use String_module
   use Utility_module
 
   implicit none
@@ -808,7 +810,6 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   type(region_type) :: region
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word
   Vec :: vec_cell_ids
   Vec :: vec_cell_ids_loc
   PetscInt, allocatable :: tmp_int_array(:)
@@ -841,14 +842,15 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
 
   call RegionCheckCellIndexBounds(region,grid%nmax,option)
 
+  call OptionSetBlocking(option,PETSC_FALSE)
   do ii = 1, region%num_cells
     tmp_int_array(ii) = region%cell_ids(ii) - 1
     if (associated(region%faces)) then
       iface = region%faces(ii)
       if (iface > 14) then
-        write(iface,*) iface
-        option%io_buffer = 'Face ID (' // trim(adjustl(word)) // ') greater &
-          &than 14 in GridLocalizeRegionsFromCellIDs()'
+        option%io_buffer = 'Face ID (' // StringWrite(iface) // ') greater &
+          &than 14 in GridLocalizeRegionsFromCellIDs() for REGION "' // &
+          &trim(region%name) // '".'
         call PrintErrMsg(option)
       endif
       tmp_scl_array(ii) = 10.d0**dble(region%faces(ii))
@@ -857,6 +859,8 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
       tmp_scl_array(ii) = 0.1d0
     endif
   enddo
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   call VecSetValues(vec_cell_ids,region%num_cells,tmp_int_array,tmp_scl_array, &
                     ADD_VALUES,ierr);CHKERRQ(ierr)

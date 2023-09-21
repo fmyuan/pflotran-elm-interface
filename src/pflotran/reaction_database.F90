@@ -796,13 +796,11 @@ subroutine DatabaseRead(reaction,option)
   enddo
 
   if (flag) call PrintErrMsg(option,'Species not found in database.')
-  if (.not.option%use_isothermal) then
-    !geh: only stop if running with temperature dependent log Ks.
-    if (logK_error_flag) then
-      option%io_buffer = 'Non-isothermal reactions not possible due to &
-        &missing logKs in database.'
-      call PrintErrMsg(option)
-    endif
+  if (logK_error_flag) then
+    option%io_buffer = 'Reactions not at reference temperature 25C or &
+      &non-isothermal reactions are not possible due to &
+      &missing logKs in database.'
+    call PrintErrMsg(option)
   endif
 
   call InputDestroy(input)
@@ -2776,10 +2774,9 @@ subroutine BasisInit(reaction,option)
             call PrintErrMsg(option)
           endif
         case(NULL_SURFACE)
-          write(word,*) cur_srfcplx_rxn%id
           option%io_buffer = 'No mineral name specified &
-            &for equilibrium surface complexation reaction:' // &
-            trim(adjustl(word))
+            &for equilibrium surface complexation reaction: ' // &
+            StringWrite(cur_srfcplx_rxn%id)
           call PrintWrnMsg(option)
       end select
       surface_complexation%srfcplxrxn_site_density(irxn) = &
@@ -3183,6 +3180,13 @@ subroutine BasisInit(reaction,option)
       cur_microbial_rxn => cur_microbial_rxn%next
     enddo
     nullify(cur_microbial_rxn)
+    if (max_inhibition_count > MAX_NUM_INHIBITION_TERMS) then
+      option%io_buffer = 'The number of microbial inhibition terms (' // &
+        StringWrite(max_inhibition_count) // ') exceeds &
+        &MAX_NUM_INHIBITION_TERMS defined in reaction_microbial_aux.F90. &
+        &Please increase the values.'
+      call PrintErrMsg(option)
+    endif
 
     ! rate constant
     allocate(microbial%rate_constant(microbial%nrxn))
@@ -3706,7 +3710,6 @@ subroutine BasisInit(reaction,option)
 90 format(80('-'))
 100 format(/,2x,i4,2x,a)
 110 format(100(/,14x,3(a20,2x)))
-120 format(/,a)
 
   if (OptionPrintToFile(option)) then
     write(option%fid_out,90)
@@ -3733,14 +3736,13 @@ subroutine BasisInit(reaction,option)
     write(option%fid_out,110) (mineral%kinmnrl_names(i),i=1,mineral%nkinmnrl)
 
     if (surface_complexation%nsrfcplxrxn > 0) then
-      write(word,*) surface_complexation%nsrfcplxrxn
-      write(option%fid_out,120) trim(adjustl(word)) // &
-        ' Surface Complexation Reactions'
+      write(option%fid_out,100) surface_complexation%nsrfcplxrxn, &
+        'Surface Complexation Reaction Sites' 
       write(option%fid_out,110) &
         (surface_complexation%srfcplxrxn_site_names(i), &
          i=1,surface_complexation%nsrfcplxrxn)
-      write(word,*) surface_complexation%nsrfcplx
-      write(option%fid_out,120) trim(adjustl(word)) // ' Surface Complexes'
+      write(option%fid_out,100) surface_complexation%nsrfcplx, &
+        'Surface Complexes'
       write(option%fid_out,110) (surface_complexation%srfcplx_names(i), &
         i=1,surface_complexation%nsrfcplx)
     endif
@@ -4405,9 +4407,9 @@ subroutine BasisPrint(reaction,title,option)
 
       endif
 #ifdef WRITE_LATEX
-      write(word,130) '', cur_aq_spec%dbaserxn%logK(2)
       write(fid,*) trim(reactant_string) // ' $~\rightleftharpoons~$ ' // &
-        trim(product_string) // ' & ' // trim(adjustl(word)) // ' \\'
+        trim(product_string) // ' & ' // &
+        StringWrite(cur_aq_spec%dbaserxn%logK(2)) // ' \\'
 #endif
       write(option%fid_out,*)
       cur_aq_spec => cur_aq_spec%next

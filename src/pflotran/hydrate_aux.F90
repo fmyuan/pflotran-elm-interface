@@ -681,6 +681,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: sat_temp
   PetscErrorCode :: ierr
 
+  ierr = 0
+
   lid = option%liquid_phase
   gid = option%gas_phase
   hid = option%hydrate_phase
@@ -1712,6 +1714,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   character(len=MAXSTRINGLENGTH) :: state_change_string, append
 
   if (hydrate_immiscible .or. hyd_auxvar%istatechng) return
+
+  ierr = 0
 
   lid = option%liquid_phase
   gid = option%gas_phase

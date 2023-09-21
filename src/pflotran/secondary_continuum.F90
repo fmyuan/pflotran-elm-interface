@@ -75,7 +75,9 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
   data icall/0/
 
   igeom = sec_continuum%itype
-  option%nsec_cells = nmat
+  if (option%nsec_cells < nmat) then
+    option%nsec_cells = nmat
+  endif
 
   select case (igeom)
     case(SLAB)
@@ -535,7 +537,7 @@ subroutine SecondaryRTTimeCut(realization)
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
     if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-        soil_properties(epsilon_index)),1.d0)) cycle
+        secondary_prop%epsilon),1.d0)) cycle
     do comp = 1, ncomp
       ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
@@ -550,7 +552,7 @@ end subroutine SecondaryRTTimeCut
 ! ************************************************************************** !
 
 subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
-                                 rt_sec_transport_vars,reaction,option)
+                                 ncells,rt_sec_transport_vars,reaction,option)
   !
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -572,7 +574,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
 
-  PetscInt :: cell
+  PetscInt :: cell, ncells
   PetscReal :: area_per_vol
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
@@ -586,7 +588,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
         multicontinuum%radius, &
         multicontinuum%porosity, option)
 
-  rt_sec_transport_vars%ncells = multicontinuum%ncells
+  rt_sec_transport_vars%ncells = ncells
   rt_sec_transport_vars%half_aperture = multicontinuum%half_aperture
   rt_sec_transport_vars%epsilon = epsilon
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
@@ -645,7 +647,7 @@ end subroutine SecondaryRTAuxVarInit
 
 ! ************************************************************************** !
 subroutine SecondaryHeatAuxVarInit(multicontinuum, &
-                               epsilon,half_matrix_width, &
+                               epsilon,half_matrix_width,ncells, &
                                sec_heat_vars, initial_condition,option)
 
   ! Initializes all the secondary continuum heat
@@ -653,7 +655,7 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
   !
   ! Author: Rosie Leone
   ! Date: 03/27/23
-  
+
   use Material_module
   use Coupler_module
   use Option_module
@@ -665,11 +667,12 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
   type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
 
-  
+
   PetscReal :: epsilon
   PetscReal :: half_matrix_width
   PetscReal :: area_per_vol
-  
+  PetscInt :: ncells
+
   call SecondaryContinuumSetProperties( &
        sec_heat_vars%sec_continuum, &
        multicontinuum%name, &
@@ -680,7 +683,7 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
        multicontinuum%porosity, &
        option)
 
-  sec_heat_vars%ncells = multicontinuum%ncells
+  sec_heat_vars%ncells = ncells
   sec_heat_vars%half_aperture = multicontinuum%half_aperture
   sec_heat_vars%epsilon = epsilon
   sec_heat_vars%log_spacing = multicontinuum%log_spacing
@@ -716,11 +719,11 @@ subroutine SecondaryHeatAuxVarInit(multicontinuum, &
   endif
 
 end subroutine SecondaryHeatAuxVarInit
-  
+
 ! ************************************************************************** !
 
 subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
-                                  global_auxvar,prim_vol, &
+                                  fracture_global_auxvar,prim_vol, &
                                   reaction,diffusion_coefficient, &
                                   porosity,option,res_transport)
   !
@@ -749,7 +752,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   type(sec_transport_type) :: sec_transport_vars
   type(reactive_transport_auxvar_type) :: auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
+  type(global_auxvar_type) :: fracture_global_auxvar
   class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
   PetscReal :: coeff_left(reaction%naqcomp,reaction%naqcomp, &
@@ -787,7 +790,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: dtotal(reaction%naqcomp,reaction%naqcomp,sec_transport_vars%ncells,option%transport%nphase)
   PetscReal :: dtotal_prim(reaction%naqcomp,reaction%naqcomp,option%transport%nphase)
   PetscInt :: i, j, k, n, l, igas
-  PetscInt :: ngcells, ncomp, nphase, icomp
+  PetscInt :: ngcells, ncomp, nphase
   PetscReal :: area_fm, RT
   PetscReal :: diffusion_coefficient(option%transport%nphase)
   PetscReal :: porosity
@@ -838,6 +841,14 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: dtotal_sorb_upd(reaction%naqcomp,reaction%naqcomp,sec_transport_vars%ncells)
 
   type(material_auxvar_type), allocatable :: material_auxvar
+  type(global_auxvar_type) :: global_auxvar
+
+  call GlobalAuxVarInit(global_auxvar,option)
+  call GlobalAuxVarCopy(fracture_global_auxvar,global_auxvar,option)
+  if (option%transport%sc_fixed_water_density) then
+    global_auxvar%den_kg(1) = 1.d3
+    global_auxvar%sat(1) = 1.d0
+  endif
 
   ngcells = sec_transport_vars%ncells
   area = sec_transport_vars%area
@@ -890,8 +901,12 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   pordiff = porosity*diffusion_coefficient * 1.d3 * global_auxvar%sat
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
+  !Needed for ufd decay
+  if (associated(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq) .and. .not.associated(rt_auxvar%total_sorb_eq)) then
+    allocate(rt_auxvar%total_sorb_eq(size(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq,1)))
+  endif
   do i = 1, ngcells
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
@@ -1045,7 +1060,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1203,7 +1218,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   enddo
 
   ! Update the secondary continuum totals at the outer matrix node
-  call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
+  call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(ngcells),rt_auxvar, &
                     option)
   rt_auxvar%pri_molal = conc_current_M ! in mol/kg
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1254,10 +1269,10 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
           do j = 1, ncomp
             jcomp = reaction%gas%acteqspecid(j,igas)
             do l = 1, ncomp
-              icomp = reaction%gas%acteqspecid(i,igas)
+              lcomp = reaction%gas%acteqspecid(l,igas)
               dPsisec_dCprim(jcomp,lcomp,2) = dPsisec_dCprim(jcomp,lcomp,2) + &
-                reaction%gas%acteqstoich(i,igas) * reaction%gas%acteqstoich(j,igas) * &
-                dCsec_dCprim(kcomp,lcomp)* (rt_auxvar%gas_pp(igas) * 1.d5 / RT)
+                reaction%gas%acteqstoich(l,igas) * reaction%gas%acteqstoich(j,igas) * &
+                dCsec_dCprim(jcomp,lcomp)* (rt_auxvar%gas_pp(igas) * 1.d5 / RT)
             enddo
           enddo
         enddo
@@ -1354,7 +1369,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       coeff_left_pert = coeff_left_copy
       coeff_right_pert = coeff_right_copy
 
-      call RTAuxVarCopy(rt_auxvar,auxvar,option)
+      call RTAuxVarCopy(auxvar,rt_auxvar,option)
       rt_auxvar%pri_molal = conc_prim_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
       total_primary_node_pert = rt_auxvar%total(:,1)
@@ -1452,7 +1467,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       enddo
 
       ! Update the secondary continuum totals at the outer matrix node
-      call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(ngcells), &
+      call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(ngcells),rt_auxvar, &
                         option)
       rt_auxvar%pri_molal = conc_current_M_pert ! in mol/kg
       call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1478,6 +1493,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
   endif
 
+  call GlobalAuxVarStrip(global_auxvar)
 
 end subroutine SecondaryRTResJacMulti
 
@@ -1515,7 +1531,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: fracture_global_auxvar(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: local_id, ghosted_id
 
@@ -1528,7 +1544,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   option => realization%option
   grid => realization%patch%grid
   rt_auxvars => realization%patch%aux%RT%auxvars
-  global_auxvars => realization%patch%aux%Global%auxvars
+  fracture_global_auxvar => realization%patch%aux%Global%auxvars
   reaction => realization%reaction
   if (option%use_sc) then
     rt_sec_transport_vars => realization%patch%aux%SC_RT%sec_transport_vars
@@ -1545,7 +1561,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
       if (Equal((realization%patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       sec_diffusion_coefficient = realization%patch% &
                                   material_property_array(realization%patch%imat(ghosted_id))%ptr% &
                                   multicontinuum%diff_coeff
@@ -1559,7 +1575,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
 
       call SecondaryRTCheckResidual(rt_sec_transport_vars(ghosted_id), &
                                     rt_auxvars(ghosted_id), &
-                                    global_auxvars(ghosted_id), &
+                                    fracture_global_auxvar(ghosted_id), &
                                     reaction,sec_diffusion_coefficient, &
                                     sec_porosity,option,inf_norm_sec)
 
@@ -1575,7 +1591,8 @@ end subroutine SecondaryRTUpdateIterate
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
+subroutine SecondaryRTUpdateEquilState(sec_transport_vars, &
+                                       fracture_global_auxvar, &
                                        reaction,sec_porosity,option)
   !
   ! Updates the equilibrium secondary continuum
@@ -1600,14 +1617,22 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   type(material_auxvar_type), allocatable :: material_auxvar
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
-  type(global_auxvar_type) :: global_auxvars
+  type(global_auxvar_type) :: fracture_global_auxvar
   class(reaction_rt_type), pointer :: reaction
   PetscReal :: sec_porosity
   PetscInt :: ngcells,ncomp
   PetscInt :: i,j
+  type(global_auxvar_type) :: global_auxvar
 
   ngcells = sec_transport_vars%ncells
   ncomp = reaction%naqcomp
+
+  call GlobalAuxVarInit(global_auxvar,option)
+  call GlobalAuxVarCopy(fracture_global_auxvar,global_auxvar,option)
+  if (option%transport%sc_fixed_water_density) then
+    global_auxvar%den_kg(1) = 1.d3
+    global_auxvar%sat(1) = 1.d0
+  endif
 
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
@@ -1622,15 +1647,15 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   enddo
 
   do i = 1, ngcells
-    call RTotalAqueous(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
+    call RTotalAqueous(sec_transport_vars%sec_rt_auxvar(i),global_auxvar, &
                        reaction,option)
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
+      call RTotalSorb(sec_transport_vars%sec_rt_auxvar(i),global_auxvar, &
                       material_auxvar,reaction, &
                       reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(sec_transport_vars%sec_rt_auxvar(i),global_auxvars,reaction,option)
+      call RTotalGas(sec_transport_vars%sec_rt_auxvar(i),global_auxvar,reaction,option)
     endif
   enddo
 
@@ -1638,12 +1663,14 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   ! upon leaving this routine, its dynamic pointer members are not
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
+  call GlobalAuxVarStrip(global_auxvar)
 
 end subroutine SecondaryRTUpdateEquilState
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
+subroutine SecondaryRTUpdateKineticState(sec_transport_vars, &
+                                         fracture_global_auxvar, &
                                          reaction,porosity,option)
   !
   ! Updates the kinetic secondary continuum
@@ -1666,7 +1693,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
 
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
-  type(global_auxvar_type) :: global_auxvars
+  type(global_auxvar_type) :: fracture_global_auxvar
   class(reaction_rt_type), pointer :: reaction
   PetscReal :: porosity
   PetscInt :: ngcells
@@ -1675,6 +1702,14 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   PetscReal :: jac_react(reaction%naqcomp,reaction%naqcomp)
   PetscInt :: i,j
   type(material_auxvar_type), allocatable :: material_auxvar
+  type(global_auxvar_type) :: global_auxvar
+
+  call GlobalAuxVarInit(global_auxvar,option)
+  call GlobalAuxVarCopy(fracture_global_auxvar,global_auxvar,option)
+  if (option%transport%sc_fixed_water_density) then
+    global_auxvar%den_kg(1) = 1.d3
+    global_auxvar%sat(1) = 1.d0
+  endif
 
   ngcells = sec_transport_vars%ncells
   vol = sec_transport_vars%vol
@@ -1688,7 +1723,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
                    sec_transport_vars%sec_rt_auxvar(i), &
-                   global_auxvars,material_auxvar,reaction,option)
+                   global_auxvar,material_auxvar,reaction,option)
   enddo
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
@@ -1707,13 +1742,14 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
     enddo
   endif
 
+  call GlobalAuxVarStrip(global_auxvar)
 
 end subroutine SecondaryRTUpdateKineticState
 
 ! ************************************************************************** !
 
 subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
-                                    global_auxvar, &
+                                    fracture_global_auxvar, &
                                     reaction,diffusion_coefficient, &
                                     porosity,option,inf_norm_sec)
   !
@@ -1740,7 +1776,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   type(sec_transport_type) :: sec_transport_vars
   type(reactive_transport_auxvar_type) :: auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
+  type(global_auxvar_type) :: fracture_global_auxvar
   class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
 
@@ -1763,9 +1799,17 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   PetscReal :: pordt, pordiff(option%transport%nphase)
   PetscReal :: inf_norm_sec
   type(material_auxvar_type), allocatable :: material_auxvar
+  type(global_auxvar_type) :: global_auxvar
 
   PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)
+
+  call GlobalAuxVarInit(global_auxvar,option)
+  call GlobalAuxVarCopy(fracture_global_auxvar,global_auxvar,option)
+  if (option%transport%sc_fixed_water_density) then
+    global_auxvar%den_kg(1) = 1.d3
+    global_auxvar%sat(1) = 1.d0
+  endif
 
   ngcells = sec_transport_vars%ncells
   area = sec_transport_vars%area
@@ -1803,8 +1847,12 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   material_auxvar%porosity = porosity
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
+  !Needed for ufd decay
+  if (associated(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq) .and. .not.associated(rt_auxvar%total_sorb_eq)) then
+    allocate(rt_auxvar%total_sorb_eq(size(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq,1)))
+  endif
   do i = 1, ngcells
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i),option)
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
@@ -1871,7 +1919,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
-    call RTAuxVarCopy(rt_auxvar,sec_transport_vars%sec_rt_auxvar(i), &
+    call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -1897,6 +1945,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
 
   inf_norm_sec = maxval(abs(res))
   call RTAuxVarStrip(rt_auxvar)
+  call GlobalAuxVarStrip(global_auxvar)
 
 end subroutine SecondaryRTCheckResidual
 
@@ -2126,33 +2175,58 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1,grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          updated_conc(isubvar,mc_layer)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else   
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            updated_conc(isubvar,mc_layer)
+        endif
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then
+           vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar)
+        endif
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar)
+        endif
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else  
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
+        endif
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        vec_p(local_id) = &
-          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
+        if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+                 sec_rt_auxvar) < mc_layer) then  
+          vec_p(local_id) = UNINITIALIZED_DOUBLE
+        else
+          vec_p(local_id) = &
+            patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
+        endif
       enddo
   end select
 
@@ -2204,28 +2278,38 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          updated_conc(isubvar,mc_layer) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            updated_conc(isubvar,mc_layer) = vec_p(local_id)
+        endif
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then   
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
+        endif  
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then 
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
+        endif 
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
+        endif
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
+        if (Initialized(vec_p(local_id))) then 
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
+        endif
       enddo
   end select
 
@@ -2244,7 +2328,7 @@ subroutine SecondaryHeatResidual(sec_heat_vars, &
   !
   ! Author: Satish, Karra, LANL
   ! Date 06/2/12
-  
+
   use Option_module
 
   implicit none
@@ -2342,7 +2426,7 @@ subroutine SecondaryHeatJacobian(sec_heat_vars,therm_conductivity, &
   use Global_Aux_module
   use Secondary_Continuum_Aux_module
 
-  implicit none  
+  implicit none
 
   type(sec_heat_type) :: sec_heat_vars
   type(option_type) :: option

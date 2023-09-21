@@ -198,6 +198,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_sc = PETSC_TRUE
+      case('MULTIPLE_CONTINUUM_FIXED_DENSITY')
+        option%transport%sc_fixed_water_density = PETSC_TRUE
       case('NERNST_PLANCK')
         option%transport%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
@@ -1172,7 +1174,7 @@ end subroutine PMRTUpdateSolution1
 
 ! ************************************************************************** !
 
-subroutine PMRTUpdateSolution2(this, update_kinetics)
+subroutine PMRTUpdateSolution2(this,update_kinetics)
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -1196,7 +1198,10 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   ! end from RealizationUpdate()
   ! The update of status must be in this order!
   call RTUpdateEquilibriumState(this%realization)
-  if (update_kinetics) &
+  if (update_kinetics .and. &
+      ! for operator splitting, kinetic state is updated at the end of each
+      ! reaction step at each grid cell
+      this%option%transport%reactive_transport_coupling /= OPERATOR_SPLIT) &
     call RTUpdateKineticState(this%realization)
 
 !TODO(geh): MassTransfer
@@ -1443,8 +1448,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
 
     if (option%use_sc) then
       ! Add multicontinuum variables
-      do mc_i = 1, patch%material_property_array(1)%ptr% &
-                   multicontinuum%ncells
+      do mc_i = 1, option%nsec_cells
         do i = 1, realization%reaction%naqcomp
           call SecondaryRTGetVariable(realization,global_vec, &
                                     SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
@@ -1626,8 +1630,7 @@ subroutine PMRTRestartBinary(this,viewer)
   endif
 
   if (option%use_sc) then
-    do mc_i = 1, patch%material_property_array(1)%ptr% &
-                 multicontinuum%ncells
+    do mc_i = 1, option%nsec_cells
       do i = 1, realization%reaction%naqcomp
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
@@ -1868,8 +1871,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
 
     if (option%use_sc) then
       ! Add multicontinuum variables
-      do mc_i = 1, patch%material_property_array(1)%ptr% &
-                   multicontinuum%ncells
+      do mc_i = 1, option%nsec_cells
         do i = 1, realization%reaction%naqcomp
           call SecondaryRTGetVariable(realization,global_vec, &
                                       SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
@@ -2137,8 +2139,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
 
     if (option%use_sc) then
       ! Add multicontinuum variables
-      do mc_i = 1, patch%material_property_array(1)%ptr% &
-                   multicontinuum%ncells
+      do mc_i = 1, option%nsec_cells
         do i = 1, realization%reaction%naqcomp
           write(dataset_name,"(i0,a,i0)") i, "_", mc_i
           dataset_name = "MC_Primary_Variable_" // trim(dataset_name)

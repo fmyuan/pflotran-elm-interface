@@ -8,6 +8,7 @@ module Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_loop_invariant_module
   use Characteristic_Curves_WIPP_Invariant_module
+  use Characteristic_Curves_spline_module
 
   implicit none
 
@@ -156,6 +157,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFExpFreezingCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
+          case('PCHIP')
+            this%saturation_function => SFPCHIPCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
@@ -305,6 +308,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('CONSTANT')
             rel_perm_function_ptr => RPFConstantCreate()
             ! phase_keyword = 'NONE'
+          case('PCHIP_GAS')
+            rel_perm_function_ptr => RPFPCHIPCreate()
+            phase_keyword = 'GAS'
+          case('PCHIP_LIQ')
+            rel_perm_function_ptr => RPFPCHIPCreate()
+            phase_keyword = 'LIQUID'
           case default
             call InputKeywordUnrecognized(input,word,'PERMEABILITY_FUNCTION', &
                                           option)
@@ -369,7 +378,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
   class(sat_func_base_type) :: saturation_function
   type(input_type), pointer :: input
   type(option_type) :: option
-  class(sat_func_base_type), pointer :: sf_swap
+  class(sat_func_base_type), pointer :: sf_swap, sf_swap2
+  class(dataset_ascii_type), pointer :: sf_dataset
 
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
@@ -382,12 +392,14 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscInt :: vg_rpf_opt
   PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg
 
-  PetscInt :: wipp_krp, wipp_kpc
+  PetscInt :: wipp_krp, wipp_kpc, spline
   PetscReal :: wipp_expon, wipp_pct_alpha, wipp_pct_expon
   PetscReal :: wipp_s_min, wipp_s_effmin
   PetscBool :: wipp_pct_ignore
 
   nullify(sf_swap)
+  sf_dataset => DatasetAsciiCreate()
+
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
   unsat_ext = ''
@@ -404,6 +416,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   input%ierr = 0
   smooth = PETSC_FALSE
+  spline = 0
+
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -440,6 +454,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       error_string = trim(error_string) // 'EXP_FREEZING'
     class is (sat_func_Table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
+    class is (sf_pchip_type)
+      error_string = trim(error_string) // 'PCHIP'
   end select
 
   call InputPushBlock(input,option)
@@ -466,6 +482,9 @@ function SaturationFunctionRead(saturation_function,input,option) &
                             error_string)
       case('SMOOTH')
         smooth = PETSC_TRUE
+      case('SPLINE')
+        call InputReadInt(input, option, spline)
+        call InputErrorMsg(input,option,'SPLINE', error_string)
       case default
         found = PETSC_FALSE
     end select
@@ -903,6 +922,22 @@ function SaturationFunctionRead(saturation_function,input,option) &
                                       error_string,option)
         end select
     !------------------------------------------
+      class is (sf_pchip_type)
+        ! Note, saturation is stored as "time" to utilize dataset_ascii
+        ! User provided saturation is assumed normalized to 1, unitless
+        internal_units = 'Pa'
+        select case(keyword)
+        case('FILE')
+          call InputReadFilename(input,option,table_name)
+          call DatasetAsciiReadFile(sf_dataset,table_name, &
+                                    temp_string, internal_units, &
+                                    error_string,option)
+        case('LIST')
+          call DatasetAsciiReadList(sf_dataset,input, &
+                                    temp_string,internal_units, &
+                                                error_string,option)
+        end select
+        spline = sf_dataset%time_storage%max_time_index
       class default
         option%io_buffer = 'Read routine not implemented for ' &
                            // trim(error_string) // '.'
@@ -916,7 +951,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   ! Throw errors for invalid combinations of options or parametersa
 
   ! Error checking for wipp_pct_ignore option
-  if (wipp_pct_ignore) then ! Check it is not overspecife
+  if (wipp_pct_ignore) then ! Check it is not overspecified
     if (alpha == 0d0) then
       option%io_buffer = 'Must specify ALPHA with IGNORE_PERMEABILITY option'
     else
@@ -961,7 +996,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
     call PrintErrMsg(option)
   end if
 
-
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
   endif
@@ -994,6 +1028,26 @@ function SaturationFunctionRead(saturation_function,input,option) &
   !------------------------------------------
   end select
 
+  if (spline > 0) then
+    select type (sf => saturation_function)
+    class is (sf_pchip_type) ! Splines from data
+      ! Pass arrays from dataset_type and deallocate
+      ! Note "time" is saturation and "rbuffer" is Pc
+      sf_swap => SFPCHIPCtorArray(spline, sf_dataset%time_storage%times, &
+                                  sf_dataset%rbuffer)
+    class default ! Splines from any function
+      if (.not. associated(sf_swap)) then 
+        sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
+      else ! If swap space is occupied
+        sf_swap2 => SFPCHIPCtorFunction(spline, sf_swap)
+        deallocate(sf_swap)
+        sf_swap => sf_swap2
+      end if
+    end select
+  end if
+
+  call DatasetAsciiDestroy(sf_dataset)
+
 end function SaturationFunctionRead
 
 ! ************************************************************************** !
@@ -1014,7 +1068,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXWORDLENGTH) :: phase_keyword
   type(input_type), pointer :: input
   type(option_type) :: option
-  class(rel_perm_func_base_type), pointer :: rpf_swap
+  class(rel_perm_func_base_type), pointer :: rpf_swap, rpf_swap2
+  class(dataset_ascii_type), pointer :: rpf_dataset
 
   character(len=MAXWORDLENGTH) :: keyword, new_phase_keyword
   character(len=MAXWORDLENGTH) :: internal_units
@@ -1022,14 +1077,17 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXSTRINGLENGTH) :: table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
+  PetscInt  :: spline
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
   PetscReal :: m, Srg, Sr
 
   nullify(rpf_swap)
+  rpf_dataset => DatasetAsciiCreate()
 
   ! Default values for unspecified parameters
+  spline = 0
   loop_invariant = PETSC_FALSE
   m = 0d0
   Srg = 0d0
@@ -1120,6 +1178,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'LOOKUP_TABLE_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
+    class is(rpf_pchip_type)
+      error_string = trim(error_string) // 'PCHIP'
   end select
 
   call InputPushBlock(input,option)
@@ -1144,6 +1204,9 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         call StringToUpper(phase_keyword)
       case('SMOOTH')
         smooth = PETSC_TRUE
+      case('SPLINE')
+        call InputReadInt(input, option, spline)
+        call InputErrorMsg(input,option,'SPLINE', error_string)
       case default
         found = PETSC_FALSE
     end select
@@ -1731,6 +1794,23 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
+      class is(rpf_pchip_type)
+        ! Note, saturation is stored as "time" to utilize dataset_ascii
+        ! User provided saturation is assumed normalized to 1, unitless
+        internal_units = 'unitless'
+        select case(keyword)
+        case('FILE')
+          call InputReadFilename(input,option,table_name)
+          call DatasetAsciiReadFile(rpf_dataset,table_name, &
+                                    temp_string, internal_units, &
+                                    error_string,option)
+        case('LIST')
+          call DatasetAsciiReadList(rpf_dataset,input, &
+                                    temp_string,internal_units, &
+                                                error_string,option)
+        end select
+        spline = rpf_dataset%time_storage%max_time_index
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
                            'permeability function class.'
@@ -1830,6 +1910,24 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     call permeability_function%SetupPolynomials(option,error_string)
   endif
 
+  if (spline > 0) then
+    select type (rpf => permeability_function)
+    class is (rpf_pchip_type) ! Splines from data
+      ! Pass arrays from dataset_type and deallocate
+      ! Note "time" is saturation and "rbuffer" is Kr
+      rpf_swap => RPFPCHIPCtorArray(spline, rpf_dataset%time_storage%times, &
+                                    rpf_dataset%rbuffer)
+    class default ! Splines from any function 
+      if (.not. associated(rpf_swap)) then
+        rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
+      else ! If 1st swap space is occupied, use 2nd, then redirect 1st
+        rpf_swap2 => RPFPCHIPCtorFunction(spline, rpf_swap)
+        deallocate(rpf_swap)
+        rpf_swap => rpf_swap2
+      end if
+    end select
+  end if
+
   select type(rpf => permeability_function)
     class is(rpf_Burdine_VG_liq_type)
       if (.not.smooth) then
@@ -1844,6 +1942,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         call PrintWrnMsg(option)
       endif
   end select
+
+  call DatasetAsciiDestroy(rpf_dataset)
 
 end function PermeabilityFunctionRead
 
@@ -2201,6 +2301,17 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
     end if
   end if
 
+  if (associated(characteristic_curves%saturation_function) .and. &
+      associated(characteristic_curves%liq_rel_perm_function)) then
+      ! Warn if Pc residual is below Kr residual
+    if (characteristic_curves%saturation_function%Sr < &
+        characteristic_curves%liq_rel_perm_function%Sr) then
+        option%io_buffer = 'The saturation function residual is below the &
+                           & liquid relative permeability residual. This  &
+                           & may cause numerical instability if capillary &
+                           & pressure is not defined below residual.'
+    end if
+  end if
 
 end subroutine CharacteristicCurvesVerify
 

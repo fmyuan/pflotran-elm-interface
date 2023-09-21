@@ -121,6 +121,7 @@ function DatasetCommonHDF5Cast(this)
   class(dataset_common_hdf5_type), pointer :: DatasetCommonHDF5Cast
 
   nullify(DatasetCommonHDF5Cast)
+  if (.not.associated(this)) return
   select type (this)
     class is (dataset_common_hdf5_type)
       DatasetCommonHDF5Cast => this
@@ -267,7 +268,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   PetscMPIInt :: int_mpi
   PetscInt :: temp_int, num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
-  PetscBool :: attribute_exists, group_exists
+  PetscBool :: time_attribute_exists, time_group_exists
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
@@ -278,6 +279,9 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 #endif
 
   h5fopen_err = 0
+  option%io_buffer = 'Reading times for hdf5 dataset "' // &
+    trim(dataset_name) // '", if they exist.'
+  call PrintMsg(option)
   if (OptionIsIORank(option)) then
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
     call PrintMsg(option)
@@ -289,8 +293,8 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
       call PrintMsg(option)
       call HDF5GroupOpen(file_id,dataset_name,grp_id,option%driver)
       attribute_name = "Time Units"
-      call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
-      if (attribute_exists) then
+      call H5aexists_f(grp_id,attribute_name,time_attribute_exists,hdf5_err)
+      if (time_attribute_exists) then
         attribute_dim = 1
         call h5tcopy_f(H5T_NATIVE_CHARACTER,atype_id,hdf5_err)
         size_t_int = MAXWORDLENGTH
@@ -299,16 +303,18 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
         call h5aread_f(attribute_id,atype_id,time_units,attribute_dim,hdf5_err)
         call h5aclose_f(attribute_id,hdf5_err)
       else
-        option%io_buffer = 'Time Units assumed to be seconds.'
-        call PrintWrnMsg(option)
         time_units = 's'
       endif
 
       ! Check whether a time array actually exists
       string = 'Times'
-      call h5lexists_f(grp_id,string,group_exists,hdf5_err)
+      call h5lexists_f(grp_id,string,time_group_exists,hdf5_err)
 
-      if (group_exists) then
+      if (time_group_exists) then
+        if (.not.time_attribute_exists) then
+          option%io_buffer = 'Time Units assumed to be seconds.'
+          call PrintWrnMsg(option)
+        endif
         !geh: Should check to see if "Times" dataset exists.
         option%io_buffer = 'Opening data set: ' // trim(string)
         call PrintMsg(option)
@@ -318,6 +324,14 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
         num_times_read_by_iorank = int(num_times)
       else
         num_times_read_by_iorank = -1
+        option%io_buffer = 'No times to read.'
+        call PrintMsg(option)
+        option%io_buffer = 'Closing hdf5 group: ' // trim(dataset_name)
+        call PrintMsg(option)
+        call HDF5GroupClose(grp_id,option)
+        option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
+        call PrintMsg(option)
+        call HDF5FileClose(file_id,option)
       endif
     endif
   endif
@@ -349,6 +363,8 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   time_storage%times = 0.d0
 
   if (OptionIsIORank(option)) then
+    option%io_buffer = 'Reading times.'
+    call PrintMsg(option)
     array_rank_mpi = 1
     length(1) = num_times
     call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
@@ -364,7 +380,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
     call h5sclose_f(file_space_id,hdf5_err)
     call HDF5DatasetClose(dataset_id,option)
-    option%io_buffer = 'Closing group: ' // trim(dataset_name)
+    option%io_buffer = 'Closing hdf5 group: ' // trim(dataset_name)
     call PrintMsg(option)
     call HDF5GroupClose(grp_id,option)
     option%io_buffer = 'Closing hdf5 file: ' // trim(filename)

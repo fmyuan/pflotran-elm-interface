@@ -143,6 +143,7 @@ subroutine THSetupPatch(realization)
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscInt :: i, iphase, material_id, icct
   PetscBool :: error_found
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -339,26 +340,19 @@ subroutine THSetupPatch(realization)
     initial_condition => patch%initial_condition_list%first
     allocate(TH_sec_heat_vars(grid%nlmax))
 
+    tempreal = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       call SecondaryHeatAuxVarInit( &
            patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
-           patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
-           patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%epsilon, &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%half_matrix_width, &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%ncells, &
            TH_sec_heat_vars(local_id), initial_condition, option)
-           
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => TH_sec_heat_vars
-    do i = 1, size(patch%material_property_array)
-      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
-           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
-        option%io_buffer = &
-          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
-        call PrintErrMsg(option)
-      endif
-    enddo
   endif
 
 
@@ -993,7 +987,7 @@ subroutine THUpdateSolutionPatch(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
 
       ! secondary rho*c_p same as primary for now
       icct = patch%cct_id(ghosted_id)
@@ -1129,7 +1123,7 @@ subroutine THUpdateFixedAccumPatch(realization)
 
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     global_auxvars(ghosted_id)%istate = iphase
@@ -4058,7 +4052,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     call THAccumulation(auxvars(ghosted_id),global_auxvars(ghosted_id), &
@@ -4077,7 +4071,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       if (Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       iend = local_id*option%nflowdof
       
       ! secondary rho*c_p same as primary for now
@@ -4890,7 +4884,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     icc = patch%cc_id(ghosted_id)
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     icct = patch%cct_id(ghosted_id)
@@ -4913,7 +4907,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
     if (option%use_sc) then
       if (.not.Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) then
+          secondary_prop%epsilon),1.d0)) then
         call SecondaryHeatJacobian(sec_heat_vars(local_id), &
                                    th_parameter%ckwet(icct), &
                                    th_parameter%dencpr(icct), &

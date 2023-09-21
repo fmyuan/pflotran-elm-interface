@@ -1,4 +1,5 @@
     PARAMETERS
+      BOUNDS PERMEABILITY 1.d-17 1.d-7
       PARAMETER
         NAME PERMEABILITY
         MATERIAL backfill

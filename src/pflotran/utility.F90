@@ -108,7 +108,8 @@ module Utility_module
             ArrayIsSMonotonicInc, &
             expm1, &
             PrintHeader, &
-            UtilityTensorToScalar
+            UtilityTensorToScalar, &
+            ThrowRuntimeError
 
 contains
 
@@ -688,7 +689,7 @@ end subroutine LUDecomposition1
 
 subroutine LUBackSubstitution(A,N,INDX,B)
   !
-  ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
+  ! Solves the set of N linear equations A.X=B. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
   ! vector returned by LUDecomposition. B is input as the right-hand side
   ! vector B, and returns with the solution vector X.
@@ -2743,5 +2744,50 @@ function UtilityTensorToScalar(dist,v)
   UtilityTensorToScalar = dot_product(v,d)
 
 end function UtilityTensorToScalar
+
+! ************************************************************************** !
+
+subroutine ThrowRuntimeError(error_name,option)
+  !
+  ! Generates select runtime errors to ensure that error checking is
+  ! functioning properly.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/31/23
+
+  use Option_module
+  use Print_module
+
+  implicit none
+
+  character(len=*) :: error_name
+  type(option_type) :: option
+
+  type(print_handler_type), pointer :: print_handler
+  PetscReal, allocatable, target :: array(:)
+  PetscReal, pointer :: array2(:)
+
+  select case(trim(error_name))
+    case('array_bounds')
+      call PrintMsg(option,'Checking array bounds errors:')
+      allocate(array(10))
+      array(11) = 1.
+    case('pointer')
+      call PrintMsg(option,'Checking pointer:')
+      allocate(array(10))
+      array2 = array(:)
+    case default
+      option%io_buffer = 'Unrecognized error "' // trim(error_name) // &
+        '" within ThrowRuntimeError().'
+      call PrintMsg(option)
+  end select
+
+  print_handler => OptionCreatePrintHandler(option)
+  print_handler%exit_code = EXIT_FAILURE
+  call PrintErrorMessage(print_handler,'Error "' // trim(error_name) // &
+    '" not caught properly within ThrowRuntimeError().')
+  call PrintDestroyHandler(print_handler)
+
+end subroutine ThrowRuntimeError
 
 end module Utility_module

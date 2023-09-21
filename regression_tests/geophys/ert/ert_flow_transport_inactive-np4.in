@@ -101,7 +101,6 @@ END
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
-  ELECTRICAL_CONDUCTIVITY 1.12d0
   POROSITY 0.25d0
   TORTUOSITY 0.5d0
   PERMEABILITY

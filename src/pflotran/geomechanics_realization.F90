@@ -490,7 +490,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   ! Create scatter context between flow and geomech
   call VecScatterCreate(realization%field%porosity0,is_subsurf, &
                         geomech_realization%geomech_field%press, &
-                        is_geomech_petsc,scatter,ierr);CHKERRQ(ierr)
+                        is_geomech_petsc,scatter,ierr)!;CHKERRQ(ierr)
 
   if (ierr /= 0) then
     option%io_buffer = 'The number of cells specified in ' // &
@@ -561,7 +561,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call VecScatterCreate(geomech_realization%geomech_field%strain, &
                         is_geomech_petsc_block, &
                         geomech_realization%geomech_field%strain_subsurf, &
-                        is_subsurf_petsc_block,scatter,ierr);CHKERRQ(ierr)
+                        is_subsurf_petsc_block,scatter,ierr)!;CHKERRQ(ierr)
 
   if (ierr /= 0) then
     option%io_buffer = 'The number of cells specified in ' // &

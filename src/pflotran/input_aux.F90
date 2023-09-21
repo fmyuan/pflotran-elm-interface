@@ -149,7 +149,8 @@ module Input_Aux_module
             InputPushBlock, &
             InputPopBlock, &
             InputKeywordDeprecated, &
-            InputCheckKeywordBlockCount
+            InputCheckKeywordBlockCount, &
+            InputCountWordsInBuffer
 
 contains
 
@@ -217,6 +218,8 @@ function InputCreate1(fid,path,filename,option)
     if (len_trim(full_path) == 0) full_path = '<blank>'
     option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
     call PrintErrMsg(option)
+    ! for non-blocking case, set error flag
+    input%ierr = 1
   endif
 
   InputCreate1 => input
@@ -2968,6 +2971,35 @@ subroutine InputCheckKeywordBlockCount(option)
   endif
 
 end subroutine InputCheckKeywordBlockCount
+
+! ************************************************************************** !
+
+function InputCountWordsInBuffer(input,option)
+  !
+  ! Returns the number of words in the input buffer (e.g., for counting the
+  ! number of integers on a line in the input file).
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/19/23
+  !
+  use Option_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  PetscInt :: InputCountWordsInBuffer
+  character(len=MAXWORDLENGTH) :: word
+
+  InputCountWordsInBuffer = 0
+  do
+    call InputReadWord(input,option,word,PETSC_TRUE) 
+    if (InputError(input)) exit
+    InputCountWordsInBuffer = InputCountWordsInBuffer + 1
+  enddo
+
+end function InputCountWordsInBuffer
 
 ! ************************************************************************** !
 

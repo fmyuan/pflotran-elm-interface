@@ -434,7 +434,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   ! must come before RealizUnInitializedVarsTran
   call PMSubsurfaceFlowSetSoilRefPres(this%realization)
   ! check for uninitialized flow variables
-  call RealizUnInitializedVarsTran(this%realization)
+  call RealizUnInitializedVarsFlow(this%realization)
 
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%calculate_initial_porosity) then
@@ -462,10 +462,11 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
 
   ! update material properties that are a function of mineral vol fracs
   if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity .or. &
+    if ((this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
+        this%realization%reaction%update_mineral_surface_area) .and. &
+        .not.this%option%restart_flag) then
       call RealizationUpdatePropertiesTS(this%realization)
     endif
   endif

@@ -25,6 +25,7 @@ characteristic_curves.o : \
   characteristic_curves_base.o \
   characteristic_curves_common.o \
   characteristic_curves_loop_invariant.o \
+  characteristic_curves_spline.o \
   characteristic_curves_wipp.o \
   characteristic_curves_wipp_invariant.o \
   dataset_ascii.o \
@@ -47,6 +48,11 @@ characteristic_curves_loop_invariant.o : \
   characteristic_curves_base.o \
   characteristic_curves_common.o \
   option.o
+characteristic_curves_spline.o : \
+  characteristic_curves_base.o \
+  option.o \
+  pflotran_constants.o \
+  slatec_pchip.o
 characteristic_curves_thermal.o : \
   input_aux.o \
   option.o \
@@ -508,6 +514,7 @@ factory_subsurface.o : \
   reaction_database.o \
   reactive_transport.o \
   realization_base.o \
+  realization_common.o \
   realization_subsurface.o \
   regression.o \
   simulation_subsurface.o \
@@ -623,6 +630,7 @@ factory_subsurface_read.o : \
   reaction_mineral.o \
   reaction_solid_solution.o \
   realization_base.o \
+  realization_common.o \
   realization_subsurface.o \
   region.o \
   regression.o \
@@ -1460,6 +1468,7 @@ nw_transport.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   realization_subsurface.o \
   string.o \
   transport_constraint_nwt.o \
@@ -2002,6 +2011,7 @@ pm_nwt.o : \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
+  pm_well.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
@@ -2289,10 +2299,13 @@ pm_well.o : \
   transport_constraint_base.o \
   transport_constraint_nwt.o \
   utility.o \
+  variables.o \
   wipp_flow_aux.o
 pm_wipp_flow.o : \
   checkpoint.o \
+  connection.o \
   convergence.o \
+  coupler.o \
   dataset.o \
   dataset_base.o \
   dataset_common_hdf5.o \
@@ -2311,6 +2324,7 @@ pm_wipp_flow.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
+  pm_well.o \
   pm_wipp_srcsink.o \
   realization_base.o \
   realization_subsurface.o \
@@ -3015,6 +3029,15 @@ realization_base.o : \
   reaction_aux.o \
   reaction_base.o \
   waypoint.o
+realization_common.o : \
+  coupler.o \
+  grid.o \
+  option.o \
+  patch.o \
+  pflotran_constants.o \
+  region.o \
+  strata.o \
+  string.o
 realization_subsurface.o : \
   characteristic_curves.o \
   characteristic_curves_thermal.o \
@@ -3281,6 +3304,7 @@ simulation_subsurface.o : \
   timestepper_base.o \
   waypoint.o \
   wipp.o
+slatec_pchip.o :
 solver.o : \
   input_aux.o \
   option.o \
@@ -3593,6 +3617,7 @@ wipp_flow.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   pm_wipp_srcsink.o \
   realization_subsurface.o \
   srcsink_sandbox.o \

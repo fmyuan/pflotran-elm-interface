@@ -1,0 +1,303 @@
+!=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  
+  PROCESS_MODELS
+ 
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        DEFAULT_ALPHA
+        GAS_COMPONENT_FORMULA_WEIGHT     2.01588D0 ! H2 kg/kmol
+        QUASI_IMPLICIT_WELLBORE_COUPLING
+        BRAGFLO_RESIDUAL_UNITS
+        ALLOW_NEGATIVE_GAS_PRESSURE
+        DEFAULT_ALPHA
+      END
+    END
+    WELL_MODEL well01
+    END
+  END
+END
+
+!==============================================================================
+
+SUBSURFACE
+
+!=========================== REGRESSION =======================================
+REGRESSION
+  CELL_IDS
+    3
+    14
+    13
+    25
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    LIQUID_RESIDUAL_INFINITY_TOL     1.d-6
+    GAS_RESIDUAL_INFINITY_TOL        1.d-6
+    MAX_ALLOW_REL_LIQ_PRES_CHANG_NI  1.d-5
+    MAX_ALLOW_REL_GAS_SAT_CHANGE_NI  1.d-4
+    GAS_SAT_THRESH_FORCE_EXTRA_NI    1.d-3
+    GAS_SAT_THRESH_FORCE_TS_CUT      0.1d0
+    MAX_ALLOW_GAS_SAT_CHANGE_TS      1.0d0
+    MIN_LIQ_PRES_FORCE_TS_CUT       -1.d8   ! Pa
+    MAX_ALLOW_LIQ_PRES_CHANGE_TS     1.d7   ! Pa
+    SCALE_JACOBIAN
+    MAXIMUM_NUMBER_OF_ITERATIONS 8
+#    SNES_TYPE NTRDC
+  /
+
+LINEAR_SOLVER FLOW
+  VERBOSE_LOGGING
+  SOLVER FGMRES
+  PRECONDITIONER CPR
+  MAXIMUM_NUMBER_OF_ITERATIONS 1000
+  CPR_OPTIONS
+    CPR_EXTRACTION_TYPE ABF
+  END
+END
+
+  TIMESTEPPER
+    MAX_NUM_CONTIGUOUS_REVERTS 99
+    TIMESTEP_OVERSTEP_REL_TOLERANCE 1.d-6
+    TIMESTEP_REDUCTION_FACTOR 0.5
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25
+    MAXIMUM_CONSECUTIVE_TS_CUTS 40
+    MAXIMUM_NUMBER_OF_TIMESTEPS 20000
+    NUM_STEPS_AFTER_TS_CUT 0
+  END
+
+END
+
+
+!=========================== discretization ===================================
+
+GRID
+  GRAVITY 0.0d0  0.0d+00  -9.8d0  ! use y as the vertical direction
+  TYPE structured
+  NXYZ 1 1 30
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d1 3.14159d0 300.d0
+  /
+END
+
+!=========================== wellbore model ===================================
+# All ordering begins at the bottom of the hole and goes towards 
+# the top of the hole.
+WELLBORE_MODEL
+
+  TWO_PHASE
+
+  WELL_GRID
+    NUMBER_OF_SEGMENTS 30
+    TOP_OF_HOLE    5.0d0 1.50d0 300.0d0  # [x,y,z] in meters
+    BOTTOM_OF_HOLE 5.0d0 1.5d0  0.0d0  # [x,y,z] in meters
+  /
+
+  WIPP_INTRUSION_START_TIME 2.d-2 yr
+  
+  # The number of values listed in the WELL sub-block needs to match the
+  # number of segments. If all segments have the same value, then you can
+  # provide a single value and it will be applied to all segments.
+  WELL
+    DIAMETER 2.d-1 #1.2d0 1.3d0 1.4d0
+    FRICTION_COEFFICIENT 0.d0 #1.0d-5
+    WELL_INDEX 1.d0
+    WELL_INDEX_MODEL PEACEMAN_ISO #PEACEMAN_ANISOTROPIC
+  /
+  
+  # Either BOTTOM_OF_HOLE or TOP_OF_HOLE sub-blocks need to be specified.
+  # You can only specify a PRESSURE [Pa] or a FLUX.
+  # For FLUX, is it going to be a MASS_FLUX or a VOLUMETRIC_FLUX????
+  WELL_BOUNDARY_CONDITIONS
+    BOTTOM_OF_HOLE
+      LIQUID_RATE 0.d0 
+      GAS_RATE 0.d0 
+    /
+    TOP_OF_HOLE
+      LIQUID_RATE 0.d0 # 1.d-6
+      GAS_RATE 1.d-7
+    /
+  /
+
+  WELL_MODEL_TYPE
+    WIPP_DARCY
+  /
+  
+  WELL_FLOW_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 8      ! default=8
+    MAXIMUM_NUMBER_OF_TS_CUTS 15         ! default=20
+    TIMESTEP_CUT_FACTOR 2               ! default 2
+    ITOL_ABSOLUTE_RESIDUAL 1.0d-8       ! default=1.0d-8
+    ITOL_SCALED_RESIDUAL 1.0d-5         ! default=1.0d-5
+    ITOL_ABS_UPDATE_PRESSURE 1.0d0      ! default=1.0d0
+    ITOL_ABS_UPDATE_SATURATION 1.0d-5   ! default=1.0d-5
+    ITOL_REL_UPDATE_PRESSURE 1.0d-4     ! default=1.0d-4
+    ITOL_REL_UPDATE_SATURATION 1.0d-4   ! default=1.0d-4
+  /
+
+  WELL_MODEL_OUTPUT
+    WELL_LIQ_PRESSURE
+    WELL_GAS_PRESSURE
+    WELL_LIQ_SATURATION
+    WELL_GAS_SATURATION
+  /
+
+END
+
+!=========================== fluid properties =================================
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+EOS WATER
+  DENSITY EXPONENTIAL 1.2200E+03 101325.d0 3.1000E-10 ! ref_dens ref_pres compres
+  VISCOSITY CONSTANT 2.10000E-03
+END
+
+EOS GAS
+  DENSITY IDEAL
+  VISCOSITY CONSTANT 8.93389E-06
+END
+
+!=========================== material properties ==============================
+
+MATERIAL_PROPERTY REPO
+  ID 3
+  CHARACTERISTIC_CURVES SF1
+  POROSITY 0.1d0
+  TORTUOSITY 1.d0
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 0.0D0
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0D-15
+  /
+END
+
+MATERIAL_PROPERTY WELL
+  ID 2
+  CHARACTERISTIC_CURVES SF1
+  POROSITY 1.000000D-01
+  TORTUOSITY 1.d0
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 0.0D0
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0D-15
+  /
+END
+
+!=========================== saturation functions =============================
+
+CHARACTERISTIC_CURVES SF1
+  SATURATION_FUNCTION BRAGFLO_KRP3
+    LIQUID_RESIDUAL_SATURATION 2.d-1
+    GAS_RESIDUAL_SATURATION    0.d0
+    LAMBDA 7.0E-01
+    MAX_CAPILLARY_PRESSURE 1.0d+08
+    KPC 1
+    PCT_A 0.26
+    PCT_EXP -0.348
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP3_LIQ
+    LIQUID_RESIDUAL_SATURATION 2.0E-01
+    GAS_RESIDUAL_SATURATION    0.0E0
+    LAMBDA 7.000000E-01
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP3_GAS
+    LIQUID_RESIDUAL_SATURATION 2.0E-01
+    GAS_RESIDUAL_SATURATION    0.0E0
+    LAMBDA 7.000000E-01
+  /
+END
+
+!=========================== regions ==========================================
+
+REGION rgs_repo
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION bc_face_bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d1 3.14159d0 0.d0
+  /
+END
+
+REGION bc_face_top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 300.d0
+    1.d1 3.14159d0 300.d0
+  /
+END
+
+!=========================== stratigraphy couplers ============================
+
+STRATA
+  MATERIAL REPO
+  REGION rgs_repo
+END
+
+STRATA
+  WELL
+  MATERIAL WELL
+  REGION rgs_repo
+END
+
+!=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.d7 Pa
+  LIQUID_SATURATION 0.99d0
+END
+
+!=========================== condition couplers ===============================
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION rgs_repo
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION initial
+  REGION bc_face_top
+END
+
+skip
+BOUNDARY_CONDITION
+  FLOW_CONDITION initial
+  REGION bc_face_bottom
+END
+noskip
+
+!=========================== times ============================================
+
+TIME
+  FINAL_TIME 1.d-1 y
+  INITIAL_TIMESTEP_SIZE 1.d-2 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 y
+
+END
+
+
+!==============================================================================
+END_SUBSURFACE
+!==============================================================================
+

@@ -126,7 +126,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
-  pm_ert%surface_conductivity = 0.d0 ! to modifie Archie's equation
+  pm_ert%surface_conductivity = 0.d0 ! to modify Archie's equation
   pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
@@ -217,25 +217,26 @@ subroutine PMERTReadSimOptionsBlock(this,input)
                                       // trim(word) // ' unknown.'
             call PrintErrMsg(option)
         end select
-      case('TORTUOSITY_CONSTANT')
-        call InputReadDouble(input,option,this%tortuosity_constant)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('CEMENTATION_EXPONENT')
+      case('ARCHIE_CEMENTATION_EXPONENT')
         call InputReadDouble(input,option,this%cementation_exponent)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('SATURATION_EXPONENT')
+      case('ARCHIE_SATURATION_EXPONENT')
         call InputReadDouble(input,option,this%saturation_exponent)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ARCHIE_TORTUOSITY_CONSTANT')
+        call InputReadDouble(input,option,this%tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_string)
       case('WATER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%water_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('SURFACE_CONDUCTIVITY')
+      case('SURFACE_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%surface_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('TRACER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%tracer_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('CLAY_CONDUCTIVITY')
+      case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+        this%conductivity_mapping_law = WAXMAN_SMITS
         call InputReadDouble(input,option,this%clay_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CLAY_VOLUME_FACTOR','SHALE_VOLUME_FACTOR')
@@ -410,12 +411,14 @@ recursive subroutine PMERTInitializeRun(this)
   use Discretization_module
   use Grid_module
   use Input_Aux_module
+  use Material_Aux_module
   use Patch_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use String_module
   use Transport_Constraint_RT_module
   use ZFlow_Aux_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -429,6 +432,8 @@ recursive subroutine PMERTInitializeRun(this)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bcss(:)
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
@@ -445,7 +450,6 @@ recursive subroutine PMERTInitializeRun(this)
   PetscInt :: i
   PetscErrorCode :: ierr
 
-
   patch => this%realization%patch
   reaction => patch%reaction
   grid => patch%grid
@@ -456,6 +460,18 @@ recursive subroutine PMERTInitializeRun(this)
 
   ! Initialize to zeros
   call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
+
+  ! copy conductivities if defined
+  ert_auxvars => patch%aux%ERT%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  if (electrical_conductivity_index > 0) then
+    do ghosted_id = 1, grid%ngmax
+      if (patch%imat(ghosted_id) <= 0) cycle
+      ert_auxvars(ghosted_id)%bulk_conductivity = &
+               MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                      ELECTRICAL_CONDUCTIVITY)
+    enddo
+  endif
 
   if (associated(option%inversion)) then
     if (option%inversion%coupled_flow_ert .and. &
@@ -755,6 +771,7 @@ subroutine PMERTPreSolve(this)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: ghosted_id,local_id
   PetscInt :: species_id
@@ -766,6 +783,11 @@ subroutine PMERTPreSolve(this)
   PetscReal :: tracer_scale
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal, pointer :: dcond_dpor_vec_ptr(:)
+  PetscBool :: cementation_cell_by_cell
+  PetscBool :: saturation_cell_by_cell
+  PetscBool :: tortuosity_cell_by_cell
+  PetscBool :: surf_cond_cell_by_cell
+  PetscBool :: clay_cond_cell_by_cell
   PetscErrorCode :: ierr
 
   option => this%option
@@ -774,6 +796,22 @@ subroutine PMERTPreSolve(this)
   patch => this%realization%patch
   grid => patch%grid
   reaction => patch%reaction
+
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  ert_auxvars => patch%aux%ERT%auxvars
+  nullify(rt_auxvars)
+  nullify(zflow_auxvars)
+  if (option%itranmode == RT_MODE) then
+    rt_auxvars => patch%aux%RT%auxvars
+  endif
+  if (option%iflowmode == ZFLOW_MODE) then
+    zflow_auxvars => patch%aux%ZFlow%auxvars
+  endif
+  tracer_scale = 0.d0
+  if (Initialized(this%max_tracer_concentration)) then
+    tracer_scale = this%tracer_conductivity/this%max_tracer_concentration
+  endif
 
   empirical_law = this%conductivity_mapping_law
   a = this%tortuosity_constant
@@ -784,20 +822,12 @@ subroutine PMERTPreSolve(this)
   cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
   cond_w0 = cond_w
-  tracer_scale = 0.d0
 
-  global_auxvars => patch%aux%Global%auxvars
-  nullify(rt_auxvars)
-  nullify(zflow_auxvars)
-  if (option%itranmode == RT_MODE) then
-    rt_auxvars => patch%aux%RT%auxvars
-  endif
-  if (option%iflowmode == ZFLOW_MODE) then
-    zflow_auxvars => patch%aux%ZFlow%auxvars
-  endif
-  if (Initialized(this%max_tracer_concentration)) then
-    tracer_scale = this%tracer_conductivity/this%max_tracer_concentration
-  endif
+  cementation_cell_by_cell = (archie_cementation_exp_index > 0)
+  saturation_cell_by_cell = (archie_saturation_exp_index > 0)
+  tortuosity_cell_by_cell = (archie_tortuosity_index > 0)
+  surf_cond_cell_by_cell = (surf_elec_conduct_index > 0)
+  clay_cond_cell_by_cell = (ws_clay_conduct_index > 0)
 
   if (this%coupled_ert_flow_jacobian) then
     call VecGetArrayF90(this%dconductivity_dsaturation, &
@@ -812,7 +842,6 @@ subroutine PMERTPreSolve(this)
     endif
   endif
 
-  material_auxvars => patch%aux%Material%auxvars
   do ghosted_id = 1, grid%ngmax
     local_id = grid%nG2L(ghosted_id)
     dcond_dsat = 0.d0
@@ -849,11 +878,31 @@ subroutine PMERTPreSolve(this)
       cond_w = cond_w0 + cond_sp
     endif
     ! compute conductivity
+    if (cementation_cell_by_cell) then
+      m = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                 ARCHIE_CEMENTATION_EXPONENT)
+    endif
+    if (saturation_cell_by_cell) then
+      n = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                 ARCHIE_SATURATION_EXPONENT)
+    endif
+    if (tortuosity_cell_by_cell) then
+      a = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                 ARCHIE_TORTUOSITY_CONSTANT)
+    endif
+    if (surf_cond_cell_by_cell) then
+      cond_s = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                      SURFACE_ELECTRICAL_CONDUCTIVITY)
+    endif
+    if (clay_cond_cell_by_cell) then
+      cond_c = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                      WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+    endif
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                          cond_c,empirical_law,cond, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
                                          dcond_dpor)
-    material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
+    ert_auxvars(ghosted_id)%bulk_conductivity = cond
     if (this%coupled_ert_flow_jacobian) then
       if (local_id > 0) dcond_dsat_vec_ptr(local_id) = dcond_dsat
       if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
@@ -1158,7 +1207,6 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_module
   use String_module
   use Timer_class
   use Utility_module
@@ -1172,7 +1220,6 @@ subroutine PMERTBuildJacobian(this)
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
-  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
 
   PetscInt, pointer :: cell_neighbors(:,:)
@@ -1191,7 +1238,6 @@ subroutine PMERTBuildJacobian(this)
   survey => this%survey
 
   ert_auxvars => patch%aux%ERT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
   cell_neighbors => grid%cell_neighbors_local_ghosted
 
   call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
@@ -1264,7 +1310,7 @@ subroutine PMERTBuildJacobian(this)
 
       enddo
 
-      cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
+      cond = ert_auxvars(ghosted_id)%bulk_conductivity
 
       ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to
       ! +ve unit source so phi_rec -> - phi_rec
@@ -1306,7 +1352,6 @@ subroutine PMERTBuildCoupledJacobian(this)
   use Inversion_Coupled_Aux_module
   use Inversion_Parameter_module
   use Inversion_Aux_module
-  use Material_Aux_module
   use String_module
   use Timer_class
   use Units_module
@@ -1322,7 +1367,6 @@ subroutine PMERTBuildCoupledJacobian(this)
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
-  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
   type(inversion_coupled_soln_type), pointer :: solutions(:)
   type(inversion_parameter_type), pointer :: parameters(:)
@@ -1347,7 +1391,6 @@ subroutine PMERTBuildCoupledJacobian(this)
   survey => this%survey
 
   ert_auxvars => patch%aux%ERT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
   cell_neighbors => grid%cell_neighbors_local_ghosted
 
   call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)

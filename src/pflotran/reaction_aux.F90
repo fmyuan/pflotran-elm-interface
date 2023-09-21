@@ -150,6 +150,14 @@ module Reaction_Aux_module
     PetscBool :: print_total_mass_kg
     PetscInt :: num_dbase_temperatures
     PetscInt :: num_dbase_parameters
+
+    PetscInt :: logging_verbosity
+    PetscInt :: maximum_reaction_cuts
+    PetscInt :: maximum_reaction_iterations
+    PetscInt :: io_rank
+    PetscBool :: stop_on_rreact_failure
+    PetscBool :: use_total_as_guess
+
     PetscReal, pointer :: dbase_temperatures(:)
     type(species_idx_type), pointer :: species_idx
 
@@ -280,8 +288,10 @@ module Reaction_Aux_module
     PetscReal, pointer :: eqdynamickdpower(:)
 
     PetscReal :: max_dlnC
+    PetscReal :: max_dlnC_rreact
     PetscReal :: max_relative_change_tolerance
     PetscReal :: max_residual_tolerance
+    PetscReal :: max_rel_residual_tolerance
 
     PetscBool :: update_permeability
     PetscBool :: update_tortuosity
@@ -349,6 +359,9 @@ module Reaction_Aux_module
             IonExchangeCationCreate, &
             ReactionInputRecord, &
             ReactionNetworkToStoich, &
+            ReactionThresholdInhibition, &
+            ReactionThresholdInhibition2, &
+            ReactionThreshInhibitSmoothstep, &
             ReactionDestroy
 
 contains
@@ -409,6 +422,13 @@ function ReactionCreate()
   reaction%print_free_conc_type = 0
   reaction%print_tot_conc_type = 0
   reaction%print_secondary_conc_type = 0
+
+  reaction%logging_verbosity = 0
+  reaction%maximum_reaction_cuts = 10
+  reaction%maximum_reaction_iterations = 20
+  reaction%io_rank = UNINITIALIZED_INTEGER
+  reaction%stop_on_rreact_failure = PETSC_TRUE
+  reaction%use_total_as_guess = PETSC_FALSE
 
   nullify(reaction%species_idx)
 
@@ -511,8 +531,10 @@ function ReactionCreate()
   nullify(reaction%eqdynamickdpower)
 
   reaction%max_dlnC = 5.d0
+  reaction%max_dlnC_rreact = 5.d0
   reaction%max_relative_change_tolerance = 1.d-6
   reaction%max_residual_tolerance = 1.d-12
+  reaction%max_rel_residual_tolerance = 1.d-8
 
   reaction%update_permeability = PETSC_FALSE
   reaction%update_tortuosity = PETSC_FALSE
@@ -549,13 +571,11 @@ function ReactionCast(reaction_base)
   class(reaction_rt_type), pointer :: ReactionCast
 
   nullify(ReactionCast)
-  ! workaround for Intel
-  if (associated(reaction_base)) then
-    select type(r=>reaction_base)
-      class is(reaction_rt_type)
-        ReactionCast => r
-    end select
-  endif
+  if (.not.associated(reaction_base)) return
+  select type(r=>reaction_base)
+    class is(reaction_rt_type)
+      ReactionCast => r
+  end select
 
 end function ReactionCast
 
@@ -1536,6 +1556,115 @@ subroutine ReactionInputRecord(rxn)
   endif
 
 end subroutine ReactionInputRecord
+
+ ! ************************************************************************** !
+
+subroutine ReactionThresholdInhibition(concentration,threshold_concentration, &
+                                       inhibition_factor,derivative)
+  !
+  ! Calculates threshold inhibition for a reactant
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/17/23
+  !
+
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: threshold_f
+  PetscReal :: tempreal
+
+  threshold_f = 1.d5/threshold_concentration
+  tempreal = (concentration-threshold_concentration)*threshold_f
+  inhibition_factor = 0.5d0 + atan(tempreal)/PI
+  ! derivative of atan(X) = 1 / (1 + X^2) dX
+  derivative = threshold_f / (1.d0+tempreal*tempreal) / PI
+
+end subroutine ReactionThresholdInhibition
+
+
+ ! ************************************************************************** !
+
+subroutine ReactionThresholdInhibition2(concentration,threshold_concentration, &
+                                        threshold_constant,inhibition_factor, &
+                                        derivative)
+  !
+  ! Calculates threshold inhibition for a reactant
+  !
+  ! Author: Peishi Jiang
+  ! Date: 06/12/23
+  !
+
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscReal :: threshold_constant
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: tempreal
+
+  tempreal = (concentration-threshold_concentration)*threshold_constant
+  inhibition_factor = 0.5d0 + atan(tempreal)/PI
+  ! derivative of atan(X) = 1 / (1 + X^2) dX
+  derivative = threshold_constant / (1.d0+tempreal*tempreal) / PI
+
+end subroutine ReactionThresholdInhibition2
+
+! ************************************************************************** !
+
+subroutine ReactionThreshInhibitSmoothstep(concentration, &
+                                           threshold_concentration, &
+                                           interval,inhibition_factor, &
+                                           derivative)
+  !
+  ! Calculates threshold inhibition for a reactant
+  !
+  ! Author: Peishi Jiang
+  ! Date: 06/12/23
+  !
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscReal :: interval
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: log_inhibition
+  PetscReal :: log_concentration
+  PetscReal :: upper, lower, z
+
+  log_inhibition = LOG10(threshold_concentration)
+  log_concentration = LOG10(concentration)
+  lower = log_inhibition - interval / 2.d0
+  upper = log_inhibition + interval / 2.d0
+  z = (log_concentration - lower) / interval
+
+  ! inhibition
+  if (z < 0.) then
+    inhibition_factor = 0.d0
+  else if (z > 1.) then
+    inhibition_factor = 1.d0
+  else
+    inhibition_factor = 3.d0 * z ** 2 - 2.d0 * z ** 3
+  endif
+
+  ! derivative
+  if (z < 0.) then
+    derivative = 0.d0
+  else if (z > 1.d0) then
+    derivative = 0.d0
+  else
+    derivative = (6.d0*z - 6.d0*z**2) / (interval*concentration*LOG_TO_LN)
+  endif
+
+end subroutine ReactionThreshInhibitSmoothstep
 
 ! ************************************************************************** !
 

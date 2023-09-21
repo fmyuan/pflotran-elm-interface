@@ -72,6 +72,8 @@ function TimestepperSteadyCast(this)
 
   class(timestepper_steady_type), pointer :: TimestepperSteadyCast
 
+  nullify(TimestepperSteadyCast)
+  if (.not.associated(this)) return
   select type(this)
     class is(timestepper_steady_type)
       TimestepperSteadyCast => this

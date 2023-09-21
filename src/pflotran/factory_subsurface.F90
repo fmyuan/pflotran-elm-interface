@@ -445,6 +445,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Init_Subsurface_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
+  use Realization_Common_module
   use Option_module
   use Logging_module
   use Waypoint_module
@@ -504,9 +505,9 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
-  call InitCommonReadRegionFiles(realization)
+  call InitCommonReadRegionFiles(realization%patch,realization%region_list,realization%option)
   ! clip regions and set up boundary connectivity, distance
-  call RealizationLocalizeRegions(realization)
+  call RealizationLocalizeRegions(realization%patch,realization%region_list,realization%option)
   call RealizationPassPtrsToPatches(realization)
   call RealizationProcessDatasets(realization)
   if (realization%output_option%mass_balance_region_flag) then

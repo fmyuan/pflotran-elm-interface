@@ -222,6 +222,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dkr_sat
   PetscReal :: aux(1)
 
+  ierr = 0
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
   global_auxvar%den_kg = 0.d0

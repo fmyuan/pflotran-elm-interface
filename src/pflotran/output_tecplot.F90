@@ -2360,16 +2360,6 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
     endif
   endif
 
-  ! Here we are assuming that if there are secondary continua for both
-  ! heat and reactive transport, then the shape and type of secondary
-  ! continua are the same - SK
-  if (associated(patch%aux%SC_heat)) then
-    dist => sec_heat_vars(1)%sec_continuum%distance
-  elseif (associated(patch%aux%SC_RT)) then
-    dist => rt_sec_tranport_vars(1)%sec_continuum%distance
-  endif
-
-
   ! write points
 1000 format(es13.6,1x)
 1009 format('')
@@ -2418,6 +2408,10 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
               'functioning properly for minerals.  Perhaps due to ' // &
               'non-ghosting of vol frac....>? - geh'
       call PrintErrMsg(option)
+      if (icell > 1) then
+        string = '"dist [m]"'
+        write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
+      endif   
       call WriteTecplotHeaderForCoordSec(OUTPUT_UNIT,realization_base, &
                                          observation%region, &
                                          observation% &
@@ -2425,6 +2419,10 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
                                          icolumn)
     else
       do icell = 1,observation%region%num_cells
+        if (icell > 1) then
+          string = '"dist [m]"'
+          write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
+        endif    
         call WriteTecplotHeaderForCellSec(OUTPUT_UNIT,realization_base, &
                                           observation%region,icell, &
                                           observation% &
@@ -2442,11 +2440,24 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
     write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
     write(OUTPUT_UNIT,1009)
 
+   
     do sec_id = 1,option%nsec_cells
-      write(OUTPUT_UNIT,1000,advance='no') dist(sec_id)
       do icell = 1,observation%region%num_cells
         local_id = observation%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
+        if (associated(patch%aux%SC_heat)) then
+          dist => sec_heat_vars(ghosted_id)%sec_continuum%distance
+        elseif (associated(patch%aux%SC_RT)) then
+          dist => rt_sec_tranport_vars(ghosted_id)%sec_continuum%distance
+        endif
+      
+        if (size(dist) < sec_id) then
+          write(OUTPUT_UNIT,1000,advance='no') &
+              -999.d0
+        else        
+          write(OUTPUT_UNIT,1000,advance='no') dist(sec_id)
+        endif
+       
         if (observation%print_secondary_data(1)) then
           write(OUTPUT_UNIT,1000,advance='no') &
           RealizGetVariableValueAtCell(realization_base,ghosted_id, &

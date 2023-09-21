@@ -61,6 +61,8 @@ _PRE_PROCESS_ERROR = 7
 _POST_PROCESS_ERROR = 8
 _PYTHON_POST_PROCESS_ERROR = 9
 _TIMEOUT_ERROR = 10
+_NAN_OR_INF_ERROR = 11
+_PLANNED_ERROR_NOT_CAUGHT = 12
 
 class TestStatus(object):
     """
@@ -132,6 +134,7 @@ class RegressionTest(object):
         self._restart_tuple = None
         self._compare_hdf5 = False
         self._timeout = 90.0
+        self._planned_error = False
         self._skip_check_gold = False
         self._skip_check_regression = False
         self._check_performance = False
@@ -258,7 +261,10 @@ class RegressionTest(object):
         """
         if dry_run:
             print("    cd {0}".format(os.getcwd()), file=testlog)
-            filename = test_name
+            if self._planned_error:
+                filename = 'pflotran'
+            else:
+                filename = test_name
             if self._input_arg == '-input_prefix':
                 filename += '.' + self._input_suffix
             if not os.path.isfile(filename):
@@ -354,9 +360,15 @@ class RegressionTest(object):
         #     PFLOTRAN_SUCCESS.
         command.append("-successful_exit_code")
         command.append("%d" % self._PFLOTRAN_SUCCESS)
-        if self._input_arg is not None:
-            command.append(self._input_arg)
+
+        # planned error use pflotran.in and test_name.out
+        if self._planned_error:
+            command.append('-output_prefix')
             command.append(test_name)
+        else:
+            if self._input_arg is not None:
+                command.append(self._input_arg)
+                command.append(test_name)
 
         if self._pflotran_args is not None:
             # assume that we already called split() on the
@@ -389,6 +401,31 @@ class RegressionTest(object):
               finish - start), file=testlog)
         pflotran_status = abs(proc.returncode)
         run_stdout.close()
+        # intercept error if running a planned error test
+        if self._planned_error:
+            if pflotran_status == self._PFLOTRAN_FAILURE:
+                # error was not properly caught
+                status.error = _PLANNED_ERROR_NOT_CAUGHT
+                message = self._txtwrap.fill(
+                    "ERROR : {name} : pflotran returned an error "
+                    "code ({status}) indicating that the simulation "
+                    "failed due to inability to catch planned error."
+                    "Please check '{name}.stdout' for more information "
+                    "(included below).".format(
+                    name=test_name, status=pflotran_status))
+                print("".join(['\n', message, '\n']), file=testlog)
+            elif pflotran_status == self._PFLOTRAN_SUCCESS:
+                # error was not properly spawned
+                status.error = _PLANNED_ERROR_NOT_CAUGHT
+                message = self._txtwrap.fill(
+                    "ERROR : {name} : pflotran returned a exit "
+                    "code ({status}) indicating that the simulation "
+                    "completed successfully when it should have failed "
+                    "due to an intentionally thrown error in "
+                    "utility.F90:ThrowRuntimeError().".format(
+                    name=test_name, status=pflotran_status))
+                print("".join(['\n', message, '\n']), file=testlog)
+            return None
         # pflotran returns 0 on an error (e.g. can't find an input
         # file), 86 on success. 59 for timeout errors?
         if pflotran_status != self._PFLOTRAN_SUCCESS:
@@ -723,6 +760,7 @@ class RegressionTest(object):
             errors = []
             num_minor_fail = 0
             num_major_fail = 0
+            num_error = 0
 
             if self._debug:
                 print("--- Gold sections:")
@@ -755,8 +793,9 @@ class RegressionTest(object):
                                                testlog)
                         num_minor_fail += report[0]
                         num_major_fail += report[1]
-                        if not report[2] == _NULL_ERROR:
-                            errors.append(report[2])
+                        num_error += report[2]
+                        if report[3]:
+                            errors.append(_NAN_OR_INF_ERROR)
                     except Exception as error:
                         status.error = _CONFIG_ERROR
                         print(error, file=testlog)
@@ -770,7 +809,7 @@ class RegressionTest(object):
             if len(errors) > 0:
                 status.error = errors[0]
                 for i in range(1,len(errors)):
-                    if status.error == errors[1]:
+                    if status.error != errors[1]:
                         status.error = _GENERAL_ERROR
                         break
 
@@ -1408,6 +1447,7 @@ class RegressionTest(object):
         section_num_minor_fail = 0
         section_num_major_fail = 0
         section_num_error = 0
+        section_nan_or_inf_present = False
         section_status = 0
         if self._check_performance is False and \
             data_type.lower() == self._SOLUTION:
@@ -1456,6 +1496,8 @@ class RegressionTest(object):
                                 section_num_minor_fail += report[0]
                                 section_num_major_fail += report[1]
                                 section_num_error += report[2]
+                                if report[3]:
+                                    section_nan_or_inf_present = True
                             except Exception as error:
                                 section_status += 1
                                 print("ERROR: {0} : {1}.\n  {2}".format(
@@ -1466,7 +1508,7 @@ class RegressionTest(object):
                 name, section_status), file=testlog)
 
         return section_num_minor_fail, section_num_major_fail, \
-               section_num_error
+               section_num_error, section_nan_or_inf_present
 
     def _compare_values(self, name, key, previous, current, testlog):
         """
@@ -1481,6 +1523,7 @@ class RegressionTest(object):
         num_minor_fail = 0
         num_major_fail = 0
         num_error = 0
+        nan_or_inf_present = False
         tol = None
         key = key.lower()
         if (key == self._CONCENTRATION or
@@ -1513,9 +1556,17 @@ class RegressionTest(object):
 
         if math.isnan(current) or math.isnan(previous):
             num_error += 1
+            nan_or_inf_present = True
             print("    NAN: {0} : {1} vs {2} (gold)".format(
                   name, current, previous), file=testlog)
-            return num_minor_fail, num_major_fail, num_error
+            return num_minor_fail, num_major_fail, num_error, nan_or_inf_present
+
+        if math.isinf(current) or math.isinf(previous):
+            num_error += 1
+            nan_or_inf_present = True
+            print("    INF: {0} : {1} vs {2} (gold)".format(
+                  name, current, previous), file=testlog)
+            return num_minor_fail, num_major_fail, num_error, nan_or_inf_present
 
         if tolerance_type == self._ABSOLUTE:
             delta = abs(previous - current)
@@ -1565,7 +1616,7 @@ class RegressionTest(object):
                       name, previous, min_threshold, max_threshold),
                   file=testlog)
 
-        return num_minor_fail, num_major_fail, num_error
+        return num_minor_fail, num_major_fail, num_error, nan_or_inf_present
 
     def _compare_solution(self, name, previous, current):
         """
@@ -1647,7 +1698,6 @@ class RegressionTest(object):
         Set the test criteria for different categories of variables.
         """
         self._np = test_data.pop('np', None)
-
         self._python_setup_script = test_data.pop('python_setup_script', None)
         self._python_post_process_script = \
             test_data.pop('python_post_process_script', None)
@@ -1702,6 +1752,11 @@ class RegressionTest(object):
                 self._skip_check_regression = True
 
         self._check_performance = check_performance
+
+        self._planned_error = test_data.pop('planned_error', False)
+        if self._planned_error:
+            self._skip_check_regression = True
+            self._skip_check_gold = True
 
         # timeout : preference (1) command line (2) test data (3) class default
         self._timeout = float(test_data.pop('timeout', self._timeout))
@@ -2083,6 +2138,10 @@ class RegressionTestManager(object):
                 print("A", end='', file=sys.stdout)
             elif status.error == _TIMEOUT_ERROR:
                 print("T", end='', file=sys.stdout)
+            elif status.error == _NAN_OR_INF_ERROR:
+                print("N", end='', file=sys.stdout)
+            elif status.error == _PLANNED_ERROR_NOT_CAUGHT:
+                print("P", end='', file=sys.stdout)
             else:
                 print("Unknown error type in regression.py", file=testlog)
                 sys.exit(0)
@@ -2766,6 +2825,7 @@ def main(options):
           "tolerances)")
     print("    M - failed regression test (results are FAR outside error "
           "tolerances)")
+    print("    N - NaNs or Infs in results")
     print("    G - general error")
     print("    U - user error")
     print("    V - simulator failure (e.g. failure to converge)")
@@ -2773,6 +2833,7 @@ def main(options):
     print("    T - time out error")
     print("    C - configuration file [.cfg] error")
     print("    I - missing information (e.g. missing files)")
+    print("    P - planned error not caught")
     print("    B - pre-processing error (e.g. error in simulation setup "
           "scripts")
     print("    A - post-processing error (e.g. error in solution comparison)")

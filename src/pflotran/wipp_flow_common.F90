@@ -1571,6 +1571,26 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscInt :: idof, irow
 
   option%iflag = -3
+
+  if (Initialized(wippflo_auxvars(ZERO_INTEGER)%well%pl)) then
+    if (dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl) < 1.d-15) then
+      scale = 0.d0
+    else
+      ! jmfrede 09/14/2022 Getting rid of this scale factor because it
+      ! changes wildly within Newton iterations, which seems to make
+      ! WIPP_FLOW have a harder time converging. When it does converge,
+      ! the scale seems to be ~ 1 anyways. Uncomment the WRITE statement
+      ! to quickly see the value of scale printed to screen.
+      scale = dabs(wippflo_auxvars(ZERO_INTEGER)% &
+              pres(ONE_INTEGER)-wippflo_auxvars(ZERO_INTEGER)% &
+              well%pl)/dabs(wippflo_auxvars(ZERO_INTEGER)% &
+              well%dpl)
+      scale = 1.d0
+    endif
+  endif
+
+
   ! unperturbed wippflo_auxvars value
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvars(ZERO_INTEGER),global_auxvar, &
@@ -1578,6 +1598,20 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
 
   ! perturbed wippflo_auxvars values
   do idof = 1, option%nflowdof
+
+  if (Initialized(wippflo_auxvars(idof)%well%pl)) then
+    if (dabs(wippflo_auxvars(ZERO_INTEGER)% &
+            well%dpl) < 1.d-15) then
+      scale = 0.d0
+    else
+      scale = dabs(wippflo_auxvars(idof)% &
+              pres(ONE_INTEGER)-wippflo_auxvars(idof)% &
+              well%pl)/dabs(wippflo_auxvars(idof)% &
+              well%dpl)
+    endif
+  endif
+
+
     call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvars(idof),global_auxvar, &
                         material_auxvar,dummy_real, &

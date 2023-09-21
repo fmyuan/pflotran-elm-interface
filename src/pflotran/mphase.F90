@@ -134,12 +134,13 @@ subroutine MphaseSetupPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
 
-  PetscInt :: ghosted_id, iconn, sum_connection, ipara, i, local_id
+  PetscInt :: ghosted_id, iconn, sum_connection, ipara, local_id
   type(Mphase_auxvar_type), pointer :: auxvars(:)
   type(Mphase_auxvar_type), pointer :: auxvars_bc(:)
   type(Mphase_auxvar_type), pointer :: auxvars_ss(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
+  PetscReal :: tempreal
 
   option => realization%option
   patch => realization%patch
@@ -191,26 +192,19 @@ subroutine MphaseSetupPatch(realization)
     initial_condition => patch%initial_condition_list%first
     allocate(mphase_sec_heat_vars(grid%nlmax))
 
+    tempreal = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       call SecondaryHeatAuxVarInit( &
            patch%material_property_array(patch%imat(ghosted_id))%ptr%multicontinuum, &
-           patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index), &
-           patch%aux%Material%auxvars(ghosted_id)%soil_properties(half_matrix_width_index), &
-           mphase_sec_heat_vars(local_id), initial_condition, option)
-           
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%epsilon, &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%half_matrix_width, &
+           patch%aux%Material%auxvars(ghosted_id)%secondary_prop%ncells, &
+           mphase_sec_heat_vars(local_id), initial_condition, option)           
     enddo
 
     patch%aux%SC_heat%sec_heat_vars => mphase_sec_heat_vars
-    do i = 1, size(patch%material_property_array)
-      if (.not. patch%material_property_array(1)%ptr%multicontinuum%ncells &
-           == patch%material_property_array(i)%ptr%multicontinuum%ncells) then
-        option%io_buffer = &
-          'NUMBER OF SECONDARY CELLS MUST BE EQUAL ACROSS MATERIALS'
-        call PrintErrMsg(option)
-      endif
-    enddo
   endif
 
 
@@ -1161,7 +1155,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
       if (Equal((patch%aux%Material%auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
@@ -1269,7 +1263,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     if (.not.associated(mphase_parameter%dencpr)) print *,'no para'
@@ -2622,7 +2616,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     istart = iend-option%nflowdof+1
 
     if (option%use_sc) then
-      vol_frac_prim = material_auxvars(ghosted_id)%soil_properties(epsilon_index)
+      vol_frac_prim = material_auxvars(ghosted_id)%secondary_prop%epsilon
     endif
 
     call MphaseAccumulation(auxvars(ghosted_id)%auxvar_elem(0), &
@@ -2649,7 +2643,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
       if (Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       iend = local_id*option%nflowdof
 
       sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
@@ -3470,7 +3464,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
     if (option%use_sc) then
       if (Equal((material_auxvars(ghosted_id)% &
-          soil_properties(epsilon_index)),1.d0)) cycle
+          secondary_prop%epsilon),1.d0)) cycle
       call SecondaryHeatJacobian(sec_heat_vars(local_id), &
                                  mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                                  mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &

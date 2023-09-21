@@ -1,0 +1,336 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+  CHECKPOINT
+    PERIODIC TIMESTEP 100
+    FORMAT HDF5
+  /
+END
+
+SUBSURFACE
+
+!=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 4
+  CELL_IDS
+    42
+  /
+END
+
+!=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer        
+    Ca++       
+    CO3--        
+    H+              
+    SO4--      
+    Na+      
+   /
+  SECONDARY_SPECIES
+    OH-
+    H2SO4(aq)
+    CaOH+
+    CaHCO3+
+    CaCO3(aq)
+    CaSO4(aq)
+    HCO3-
+    CO2(aq)
+    HSO4-
+    NaSO4-
+    NaCO3-
+    NaHCO3(aq)
+  /
+  MINERALS
+    Calcite
+    Gypsum
+  /
+  MINERAL_KINETICS
+    Calcite
+      RATE_CONSTANT 5e-5
+    /
+    Gypsum
+      RATE_CONSTANT 5e-5
+    /
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+  UPDATE_POROSITY
+  UPDATE_PERMEABILITY
+  MOLALITY
+  OUTPUT
+    FREE_ION
+    PRIMARY_SPECIES
+    Calcite
+    Gypsum
+  /
+END
+
+!=========================== discretization ===================================
+GRID
+  TYPE structured 
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ  42  1  1
+  DXYZ
+    1*0.0125  1*0.025  39*0.05  1*0.0125
+    1*1.
+    1*1.
+  /
+END
+
+!=========================== solver options ===================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+    MAX_STEPS 100000000
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-12
+    RTOL 1D-12
+    STOL 1D-12
+    DTOL 1D15
+    ITOL 1D-8
+    MAXIMUM_NUMBER_OF_ITERATIONS 25
+    MAXF 500
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+    MAX_STEPS 100000000
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-50
+    RTOL 1D-12
+    STOL 1D-12
+    DTOL 1D15
+    ITOL 1D-10 !5D-10
+    MAXIMUM_NUMBER_OF_ITERATIONS 25
+    MAXF 500
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+ END
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 100. y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 1. y 
+END
+
+!=========================== output options ===================================
+OUTPUT
+  TIMES y 50.  
+  FORMAT TECPLOT POINT
+  VARIABLES
+    LIQUID_PRESSURE
+    POROSITY
+    PERMEABILITY
+  /
+  PERIODIC_OBSERVATION TIMESTEP 100
+END
+
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY rock
+  ID 1
+  POROSITY 0.35
+  TORTUOSITY 1e-1
+  ROCK_DENSITY 2700.
+  SATURATION_FUNCTION unsat
+  PERMEABILITY_MIN_SCALE_FACTOR 0.0
+  PERMEABILITY_POWER  3.  
+  PERMEABILITY
+    PERM_ISO 1.05661e-11
+  /
+END
+
+!======================================================
+CHARACTERISTIC_CURVES unsat
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+    ALPHA 3.985d-8
+    M 0.433d0
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    LIQUID_RESIDUAL_SATURATION 0.01d0
+    M 0.433d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    LIQUID_RESIDUAL_SATURATION 0.01d0
+    GAS_RESIDUAL_SATURATION 0.0d0
+    M 0.433d0
+  /
+END
+
+!=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.0d0 0.0d0
+    2.D0 1.0D0 1.0d0
+  /
+END
+
+
+REGION left
+  FACE WEST 
+  COORDINATES
+    0.d0 0.0d0 0.0d0
+    0.D0 1.0D0  1.0d0
+  /
+END
+
+REGION right
+  FACE EAST
+  COORDINATES
+    2.d0 0.0d0 0.0d0
+    2.D0 1.0D0 1.0d0
+  /
+END
+
+!=========================== flow conditions ==================================
+FLOW_CONDITION p_initial
+ TYPE
+   LIQUID_PRESSURE hydrostatic
+   TEMPERATURE dirichlet
+  /
+  LIQUID_PRESSURE 101325
+  TEMPERATURE 25.d0
+END
+
+FLOW_CONDITION p_left
+  TYPE
+    LIQUID_PRESSURE dirichlet
+    TEMPERATURE dirichlet
+  /
+  LIQUID_PRESSURE 1.0139347e5
+  TEMPERATURE 25.d0
+END
+
+FLOW_CONDITION p_right
+  TYPE
+    LIQUID_PRESSURE dirichlet
+    TEMPERATURE dirichlet
+  /
+  LIQUID_PRESSURE 1.01325e5
+  TEMPERATURE 25.d0
+END
+
+!=========================== transport conditions =============================
+TRANSPORT_CONDITION tr_initial
+  TYPE dirichlet
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION tr_inflow
+  TYPE dirichlet
+  CONSTRAINT_LIST
+    0.d0 inflow
+  /
+END
+
+TRANSPORT_CONDITION tr_outflow
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 outflow
+  /
+END
+
+!=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    Tracer   1e-5        T      
+    Ca++      1.69512e-4  T
+    CO3--     2.695e-4    T
+    H+        9.33        pH
+    SO4--     1.69512e-4  T
+    Na+       3.2e-4      T
+  /
+  MINERALS
+    Calcite               0.3   1.0
+    Gypsum                0.0   1.0
+  /
+END
+
+CONSTRAINT inflow
+  CONCENTRATIONS
+    Tracer     1e-5     T        
+    Ca++       1.e-4    T    
+    CO3--      0.01     T   
+    H+         3.0      pH  
+    SO4--      0.2      T   
+    Na+        0.39562  T
+  /
+  MINERALS
+    Calcite               0.0   0.0
+    Gypsum                0.0   0.0
+  /
+END
+
+CONSTRAINT outflow
+  CONCENTRATIONS
+    Tracer   1e-5        T
+    Ca++      1.69512e-4  T
+    CO3--     2.695e-4    T
+    H+        9.33        pH
+    SO4--     1.69512e-4  T
+    Na+       3.2e-4      T
+  /
+  MINERALS
+    Calcite               0.0   0.0
+    Gypsum                0.0   0.0   
+  /
+END
+
+!=========================== condition couplers ===============================
+INITIAL_CONDITION Initial
+ FLOW_CONDITION p_initial
+ TRANSPORT_CONDITION tr_initial
+ REGION all
+END
+
+BOUNDARY_CONDITION inlet
+ FLOW_CONDITION p_left
+ TRANSPORT_CONDITION tr_inflow
+ REGION left
+END
+
+BOUNDARY_CONDITION outlet
+ FLOW_CONDITION p_right
+ TRANSPORT_CONDITION tr_outflow
+ REGION right
+END
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL rock
+END
+
+END_SUBSURFACE
