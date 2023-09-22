@@ -1797,7 +1797,27 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             endif
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
-            coupler%flow_bc_type(2:option%nflowdof) = DIRICHLET_BC
+            coupler%flow_bc_type(2:3) = DIRICHLET_BC
+            if (general_salt .and. .not. general_soluble_matrix) then
+              ! mole fraction; 4th dof ----------------------- !
+              select case(general%salt_mole_fraction%itype)
+                case(DIRICHLET_BC)
+                  call PatchGetCouplerValueFromDataset(coupler,option, &
+                         patch%grid,general%salt_mole_fraction%dataset,iconn,xmol2)
+                    if (general_immiscible) then
+                      xmol2 = GENERAL_IMMISCIBLE_VALUE
+                    endif
+                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = xmol2
+                    dof4 = PETSC_TRUE
+                    coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+               case default
+                   string = GetSubConditionType(general%salt_mole_fraction%itype)
+                   option%io_buffer = &
+                       FlowConditionUnknownItype(coupler%flow_condition, &
+                       'GENERAL_MODE liquid state salt mole fraction ',string)
+                 call PrintErrMsg(option)
+               end select
+            endif
           else
           ! liquid pressure; 1st dof --------------------- !
             select case(general%liquid_pressure%itype)
@@ -1861,11 +1881,11 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                     coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = xmol2
                     dof4 = PETSC_TRUE
                     coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-                 case default
+               case default
                    string = GetSubConditionType(general%salt_mole_fraction%itype)
                    option%io_buffer = &
                        FlowConditionUnknownItype(coupler%flow_condition, &
-                       'GENERAL_MODE liquid state mole fraction ',string)
+                       'GENERAL_MODE liquid state salt mole fraction ',string)
                  call PrintErrMsg(option)
                end select
             endif
@@ -2458,6 +2478,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                                  'PatchUpdateCouplerAuxVarsG')
     end select
   endif
+
   if (associated(general%energy_flux)) then
     coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = NEUMANN_BC
     select type(selector => general%energy_flux%dataset)
@@ -2495,24 +2516,25 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     end select
     if (general_salt) dof4 = PETSC_TRUE
   endif
+
   if (associated(general%salt_mole_fraction)) then
     coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
     select type(selector => general%salt_mole_fraction%dataset)
       class is(dataset_ascii_type)
         coupler%flow_aux_real_var(FOUR_INTEGER,1:num_connections) = &
-                                             general%salt_mole_fraction%dataset%rarray(1)
+                                              general%salt_mole_fraction%dataset%rarray(1)
         dof4 = PETSC_TRUE
-     class is(dataset_gridded_hdf5_type)
-        call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
+      class is(dataset_gridded_hdf5_type)
         call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
-             FOUR_INTEGER)
+                                           FOUR_INTEGER)
         dof4 = PETSC_TRUE
-     class default
+      class default
         call PrintMsg(option,'general%salt_mole_fraction%dataset')
         call DatasetUnknownClass(selector,option, &
-             'PatchUpdateCouplerAuxVarsG')
+                                 'PatchUpdateCouplerAuxVarsG')
     end select
   endif
+
   if (associated(general%precipitate_saturation)) then
     coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
     select type(selector => general%precipitate_saturation%dataset)
@@ -2521,7 +2543,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                                              general%precipitate_saturation%dataset%rarray(1)
         dof4 = PETSC_TRUE
      class is(dataset_gridded_hdf5_type)
-        call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
         call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
              FOUR_INTEGER)
         dof4 = PETSC_TRUE

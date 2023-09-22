@@ -4212,6 +4212,7 @@ function FlowConditionGeneralIsTransient(condition)
       FlowSubConditionIsTransient(condition%gas_saturation) .or. &
       FlowSubConditionIsTransient(condition%relative_humidity) .or. &
       FlowSubConditionIsTransient(condition%mole_fraction) .or. &
+      FlowSubConditionIsTransient(condition%salt_mole_fraction) .or. &
       FlowSubConditionIsTransient(condition%temperature) .or. &
       FlowSubConditionIsTransient(condition%rate) .or. &
       FlowSubConditionIsTransient(condition%liquid_flux) .or. &
@@ -4647,8 +4648,11 @@ subroutine FlowGeneralConditionDestroy(general_condition)
   call FlowSubConditionDestroy(general_condition%liquid_pressure)
   call FlowSubConditionDestroy(general_condition%gas_pressure)
   call FlowSubConditionDestroy(general_condition%gas_saturation)
+  call FlowSubConditionDestroy(general_condition%precipitate_saturation)
   call FlowSubConditionDestroy(general_condition%relative_humidity)
   call FlowSubConditionDestroy(general_condition%mole_fraction)
+  call FlowSubConditionDestroy(general_condition%salt_mole_fraction)
+  call FlowSubConditionDestroy(general_condition%porosity)
   call FlowSubConditionDestroy(general_condition%temperature)
   call FlowSubConditionDestroy(general_condition%liquid_flux)
   call FlowSubConditionDestroy(general_condition%gas_flux)
