@@ -12,9 +12,10 @@ SUBSURFACE
 
 HYDRATE
   GAS METHANE
-  HYDRATE_PHASE_BOUNDARY MORIDIS
+  HYDRATE_PHASE_BOUNDARY MORIDIS_SIMPLE
   ADJUST_SOLUBILITY_WITHIN_GHSZ
   WITH_GIBBS_THOMSON #Ice simulations require freezing point depression as f(Sl)
+  GT_3PHASE
 END
 
 NUMERICAL_METHODS flow
@@ -98,7 +99,7 @@ CHARACTERISTIC_CURVES default
     ALPHA 8.d-5
     M 0.45
     LIQUID_RESIDUAL_SATURATION 0.12d0
-    MAX_CAPILLARY_PRESSURE 1.d8
+    MAX_CAPILLARY_PRESSURE 1.d10
   /
   PERMEABILITY_FUNCTION BURDINE_BC_LIQ
     PHASE LIQUID
@@ -115,12 +116,6 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  SNAPSHOT_FILE
-    PERIODIC TIMESTEP 1 d
-    #TIMES d 1
-    #FORMAT TECPLOT POINT
-    #FORMAT HDF5
-  /
   UNFILTER_NON_STATE_VARIABLES
   
   VARIABLES
@@ -132,13 +127,14 @@ OUTPUT
    HYDRATE_SATURATION
    ICE_SATURATION
    LIQUID_MOLE_FRACTIONS
+   THERMODYNAMIC_STATE
   /
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 25.d0 d 
-  INITIAL_TIMESTEP_SIZE 1.d-1 d
+  FINAL_TIME 35.d0 d 
+  INITIAL_TIMESTEP_SIZE 1.d0 d
   MAXIMUM_TIMESTEP_SIZE 1.d0 d 
 END
 
@@ -171,44 +167,42 @@ REGION east-face
     3.d0 1.d0 1.d0
   /
 END
-FLOW_CONDITION well
-  TYPE
-    RATE mass_rate
-  /
-     ! liquid gas   energy
-  RATE 0.D0 0.D0 -1.D-4 kg/s kg/s MW
-  SYNC_TIMESTEP_WITH_UPDATE
-/
-
 
 #=========================== flow conditions ==================================
-FLOW_CONDITION L
+FLOW_CONDITION initial
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    HYDRATE_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 30.d6
+  HYDRATE_SATURATION 2.d-1
+  TEMPERATURE 14.d0
+END
+
+FLOW_CONDITION frozen
   TYPE
     LIQUID_PRESSURE DIRICHLET
     MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  LIQUID_PRESSURE 15.d6
+  LIQUID_PRESSURE 30.d6
   MOLE_FRACTION 5.d-3
-  TEMPERATURE 15.d0
+  TEMPERATURE -10.d0
 END
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION all
-  FLOW_CONDITION L
+  FLOW_CONDITION initial
   REGION all
 END
 BOUNDARY_CONDITION west-face
-  FLOW_CONDITION L
+  FLOW_CONDITION initial
   REGION west-face
 END
-BOUNDARY_CONDITION west-face
-  FLOW_CONDITION L
+BOUNDARY_CONDITION east-face
+  FLOW_CONDITION frozen
   REGION east-face
-END
-SOURCE_SINK
-  FLOW_CONDITION well
-  REGION center
 END
 #=========================== stratigraphy couplers ============================
 STRATA

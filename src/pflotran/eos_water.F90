@@ -3628,7 +3628,7 @@ end subroutine EOSWaterInternalEnergyIceDefault
 subroutine EOSWaterInternalEnergyIceFukusako(T, u_ice, calculate_derivatives, &
                                              du_ice_dT, du_ice_dP,ierr)
   
-  !Internal energy of ice as f(Temperature) (Fukusako and Yamamoto, 1993)
+  !Internal energy of ice as f(Temperature) (Fukusako and Yamada, 1993)
   !
   ! T is in deg C, internal energy is in J/mol
   !Author: Michael Nole
@@ -3642,16 +3642,20 @@ subroutine EOSWaterInternalEnergyIceFukusako(T, u_ice, calculate_derivatives, &
   PetscReal, intent(out) :: du_ice_dT, du_ice_dP
   PetscErrorCode, intent(out) :: ierr  
 
-  PetscReal, parameter :: Lw = -6017.1d0 !Latent heat of fusion,  J/mol
+  PetscReal, parameter :: Lw = -3.34110d5 ! Latent heat of fusion, J/kg 
   PetscReal :: T_temp
 
   T_temp = T + 273.15d0
 
   if (T_temp >= 90.d0) then
-    u_ice = Lw + 185.d0 * (T_temp-273.15d0) + 3.445 * (T_temp**2 - 273.15d0**2)
+    u_ice = Lw + 185.d0 * (T_temp-273.15d0) + 3.445 * &
+                 (T_temp**2 - 273.15d0**2) 
   else
     u_ice = Lw + 4.475 * (T_temp**2 - 273.15d0**2)
   endif
+
+  ! J/kg to J/mol
+  u_ice = u_ice * FMWH2O * 1.d-3
 
   if (calculate_derivatives) then
     if (T_temp >= 90.d0) then
