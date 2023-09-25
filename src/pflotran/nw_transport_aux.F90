@@ -73,6 +73,7 @@ module NW_Transport_Aux_module
     PetscReal :: wm_value
     character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
     character(len=MAXWORDLENGTH), pointer :: dirichlet_material_names(:)
+    PetscInt, pointer :: dirichlet_material_ids(:)
   end type nwt_params_type
 
   type, public :: nwt_print_type
@@ -312,6 +313,7 @@ function NWTReactionCreate()
   reaction_nw%params%wm_value = 1.0d-40  ! [mol/m3-bulk]
   nullify(reaction_nw%params%bh_material_names)
   nullify(reaction_nw%params%dirichlet_material_names)
+  nullify(reaction_nw%params%dirichlet_material_ids)
 
   nullify(reaction_nw%print_what)
   allocate(reaction_nw%print_what)
@@ -564,7 +566,8 @@ subroutine NWTRead(reaction_nw,input,option)
         endif
         if (num_materials == 0) then
           option%io_buffer = 'ERROR: At least one Dirichlet MATERIAL_PROPERTY &
-            &name must be provided in the ' // trim(error_string_base) // ' block.'
+            &name must be provided in the ' // trim(error_string_base) // &
+            ' block.'
           call PrintErrMsg(option)
         endif
         allocate(reaction_nw%params%dirichlet_material_names(num_materials))
@@ -572,6 +575,9 @@ subroutine NWTRead(reaction_nw,input,option)
           reaction_nw%params%dirichlet_material_names(num_materials) = &
                                           dirichlet_materials(num_materials)
         enddo
+        allocate(reaction_nw%params%dirichlet_material_ids( &
+                            size(reaction_nw%params%dirichlet_material_names)))
+        reaction_nw%params%dirichlet_material_ids = UNINITIALIZED_INTEGER
       case('OUTPUT')
         call NWTReadOutput(reaction_nw,input,option)
       case('BOREHOLE_MATERIALS')
