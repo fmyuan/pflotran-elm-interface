@@ -1,0 +1,38 @@
+-- CONCENTRATION: Total Bulk Conc. TRACER --
+      Max:   1.2499991567652E-03
+      Min:   9.9582596123000E-04
+     Mean:   1.0903122972785E-03
+        6:   9.9999937292265E-04
+-- CONCENTRATION: Aq. Conc. TRACER --
+      Max:   4.9999966270610E-03
+      Min:   3.9833038449200E-03
+     Mean:   4.3612491892533E-03
+        6:   3.9999974916906E-03
+-- CONCENTRATION: Mnrl. Conc. TRACER --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        6:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. TRACER --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        6:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. TRACER --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        6:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         2
+      Min:         1
+     Mean:   1.0909090909091E+00
+        6:         1
+-- SOLUTION: Transport --
+   Time (seconds):   7.6018065299922E-01
+   Time Steps:         7003
+   Newton Iterations:         7003
+   Linear Solver Iterations:         7003
+   Time Step Cuts:            0
+   Solution 2-Norm:   3.6382134032341E-03
+   Residual 2-Norm:   6.8960913368633E-14

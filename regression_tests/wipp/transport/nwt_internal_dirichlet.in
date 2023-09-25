@@ -1,0 +1,230 @@
+
+
+!=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT
+      MODE NWT
+    END  
+  END
+END
+
+
+SUBSURFACE
+
+!=========================== REGRESSION =======================================
+REGRESSION
+  CELL_IDS
+    6
+  /
+END
+
+!=========================== uniform velocity =================================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET  5.d-6 0.d0 0.d0 m/s
+END
+
+!=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED CARTESIAN
+    NXYZ 11 1 1
+    DXYZ
+    1.d0
+    3.d0
+    3.d0
+  END
+END
+
+!=========================== material properties ==============================
+
+MATERIAL_PROPERTY MAT1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.25
+  TORTUOSITY 1.0
+  PERMEABILITY
+    PERM_ISO 1.0D-12
+  /
+END
+
+MATERIAL_PROPERTY MAT2
+  ID 2
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.25
+  TORTUOSITY 1.0
+  PERMEABILITY
+    PERM_ISO 1.0D-12
+  /
+END
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 0.d0
+END
+!=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+!============================ solver options ==================================
+NUMERICAL_METHODS TRANSPORT
+  NEWTON_SOLVER
+    NWT_ITOL_RELATIVE_UPDATE
+      TRACER 1.0d-5
+    /
+    NWT_ITOL_SCALED_RESIDUAL
+      TRACER 1.0d-3
+    /
+    NWT_ITOL_ABSOLUTE_RESIDUAL
+      TRACER 1.0d-10
+    /
+    NWT_ITOL_ABSOLUTE_UPDATE
+      TRACER  1.0d-4
+    /
+  END
+END
+
+!============================= region =========================================
+
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION west_bc
+  FACE WEST
+  COORDINATES
+    0.d0  0.d0  0.d0
+    0.d0  3.d0  3.d0
+  /
+END
+
+REGION east_bc
+  FACE EAST
+  COORDINATES
+    11.d0  0.d0  0.d0
+    11.d0  3.d0  3.d0
+  /
+END
+
+REGION internal_boundary_cell
+  COORDINATES
+    4.d0  0.d0  0.d0
+    5.d0  1.d0  1.d0
+  /
+END
+!================================ chemistry ===================================
+NUCLEAR_WASTE_CHEMISTRY
+  SPECIES
+    NAME                 TRACER
+    SOLUBILITY           1.0d-2     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         0.0d0      # [m^3-water/m^3-bulk]
+  /
+  RADIOACTIVE_DECAY
+  /
+  DIRICHLET_MATERIALS
+    MAT2
+    VALUE 0.001d0 # total mass conc [mol/m3-bulk] 0.001d0
+  /
+  OUTPUT
+    ALL_SPECIES
+    ALL_CONCENTRATIONS
+    MINERAL_VOLUME_FRACTION
+    TRUNCATE_OUTPUT
+  /
+END
+
+!=========================== chemistry constraints ============================
+
+CONSTRAINT boundary_source
+  CONCENTRATIONS
+    TRACER  5.0d-3 AQ
+  /
+END
+
+CONSTRAINT background
+  CONCENTRATIONS
+    TRACER  1.d-3 AQ
+  /
+END
+
+TRANSPORT_CONDITION initial_cond
+  TYPE dirichlet
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      background
+  /
+END
+
+TRANSPORT_CONDITION west_boundary_cond
+  TYPE dirichlet
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      boundary_source
+  /
+END
+
+TRANSPORT_CONDITION east_boundary_cond
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      background
+  /
+END
+
+!=============================== output =======================================
+OUTPUT
+  #OBSERVATION_FILE
+  #  PERIODIC TIME 1.d5 s
+  #END
+  #SNAPSHOT_FILE
+  #  PERIODIC TIME 0.5d5 s
+  #  FORMAT HDF5
+  #  VARIABLES
+  #    MATERIAL_ID
+  #  END
+  #END
+END
+
+!=============================== times ========================================
+TIME
+  FINAL_TIME 0.7d6 s 
+  INITIAL_TIMESTEP_SIZE 1.d1 s
+  MAXIMUM_TIMESTEP_SIZE 1.d2 s
+END
+
+!============================ coupler =========================================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial_cond
+  REGION all
+END
+
+BOUNDARY_CONDITION
+  TRANSPORT_CONDITION west_boundary_cond
+  REGION west_bc
+END
+
+BOUNDARY_CONDITION
+  TRANSPORT_CONDITION east_boundary_cond
+  REGION east_bc
+END
+
+
+!============================ strata ==========================================
+STRATA
+  REGION all
+  MATERIAL MAT1
+END
+
+STRATA
+  REGION internal_boundary_cell
+  MATERIAL MAT2
+END
+
+END_SUBSURFACE
