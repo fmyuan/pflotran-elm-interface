@@ -195,8 +195,8 @@ END
 !=============================== times ========================================
 TIME
   FINAL_TIME 0.7d6 s 
-  INITIAL_TIMESTEP_SIZE 1.d1 s
-  MAXIMUM_TIMESTEP_SIZE 1.d2 s
+  INITIAL_TIMESTEP_SIZE 1.d2 s
+  MAXIMUM_TIMESTEP_SIZE 1.d5 s
 END
 
 !============================ coupler =========================================
