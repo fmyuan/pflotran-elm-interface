@@ -2867,15 +2867,21 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                 '" requires a mole fraction BC of type DIRICHLET.'
               call PrintErrMsg(option)
             endif
-            if (hydrate%temperature%itype /= DIRICHLET_BC) then
-              option%io_buffer = 'Hydrostatic liquid state pressure BC for &
-                &flow condition "' // trim(flow_condition%name) // &
-                '" requires a temperature BC of type DIRICHLET.'
-              call PrintErrMsg(option)
+            if (associated(hydrate%temperature)) then
+              if(hydrate%temperature%itype /= DIRICHLET_BC) then
+                option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+                  &flow condition "' // trim(flow_condition%name) // &
+                  '" requires a temperature BC of type DIRICHLET.'
+                call PrintErrMsg(option)
+              else
+                coupler%flow_bc_type(3) = DIRICHLET_BC
+              endif
+            elseif (associated(hydrate%energy_flux)) then
+              coupler%flow_bc_type(3) = NEUMANN_BC 
             endif
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
-            coupler%flow_bc_type(2:3) = DIRICHLET_BC
+            coupler%flow_bc_type(2) = DIRICHLET_BC
           else
           ! liquid pressure; 1st dof --------------------- !
             select case(hydrate%liquid_pressure%itype)
@@ -3693,15 +3699,25 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   '" requires a mole fraction BC of type DIRICHLET.'
                 call PrintErrMsg(option)
               endif
-              if (hydrate%temperature%itype /= DIRICHLET_BC) then
-                option%io_buffer = 'Hydrostatic liquid state pressure BC for &
-                  &flow condition "' // trim(flow_condition%name) // &
-                  '" requires a temperature BC of type DIRICHLET.'
-                call PrintErrMsg(option)
+              if (associated(hydrate%temperature)) then
+                if (hydrate%temperature%itype /= DIRICHLET_BC) then
+                  option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+                    &flow condition "' // trim(flow_condition%name) // &
+                    '" requires a temperature BC of type DIRICHLET.'
+                  call PrintErrMsg(option)
+                else
+                  coupler%flow_bc_type(3) = DIRICHLET_BC
+                endif
+              elseif (associated(hydrate%energy_flux)) then
+                if (hydrate%energy_flux%itype == NEUMANN_BC) then
+                  coupler%flow_bc_type(3) = NEUMANN_BC
+                endif
               endif
               ! ---> see code that just prints error
+              call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+              dof1 = PETSC_TRUE
               coupler%flow_bc_type(1) = HYDROSTATIC_BC
-              coupler%flow_bc_type(2:3) = DIRICHLET_BC
+              coupler%flow_bc_type(2) = DIRICHLET_BC
             else
             ! liquid pressure; 1st dof --------------------- !
               select case(hydrate%liquid_pressure%itype)
