@@ -343,10 +343,6 @@ subroutine RealizationCreateDiscretization(realization)
       endif
 
     else ! operator splitting
-      ! ndof degrees of freedom, global
-      ! create the 1 dof vector for solving the individual linear systems
-      call DiscretizationCreateVector(discretization,ONEDOF,field%tran_rhs_coef, &
-                                      GLOBAL,option)
       ! create the ntran dof vector for storage of the solution
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx, &
                                       GLOBAL,option)
@@ -354,8 +350,6 @@ subroutine RealizationCreateDiscretization(realization)
                                          field%tran_yy)
       call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                          field%tran_dxx)
-      call DiscretizationDuplicateVector(discretization,field%tran_xx, &
-                                         field%tran_rhs)
 
       ! ndof degrees of freedom, local
       ! again, just for storage of the current colution

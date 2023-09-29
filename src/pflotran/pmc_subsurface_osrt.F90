@@ -256,20 +256,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
   call process_model%InitializeTimestep()
 
-  ! from RTUpdateRHSCoefs
-  ! update time derivative on RHS
-#if 0
-  call VecGetArrayF90(process_model%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    vec_ptr(local_id) = material_auxvars(ghosted_id)%porosity* &
-                        global_auxvars(ghosted_id)%sat(iphase)* &
-                        1000.d0* &
-                        material_auxvars(ghosted_id)%volume
-  enddo
-  call VecRestoreArrayF90(process_model%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
-#else
+  ! Calculate RHS portion of accumulation term at k
   call VecGetArrayF90(process_model%fixed_accum,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -279,30 +266,18 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     iend = offset_global + reaction%naqcomp
     vec_ptr(istart:iend) = material_auxvars(ghosted_id)%porosity* &
                            global_auxvars(ghosted_id)%sat(iphase)* &
-                           1000.d0* &
+                           1000.d0* &  ! L per m^3
                            material_auxvars(ghosted_id)%volume* &
                            rt_auxvars(ghosted_id)%total(:,iphase)
-    !TODO(geh): do immobile need to be stored; they are in tran_xx
-    if (nimmobile > 0) then
-      ! need to store immobile concentrations for the purpose of reverting
-      ! when reaction fails
-      istart = istart + reaction%offset_immobile
-      iend = istart + nimmobile - 1
-      vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%immobile
-    endif
   enddo
   call VecRestoreArrayF90(process_model%fixed_accum,vec_ptr, &
                           ierr);CHKERRQ(ierr)
-#endif
 
   do
 
     call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
     rstep_error = 0
-
-!    call RTCalculateRHS_t0(realization)
-
     call PMRTWeightFlowParameters(process_model,TIME_TpDT)
     ! update diffusion/dispersion coefficients
     call RTUpdateTransportCoefs(realization)
@@ -330,11 +305,6 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       tempint = idof-1
       call VecStrideGather(process_model%rhs,tempint,field%work,INSERT_VALUES, &
                            ierr);CHKERRQ(ierr)
-
-!debug      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-!debug      print *, 'Trhs: ', trim(StringWrite(vec_ptr))
-!debug      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
       if (realization%debug%vecview_residual) then
         string = 'Trhs'
         call DebugCreateViewer(realization%debug,string,option,viewer)
@@ -349,7 +319,6 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
         timestepper%cumulative_solver_time + (log_end_time - log_ksp_start_time)
 
       call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-!debug      print *, 'Tsol: ', trim(StringWrite('(es17.8)',vec_ptr))
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (patch%imat(ghosted_id) <= 0) cycle
@@ -424,7 +393,6 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
           &global implicit reactive transport (GIRT).'
         call PrintErrMsg(option)
       endif
-      !TODO(geh): move to timestepper base and call from daughters.
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
         sum_linear_iterations_temp
       call timestepper%CutDT(process_model,icut,stop_flag,'osrt_rxn', &

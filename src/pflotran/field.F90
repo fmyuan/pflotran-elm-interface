@@ -43,10 +43,6 @@ module Field_module
     ! vectors for advanced nonlinear solvers other than Newton - Heeho
     Vec :: flow_scaled_xx, flow_work_loc
 
-    ! vectors for operator splitting
-    Vec :: tran_rhs
-    Vec :: tran_rhs_coef
-
     Vec :: tran_log_xx, tran_work_loc
 
     ! mass transfer
@@ -143,9 +139,6 @@ function FieldCreate()
   field%tran_work_loc = PETSC_NULL_VEC
 
   field%tvd_ghosts = PETSC_NULL_VEC
-
-  field%tran_rhs = PETSC_NULL_VEC
-  field%tran_rhs_coef = PETSC_NULL_VEC
 
   field%flow_mass_transfer = PETSC_NULL_VEC
   field%tran_mass_transfer = PETSC_NULL_VEC
@@ -304,13 +297,6 @@ subroutine FieldDestroy(field)
   endif
   if (field%tran_work_loc /= PETSC_NULL_VEC) then
     call VecDestroy(field%tran_work_loc,ierr);CHKERRQ(ierr)
-  endif
-
-  if (field%tran_rhs /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_rhs,ierr);CHKERRQ(ierr)
-  endif
-  if (field%tran_rhs_coef /= PETSC_NULL_VEC) then
-    call VecDestroy(field%tran_rhs_coef,ierr);CHKERRQ(ierr)
   endif
 
   if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
