@@ -34,8 +34,6 @@ module Reactive_Transport_module
             RTDestroy, &
             RTUpdateTransportCoefs, &
             RTUpdateActivityCoefficients, &
-            RTUpdateRHSCoefs, &
-            RTCalculateRHS_t0, &
             RTCalculateRHS_t1, &
             RTCalculateTransportMatrix, &
             RTJumpStartKineticSorption, &
@@ -1235,138 +1233,6 @@ subroutine RTUpdateTransportCoefs(realization)
     deallocate(cell_centered_Darcy_velocities_ghosted)
 
 end subroutine RTUpdateTransportCoefs
-
-! ************************************************************************** !
-
-subroutine RTUpdateRHSCoefs(realization)
-  !
-  ! Updates coefficients for the right hand side of
-  ! linear transport equation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/25/10
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Connection_module
-  use Coupler_module
-  use Option_module
-  use Field_module
-  use Grid_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  PetscReal, pointer :: rhs_coef_p(:)
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: iphase
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  global_auxvars => patch%aux%Global%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-  grid => patch%grid
-
-  option%io_buffer = 'RTUpdateRHSCoefs() not implemented for immobile species'
-  call PrintErrMsg(option)
-
-  ! Get vectors
-  call VecGetArrayF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
-
-  iphase = 1
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    rhs_coef_p(local_id) = material_auxvars(ghosted_id)%porosity* &
-                           global_auxvars(ghosted_id)%sat(iphase)* &
-! total already has den_kg within
-!                           global_auxvars(ghosted_id)%den_kg(iphase)* &
-                           1000.d0* &
-                           material_auxvars(ghosted_id)%volume/option%tran_dt
-  enddo
-
-  ! Restore vectors
-  call VecRestoreArrayF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
-
-end subroutine RTUpdateRHSCoefs
-
-! ************************************************************************** !
-
-subroutine RTCalculateRHS_t0(realization)
-  !
-  ! Calculate porition of RHS of transport system
-  ! at time t0 or time level k
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/25/10
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Connection_module
-  use Coupler_module
-  use Option_module
-  use Field_module
-  use Grid_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  class(reaction_rt_type), pointer :: reaction
-  PetscReal, pointer :: rhs_coef_p(:)
-  PetscReal, pointer :: rhs_p(:)
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: iphase
-  PetscInt :: istartaq, iendaq
-
-  PetscErrorCode :: ierr
-
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  rt_auxvars => patch%aux%RT%auxvars
-  grid => patch%grid
-  reaction => realization%reaction
-
-  option%io_buffer = 'RTCalculateRHS_t0() not implemented for immobile species'
-  call PrintErrMsg(option)
-
-  ! Get vectors
-  call VecGetArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%tran_rhs,rhs_p,ierr);CHKERRQ(ierr)
-
-  iphase = 1
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    iendaq = local_id*reaction%naqcomp
-    istartaq = iendaq-reaction%naqcomp+1
-    rhs_p(istartaq:iendaq) = rt_auxvars(ghosted_id)%total(:,iphase)* &
-                             rhs_coef_p(local_id)
-  enddo
-
-  ! Restore vectors
-  call VecRestoreArrayReadF90(field%tran_rhs_coef,rhs_coef_p, &
-                              ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%tran_rhs,rhs_p,ierr);CHKERRQ(ierr)
-
-end subroutine RTCalculateRHS_t0
 
 ! ************************************************************************** !
 
@@ -4593,7 +4459,7 @@ subroutine RTExplicitAdvection(realization)
   enddo
 
   call VecGetArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
+!  call VecGetArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
 
 
   ! update concentration
@@ -4626,8 +4492,8 @@ subroutine RTExplicitAdvection(realization)
 
   ! Restore vectors
   call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%tran_rhs_coef,rhs_coef_p, &
-                              ierr);CHKERRQ(ierr)
+!  call VecRestoreArrayReadF90(field%tran_rhs_coef,rhs_coef_p, &
+!                              ierr);CHKERRQ(ierr)
 
 end subroutine RTExplicitAdvection
 
