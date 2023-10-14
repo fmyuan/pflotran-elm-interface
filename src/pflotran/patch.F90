@@ -4082,7 +4082,8 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   endif
 
   apply_temp_cond = PETSC_FALSE
-  if (associated(flow_condition%temperature) .and. associated(flow_condition%pressure)) then
+  if (associated(flow_condition%temperature) .and. &
+      associated(flow_condition%pressure)) then
     if (flow_condition%pressure%itype /= HYDROSTATIC_BC) then
       apply_temp_cond = PETSC_TRUE
     else
@@ -5266,9 +5267,18 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
     do
       if (.not.associated(cur_constraint_coupler)) exit
       global_auxvar => cur_constraint_coupler%global_auxvar
+      ! set to reference values
+      global_auxvar%pres = option%flow%reference_pressure
+      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%den_kg(option%liquid_phase) = &
+        option%flow%reference_density(option%liquid_phase)
+      ! overwrite the reference values, if applicable
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
-          if (associated(cur_coupler%flow_condition%pressure%dataset)) then
+          if (associated(cur_coupler%flow_condition%pressure%dataset) .and. &
+              ! pressure is also used for flux, but the flux value
+              ! is NOT a pressure!
+              cur_coupler%flow_condition%pressure%itype /= NEUMANN_BC) then
             ! only use dataset value if the dataset is of type ascii
             select type(dataset=>cur_coupler%flow_condition%pressure%dataset)
               class is(dataset_ascii_type)
@@ -5277,13 +5287,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
                 ! otherwise, we don't know which pressure to use at this point,
                 ! but we need to re-equilibrate at each cell
                 cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
-                global_auxvar%pres = option%flow%reference_pressure
             end select
-          else
-            global_auxvar%pres = option%flow%reference_pressure
           endif
-        else
-          global_auxvar%pres = option%flow%reference_pressure
         endif
         if (associated(cur_coupler%flow_condition%temperature)) then
           if (associated(cur_coupler%flow_condition%temperature%dataset)) then
@@ -5295,13 +5300,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
                 ! otherwise, we don't know which temperature to use at this
                 ! point, but we need to re-equilibrate at each cell
                 cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
-                global_auxvar%temp = option%flow%reference_temperature
             end select
-          else
-            global_auxvar%temp = option%flow%reference_temperature
           endif
-        else
-          global_auxvar%temp = option%flow%reference_temperature
         endif
 
         call EOSWaterDensity(global_auxvar%temp, &
