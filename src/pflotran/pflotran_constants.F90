@@ -24,7 +24,7 @@ module PFLOTRAN_Constants_module
       (PETSC_VERSION_MINOR < VMINOR ||                  \
        (PETSC_VERSION_MINOR == VMINOR &&                \
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
-#error "Please use PETSc version 3.19.0 or later: 'git checkout v3.19.0' in $PETSC_DIR"
+#error "Please use PETSc version 3.20.0 or later: 'git checkout v3.20.0' in $PETSC_DIR"
 #endif
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
