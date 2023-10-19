@@ -355,11 +355,10 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
 
   if (this%array_width > 0) then
     if (this%array_width /= data_count) then
-      write(word,*) this%array_width
-      option%io_buffer = 'Inconsistency between dataset prescribed rank (' // &
-        trim(word) // ') and rank in file ('
-      write(word,*) data_count
-      option%io_buffer = trim(option%io_buffer) // trim(word) // ').'
+      option%io_buffer = StringWrite(data_count) // ' values read when ' // &
+        StringWrite(this%array_width) // ' were expected under ' // &
+        trim(error_string) // '. Check to ensure that the dataset has the &
+        &correct number of values.'
       call PrintErrMsg(option)
     endif
   else
@@ -423,10 +422,13 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
   allocate(this%rarray(this%array_width))
   do icol=1,this%array_width
     call InputReadDouble(input,option,this%rarray(icol))
-    write(input%err_buf,'(a,i2)') 'DatasetAsciiReadSingle: &
-                                  & dataset_values, icol = ', icol
-    input%err_buf2 = error_string
-    call InputErrorMsg(input,option)
+    if (InputError(input)) then
+      option%io_buffer = StringWrite(icol-1) // ' values read when ' // &
+        StringWrite(this%array_width) // ' were expected under ' // &
+        trim(error_string) // '. Check to ensure that the dataset has the &
+        &correct number of values.'
+      call PrintErrMsg(option)
+    endif
   enddo
 
   ! read units
@@ -456,7 +458,7 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
       size(internal_data_units_strings) /= 1) then
     write(word,*) size(internal_data_units_strings)
     option%io_buffer = 'Incorrect internal data units (' // &
-      trim(adjustl(word)) // '): ' // error_string
+      StringWrite(size(internal_data_units_strings)) // '): ' // error_string
     call PrintErrMsg(option)
   endif
 
