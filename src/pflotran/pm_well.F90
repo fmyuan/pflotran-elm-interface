@@ -7749,7 +7749,7 @@ subroutine PMWellOutputHeader(this)
   class(pm_well_type) :: this
 
   type(output_option_type), pointer :: output_option
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename, word
   character(len=MAXWORDLENGTH) :: units_string, variable_string
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscBool :: exist
@@ -7770,6 +7770,37 @@ subroutine PMWellOutputHeader(this)
   exist = FileExists(trim(filename))
   if (this%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")
+
+  ! First write out the well grid information
+  write(fid,'(a)',advance="yes") '========= WELLBORE MODEL GRID INFORMATION &
+                                  &==================' 
+  write(word,'(i5)') this%well_grid%nsegments
+  write(fid,'(a)',advance="yes") ' Number of segments: ' // trim(word) 
+  write(word,'(i5)') this%well_grid%nconnections 
+  write(fid,'(a)',advance="yes") ' Number of connections: ' // trim(word)
+  write(word,'(es10.3,es10.3,es10.3)') this%well_grid%tophole(1), &
+                          this%well_grid%tophole(2), this%well_grid%tophole(3)
+  write(fid,'(a)',advance="yes") ' Top of hole (x,y,z) [m]: ' // trim(word)
+  write(word,'(es10.3,es10.3,es10.3)') this%well_grid%bottomhole(1), &
+                    this%well_grid%bottomhole(2), this%well_grid%bottomhole(3)
+  write(fid,'(a)',advance="yes") ' Bottom of hole (x,y,z) [m]: ' // trim(word)
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &================='
+  write(fid,'(a)',advance="yes") ' Segment Number: Center coordinate (x,y,z) [m] '
+  do k = 1,this%well_grid%nsegments
+    write(word,'(i4,a3,es10.3,es10.3,es10.3,a1)') k,': (', &
+      this%well_grid%h(k)%x,this%well_grid%h(k)%y,this%well_grid%h(k)%z,')'
+    write(fid,'(a)',advance="yes") trim(word)
+  enddo
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &================='   
+  write(fid,'(a)',advance="yes") ' Segment Number: Segment length [m] '
+  do k = 1,this%well_grid%nsegments
+    write(word,'(i4,a3,es10.3,a1)') k,': (',this%well_grid%dh(k),')'
+    write(fid,'(a)',advance="yes") trim(word)
+  enddo
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &=================' 
 
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
