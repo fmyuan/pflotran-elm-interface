@@ -1039,7 +1039,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
                 string = input%buf
                 call InputReadDouble(input,option,temp_real)
                 if (.not.InputError(input)) then
-                  error_string = trim(error_string) // ',SINGLE'
                   input%buf = string
                   call DatasetAsciiReadSingle(dataset_ascii,input, &
                                               temp_string,internal_units, &
