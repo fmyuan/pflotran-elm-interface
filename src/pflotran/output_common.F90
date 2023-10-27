@@ -278,6 +278,7 @@ function OutputGetVariableAtCoord(realization_base,variable,x,y,z, &
   use Realization_Base_class, only : RealizGetVariableValueAtCell
   use Grid_module
   use Option_module
+  use Patch_module
 
   implicit none
 
@@ -288,6 +289,7 @@ function OutputGetVariableAtCoord(realization_base,variable,x,y,z, &
   PetscInt :: num_cells
   PetscInt :: ghosted_ids(num_cells)
 
+  type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   PetscInt :: icell
   PetscInt :: ghosted_id
@@ -301,7 +303,8 @@ function OutputGetVariableAtCoord(realization_base,variable,x,y,z, &
   sum_value = 0.d0
   sum_weight = 0.d0
 
-  grid => realization_base%patch%grid
+  patch => realization_base%patch
+  grid => patch%grid
 
   ivar = variable%ivar
   isubvar = variable%isubvar
@@ -309,6 +312,8 @@ function OutputGetVariableAtCoord(realization_base,variable,x,y,z, &
 
   do icell=1, num_cells
     ghosted_id = ghosted_ids(icell)
+    ! skip inactive cells
+    if (patch%imat(ghosted_id) <= 0) cycle
     dx = x-grid%x(ghosted_id)
     dy = y-grid%y(ghosted_id)
     dz = z-grid%z(ghosted_id)

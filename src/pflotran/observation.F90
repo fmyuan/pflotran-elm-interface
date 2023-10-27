@@ -306,6 +306,10 @@ subroutine ObservationRead(observation,input,option)
                 call InputReadWord(input,option,word, &
                                    PETSC_TRUE)
                 new_aggregate%var_name = 'Total ' // trim(word)
+              elseif (trim(word) == 'TOTAL_BULK_CONC') then
+                call InputReadWord(input,option,word, &
+                                   PETSC_TRUE)
+                new_aggregate%var_name = 'Total Bulk Conc. ' // trim(word)
               else
                 call OutputVariableToID(word,var_name,units,category,id, &
                                         subvar,subsubvar,option)

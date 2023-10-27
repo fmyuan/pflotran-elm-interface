@@ -1253,7 +1253,7 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
 
   implicit none
 
-  character(len=32) :: name
+  character(len=*) :: name
   Vec :: vec
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
@@ -1389,7 +1389,7 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
 
   implicit none
 
-  character(len=32) :: name
+  character(len=*) :: name
   Vec :: vec
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type

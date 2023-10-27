@@ -14,8 +14,7 @@ END
 SUBSURFACE
 
 HYDRATE
-  GAS AIR
-  HYDRATE_PHASE_BOUNDARY MORIDIS
+  HYDRATE_PHASE_BOUNDARY MORIDIS_SIMPLE
   ADJUST_SOLUBILITY_WITHIN_GHSZ
   WITH_GIBBS_THOMSON #Ice simulations require freezing point depression as f(Sl)
 END
@@ -118,12 +117,6 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  SNAPSHOT_FILE
-    PERIODIC TIMESTEP 1 d
-    #TIMES d 1
-    #FORMAT TECPLOT POINT
-    FORMAT HDF5
-  /
   UNFILTER_NON_STATE_VARIABLES
   
   VARIABLES
@@ -135,12 +128,13 @@ OUTPUT
    HYDRATE_SATURATION
    ICE_SATURATION
    LIQUID_MOLE_FRACTIONS
+   THERMODYNAMIC_STATE
   /
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 25.d0 d 
+  FINAL_TIME 10.d0 d 
   INITIAL_TIMESTEP_SIZE 1.d-1 d
   MAXIMUM_TIMESTEP_SIZE 1.d0 d 
 END
@@ -193,7 +187,7 @@ FLOW_CONDITION L
   /
   LIQUID_PRESSURE 15.d6
   MOLE_FRACTION 5.d-3
-  TEMPERATURE 15.d0
+  TEMPERATURE 1.d0
 END
 #=========================== condition couplers ===============================
 # initial condition
