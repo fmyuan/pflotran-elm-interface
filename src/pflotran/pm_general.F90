@@ -96,6 +96,8 @@ function PMGeneralCreate()
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
+  ! set default to infinity norm convergence
+  this%check_post_convergence = PETSC_TRUE
 
   PMGeneralCreate => this
 

@@ -21,6 +21,9 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW
 
+  NEWTON_SOLVER
+    USE_EUCLIDEAN_NORM_CONVERGENCE
+  /
   TIMESTEPPER
     #  MAX_STEPS 1
     PRESSURE_CHANGE_GOVERNOR 1.d8 #Pa
