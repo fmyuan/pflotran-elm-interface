@@ -422,7 +422,8 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('VAPOR_PRESSURE_KELVIN')
         general_kelvin_equation = PETSC_TRUE
       case('SOLUBLE_MATRIX')
-        general_soluble_matrix = PETSC_TRUE
+        option%io_buffer = "Matrix solubility is now entered in material properties as SOLUBLE."
+        call PrintErrMsg(option)
       case('UPDATE_PERMEABILITY')
         general_update_permeability = PETSC_TRUE
         call InputReadDouble(input,option,permeability_func_porosity_exp)

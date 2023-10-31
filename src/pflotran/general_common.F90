@@ -49,7 +49,7 @@ contains
 
 subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
-                               analytical_derivatives,debug_cell)
+                               analytical_derivatives,soluble_matrix,debug_cell)
   !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -78,6 +78,8 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
+
+  PetscBool :: soluble_matrix
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -118,7 +120,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   !                 vol[m^3 bulk] / dt[sec]
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
-  if (general_soluble_matrix) then
+  if (soluble_matrix) then
     ! Res[kmol/sec] = Res[kmol/sec] + (1-por)[m^3 solid/m^3 bulk] * den[kmol/m^3]
     !                 * vol[m^3 bulk] / dt[sec]
     Res(option%salt_id) = Res(option%salt_id) + (1.d0 - porosity) * &
@@ -3393,6 +3395,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! This checks for a dirichlet condition on either solute
   if (general_salt) then
     if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
+!        ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==AT_SOLUBILITY_BC .or. &
         ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
       dirichlet_solute = PETSC_TRUE
     endif
@@ -3977,7 +3980,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           material_auxvar,ss_flow_vol_flux, &
                           characteristic_curves, natural_id, scale,Res,J, &
                           analytical_derivatives,aux_var_compute_only, &
-                          debug_cell)
+                          soluble_matrix,debug_cell)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -4022,6 +4025,8 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: xxss(option%nflowdof)
   PetscInt :: lid, gid, pid, apid
 
+  PetscBool :: soluble_matrix
+
   lid = option%liquid_phase
   gid = option%gas_phase
   pid = option%precipitate_phase
@@ -4042,7 +4047,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   xxss(2) = gen_auxvar_ss%sat(gid)
   xxss(3) = gen_auxvar_ss%temp
   if (general_salt) then
-    if (general_soluble_matrix) then
+    if (soluble_matrix) then
       xxss(4) = gen_auxvar_ss%effective_porosity
     else
       xxss(4) = gen_auxvar_ss%sat(pid)
@@ -4103,15 +4108,15 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar_ss%pres(apid)
         endif
-        if (general_salt .and. .not. general_soluble_matrix) then
+        if (general_salt .and. .not. soluble_matrix) then
           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-        elseif (general_salt .and. general_soluble_matrix) then
+        elseif (general_salt .and. soluble_matrix) then
           xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
         endif
       case(LGP_STATE)
-        if (general_salt .and. .not. general_soluble_matrix) then
+        if (general_salt .and. .not. soluble_matrix) then
            xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-        elseif (general_salt .and. general_soluble_matrix) then
+        elseif (general_salt .and. soluble_matrix) then
            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
         endif
     end select
@@ -4127,7 +4132,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   elseif (general_salt) then
     call GeneralAuxVarCompute4(xxss,gen_auxvar_ss, global_auxvar_ss, &
                               material_auxvar, characteristic_curves, &
-                              natural_id,option)
+                              natural_id,soluble_matrix,option)
   endif
   if (aux_var_compute_only) return
 
@@ -4492,7 +4497,7 @@ end subroutine GeneralAuxVarComputeAndSrcSink
 ! ************************************************************************** !
 
 subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
-                                  soil_heat_capacity,option,J)
+                                  soil_heat_capacity,option,soluble_matrix,J)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -4503,6 +4508,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
 
   use Option_module
   use Material_Aux_module
+  use Material_module
 
   implicit none
 
@@ -4517,13 +4523,14 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
+  PetscBool :: soluble_matrix
 
 !geh:print *, 'GeneralAccumDerivative'
 
   call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,soil_heat_capacity,option, &
                            res,jac,general_analytical_derivatives, &
-                           PETSC_FALSE)
+                           soluble_matrix,PETSC_FALSE)
 
   if (general_analytical_derivatives) then
     J = jac
@@ -4531,7 +4538,8 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     do idof = 1, option%nflowdof
       call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
                                material_auxvar,soil_heat_capacity,option, &
-                               res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+                               res_pert,jac_pert,PETSC_FALSE,soluble_matrix,&
+                               PETSC_FALSE)
 
       do irow = 1, option%nflowdof
         J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
@@ -4788,7 +4796,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                                     gen_auxvar,global_auxvar, &
                                     global_auxvar_ss, &
                                     characteristic_curves,natural_id, &
-                                    material_auxvar,scale,Jac)
+                                    material_auxvar,scale,soluble_matrix,Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -4819,6 +4827,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
+  PetscBool :: soluble_matrix
 
   qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
   flow_src_sink_type = source_sink%flow_condition%general%rate%itype
@@ -4832,7 +4841,8 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                       global_auxvar, global_auxvar_ss, &
                       material_auxvar, dummy_real, characteristic_curves, &
                       natural_id, scale,res,Jdum, &
-                      general_analytical_derivatives, PETSC_FALSE, PETSC_FALSE)
+                      general_analytical_derivatives, PETSC_FALSE, soluble_matrix, &
+                      PETSC_FALSE)
 
   if (general_analytical_derivatives) then
     Jac = Jdum
@@ -4846,7 +4856,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                           global_auxvar,global_auxvar_ss, &
                           material_auxvar, dummy_real,characteristic_curves, &
                           natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
-                          PETSC_FALSE, PETSC_FALSE)
+                          PETSC_FALSE, soluble_matrix, PETSC_FALSE)
 
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert

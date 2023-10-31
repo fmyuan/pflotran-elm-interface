@@ -1570,7 +1570,8 @@ end subroutine GeneralAuxVarCompute
 ! ************************************************************************** !
 
 subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
-                                characteristic_curves,natural_id,option)
+                                characteristic_curves,natural_id,soluble_matrix, &
+                                option)
   !
   ! Computes auxiliary variables for each grid cell for a 4-equation system
   !
@@ -1630,6 +1631,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dh_water_vapor_dpv, dh_water_vapor_dT
   PetscReal :: du_water_vapor_dpv, du_water_vapor_dT
   PetscReal :: dpc_dsatl
+  PetscBool :: soluble_matrix
   PetscErrorCode :: ierr
   PetscErrorCode :: eos_henry_ierr
 
@@ -1972,7 +1974,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%xmol(acid,lid) = 0.d0!x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
       
-      if (general_soluble_matrix) then
+      if (soluble_matrix) then
         gen_auxvar%effective_porosity = 0.d0
       else
         gen_auxvar%sat(pid) = 1.d0        
@@ -2030,7 +2032,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
       gen_auxvar%xmol(acid,lid) = x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      if (.not.general_soluble_matrix) then
+      if (.not.soluble_matrix) then
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       else
         gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
@@ -2103,7 +2105,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
       gen_auxvar%pres(apid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      if (.not.general_soluble_matrix) then
+      if (.not.soluble_matrix) then
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
         gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(gid)
       else
@@ -2188,6 +2190,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%xmol(acid,lid) = GENERAL_IMMISCIBLE_VALUE
       endif
 
+      call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
+      gen_auxvar%xmol(sid,lid) = NaClSolubility
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid) - gen_auxvar%xmol(sid,lid)
       gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / gen_auxvar%pres(gid)
       gen_auxvar%xmol(sid,gid) = 0.d0
@@ -2217,18 +2221,17 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       !gen_auxvar%pres(gid) = max(0.d0,gen_auxvar%pres(gid))
 
       gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
-      if (.not.general_soluble_matrix) then
+      if (.not.soluble_matrix) then
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       else
         gen_auxvar%effective_porosity = max(0.0001d0,x(GENERAL_POROSITY_DOF))
       endif
       call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
       gen_auxvar%xmol(sid,lid) = NaClSolubility
-
       if (gen_auxvar%istatechng) then
         gen_auxvar%sat(lid) = max(0.d0,gen_auxvar%sat(lid))
         gen_auxvar%sat(lid) = min(1.d0,gen_auxvar%sat(lid))
-        if (general_soluble_matrix) then
+        if (soluble_matrix) then
           gen_auxvar%sat(pid) = 0.d0
           gen_auxvar%effective_porosity = max(0.d0,gen_auxvar%effective_porosity)
           gen_auxvar%effective_porosity = min(1.d0,gen_auxvar%effective_porosity)
@@ -2350,7 +2353,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                       gen_auxvar%pres(spid))
 
   ! calculate effective porosity as a function of pressure
-  if (.not. general_soluble_matrix) then
+  if (.not. soluble_matrix) then
     if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
       dpor_dp = 0.d0
       gen_auxvar%effective_porosity = material_auxvar%porosity_base
@@ -2615,7 +2618,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 #endif
     endif
   endif ! istate /= LIQUID_STATE
-  if (general_soluble_matrix .and. general_update_permeability) then
+  if (soluble_matrix .and. general_update_permeability) then
     if (gen_auxvar%perm_base < -999.d0) then
       gen_auxvar%perm_base = (material_auxvar%permeability(1)/&
          material_auxvar%porosity**(permeability_func_porosity_exp))
@@ -3123,6 +3126,7 @@ end subroutine GeneralAuxVarUpdateState
 subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                                     material_auxvar, &
                                     characteristic_curves,natural_id, &
+                                    soluble_matrix, &
                                     option)
   !
   ! GeneralUpdateState4: Updates the state and swaps primary variables
@@ -3155,6 +3159,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, pid, acid, wid, eid, sid
   PetscBool :: istatechng, gas_flag
+  PetscBool :: soluble_matrix
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
 
@@ -3194,7 +3199,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
       !    pres(lid)*(1.d0-window_epsilon)) then
       if (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
           window_epsilon) .and. (gen_auxvar%xmol(sid,lid) < &
-          NaClSolubility*(1.d0-window_epsilon) .or. general_soluble_matrix)) then
+          NaClSolubility*(1.d0-window_epsilon) .or. soluble_matrix)) then
 
           global_auxvar%istate = LG_STATE
           liq_epsilon = general_phase_chng_epsilon
@@ -3213,13 +3218,13 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
          endif
       elseif (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
               window_epsilon) .and. gen_auxvar%xmol(sid,lid) >= &
-              NaClSolubility*(1.d0-window_epsilon) .and. .not. general_soluble_matrix) then
+              NaClSolubility*(1.d0-window_epsilon) .and. .not. soluble_matrix) then
         global_auxvar%istate = LGP_STATE
         liq_epsilon = general_phase_chng_epsilon
         istatechng = PETSC_TRUE
       elseif (gen_auxvar%xmol(sid,lid) >= NaClSolubility*(1.d0-&
               window_epsilon) .and. gen_auxvar%pres(vpid)>&
-              gen_auxvar%pres(spid)*1.d0-window_epsilon .and. .not. general_soluble_matrix) then
+              gen_auxvar%pres(spid)*1.d0-window_epsilon .and. .not. soluble_matrix) then
         global_auxvar%istate = LP_STATE
         liq_epsilon = general_phase_chng_epsilon
         istatechng = PETSC_TRUE
@@ -3311,8 +3316,8 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
       endif
     case(P_STATE)
       Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
-      if ((Sp_new > 0.d0 .and. general_soluble_matrix) .or. &
-           (Sp_new < 1.d0 .and. .not. general_soluble_matrix)) then
+      if ((Sp_new > 0.d0 .and. soluble_matrix) .or. &
+           (Sp_new < 1.d0 .and. .not. soluble_matrix)) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = LP_STATE
         if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
@@ -3329,7 +3334,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
       endif
 
     case(LP_STATE)
-      if (.not. general_soluble_matrix) then
+      if (.not. soluble_matrix) then
         Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
         if (Sp_new < 0.d0 .and. gen_auxvar%pres(vpid) <= &
             gen_auxvar%pres(spid)*(1.d0-window_epsilon)) then
@@ -3375,7 +3380,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                   & i8)') natural_id
           endif
         endif
-      elseif (general_soluble_matrix) then
+      elseif (soluble_matrix) then
         if (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
             window_epsilon) .and. (gen_auxvar%xmol(sid,lid) < &
             NaClSolubility*(1.d0-window_epsilon))) then
@@ -3397,13 +3402,13 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
            endif
         elseif (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
                 window_epsilon) .and. gen_auxvar%xmol(sid,lid) >= &
-                NaClSolubility*(1.d0-window_epsilon) .and. .not. general_soluble_matrix) then
+                NaClSolubility*(1.d0-window_epsilon) .and. .not. soluble_matrix) then
           global_auxvar%istate = LGP_STATE
           liq_epsilon = general_phase_chng_epsilon
           istatechng = PETSC_TRUE
         elseif (gen_auxvar%xmol(sid,lid) >= NaClSolubility*(1.d0-&
                 window_epsilon) .and. gen_auxvar%pres(vpid)>&
-                gen_auxvar%pres(spid)*1.d0-window_epsilon .and. .not. general_soluble_matrix) then
+                gen_auxvar%pres(spid)*1.d0-window_epsilon .and. .not. soluble_matrix) then
           global_auxvar%istate = LP_STATE
           liq_epsilon = general_phase_chng_epsilon
           istatechng = PETSC_TRUE
@@ -3447,7 +3452,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
       endif
 
     case(LGP_STATE)
-      if (.not. general_soluble_matrix) then
+      if (.not. soluble_matrix) then
         Sg_new = x(GENERAL_GAS_SATURATION_DOF)
         Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
         if (Sg_new < 0.d0 .and. Sp_new > 0.d0) then
@@ -3493,7 +3498,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                   & i8)') natural_id
           endif
         endif
-      elseif (general_soluble_matrix) then
+      elseif (soluble_matrix) then
         Sg_new = x(GENERAL_GAS_SATURATION_DOF)
         if (Sg_new < 0.d0) then
 
@@ -3622,7 +3627,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
         x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = 0.d0!max(0.d0,gen_auxvar% &
              !xmol(acid,lid))*(1.d0 + epsilon)
         x(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0-epsilon)
-        if (general_soluble_matrix) then
+        if (soluble_matrix) then
           x(GENERAL_POROSITY_DOF) = 0.d0
         else
           x(GENERAL_PRECIPITATE_SAT_DOF) = 1.d0
@@ -3631,7 +3636,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
         x(GENERAL_LIQUID_PRESSURE_DOF) = gen_auxvar%pres(lid)
         x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = max(0.d0,gen_auxvar%xmol(acid,lid))
         x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-        if (general_soluble_matrix) then
+        if (soluble_matrix) then
           x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity
         else
           x(GENERAL_PRECIPITATE_SAT_DOF) = liq_epsilon!gen_auxvar%sat(pid)
@@ -3640,15 +3645,15 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
         x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)*(1.d0 - epsilon)
         x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%pres(apid)
         x(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0-epsilon)
-        if (.not. general_soluble_matrix) then
+        if (.not. soluble_matrix) then
           x(GENERAL_PRECIPITATE_SAT_DOF) = gen_auxvar%sat(gid)*(1.d0-epsilon)
-        elseif (general_soluble_matrix) then
+        elseif (soluble_matrix) then
           x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity*(1.d0-epsilon)
         endif
       case(LGP_STATE)
-        if (.not. general_soluble_matrix) then
+        if (.not. soluble_matrix) then
           x(GENERAL_PRECIPITATE_SAT_DOF) = gen_auxvar%sat(pid)
-        elseif (general_soluble_matrix) then
+        elseif (soluble_matrix) then
           x(GENERAL_POROSITY_DOF) = gen_auxvar%effective_porosity
        endif
         if (gas_flag) then
@@ -3687,7 +3692,8 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
 
     end select
     call GeneralAuxVarCompute4(x,gen_auxvar, global_auxvar,material_auxvar, &
-                               characteristic_curves,natural_id,option)
+                               characteristic_curves,natural_id, &
+                               soluble_matrix,option)
     state_change_string = 'State Transition: ' // trim(state_change_string)
     if (general_print_state_transition) then
       call PrintMsgByRank(option,state_change_string)
@@ -4111,7 +4117,7 @@ end subroutine GeneralAuxVarPerturb
 subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
                                 material_auxvar, &
                                 characteristic_curves,natural_id, &
-                                option)
+                                soluble_matrix,option)
   !
   ! Calculates auxiliary variables for perturbed 4-equation system
   !
@@ -4139,6 +4145,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
                pert(option%nflowdof), x_pert_save(option%nflowdof)
 
   PetscReal :: tempreal
+  PetscBool :: soluble_matrix
 !#define LEGACY_PERTURBATION
 !#define HEEHO_PERTURBATION
 !#define HP_HARMONIC
@@ -4192,7 +4199,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
          gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
        x(GENERAL_ENERGY_DOF) = &
          gen_auxvar(ZERO_INTEGER)%temp
-       if (general_soluble_matrix) then
+       if (soluble_matrix) then
          x(GENERAL_POROSITY_DOF) = &
            gen_auxvar(ZERO_INTEGER)%effective_porosity
        else
@@ -4256,7 +4263,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
          x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
            gen_auxvar(ZERO_INTEGER)%xmol(option%water_id,option%air_id)
        endif
-       if (general_soluble_matrix) then
+       if (soluble_matrix) then
          x(GENERAL_POROSITY_DOF) = gen_auxvar(ZERO_INTEGER)%effective_porosity
        endif
        x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
@@ -4361,7 +4368,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
 !         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
        x(GENERAL_GAS_SATURATION_DOF) = &
          gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-       if (general_soluble_matrix) then
+       if (soluble_matrix) then
          x(GENERAL_POROSITY_DOF) = &
            gen_auxvar(ZERO_INTEGER)%effective_porosity
        else
@@ -4513,7 +4520,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
            gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
       x(GENERAL_ENERGY_DOF) = &
            gen_auxvar(ZERO_INTEGER)%temp
-      if (.not. general_soluble_matrix) then
+      if (.not. soluble_matrix) then
         x(GENERAL_PRECIPITATE_SAT_DOF) = &
             gen_auxvar(ZERO_INTEGER)%sat(option%precipitate_phase)
       else
@@ -4546,9 +4553,9 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
          x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
            gen_auxvar(ZERO_INTEGER)%xmol(option%water_id,option%air_id)
        endif
-       if (general_soluble_matrix) then
+       if (soluble_matrix) then
          x(GENERAL_POROSITY_DOF) = gen_auxvar(ZERO_INTEGER)%effective_porosity
-       elseif (.not.general_soluble_matrix) then
+       elseif (.not.soluble_matrix) then
          x(GENERAL_POROSITY_DOF) = gen_auxvar(ZERO_INTEGER)%sat(option%precipitate_phase)
        endif
 
@@ -4659,7 +4666,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
    !         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
       x(GENERAL_GAS_SATURATION_DOF) = &
         gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-      if (general_soluble_matrix) then
+      if (soluble_matrix) then
         x(GENERAL_POROSITY_DOF) = gen_auxvar(ZERO_INTEGER)%effective_porosity
       else
         x(GENERAL_PRECIPITATE_SAT_DOF) = &
@@ -4793,7 +4800,8 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
     x_pert_save = x_pert
     call GeneralAuxVarCompute4(x_pert,gen_auxvar(idof),global_auxvar, &
                                material_auxvar, &
-                               characteristic_curves,natural_id,option)
+                               characteristic_curves,natural_id, &
+                               soluble_matrix,option)
 #ifdef DEBUG_GENERAL
     call GlobalAuxVarCopy(global_auxvar,global_auxvar_debug,option)
     call GeneralAuxVarCopy(gen_auxvar(idof),general_auxvar_debug,option)

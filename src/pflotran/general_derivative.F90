@@ -512,7 +512,7 @@ subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
                            material_auxvar(ZERO_INTEGER), &
                            material_parameter%soil_heat_capacity(1), &
                            option, &
-                           res,jac_anal,PETSC_TRUE,PETSC_FALSE)
+                           res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
 
   do i = 1, 3
     call GeneralAccumulation(general_auxvar(i), &
@@ -520,7 +520,7 @@ subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
                              material_auxvar(i), &
                              material_parameter%soil_heat_capacity(1), &
                              option, &
-                             res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)
+                             res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
 
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
@@ -805,7 +805,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                       global_auxvar_ss(natural_id), &
                       material_auxvar(natural_id), ss_flow_vol_flux, &
                       characteristic_curves, natural_id, &
-                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
 
   do idof = 1, option%nflowdof
     call GeneralAuxVarCopy(general_auxvar_ss(ZERO_INTEGER), &
@@ -818,7 +818,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                         ss_flow_vol_flux, &
                         characteristic_curves, natural_id, &
                         scale,res_pert(:,idof),jac_dum,PETSC_FALSE, &
-                        PETSC_FALSE,PETSC_FALSE)
+                        PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num(irow,idof) = (res_pert(irow,idof)-res(irow))/pert(idof)
     enddo !irow
