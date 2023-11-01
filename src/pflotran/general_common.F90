@@ -3395,7 +3395,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! This checks for a dirichlet condition on either solute
   if (general_salt) then
     if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
-!        ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==AT_SOLUBILITY_BC .or. &
+        ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==AT_SOLUBILITY_BC .or. &
         ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
       dirichlet_solute = PETSC_TRUE
     endif

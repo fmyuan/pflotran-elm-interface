@@ -697,6 +697,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     endif
   endif
 
+  if (cell_pressure /= cell_pressure) then
+    print *, 'cell pressure nan'
+  endif
+
   select case(global_auxvar%istate)
     case(LIQUID_STATE)
       gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
@@ -834,6 +838,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       ! water saturated with air in order to accommodate air diffusion between
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
       ! diffuse through the liquid phase.
+
       if (.not.option%flow%sat_pres_depends_on_salinity) then
         if (associated(gen_auxvar%d)) then
           !Not supported: interfacial tension, Kelvin equation
