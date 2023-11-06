@@ -775,7 +775,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                   patch%characteristic_curves_array( &
                                     patch%cc_id(ghosted_id))%ptr, &
                                   natural_id, &
-                 material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                                  material_property_array(patch%imat( &
+                                    ghosted_id))%ptr%soluble, &
                                   option)
       endif
     if (update_state) then
@@ -796,7 +797,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                        patch%characteristic_curves_array( &
                                          patch%cc_id(ghosted_id))%ptr, &
                                        natural_id, &  ! for debugging
-                 material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                                       material_property_array(patch%imat( &
+                                         ghosted_id))%ptr%soluble, &
                                        option)
       endif
     endif
@@ -967,7 +969,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                   patch%characteristic_curves_array( &
                                     patch%cc_id(ghosted_id))%ptr, &
                                   natural_id, &
-       material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                                  material_property_array(patch%imat( &
+                                    ghosted_id))%ptr%soluble, &
                                   option)
       endif
       if (update_state_bc) then
@@ -987,7 +990,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                         patch%characteristic_curves_array( &
                                           patch%cc_id(ghosted_id))%ptr, &
                                         natural_id, &
-            material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                                        material_property_array(patch%imat( &
+                                          ghosted_id))%ptr%soluble, &
                                         option)
         endif
       endif
@@ -1111,7 +1115,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           scale, Res_dummy, Jac_dummy, &
                           general_analytical_derivatives, &
                           PETSC_TRUE, & ! aux_var_compute_only
-material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                          material_property_array(patch%imat( &
+                            ghosted_id))%ptr%soluble, &
                           local_id == general_debug_cell_id)
 
     enddo
@@ -1207,7 +1212,8 @@ subroutine GeneralUpdateFixedAccum(realization)
                                 patch%characteristic_curves_array( &
                                 patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
-                 material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                                material_property_array(patch%imat( &
+                                  ghosted_id))%ptr%soluble, &
                                 option)
     endif
     call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -1216,7 +1222,8 @@ subroutine GeneralUpdateFixedAccum(realization)
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
-                 material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                             material_property_array(patch%imat( &
+                               ghosted_id))%ptr%soluble, &
                              local_id == general_debug_cell_id)
   enddo
 
@@ -1403,7 +1410,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy, &
                              general_analytical_derivatives, &
-material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                             material_property_array(patch%imat( &
+                               ghosted_id))%ptr%soluble, &
                              local_id == general_debug_cell_id)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
@@ -1579,7 +1587,8 @@ material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
                           scale,Res,Jac_dummy, &
                           general_analytical_derivatives, &
                           PETSC_FALSE, &
-material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                          material_property_array(patch%imat( &
+                            ghosted_id))%ptr%soluble, &
                           local_id == general_debug_cell_id)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
@@ -1791,7 +1800,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                                    patch%characteristic_curves_array( &
                                    patch%cc_id(ghosted_id))%ptr, &
                                    natural_id, &
-material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                                   material_property_array(patch%imat( &
+                                     ghosted_id))%ptr%soluble, &
                                    option)
       else
         call GeneralAuxVarPerturb(gen_auxvars(:,ghosted_id), &
@@ -1819,7 +1829,8 @@ material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
                               material_auxvars(ghosted_id), &
                               material_parameter%soil_heat_capacity(imat), &
                               option, &
-                 material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                              material_property_array(patch%imat( &
+                                ghosted_id))%ptr%soluble, &
                               Jup)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1988,7 +1999,8 @@ material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
                           patch%cc_id(ghosted_id))%ptr, &
                         grid%nG2A(ghosted_id),material_auxvars(ghosted_id), &
                         scale, &
-material_property_array(patch%imat(ghosted_id))%ptr%soluble, &
+                        material_property_array(patch%imat( &
+                          ghosted_id))%ptr%soluble, &
                         Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &

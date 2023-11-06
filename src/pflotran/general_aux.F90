@@ -697,10 +697,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     endif
   endif
 
-  if (cell_pressure /= cell_pressure) then
-    print *, 'cell pressure nan'
-  endif
-
   select case(global_auxvar%istate)
     case(LIQUID_STATE)
       gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
@@ -3160,7 +3156,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
   PetscReal :: liq_epsilon, gas_epsilon, two_phase_epsilon
   PetscReal :: NaClSolubility
   PetscReal :: x(option%nflowdof)
-  PetscReal :: Sg_new, Sp_new
+  PetscReal :: Sg_new, Sp_new, x_salt
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, pid, acid, wid, eid, sid
   PetscBool :: istatechng, gas_flag
@@ -3275,6 +3271,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
 
     case(LG_STATE)
       Sg_new = x(GENERAL_GAS_SATURATION_DOF)
+      x_salt = x(GENERAL_LIQUID_STATE_S_MOLE_DOF)
       if (Sg_new < 0.d0) then
 
         global_auxvar%istate = LIQUID_STATE
@@ -3297,7 +3294,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                                     & i8)') natural_id
         endif
 
-      elseif (Sg_new > 1.d0 ) then
+      elseif (Sg_new > 1.d0 .and. x_salt == 0.d0) then
 
         global_auxvar%istate = GAS_STATE
         two_phase_epsilon = general_phase_chng_epsilon
@@ -3316,6 +3313,27 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
             natural_id
         else
           write(state_change_string,'(''2 Phase -> Gas at Boundary Face '', &
+                                    & i8)') natural_id
+        endif
+      elseif (Sg_new > 1.d0 .and. x_salt > 0.d0) then
+
+        global_auxvar%istate = GP_STATE
+        two_phase_epsilon = general_phase_chng_epsilon
+        istatechng = PETSC_TRUE
+
+#ifdef DEBUG_GENERAL_INFO
+        call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
+                                 natural_id,'Before Update',option)
+#endif
+        if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+          write(state_change_string,'(''2 Phase -> GP at Cell '',i8)') &
+            natural_id
+        else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+          write(state_change_string, &
+            '(''2 Phase -> GP at Cell (due to perturbation) '',i8)') &
+            natural_id
+        else
+          write(state_change_string,'(''2 Phase -> GP at Boundary Face '', &
                                     & i8)') natural_id
         endif
       endif
