@@ -1884,7 +1884,9 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
 
   PetscInt :: k
   PetscInt :: num_errors,read_max,num_read
-  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: at_index,num_segs
+  character(len=MAXWORDLENGTH) :: word, index_word
+  PetscReal :: index_val
   PetscReal, pointer :: temp_diameter(:)
   PetscReal, pointer :: temp_friction(:)
   PetscReal, pointer :: temp_well_index(:)
@@ -1895,7 +1897,7 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
   found = PETSC_TRUE
   num_errors = 0
 
-  read_max = 200
+  read_max = 9000
   allocate(temp_diameter(read_max))
   allocate(temp_friction(read_max))
   allocate(temp_well_index(read_max))
@@ -1951,8 +1953,18 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
         !-----------------------------
           case('WELL_INDEX')
             do k = 1,read_max
+              index_word = trim(input%buf)
               call InputReadDouble(input,option,temp_well_index(k))
-              if (InputError(input)) exit
+              if (InputError(input)) then
+                at_index = 0; at_index = index(index_word,'@')
+                if (at_index > 0) then
+                  read(index_word(1:at_index-1), *) num_segs
+                  read(index_word(at_index+1:len(index_word)), *) index_val
+                  temp_well_index(k:k+num_segs-1) = index_val
+                  num_read = num_read + num_segs
+                endif
+                exit
+              endif 
               num_read = num_read + 1
             enddo
             if (num_read == 0) then
@@ -1960,6 +1972,7 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
                 &must be provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
+            write(*,*) 'num_read =', num_read
             allocate(pm_well%well%WI_base(num_read))
             pm_well%well%WI_base(1:num_read) = temp_well_index(1:num_read)
         !-----------------------------
