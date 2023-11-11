@@ -6,10 +6,12 @@
 *.lot
 *.out
 *.tec
+*.pft
 *.xyp
 *.toc
 *.bst
 *.swp
+*.pdf
 *.synctex.gz
 *.old
 .vscode
