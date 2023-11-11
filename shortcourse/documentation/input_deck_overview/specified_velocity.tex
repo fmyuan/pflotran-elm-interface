@@ -1,0 +1,58 @@
+\subsection{SPECIFIED\_VELOCITY}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{SPECIFIED\_VELOCITY}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines prescribed flow velocities
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Defining a uniform flow field for transport
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|UNIFORM?|
+  \item[] \verb|DATASET|
+  \item[] \verb|TIME_UNITS|
+  \item[] \verb|DATA_UNITS|
+  \item[] \verb|INTERPOLATION|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{SPECIFIED\_VELOCITY Examples}
+
+\begin{semiverbatim}
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d0 0.d0 0.d0 m/yr
+END
+
+
+SPECIFIED_VELOCITY
+  UNIFORM? NO
+  DATASET <filename>
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{SPECIFIED\_VELOCITY Example}
+
+\begin{semiverbatim}
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET LIST
+    TIME_UNITS yr
+    DATA_UNITS m/yr
+    INTERPOLATION STEP
+    0.d0 1.d0 0.d0 0.d0
+    5.d0 -1.d0 0.d0 0.d0
+    15.d0 1.d0 0.d0 0.d0
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
