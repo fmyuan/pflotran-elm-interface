@@ -37,6 +37,7 @@ subroutine IsothermRead(isotherm,input,option)
   character(len=MAXWORDLENGTH) :: word, word2
   character(len=MAXWORDLENGTH) :: kd_units
   character(len=MAXWORDLENGTH) :: multi_kd_units
+  character(len=MAXSTRINGLENGTH) :: error_string
   PetscInt :: ikd_units, imulti_kd_units
 
   type(isotherm_link_type), pointer :: isotherm_rxn, prev_isotherm_rxn
@@ -56,6 +57,7 @@ subroutine IsothermRead(isotherm,input,option)
   ! set default units
   isotherm%ikd_units = UNINITIALIZED_INTEGER
 
+  error_string = 'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS'
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -64,8 +66,7 @@ subroutine IsothermRead(isotherm,input,option)
 
     ! first string is species name
     call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'species name', &
-                       'CHEMISTRY,ISOTHERM_REACTIONS')
+    call InputErrorMsg(input,option,'species name',error_string)
     kd_units = ''
     multi_kd_units = ''
     isotherm%neqkdrxn = isotherm%neqkdrxn + 1
@@ -84,8 +85,7 @@ subroutine IsothermRead(isotherm,input,option)
       if (InputCheckExit(input,option)) exit
 
       call InputReadCard(input,option,word)
-      call InputErrorMsg(input,option,'keyword', &
-                         'CHEMISTRY,ISOTHERM_REACTIONS')
+      call InputErrorMsg(input,option,'keyword',error_string)
       call StringToUpper(word)
 
       ! default type is linear
@@ -93,8 +93,7 @@ subroutine IsothermRead(isotherm,input,option)
       select case(trim(word))
         case('TYPE')
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'type', &
-                             'CHEMISTRY,ISOTHERM_REACTIONS')
+          call InputErrorMsg(input,option,word,error_string)
           select case(word)
             case('LINEAR')
               isotherm_rxn%itype = SORPTION_LINEAR
@@ -104,8 +103,7 @@ subroutine IsothermRead(isotherm,input,option)
               isotherm_rxn%itype = SORPTION_FREUNDLICH
             case default
               call InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
-                    option)
+                                      trim(error_string)//',TYPE',option)
           end select
           if (option%use_sc) then
             sec_cont_isotherm_rxn%itype = isotherm_rxn%itype
@@ -115,9 +113,7 @@ subroutine IsothermRead(isotherm,input,option)
                                'DISTRIBUTION_COEFFICIENT',option)
         case('DISTRIBUTION_COEFFICIENT')
           call InputReadDouble(input,option,isotherm_rxn%Kd)
-          call InputErrorMsg(input,option, &
-                             'DISTRIBUTION_COEFFICIENT', &
-                             'CHEMISTRY,ISOTHERM_REACTIONS')
+          call InputErrorMsg(input,option,word,error_string)
           call InputReadWord(input,option,word,PETSC_TRUE)
           if (input%ierr == 0) kd_units = trim(word)
         ! S.Karra, 02/20/2014
@@ -129,29 +125,23 @@ subroutine IsothermRead(isotherm,input,option)
             call PrintErrMsg(option)
           endif
           call InputReadDouble(input,option,sec_cont_isotherm_rxn%Kd)
-          call InputErrorMsg(input,option, &
-            'SECONDARY_CONTINUUM_DISTRIBUTION_COEFFICIENT', &
-            'CHEMISTRY,ISOTHERM_REACTIONS')
+          call InputErrorMsg(input,option,word,error_string)
           call InputReadWord(input,option,word,PETSC_TRUE)
           if (input%ierr == 0) multi_kd_units = trim(word)
         case('LANGMUIR_B')
           call InputReadDouble(input,option,isotherm_rxn%Langmuir_B)
-          call InputErrorMsg(input,option,'Langmuir_B', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
+          call InputErrorMsg(input,option,word,error_string)
           isotherm_rxn%itype = SORPTION_LANGMUIR
         case('FREUNDLICH_N')
           call InputReadDouble(input,option,isotherm_rxn%Freundlich_N)
-          call InputErrorMsg(input,option,'Freundlich_N', &
-                             'CHEMISTRY,ISOTHERM_REACTIONS')
+          call InputErrorMsg(input,option,word,error_string)
           isotherm_rxn%itype = SORPTION_FREUNDLICH
         case('KD_MINERAL_NAME')
           call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'KD_MINERAL_NAME', &
-                             'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
+          call InputErrorMsg(input,option,word,error_string)
           isotherm_rxn%kd_mineral_name = word
         case default
-          call InputKeywordUnrecognized(input,word, &
-                 'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
+          call InputKeywordUnrecognized(input,word,error_string,option)
       end select
     enddo
     call InputPopBlock(input,option)
