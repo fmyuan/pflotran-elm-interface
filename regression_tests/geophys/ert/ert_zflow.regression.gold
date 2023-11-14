@@ -24,7 +24,7 @@
        81:   4.8918288127746E-04
 -- GENERIC: Electrical Potential_2 --
       Max:   4.0309838049104E+02
-      Min:   6.8120836640583E-01
+      Min:   6.8120836640582E-01
      Mean:   1.6743916172359E+01
        93:   1.0210811756528E+01
         1:   3.0223419388718E+00
@@ -37,11 +37,12 @@
        93:  -5.0778473137757E+00
         1:  -7.5443740229890E+00
        41:  -2.5924138397607E+00
-       81:  -5.5592550235710E-01
+       81:  -5.5592550235711E-01
 -- SOLUTION: Flow --
+   Time (seconds):   4.2461000000000E-02
    Time Steps:            9
    Newton Iterations:           24
    Linear Solver Iterations:           84
    Time Step Cuts:            0
    Solution 2-Norm:   1.1138151486600E+06
-   Residual 2-Norm:   8.0001291287592E-16
+   Residual 2-Norm:   8.0001291287519E-16

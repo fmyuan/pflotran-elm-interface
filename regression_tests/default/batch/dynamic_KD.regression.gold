@@ -34,6 +34,7 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
+   Time (seconds):   3.2500000000000E-04
    Time Steps:            1
    Linear Solver Iterations:            2
    Time Step Cuts:            0
