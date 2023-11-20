@@ -18,7 +18,9 @@ NUMERICAL_METHODS FLOW
   TIMESTEPPER
     MAX_STEPS 1
   /
-
+  NEWTON_SOLVER
+    USE_EUCLIDEAN_NORM_CONVERGENCE
+  /
 END
 
 #=========================== regression =======================================

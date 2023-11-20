@@ -304,7 +304,10 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
-
+       
+    case('USE_EUCLIDEAN_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_FALSE
+       
     case default
       found = PETSC_FALSE
   end select
