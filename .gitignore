@@ -25,10 +25,6 @@ src/pflotran/*.o
 src/pflotran/*.MOD
 src/pflotran/pflotran
 src/pflotran/pflotran_provenance.F90
-src/pflotran/pflotran_fc
-src/pflotran/pflow
-src/pflotran/ptran
-src/pflotran/build
 src/pflotran/pflotran_xcode/build
 src/pflotran/pflotran.xcodeproj/*.pbxuser
 src/pflotran/pflotran.xcodeproj/*.mode1
@@ -40,14 +36,6 @@ src/pflotran/pflotran_xcode/.git/*
 src/pflotran/pflotran_xcode/pflotran_xcode.xcodeproj/project.xcworkspace/*
 src/pflotran/pflotran_xcode/pflotran_xcode.xcodeproj/xcuserdata/*
 src/pflotran/*xcode/*
-src/pims/*.o
-src/pims/*.MOD
-src/pims/build
-src/pims/pims
-src/pims/pims.xcodeproj/*.pbxuser
-src/pims/pims.xcodeproj/*.mode1
-shortcourse/exercises/sx-115/doc/sx115.pdf
-src/pflotran/*xcode/*
 src/clm-pflotran/pflotran_interface
 src/clm-pflotran/libpflotran.a
 src/clm-pflotran/*.testlog
@@ -55,21 +43,6 @@ src/clm-pflotran/*.testlog
 *.aux
 *.log
 *.synctex.gz
-docs/tecnotes/chemistry/chemistry_implementation.pdf
-docs/user_manual/quick_guide.pdf
-docs/user_manual/user_manual.pdf
-docs/user_manual/user_manual.aux
-docs/user_manual/user_manual.lof
-docs/user_manual/user_manual.log
-docs/user_manual/user_manual.lot
-docs/user_manual/user_manual.out
-docs/user_manual/user_manual.synctex.gz
-docs/user_manual/user_manual.toc
-docs/user_manual/developer_guide.pdf
-docs/user_manual/user_manual.idx
-docs/user_manual/user_manual.ilg
-docs/user_manual/user_manual.ind
-
 *.bin
 *.bin.info
 *.xmf
@@ -79,7 +52,6 @@ regression_tests/default/anisothermal/thc_1d.h5
 *.nav
 *.snm
 *.vrb
-shortcourse/exercises/CLM-CN/doc/CLM-CN.pdf
 src/pflotran/pflotran_dependencies.txt
 src/pflotran/pflotran_source_files.txt
 .git
@@ -91,10 +63,6 @@ tpls/*
 src/pflotran/unittests/*
 
 src/clm-pflotran/*.F90
-!src/clm-pflotran/clm_pflotran_interface_data.F90
-!src/clm-pflotran/mapping.F90
-!src/clm-pflotran/pflotran_interface_main.F90
-!src/clm-pflotran/pflotran_model.F90
 
 *.gcov 
 *.gcda 
