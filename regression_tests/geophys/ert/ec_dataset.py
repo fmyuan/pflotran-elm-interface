@@ -21,7 +21,7 @@ for k in range(nz):
             ec[i+j*nx+k*nxXny] = 1.+count*0.01
 f = File(new_dataset_filename,mode='w')
 f.create_dataset('electrical_conductivity',data=ec)
-iarray = np.arange(1,n+1,dtype=np.int)
+iarray = np.arange(1,n+1,dtype=int)
 f.create_dataset('Cell Ids',data=iarray)
 f.close()
 
