@@ -1567,7 +1567,6 @@ subroutine ReactionThresholdInhibition(concentration,threshold_concentration, &
   ! Author: Glenn Hammond
   ! Date: 05/17/23
   !
-
   implicit none
 
   PetscReal :: concentration
@@ -1576,16 +1575,12 @@ subroutine ReactionThresholdInhibition(concentration,threshold_concentration, &
   PetscReal :: derivative
 
   PetscReal :: threshold_f
-  PetscReal :: tempreal
 
   threshold_f = 1.d5/threshold_concentration
-  tempreal = (concentration-threshold_concentration)*threshold_f
-  inhibition_factor = 0.5d0 + atan(tempreal)/PI
-  ! derivative of atan(X) = 1 / (1 + X^2) dX
-  derivative = threshold_f / (1.d0+tempreal*tempreal) / PI
+  call ReactionThresholdInhibition2(concentration,threshold_concentration, &
+                                    threshold_f,inhibition_factor,derivative)
 
 end subroutine ReactionThresholdInhibition
-
 
  ! ************************************************************************** !
 
