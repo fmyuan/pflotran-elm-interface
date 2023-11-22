@@ -2111,7 +2111,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(gid)
       else
         gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
-        material_auxvar%porosity = gen_auxvar%effective_porosity
+        !material_auxvar%porosity = gen_auxvar%effective_porosity
         gen_auxvar%sat(pid) = 0.d0
         gen_auxvar%sat(gid) = 1.d0
       endif

@@ -2313,7 +2313,10 @@ subroutine GeneralSetPlotVariables(realization,list)
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 GAS_MOLE_FRACTION, &
                                 realization%option%water_id)
-
+    name = 'Porosity'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                POROSITY)
   endif
 
   if (list%energy_vars) then
