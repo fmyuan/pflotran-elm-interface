@@ -4342,7 +4342,7 @@ subroutine PMWellResidualTranRxn(this)
     enddo
 
     this%tran_soln%residual(istart:iend) = &
-                          this%tran_soln%residual(istart:iend) - Res(:)
+                          this%tran_soln%residual(istart:iend) + Res(:)
   enddo
 
 end subroutine PMWellResidualTranRxn
