@@ -255,6 +255,14 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
+                if (general_salt) then
+                  if (.not. &
+                       (general%salt_mole_fraction%itype == DIRICHLET_BC .or. &
+                         general%salt_mole_fraction%itype == HYDROSTATIC_BC)) then
+                    option%io_buffer = 'Salt mole fraction ' // trim(string)
+                    call PrintErrMsg(option)
+                  endif
+                endif
               case(LGP_STATE)
                 if (.not. &
                      (general%gas_pressure%itype == DIRICHLET_BC .or. &
