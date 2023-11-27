@@ -2332,6 +2332,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           if (associated(general%salt_mole_fraction)) then
             if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
               condition%iphase = GP_STATE
+            ! else GAS_state
             endif
           else
             condition%iphase = GAS_STATE
