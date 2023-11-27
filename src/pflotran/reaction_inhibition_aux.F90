@@ -159,13 +159,11 @@ subroutine ReactionInhibitionThreshold2(concentration, &
   PetscReal :: derivative
 
   PetscReal :: tempreal
-  PetscBool :: local_inhibit_above
 
-  local_inhibit_above = (threshold_concentration < 0.d0)
   tempreal = (concentration-dabs(threshold_concentration))*threshold_constant
   ! derivative of atan(X) = 1 / (1 + X^2) dX
   derivative = threshold_constant / (1.d0+tempreal*tempreal) / PI
-  if (local_inhibit_above) then ! INHIBIT_ABOVE_THRESHOLD
+  if (inhibit_above) then ! INHIBIT_ABOVE_THRESHOLD
     inhibition_factor = 0.5d0 - atan(tempreal)/PI
     derivative = -1.d0 * derivative
   else ! INHIBIT_BELOW_THRESHOLD
@@ -228,16 +226,13 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
   PetscReal :: log_concentration
   PetscReal :: lower_bound, z
 
-  PetscBool :: local_inhibit_above
-
-  local_inhibit_above = (threshold_concentration < 0.d0)
   log_inhibition = log10(dabs(threshold_concentration))
   log_concentration = log10(concentration)
   lower_bound = log_inhibition - 0.5d0 * log10_interval
   z = (log_concentration - lower_bound) / log10_interval
 
   ! inhibition
-  if (local_inhibit_above) then
+  if (inhibit_above) then
     if (z < 0.) then
       inhibition_factor = 1.d0
       derivative = 0.d0

@@ -325,7 +325,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: effective_rate_constant
   PetscReal :: concentration(reaction%naqcomp)
   PetscReal :: dconcentration_dmolal(reaction%naqcomp)
-  PetscReal :: conc
+  PetscReal :: conc, threshold_conc
   PetscReal :: dconc_dmolal
   PetscReal :: monod_terms
   PetscReal :: inhibition_terms
@@ -395,24 +395,21 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       iinhibition = microbial%inhibitionid(ii,irxn)
       icomp = microbial%inhibition_specid(iinhibition)
       conc = concentration(icomp)
+      threshold_conc = microbial%inhibition_C(iinhibition)
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          inhibition(ii) = microbial%inhibition_C(iinhibition) / &
-                          (microbial%inhibition_C(iinhibition) + conc)
+          inhibition(ii) = threshold_conc / (threshold_conc + conc)
         case(INHIBITION_INVERSE_MONOD)
-          inhibition(ii) = conc / &
-                          (microbial%inhibition_C(iinhibition) + conc)
+          inhibition(ii) = conc / (threshold_conc + conc)
         case(INHIBITION_THRESHOLD)
-          call ReactionInhibitionThreshold(conc, &
-                                        microbial%inhibition_C(iinhibition), &
+          call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        PETSC_FALSE,tempreal,dummy)
+                                        (threshold_conc < 0.d0),tempreal,dummy)
           inhibition(ii) = tempreal
         case(INHIBITION_SMOOTHSTEP)
-          call ReactionInhibitionSmoothstep(conc, &
-                                        microbial%inhibition_C(iinhibition), &
+          call ReactionInhibitionSmoothstep(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        PETSC_FALSE,tempreal,dummy)
+                                        (threshold_conc < 0.d0),tempreal,dummy)
           inhibition(ii) = tempreal
       end select
       inhibition_terms = inhibition_terms*inhibition(ii)
@@ -504,6 +501,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       iinhibition = microbial%inhibitionid(ii,irxn)
       jcomp = microbial%inhibition_specid(iinhibition)
       conc = concentration(jcomp)
+      threshold_conc = microbial%inhibition_C(iinhibition)
       dconc_dmolal = dconcentration_dmolal(jcomp)
 
       dR_dX = effective_rate_constant* &
@@ -519,24 +517,22 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          denominator = microbial%inhibition_C(iinhibition) + conc
-          dX_dc = -1.d0 * dconc_dmolal *microbial%inhibition_C(iinhibition) / &
+          denominator = threshold_conc + conc
+          dX_dc = -1.d0 * dconc_dmolal * threshold_conc / &
                   (denominator*denominator)
         case(INHIBITION_INVERSE_MONOD)
-          denominator = microbial%inhibition_C(iinhibition) + conc
+          denominator = threshold_conc + conc
           dX_dc = dconc_dmolal / denominator - &
                   dconc_dmolal * conc / &
                   (denominator*denominator)
         case(INHIBITION_THRESHOLD)
-          call ReactionInhibitionThreshold(conc, &
-                                        microbial%inhibition_C(iinhibition), &
+          call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        PETSC_FALSE,dummy,dX_dc)
+                                        (threshold_conc < 0.d0),dummy,dX_dc)
         case(INHIBITION_SMOOTHSTEP)
-          call ReactionInhibitionSmoothstep(conc, &
-                                        microbial%inhibition_C(iinhibition), &
+          call ReactionInhibitionSmoothstep(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        PETSC_FALSE,dummy,dX_dc)
+                                        (threshold_conc < 0.d0),dummy,dX_dc)
       end select
 
       dR_dc = -1.d0*dR_dX*dX_dc

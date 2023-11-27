@@ -77,9 +77,15 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
             call InputKeywordUnrecognized(input,word, &
                                           trim(error_string)//'TYPE',option)
         end select
-      case('INHIBITION_CONSTANT')
+      case('INHIBITION_CONSTANT','THRESHOLD_CONCENTRATION')
         call InputReadDouble(input,option,inhibition%inhibition_constant)
         call InputErrorMsg(input,option,word,error_string)
+#if 0
+      case('INHIBITION_CONSTANT')
+        call InputKeywordDeprecated(word,'a combination of &
+          &THRESHOLD_CONCENTRATION and (INHIBIT_ABOVE_THRESHOLD or &
+          &INHIBIT_BELOW_THRESHOLD)')
+#endif
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
