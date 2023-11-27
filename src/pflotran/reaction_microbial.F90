@@ -3,9 +3,9 @@ module Reaction_Microbial_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Reaction_Microbial_Aux_module
-
   use PFLOTRAN_Constants_module
+  use Reaction_Inhibition_Aux_module
+  use Reaction_Microbial_Aux_module
 
   implicit none
 

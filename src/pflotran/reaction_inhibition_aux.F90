@@ -1,0 +1,286 @@
+module Reaction_Inhibition_Aux_module
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  private
+
+  ! inhibition parameters
+  PetscInt, parameter, public :: INHIBIT_BELOW_THRESHOLD = 0
+  PetscInt, parameter, public :: INHIBIT_ABOVE_THRESHOLD = 1
+
+  PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
+  PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2
+  PetscInt, parameter, public :: INHIBITION_MONOD = 3
+  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 4
+  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 5
+
+  type, public :: inhibition_type
+    PetscInt :: id
+    PetscInt :: itype
+    character(len=MAXWORDLENGTH) :: species_name
+    PetscReal :: inhibition_constant
+    PetscReal :: inhibition_constant2
+    type(inhibition_type), pointer :: next
+  end type inhibition_type
+
+  interface ReactionInhibitionThreshold
+    module procedure ReactionInhibitionThreshold1
+    module procedure ReactionInhibitionThreshold2
+  end interface
+
+  interface ReactionInhibitionSmoothstep
+    module procedure ReactionInhibitionSmoothstep1
+    module procedure ReactionInhibitionSmoothstep2
+  end interface
+
+  public :: ReactionInhibitionCreate, &
+            ReactionInhibitionMonod, &
+            ReactionInhibitionThreshold, &
+            ReactionInhibitionSmoothstep, &
+            ReactionInhibitionDestroy
+
+contains
+
+! ************************************************************************** !
+
+function ReactionInhibitionCreate()
+  !
+  ! Allocate and initialize a inhibition object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/30/12, 11/21/23
+  !
+
+  implicit none
+
+  type(inhibition_type), pointer :: ReactionInhibitionCreate
+
+  type(inhibition_type), pointer :: inhibition
+
+  allocate(inhibition)
+  inhibition%id = 0
+  inhibition%itype = 0
+  inhibition%species_name = ''
+  inhibition%inhibition_constant = UNINITIALIZED_DOUBLE
+  inhibition%inhibition_constant2 = 0.d0
+  nullify(inhibition%next)
+
+  ReactionInhibitionCreate => inhibition
+
+end function ReactionInhibitionCreate
+
+! ************************************************************************** !
+
+subroutine ReactionInhibitionMonod(concentration,threshold_concentration, &
+                                   inhibit_above,inhibition_factor, &
+                                   derivative)
+  !
+  ! Calculates inhibition through the Monod term
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/17/23
+  !
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscBool :: inhibit_above
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: denominator
+
+  denominator = threshold_concentration + concentration
+  if (inhibit_above) then ! inverse Monod
+    inhibition_factor = threshold_concentration / denominator
+    derivative = 1.d0 / denominator - &
+                 concentration / (denominator*denominator)
+  else ! Monod
+    inhibition_factor = concentration / denominator
+    derivative = -1.d0 * threshold_concentration / (denominator*denominator)
+  endif
+
+end subroutine ReactionInhibitionMonod
+
+! ************************************************************************** !
+
+subroutine ReactionInhibitionThreshold1(concentration, &
+                                        threshold_concentration, &
+                                        inhibit_above,inhibition_factor, &
+                                        derivative)
+  !
+  ! Calculates threshold inhibition using the arc tangent function
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/17/23
+  !
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscBool :: inhibit_above
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: threshold_f
+
+  threshold_f = 1.d5/threshold_concentration
+  call ReactionInhibitionThreshold2(concentration,threshold_concentration, &
+                                    threshold_f,inhibit_above, &
+                                    inhibition_factor,derivative)
+
+end subroutine ReactionInhibitionThreshold1
+
+ ! ************************************************************************** !
+
+subroutine ReactionInhibitionThreshold2(concentration, &
+                                        threshold_concentration, &
+                                        threshold_constant,inhibit_above, &
+                                        inhibition_factor,derivative)
+  !
+  ! Calculates threshold inhibition using the arc tangent function
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/17/23
+  !
+
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscReal :: threshold_constant
+  PetscBool :: inhibit_above
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: tempreal
+
+  tempreal = (concentration-threshold_concentration)*threshold_constant
+  ! derivative of atan(X) = 1 / (1 + X^2) dX
+  derivative = threshold_constant / (1.d0+tempreal*tempreal) / PI
+  if (inhibit_above) then ! INHIBIT_ABOVE_THRESHOLD
+    inhibition_factor = 0.5d0 - atan(tempreal)/PI
+    derivative = -1.d0 * derivative
+  else ! INHIBIT_BELOW_THRESHOLD
+    inhibition_factor = 0.5d0 + atan(tempreal)/PI
+  endif
+
+end subroutine ReactionInhibitionThreshold2
+
+! ************************************************************************** !
+
+subroutine ReactionInhibitionSmoothstep1(concentration, &
+                                         threshold_concentration, &
+                                         inhibit_above, &
+                                         inhibition_factor,derivative)
+  !
+  ! Calculates threshold inhibition using sigmoid function
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/27/23
+  !
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscBool :: inhibit_above
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal, parameter :: log10_interval = 3.d0
+
+  call ReactionInhibitionSmoothstep2(concentration, &
+                                     threshold_concentration, &
+                                     log10_interval,inhibit_above, &
+                                     inhibition_factor,derivative)
+
+end subroutine ReactionInhibitionSmoothstep1
+
+! ************************************************************************** !
+
+subroutine ReactionInhibitionSmoothstep2(concentration, &
+                                         threshold_concentration, &
+                                         log10_interval,inhibit_above, &
+                                         inhibition_factor,derivative)
+  !
+  ! Calculates threshold inhibition using sigmoid function
+  !
+  ! Author: Glenn Hammond - based on Peishi Jiang implementation
+  ! Date: 11/27/23
+  !
+  implicit none
+
+  PetscReal :: concentration
+  PetscReal :: threshold_concentration
+  PetscReal :: log10_interval
+  PetscBool :: inhibit_above
+  PetscReal :: inhibition_factor
+  PetscReal :: derivative
+
+  PetscReal :: log_inhibition
+  PetscReal :: log_concentration
+  PetscReal :: lower_bound, z
+
+  log_inhibition = log10(threshold_concentration)
+  log_concentration = log10(concentration)
+  lower_bound = log_inhibition - 0.5d0 * log10_interval
+  z = (log_concentration - lower_bound) / log10_interval
+
+  ! inhibition
+  if (inhibit_above) then
+    if (z < 0.) then
+      inhibition_factor = 1.d0
+      derivative = 0.d0
+    else if (z > 1.) then
+      inhibition_factor = 0.d0
+      derivative = 0.d0
+    else
+      inhibition_factor = 1.d0 - (3.d0 * z ** 2 - 2.d0 * z ** 3)
+      derivative = -1.d0 * (6.d0*z - 6.d0*z**2) / &
+                           (log10_interval*concentration*LOG_TO_LN)
+    endif
+  else ! inhibit below the threshold concentration
+    if (z < 0.) then
+      inhibition_factor = 0.d0
+      derivative = 0.d0
+    else if (z > 1.) then
+      inhibition_factor = 1.d0
+      derivative = 0.d0
+    else
+      inhibition_factor = 3.d0 * z ** 2 - 2.d0 * z ** 3
+      derivative = (6.d0*z - 6.d0*z**2) / &
+                   (log10_interval*concentration*LOG_TO_LN)
+    endif
+  endif
+
+end subroutine ReactionInhibitionSmoothstep2
+
+! ************************************************************************** !
+
+recursive subroutine ReactionInhibitionDestroy(inhibition)
+  !
+  ! Deallocates a inhibition object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/30/12
+  !
+
+  implicit none
+
+  type(inhibition_type), pointer :: inhibition
+
+  if (.not. associated(inhibition)) return
+
+  call ReactionInhibitionDestroy(inhibition%next)
+
+  deallocate(inhibition)
+  nullify(inhibition)
+
+end subroutine ReactionInhibitionDestroy
+
+end module Reaction_Inhibition_Aux_module

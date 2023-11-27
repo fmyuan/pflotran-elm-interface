@@ -3,9 +3,9 @@ module Reaction_Microbial_Aux_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Reaction_Database_Aux_module
-
   use PFLOTRAN_Constants_module
+  use Reaction_Database_Aux_module
+  use Reaction_Inhibition_Aux_module
 
   implicit none
 
@@ -14,12 +14,6 @@ module Reaction_Microbial_Aux_module
   PetscInt, parameter, public :: MICROBIAL_MOLALITY = 1
   PetscInt, parameter, public :: MICROBIAL_ACTIVITY = 2
   PetscInt, parameter, public :: MICROBIAL_MOLARITY = 3
-
-  PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
-  PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2
-  PetscInt, parameter, public :: INHIBITION_MONOD = 3
-  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 4
-  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 5
 
   PetscInt, parameter, public :: MAX_NUM_INHIBITION_TERMS = 10
   PetscInt, parameter, public :: MAX_NUM_MONOD_TERMS = 10
@@ -45,15 +39,6 @@ module Reaction_Microbial_Aux_module
     PetscReal :: threshold_concentration
     type(monod_type), pointer :: next
   end type monod_type
-
-  type, public :: inhibition_type
-    PetscInt :: id
-    PetscInt :: itype
-    character(len=MAXWORDLENGTH) :: species_name
-    PetscReal :: inhibition_constant
-    PetscReal :: inhibition_constant2
-    type(inhibition_type), pointer :: next
-  end type inhibition_type
 
   type, public :: microbial_biomass_type
     PetscInt :: id

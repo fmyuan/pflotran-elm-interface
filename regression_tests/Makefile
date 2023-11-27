@@ -114,6 +114,7 @@ STANDARD_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
+	shortcourse/electron_tower/electron_tower.cfg \
 	surfaceflow/inlinesurface/inlinesurface.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
