@@ -2676,6 +2676,13 @@ reaction_immobile_aux.o : \
   reaction_database_aux.o \
   string.o \
   utility.o
+reaction_inhibition.o : \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_inhibition_aux.o \
+  string.o
 reaction_inhibition_aux.o : \
   pflotran_constants.o
 reaction_isotherm.o : \
@@ -2701,6 +2708,7 @@ reaction_microbial.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_immobile_aux.o \
+  reaction_inhibition.o \
   reaction_inhibition_aux.o \
   reaction_microbial_aux.o \
   reactive_transport_aux.o \

@@ -29,6 +29,7 @@ subroutine MicrobialRead(microbial,input,option)
   use String_module
   use Input_Aux_module
   use Utility_module
+  use Reaction_Inhibition_module
 
   implicit none
 
@@ -147,7 +148,11 @@ subroutine MicrobialRead(microbial,input,option)
         prev_monod => monod
         nullify(monod)
       case('INHIBITION')
-        inhibition => MicrobialInhibitionCreate()
+        inhibition => ReactionInhibitionCreate()
+        call ReactionInhibitionRead(inhibition,input,option, &
+                                    trim(microbial_rxn%reaction), &
+                                    'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
+#if 0
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -209,6 +214,7 @@ subroutine MicrobialRead(microbial,input,option)
             'with REACTION "' // trim(microbial_rxn%reaction) // '".'
           call PrintErrMsg(option)
         endif
+#endif
         ! append to list
         if (.not.associated(microbial_rxn%inhibition)) then
           microbial_rxn%inhibition => inhibition

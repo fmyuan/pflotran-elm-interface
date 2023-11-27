@@ -75,7 +75,6 @@ module Reaction_Microbial_Aux_module
   public :: MicrobialCreate, &
             MicrobialRxnCreate, &
             MicrobialMonodCreate, &
-            MicrobialInhibitionCreate, &
             MicrobialBiomassCreate, &
             MicrobialGetMonodCount, &
             MicrobialGetInhibitionCount, &
@@ -187,35 +186,6 @@ function MicrobialMonodCreate()
   MicrobialMonodCreate => monod
 
 end function MicrobialMonodCreate
-
-! ************************************************************************** !
-
-function MicrobialInhibitionCreate()
-  !
-  ! Allocate and initialize a microbial inhibition
-  ! object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/30/12
-  !
-
-  implicit none
-
-  type(inhibition_type), pointer :: MicrobialInhibitionCreate
-
-  type(inhibition_type), pointer :: inhibition
-
-  allocate(inhibition)
-  inhibition%id = 0
-  inhibition%itype = 0
-  inhibition%species_name = ''
-  inhibition%inhibition_constant = UNINITIALIZED_DOUBLE
-  inhibition%inhibition_constant2 = 0.d0
-  nullify(inhibition%next)
-
-  MicrobialInhibitionCreate => inhibition
-
-end function MicrobialInhibitionCreate
 
 ! ************************************************************************** !
 
@@ -349,7 +319,7 @@ subroutine MicrobialRxnDestroy(microbial)
 
   call DatabaseRxnDestroy(microbial%dbaserxn)
   call MicrobialMonodDestroy(microbial%monod)
-  call MicrobialInhibitionDestroy(microbial%inhibition)
+  call ReactionInhibitionDestroy(microbial%inhibition)
   call MicrobialBiomassDestroy(microbial%biomass)
 
   deallocate(microbial)
@@ -379,29 +349,6 @@ recursive subroutine MicrobialMonodDestroy(monod)
   nullify(monod)
 
 end subroutine MicrobialMonodDestroy
-
-! ************************************************************************** !
-
-recursive subroutine MicrobialInhibitionDestroy(inhibition)
-  !
-  ! Deallocates a microbial inhibition object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/30/12
-  !
-
-  implicit none
-
-  type(inhibition_type), pointer :: inhibition
-
-  if (.not. associated(inhibition)) return
-
-  call MicrobialInhibitionDestroy(inhibition%next)
-
-  deallocate(inhibition)
-  nullify(inhibition)
-
-end subroutine MicrobialInhibitionDestroy
 
 ! ************************************************************************** !
 

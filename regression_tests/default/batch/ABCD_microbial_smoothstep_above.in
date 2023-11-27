@@ -20,7 +20,7 @@ CHEMISTRY
   MICROBIAL_REACTION
     CONCENTRATION_UNITS ACTIVITY
     REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
-    RATE_CONSTANT 1.d-6
+    RATE_CONSTANT 1.d-4
     MONOD 
       SPECIES_NAME A(aq) 
       HALF_SATURATION_CONSTANT 1.d-5        ! A is the donor
@@ -33,8 +33,8 @@ CHEMISTRY
     /
     INHIBITION
       SPECIES_NAME C(aq)
-      TYPE THRESHOLD 1.d8
-      INHIBITION_CONSTANT -1.d-6 ! C is the product and inhibits when too high
+      TYPE SMOOTHSTEP 2.d0
+      INHIBITION_CONSTANT -1.d-5 ! C is the product and inhibits when too high
     /
     BIOMASS
       SPECIES_NAME D(im)

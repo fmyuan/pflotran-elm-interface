@@ -226,13 +226,16 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
   PetscReal :: log_concentration
   PetscReal :: lower_bound, z
 
-  log_inhibition = log10(threshold_concentration)
+  PetscBool :: local_inhibit_above
+
+  local_inhibit_above = (threshold_concentration < 0.d0)
+  log_inhibition = log10(dabs(threshold_concentration))
   log_concentration = log10(concentration)
   lower_bound = log_inhibition - 0.5d0 * log10_interval
   z = (log_concentration - lower_bound) / log10_interval
 
   ! inhibition
-  if (inhibit_above) then
+  if (local_inhibit_above) then
     if (z < 0.) then
       inhibition_factor = 1.d0
       derivative = 0.d0
@@ -244,6 +247,7 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
       derivative = -1.d0 * (6.d0*z - 6.d0*z**2) / &
                            (log10_interval*concentration*LOG_TO_LN)
     endif
+!print *, concentration, z, inhibition_factor, derivative
   else ! inhibit below the threshold concentration
     if (z < 0.) then
       inhibition_factor = 0.d0
