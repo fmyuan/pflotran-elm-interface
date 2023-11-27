@@ -1,33 +1,33 @@
 -- CONCENTRATION: Total A(aq) --
-      Max:   8.9842485849843E-05
-      Min:   8.9842485849843E-05
-     Mean:   8.9842485849843E-05
-        1:   8.9842485849843E-05
+      Max:   8.9842485849979E-05
+      Min:   8.9842485849979E-05
+     Mean:   8.9842485849979E-05
+        1:   8.9842485849979E-05
 -- CONCENTRATION: Total B(aq) --
-      Max:   9.7968497169969E-04
-      Min:   9.7968497169969E-04
-     Mean:   9.7968497169969E-04
-        1:   9.7968497169969E-04
+      Max:   9.7968497169996E-04
+      Min:   9.7968497169996E-04
+     Mean:   9.7968497169996E-04
+        1:   9.7968497169996E-04
 -- CONCENTRATION: Total C(aq) --
-      Max:   1.5336271225518E-05
-      Min:   1.5336271225518E-05
-     Mean:   1.5336271225518E-05
-        1:   1.5336271225518E-05
+      Max:   1.5336271225313E-05
+      Min:   1.5336271225313E-05
+     Mean:   1.5336271225313E-05
+        1:   1.5336271225313E-05
 -- CONCENTRATION: D(im) --
-      Max:   2.1055334344317E-05
-      Min:   2.1055334344317E-05
-     Mean:   2.1055334344317E-05
-        1:   2.1055334344317E-05
+      Max:   2.1055334343968E-05
+      Min:   2.1055334343968E-05
+     Mean:   2.1055334343968E-05
+        1:   2.1055334343968E-05
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   2.6394118998269E-02
+   Time (seconds):   2.7792998000791E-02
    Time Steps:          112
-   Newton Iterations:          340
-   Linear Solver Iterations:          340
+   Newton Iterations:          341
+   Linear Solver Iterations:          341
    Time Step Cuts:            0
-   Solution 2-Norm:   9.8694189958445E-04
-   Residual 2-Norm:   7.3373965577327E-24
+   Solution 2-Norm:   9.8694189958473E-04
+   Residual 2-Norm:   1.2725238954027E-22

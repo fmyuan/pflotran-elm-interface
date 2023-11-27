@@ -159,11 +159,13 @@ subroutine ReactionInhibitionThreshold2(concentration, &
   PetscReal :: derivative
 
   PetscReal :: tempreal
+  PetscBool :: local_inhibit_above
 
-  tempreal = (concentration-threshold_concentration)*threshold_constant
+  local_inhibit_above = (threshold_concentration < 0.d0)
+  tempreal = (concentration-dabs(threshold_concentration))*threshold_constant
   ! derivative of atan(X) = 1 / (1 + X^2) dX
   derivative = threshold_constant / (1.d0+tempreal*tempreal) / PI
-  if (inhibit_above) then ! INHIBIT_ABOVE_THRESHOLD
+  if (local_inhibit_above) then ! INHIBIT_ABOVE_THRESHOLD
     inhibition_factor = 0.5d0 - atan(tempreal)/PI
     derivative = -1.d0 * derivative
   else ! INHIBIT_BELOW_THRESHOLD
