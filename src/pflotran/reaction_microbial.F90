@@ -413,9 +413,8 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       denominator = microbial%monod_K(imonod) + conc - &
                     microbial%monod_Cth(imonod)
 
-      dX_dconc = 1.d0 / denominator - &
-              (conc - microbial%monod_Cth(imonod)) / &
-              (denominator*denominator)
+      dX_dconc = (denominator - (conc - microbial%monod_Cth(imonod))) / &
+                 (denominator*denominator)
 
       dR_dc = -1.d0*dR_dX*dX_dconc*dconc_dmolal
       do i = 1, ncomp
