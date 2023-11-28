@@ -406,7 +406,6 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       dconc_dmolal = dconcentration_dmolal(jcomp)
 
       dR_dX = effective_rate_constant* &
-!              monod_terms* &
               inhibition_terms* &
               biomass_term
       do jj = 1, ii-1
@@ -444,7 +443,6 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
       dR_dX = effective_rate_constant* &
               monod_terms* &
-!              inhibition_terms* &
               biomass_term
       do jj = 1, ii-1
         dR_dX = dR_dX*inhibition(jj)
@@ -487,8 +485,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     if (ibiomass > 0) then
       dR_dbiomass = effective_rate_constant* &
                     monod_terms* &
-                    inhibition_terms!* &
-!                    biomass_term
+                    inhibition_terms
       dR_dbiomass = -1.d0* dR_dbiomass * dbiomass_conc_dconc
       do i = 1, ncomp
         icomp = microbial%specid(i,irxn)
