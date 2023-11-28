@@ -335,12 +335,10 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       threshold_conc = microbial%inhibition_C(iinhibition)
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          if (threshold_conc < 0.d0) then
-            threshold_conc = dabs(threshold_conc)
-            inhibition(ii) = threshold_conc / (threshold_conc + conc)
-          else
-            inhibition(ii) = conc / (threshold_conc + conc)
-          endif
+          call ReactionInhibitionMonod(conc,threshold_conc, &
+                                       (threshold_conc < 0.d0), &
+                                       tempreal,dummy)
+          inhibition(ii) = tempreal
         case(INHIBITION_THRESHOLD)
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
@@ -457,17 +455,10 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          if (threshold_conc < 0.d0) then
-            threshold_conc = dabs(threshold_conc)
-            denominator = threshold_conc + conc
-            dX_dc = -1.d0 * dconc_dmolal * threshold_conc / &
-                    (denominator*denominator)
-          else
-            denominator = threshold_conc + conc
-            dX_dc = dconc_dmolal / denominator - &
-                    dconc_dmolal * conc / &
-                    (denominator*denominator)
-          endif
+          call ReactionInhibitionMonod(conc,threshold_conc, &
+                                       (threshold_conc < 0.d0), &
+                                       dummy,dX_dc)
+          dX_dc = dX_dc * dconc_dmolal
         case(INHIBITION_THRESHOLD)
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &

@@ -88,16 +88,18 @@ subroutine ReactionInhibitionMonod(concentration,threshold_concentration, &
   PetscReal :: inhibition_factor
   PetscReal :: derivative
 
+  PetscReal :: local_threshold_concentration
   PetscReal :: denominator
 
-  denominator = threshold_concentration + concentration
-  if (inhibit_above) then ! inverse Monod
-    inhibition_factor = threshold_concentration / denominator
-    derivative = 1.d0 / denominator - &
-                 concentration / (denominator*denominator)
-  else ! Monod
+  local_threshold_concentration = dabs(threshold_concentration)
+  denominator = local_threshold_concentration + concentration
+  if (inhibit_above) then ! inhibit above
+    inhibition_factor = local_threshold_concentration / denominator
+    derivative = -1.d0 * local_threshold_concentration / &
+                         (denominator*denominator)
+  else ! inhibit below
     inhibition_factor = concentration / denominator
-    derivative = -1.d0 * threshold_concentration / (denominator*denominator)
+    derivative = (denominator - concentration) / (denominator*denominator)
   endif
 
 end subroutine ReactionInhibitionMonod
