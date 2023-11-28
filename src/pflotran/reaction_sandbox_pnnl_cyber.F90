@@ -648,7 +648,6 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: nh4_inhibition, dnh4_inhibition_dnh4
   PetscReal :: inhibited_rate(3)
-  PetscBool :: inhibit_above = PETSC_FALSE
 
   PetscReal :: rate(3), derivative_col(6,3)
 
@@ -702,62 +701,47 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
     select case(this%inhibit_func)
       case(INHIBIT_FUNC_ARCTAN1)
         call ReactionInhibitionThreshold(Cnh4,this%inhibit_by_reactants, &
-                                         inhibit_above, &
                                          nh4_inhibition,dnh4_inhibition_dnh4)
         call ReactionInhibitionThreshold(Cdoc,this%inhibit_by_reactants, &
-                                         inhibit_above, &
                                          doc_inhibition,drate_ddoc_inhib)
         call ReactionInhibitionThreshold(Co2,this%inhibit_by_reactants, &
-                                         inhibit_above, &
                                          o2_inhibition,drate_do2_inhib)
         call ReactionInhibitionThreshold(Cno3,this%inhibit_by_reactants, &
-                                         inhibit_above, &
                                          no3_inhibition,drate_dno3_inhib)
         call ReactionInhibitionThreshold(Cno2,this%inhibit_by_reactants, &
-                                         inhibit_above, &
                                          no2_inhibition,drate_dno2_inhib)
       case(INHIBIT_FUNC_ARCTAN2)
         call ReactionInhibitionThreshold(Cnh4,this%inhibit_by_reactants, &
                                          this%inhibit_func_constant, &
-                                         inhibit_above, &
                                          nh4_inhibition,dnh4_inhibition_dnh4)
         call ReactionInhibitionThreshold(Cdoc,this%inhibit_by_reactants, &
                                          this%inhibit_func_constant, &
-                                         inhibit_above, &
                                          doc_inhibition,drate_ddoc_inhib)
         call ReactionInhibitionThreshold(Co2,this%inhibit_by_reactants, &
                                          this%inhibit_func_constant, &
-                                         inhibit_above, &
                                          o2_inhibition,drate_do2_inhib)
         call ReactionInhibitionThreshold(Cno3,this%inhibit_by_reactants, &
                                          this%inhibit_func_constant, &
-                                         inhibit_above, &
                                          no3_inhibition,drate_dno3_inhib)
         call ReactionInhibitionThreshold(Cno2,this%inhibit_by_reactants, &
                                          this%inhibit_func_constant, &
-                                         inhibit_above, &
                                          no2_inhibition,drate_dno2_inhib)
       case(INHIBIT_FUNC_SMOOTHSTEP)
         call ReactionInhibitionSmoothstep(Cnh4,this%inhibit_by_reactants, &
                                           this%inhibit_func_constant, &
-                                          inhibit_above, &
                                           nh4_inhibition, &
                                           dnh4_inhibition_dnh4)
         call ReactionInhibitionSmoothstep(Cdoc,this%inhibit_by_reactants, &
                                           this%inhibit_func_constant, &
-                                          inhibit_above, &
                                           doc_inhibition,drate_ddoc_inhib)
         call ReactionInhibitionSmoothstep(Co2,this%inhibit_by_reactants, &
                                           this%inhibit_func_constant, &
-                                          inhibit_above, &
                                           o2_inhibition,drate_do2_inhib)
         call ReactionInhibitionSmoothstep(Cno3,this%inhibit_by_reactants, &
                                           this%inhibit_func_constant, &
-                                          inhibit_above, &
                                           no3_inhibition,drate_dno3_inhib)
         call ReactionInhibitionSmoothstep(Cno2,this%inhibit_by_reactants, &
                                           this%inhibit_func_constant, &
-                                          inhibit_above, &
                                           no2_inhibition,drate_dno2_inhib)
     end select
     drate_ddoc_inhib = drate_ddoc_inhib * &

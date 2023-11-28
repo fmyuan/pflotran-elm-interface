@@ -72,8 +72,7 @@ end function ReactionInhibitionCreate
 ! ************************************************************************** !
 
 subroutine ReactionInhibitionMonod(concentration,threshold_concentration, &
-                                   inhibit_above,inhibition_factor, &
-                                   derivative)
+                                   inhibition_factor,derivative)
   !
   ! Calculates inhibition through the Monod term
   !
@@ -84,7 +83,6 @@ subroutine ReactionInhibitionMonod(concentration,threshold_concentration, &
 
   PetscReal :: concentration
   PetscReal :: threshold_concentration
-  PetscBool :: inhibit_above
   PetscReal :: inhibition_factor
   PetscReal :: derivative
 
@@ -93,7 +91,7 @@ subroutine ReactionInhibitionMonod(concentration,threshold_concentration, &
 
   local_threshold_concentration = dabs(threshold_concentration)
   denominator = local_threshold_concentration + concentration
-  if (inhibit_above) then ! inhibit above
+  if (threshold_concentration < 0.d0) then ! inhibit above
     inhibition_factor = local_threshold_concentration / denominator
     derivative = -1.d0 * local_threshold_concentration / &
                          (denominator*denominator)
@@ -108,8 +106,7 @@ end subroutine ReactionInhibitionMonod
 
 subroutine ReactionInhibitionThreshold1(concentration, &
                                         threshold_concentration, &
-                                        inhibit_above,inhibition_factor, &
-                                        derivative)
+                                        inhibition_factor,derivative)
   !
   ! Calculates threshold inhibition using the arc tangent function
   !
@@ -120,7 +117,6 @@ subroutine ReactionInhibitionThreshold1(concentration, &
 
   PetscReal :: concentration
   PetscReal :: threshold_concentration
-  PetscBool :: inhibit_above
   PetscReal :: inhibition_factor
   PetscReal :: derivative
 
@@ -128,8 +124,7 @@ subroutine ReactionInhibitionThreshold1(concentration, &
 
   threshold_f = 1.d5/dabs(threshold_concentration)
   call ReactionInhibitionThreshold2(concentration,threshold_concentration, &
-                                    threshold_f,inhibit_above, &
-                                    inhibition_factor,derivative)
+                                    threshold_f,inhibition_factor,derivative)
 
 end subroutine ReactionInhibitionThreshold1
 
@@ -137,7 +132,7 @@ end subroutine ReactionInhibitionThreshold1
 
 subroutine ReactionInhibitionThreshold2(concentration, &
                                         threshold_concentration, &
-                                        threshold_constant,inhibit_above, &
+                                        threshold_constant, &
                                         inhibition_factor,derivative)
   !
   ! Calculates threshold inhibition using the arc tangent function
@@ -151,7 +146,6 @@ subroutine ReactionInhibitionThreshold2(concentration, &
   PetscReal :: concentration
   PetscReal :: threshold_concentration
   PetscReal :: threshold_constant
-  PetscBool :: inhibit_above
   PetscReal :: inhibition_factor
   PetscReal :: derivative
 
@@ -160,7 +154,7 @@ subroutine ReactionInhibitionThreshold2(concentration, &
   tempreal = (concentration-dabs(threshold_concentration))*threshold_constant
   ! derivative of atan(X) = 1 / (1 + X^2) dX
   derivative = threshold_constant / (1.d0+tempreal*tempreal) / PI
-  if (inhibit_above) then ! INHIBIT_ABOVE_THRESHOLD
+  if (threshold_concentration < 0.d0) then ! INHIBIT_ABOVE_THRESHOLD
     inhibition_factor = 0.5d0 - atan(tempreal)/PI
     derivative = -1.d0 * derivative
   else ! INHIBIT_BELOW_THRESHOLD
@@ -173,7 +167,6 @@ end subroutine ReactionInhibitionThreshold2
 
 subroutine ReactionInhibitionSmoothstep1(concentration, &
                                          threshold_concentration, &
-                                         inhibit_above, &
                                          inhibition_factor,derivative)
   !
   ! Calculates threshold inhibition using sigmoid function
@@ -185,16 +178,14 @@ subroutine ReactionInhibitionSmoothstep1(concentration, &
 
   PetscReal :: concentration
   PetscReal :: threshold_concentration
-  PetscBool :: inhibit_above
   PetscReal :: inhibition_factor
   PetscReal :: derivative
 
   PetscReal, parameter :: log10_interval = 3.d0
 
-  call ReactionInhibitionSmoothstep2(concentration, &
-                                     threshold_concentration, &
-                                     log10_interval,inhibit_above, &
-                                     inhibition_factor,derivative)
+  call ReactionInhibitionSmoothstep2(concentration,threshold_concentration, &
+                                     log10_interval,inhibition_factor, &
+                                     derivative)
 
 end subroutine ReactionInhibitionSmoothstep1
 
@@ -202,8 +193,8 @@ end subroutine ReactionInhibitionSmoothstep1
 
 subroutine ReactionInhibitionSmoothstep2(concentration, &
                                          threshold_concentration, &
-                                         log10_interval,inhibit_above, &
-                                         inhibition_factor,derivative)
+                                         log10_interval,inhibition_factor, &
+                                         derivative)
   !
   ! Calculates threshold inhibition using sigmoid function
   !
@@ -215,7 +206,6 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
   PetscReal :: concentration
   PetscReal :: threshold_concentration
   PetscReal :: log10_interval
-  PetscBool :: inhibit_above
   PetscReal :: inhibition_factor
   PetscReal :: derivative
 
@@ -229,7 +219,7 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
   z = (log_concentration - lower_bound) / log10_interval
 
   ! inhibition
-  if (inhibit_above) then
+  if (threshold_concentration < 0.d0) then
     if (z < 0.) then
       inhibition_factor = 1.d0
       derivative = 0.d0

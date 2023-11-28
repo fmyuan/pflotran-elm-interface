@@ -270,7 +270,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: monod(MAX_NUM_MONOD_TERMS)
   PetscReal :: inhibition(MAX_NUM_INHIBITION_TERMS)
   PetscReal :: biomass_conc, yield, dbiomass_conc_dconc
-  PetscReal :: denominator, dR_dX, dX_dc, dR_dc, dR_dbiomass
+  PetscReal :: denominator, dR_dX, dX_dconc, dR_dc, dR_dbiomass
   PetscReal :: tempreal
   PetscReal :: L_water
   PetscReal :: dummy
@@ -335,21 +335,17 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       threshold_conc = microbial%inhibition_C(iinhibition)
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          call ReactionInhibitionMonod(conc,threshold_conc, &
-                                       (threshold_conc < 0.d0), &
-                                       tempreal,dummy)
-          inhibition(ii) = tempreal
+          call ReactionInhibitionMonod(conc,threshold_conc,tempreal,dummy)
         case(INHIBITION_THRESHOLD)
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        (threshold_conc < 0.d0),tempreal,dummy)
-          inhibition(ii) = tempreal
+                                        tempreal,dummy)
         case(INHIBITION_SMOOTHSTEP)
           call ReactionInhibitionSmoothstep(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        (threshold_conc < 0.d0),tempreal,dummy)
-          inhibition(ii) = tempreal
+                                        tempreal,dummy)
       end select
+      inhibition(ii) = tempreal
       inhibition_terms = inhibition_terms*inhibition(ii)
     enddo
 
@@ -417,11 +413,11 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       denominator = microbial%monod_K(imonod) + conc - &
                     microbial%monod_Cth(imonod)
 
-      dX_dc = dconc_dmolal / denominator - &
-              dconc_dmolal * (conc - microbial%monod_Cth(imonod)) / &
+      dX_dconc = 1.d0 / denominator - &
+              (conc - microbial%monod_Cth(imonod)) / &
               (denominator*denominator)
 
-      dR_dc = -1.d0*dR_dX*dX_dc
+      dR_dc = -1.d0*dR_dX*dX_dconc*dconc_dmolal
       do i = 1, ncomp
         icomp = microbial%specid(i,irxn)
         ! units = (mol/sec)*(kg water/mol) = kg water/sec
@@ -454,22 +450,18 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
           call ReactionInhibitionMonod(conc,threshold_conc, &
-                                       (threshold_conc < 0.d0), &
-                                       dummy,dX_dc)
-          dX_dc = dX_dc * dconc_dmolal
+                                       dummy,dX_dconc)
         case(INHIBITION_THRESHOLD)
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        (threshold_conc < 0.d0),dummy,dX_dc)
-          dX_dc = dX_dc * dconc_dmolal
+                                        dummy,dX_dconc)
         case(INHIBITION_SMOOTHSTEP)
           call ReactionInhibitionSmoothstep(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
-                                        (threshold_conc < 0.d0),dummy,dX_dc)
-          dX_dc = dX_dc * dconc_dmolal
+                                        dummy,dX_dconc)
       end select
 
-      dR_dc = -1.d0*dR_dX*dX_dc
+      dR_dc = -1.d0*dR_dX*dX_dconc*dconc_dmolal
       do i = 1, ncomp
         icomp = microbial%specid(i,irxn)
         ! units = (mol/sec)*(kg water/mol) = kg water/sec

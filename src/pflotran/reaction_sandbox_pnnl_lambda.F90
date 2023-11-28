@@ -314,7 +314,6 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Rate(this%n_species)
   PetscReal :: u(this%n_rxn)
   PetscReal :: mu_max
-  PetscBool, parameter :: inhibit_above = PETSC_FALSE
 
   PetscInt :: icomp, irxn, i_carbon
 
@@ -362,23 +361,19 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 !      call ReactionThreshInhibitSmoothstep(C_aq(this%i_nh4), &
       call ReactionInhibitionSmoothstep(C_aq(this%i_nh4), &
                                              dabs(this%nh4_inhibit),1.d-3, &
-                                             inhibit_above, &
                                              nh4_inhibition,tempreal)
       do icomp = 1, this%n_species
         call ReactionInhibitionSmoothstep(C_aq(icomp),C_reactant_inhibit, &
                                           1.d-3, &
-                                          inhibit_above, &
                                           Reactant_inhibition(icomp), &
                                           tempreal)
       enddo
     case(LAMBDA_THRESHOLD_INHIBITION)
       call ReactionInhibitionThreshold(C_aq(this%i_nh4), &
                                        dabs(this%nh4_inhibit), &
-                                       inhibit_above, &
                                        nh4_inhibition,tempreal)
       do icomp = 1, this%n_species
         call ReactionInhibitionThreshold(C_aq(icomp),C_reactant_inhibit, &
-                                         inhibit_above, &
                                          Reactant_inhibition(icomp),tempreal)
       enddo
   end select
