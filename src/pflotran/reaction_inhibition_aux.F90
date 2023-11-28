@@ -10,10 +10,9 @@ module Reaction_Inhibition_Aux_module
   private
 
   ! inhibition parameters
-  PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
-  PetscInt, parameter, public :: INHIBITION_MONOD = 2
-  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 3
-  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 4
+  PetscInt, parameter, public :: INHIBITION_MONOD = 1
+  PetscInt, parameter, public :: INHIBITION_THRESHOLD = 2
+  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 3
 
   type, public :: inhibition_type
     PetscInt :: id

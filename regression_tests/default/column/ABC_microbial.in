@@ -73,7 +73,7 @@ CHEMISTRY
     INHIBITION
       SPECIES_NAME C(aq)
       TYPE MONOD
-      ! C is the product and inhibits when too high
+      INHIBIT_ABOVE_THRESHOLD
       THRESHOLD_CONCENTRATION 6.d-4
     /
   /

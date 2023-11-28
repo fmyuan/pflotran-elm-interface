@@ -152,69 +152,6 @@ subroutine MicrobialRead(microbial,input,option)
         call ReactionInhibitionRead(inhibition,input,option, &
                                     trim(microbial_rxn%reaction), &
                                     'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
-#if 0
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword', &
-                             'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
-          call StringToUpper(word)
-          select case(trim(word))
-            case('SPECIES_NAME')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option,'species name', &
-                                 'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
-              inhibition%species_name = word
-            case('TYPE')
-              call InputReadCard(input,option,word)
-              call InputErrorMsg(input,option,'inhibition type', &
-                                 'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
-              call StringToUpper(word)
-              select case(word)
-                case('MONOD')
-                  inhibition%itype = INHIBITION_MONOD
-                case('INVERSE_MONOD')
-                  inhibition%itype = INHIBITION_INVERSE_MONOD
-                case('THRESHOLD')
-                  inhibition%itype = INHIBITION_THRESHOLD
-                  call InputReadDouble(input,option, &
-                                       inhibition%inhibition_constant2)
-                  call InputErrorMsg(input,option,'scaling factor', &
-                                     'CHEMISTRY,MICROBIAL_REACTION,&
-                                     &INHIBITION,THRESHOLD_INHIBITION')
-                case('SMOOTHSTEP')
-                  inhibition%itype = INHIBITION_SMOOTHSTEP
-                  call InputReadDouble(input,option, &
-                                       inhibition%inhibition_constant2)
-                  call InputErrorMsg(input,option,'scaling factor', &
-                                     'CHEMISTRY,MICROBIAL_REACTION,&
-                                     &INHIBITION,SMOOTHSTEP')
-                case default
-                  call InputKeywordUnrecognized(input,word, &
-                         'CHEMISTRY,MICROBIAL_REACTION,INHIBITION,TYPE',option)
-              end select
-            case('INHIBITION_CONSTANT')
-              call InputReadDouble(input,option,inhibition%inhibition_constant)
-              call InputErrorMsg(input,option,'inhibition constant', &
-                                 'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
-            case default
-              call InputKeywordUnrecognized(input,word, &
-                      'CHEMISTRY,MICROBIAL_REACTION,INHIBITION',option)
-          end select
-        enddo
-        call InputPopBlock(input,option)
-        if (len_trim(inhibition%species_name) < 2 .or. &
-            inhibition%itype == 0 .or. &
-            Uninitialized(inhibition%inhibition_constant)) then
-          option%io_buffer = 'A SPECIES_NAME, TYPE, and INHIBITION_CON' // &
-            'STANT must be defined for INHIBITION in MICROBIAL_REACTION ' // &
-            'with REACTION "' // trim(microbial_rxn%reaction) // '".'
-          call PrintErrMsg(option)
-        endif
-#endif
         ! append to list
         if (.not.associated(microbial_rxn%inhibition)) then
           microbial_rxn%inhibition => inhibition
@@ -398,9 +335,12 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       threshold_conc = microbial%inhibition_C(iinhibition)
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          inhibition(ii) = threshold_conc / (threshold_conc + conc)
-        case(INHIBITION_INVERSE_MONOD)
-          inhibition(ii) = conc / (threshold_conc + conc)
+          if (threshold_conc < 0.d0) then
+            threshold_conc = dabs(threshold_conc)
+            inhibition(ii) = threshold_conc / (threshold_conc + conc)
+          else
+            inhibition(ii) = conc / (threshold_conc + conc)
+          endif
         case(INHIBITION_THRESHOLD)
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
@@ -517,14 +457,17 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
       select case(microbial%inhibition_type(iinhibition))
         case(INHIBITION_MONOD)
-          denominator = threshold_conc + conc
-          dX_dc = -1.d0 * dconc_dmolal * threshold_conc / &
-                  (denominator*denominator)
-        case(INHIBITION_INVERSE_MONOD)
-          denominator = threshold_conc + conc
-          dX_dc = dconc_dmolal / denominator - &
-                  dconc_dmolal * conc / &
-                  (denominator*denominator)
+          if (threshold_conc < 0.d0) then
+            threshold_conc = dabs(threshold_conc)
+            denominator = threshold_conc + conc
+            dX_dc = -1.d0 * dconc_dmolal * threshold_conc / &
+                    (denominator*denominator)
+          else
+            denominator = threshold_conc + conc
+            dX_dc = dconc_dmolal / denominator - &
+                    dconc_dmolal * conc / &
+                    (denominator*denominator)
+          endif
         case(INHIBITION_THRESHOLD)
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &

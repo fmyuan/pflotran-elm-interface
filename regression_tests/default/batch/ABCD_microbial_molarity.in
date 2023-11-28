@@ -34,7 +34,6 @@ CHEMISTRY
     INHIBITION
       SPECIES_NAME A(aq)
       TYPE THRESHOLD
-      # inhibited when A is below this value
       SCALING_FACTOR 1.d8
       INHIBIT_BELOW_THRESHOLD
       THRESHOLD_CONCENTRATION 9.d-5

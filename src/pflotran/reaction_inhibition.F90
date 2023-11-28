@@ -41,10 +41,10 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
   PetscInt, parameter :: INHIBIT_ABOVE = 1
   PetscInt, parameter :: INHIBIT_BELOW = 2
   PetscInt :: inhibit_above_or_below
-  PetscBool :: required_above_or_below
+  PetscBool :: require_above_or_below
 
   inhibit_above_or_below = UNINITIALIZED_INTEGER
-  required_above_or_below = PETSC_FALSE
+  require_above_or_below = PETSC_FALSE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -65,11 +65,13 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
         select case(word)
           case('MONOD')
             inhibition%itype = INHIBITION_MONOD
+            require_above_or_below = PETSC_TRUE
           case('INVERSE_MONOD')
-            inhibition%itype = INHIBITION_INVERSE_MONOD
+            call InputKeywordDeprecated(word,'a combination of &
+              &TYPE MONOD and INHIBIT_BELOW_THRESHOLD',option)
           case('THRESHOLD')
             inhibition%itype = INHIBITION_THRESHOLD
-            required_above_or_below = PETSC_TRUE
+            require_above_or_below = PETSC_TRUE
             call InputReadDouble(input,option,inhibition%inhibition_constant)
             if (.not.InputError(input)) then
               option%io_buffer = 'The INHIBITION THRESHOLD scaling factor &
@@ -79,7 +81,7 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
             endif
           case('SMOOTHSTEP')
             inhibition%itype = INHIBITION_SMOOTHSTEP
-            required_above_or_below = PETSC_TRUE
+            require_above_or_below = PETSC_TRUE
             call InputReadDouble(input,option,inhibition%inhibition_constant)
             if (.not.InputError(input)) then
               option%io_buffer = 'The INHIBITION SMOOTHSTEP interval &
@@ -111,9 +113,9 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
   enddo
   call InputPopBlock(input,option)
 
-  if (Uninitialized(inhibit_above_or_below) .and. required_above_or_below) then
+  if (Uninitialized(inhibit_above_or_below) .and. require_above_or_below) then
     option%io_buffer = 'Please specify whether to INHIBIT_ABOVE_THRESHOLD or &
-      &INHIBIT_BELOW_THRESHOLD concentration for THRESHOLD or SMOOTHSTEP &
+      &INHIBIT_BELOW_THRESHOLD concentration for MONOD, THRESHOLD or SMOOTHSTEP &
       &inhibition in "' // &
       trim(error_string) // ' : ' // trim(reaction_name) // '".'
     call PrintErrMsg(option)
