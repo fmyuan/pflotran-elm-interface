@@ -529,10 +529,12 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
           call ReactionInhibitionThreshold(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
                                         (threshold_conc < 0.d0),dummy,dX_dc)
+          dX_dc = dX_dc * dconc_dmolal
         case(INHIBITION_SMOOTHSTEP)
           call ReactionInhibitionSmoothstep(conc,threshold_conc, &
                                         microbial%inhibition_C2(iinhibition), &
                                         (threshold_conc < 0.d0),dummy,dX_dc)
+          dX_dc = dX_dc * dconc_dmolal
       end select
 
       dR_dc = -1.d0*dR_dX*dX_dc
