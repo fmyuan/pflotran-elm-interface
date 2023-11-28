@@ -77,7 +77,8 @@ CHEMISTRY
     INHIBITION
       SPECIES_NAME C(aq)
       TYPE INVERSE_MONOD
-      INHIBITION_CONSTANT 6.d-4   ! C is the product and inhibits when too high
+      ! C is the product and inhibits when too high
+      THRESHOLD_CONCENTRATION 6.d-4
     /
     BIOMASS
       SPECIES_NAME D(im)

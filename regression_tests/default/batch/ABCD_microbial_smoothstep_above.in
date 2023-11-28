@@ -33,8 +33,11 @@ CHEMISTRY
     /
     INHIBITION
       SPECIES_NAME C(aq)
-      TYPE SMOOTHSTEP 2.d0
-      INHIBITION_CONSTANT -1.d-5 ! C is the product and inhibits when too high
+      TYPE SMOOTHSTEP
+      # C is the product and inhibits when too high
+      SMOOTHSTEP_INTERVAL 2.d0
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 1.d-5 
     /
     BIOMASS
       SPECIES_NAME D(im)

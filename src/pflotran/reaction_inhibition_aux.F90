@@ -10,14 +10,10 @@ module Reaction_Inhibition_Aux_module
   private
 
   ! inhibition parameters
-  PetscInt, parameter, public :: INHIBIT_BELOW_THRESHOLD = 0
-  PetscInt, parameter, public :: INHIBIT_ABOVE_THRESHOLD = 1
-
   PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
-  PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2
-  PetscInt, parameter, public :: INHIBITION_MONOD = 3
-  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 4
-  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 5
+  PetscInt, parameter, public :: INHIBITION_MONOD = 2
+  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 3
+  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 4
 
   type, public :: inhibition_type
     PetscInt :: id
@@ -67,7 +63,7 @@ function ReactionInhibitionCreate()
   inhibition%itype = 0
   inhibition%species_name = ''
   inhibition%inhibition_constant = UNINITIALIZED_DOUBLE
-  inhibition%inhibition_constant2 = 0.d0
+  inhibition%inhibition_constant2 = UNINITIALIZED_DOUBLE
   nullify(inhibition%next)
 
   ReactionInhibitionCreate => inhibition
@@ -129,7 +125,7 @@ subroutine ReactionInhibitionThreshold1(concentration, &
 
   PetscReal :: threshold_f
 
-  threshold_f = 1.d5/threshold_concentration
+  threshold_f = 1.d5/dabs(threshold_concentration)
   call ReactionInhibitionThreshold2(concentration,threshold_concentration, &
                                     threshold_f,inhibit_above, &
                                     inhibition_factor,derivative)

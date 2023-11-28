@@ -38,7 +38,13 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
   character(len=*) :: error_string
 
   character(len=MAXWORDLENGTH) :: word
+  PetscInt, parameter :: INHIBIT_ABOVE = 1
+  PetscInt, parameter :: INHIBIT_BELOW = 2
+  PetscInt :: inhibit_above_or_below
+  PetscBool :: required_above_or_below
 
+  inhibit_above_or_below = UNINITIALIZED_INTEGER
+  required_above_or_below = PETSC_FALSE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -63,34 +69,63 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
             inhibition%itype = INHIBITION_INVERSE_MONOD
           case('THRESHOLD')
             inhibition%itype = INHIBITION_THRESHOLD
-            call InputReadDouble(input,option, &
-                                 inhibition%inhibition_constant2)
-            call InputErrorMsg(input,option,'scaling factor', &
-                               trim(error_string)//',TYPE,THRESHOLD')
+            required_above_or_below = PETSC_TRUE
+            call InputReadDouble(input,option,inhibition%inhibition_constant)
+            if (.not.InputError(input)) then
+              option%io_buffer = 'The INHIBITION THRESHOLD scaling factor &
+                &must now be specified under a separate keyword "SCALING_&
+                &FACTOR <float>".'
+              call PrintErrMsg(option)
+            endif
           case('SMOOTHSTEP')
             inhibition%itype = INHIBITION_SMOOTHSTEP
-            call InputReadDouble(input,option, &
-                                 inhibition%inhibition_constant2)
-            call InputErrorMsg(input,option,'interval', &
-                               trim(error_string)//',TYPE,SMOOTHSTEP')
+            required_above_or_below = PETSC_TRUE
+            call InputReadDouble(input,option,inhibition%inhibition_constant)
+            if (.not.InputError(input)) then
+              option%io_buffer = 'The INHIBITION SMOOTHSTEP interval &
+                &must now be specified under a separate keyword "SMOOTHSTEP_&
+                &INTERVAL <float>".'
+              call PrintErrMsg(option)
+            endif
           case default
             call InputKeywordUnrecognized(input,word, &
                                           trim(error_string)//'TYPE',option)
         end select
-      case('INHIBITION_CONSTANT','THRESHOLD_CONCENTRATION')
+      case('THRESHOLD_CONCENTRATION')
         call InputReadDouble(input,option,inhibition%inhibition_constant)
         call InputErrorMsg(input,option,word,error_string)
-#if 0
+      case('SCALING_FACTOR','SMOOTHSTEP_INTERVAL')
+        call InputReadDouble(input,option,inhibition%inhibition_constant2)
+        call InputErrorMsg(input,option,word,error_string)
+      case('INHIBIT_BELOW_THRESHOLD')
+        inhibit_above_or_below = INHIBIT_BELOW
+      case('INHIBIT_ABOVE_THRESHOLD')
+        inhibit_above_or_below = INHIBIT_ABOVE
       case('INHIBITION_CONSTANT')
         call InputKeywordDeprecated(word,'a combination of &
           &THRESHOLD_CONCENTRATION and (INHIBIT_ABOVE_THRESHOLD or &
-          &INHIBIT_BELOW_THRESHOLD)')
-#endif
+          &INHIBIT_BELOW_THRESHOLD)',option)
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  if (Uninitialized(inhibit_above_or_below) .and. required_above_or_below) then
+    option%io_buffer = 'Please specify whether to INHIBIT_ABOVE_THRESHOLD or &
+      &INHIBIT_BELOW_THRESHOLD concentration for THRESHOLD or SMOOTHSTEP &
+      &inhibition in "' // &
+      trim(error_string) // ' : ' // trim(reaction_name) // '".'
+    call PrintErrMsg(option)
+  endif
+
+  select case(inhibit_above_or_below)
+    case(INHIBIT_ABOVE)
+      inhibition%inhibition_constant = -1.d0 * &
+                                       dabs(inhibition%inhibition_constant)
+    case(INHIBIT_BELOW)
+      inhibition%inhibition_constant = dabs(inhibition%inhibition_constant)
+  end select
 
   if (len_trim(inhibition%species_name) < 2 .or. &
       inhibition%itype == 0 .or. &
@@ -99,6 +134,17 @@ subroutine ReactionInhibitionRead(inhibition,input,option,reaction_name, &
       'STANT must be defined for INHIBITION in REACTION "' // &
       trim(reaction_name) // '".'
     call PrintErrMsg(option)
+  endif
+
+  ! set defaults
+  if (Uninitialized(inhibition%inhibition_constant2)) then
+    select case(inhibition%itype)
+      case(INHIBITION_THRESHOLD) ! scaling factor
+        inhibition%inhibition_constant2 = 1.d5 / &
+                                          dabs(inhibition%inhibition_constant)
+      case(INHIBITION_SMOOTHSTEP) ! interval
+        inhibition%inhibition_constant2 = 3.d0
+    end select
   endif
 
 end subroutine ReactionInhibitionRead

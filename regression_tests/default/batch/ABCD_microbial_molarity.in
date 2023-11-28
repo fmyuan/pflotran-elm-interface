@@ -33,8 +33,11 @@ CHEMISTRY
     /
     INHIBITION
       SPECIES_NAME A(aq)
-      TYPE THRESHOLD 1.d8
-      INHIBITION_CONSTANT 9.d-5 ! inhibited when A is below this value
+      TYPE THRESHOLD
+      # inhibited when A is below this value
+      SCALING_FACTOR 1.d8
+      INHIBIT_BELOW_THRESHOLD
+      THRESHOLD_CONCENTRATION 9.d-5
     /
     BIOMASS
       SPECIES_NAME D(im)

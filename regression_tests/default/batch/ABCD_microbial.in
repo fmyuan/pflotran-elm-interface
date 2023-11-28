@@ -33,8 +33,11 @@ CHEMISTRY
     /
     INHIBITION
       SPECIES_NAME C(aq)
-      TYPE THRESHOLD 1.d8
-      INHIBITION_CONSTANT -1.d-6 ! C is the product and inhibits when too high
+      TYPE THRESHOLD
+      # C is the product and inhibits when too high
+      SCALING_FACTOR 1.d8
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 1.d-6 
     /
     BIOMASS
       SPECIES_NAME D(im)
