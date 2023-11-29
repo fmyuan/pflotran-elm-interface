@@ -1,7 +1,7 @@
 module HDF5_Aux_module
 
 #include "petsc/finclude/petscsys.h"
-  use iso_c_binding
+  use, intrinsic :: iso_c_binding
   use petscsys
   use hdf5
   use h5lt
