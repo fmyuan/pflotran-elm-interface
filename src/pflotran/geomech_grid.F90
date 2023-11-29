@@ -680,6 +680,9 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     if (geomech_grid%gauss_node(local_id)%Eletype == PYR_TYPE) &
       geomech_grid%gauss_node(local_id)%NGPTS = FIVE_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
+    if (geomech_grid%gauss_node(local_id)%Eletype == TET_TYPE) &
+      geomech_grid%gauss_node(local_id)%NGPTS = FOUR_INTEGER
+    call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
   enddo
 
   ! Store petsc ids of the local and ghost nodes in the new re-ordered system on
