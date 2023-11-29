@@ -1,0 +1,164 @@
+#Description: 1D solute transport
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== prescribed flow parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1. 0. 0. m/yr
+END
+
+REFERENCE_LIQUID_DENSITY 1000. kg/m^3
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Aaq
+  /
+  OUTPUT
+    TOTAL
+    ALL
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 100 1 1
+  BOUNDS
+    0. 0. 0.
+    100. 1. 1.
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-8
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25
+  TORTUOSITY 1.
+END
+
+#=========================== output options ===================================
+OUTPUT
+  TIMES y 6.25 12.5 18.75
+  FORMAT TECPLOT POINT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 25. y
+  INITIAL_TIMESTEP_SIZE 1. h
+  MAXIMUM_TIMESTEP_SIZE 0.25 y
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION middle
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0. 0. 0.
+    100. 1. 1.
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0. 0. 0.
+    0. 1. 1.
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    100. 0. 0.
+    100. 1. 1.
+  /
+END
+
+REGION middle
+  COORDINATE 50. 0.5 0.5
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0. initial_constraint
+  /
+END
+
+TRANSPORT_CONDITION inlet_conc
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0. inlet_constraint
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    Aaq   1.d-10   T
+  /
+END
+
+CONSTRAINT inlet_constraint
+  CONCENTRATIONS
+    Aaq   1.d-3    T
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION background_conc
+  REGION all
+END
+
+BOUNDARY_CONDITION outlet
+  TRANSPORT_CONDITION background_conc
+  REGION east
+END
+
+BOUNDARY_CONDITION inlet
+  TRANSPORT_CONDITION inlet_conc
+  REGION west
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
