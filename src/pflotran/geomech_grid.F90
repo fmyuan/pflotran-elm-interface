@@ -86,6 +86,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
 
 #ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
   call PrintMsg(option,'Copying unstructured grid to geomechanics grid')
 #endif
 
@@ -818,6 +820,11 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   PetscScalar, pointer :: v_loc_p(:)
   PetscScalar, pointer :: tmp_scl_array(:)
 
+#ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string, string1
+  PetscViewer :: viewer
+#endif
+
   if (associated(geomech_region%vertex_ids)) then
     call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
                       vec_vertex_ids,ierr);CHKERRQ(ierr)
@@ -1110,6 +1117,12 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   PetscInt :: iend
   PetscInt :: remainder
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  PetscInt :: ii
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it

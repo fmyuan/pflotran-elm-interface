@@ -679,6 +679,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   PetscErrorCode :: ierr
 
 #ifdef GEOMECH_DEBUG
+  PetscViewer :: viewer
   print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
 #endif
 

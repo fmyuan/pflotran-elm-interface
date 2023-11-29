@@ -345,6 +345,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscInt :: local_id, ghosted_id, material_id, i
   PetscErrorCode :: ierr
 
+#ifdef GEOMECH_DEBUG
+  PetscViewer :: viewer
+#endif
+
   option => realization%option
   discretization => realization%discretization
   field => realization%field

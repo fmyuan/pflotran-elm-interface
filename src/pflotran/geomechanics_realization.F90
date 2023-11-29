@@ -370,6 +370,10 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   IS :: is_subsurf_petsc_block
   PetscInt :: size_int_ptr
 
+#ifdef GEOMECH_DEBUG
+  PetscViewer :: viewer
+#endif
+
   geomech_grid => geomech_realization%geomech_discretization%grid
   grid => realization%discretization%grid
 
@@ -443,7 +447,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm,'geomech_is_subsurf_petsc.out', &
                             viewer,ierr);CHKERRQ(ierr)
-  call ISView(is_subsurf_natural,viewer,ierr);CHKERRQ(ierr)
+  call ISView(is_subsurf_petsc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
@@ -485,6 +489,12 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
                             viewer,ierr);CHKERRQ(ierr)
   call ISView(is_geomech_petsc,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerASCIIOpen(option%mycomm, &
+                            'geomech_is_subsurf_petsc.out', &
+                            viewer,ierr);CHKERRQ(ierr)
+  call ISView(is_subsurf,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
 #endif
 
   ! Create scatter context between flow and geomech
@@ -626,6 +636,11 @@ subroutine GeomechGridElemSharedByNodes(geomech_realization,option)
   PetscInt :: elenodes(10)
   PetscReal, pointer :: elem_sharing_node_loc_p(:)
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   grid => geomech_realization%geomech_discretization%grid
 

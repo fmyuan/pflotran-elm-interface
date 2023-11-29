@@ -680,6 +680,11 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
 
   class(pm_subsurface_flow_type) :: this
 
+#ifdef GEOMECH_DEBUG
+  PetscErrorCode :: ierr
+  PetscViewer :: viewer
+#endif
+
   if (this%option%flow%store_state_variables_in_global) then
     ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
