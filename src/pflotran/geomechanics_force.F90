@@ -902,14 +902,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
       call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
-    ! Set identity matrix
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     youngs_mod = dot_product(shapefunction%N,local_youngs)
     poissons_ratio = dot_product(shapefunction%N,local_poissons)
@@ -1037,14 +1030,7 @@ subroutine GeomechForceLocalElemError(size_elenodes,local_coordinates, &
       call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
-    ! Set identity matrix
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     grad_u = matmul(transpose(local_disp),B)
     call GeomechGetLambdaMu(lambda,mu,x)
@@ -1190,14 +1176,7 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
       call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
-    ! Set identity matrix
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     youngs_mod = dot_product(shapefunction%N,local_youngs)
     poissons_ratio = dot_product(shapefunction%N,local_poissons)
@@ -2162,13 +2141,7 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
     shapefunction%zeta = shapefunction%coord(ivertex,:)
     call ShapeFunctionCalculate(shapefunction)
     J_map = matmul(transpose(local_coordinates),shapefunction%DN)
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     youngs_mod = dot_product(shapefunction%N,local_youngs)
     poissons_ratio = dot_product(shapefunction%N,local_poissons)

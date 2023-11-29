@@ -97,6 +97,7 @@ module Utility_module
             Kron, &
             Transposer, &
             Determinant, &
+            MatInv3, &
             InterfaceApproxWithDeriv, &
             InterfaceApproxWithoutDeriv, &
             PrintProgressBarInt, &
@@ -2248,6 +2249,36 @@ subroutine Determinant(A,detA)
 
 
 end subroutine Determinant
+
+! ************************************************************************** !
+
+subroutine MatInv3(A,invA)
+  !
+  ! Inverse of a 3x3 matrix
+  !
+  ! Author: Satish Karra, PNNL
+  ! Date: 11/28/2023
+  !
+
+  PetscReal, intent(in) :: A(3,3)
+  PetscReal :: invA(3,3)
+  PetscReal :: detA
+
+  detA = A(1,1)*(A(2,2)*A(3,3) - A(3,2)*A(2,3)) &
+       + A(1,2)*(A(3,1)*A(2,3) - A(2,1)*A(3,3))  &
+       + A(1,3)*(A(2,1)*A(3,2) - A(3,1)*A(2,2))
+
+  invA(1,1) = +1.0/detA * (A(2,2)*A(3,3) - A(2,3)*A(3,2))
+  invA(2,1) = -1.0/detA * (A(2,1)*A(3,3) - A(2,3)*A(3,1))
+  invA(3,1) = +1.0/detA * (A(2,1)*A(3,2) - A(2,2)*A(3,1))
+  invA(1,2) = -1.0/detA * (A(1,2)*A(3,3) - A(1,3)*A(3,2))
+  invA(2,2) = +1.0/detA * (A(1,1)*A(3,3) - A(1,3)*A(3,1))
+  invA(3,2) = -1.0/detA * (A(1,1)*A(3,2) - A(1,2)*A(3,1))
+  invA(1,3) = +1.0/detA * (A(1,2)*A(2,3) - A(1,3)*A(2,2))
+  invA(2,3) = -1.0/detA * (A(1,1)*A(2,3) - A(1,3)*A(2,1))
+  invA(3,3) = +1.0/detA * (A(1,1)*A(2,2) - A(1,2)*A(2,1))
+
+end subroutine MatInv3
 
 ! ************************************************************************** !
 subroutine InterfaceApproxWithDeriv(v_up, v_dn, dv_up, dv_dn, dv_up2dn, &
