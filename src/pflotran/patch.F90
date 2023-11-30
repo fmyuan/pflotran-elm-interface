@@ -851,6 +851,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Transport_Constraint_module
   use General_Aux_module
   use WIPP_Flow_Aux_module
+  use Dataset_Common_HDF5_class
 
   implicit none
 
@@ -1107,6 +1108,26 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
         cur_constraint_coupler => cur_constraint_coupler%next
       enddo
     endif
+
+    ! catch boundary conditions that couple cell indexed datasets
+    if (coupler%itype /= INITIAL_COUPLER_TYPE .and. &
+        associated(coupler%flow_condition)) then
+      do temp_int = 1, size(coupler%flow_condition%sub_condition_ptr)
+        select type(selector=>coupler%flow_condition% &
+                                sub_condition_ptr(temp_int)%ptr%dataset)
+          class is(dataset_common_hdf5_type)
+            if (selector%is_cell_indexed) then
+              option%io_buffer = 'Cell indexed dataset cannot be coupled &
+                &to boundary conditions or source/sinks. That is the case &
+                &for FLOW_CONDITION "' // trim(coupler%flow_condition%name) // &
+                '" in BOUNDARY_CONDITION or SOURCE_SINK "' // &
+                trim(coupler%name) // '".'
+              call PrintErrMsg(option)
+            endif
+        end select
+      enddo
+    endif
+
     coupler => coupler%next
   enddo
 
