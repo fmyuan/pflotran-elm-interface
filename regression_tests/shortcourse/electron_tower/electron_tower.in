@@ -1,0 +1,156 @@
+#Description: 1D transport with redox chemistry based on electron tower
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    O2(aq)
+    NO3-
+    NO2-
+    CH2O(aq)
+    CO2(aq)
+  /
+  
+  MICROBIAL_REACTION
+    REACTION CH2O(aq) + O2(aq) <-> CO2(aq) + H2O
+    RATE_CONSTANT 1.d-11
+    MONOD
+      SPECIES_NAME O2(aq)
+      HALF_SATURATION_CONSTANT 1.d-4
+    /
+    MONOD
+      SPECIES_NAME CH2O(aq)
+      HALF_SATURATION_CONSTANT 1.d-4
+    /
+  /
+  
+  MICROBIAL_REACTION
+    REACTION CH2O(aq) + 2. NO3- <-> 2. NO2- + CO2(aq) + H2O
+    RATE_CONSTANT 1.d-12
+    MONOD
+      SPECIES_NAME NO3-
+      HALF_SATURATION_CONSTANT 1.d-4
+    /
+    MONOD
+      SPECIES_NAME CH2O(aq)
+      HALF_SATURATION_CONSTANT 1.d-4
+    /
+    INHIBITION
+      SPECIES_NAME O2(aq)
+      TYPE THRESHOLD
+      SCALING_FACTOR 1.d8
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 1.d-6
+    /
+  /
+  
+  DATABASE ../../../database/cybernetic.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    FREE_ION
+    ALL
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+#  PERIODIC_OBSERVATION TIME 0.5 y
+END
+
+OBSERVATION
+  REGION entire_universe
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION entire_universe
+  COORDINATES
+    -1.d20 -1.e20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    O2(aq)   1.d-3    F
+    NO3-     1.d-3    F
+    NO2-     1.d-10   F
+    CH2O(aq) 2.d-3    F
+    CO2(aq)  1.d-10   F
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION background_conc
+  REGION entire_universe
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION entire_universe
+  MATERIAL soil1
+/
+
+END_SUBSURFACE

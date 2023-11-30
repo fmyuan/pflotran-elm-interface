@@ -367,7 +367,8 @@ ert.o : \
   patch.o \
   pflotran_constants.o \
   realization_subsurface.o \
-  survey.o
+  survey.o \
+  variables.o
 ert_aux.o : \
   global_aux.o \
   material_aux.o \
@@ -465,7 +466,8 @@ factory_pflotran.o : \
   simulation_inverse.o \
   simulation_multirealization.o \
   simulation_subsurface.o \
-  string.o
+  string.o \
+  utility.o
 factory_subsurface.o : \
   checkpoint.o \
   dataset.o \
@@ -951,6 +953,7 @@ grid.o : \
   option.o \
   pflotran_constants.o \
   region.o \
+  string.o \
   utility.o
 grid_structured.o : \
   connection.o \
@@ -1276,7 +1279,6 @@ inversion_parameter.o : \
   input_aux.o \
   material_aux.o \
   option.o \
-  option_inversion.o \
   pflotran_constants.o \
   string.o \
   units.o \
@@ -2622,6 +2624,7 @@ reaction_database.o : \
   reaction_gas_aux.o \
   reaction_immobile.o \
   reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
   reaction_isotherm_aux.o \
   reaction_microbial.o \
   reaction_microbial_aux.o \
@@ -2673,6 +2676,15 @@ reaction_immobile_aux.o : \
   reaction_database_aux.o \
   string.o \
   utility.o
+reaction_inhibition.o : \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_inhibition_aux.o \
+  string.o
+reaction_inhibition_aux.o : \
+  pflotran_constants.o
 reaction_isotherm.o : \
   global_aux.o \
   input_aux.o \
@@ -2696,6 +2708,8 @@ reaction_microbial.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_immobile_aux.o \
+  reaction_inhibition.o \
+  reaction_inhibition_aux.o \
   reaction_microbial_aux.o \
   reactive_transport_aux.o \
   string.o \
@@ -2703,6 +2717,7 @@ reaction_microbial.o : \
 reaction_microbial_aux.o : \
   pflotran_constants.o \
   reaction_database_aux.o \
+  reaction_inhibition_aux.o \
   utility.o
 reaction_mineral.o : \
   global_aux.o \
@@ -2882,6 +2897,7 @@ reaction_sandbox_pnnl_cyber.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
   reaction_mineral_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
@@ -2895,6 +2911,7 @@ reaction_sandbox_pnnl_lambda.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  reaction_inhibition_aux.o \
   reaction_mineral_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
@@ -3581,6 +3598,7 @@ utility.o : \
   input_aux.o \
   option.o \
   pflotran_constants.o \
+  print.o \
   string.o
 variables.o :
 waypoint.o : \

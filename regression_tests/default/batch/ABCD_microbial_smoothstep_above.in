@@ -12,8 +12,6 @@ END
 SUBSURFACE
 EXTERNAL_FILE ABCD_microbial_base.txt
 
-REFERENCE_TEMPERATURE 35.d0 C
-
 #=========================== chemistry ========================================
 CHEMISTRY
   EXTERNAL_FILE ABCD_microbial_base_chem.txt
@@ -22,23 +20,23 @@ CHEMISTRY
   MICROBIAL_REACTION
     CONCENTRATION_UNITS ACTIVITY
     REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
-    RATE_CONSTANT 1.d-6
-    ACTIVATION_ENERGY 0.65d0 kJ/mol
-    MONOD
-      SPECIES_NAME A(aq)
+    RATE_CONSTANT 1.d-4
+    MONOD 
+      SPECIES_NAME A(aq) 
       HALF_SATURATION_CONSTANT 1.d-5        ! A is the donor
       THRESHOLD_CONCENTRATION 1.d-20
     /
     MONOD
-      SPECIES_NAME B(aq)
+      SPECIES_NAME B(aq) 
       HALF_SATURATION_CONSTANT 1.d-4        ! B is the acceptor
       THRESHOLD_CONCENTRATION 1.d-11
     /
     INHIBITION
       SPECIES_NAME C(aq)
-      TYPE MONOD
-      INHIBIT_BELOW_THRESHOLD
-      THRESHOLD_CONCENTRATION 6.d-4
+      TYPE SMOOTHSTEP
+      SMOOTHSTEP_INTERVAL 2.d0
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 1.d-5 
     /
     BIOMASS
       SPECIES_NAME D(im)
