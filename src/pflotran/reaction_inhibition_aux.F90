@@ -220,10 +220,10 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
 
   ! inhibition
   if (threshold_concentration < 0.d0) then ! INHIBIT_ABOVE_THRESHOLD
-    if (z < 0.) then
+    if (z < 0.d0) then
       inhibition_factor = 1.d0
       derivative = 0.d0
-    else if (z > 1.) then
+    else if (z > 1.d0) then
       inhibition_factor = 0.d0
       derivative = 0.d0
     else
@@ -232,10 +232,10 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
                            (log10_interval*concentration*LOG_TO_LN)
     endif
   else ! INHIBIT_BELOW_THRESHOLD
-    if (z < 0.) then
+    if (z < 0.d0) then
       inhibition_factor = 0.d0
       derivative = 0.d0
-    else if (z > 1.) then
+    else if (z > 1.d0) then
       inhibition_factor = 1.d0
       derivative = 0.d0
     else
