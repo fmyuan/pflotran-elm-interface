@@ -846,9 +846,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
   PetscReal :: x(THREE_INTEGER), J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: inv_J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: detJ_map
-  PetscInt :: i,j,d
-  PetscReal :: eye_three(THREE_INTEGER)
-  PetscInt :: indx(THREE_INTEGER)
+  PetscInt :: i,j
   PetscInt :: dim
   PetscReal :: lambda, mu, beta, alpha
   PetscReal :: density, youngs_mod, poissons_ratio
@@ -1129,9 +1127,7 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
   PetscReal :: x(THREE_INTEGER), J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: inv_J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: detJ_map
-  PetscInt :: i,j,d
-  PetscReal :: eye_three(THREE_INTEGER)
-  PetscInt :: indx(THREE_INTEGER)
+  PetscInt :: i,j
   PetscInt :: dim
   PetscReal :: lambda, mu
   PetscReal :: youngs_mod, poissons_ratio
@@ -2097,9 +2093,8 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   PetscInt :: ivertex
   PetscInt :: eletype
   PetscReal :: identity(THREE_INTEGER,THREE_INTEGER)
-  PetscInt :: indx(THREE_INTEGER)
   PetscInt :: dim
-  PetscInt :: i, j, d
+  PetscInt :: i, j
   PetscReal :: lambda, mu
   PetscReal :: youngs_mod, poissons_ratio
   PetscReal, allocatable :: kron_B_eye(:,:)
@@ -2110,7 +2105,6 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   PetscInt :: size_elenodes
   PetscReal :: J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: inv_J_map(THREE_INTEGER,THREE_INTEGER)
-  PetscReal :: eye_three(THREE_INTEGER)
   PetscReal :: eye_vec(NINE_INTEGER,ONE_INTEGER)
 
   allocate(B(size_elenodes,dim))
