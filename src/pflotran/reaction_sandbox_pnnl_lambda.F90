@@ -282,9 +282,10 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   ! Author: Katie Muller
   ! Date: 07/05/22
 
+  use Material_Aux_module
   use Option_module
   use Reaction_Aux_module
-  use Material_Aux_module
+  use Reaction_Inhibition_Aux_module
 
   implicit none
 
@@ -357,21 +358,22 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   C_reactant_inhibit = 1.d-18
   select case(this%inhibition_type)
     case(LAMBDA_SMOOTHSTEP_INHIBITION)
-      call ReactionThreshInhibitSmoothstep(C_aq(this%i_nh4), &
-                                           dabs(this%nh4_inhibit),1.d-3, &
-                                           nh4_inhibition,tempreal)
+!      call ReactionThreshInhibitSmoothstep(C_aq(this%i_nh4), &
+      call ReactionInhibitionSmoothstep(C_aq(this%i_nh4), &
+                                             dabs(this%nh4_inhibit),1.d-3, &
+                                             nh4_inhibition,tempreal)
       do icomp = 1, this%n_species
-        call ReactionThreshInhibitSmoothstep(C_aq(icomp),C_reactant_inhibit, &
-                                             1.d-3, &
-                                             Reactant_inhibition(icomp), &
-                                             tempreal)
+        call ReactionInhibitionSmoothstep(C_aq(icomp),C_reactant_inhibit, &
+                                          1.d-3, &
+                                          Reactant_inhibition(icomp), &
+                                          tempreal)
       enddo
     case(LAMBDA_THRESHOLD_INHIBITION)
-      call ReactionThresholdInhibition(C_aq(this%i_nh4), &
+      call ReactionInhibitionThreshold(C_aq(this%i_nh4), &
                                        dabs(this%nh4_inhibit), &
                                        nh4_inhibition,tempreal)
       do icomp = 1, this%n_species
-        call ReactionThresholdInhibition(C_aq(icomp),C_reactant_inhibit, &
+        call ReactionInhibitionThreshold(C_aq(icomp),C_reactant_inhibit, &
                                          Reactant_inhibition(icomp),tempreal)
       enddo
   end select
