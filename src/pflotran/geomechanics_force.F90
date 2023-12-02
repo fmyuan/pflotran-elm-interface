@@ -846,9 +846,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
   PetscReal :: x(THREE_INTEGER), J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: inv_J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: detJ_map
-  PetscInt :: i,j,d
-  PetscReal :: eye_three(THREE_INTEGER)
-  PetscInt :: indx(THREE_INTEGER)
+  PetscInt :: i,j
   PetscInt :: dim
   PetscReal :: lambda, mu, beta, alpha
   PetscReal :: density, youngs_mod, poissons_ratio
@@ -902,14 +900,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
       call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
-    ! Set identity matrix
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     youngs_mod = dot_product(shapefunction%N,local_youngs)
     poissons_ratio = dot_product(shapefunction%N,local_poissons)
@@ -1037,14 +1028,7 @@ subroutine GeomechForceLocalElemError(size_elenodes,local_coordinates, &
       call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
-    ! Set identity matrix
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     grad_u = matmul(transpose(local_disp),B)
     call GeomechGetLambdaMu(lambda,mu,x)
@@ -1143,9 +1127,7 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
   PetscReal :: x(THREE_INTEGER), J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: inv_J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: detJ_map
-  PetscInt :: i,j,d
-  PetscReal :: eye_three(THREE_INTEGER)
-  PetscInt :: indx(THREE_INTEGER)
+  PetscInt :: i,j
   PetscInt :: dim
   PetscReal :: lambda, mu
   PetscReal :: youngs_mod, poissons_ratio
@@ -1190,14 +1172,7 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
       call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
-    ! Set identity matrix
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     youngs_mod = dot_product(shapefunction%N,local_youngs)
     poissons_ratio = dot_product(shapefunction%N,local_poissons)
@@ -2118,9 +2093,8 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   PetscInt :: ivertex
   PetscInt :: eletype
   PetscReal :: identity(THREE_INTEGER,THREE_INTEGER)
-  PetscInt :: indx(THREE_INTEGER)
   PetscInt :: dim
-  PetscInt :: i, j, d
+  PetscInt :: i, j
   PetscReal :: lambda, mu
   PetscReal :: youngs_mod, poissons_ratio
   PetscReal, allocatable :: kron_B_eye(:,:)
@@ -2131,7 +2105,6 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   PetscInt :: size_elenodes
   PetscReal :: J_map(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: inv_J_map(THREE_INTEGER,THREE_INTEGER)
-  PetscReal :: eye_three(THREE_INTEGER)
   PetscReal :: eye_vec(NINE_INTEGER,ONE_INTEGER)
 
   allocate(B(size_elenodes,dim))
@@ -2162,13 +2135,7 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
     shapefunction%zeta = shapefunction%coord(ivertex,:)
     call ShapeFunctionCalculate(shapefunction)
     J_map = matmul(transpose(local_coordinates),shapefunction%DN)
-    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
-    do i = 1, THREE_INTEGER
-      eye_three = 0.d0
-      eye_three(i) = 1.d0
-      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
-      inv_J_map(:,i) = eye_three
-    enddo
+    call MatInv3(J_map,inv_J_map)
     B = matmul(shapefunction%DN,inv_J_map)
     youngs_mod = dot_product(shapefunction%N,local_youngs)
     poissons_ratio = dot_product(shapefunction%N,local_poissons)

@@ -357,7 +357,8 @@ subroutine PMCGeomechanicsSetAuxData(this)
   Vec :: subsurf_vec
 
 #if GEOMECH_DEBUG
-print *, 'PMCGeomechSetAuxData'
+  PetscViewer :: viewer
+  print *, 'PMCGeomechSetAuxData'
 #endif
 
 

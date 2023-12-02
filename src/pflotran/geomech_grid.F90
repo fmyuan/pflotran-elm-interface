@@ -86,6 +86,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
 
 #ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
   call PrintMsg(option,'Copying unstructured grid to geomechanics grid')
 #endif
 
@@ -680,6 +682,9 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     if (geomech_grid%gauss_node(local_id)%Eletype == PYR_TYPE) &
       geomech_grid%gauss_node(local_id)%NGPTS = FIVE_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
+    if (geomech_grid%gauss_node(local_id)%Eletype == TET_TYPE) &
+      geomech_grid%gauss_node(local_id)%NGPTS = FOUR_INTEGER
+    call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
   enddo
 
   ! Store petsc ids of the local and ghost nodes in the new re-ordered system on
@@ -814,6 +819,11 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   PetscInt, pointer :: tmp_int_array(:)
   PetscScalar, pointer :: v_loc_p(:)
   PetscScalar, pointer :: tmp_scl_array(:)
+
+#ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string, string1
+  PetscViewer :: viewer
+#endif
 
   if (associated(geomech_region%vertex_ids)) then
     call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
@@ -1107,6 +1117,12 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   PetscInt :: iend
   PetscInt :: remainder
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  PetscInt :: ii
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
