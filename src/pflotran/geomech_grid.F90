@@ -681,7 +681,6 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     geomech_grid%gauss_node(local_id)%num_gauss_pts = THREE_INTEGER
     if (geomech_grid%gauss_node(local_id)%element_type == PYR_TYPE) &
       geomech_grid%gauss_node(local_id)%num_gauss_pts = FIVE_INTEGER
-    call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
     if (geomech_grid%gauss_node(local_id)%element_type == TET_TYPE) &
       geomech_grid%gauss_node(local_id)%num_gauss_pts = FOUR_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
