@@ -673,17 +673,17 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   allocate(geomech_grid%gauss_node(geomech_grid%nlmax_elem))
   do local_id = 1, geomech_grid%nlmax_elem
     call GaussInitialize(geomech_grid%gauss_node(local_id))
-    geomech_grid%gauss_node(local_id)%Eletype = &
+    geomech_grid%gauss_node(local_id)%element_type = &
       geomech_grid%Elem_type(local_id)
     ! Set to 3D although we have gauss point calculations for 2D
     geomech_grid%gauss_node(local_id)%dim = THREE_DIM_GRID
     ! Three gauss points in each direction
-    geomech_grid%gauss_node(local_id)%NGPTS = THREE_INTEGER
-    if (geomech_grid%gauss_node(local_id)%Eletype == PYR_TYPE) &
-      geomech_grid%gauss_node(local_id)%NGPTS = FIVE_INTEGER
+    geomech_grid%gauss_node(local_id)%num_gauss_pts = THREE_INTEGER
+    if (geomech_grid%gauss_node(local_id)%element_type == PYR_TYPE) &
+      geomech_grid%gauss_node(local_id)%num_gauss_pts = FIVE_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
-    if (geomech_grid%gauss_node(local_id)%Eletype == TET_TYPE) &
-      geomech_grid%gauss_node(local_id)%NGPTS = FOUR_INTEGER
+    if (geomech_grid%gauss_node(local_id)%element_type == TET_TYPE) &
+      geomech_grid%gauss_node(local_id)%num_gauss_pts = FOUR_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
   enddo
 

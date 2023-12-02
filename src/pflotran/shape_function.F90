@@ -11,7 +11,7 @@ module Shape_Function_module
   private
 
   type, public :: shapefunction_type
-    PetscInt :: EleType               ! element type
+    PetscInt :: element_type          ! element type
     PetscReal, pointer :: zeta(:)     ! coordinates of point in reference element
     PetscReal, pointer :: N(:)        ! shape function for all nodes evaluated at zeta (N is a row vector)
     PetscReal, pointer :: DN(:,:)     ! derivatives of shape function with respect to zeta
@@ -36,7 +36,7 @@ subroutine ShapeFunctionInitialize(shapefunction)
   type(shapefunction_type) :: shapefunction
   PetscReal, pointer :: coord(:,:)
 
-  select case(shapefunction%EleType)
+  select case(shapefunction%element_type)
     case(LINE_TYPE)
       allocate(shapefunction%N(TWO_INTEGER))
       allocate(shapefunction%DN(TWO_INTEGER,ONE_INTEGER))
@@ -68,8 +68,8 @@ subroutine ShapeFunctionInitialize(shapefunction)
       allocate(shapefunction%zeta(THREE_INTEGER))
       allocate(shapefunction%coord(EIGHT_INTEGER,THREE_INTEGER))
     case default
-      print *, 'Error: Invalid EleType. Enter an EleType from L2,' // &
-               ' T3, Q4, B8 only.'
+      print *, 'Error: Invalid element_type. Enter an element_type from L2,&
+               & T3, Q4, B8 only.'
   end select
 
   shapefunction%zeta = 0.d0
@@ -79,7 +79,7 @@ subroutine ShapeFunctionInitialize(shapefunction)
 
   coord => shapefunction%coord
 
-  select case(shapefunction%EleType)
+  select case(shapefunction%element_type)
     case(LINE_TYPE)
       coord(1,1) = -1.d0
       coord(2,1) = 1.d0
@@ -120,8 +120,8 @@ subroutine ShapeFunctionInitialize(shapefunction)
       coord(7,:) = -(/-1.d0,-1.d0,-1.d0/)
       coord(8,:) = -(/1.d0,-1.d0,-1.d0/)
     case default
-      print *, 'Error: Invalid EleType. Enter an EleType from L2,' // &
-               ' T3, Q4, B8 only.'
+      print *, 'Error: Invalid element_type. Enter an element_type from L2,&
+               & T3, Q4, B8 only.'
   end select
 
 end subroutine ShapeFunctionInitialize
@@ -134,7 +134,7 @@ subroutine ShapeFunctionCalculate(shapefunction)
   ! at a given spatial point (in the reference element) 'zeta' for various finite
   ! elements.
   ! Input variables
-  ! EleType: element type
+  ! element_type: element type
   ! L2: one-dimensional element -1 <= x <= +1
   ! Q4: four node quadrilateral element -1 <= x, y <= +1
   ! Q9: nine node quadrilateral element
@@ -168,7 +168,7 @@ subroutine ShapeFunctionCalculate(shapefunction)
     endif
   enddo
 
-  select case(shapefunction%EleType)
+  select case(shapefunction%element_type)
     case(LINE_TYPE)
       N(1) = 0.5d0*(1.d0 - zeta(1))
       N(2) = 0.5d0*(1.d0 + zeta(1))
@@ -287,8 +287,8 @@ subroutine ShapeFunctionCalculate(shapefunction)
                   1.d0/8.d0*(1.d0 - zeta(1))*(+1.d0)*(1.d0 + zeta(3)), &
                   1.d0/8.d0*(1.d0 - zeta(1))*(1.d0 + zeta(2))*(+1.d0)/)
     case default
-      print *, 'Error: Invalid EleType. Enter an EleType from L2,' // &
-               ' T3, Q4, B8 only.'
+      print *, 'Error: Invalid element_type. Enter an element_type from L2,&
+               & T3, Q4, B8 only.'
   end select
 
 end subroutine ShapeFunctionCalculate

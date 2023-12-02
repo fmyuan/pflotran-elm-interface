@@ -567,7 +567,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     allocate(youngs_vec(size(elenodes)))
     allocate(poissons_vec(size(elenodes)))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%EleType
+    eletype = grid%gauss_node(ielem)%element_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -886,7 +886,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
   call Transposer(option%ngeomechdof,size_elenodes,Trans)
 
   do igpt = 1, len_w
-    shapefunction%EleType = eletype
+    shapefunction%element_type = eletype
     call ShapeFunctionInitialize(shapefunction)
     shapefunction%zeta = r(igpt,:)
     call ShapeFunctionCalculate(shapefunction)
@@ -1014,7 +1014,7 @@ subroutine GeomechForceLocalElemError(size_elenodes,local_coordinates, &
   enddo
 
   do igpt = 1, len_w
-    shapefunction%EleType = eletype
+    shapefunction%element_type = eletype
     call ShapeFunctionInitialize(shapefunction)
     shapefunction%zeta = r(igpt,:)
     call ShapeFunctionCalculate(shapefunction)
@@ -1158,7 +1158,7 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
   call Transposer(option%ngeomechdof,size_elenodes,Trans)
 
   do igpt = 1, len_w
-    shapefunction%EleType = eletype
+    shapefunction%element_type = eletype
     call ShapeFunctionInitialize(shapefunction)
     shapefunction%zeta = r(igpt,:)
     call ShapeFunctionCalculate(shapefunction)
@@ -1440,7 +1440,7 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
     allocate(youngs_vec(size(elenodes)))
     allocate(poissons_vec(size(elenodes)))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%EleType
+    eletype = grid%gauss_node(ielem)%element_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -1956,7 +1956,7 @@ subroutine GeomechForceStressStrain(geomech_realization)
     allocate(strain(size(elenodes),SIX_INTEGER))
     allocate(stress(size(elenodes),SIX_INTEGER))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%EleType
+    eletype = grid%gauss_node(ielem)%element_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -2130,7 +2130,7 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
   do ivertex = 1, size_elenodes
     strain_local = 0.d0
     stress_local = 0.d0
-    shapefunction%EleType = eletype
+    shapefunction%element_type = eletype
     call ShapeFunctionInitialize(shapefunction)
     shapefunction%zeta = shapefunction%coord(ivertex,:)
     call ShapeFunctionCalculate(shapefunction)
