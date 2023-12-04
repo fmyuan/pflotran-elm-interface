@@ -81,6 +81,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   class(timestepper_steady_type), pointer :: timestepper
   character(len=MAXSTRINGLENGTH) :: string
   type(input_type), pointer :: input
+  PetscErrorCode :: ierr
 
   option => simulation%option
   nullify(timestepper)
@@ -184,7 +185,12 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! flow since we are performing sequential coupling). Although
     ! SNESSetJacobian is called, nothing is done there and PETSc just
     ! re-uses the linear Jacobian at all iterations and times
-    call GeomechForceJacobianLinearPart(timestepper%solver%M,geomech_realization)
+    call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+                      PETSC_FALSE,ierr);CHKERRQ(ierr)
+    call GeomechForceJacobianLinearPart(timestepper%solver%M, &
+                                        geomech_realization)
+    call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+                      PETSC_TRUE,ierr);CHKERRQ(ierr)
     nullify(simulation%process_model_coupler_list)
   endif
   ! sim_aux: Create PETSc Vectors and VectorScatters
