@@ -924,14 +924,22 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       (output_option%print_explicit_primal_grid .or. &
        len_trim(grid%unstructured_grid%explicit_grid% &
                   domain_filename) > 0)) then
-    if (.not.output_option%print_explicit_primal_grid) then
+    if (output_option%print_explicit_primal_grid) then
+      ! for primal grid output, num_cells is set in the call to
+      ! WriteHDF5CoordinatesUGridXDMFExplicit() below.  Therefore, this value
+      ! for num_cells will be overwritten the first time called.
+      num_cells = realization_base%output_option%xmf_vert_len
+      num_vertices = grid%unstructured_grid%explicit_grid%num_vertices
+    else
       ! have to open up domain file read the size of the vertex array
       domain_filename_path = &
         grid%unstructured_grid%explicit_grid%domain_filename
+
       domain_filename_header = domain_filename_path
-        ! initialize fortran hdf5 interface
-      option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename_path)
-!      call PrintMsg(option)
+      option%io_buffer = 'Opening HDF5 primary grid "' // &
+        trim(domain_filename_path) // &
+        '" for referencing in file "' // trim(xmf_filename) // '".'
+      call PrintMsg(option)
       call HDF5FileOpenReadOnly(domain_filename_path,file_id2, &
                                 PETSC_FALSE,'',option)
       string = 'Domain/Cells'
@@ -964,12 +972,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       call HDF5DatasetClose(data_set_id,option)
       call HDF5FileClose(file_id2,option)
       include_cell_centers = PETSC_TRUE
-    else
-      ! for primal grid output, num_cells is set in the call to
-      ! WriteHDF5CoordinatesUGridXDMFExplicit() below.  Therefore, this value
-      ! for num_cells will be overwritten the first time called.
-      num_cells = realization_base%output_option%xmf_vert_len
-      num_vertices = grid%unstructured_grid%explicit_grid%num_vertices
     endif
     write_xdmf = PETSC_TRUE
   endif
