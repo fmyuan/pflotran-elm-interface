@@ -793,6 +793,9 @@ subroutine PMERTPreSolve(this)
   option => this%option
   if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
 
+  option%io_buffer = ' Calculating bulk electrical conductivity'
+  call PrintMsg(option)
+
   patch => this%realization%patch
   grid => patch%grid
   reaction => patch%reaction

@@ -230,6 +230,8 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
     endif
   endif
 
+  call pm_ert%PreSolve()
+
   if (skip_survey) then
     write(this%option%io_buffer,'(" Time= ",1pe12.5," [",a,"]", &
           &" Skipping geophysics as this is not a survey time.")') &
@@ -238,7 +240,6 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
     return
   endif
 
-  call pm_ert%PreSolve()
   call pm_ert%Solve(timestepper%target_time,ierr)
   linear_iterations_in_step = pm_ert%linear_iterations_in_step
   if (ierr /= 0) stop_flag = TS_STOP_FAILURE
