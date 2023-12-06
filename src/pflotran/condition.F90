@@ -1623,8 +1623,10 @@ subroutine FlowConditionRead(condition,input,option)
       if (zflow_liq_flow_eq > 0) then
         condition%num_sub_conditions = condition%num_sub_conditions + 1
         if (.not.associated(pressure) .and. .not.associated(rate)) then
-          option%io_buffer = 'pressure and rate null in &
-                             &condition: ' // trim(condition%name)
+          option%io_buffer = 'Pressure or rate null in flow condition "' // &
+            trim(condition%name) // '". Please add a TYPE and value for &
+            &LIQUID_PRESSURE/LIQUID_RATE within the FLOW_CONDITION.'
+          call PrintErrMsg(option)
           call PrintErrMsg(option)
         endif
       endif
@@ -1632,8 +1634,10 @@ subroutine FlowConditionRead(condition,input,option)
       if (zflow_heat_tran_eq > 0) then
         condition%num_sub_conditions = condition%num_sub_conditions + 1
         if (.not.associated(temperature) .and. .not.associated(enthalpy)) then
-          option%io_buffer = 'temperature and enthalpy null in &
-                             &condition: ' // trim(condition%name)
+          option%io_buffer = 'Temperature and enthalpy null in flow &
+            &condition "' // trim(condition%name) // '". Please add a TYPE &
+            &for TEMPERATURE and values for TEMPERATURE and ENTHALPLY within &
+            &the FLOW_CONDITION.'
           call PrintErrMsg(option)
         endif
       endif
@@ -1641,8 +1645,9 @@ subroutine FlowConditionRead(condition,input,option)
       if (zflow_sol_tran_eq > 0) then
         condition%num_sub_conditions = condition%num_sub_conditions + 1
         if (.not.associated(concentration)) then
-          option%io_buffer = 'concentration null in condition: ' // &
-            trim(condition%name)
+          option%io_buffer = 'Concentration null in flow condition "' // &
+            trim(condition%name) // '". Please add a TYPE and value for &
+            &CONCENTRATION within the FLOW_CONDITION.'
           call PrintErrMsg(option)
         endif
       endif
