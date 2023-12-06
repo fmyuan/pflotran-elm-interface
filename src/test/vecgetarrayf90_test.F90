@@ -12,30 +12,30 @@ program test
   
   PetscErrorCode :: ierr
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
-  call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr)
-  call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr)
+  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
+  call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr);CHKERRQ(ierr)
+  call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr);CHKERRQ(ierr)
 
   if (rank == 0) print *, 'Beginning of Fortran90 test program'
 
-  call VecCreate(PETSC_COMM_SELF,vec,ierr)
+  call VecCreate(PETSC_COMM_SELF,vec,ierr);CHKERRQ(ierr)
   if (rank == 0) then
-    call VecSetSizes(vec,16,PETSC_DECIDE,ierr)  
+    call VecSetSizes(vec,16,PETSC_DECIDE,ierr);CHKERRQ(ierr)
   else
-    call VecSetSizes(vec,0,PETSC_DECIDE,ierr)  
+    call VecSetSizes(vec,0,PETSC_DECIDE,ierr);CHKERRQ(ierr)
   endif
-  call VecSetFromOptions(vec,ierr)
+  call VecSetFromOptions(vec,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(vec,vec_ptr,ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   if (rank == 0) then
     print *, vec_ptr(1)
   endif
-  call VecRestoreArrayF90(vec,vec_ptr,ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call VecDestroy(vec, ierr)
+  call VecDestroy(vec, ierr);CHKERRQ(ierr)
 
   if (rank == 0) print *, 'End of Fortran90 test program'
  
-  call PetscFinalize(ierr)
+  call PetscFinalize(ierr);CHKERRQ(ierr)
  
 end program test

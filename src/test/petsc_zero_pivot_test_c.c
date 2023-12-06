@@ -25,56 +25,56 @@ int main(int argc,char* argv[]){
   PetscInt offset;
   PetscScalar *x_ptr;
 
-  PetscInitialize(&argc,&argv,(char *)0,(char *)0);
-  MPI_Comm_size(PETSC_COMM_WORLD, &size);
-  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  PetscCall(PetscInitialize(&argc,&argv,(char *)0,(char *)0));
+  PetscCall(MPI_Comm_size(PETSC_COMM_WORLD, &size));
+  PetscCall(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));
 
   if (!rank) printf("Beginning of C test program\n");
 
   n = 2/size;
-  MatCreateAIJ(PETSC_COMM_WORLD,n,n,
+  PetscCall(MatCreateAIJ(PETSC_COMM_WORLD,n,n,
                PETSC_DETERMINE,PETSC_DETERMINE,
                1,NULL,
-               0,NULL,&A);
-  VecCreateMPI(PETSC_COMM_WORLD,n,PETSC_DETERMINE,&x);
-  VecDuplicate(x,&b);
+               0,NULL,&A));
+  PetscCall(VecCreateMPI(PETSC_COMM_WORLD,n,PETSC_DETERMINE,&x));
+  PetscCall(VecDuplicate(x,&b));
   offset = rank * n;
   value = 1.e-16;
   for(i=0;i<n;i++) {
-    MatSetValue(A,i+offset,i+offset,value,INSERT_VALUES);
-    VecSetValue(b,i+offset,value,INSERT_VALUES);
+    PetscCall(MatSetValue(A,i+offset,i+offset,value,INSERT_VALUES));
+    PetscCall(VecSetValue(b,i+offset,value,INSERT_VALUES));
   }
 
-  MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
-  VecAssemblyBegin(b);
-  VecAssemblyEnd(b);
+  PetscCall(MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY));
+  PetscCall(MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY));
+  PetscCall(VecAssemblyBegin(b));
+  PetscCall(VecAssemblyEnd(b));
 
-  KSPCreate(PETSC_COMM_WORLD,&ksp);
-  KSPSetErrorIfNotConverged(ksp,PETSC_TRUE);
-  KSPSetOperators(ksp,A,A);
-  KSPGetPC(ksp,&pc);
-  KSPSetFromOptions(ksp);
-  PCSetFromOptions(pc);
-//  KSPSetUp(ksp);
+  PetscCall(KSPCreate(PETSC_COMM_WORLD,&ksp));
+  PetscCall(KSPSetErrorIfNotConverged(ksp,PETSC_TRUE));
+  PetscCall(KSPSetOperators(ksp,A,A));
+  PetscCall(KSPGetPC(ksp,&pc));
+  PetscCall(KSPSetFromOptions(ksp));
+  PetscCall(PCSetFromOptions(pc));
+//  KSPSetUp(ksp));
 
   tolerance = 1.e-20;
-  PCFactorSetZeroPivot(pc,tolerance);
+  PetscCall(PCFactorSetZeroPivot(pc,tolerance));
 
-//  KSPSetUp(ksp);
-  KSPSolve(ksp,b,x);
+//  KSPSetUp(ksp));
+  PetscCall(KSPSolve(ksp,b,x));
 
-  VecGetArray(x,&x_ptr);
+  PetscCall(VecGetArray(x,&x_ptr));
   if (!rank) printf("These values should be ~1:");
   for(i=0;i<n;i++)
     printf(" %f",x_ptr[i]);
   if (!rank) printf("\n");
-  VecRestoreArray(x,&x_ptr);
+  PetscCall(VecRestoreArray(x,&x_ptr));
 
-  KSPDestroy(&ksp);
-  MatDestroy(&A);
-  VecDestroy(&x);
-  VecDestroy(&b);
+  PetscCall(KSPDestroy(&ksp));
+  PetscCall(MatDestroy(&A));
+  PetscCall(VecDestroy(&x));
+  PetscCall(VecDestroy(&b));
 
   if (!rank) printf("End of C test program\n");
 
