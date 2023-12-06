@@ -1,5 +1,5 @@
 program test
-#include "finclude/petscksp.h"
+#include "petsc/finclude/petscksp.h"
   use petscksp
   implicit none
 

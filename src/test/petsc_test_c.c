@@ -34,8 +34,8 @@ int main(int argc,char* argv[]){
   if (!rank) printf("Before VecView\n");
   VecView(vec, viewer);
   if (!rank) printf("After VecView\n");
-  PetscViewerDestroy(viewer);
-  VecDestroy(vec);
+  PetscViewerDestroy(&viewer);
+  VecDestroy(&vec);
 
   if (!rank) printf("End of C test program\n");
 

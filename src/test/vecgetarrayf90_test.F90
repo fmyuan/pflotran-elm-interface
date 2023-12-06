@@ -1,5 +1,5 @@
 program test
-#include "finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h"
   use petscmat
   implicit none
 
