@@ -5465,7 +5465,7 @@ subroutine PatchGetPorosityValue(coupler,patch,iconn,porosity,soluble)
   local_id = coupler%connection_set%id_dn(iconn)
   ghosted_id = grid%nL2G(local_id)
   soluble = material_property_array(patch%imat(ghosted_id))%ptr%soluble
-  porosity = material_auxvars(ghosted_id)%porosity
+  porosity = material_auxvars(ghosted_id)%porosity_0
 
 end subroutine PatchGetPorosityValue
 

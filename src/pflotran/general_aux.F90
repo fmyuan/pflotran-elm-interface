@@ -2037,7 +2037,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       else
         gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
-        material_auxvar%porosity = gen_auxvar%effective_porosity
+        !material_auxvar%porosity = gen_auxvar%effective_porosity
         gen_auxvar%sat(pid) = 0.d0
       endif
       call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
@@ -2403,7 +2403,10 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
     endif
   else
-    material_auxvar%porosity = gen_auxvar%effective_porosity
+    if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY .and. &
+        option%iflag /= GENERAL_UPDATE_FOR_DERIVATIVE) then
+      material_auxvar%porosity = gen_auxvar%effective_porosity
+    endif
   endif
   if (associated(gen_auxvar%d)) then
     gen_auxvar%d%por_p = dpor_dp

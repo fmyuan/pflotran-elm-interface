@@ -517,7 +517,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,keyword,error_str)
       case('SOLUBLE')
         material_property%soluble = PETSC_TRUE
-        call InputErrorMsg(input,option,'SOLUBLE','MATERIAL_PROPERTY')
       case('WIPP-FRACTURE')
         ! Calculates permeability and porosity induced by fracture,
         ! which is described by pressure within certain range of pressure

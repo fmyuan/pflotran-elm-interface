@@ -398,7 +398,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   if (general_salt) then
                     if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
-                           material_auxvars(ghosted_id)%porosity
+                           material_auxvars(ghosted_id)%porosity_0
                     else
                       !DF: if the flow condition is set to soluble, then 
                       !    it is initialized with a tiny amount of solid precipitate, and 
@@ -442,7 +442,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   if (general_salt) then
                     if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
-                           material_auxvars(ghosted_id)%porosity
+                           material_auxvars(ghosted_id)%porosity_0
                     else
                       !DF: if the flow condition is set to soluble, then 
                       !    it is initialized with a tiny amount of solid precipitate, and 
@@ -476,7 +476,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   if (general_salt) then
                     if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
-                           material_auxvars(ghosted_id)%porosity
+                           material_auxvars(ghosted_id)%porosity_0
                     else
                       !DF: if the flow condition is set to soluble, then 
                       !    it is initialized with a tiny amount of solid precipitate, and 
