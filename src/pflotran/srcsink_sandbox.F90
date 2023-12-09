@@ -7,6 +7,7 @@ module SrcSink_Sandbox_module
   use SrcSink_Sandbox_WIPP_Gas_class
   use SrcSink_Sandbox_Mass_Rate_class
   use SrcSink_Sandbox_Downreg_class
+  use SrcSink_Sandbox_Pressure_class
   use SrcSink_Sandbox_WIPP_Well_class
   use PFLOTRAN_Constants_module
 
@@ -136,6 +137,8 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => MassRateCreate()
       case('MASS_RATE_DOWNREGULATED')
         new_sandbox => DownregCreate()
+      case('PRESSURE')
+        new_sandbox => PressureCreate()
       case('MASS_BALANCE')
         print_mass_balance = PETSC_TRUE
       case default
