@@ -10,7 +10,7 @@ SIMULATION
       MODE GENERAL
         OPTIONS
           # this allows the porosity to change due to dissolution and precipitation of salt too (solved for implicitly)
-	  SOLUBLE_MATRIX
+	  # SOLUBLE_MATRIX
           SOLUTE SALT
         / 
       /
@@ -87,6 +87,7 @@ REGION right_boundary
 #=========================== material properties ==============================
 MATERIAL_PROPERTY halite
   ID 1
+  SOLUBLE
   CHARACTERISTIC_CURVES sf1
   POROSITY  0.25d0
   TORTUOSITY 0.1d0
@@ -152,13 +153,13 @@ FLOW_CONDITION initial
   TYPE
     GAS_PRESSURE DIRICHLET
     GAS_SATURATION DIRICHLET
-    POROSITY DIRICHLET  # << porosity is set as an initial condition, rather than a matieral property
     TEMPERATURE DIRICHLET
+    SALT_MOLE_FRACTION AT_SOLUBILITY
   /
   GAS_PRESSURE 150000.D0
   GAS_SATURATION 5.D-1
-  POROSITY 0.25D0  
   TEMPERATURE 25.D0
+  SALT_MOLE_FRACTION 123.D0
 /
 FLOW_CONDITION injection
   SYNC_TIMESTEP_WITH_UPDATE
