@@ -46,6 +46,7 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
   use PM_ERT_class
   use PM_Well_class
   use PM_Material_Transform_class
+  use PM_Fracture_class
   use Option_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
@@ -113,6 +114,9 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
       class is(pm_material_transform_type)
         call cur_pm%SetRealization(realization)
 
+      class is(pm_fracture_type)
+        call cur_pm%SetRealization(realization)
+
     end select
 
     cur_pm%output_option => simulation%output_option
@@ -141,7 +145,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                            pm_waste_form,pm_ufd_decay, &
                                            pm_ufd_biosphere,pm_geop, &
                                            pm_auxiliary,pm_well, &
-                                           pm_material_transform)
+                                           pm_material_transform, & 
+                                           pm_fracture)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -160,6 +165,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   use PM_Auxiliary_class
   use PM_Well_class
   use PM_Material_Transform_class
+  use PM_Fracture_class
   use Option_module
   use Simulation_Subsurface_class
 
@@ -177,6 +183,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_well_type), pointer :: pm_well
   class(pm_material_transform_type), pointer :: pm_material_transform
+  class(pm_fracture_type), pointer :: pm_fracture
   class(pm_base_type), pointer :: cur_pm, prev_pm
 
   option => simulation%option
@@ -189,6 +196,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   nullify(pm_auxiliary)
   nullify(pm_well)
   nullify(pm_material_transform)
+  nullify(pm_fracture)
 
   cur_pm => simulation%process_model_list
   do
@@ -214,6 +222,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
         pm_well => cur_pm
       class is(pm_material_transform_type)
         pm_material_transform => cur_pm
+      class is(pm_fracture_type)
+        pm_fracture => cur_pm
       class default
         option%io_buffer = &
          'PM Class unrecognized in FactorySubsurfaceInitPostPetsc.'
@@ -237,7 +247,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                            pm_waste_form,pm_ufd_decay, &
                                            pm_ufd_biosphere,pm_geop, &
                                            pm_auxiliary,pm_well, &
-                                           pm_material_transform)
+                                           pm_material_transform, &
+                                           pm_fracture)
   !
   ! Sets up all PMC linkages
   !
@@ -255,6 +266,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_Material_Transform_class
   use PM_WIPP_Flow_class
   use PM_NWT_class
+  use PM_Fracture_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
   use Option_module
@@ -272,6 +284,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_well_type), pointer :: pm_well
   class(pm_material_transform_type), pointer :: pm_material_transform
+  class(pm_fracture_type), pointer :: pm_fracture
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
@@ -333,6 +346,10 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
           pm_tran%pmwell_ptr => pm_well
       end select
     endif
+  endif
+  if (associated(pm_fracture)) then
+    call FactSubLinkAddPMCFracture(simulation,pm_fracture,'PMC3PFracture', &
+                                   input)
   endif
 
   if (associated(pm_flow)) then
@@ -1052,6 +1069,71 @@ subroutine FactSubLinkAddPMWippSrcSink(realization,pm_wippflo,input)
   endif
 
 end subroutine FactSubLinkAddPMWippSrcSink
+
+! ************************************************************************** !
+
+subroutine FactSubLinkAddPMCFracture(simulation,pm_fracture,pmc_name,input)
+  !
+  ! Adds a fracture PMC
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 12/13/2024
+  !
+
+  use PMC_Base_class
+  use PMC_Third_Party_class
+  use PM_Fracture_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Logging_module
+  use Input_Aux_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_fracture_type), pointer :: pm_fracture
+  character(len=*) :: pmc_name
+  type(input_type), pointer :: input
+
+  class(pmc_third_party_type), pointer :: pmc_fracture
+  character(len=MAXSTRINGLENGTH) :: string
+  class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  realization => simulation%realization
+  option => realization%option
+
+  nullify(pmc_dummy)
+
+  string = 'GEOTHERMAL_FRACTURE_MODEL'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  call pm_fracture%ReadPMBlock(input)
+
+  if (option%iflowmode /= TH_MODE) then
+     option%io_buffer = 'The GEOTHERMAL FRACTURE process model can only be &
+                        &used with TH mode at the moment.'
+     call PrintErrMsg(option)
+  endif
+
+  pmc_fracture => PMCThirdPartyCreate()
+  call pmc_fracture%SetName(pmc_name)
+  call pmc_fracture%SetOption(option)
+  call pmc_fracture%SetWaypointList(simulation%waypoint_list_subsurface)
+  pmc_fracture%pm_list => pm_fracture
+  pmc_fracture%pm_ptr%pm => pm_fracture
+  pmc_fracture%realization => realization
+
+  ! set up logging stage
+  string = 'GEOTHERMAL_FRACTURE_MODEL'
+  call LoggingCreateStage(string,pmc_fracture%stage)
+
+  call PMCBaseSetChildPeerPtr(pmc_fracture%CastToBase(),PM_CHILD, &
+       simulation%flow_process_model_coupler%CastToBase(), &
+       pmc_dummy,PM_APPEND)
+
+end subroutine FactSubLinkAddPMCFracture
 
 ! ************************************************************************** !
 

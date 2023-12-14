@@ -326,6 +326,8 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
       case('WELL_MODEL')
         call FactorySubsurfReadWellPM(input,option,new_pm)
+      case('FRACTURE_MODEL')
+        call FactorySubsurfReadFracturePM(input,option,new_pm)
       case default
         call InputKeywordUnrecognized(input,word, &
                'SIMULATION,PROCESS_MODELS',option)

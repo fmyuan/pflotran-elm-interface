@@ -77,6 +77,7 @@ mode_process_model_obj = \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}pm_zflow.o \
 	${common_src}pm_material_transform.o \
+	${common_src}pm_fracture.o \
 
 mode_obj = \
 	${common_src}general.o \

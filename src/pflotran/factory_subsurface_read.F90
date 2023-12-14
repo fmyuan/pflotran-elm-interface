@@ -18,6 +18,7 @@ module Factory_Subsurface_Read_module
             FactorySubsurfReadWellPM, &
             FactorySubsurfReadMTPM, &
             FactorySubsurfReadGeophysicsPM, &
+            FactorySubsurfReadFracturePM, &
             FactorySubsurfReadRequiredCards, &
             FactorySubsurfReadInput
 
@@ -542,6 +543,52 @@ end subroutine FactorySubsurfReadWellPM
 
 ! ************************************************************************** !
 
+subroutine FactorySubsurfReadFracturePM(input,option,pm)
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 12/13/2023
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PM_Base_class
+  use PM_Fracture_class
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  class(pm_base_type), pointer :: pm
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'SIMULATION,PROCESS_MODELS,FRACTURE_MODEL'
+
+  pm => PMFracCreate()
+  pm%option => option
+
+  word = ''
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case default
+        option%io_buffer = 'Keyword ' // trim(word) // &
+              ' not recognized for the ' // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine FactorySubsurfReadFracturePM
+
+! ************************************************************************** !
+
 subroutine FactorySubsurfReadMTPM(input, option, pm)
   !
   ! Author: Alex Salazar III
@@ -852,6 +899,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use PM_NWT_class
   use PM_Well_class
   use PM_Hydrate_class
+  use PM_Fracture_class
   use PM_Base_class
   use Print_module
   use Timestepper_Base_class
@@ -2447,6 +2495,10 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
       case ('WELLBORE_MODEL')
         call PMWellReadPass2(input,option)
+
+!....................
+      case ('GEOTHERMAL_FRACTURE_MODEL')
+        call PMFracReadPass2(input,option)
 
 !....................
       case ('END_SUBSURFACE')

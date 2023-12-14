@@ -492,6 +492,7 @@ factory_subsurface.o : \
   pm_base.o \
   pm_base_pointer.o \
   pm_ert.o \
+  pm_fracture.o \
   pm_general.o \
   pm_hydrate.o \
   pm_inversion.o \
@@ -536,6 +537,7 @@ factory_subsurface_linkage.o : \
   pm_base.o \
   pm_base_pointer.o \
   pm_ert.o \
+  pm_fracture.o \
   pm_inversion.o \
   pm_material_transform.o \
   pm_nwt.o \
@@ -604,6 +606,7 @@ factory_subsurface_read.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_ert.o \
+  pm_fracture.o \
   pm_general.o \
   pm_hydrate.o \
   pm_material_transform.o \
@@ -1871,6 +1874,14 @@ pm_ert.o : \
   variables.o \
   waypoint.o \
   zflow_aux.o
+pm_fracture.o : \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  pm_base.o \
+  realization_subsurface.o \
+  string.o \
+  utility.o
 pm_general.o : \
   checkpoint.o \
   convergence.o \
