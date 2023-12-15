@@ -2684,7 +2684,8 @@ reaction_inhibition.o : \
   reaction_inhibition_aux.o \
   string.o
 reaction_inhibition_aux.o : \
-  pflotran_constants.o
+  pflotran_constants.o \
+  utility.o
 reaction_isotherm.o : \
   global_aux.o \
   input_aux.o \
@@ -3399,7 +3400,8 @@ srcsink_sandbox_pressure.o : \
   reaction_aux.o \
   srcsink_sandbox_base.o \
   string.o \
-  units.o
+  units.o \
+  utility.o
 srcsink_sandbox_wipp_gas.o : \
   eos_gas.o \
   grid.o \

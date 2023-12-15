@@ -110,7 +110,8 @@ module Utility_module
             expm1, &
             PrintHeader, &
             UtilityTensorToScalar, &
-            ThrowRuntimeError
+            ThrowRuntimeError, &
+            Smoothstep
 
 contains
 
@@ -2820,5 +2821,40 @@ subroutine ThrowRuntimeError(error_name,option)
   call PrintDestroyHandler(print_handler)
 
 end subroutine ThrowRuntimeError
+
+! ************************************************************************** !
+
+subroutine Smoothstep(x,xmin,xmax,y,derivative)
+  !
+  ! Calculates the smoothstep sigmoid-like function
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/15/23
+  !
+  implicit none
+
+  PetscReal :: x
+  PetscReal :: xmin
+  PetscReal :: xmax
+  PetscReal :: y
+  PetscReal :: derivative
+
+  PetscReal :: z
+  PetscReal :: denominator
+
+  denominator = 1.d0 / (xmax - xmin)
+  z = (x - xmin) * denominator
+  if (z < 0.d0) then
+    y = 0.d0
+    derivative = 0.d0
+  else if (z > 1.d0) then
+    y = 1.d0
+    derivative = 0.d0
+  else
+    y = 3.d0 * z ** 2 - 2.d0 * z ** 3
+    derivative = (6.d0*z - 6.d0*z**2) * denominator
+  endif
+
+end subroutine Smoothstep
 
 end module Utility_module
