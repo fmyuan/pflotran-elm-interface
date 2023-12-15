@@ -17,8 +17,16 @@ module PM_Fracture_class
   type :: fracture_type 
     ! fracture ID number
     PetscInt :: id 
-    ! fracture hydraulic aperture [m]
-    PetscReal :: hap
+    ! cell permeability, initial [m]
+    PetscReal, pointer :: kx0(:)
+    ! cell permeability, initial [m]
+    PetscReal, pointer :: ky0(:)
+    ! cell permeability, initial [m]
+    PetscReal, pointer :: kz0(:)
+    ! fracture hydraulic aperture, initial [m]
+    PetscReal :: hap0
+    ! fracture hydraulic aperture, dynamic [m]
+    PetscReal, pointer :: hap(:)
     ! fracture radius - x [m]
     PetscReal :: radx
     ! fracture radius - y [m]
@@ -27,6 +35,10 @@ module PM_Fracture_class
     type(point3d_type) :: center
     ! fracture normal vector [m]
     type(point3d_type) :: normal
+    ! fracture parallel vector [m]
+    type(point3d_type) :: parallel
+    ! rotation matrix
+    PetscReal :: RM(3,3)
     ! list of global cell ids the fracture occupies
     PetscInt, pointer :: cell_ids(:)
     ! list of previous temperatures in the fracture cells
@@ -137,9 +149,11 @@ subroutine PMFractureInit(this)
   nullify(this%prev_temperature)
   nullify(this%dT)
   nullify(this%dL)
+  nullify(this%hap)
+  nullify(this%kx0); nullify(this%ky0); nullify(this%kz0)
   this%ncells = UNINITIALIZED_INTEGER
   this%id = UNINITIALIZED_INTEGER
-  this%hap = UNINITIALIZED_DOUBLE
+  this%hap0 = UNINITIALIZED_DOUBLE
   this%radx = UNINITIALIZED_DOUBLE
   this%rady = UNINITIALIZED_DOUBLE
   this%center%x = UNINITIALIZED_DOUBLE
@@ -148,6 +162,9 @@ subroutine PMFractureInit(this)
   this%normal%x = UNINITIALIZED_DOUBLE
   this%normal%y = UNINITIALIZED_DOUBLE
   this%normal%z = UNINITIALIZED_DOUBLE
+  this%parallel%x = UNINITIALIZED_DOUBLE
+  this%parallel%y = UNINITIALIZED_DOUBLE
+  this%parallel%z = UNINITIALIZED_DOUBLE
 
 end subroutine PMFractureInit
 
@@ -175,7 +192,9 @@ subroutine PMFracSetup(this)
   PetscInt, pointer :: temp_cell_ids(:)
   PetscInt :: k,j,local_id,local_id_center
   PetscInt :: nf,read_max
-  PetscReal :: D, distance 
+  PetscReal :: D,distance 
+  PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
+  PetscReal :: ra, sinra, cosra
 
   option => this%option
   res_grid => this%realization%patch%grid
@@ -215,7 +234,7 @@ subroutine PMFracSetup(this)
     endif
     ! Equation of a plane normal to vector (A,B,C) is
     ! Ax + By + Cz + D = 0
-    ! Get D by knowing the plane must contant the center point (x,y,z)
+    ! Get D by knowing the plane must contain the center point (x,y,z)
     D = -1.d0*(cur_fracture%normal%x*cur_fracture%center%x + &
     	       cur_fracture%normal%y*cur_fracture%center%y + &
     	       cur_fracture%normal%z*cur_fracture%center%z)
@@ -234,9 +253,53 @@ subroutine PMFracSetup(this)
     allocate(cur_fracture%prev_temperature(cur_fracture%ncells))
     allocate(cur_fracture%dT(cur_fracture%ncells))
     allocate(cur_fracture%dL(cur_fracture%ncells))
-    
+    allocate(cur_fracture%hap(cur_fracture%ncells))
+    allocate(cur_fracture%kx0(cur_fracture%ncells))
+    allocate(cur_fracture%ky0(cur_fracture%ncells))
+    allocate(cur_fracture%kz0(cur_fracture%ncells))
+
+    cur_fracture%hap(:) = cur_fracture%hap0
     cur_fracture%cell_ids(1:cur_fracture%ncells) = &
                                           temp_cell_ids(1:cur_fracture%ncells)
+
+    ! get the unit vector parallel to the fracture plane
+    ! a X b = c, where c is perpendicular to a and b (a and b can't be parallel)
+    ! take a as the unit normal, and b as slightly rotated unit normal
+    ! then c will be perpendicular to a, and parallel to fracture plane
+    a1 = cur_fracture%normal%x; b1 = cur_fracture%normal%x
+    a2 = cur_fracture%normal%y; b2 = cur_fracture%normal%y 
+    a3 = cur_fracture%normal%z; b3 = cur_fracture%normal%z + 1
+    c1 = a2*b3 - a3*b2
+    c2 = -1.d0*(a1*b3 - a3*b1)
+    c3 = a1*b2 - a2*b1
+    cur_fracture%parallel%x = c1
+    cur_fracture%parallel%y = c2
+    cur_fracture%parallel%z = c3
+    vmag = sqrt((cur_fracture%parallel%x)**2.d0 + &
+        	    (cur_fracture%parallel%y)**2.d0 + &
+        	    (cur_fracture%parallel%z)**2.d0)
+    cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
+    cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
+    cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
+    c1 = cur_fracture%parallel%x
+    c2 = cur_fracture%parallel%y
+    c3 = cur_fracture%parallel%z
+    
+    ! calculate the rotation angle (ra) between domain/fracture orientations
+    ra = acos(a3)
+
+    ! calculate the rotation matrix between domain/fracture orientations
+    ! this is done knowing the rotation angle, and fracture parallel direction
+    sinra = sin(ra); cosra = cos(ra)
+    cur_fracture%RM(1,1) = cosra + c1*c1*(1.d0-cosra)
+    cur_fracture%RM(1,2) = c1*c2*(1.d0-cosra) - c3*sinra
+    cur_fracture%RM(1,3) = c1*c3*(1.d0-cosra) + c2*sinra
+    cur_fracture%RM(2,1) = c2*c1*(1.d0-cosra) + c3*sinra
+    cur_fracture%RM(2,2) = cosra + c2*c2*(1.d0-cosra)
+    cur_fracture%RM(2,3) = c2*c3*(1.d0-cosra) -c1*sinra
+    cur_fracture%RM(3,1) = c3*c1*(1.d0-cosra) -c2*sinra
+    cur_fracture%RM(3,2) = c3*c2*(1.d0-cosra) + c1*sinra
+    cur_fracture%RM(3,3) = cosra + c3*c3*(1.d0-cosra)
 
     cur_fracture => cur_fracture%next
   enddo
@@ -298,16 +361,20 @@ subroutine PMFracInitializeRun(this)
       material_auxvar => &
         this%realization%patch%aux%material%auxvars(icell) ! the input here
                                                            ! should be ghosted_id
-      global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
-                                                                       ! should be ghosted_id
       ! if cells aren't too pancaked, L should be a good estimate of length
       L = (material_auxvar%volume)**(1.d0/3.d0) 
-      kx = (1.d0/12.d0)*((cur_fracture%hap)**3.0d0)/L
-      ky = (1.d0/12.d0)*((cur_fracture%hap)**3.0d0)/L
-      kz = (1.d0/12.d0)*((cur_fracture%hap)**3.0d0)/L
-      material_auxvar%permeability(1) = max(kx,material_auxvar%permeability(1))
-      material_auxvar%permeability(2) = max(ky,material_auxvar%permeability(2))
-      material_auxvar%permeability(3) = max(kz,material_auxvar%permeability(3))
+      cur_fracture%kx0(k) = material_auxvar%permeability(1)
+      cur_fracture%ky0(k) = material_auxvar%permeability(2)
+      cur_fracture%kz0(k) = material_auxvar%permeability(3)
+
+      call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
+
+      call PMFracUpdateK(material_auxvar,cur_fracture%kx0(k), &
+      	                 cur_fracture%ky0(k),cur_fracture%kz0(k), &
+      	                 kx,ky,kz)
+
+      global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
+                                                                       ! should be ghosted_id
       cur_fracture%prev_temperature(k) = global_auxvar%temp
     enddo
 
@@ -485,7 +552,7 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
             call InputErrorMsg(input,option,'ID',error_string)
         !-----------------------------
           case('HYDRAULIC_APERTURE')
-            call InputReadDouble(input,option,new_fracture%hap)
+            call InputReadDouble(input,option,new_fracture%hap0)
             call InputErrorMsg(input,option,'HYDRAULIC_APERTURE',error_string)
         !-----------------------------
           case('RADIUS_X')
@@ -530,7 +597,7 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
                            trim(error_string) // ' block.'
         call PrintMsg(option); num_errors = num_errors + 1
       endif
-      if (Uninitialized(new_fracture%hap)) then
+      if (Uninitialized(new_fracture%hap0)) then
         option%io_buffer = 'ERROR: HYDRAULIC_APERTURE must be specified in ' // &
                            trim(error_string) // ' block.'
         call PrintMsg(option); num_errors = num_errors + 1
@@ -643,6 +710,64 @@ end subroutine PMFracReadPass2
 
 ! ************************************************************************** !
 
+subroutine PMFracCalcK(L,hap,RM,kx,ky,kz)
+  !
+  ! Calculates cell anisotropic permeability from fracture permeability.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 12/15/2023
+  !
+
+  implicit none
+
+  PetscReal :: L 
+  PetscReal :: hap
+  PetscReal :: RM(3,3)
+  PetscReal :: kx,ky,kz
+
+  PetscReal :: K_frac(3,3)
+  PetscReal :: K_frac_rot(3,3)
+  PetscReal :: K_domain(3,3)
+
+  K_frac(:,:) = 0.d0
+  K_frac(1,1) = (1.d0/12.d0)*(hap**3.0d0)/L ! kxx
+  K_frac(2,2) = (1.d0/12.d0)*(hap**3.0d0)/L ! kyy
+  ! note: zero in kzz
+
+  K_frac_rot = MATMUL(RM,K_frac)
+  K_domain = MATMUL(K_frac_rot,TRANSPOSE(RM))
+
+  kx = K_domain(1,1)
+  ky = K_domain(2,2)
+  kz = K_domain(3,3)
+
+end subroutine PMFracCalcK
+
+! ************************************************************************** !
+
+subroutine PMFracUpdateK(material_auxvar,kx0,ky0,kz0,kx,ky,kz)
+  !
+  ! Calculates cell permeability from fracture permeability.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 12/15/2023
+  !
+  use Material_Aux_module
+
+  implicit none
+
+  type(material_auxvar_type), pointer :: material_auxvar
+  PetscReal :: kx0,ky0,kz0
+  PetscReal :: kx,ky,kz
+
+  material_auxvar%permeability(1) = kx0+kx ! to fix: this will keep adding background over and over again
+  material_auxvar%permeability(2) = ky0+ky ! but maybe it doesn't matter b/c background is really tiny
+  material_auxvar%permeability(3) = kz0+kz
+
+end subroutine PMFracUpdateK
+
+! ************************************************************************** !
+
 subroutine PMFracSolve(this,time,ierr)
   !
   ! Main solve step for the fracture process model.
@@ -664,6 +789,7 @@ subroutine PMFracSolve(this,time,ierr)
   type(option_type), pointer :: option
   type(fracture_type), pointer :: cur_fracture
   PetscReal :: cur_temperature,L
+  PetscReal :: kx,ky,kz
   PetscInt :: icell,k
 
   option => this%option
@@ -681,9 +807,24 @@ subroutine PMFracSolve(this,time,ierr)
                                                                        ! should be ghosted_id
       cur_temperature = global_auxvar%temp
       cur_fracture%dT(k) = cur_temperature - cur_fracture%prev_temperature(k)
+
       ! if cells aren't too pancaked, L should be a good estimate of length
       L = (material_auxvar%volume)**(1.d0/3.d0)
-      cur_fracture%dL = L*cur_fracture%dT(k)*this%t_coeff
+      cur_fracture%dL(k) = L*cur_fracture%dT(k)*this%t_coeff
+
+      ! update the aperture with dL and calculate new perm
+      cur_fracture%hap(k) = cur_fracture%hap(k) - cur_fracture%dL(k)
+
+      ! get anisotropic domain permeability from rotation transformation
+      call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
+
+      ! update domain material permeability of cells with fractures
+      call PMFracUpdateK(material_auxvar,cur_fracture%kx0(k), &
+      	                 cur_fracture%ky0(k),cur_fracture%kz0(k), &
+      	                 kx,ky,kz)
+
+      ! reset previous temperature for next time step
+      cur_fracture%prev_temperature(k) = cur_temperature
     enddo
 
     cur_fracture => cur_fracture%next
