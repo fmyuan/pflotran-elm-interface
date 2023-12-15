@@ -8,6 +8,7 @@ module PM_Fracture_class
   use Option_module
   use String_module
   use Input_Aux_module
+  use Geometry_module
 
   implicit none
 
@@ -18,12 +19,38 @@ module PM_Fracture_class
     PetscInt :: id 
     ! fracture hydraulic aperture [m]
     PetscReal :: hap
+    ! fracture radius - x [m]
+    PetscReal :: radx
+    ! fracture radius - y [m]
+    PetscReal :: rady
+    ! fracture center coordinates [m]
+    type(point3d_type) :: center
+    ! fracture normal vector [m]
+    type(point3d_type) :: normal
+    ! list of global cell ids the fracture occupies
+    PetscInt, pointer :: cell_ids(:)
+    ! list of previous temperatures in the fracture cells
+    PetscReal, pointer :: prev_temperature(:)
+    ! list of change in temperatures in the fracture cells
+    PetscReal, pointer :: dT(:)
+    ! list of change in length in the fracture cells
+    PetscReal, pointer :: dL(:)
+    ! total number of cells this fracture occupies
+    PetscInt :: ncells
+    ! linked list next object
     class(fracture_type), pointer :: next 
   end type fracture_type
 
   type, public, extends(pm_base_type) :: pm_fracture_type
     class(realization_subsurface_type), pointer :: realization
     class(fracture_type), pointer :: fracture_list
+    ! maximum distance grid cell center can be from the fracture plane in 
+    ! order to mark the cell as being fractured # [m]
+    PetscReal :: max_distance
+    ! thermal expansion coefficient # [1/C]
+    PetscReal :: t_coeff
+    ! number of fractures in the domain
+    PetscInt :: nfrac 
   contains
     procedure, public :: Setup => PMFracSetup
     procedure, public :: ReadPMBlock => PMFracReadPMBlock
@@ -66,7 +93,9 @@ function PMFracCreate()
 
   nullify(this%realization)
   nullify(this%fracture_list)
-  
+  this%nfrac = 0  
+  this%max_distance = 5.0  
+  this%t_coeff = 40.d-6
 
   PMFracCreate => this
 
@@ -104,8 +133,21 @@ subroutine PMFractureInit(this)
   class(fracture_type) :: this
 
   nullify(this%next)
+  nullify(this%cell_ids)
+  nullify(this%prev_temperature)
+  nullify(this%dT)
+  nullify(this%dL)
+  this%ncells = UNINITIALIZED_INTEGER
   this%id = UNINITIALIZED_INTEGER
   this%hap = UNINITIALIZED_DOUBLE
+  this%radx = UNINITIALIZED_DOUBLE
+  this%rady = UNINITIALIZED_DOUBLE
+  this%center%x = UNINITIALIZED_DOUBLE
+  this%center%y = UNINITIALIZED_DOUBLE
+  this%center%z = UNINITIALIZED_DOUBLE
+  this%normal%x = UNINITIALIZED_DOUBLE
+  this%normal%y = UNINITIALIZED_DOUBLE
+  this%normal%z = UNINITIALIZED_DOUBLE
 
 end subroutine PMFractureInit
 
@@ -124,6 +166,82 @@ subroutine PMFracSetup(this)
   implicit none
 
   class(pm_fracture_type) :: this
+
+  type(option_type), pointer :: option
+  type(fracture_type), pointer :: cur_fracture
+  type(point3d_type) :: coordinate
+  type(grid_type), pointer :: res_grid
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt, pointer :: temp_cell_ids(:)
+  PetscInt :: k,j,local_id,local_id_center
+  PetscInt :: nf,read_max
+  PetscReal :: D, distance 
+
+  option => this%option
+  res_grid => this%realization%patch%grid
+  nf = 0
+  read_max = 5000 ! Set to a large but realistic number
+
+  allocate(temp_cell_ids(read_max))
+
+  cur_fracture => this%fracture_list
+  do
+    if (.not.associated(cur_fracture)) exit
+    nf = nf + 1
+    cur_fracture => cur_fracture%next
+  enddo
+  write(word,'(i4)') nf
+
+  option%io_buffer = ' '
+  call PrintMsg(option)
+  option%io_buffer = 'GEOTHERMAL_FRACTURE_MODEL: Mapping [' // trim(word) // &
+    '] fractures onto equivalent porous media domain:'
+  call PrintMsg(option)
+
+  cur_fracture => this%fracture_list
+  do
+    if (.not.associated(cur_fracture)) exit
+
+    write(word,'(i4)') cur_fracture%id 
+    option%io_buffer = 'GEOTHERMAL_FRACTURE_MODEL: Mapping fracture ID# [' &
+                       // trim(word) // '].'
+    call PrintMsg(option)
+    call GridGetLocalIDFromCoordinate(res_grid,cur_fracture%center,option, &
+    	                              local_id_center)
+    if (Uninitialized(local_id_center)) then
+      option%io_buffer = 'Fracture ID# [' // trim(word) // '] CENTER &
+        &coordinate is not within the reservoir domain.'
+      call PrintErrMsg(option)
+    endif
+    ! Equation of a plane normal to vector (A,B,C) is
+    ! Ax + By + Cz + D = 0
+    ! Get D by knowing the plane must contant the center point (x,y,z)
+    D = -1.d0*(cur_fracture%normal%x*cur_fracture%center%x + &
+    	       cur_fracture%normal%y*cur_fracture%center%y + &
+    	       cur_fracture%normal%z*cur_fracture%center%z)
+    j = 0
+    do k = 1,res_grid%nmax
+      distance = cur_fracture%normal%x*res_grid%x(k) + &
+                 cur_fracture%normal%y*res_grid%y(k) + &
+                 cur_fracture%normal%z*res_grid%z(k) + D
+      if (abs(distance) < this%max_distance) then
+        j = j + 1
+        temp_cell_ids(j) = k
+      endif
+    enddo
+    cur_fracture%ncells = j
+    allocate(cur_fracture%cell_ids(cur_fracture%ncells))
+    allocate(cur_fracture%prev_temperature(cur_fracture%ncells))
+    allocate(cur_fracture%dT(cur_fracture%ncells))
+    allocate(cur_fracture%dL(cur_fracture%ncells))
+    
+    cur_fracture%cell_ids(1:cur_fracture%ncells) = &
+                                          temp_cell_ids(1:cur_fracture%ncells)
+
+    cur_fracture => cur_fracture%next
+  enddo
+
+  deallocate(temp_cell_ids)
 
 end subroutine PMFracSetup
 
@@ -153,10 +271,48 @@ subroutine PMFracInitializeRun(this)
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 12/13/2023
   !
+  use Material_Aux_module
+  use Global_Aux_module
 
   implicit none
 
   class(pm_fracture_type) :: this
+
+  type(material_auxvar_type), pointer :: material_auxvar
+  type(global_auxvar_type), pointer :: global_auxvar
+  type(option_type), pointer :: option
+  type(fracture_type), pointer :: cur_fracture
+  PetscInt :: icell,k
+  PetscReal :: kx,ky,kz
+  PetscReal :: L 
+  PetscErrorCode :: ierr
+
+  option => this%option
+
+  cur_fracture => this%fracture_list
+  do
+    if (.not.associated(cur_fracture)) exit
+
+    do k = 1,cur_fracture%ncells
+      icell = cur_fracture%cell_ids(k)
+      material_auxvar => &
+        this%realization%patch%aux%material%auxvars(icell) ! the input here
+                                                           ! should be ghosted_id
+      global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
+                                                                       ! should be ghosted_id
+      ! if cells aren't too pancaked, L should be a good estimate of length
+      L = (material_auxvar%volume)**(1.d0/3.d0) 
+      kx = (1.d0/12.d0)*((cur_fracture%hap)**3.0d0)/L
+      ky = (1.d0/12.d0)*((cur_fracture%hap)**3.0d0)/L
+      kz = (1.d0/12.d0)*((cur_fracture%hap)**3.0d0)/L
+      material_auxvar%permeability(1) = max(kx,material_auxvar%permeability(1))
+      material_auxvar%permeability(2) = max(ky,material_auxvar%permeability(2))
+      material_auxvar%permeability(3) = max(kz,material_auxvar%permeability(3))
+      cur_fracture%prev_temperature(k) = global_auxvar%temp
+    enddo
+
+    cur_fracture => cur_fracture%next
+  enddo
 
 end subroutine PMFracInitializeRun
 
@@ -189,6 +345,7 @@ subroutine PMFracInitializeTimestep(this)
   implicit none
 
   class(pm_fracture_type) :: this
+
 
 end subroutine PMFracInitializeTimestep
 
@@ -248,10 +405,15 @@ subroutine PMFracReadPMBlock(this,input)
 
     ! Read keywords within GEOTHERMAL_FRACTURE_MODEL block:
     select case(trim(word))
-      case('INPUT1')
+      case('MAX_DISTANCE')
+        call InputReadDouble(input,option,this%max_distance)
+        call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
         cycle
     !-------------------------------------
-      case('INPUT2')
+      case('THERMAL_EXPANSION_COEFFICIENT')
+        call InputReadDouble(input,option,this%t_coeff)
+        call InputErrorMsg(input,option,'THERMAL_EXPANSION_COEFFICIENT', &
+        	               error_string)
         cycle
     !-------------------------------------
     end select
@@ -293,12 +455,15 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
   PetscBool :: found
 
   character(len=MAXWORDLENGTH) :: word
-  PetscBool :: added
   class(fracture_type), pointer :: new_fracture,cur_fracture
+  PetscReal :: vmag
+  PetscInt :: num_errors
+  PetscBool :: added
 
   error_string = trim(error_string) // ',FRACTURE'
   found = PETSC_TRUE
   added = PETSC_FALSE
+  num_errors = 0
 
   select case(trim(keyword))
   !-------------------------------------
@@ -321,7 +486,36 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
         !-----------------------------
           case('HYDRAULIC_APERTURE')
             call InputReadDouble(input,option,new_fracture%hap)
-            call InputErrorMsg(input,option,'HYDRAULIC_APERTURE', &
+            call InputErrorMsg(input,option,'HYDRAULIC_APERTURE',error_string)
+        !-----------------------------
+          case('RADIUS_X')
+            call InputReadDouble(input,option,new_fracture%radx)
+            call InputErrorMsg(input,option,'RADIUS_X',error_string)
+        !-----------------------------
+          case('RADIUS_Y')
+            call InputReadDouble(input,option,new_fracture%rady)
+            call InputErrorMsg(input,option,'RADIUS_Y',error_string)
+        !-----------------------------
+          case('CENTER')
+            call InputReadDouble(input,option,new_fracture%center%x)
+            call InputErrorMsg(input,option,'CENTER, X COORDINATE', &
+            	               error_string)
+            call InputReadDouble(input,option,new_fracture%center%y)
+            call InputErrorMsg(input,option,'CENTER, Y COORDINATE', &
+            	               error_string)
+            call InputReadDouble(input,option,new_fracture%center%z)
+            call InputErrorMsg(input,option,'CENTER, Z COORDINATE', &
+            	               error_string)
+        !-----------------------------
+          case('NORMAL_VECTOR')
+            call InputReadDouble(input,option,new_fracture%normal%x)
+            call InputErrorMsg(input,option,'NORMAL_VECTOR, X COORDINATE', &
+            	               error_string)
+            call InputReadDouble(input,option,new_fracture%normal%y)
+            call InputErrorMsg(input,option,'NORMAL_VECTOR, Y COORDINATE', &
+            	               error_string)
+            call InputReadDouble(input,option,new_fracture%normal%z)
+            call InputErrorMsg(input,option,'NORMAL_VECTOR, Z COORDINATE', &
             	               error_string)
         !-----------------------------
           case default
@@ -334,12 +528,49 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
       if (Uninitialized(new_fracture%id)) then
         option%io_buffer = 'ERROR: ID must be specified in ' // &
                            trim(error_string) // ' block.'
-        call PrintMsg(option)
+        call PrintMsg(option); num_errors = num_errors + 1
       endif
       if (Uninitialized(new_fracture%hap)) then
         option%io_buffer = 'ERROR: HYDRAULIC_APERTURE must be specified in ' // &
                            trim(error_string) // ' block.'
-        call PrintMsg(option)
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracture%radx)) then
+        option%io_buffer = 'ERROR: RADIUS_X must be specified in ' // &
+                           trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracture%rady)) then
+        option%io_buffer = 'ERROR: RADIUS_Y must be specified in ' // &
+                           trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracture%center%x) .or. &
+      	  Uninitialized(new_fracture%center%y) .or. &
+      	  Uninitialized(new_fracture%center%z)) then
+        option%io_buffer = 'ERROR: CENTER coordinate must be specified in ' // &
+                           trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracture%normal%x) .or. &
+      	  Uninitialized(new_fracture%normal%y) .or. &
+      	  Uninitialized(new_fracture%normal%z)) then
+        option%io_buffer = 'ERROR: NORMAL_VECTOR coordinate must be specified &
+                            &in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      else
+        vmag = sqrt((new_fracture%normal%x)**2.d0 + &
+        	        (new_fracture%normal%y)**2.d0 + &
+        	        (new_fracture%normal%z)**2.d0)
+        new_fracture%normal%x = new_fracture%normal%x/vmag
+        new_fracture%normal%y = new_fracture%normal%y/vmag
+        new_fracture%normal%z = new_fracture%normal%z/vmag
+      endif
+      if (num_errors > 0) then
+        write(option%io_buffer,*) num_errors
+        option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                           &the FRACTURE block. See above to fix.'
+        call PrintErrMsg(option)
       endif
       !------ add fracture to list -----------------------------------
       if (.not.associated(pm_fracture%fracture_list)) then
@@ -419,12 +650,46 @@ subroutine PMFracSolve(this,time,ierr)
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 12/13/2023
   !
+  use Material_Aux_module
+  use Global_Aux_module
 
   implicit none
 
   class(pm_fracture_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
+
+  type(material_auxvar_type), pointer :: material_auxvar
+  type(global_auxvar_type), pointer :: global_auxvar
+  type(option_type), pointer :: option
+  type(fracture_type), pointer :: cur_fracture
+  PetscReal :: cur_temperature,L
+  PetscInt :: icell,k
+
+  option => this%option
+
+  cur_fracture => this%fracture_list
+  do
+    if (.not.associated(cur_fracture)) exit
+
+    do k = 1,cur_fracture%ncells
+      icell = cur_fracture%cell_ids(k)
+      material_auxvar => &
+        this%realization%patch%aux%material%auxvars(icell) ! the input here
+                                                           ! should be ghosted_id
+      global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
+                                                                       ! should be ghosted_id
+      cur_temperature = global_auxvar%temp
+      cur_fracture%dT(k) = cur_temperature - cur_fracture%prev_temperature(k)
+      ! if cells aren't too pancaked, L should be a good estimate of length
+      L = (material_auxvar%volume)**(1.d0/3.d0)
+      cur_fracture%dL = L*cur_fracture%dT(k)*this%t_coeff
+    enddo
+
+    cur_fracture => cur_fracture%next
+  enddo
+
+  ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs
 
 end subroutine PMFracSolve
 
