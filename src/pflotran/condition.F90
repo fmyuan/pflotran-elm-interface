@@ -2296,11 +2296,15 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         else if (associated(general%gas_pressure) .and. &
                 associated(general%gas_saturation)) then
           ! two phase condition
-          if (associated(general%salt_mole_fraction)) then
-            if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
-              condition%iphase = LGP_STATE
-            else
-              condition%iphase = TWO_PHASE_STATE
+          if (general_salt) then
+            if (associated(general%salt_mole_fraction)) then
+              if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
+                condition%iphase = LGP_STATE
+              else
+                condition%iphase = TWO_PHASE_STATE
+              endif
+            else if (associated(general%precipitate_saturation)) then
+                condition%iphase = LGP_STATE
             endif
           else
             condition%iphase = TWO_PHASE_STATE

@@ -124,7 +124,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
     ! Res[kmol/sec] = Res[kmol/sec] + (1-por)[m^3 solid/m^3 bulk] * den[kmol/m^3]
     !                 * vol[m^3 bulk] / dt[sec]
     Res(option%salt_id) = Res(option%salt_id) + (1.d0 - porosity) * &
-                            PRECIPITATE_DENSITY * &
+                            material_auxvar%soil_particle_density * &!PRECIPITATE_DENSITY * &
                             volume_over_dt
     !
   endif

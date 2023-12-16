@@ -1793,7 +1793,8 @@ subroutine PMGeneralMaxChange(this)
     if (i==1 .and. gen_chk_max_dpl_liq_state_only) then
       do j = 1,grid%nlmax
         ghosted_id = grid%nL2G(j)
-        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE) then
+        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE .or. &
+            global_auxvars(ghosted_id)%istate /= LP_STATE) then
           vec_ptr(j) = 0.d0
         endif
       enddo
