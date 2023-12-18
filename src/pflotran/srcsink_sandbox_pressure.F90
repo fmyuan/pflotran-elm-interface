@@ -17,10 +17,12 @@ module SrcSink_Sandbox_Pressure_class
 
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_pressure_type
+    PetscBool :: scale_maximum_mass_rate
     PetscInt :: iphase
     PetscReal :: pressure
     PetscReal :: max_mass_rate
     PetscReal :: pressure_span
+    PetscReal :: sum_volume
   contains
     procedure, public :: ReadInput => PressureRead
     procedure, public :: Setup => PressureSetup
@@ -47,10 +49,12 @@ function PressureCreate()
 
   allocate(PressureCreate)
   call SSSandboxBaseInit(PressureCreate)
+  PressureCreate%scale_maximum_mass_rate = PETSC_FALSE
   PressureCreate%iphase = UNINITIALIZED_INTEGER
   PressureCreate%max_mass_rate = UNINITIALIZED_DOUBLE
   PressureCreate%pressure = UNINITIALIZED_DOUBLE
   PressureCreate%pressure_span = 1.d4
+  PressureCreate%sum_volume = 0.d0
 
 end function PressureCreate
 
@@ -110,6 +114,8 @@ subroutine PressureRead(this,input,option)
             call InputKeywordUnrecognized(input,word2, &
                                 'SRCSINK_SANDBOX,PRESSURE,PHASE',option)
         end select
+      case('SCALE_MAXIMUM_MASS_RATE')
+        this%scale_maximum_mass_rate = PETSC_TRUE
       case('MAXIMUM_MASS_RATE')
         call InputReadDouble(input,option,this%max_mass_rate)
         call InputErrorMsg(input,option,word, &
@@ -153,7 +159,7 @@ end subroutine PressureRead
 
 ! ************************************************************************** !
 
-subroutine PressureSetup(this,grid,option)
+subroutine PressureSetup(this,grid,material_auxvars,option)
   !
   ! Sets up the pressure src/sink
   !
@@ -162,14 +168,31 @@ subroutine PressureSetup(this,grid,option)
 
   use Option_module
   use Grid_module
+  use Material_Aux_module, only: material_auxvar_type
 
   implicit none
 
   class(srcsink_sandbox_pressure_type) :: this
   type(grid_type) :: grid
+  type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
-  call SSSandboxBaseSetup(this,grid,option)
+  PetscInt :: icell
+  PetscErrorCode :: ierr
+
+  call SSSandboxBaseSetup(this,grid,material_auxvars,option)
+  if (this%scale_maximum_mass_rate) then
+    this%sum_volume = 0.d0
+    if (associated(this%local_cell_ids)) then
+      do icell = 1, size(this%local_cell_ids)
+        this%sum_volume = this%sum_volume + &
+          material_auxvars(grid%nL2G(this%local_cell_ids(icell)))%volume
+      enddo
+    endif
+    call MPI_Allreduce(MPI_IN_PLACE,this%sum_volume,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
+                       ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine PressureSetup
 
@@ -200,24 +223,30 @@ subroutine PressureSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: aux_real(:)
 
   PetscReal :: max_rate_kmol
-  PetscReal :: scale, derivative
+  PetscReal :: smoothstep_scale
+  PetscReal :: derivative
+  PetscReal :: volume_scale
   PetscReal :: xmin, xmax
 
   xmin = this%pressure-this%pressure_span
   xmax = this%pressure
 
   max_rate_kmol = this%max_mass_rate/FMWH2O
-  call Smoothstep(aux_real(this%iphase),xmin,xmax,scale,derivative)
-  scale = 1.d0-scale
+  volume_scale = 1.d0
+  if (this%scale_maximum_mass_rate) then
+    volume_scale = material_auxvar%volume / this%sum_volume
+  endif
+  call Smoothstep(aux_real(this%iphase),xmin,xmax,smoothstep_scale,derivative)
+  smoothstep_scale = 1.d0-smoothstep_scale
   derivative = -1.d0 * derivative
-  Residual(this%iphase) = max_rate_kmol*scale
+  Residual(this%iphase) = max_rate_kmol*volume_scale*smoothstep_scale
 !  print *, aux_real(iphase), scale, derivative
 !  print *, 'pumping rate: ' // &
 !    StringWrite(Residual(1)/aux_real(SS_PRES_LIQUID_DENSITY_OFFSET)*3600.)
 !  print *, material_auxvar%id, Residual(this%iphase)
 
   if (compute_derivative) then
-    Jacobian(this%iphase,this%iphase) = -max_rate_kmol*derivative
+    Jacobian(this%iphase,this%iphase) = -max_rate_kmol*volume_scale*derivative
   endif
 
 end subroutine PressureSrcSink
@@ -230,6 +259,8 @@ subroutine PressureDestroy(this)
   !
   ! Author: Glenn Hammond
   ! Date: 12/08/23
+
+  use Utility_module
 
   implicit none
 

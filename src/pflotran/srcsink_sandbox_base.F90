@@ -54,15 +54,17 @@ end subroutine SSSandboxBaseInit
 
 ! ************************************************************************** !
 
-subroutine SSSandboxBaseSetup(this,grid,option)
+subroutine SSSandboxBaseSetup(this,grid,material_auxvars,option)
 
   use Option_module
   use Grid_module
+  use Material_Aux_module, only: material_auxvar_type
 
   implicit none
 
   class(srcsink_sandbox_base_type) :: this
   type(grid_type) :: grid
+  type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
   PetscInt :: local_id, natural_id
@@ -71,8 +73,8 @@ subroutine SSSandboxBaseSetup(this,grid,option)
   PetscInt :: max_natural, min_natural
   PetscErrorCode :: ierr
 
-  local_id = 0
   num_local = 0
+  num_global = 0
   if (Initialized(this%coordinate%x)) then
     call GridGetLocalIDFromCoordinate(grid,this%coordinate,option,local_id)
     num_local = 1
@@ -103,13 +105,16 @@ subroutine SSSandboxBaseSetup(this,grid,option)
       &domain through either a CELL_ID or COORDINATE.'
     call PrintErrMsg(option)
   endif
-  allocate(this%local_cell_ids(num_local))
-  this%local_cell_ids = local_cell_ids
+  if (num_local > 0) then
+    allocate(this%local_cell_ids(num_local))
+    this%local_cell_ids = local_cell_ids
+  endif
   deallocate(local_cell_ids)
 
   ! check to ensure that each cell is mapped once
   call MPI_Allreduce(num_local,icell,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+
   if (icell == 0) then
     option%io_buffer = 'No grid cells mapped in SSSandboxBaseSetup.'
     call PrintErrMsg(option)
@@ -124,11 +129,13 @@ subroutine SSSandboxBaseSetup(this,grid,option)
   endif
 
   if (associated(this%natural_cell_ids)) deallocate(this%natural_cell_ids)
-  allocate(this%natural_cell_ids(num_local))
-  do icell = 1, size(this%local_cell_ids)
-    this%natural_cell_ids(icell) = &
-      grid%nG2A(grid%nL2G(this%local_cell_ids(icell)))
-  enddo
+  if (num_local > 0) then
+    allocate(this%natural_cell_ids(num_local))
+    do icell = 1, size(this%local_cell_ids)
+      this%natural_cell_ids(icell) = &
+        grid%nG2A(grid%nL2G(this%local_cell_ids(icell)))
+    enddo
+  endif
 
 end subroutine SSSandboxBaseSetup
 
@@ -230,6 +237,8 @@ subroutine SSSandboxBaseDestroy(this)
 
   class(srcsink_sandbox_base_type) :: this
 
+  call DeallocateArray(this%natural_cell_ids)
+  call DeallocateArray(this%local_cell_ids)
   call DeallocateArray(this%instantaneous_mass_rate)
   call DeallocateArray(this%cumulative_mass)
 

@@ -165,7 +165,7 @@ end subroutine SSSandboxRead2
 
 ! ************************************************************************** !
 
-subroutine SSSandboxSetup(grid,option,output_option)
+subroutine SSSandboxSetup(grid,material_auxvars,option,output_option)
   !
   ! Calls all the initialization routines for all source/sinks in
   ! the sandbox list
@@ -177,10 +177,12 @@ subroutine SSSandboxSetup(grid,option,output_option)
   use Option_module
   use Output_Aux_module
   use Grid_module
+  use Material_Aux_module, only: material_auxvar_type
 
   implicit none
 
   type(grid_type) :: grid
+  type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
   type(output_option_type) :: output_option
 
@@ -194,7 +196,7 @@ subroutine SSSandboxSetup(grid,option,output_option)
   do
     if (.not.associated(cur_sandbox)) exit
     next_sandbox => cur_sandbox%next
-    call cur_sandbox%Setup(grid,option)
+    call cur_sandbox%Setup(grid,material_auxvars,option)
     ! destory if not on process
     if (.not.associated(cur_sandbox%local_cell_ids)) then
       if (associated(prev_sandbox)) then
@@ -244,7 +246,7 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type) :: material_auxvars(:)
   type(grid_type) :: grid
   type(option_type) :: option
 

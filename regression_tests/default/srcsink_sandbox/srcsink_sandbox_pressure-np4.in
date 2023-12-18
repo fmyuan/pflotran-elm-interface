@@ -1,0 +1,154 @@
+#Description: 1D vertical injection scenario
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+#    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+  CELL_IDS
+    13
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 1 5
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 1.d0 5.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-15
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+#  TIMES y 0.01 0.1 1.0
+#  FORMAT TECPLOT POINT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  VARIABLES
+    LIQUID_PRESSURE
+  /
+END
+
+OBSERVATION
+  REGION injection_cell
+END
+
+#=========================== times ============================================
+TIME
+#  FINAL_TIME 3.d0 y
+  FINAL_TIME 1.d-5 y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 1.d0 5.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 5.d0
+  /
+END
+
+REGION injection_cell
+  BLOCK 3 3 1 1 2 4
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  DATUM 0. 0. 5.
+  LIQUID_PRESSURE 1.d6
+END
+
+#=========================== src/sink sandbox =================================
+SOURCE_SINK_SANDBOX
+  PRESSURE
+    CELL_ID 8 13 18 23
+    PHASE LIQUID
+    PRESSURE 1.1d6
+    SCALE_MAXIMUM_MASS_RATE
+    MAXIMUM_MASS_RATE 4.d-4 kg/s
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
