@@ -2366,10 +2366,10 @@ function GeneralAverageDensity(iphase,istate_up,istate_dn, &
   dden_up = 0.d0
   dden_dn = 0.d0
   if (iphase == LIQUID_PHASE) then
-    if (istate_up == GAS_STATE) then
+    if (istate_up == GAS_STATE .or. iphase == GP_STATE) then
       GeneralAverageDensity = density_dn(iphase)
       dden_dn = 1.d0
-    else if (istate_dn == GAS_STATE) then
+    else if (istate_dn == GAS_STATE .or. istate_dn == GP_STATE) then
       GeneralAverageDensity = density_up(iphase)
       dden_up = 1.d0
     else
@@ -2378,10 +2378,10 @@ function GeneralAverageDensity(iphase,istate_up,istate_dn, &
       dden_dn = 0.5d0
     endif
   else if (iphase == GAS_PHASE) then
-    if (istate_up == LIQUID_STATE) then
+    if (istate_up == LIQUID_STATE .or. istate_up == LP_STATE) then
       GeneralAverageDensity = density_dn(iphase)
       dden_dn = 1.d0
-    else if (istate_dn == LIQUID_STATE) then
+    else if (istate_dn == LIQUID_STATE .or. istate_dn == LP_STATE) then
       GeneralAverageDensity = density_up(iphase)
       dden_up = 1.d0
     else
