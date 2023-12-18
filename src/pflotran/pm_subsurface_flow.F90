@@ -101,6 +101,8 @@ subroutine PMSubsurfaceFlowInit(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
+  use SrcSink_Sandbox_module
+
   implicit none
 
   class(pm_subsurface_flow_type) :: this
@@ -129,6 +131,8 @@ subroutine PMSubsurfaceFlowInit(this)
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
   this%logging_verbosity = 0
+
+  call SSSandboxInit()
 
 end subroutine PMSubsurfaceFlowInit
 
@@ -304,10 +308,10 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
-       
+
     case('USE_EUCLIDEAN_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_FALSE
-       
+
     case default
       found = PETSC_FALSE
   end select

@@ -1224,7 +1224,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
 
   type(option_type) :: option
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: comment
+  character(len=*) :: comment
   PetscInt :: array_size
   PetscInt, pointer :: array(:)
 
@@ -1390,7 +1390,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
 
   type(option_type) :: option
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: comment
+  character(len=*) :: comment
   PetscInt :: array_size
   PetscReal, pointer :: array(:)
 

@@ -214,6 +214,7 @@ subroutine PressureSrcSink(this,Residual,Jacobian,compute_derivative, &
 !  print *, aux_real(iphase), scale, derivative
 !  print *, 'pumping rate: ' // &
 !    StringWrite(Residual(1)/aux_real(SS_PRES_LIQUID_DENSITY_OFFSET)*3600.)
+!  print *, material_auxvar%id, Residual(this%iphase)
 
   if (compute_derivative) then
     Jacobian(this%iphase,this%iphase) = -max_rate_kmol*derivative

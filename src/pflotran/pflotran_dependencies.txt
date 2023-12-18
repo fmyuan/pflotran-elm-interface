@@ -3018,6 +3018,7 @@ reactive_transport.o : \
   secondary_continuum.o \
   secondary_continuum_aux.o \
   secondary_continuum_np.o \
+  srcsink_sandbox.o \
   string.o \
   transport.o \
   transport_constraint_rt.o \

@@ -89,6 +89,7 @@ STANDARD_CFG = \
 	default/regions/regions.cfg \
 	default/salinity/salinity.cfg \
 	default/scco2/mphase/mphase.cfg \
+	default/srcsink_sandbox/srcsink_sandbox.cfg \
 	default/steady/steady.cfg \
 	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \

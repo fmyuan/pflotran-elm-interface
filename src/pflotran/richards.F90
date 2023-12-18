@@ -2994,7 +2994,7 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   PetscReal :: res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   class(srcsink_sandbox_base_type), pointer :: cur_srcsink
-  PetscInt :: local_id, ghosted_id, istart, iend
+  PetscInt :: local_id, ghosted_id, istart, iend, icell
   PetscReal :: aux_real(10)
 !  PetscReal :: res_pert(1), pert
   PetscErrorCode :: ierr
@@ -3006,42 +3006,44 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   cur_srcsink => ss_sandbox_list
   do
     if (.not.associated(cur_srcsink)) exit
-    aux_real = 0.d0
-    local_id = cur_srcsink%local_cell_id
-    ghosted_id = grid%nL2G(local_id)
-    res = 0.d0
-    Jac = 0.d0
-    call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
-                                      global_auxvars(ghosted_id), &
-                                      rich_auxvars(ghosted_id),option)
-    call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
-                              material_auxvars(ghosted_id), &
-                              aux_real,option)
-    if (compute_derivative) then
+    do icell = 1, size(cur_srcsink%local_cell_ids)
+      local_id = cur_srcsink%local_cell_ids(icell)
+      ghosted_id = grid%nL2G(local_id)
+      aux_real = 0.d0
+      res = 0.d0
+      Jac = 0.d0
       call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
                                         global_auxvars(ghosted_id), &
                                         rich_auxvars(ghosted_id),option)
-      call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
+      call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
                                 material_auxvars(ghosted_id), &
                                 aux_real,option)
+      if (compute_derivative) then
+        call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
+                                          global_auxvars(ghosted_id), &
+                                          rich_auxvars(ghosted_id),option)
+        call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
+                                  material_auxvars(ghosted_id), &
+                                  aux_real,option)
 #if 0
-      pert = global_auxvars(ghosted_id)%pres(1)*1.d-6
-      aux_real(1) = global_auxvars(ghosted_id)%pres(1)+pert
-      call cur_srcsink%Evaluate(res_pert,Jac,PETSC_FALSE, &
-                                material_auxvars(ghosted_id), &
-                                aux_real,option)
-      Jac(1,1) = (res_pert(1)-res(1))/pert
-      print *, 'Jac_num:', Jac(1,1)
-!      stop
+        pert = global_auxvars(ghosted_id)%pres(1)*1.d-6
+        aux_real(1) = global_auxvars(ghosted_id)%pres(1)+pert
+        call cur_srcsink%Evaluate(res_pert,Jac,PETSC_FALSE, &
+                                  material_auxvars(ghosted_id), &
+                                  aux_real,option)
+        Jac(1,1) = (res_pert(1)-res(1))/pert
+        print *, 'Jac_num:', Jac(1,1)
+  !      stop
 #endif
-      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
-                                    Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
+                                      Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
 
-    else
-      iend = local_id*option%nflowdof
-      istart = iend - option%nflowdof + 1
-      r_p(istart:iend) = r_p(istart:iend) - res
-    endif
+      else
+        iend = local_id*option%nflowdof
+        istart = iend - option%nflowdof + 1
+        r_p(istart:iend) = r_p(istart:iend) - res
+      endif
+    enddo
     cur_srcsink => cur_srcsink%next
   enddo
 
