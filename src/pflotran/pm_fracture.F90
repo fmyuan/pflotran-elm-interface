@@ -56,6 +56,10 @@ module PM_Fracture_class
   type, public, extends(pm_base_type) :: pm_fracture_type
     class(realization_subsurface_type), pointer :: realization
     class(fracture_type), pointer :: fracture_list
+    ! list of all global cell ids that contain fractures (some repeated)
+    PetscInt, pointer :: allfrac_cell_ids(:)
+    ! list of all global cell ids that contain fracture intersections
+    PetscInt, pointer :: frac_common_cell_ids(:)
     ! maximum distance grid cell center can be from the fracture plane in 
     ! order to mark the cell as being fractured # [m]
     PetscReal :: max_distance
@@ -105,6 +109,8 @@ function PMFracCreate()
 
   nullify(this%realization)
   nullify(this%fracture_list)
+  nullify(this%allfrac_cell_ids)
+  nullify(this%frac_common_cell_ids)
   this%nfrac = 0  
   this%max_distance = 5.0  
   this%t_coeff = 40.d-6
@@ -190,8 +196,10 @@ subroutine PMFracSetup(this)
   type(grid_type), pointer :: res_grid
   character(len=MAXWORDLENGTH) :: word
   PetscInt, pointer :: temp_cell_ids(:)
+  PetscInt, pointer :: temp_allfrac_cell_ids(:)
+  PetscInt, pointer :: temp_frac_common_cell_ids(:)
   PetscInt :: k,j,local_id,local_id_center
-  PetscInt :: nf,read_max
+  PetscInt :: nf,tfc,read_max
   PetscReal :: D,distance 
   PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
   PetscReal :: ra, sinra, cosra
@@ -202,6 +210,8 @@ subroutine PMFracSetup(this)
   read_max = 5000 ! Set to a large but realistic number
 
   allocate(temp_cell_ids(read_max))
+  allocate(temp_allfrac_cell_ids(read_max*10))
+  allocate(temp_frac_common_cell_ids(read_max))
 
   cur_fracture => this%fracture_list
   do
@@ -217,6 +227,7 @@ subroutine PMFracSetup(this)
     '] fractures onto equivalent porous media domain:'
   call PrintMsg(option)
 
+  tfc = 0
   cur_fracture => this%fracture_list
   do
     if (.not.associated(cur_fracture)) exit
@@ -249,6 +260,13 @@ subroutine PMFracSetup(this)
       endif
     enddo
     cur_fracture%ncells = j
+    if (j > read_max) then
+      option%io_buffer = 'The number of grid cells that FRACTURE with &
+        &ID# [' // word // '] occupies exceeds the set limit of 5000 cells. If &
+        &you are certain the fracture should be this large, increase the size &
+        &of read_max in PMFracSetup() or email the PFLOTRAN developers group.'
+      call PrintErrMsg(option)
+    endif
     allocate(cur_fracture%cell_ids(cur_fracture%ncells))
     allocate(cur_fracture%prev_temperature(cur_fracture%ncells))
     allocate(cur_fracture%dT(cur_fracture%ncells))
@@ -261,6 +279,15 @@ subroutine PMFracSetup(this)
     cur_fracture%hap(:) = cur_fracture%hap0
     cur_fracture%cell_ids(1:cur_fracture%ncells) = &
                                           temp_cell_ids(1:cur_fracture%ncells)
+    temp_allfrac_cell_ids(tfc+1:tfc+cur_fracture%ncells) = &
+                                  cur_fracture%cell_ids(1:cur_fracture%ncells)
+
+    tfc = tfc + cur_fracture%ncells
+    if (tfc > (read_max*10)) then
+      option%io_buffer = 'tfc exceed maximum. Email the PFLOTRAN developers &
+        &group, or increase the size of read_max*10 in PMFracSetup().'
+      call PrintErrMsg(option)
+    endif
 
     ! get the unit vector parallel to the fracture plane
     ! a X b = c, where c is perpendicular to a and b (a and b can't be parallel)
@@ -304,7 +331,30 @@ subroutine PMFracSetup(this)
     cur_fracture => cur_fracture%next
   enddo
 
+  allocate(this%allfrac_cell_ids(tfc))
+  this%allfrac_cell_ids(1:tfc) = temp_allfrac_cell_ids(1:tfc)
+
+  deallocate(temp_allfrac_cell_ids)
+  allocate(temp_allfrac_cell_ids(tfc))
+  temp_allfrac_cell_ids(:) = UNINITIALIZED_INTEGER
   deallocate(temp_cell_ids)
+  allocate(temp_cell_ids(tfc))
+  temp_cell_ids(:) = UNINITIALIZED_INTEGER
+  j = 1
+  do k = 1,tfc 
+    if (any(temp_allfrac_cell_ids == this%allfrac_cell_ids(k))) then
+      temp_cell_ids(j) = this%allfrac_cell_ids(k)
+      j = j + 1
+    endif
+    temp_allfrac_cell_ids(k) = this%allfrac_cell_ids(k)
+  enddo
+
+  allocate(this%frac_common_cell_ids(j))
+  this%frac_common_cell_ids(1:j) = temp_cell_ids(1:j)
+
+  deallocate(temp_cell_ids)
+  deallocate(temp_allfrac_cell_ids)
+  deallocate(temp_frac_common_cell_ids)
 
 end subroutine PMFracSetup
 
@@ -369,9 +419,9 @@ subroutine PMFracInitializeRun(this)
 
       call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
 
-      call PMFracUpdateK(material_auxvar,cur_fracture%kx0(k), &
-      	                 cur_fracture%ky0(k),cur_fracture%kz0(k), &
-      	                 kx,ky,kz)
+      material_auxvar%permeability(1) = material_auxvar%permeability(1) + kx 
+      material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky 
+      material_auxvar%permeability(3) = material_auxvar%permeability(3) + kz
 
       global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
                                                                        ! should be ghosted_id
@@ -408,10 +458,33 @@ subroutine PMFracInitializeTimestep(this)
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 12/13/2023
   !
+  use Material_Aux_module
 
   implicit none
 
   class(pm_fracture_type) :: this
+
+  type(material_auxvar_type), pointer :: material_auxvar
+  type(fracture_type), pointer :: cur_fracture
+  PetscInt :: icell,k
+
+  ! update the base permeability
+  cur_fracture => this%fracture_list
+  do
+    if (.not.associated(cur_fracture)) exit
+
+    do k = 1,cur_fracture%ncells
+      icell = cur_fracture%cell_ids(k)
+      material_auxvar => &
+        this%realization%patch%aux%material%auxvars(icell) ! the input here
+                                                           ! should be ghosted_id
+      !cur_fracture%kx0(k) = material_auxvar%permeability(1)
+      !cur_fracture%ky0(k) = material_auxvar%permeability(2)
+      !cur_fracture%kz0(k) = material_auxvar%permeability(3)
+    enddo
+
+    cur_fracture => cur_fracture%next
+  enddo
 
 
 end subroutine PMFracInitializeTimestep
@@ -710,6 +783,46 @@ end subroutine PMFracReadPass2
 
 ! ************************************************************************** !
 
+subroutine PMFracCalc_dK(L,d_hap,RM,kx,ky,kz)
+  !
+  ! Calculates change in cell anisotropic permeability from fracture 
+  ! permeability.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 12/18/2023
+  !
+
+  implicit none
+
+  PetscReal :: L 
+  PetscReal :: d_hap ! change in hap
+  PetscReal :: RM(3,3)
+  PetscReal :: kx,ky,kz
+
+  PetscReal :: K_frac(3,3)
+  PetscReal :: K_frac_rot(3,3)
+  PetscReal :: K_domain(3,3)
+
+  ! the math:
+  ! K = (1.d0/12.d0)*(hap**3.0d0)/L
+  ! d_K/d_hap = (3.d0/12.d0)*(hap**2.0d0)/L
+
+  K_frac(:,:) = 0.d0
+  K_frac(1,1) = (3.d0/12.d0)*(d_hap**2.0d0)/L ! kxx
+  K_frac(2,2) = (3.d0/12.d0)*(d_hap**2.0d0)/L ! kyy
+  ! note: zero in kzz
+
+  K_frac_rot = MATMUL(RM,K_frac)
+  K_domain = MATMUL(K_frac_rot,TRANSPOSE(RM))
+
+  kx = K_domain(1,1)
+  ky = K_domain(2,2)
+  kz = K_domain(3,3)
+
+end subroutine PMFracCalc_dK
+
+! ************************************************************************** !
+
 subroutine PMFracCalcK(L,hap,RM,kx,ky,kz)
   !
   ! Calculates cell anisotropic permeability from fracture permeability.
@@ -745,7 +858,7 @@ end subroutine PMFracCalcK
 
 ! ************************************************************************** !
 
-subroutine PMFracUpdateK(material_auxvar,kx0,ky0,kz0,kx,ky,kz)
+subroutine PMFracUpdateK(material_auxvar,dkx,dky,dkz)
   !
   ! Calculates cell permeability from fracture permeability.
   !
@@ -757,12 +870,15 @@ subroutine PMFracUpdateK(material_auxvar,kx0,ky0,kz0,kx,ky,kz)
   implicit none
 
   type(material_auxvar_type), pointer :: material_auxvar
-  PetscReal :: kx0,ky0,kz0
-  PetscReal :: kx,ky,kz
+  PetscReal :: dkx,dky,dkz
 
-  material_auxvar%permeability(1) = kx0+kx ! to fix: this will keep adding background over and over again
-  material_auxvar%permeability(2) = ky0+ky ! but maybe it doesn't matter b/c background is really tiny
-  material_auxvar%permeability(3) = kz0+kz
+  ! This only works because in PMFracInitializeRun the material_auxvar
+  ! permeability was already increased to the fracture permeability.
+  ! Here we only change it when aperture changes which results in a non-zero
+  ! value for dk(z,y,z).
+  material_auxvar%permeability(1) = material_auxvar%permeability(1) + dkx 
+  material_auxvar%permeability(2) = material_auxvar%permeability(2) + dky 
+  material_auxvar%permeability(3) = material_auxvar%permeability(3) + dkz
 
 end subroutine PMFracUpdateK
 
@@ -790,6 +906,7 @@ subroutine PMFracSolve(this,time,ierr)
   type(fracture_type), pointer :: cur_fracture
   PetscReal :: cur_temperature,L
   PetscReal :: kx,ky,kz
+  PetscReal :: dkx,dky,dkz
   PetscInt :: icell,k
 
   option => this%option
@@ -815,13 +932,15 @@ subroutine PMFracSolve(this,time,ierr)
       ! update the aperture with dL and calculate new perm
       cur_fracture%hap(k) = cur_fracture%hap(k) - cur_fracture%dL(k)
 
+      ! get change in anisotropic domain permeability from rotation transform
+      call PMFracCalc_dK(L,-1.d0*cur_fracture%dL(k),cur_fracture%RM, &
+                         dkx,dky,dkz)
+
       ! get anisotropic domain permeability from rotation transformation
       call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
 
       ! update domain material permeability of cells with fractures
-      call PMFracUpdateK(material_auxvar,cur_fracture%kx0(k), &
-      	                 cur_fracture%ky0(k),cur_fracture%kz0(k), &
-      	                 kx,ky,kz)
+      call PMFracUpdateK(material_auxvar,dkx,dky,dkz)
 
       ! reset previous temperature for next time step
       cur_fracture%prev_temperature(k) = cur_temperature
@@ -841,14 +960,55 @@ subroutine PMFracDestroy(this)
   ! Destroys objects in the fracture process model.
   !
   ! Author: Jennifer M. Frederick, SNL
-  ! Date: 12/13/2023
+  ! Date: 12/18/2023
   !
+  use Utility_module, only : DeallocateArray
 
   implicit none
 
   class(pm_fracture_type) :: this
 
+  type(fracture_type), pointer :: cur_fracture
+
+  call DeallocateArray(this%allfrac_cell_ids)
+  call DeallocateArray(this%frac_common_cell_ids)
+
+  cur_fracture => this%fracture_list
+  do
+    if (.not.associated(cur_fracture)) exit
+    
+      call PMFracStripFrac(cur_fracture)
+
+    cur_fracture => cur_fracture%next
+  enddo
+
 end subroutine PMFracDestroy
+
+! ************************************************************************** !
+
+subroutine PMFracStripFrac(frac)
+  !
+  ! Destroys objects in the fracture process model.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 12/18/2023
+  !
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  type(fracture_type), pointer :: frac
+    
+  call DeallocateArray(frac%kx0)
+  call DeallocateArray(frac%ky0)
+  call DeallocateArray(frac%kx0)
+  call DeallocateArray(frac%hap)
+  call DeallocateArray(frac%cell_ids)
+  call DeallocateArray(frac%prev_temperature)
+  call DeallocateArray(frac%dT)
+  call DeallocateArray(frac%dL)
+
+end subroutine PMFracStripFrac
 
 ! ************************************************************************** !
 
