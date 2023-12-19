@@ -953,7 +953,7 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
-  PetscInt :: pgas_index, xmol_index, pw_index
+  PetscInt :: pgas_index, xmol_index, smol_index, pw_index
   PetscInt :: saturation_index
   PetscReal :: temp_real
 
@@ -1012,6 +1012,11 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
           if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
            dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
            changed = PETSC_TRUE
+          endif
+          smol_index = offset + GENERAL_LIQUID_STATE_S_MOLE_DOF !salt mole fraction
+          if (X_p(smol_index) - dX_p(smol_index) < 0.d0) then
+            dX_p(smol_index) = X_p(smol_index)
+            changed = PETSC_TRUE
           endif
         case(GAS_STATE)
          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF

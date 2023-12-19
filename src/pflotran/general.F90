@@ -926,12 +926,22 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
-          if (istate > 3) then
-            real_index = boundary_condition%flow_aux_mapping(&
-                    dof_to_primary_variable(idof,TWO_PHASE_STATE))
+          if (general_salt) then
+            if (istate > 7) then !ANY_STATE, MULTI_STATE
+              real_index = boundary_condition%flow_aux_mapping(&
+                      dof_to_primary_variable(idof,LGP_STATE))
+            else
+              real_index = boundary_condition%flow_aux_mapping(&
+                      dof_to_primary_variable(idof,istate))
+            endif
           else
-            real_index = boundary_condition%flow_aux_mapping(&
-                    dof_to_primary_variable(idof,istate))
+            if (istate > 3) then
+              real_index = boundary_condition%flow_aux_mapping(&
+                      dof_to_primary_variable(idof,TWO_PHASE_STATE))
+            else
+              real_index = boundary_condition%flow_aux_mapping(&
+                      dof_to_primary_variable(idof,istate))
+            endif
           endif
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
@@ -943,7 +953,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       endif
 
       ! set this based on data given
-      if (istate <= 5) then
+      if (istate <= 7) then
         global_auxvars_bc(sum_connection)%istate = istate
       else
         if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then

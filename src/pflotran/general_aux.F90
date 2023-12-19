@@ -734,36 +734,38 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            eos_henry_ierr)
         endif
       else
-        if (global_auxvar%m_nacl(1)>0.d0) then
-          if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
-             ! For the computation of fixed accumulation term use NaCl
-             ! value, m_nacl(2), from the previous time step.
-             aux(1) = global_auxvar%m_nacl(2)
+        if (associated(global_auxvar%m_nacl)) then
+          if (global_auxvar%m_nacl(1)>0.d0) then
+            if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
+               ! For the computation of fixed accumulation term use NaCl
+               ! value, m_nacl(2), from the previous time step.
+               aux(1) = global_auxvar%m_nacl(2)
+            else
+               ! Use NaCl value for the current time step, m_nacl(1),
+               ! for computing the accumulation term
+               aux(1) = global_auxvar%m_nacl(1)
+            endif
           else
-             ! Use NaCl value for the current time step, m_nacl(1),
-             ! for computing the accumulation term
-             aux(1) = global_auxvar%m_nacl(1)
+            call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
           endif
-        else
-          call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
-        endif
-        if (associated(gen_auxvar%d)) then
-           call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
-                gen_auxvar%pres(spid), &
-                gen_auxvar%d%psat_T,ierr)
-           gen_auxvar%d%psat_p = 0.d0
-           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
-                gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
-                eos_henry_ierr)
-           gen_auxvar%d%Hc = K_H_tilde
-        else
-           call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
-                gen_auxvar%pres(spid),ierr)
-           !geh: Henry_air_xxx returns K_H in units of Pa, but I am
-           !     not confident that K_H is truly K_H_tilde (i.e. p_g * K_H).
-           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
-                eos_henry_ierr)
+          if (associated(gen_auxvar%d)) then
+             call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
+                  gen_auxvar%pres(spid), &
+                  gen_auxvar%d%psat_T,ierr)
+             gen_auxvar%d%psat_p = 0.d0
+             call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
+                  gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
+                  K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                  eos_henry_ierr)
+             gen_auxvar%d%Hc = K_H_tilde
+          else
+             call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
+                  gen_auxvar%pres(spid),ierr)
+             !geh: Henry_air_xxx returns K_H in units of Pa, but I am
+             !     not confident that K_H is truly K_H_tilde (i.e. p_g * K_H).
+             call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                  eos_henry_ierr)
+          endif
         endif
       endif
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
@@ -2034,25 +2036,22 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
     case(LP_STATE)
       gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
-      gen_auxvar%xmol(acid,lid) = min(1.d0,max(0.d0,x(GENERAL_LIQUID_STATE_X_MOLE_DOF)))
+      gen_auxvar%xmol(acid,lid) = x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
       if (.not.soluble_matrix) then
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       else
         gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
-        !material_auxvar%porosity = gen_auxvar%effective_porosity
         gen_auxvar%sat(pid) = 0.d0
       endif
       if (gen_auxvar%istatechng) then
         gen_auxvar%xmol(acid,lid) = max(0.d0,x(GENERAL_LIQUID_STATE_X_MOLE_DOF))
         if (soluble_matrix) then
-          gen_auxvar%sat(lid) = max(0.d0,gen_auxvar%sat(lid))
-          gen_auxvar%sat(lid) = min(1.d0,gen_auxvar%sat(lid))
+          gen_auxvar%sat(lid) = min(1.d0,max(0.d0,gen_auxvar%sat(lid)))
         endif
       endif
       call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
       gen_auxvar%xmol(sid,lid) = NaClSolubility
-
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid) - gen_auxvar%xmol(sid,lid)
       ! with the gas state, we must calculate the mole fraction of air in
       ! in the liquid phase, even though the liquid phase does not exist
@@ -2070,25 +2069,13 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
       gen_auxvar%sat(gid) = 0.d0
 
-      if (associated(gen_auxvar%d)) then
-        call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                        gen_auxvar%pres(spid), &
-                                        gen_auxvar%d%psat_T,ierr)
-        gen_auxvar%d%psat_p = 0.d0
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
-                          gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
-                          eos_henry_ierr)
-        gen_auxvar%d%Hc = K_H_tilde
-      else
-        liq_comp(:) = gen_auxvar%xmol(sid,lid)
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
+      liq_comp(:) = gen_auxvar%xmol(sid,lid)
+      call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
                                            gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
-                         eos_henry_ierr)
-      endif
+      call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                       eos_henry_ierr)
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
       ! need vpres for liq -> 2ph check
@@ -2111,10 +2098,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
       gen_auxvar%pres(cpid) = 0.d0
 
-      if (associated(gen_auxvar%d)) then
-        gen_auxvar%d%pv_p = 1.d0 - gen_auxvar%d%Hc_p*gen_auxvar%xmol(acid,lid)
-        gen_auxvar%d%pv_T = -gen_auxvar%d%Hc_T*gen_auxvar%xmol(acid,lid)
-      endif
     case(GP_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
 
@@ -2135,14 +2118,13 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       if (soluble_matrix) then
         gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
         gen_auxvar%sat(pid) = 0.d0
-        gen_auxvar%sat(gid) = 0.d0
+        gen_auxvar%sat(gid) = 1.d0
       else !insoluble matrix
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
         gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(pid)
       endif
 
       gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 1.d0
       gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
 
       cell_pressure = gen_auxvar%pres(gid)
@@ -2233,22 +2215,19 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
       gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
       if (soluble_matrix) then
-        gen_auxvar%effective_porosity = max(0.0001d0,x(GENERAL_POROSITY_DOF))
+        gen_auxvar%effective_porosity = max(1d-12,x(GENERAL_POROSITY_DOF))
       else
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       endif
       call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
       gen_auxvar%xmol(sid,lid) = NaClSolubility
       if (gen_auxvar%istatechng) then
-        gen_auxvar%sat(lid) = max(0.d0,gen_auxvar%sat(lid))
-        gen_auxvar%sat(lid) = min(1.d0,gen_auxvar%sat(lid))
+        gen_auxvar%sat(lid) = min(1.d0,max(0.d0,gen_auxvar%sat(lid)))
         if (soluble_matrix) then
           gen_auxvar%sat(pid) = 0.d0
-          gen_auxvar%effective_porosity = max(0.d0,gen_auxvar%effective_porosity)
-          gen_auxvar%effective_porosity = min(1.d0,gen_auxvar%effective_porosity)
+          gen_auxvar%effective_porosity = min(1.d0,max(0.d0,gen_auxvar%effective_porosity))
         else
-          gen_auxvar%sat(pid) = max(0.d0,gen_auxvar%sat(pid))
-          gen_auxvar%sat(pid) = min(1.d0,gen_auxvar%sat(pid))
+          gen_auxvar%sat(pid) = min(1.d0,max(0.d0,gen_auxvar%sat(pid)))
         endif
       endif
 
@@ -2426,7 +2405,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   ! Gas phase thermodynamic properties
   ! we cannot use %pres(vpid) as vapor pressure in the liquid phase, since
   ! it can go negative
-  if (global_auxvar%istate /= LIQUID_STATE .or. global_auxvar%istate /= LP_STATE) then
+  if (global_auxvar%istate /= LIQUID_STATE .and. global_auxvar%istate /= LP_STATE) then
     if (global_auxvar%istate == GAS_STATE) then
       water_vapor_pressure = gen_auxvar%pres(vpid)
     elseif (global_auxvar%istate == GP_STATE) then
@@ -2584,7 +2563,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%pres(gid)*tempreal*tempreal*gen_auxvar%d%deng_T
 #endif
     endif
-  endif ! istate /= LIQUID_STATE
+  endif ! istate /= LIQUID_STATE or /= LP_STATE
   if (soluble_matrix .and. general_update_permeability) then
     if (gen_auxvar%perm_base < -999.d0) then
       gen_auxvar%perm_base = (material_auxvar%permeability(1)/&
@@ -4933,8 +4912,19 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
       gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
         gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(LGP_STATE)
-      gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
+      if (general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
+        gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert = &
+          gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert / &
+          GENERAL_PRESSURE_SCALE
+      endif
+    case(GP_STATE)
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
+      gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert / &
+        GENERAL_PRESSURE_SCALE
   end select
 
 #ifdef DEBUG_GENERAL
