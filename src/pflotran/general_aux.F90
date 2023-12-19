@@ -3299,7 +3299,8 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
     case(LP_STATE)
       if (soluble_matrix) then
         if (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
-            window_epsilon)) then
+            window_epsilon) .or. gen_auxvar%pres(apid) >= gen_auxvar% &
+            pres(lid)*(1.d0+window_epsilon)) then
 
             global_auxvar%istate = LGP_STATE
             liq_epsilon = general_phase_chng_epsilon
@@ -3466,7 +3467,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
     case(LGP_STATE)
       if (soluble_matrix) then
         Sg_new = x(GENERAL_GAS_SATURATION_DOF)
-        if (Sg_new < 0.d0) then
+        if (Sg_new < 0.d0-window_epsilon) then
 
           global_auxvar%istate = LP_STATE
           two_phase_epsilon = general_phase_chng_epsilon
@@ -3487,7 +3488,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                                       & i8)') natural_id
           endif
 
-        elseif (Sg_new > 1.d0 ) then
+        elseif (Sg_new > 1.d0+window_epsilon) then
 
           global_auxvar%istate = GP_STATE
           two_phase_epsilon = general_phase_chng_epsilon
