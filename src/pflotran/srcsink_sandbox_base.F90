@@ -179,10 +179,12 @@ subroutine SSSandboxBaseSelectCase(this,input,option,keyword,found)
   select case(trim(keyword))
     case('COORDINATE')
       call GeometryReadCoordinate(input,option,this%coordinate,error_string)
-    case('CELL_ID','CELL_IDS')
+    case('CELL_IDS')
       call UtilityReadArray(this%natural_cell_ids,UNINITIALIZED_INTEGER, &
                             trim(error_string)//','//trim(keyword), &
                             input,option)
+    case('CELL_ID')
+      call InputKeywordDeprecated('CELL_ID','CELL_IDS',option)
     case default
       found = PETSC_FALSE
   end select
