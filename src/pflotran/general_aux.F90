@@ -866,18 +866,20 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            eos_henry_ierr)
         endif
       else
-        if (global_auxvar%m_nacl(1) > 0.d0) then
-          if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
-           ! For the computation of fixed accumulation term use NaCl
-           ! value, m_nacl(2), from the previous time step.
-            aux(1) = global_auxvar%m_nacl(2)
-          else
-            ! Use NaCl value for the current time step, m_nacl(1),
-            ! for computing the accumulation term
-            aux(1) = global_auxvar%m_nacl(1)
+        if (associated(global_auxvar%m_nacl)) then
+          if (global_auxvar%m_nacl(1) > 0.d0) then
+            if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
+             ! For the computation of fixed accumulation term use NaCl
+             ! value, m_nacl(2), from the previous time step.
+              aux(1) = global_auxvar%m_nacl(2)
+            else
+              ! Use NaCl value for the current time step, m_nacl(1),
+              ! for computing the accumulation term
+              aux(1) = global_auxvar%m_nacl(1)
+            endif
           endif
         else
-         call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
+          call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
         endif
         if (associated(gen_auxvar%d)) then
           call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
@@ -997,19 +999,22 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                              eos_henry_ierr)
           endif
         else
-          if (global_auxvar%m_nacl(1) > 0.d0) then
-             if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
-                ! For the computation of fixed accumulation term use NaCl
-                ! value, m_nacl(2), from the previous time step.
-                aux(1) = global_auxvar%m_nacl(2)
-             else
-                ! Use NaCl value for the current time step, m_nacl(1),
-                ! for computing the accumulation term
-                aux(1) = global_auxvar%m_nacl(1)
-             endif
+          if (associated(global_auxvar%m_nacl)) then
+            if (global_auxvar%m_nacl(1) > 0.d0) then
+               if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
+                  ! For the computation of fixed accumulation term use NaCl
+                  ! value, m_nacl(2), from the previous time step.
+                  aux(1) = global_auxvar%m_nacl(2)
+               else
+                  ! Use NaCl value for the current time step, m_nacl(1),
+                  ! for computing the accumulation term
+                  aux(1) = global_auxvar%m_nacl(1)
+               endif
+            endif
           else
              call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
           endif
+
           if (associated(gen_auxvar%d)) then
              call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
                   gen_auxvar%pres(spid), &
@@ -1192,16 +1197,18 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
     endif
   else
-     if (global_auxvar%m_nacl(1) > 0.d0) then
-       if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
-          ! For the computation of fixed accumulation term use NaCl
-          ! value, m_nacl(2), from the previous time step.
-          aux(1) = global_auxvar%m_nacl(2)
-       else
-          ! Use NaCl value for the current time step, m_nacl(1), for computing
-          ! the accumulation term
-          aux(1) = global_auxvar%m_nacl(1)
-       endif
+     if (associated(global_auxvar%m_nacl)) then
+       if (global_auxvar%m_nacl(1) > 0.d0) then
+         if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
+            ! For the computation of fixed accumulation term use NaCl
+            ! value, m_nacl(2), from the previous time step.
+            aux(1) = global_auxvar%m_nacl(2)
+         else
+            ! Use NaCl value for the current time step, m_nacl(1), for computing
+            ! the accumulation term
+            aux(1) = global_auxvar%m_nacl(1)
+         endif
+      endif
     else
        call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
     endif
@@ -1456,15 +1463,17 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                gen_auxvar%pres(spid),visl,ierr)
       endif
     else
-      if (global_auxvar%m_nacl(1) > 0.d0) then
-        if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
-          ! For the computation of fixed accumulation term use NaCl
-          ! value, m_nacl(2), from the previous time step.
-          aux(1) = global_auxvar%m_nacl(2)
-        else
-          ! Use NaCl value for the current time step, m_nacl(1), for computing
-          ! the accumulation term
-          aux(1) = global_auxvar%m_nacl(1)
+      if (associated(global_auxvar%m_nacl)) then
+        if (global_auxvar%m_nacl(1) > 0.d0) then
+          if (option%iflag == GENERAL_UPDATE_FOR_FIXED_ACCUM) then
+            ! For the computation of fixed accumulation term use NaCl
+            ! value, m_nacl(2), from the previous time step.
+            aux(1) = global_auxvar%m_nacl(2)
+          else
+            ! Use NaCl value for the current time step, m_nacl(1), for computing
+            ! the accumulation term
+            aux(1) = global_auxvar%m_nacl(1)
+          endif
         endif
       else
          call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
