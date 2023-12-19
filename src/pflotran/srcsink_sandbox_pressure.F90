@@ -18,6 +18,7 @@ module SrcSink_Sandbox_Pressure_class
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_pressure_type
     PetscBool :: scale_maximum_mass_rate
+    PetscBool :: inhibit_flow_above_pressure
     PetscInt :: iphase
     PetscReal :: pressure
     PetscReal :: max_mass_rate
@@ -50,6 +51,7 @@ function PressureCreate()
   allocate(PressureCreate)
   call SSSandboxBaseInit(PressureCreate)
   PressureCreate%scale_maximum_mass_rate = PETSC_FALSE
+  PressureCreate%inhibit_flow_above_pressure = PETSC_TRUE
   PressureCreate%iphase = UNINITIALIZED_INTEGER
   PressureCreate%max_mass_rate = UNINITIALIZED_DOUBLE
   PressureCreate%pressure = UNINITIALIZED_DOUBLE
@@ -79,7 +81,9 @@ subroutine PressureRead(this,input,option)
 
   character(len=MAXWORDLENGTH) :: word, internal_units, word2
   PetscBool :: found
+  PetscBool :: inhibit_term_read
 
+  inhibit_term_read = PETSC_FALSE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -116,6 +120,12 @@ subroutine PressureRead(this,input,option)
         end select
       case('SCALE_MAXIMUM_MASS_RATE')
         this%scale_maximum_mass_rate = PETSC_TRUE
+      case('INHIBIT_FLOW_ABOVE_PRESSURE')
+        this%inhibit_flow_above_pressure = PETSC_TRUE
+        inhibit_term_read = PETSC_TRUE
+      case('INHIBIT_FLOW_BELOW_PRESSURE')
+        this%inhibit_flow_above_pressure = PETSC_FALSE
+        inhibit_term_read = PETSC_TRUE
       case('MAXIMUM_MASS_RATE')
         call InputReadDouble(input,option,this%max_mass_rate)
         call InputErrorMsg(input,option,word, &
@@ -152,6 +162,27 @@ subroutine PressureRead(this,input,option)
   if (.not.Initialized(this%pressure)) then
     option%io_buffer = 'A PRESSURE must be assigned for each phase in a &
       &PRESSURE SOURCE_SINK_SANDBOX.'
+    call PrintErrMsg(option)
+  endif
+  if (.not.inhibit_term_read) then
+    option%io_buffer = 'INHIBIT_FLOW_ABOVE_PRESSURE or &
+      &INHIBIT_FLOW_BELOW_PRESSURE must be specified in a PRESSURE &
+      &SOURCE_SINK_SANDBOX.'
+    call PrintErrMsg(option)
+  endif
+  if (this%inhibit_flow_above_pressure .and. this%max_mass_rate < 0.d0) then
+    option%io_buffer = 'A negative maximum mass rate indicating extraction &
+      &has been assigned to a PRESSURE SOURCE_SINK_SANDBOX with the flag &
+      &INHIBIT_FLOW_ABOVE_PRESSURE. Mass will be continue to be extracted &
+      &below the specified PRESSURE.'
+    call PrintErrMsg(option)
+  endif
+  if (.not.this%inhibit_flow_above_pressure .and. &
+      this%max_mass_rate > 0.d0) then
+    option%io_buffer = 'A postive maximum mass rate indicating injection &
+      &has been assigned to a PRESSURE SOURCE_SINK_SANDBOX with the flag &
+      &INHIBIT_FLOW_BELOW_PRESSURE. Mass will be continue to be injected &
+      &above the specified PRESSURE.'
     call PrintErrMsg(option)
   endif
 
@@ -228,8 +259,13 @@ subroutine PressureSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: volume_scale
   PetscReal :: xmin, xmax
 
-  xmin = this%pressure-this%pressure_span
-  xmax = this%pressure
+  if (this%inhibit_flow_above_pressure) then
+    xmin = this%pressure-this%pressure_span
+    xmax = this%pressure
+  else
+    xmin = this%pressure
+    xmax = this%pressure+this%pressure_span
+  endif
 
   max_rate_kmol = this%max_mass_rate/FMWH2O
   volume_scale = 1.d0
@@ -237,8 +273,10 @@ subroutine PressureSrcSink(this,Residual,Jacobian,compute_derivative, &
     volume_scale = material_auxvar%volume / this%sum_volume
   endif
   call Smoothstep(aux_real(this%iphase),xmin,xmax,smoothstep_scale,derivative)
-  smoothstep_scale = 1.d0-smoothstep_scale
-  derivative = -1.d0 * derivative
+  if (this%inhibit_flow_above_pressure) then
+    smoothstep_scale = 1.d0-smoothstep_scale
+    derivative = -1.d0 * derivative
+  endif
   Residual(this%iphase) = max_rate_kmol*volume_scale*smoothstep_scale
 !  print *, aux_real(iphase), scale, derivative
 !  print *, 'pumping rate: ' // &

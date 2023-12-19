@@ -14,6 +14,10 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW
 
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 15
+  /
+
   LINEAR_SOLVER
 #    SOLVER DIRECT
   /
@@ -22,7 +26,6 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 2
   CELL_IDS
     13
   /
@@ -59,7 +62,7 @@ CHARACTERISTIC_CURVES cc1
 END
 
 #=========================== output options ===================================
-skip
+#skip
 OUTPUT
 #  TIMES y 0.01 0.1 1.0
 #  FORMAT TECPLOT POINT
@@ -72,12 +75,11 @@ END
 OBSERVATION
   REGION injection_cell
 END
-noskip
+#noskip
 
 #=========================== times ============================================
 TIME
-#  FINAL_TIME 3.d0 y
-  FINAL_TIME 1.d-5 y
+  FINAL_TIME 0.1d0 y
   INITIAL_TIMESTEP_SIZE 1.d0 s
   MAXIMUM_TIMESTEP_SIZE 5.d-2 y
 END
@@ -90,24 +92,8 @@ REGION all
   /
 END
 
-REGION east
-  FACE EAST
-  COORDINATES
-    5.d0 0.d0 0.d0
-    5.d0 1.d0 5.d0
-  /
-END
-
-REGION west
-  FACE WEST
-  COORDINATES
-    0.d0 0.d0 0.d0
-    0.d0 1.d0 5.d0
-  /
-END
-
 REGION injection_cell
-  BLOCK 3 3 1 1 2 4
+  COORDINATE 2.5 0.5 2.5
 END
 
 #=========================== flow conditions ==================================
@@ -122,12 +108,12 @@ END
 #=========================== src/sink sandbox =================================
 SOURCE_SINK_SANDBOX
   PRESSURE
-    CELL_IDS 8 13 18 23
+    COORDINATE 2.5 0.5 2.5
     PHASE LIQUID
-    INHIBIT_FLOW_ABOVE_PRESSURE
-    PRESSURE 1.1d6
+    INHIBIT_FLOW_BELOW_PRESSURE
+    PRESSURE 0.9d6
     SCALE_MAXIMUM_MASS_RATE
-    MAXIMUM_MASS_RATE 4.d-4 kg/s
+    MAXIMUM_MASS_RATE -4.d-4 kg/s
   /
 END
 
@@ -138,6 +124,7 @@ INITIAL_CONDITION
   REGION all
 END
 
+skip
 BOUNDARY_CONDITION west
   FLOW_CONDITION initial
   REGION west
@@ -147,6 +134,7 @@ BOUNDARY_CONDITION east
   FLOW_CONDITION initial
   REGION east
 END
+noskip
 
 #=========================== stratigraphy couplers ============================
 STRATA
