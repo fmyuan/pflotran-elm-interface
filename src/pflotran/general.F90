@@ -149,14 +149,25 @@ subroutine GeneralSetup(realization)
   else
     ndof = option%nflowdof
   endif
-  allocate(gen_auxvars(0:ndof,grid%ngmax))
-  do ghosted_id = 1, grid%ngmax
-    do idof = 0, ndof
-      call GeneralAuxVarInit(gen_auxvars(idof,ghosted_id), &
-                         (general_analytical_derivatives .and. idof==0), &
-                          option)
+  if (general_central_diff_jacobian) then
+    allocate(gen_auxvars(0:2*ndof,grid%ngmax)) !allocate extra space for forward/backward pert
+    do ghosted_id = 1, grid%ngmax
+      do idof = 0, 2*ndof
+        call GeneralAuxVarInit(gen_auxvars(idof,ghosted_id), &
+                           (general_analytical_derivatives .and. idof==0), &
+                            option)
+      enddo
     enddo
-  enddo
+  else
+    allocate(gen_auxvars(0:ndof,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      do idof = 0, ndof
+        call GeneralAuxVarInit(gen_auxvars(idof,ghosted_id), &
+                           (general_analytical_derivatives .and. idof==0), &
+                            option)
+      enddo
+    enddo
+  endif
   patch%aux%General%auxvars => gen_auxvars
   patch%aux%General%num_aux = grid%ngmax
 

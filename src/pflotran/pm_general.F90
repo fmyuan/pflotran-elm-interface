@@ -435,6 +435,8 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_salt = PETSC_TRUE
         general_set_solute = PETSC_TRUE
         option%nflowdof = FOUR_INTEGER
+      case('CENTRAL_DIFFERENCE_JACOBIAN')
+        general_central_diff_jacobian = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select

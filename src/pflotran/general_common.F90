@@ -4520,31 +4520,51 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
   PetscBool :: soluble_matrix
 
 !geh:print *, 'GeneralAccumDerivative'
-
-  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
-                           material_auxvar,soil_heat_capacity,option, &
-                           res,jac,general_analytical_derivatives, &
-                           soluble_matrix,PETSC_FALSE)
+  if (.not. general_central_diff_jacobian) then
+    call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
+                             material_auxvar,soil_heat_capacity,option, &
+                             res,jac,general_analytical_derivatives, &
+                             soluble_matrix,PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     J = jac
   else
-    do idof = 1, option%nflowdof
-      call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
-                               material_auxvar,soil_heat_capacity,option, &
-                               res_pert,jac_pert,PETSC_FALSE,soluble_matrix,&
-                               PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                                 material_auxvar,soil_heat_capacity,option, &
+                                 res_pert,jac_pert,PETSC_FALSE,soluble_matrix,&
+                                 PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
-        J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
-      enddo !irow
-    enddo ! idof
+        call GeneralAccumulation(gen_auxvar(idof+option%nflowdof),global_auxvar, &
+                                 material_auxvar,soil_heat_capacity,option, &
+                                 res_pert_minus,jac_pert,PETSC_FALSE,soluble_matrix,&
+                                 PETSC_FALSE)
+        do irow = 1, option%nflowdof
+          J(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
+                          gen_auxvar(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                                 material_auxvar,soil_heat_capacity,option, &
+                                 res_pert,jac_pert,PETSC_FALSE,soluble_matrix,&
+                                 PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
   endif
 
   if (general_isothermal) then
@@ -4601,6 +4621,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
 
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
 
   Jup = 0.d0
@@ -4608,70 +4629,147 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
 
 !geh:print *, 'GeneralFluxDerivative'
   option%iflag = -2
-  call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                   material_auxvar_up, &
-                   thermal_cc_up, &
-                   gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                   material_auxvar_dn, &
-                   thermal_cc_dn, &
-                   area,dist,upwind_direction_, &
-                   general_parameter, &
-                   option,v_darcy,res,Janal_up,Janal_dn,&
-                   general_analytical_derivatives, &
-                   PETSC_FALSE, & ! update the upwind direction
-                   ! avoid double counting upwind direction flip
-                   PETSC_FALSE, & ! count upwind direction flip
-                   PETSC_FALSE)
+
+  if (.not. general_central_diff_jacobian) then
+    call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                     material_auxvar_up, &
+                     thermal_cc_up, &
+                     gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                     material_auxvar_dn, &
+                     thermal_cc_dn, &
+                     area,dist,upwind_direction_, &
+                     general_parameter, &
+                     option,v_darcy,res,Janal_up,Janal_dn,&
+                     general_analytical_derivatives, &
+                     PETSC_FALSE, & ! update the upwind direction
+                     ! avoid double counting upwind direction flip
+                     PETSC_FALSE, & ! count upwind direction flip
+                     PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     Jup = Janal_up
     Jdn = Janal_dn
   else
     ! upgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
-                       material_auxvar_up, &
-                       thermal_cc_up, &
-                       gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                       material_auxvar_dn, &
-                       thermal_cc_dn, &
-                       area,dist,upwind_direction_, &
-                       general_parameter, &
-                       option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE, & ! analytical derivatives
-                       PETSC_FALSE, & ! update the upwind direction
-                       count_upwind_direction_flip, &
-                       PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+       do idof = 1, option%nflowdof
+         call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
-        Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
+         call GeneralFlux(gen_auxvar_up(idof+option%nflowdof),&
+                          global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
+         do irow = 1, option%nflowdof
+           Jup(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/(2.d0 * &
+                            gen_auxvar_up(idof)%pert)
+         enddo !irow
+      enddo !idof        
+    else
+      do idof = 1, option%nflowdof
+        call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
+                         material_auxvar_up, &
+                         thermal_cc_up, &
+                         gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         thermal_cc_dn, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
+                         option,v_darcy,res_pert,Jdummy,Jdummy, &
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
 
-  !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
+
+    !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
 
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                       material_auxvar_up, &
-                       thermal_cc_up, &
-                       gen_auxvar_dn(idof),global_auxvar_dn, &
-                       material_auxvar_dn, &
-                       thermal_cc_dn, &
-                       area,dist,upwind_direction_, &
-                       general_parameter, &
-                       option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE, & ! analytical derivatives
-                       PETSC_FALSE, & ! update the upwind direction
-                       count_upwind_direction_flip, &
-                       PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+       do idof = 1, option%nflowdof
+         call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(idof),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
+
+         call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),&
+                          global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(idof+option%nflowdof),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
+         do irow = 1, option%nflowdof
+           Jdn(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/(2.d0 * &
+                            gen_auxvar_up(idof)%pert)
+         enddo !irow
+       enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                         material_auxvar_up, &
+                         thermal_cc_up, &
+                         gen_auxvar_dn(idof),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         thermal_cc_dn, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
+                         option,v_darcy,res_pert,Jdummy,Jdummy, &
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
 
 
-      do irow = 1, option%nflowdof
-        Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
-  !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
+    !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif ! forward diff
   endif
 
   if (general_isothermal) then
@@ -4732,6 +4830,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
 
@@ -4739,43 +4838,82 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 !geh:print *, 'GeneralBCFluxDerivative'
 
   option%iflag = -2
-  call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                     gen_auxvar_up,global_auxvar_up, &
-                     gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     thermal_cc_dn, &
-                     area,dist,upwind_direction_, &
-                     general_parameter, &
-                     option,v_darcy,res,Jdum, &
-                     general_analytical_derivatives, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     ! avoid double counting upwind direction flip
-                     PETSC_FALSE, & ! count upwind direction flip
-                     PETSC_FALSE)
+
+  if (.not. general_central_diff_jacobian) then
+    call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                       gen_auxvar_up,global_auxvar_up, &
+                       gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       thermal_cc_dn, &
+                       area,dist,upwind_direction_, &
+                       general_parameter, &
+                       option,v_darcy,res,Jdum, &
+                       general_analytical_derivatives, &
+                       PETSC_FALSE, & ! update the upwind direction
+                       ! avoid double counting upwind direction flip
+                       PETSC_FALSE, & ! count upwind direction flip
+                       PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     Jdn = Jdum
   else
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                         gen_auxvar_up,global_auxvar_up, &
-                         gen_auxvar_dn(idof),global_auxvar_dn, &
-                         material_auxvar_dn, &
-                         thermal_cc_dn, &
-                         area,dist,upwind_direction_, &
-                         general_parameter, &
-                         option,v_darcy,res_pert,Jdum, &
-                         PETSC_FALSE, & ! analytical derivatives
-                         PETSC_FALSE, & ! update the upwind direction
-                         count_upwind_direction_flip, &
-                         PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                           gen_auxvar_up,global_auxvar_up, &
+                           gen_auxvar_dn(idof),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           thermal_cc_dn, &
+                           area,dist,upwind_direction_, &
+                           general_parameter, &
+                           option,v_darcy,res_pert,Jdum, &
+                           PETSC_FALSE, & ! analytical derivatives
+                           PETSC_FALSE, & ! update the upwind direction
+                           count_upwind_direction_flip, &
+                           PETSC_FALSE)
+
+        call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                           gen_auxvar_up,global_auxvar_up, &
+                           gen_auxvar_dn(idof+option%nflowdof),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           thermal_cc_dn, &
+                           area,dist,upwind_direction_, &
+                           general_parameter, &
+                           option,v_darcy,res_pert_minus,Jdum, &
+                           PETSC_FALSE, & ! analytical derivatives
+                           PETSC_FALSE, & ! update the upwind direction
+                           count_upwind_direction_flip, &
+                           PETSC_FALSE)
 
 
-      do irow = 1, option%nflowdof
-        Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
+                            gen_auxvar_dn(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                           gen_auxvar_up,global_auxvar_up, &
+                           gen_auxvar_dn(idof),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           thermal_cc_dn, &
+                           area,dist,upwind_direction_, &
+                           general_parameter, &
+                           option,v_darcy,res_pert,Jdum, &
+                           PETSC_FALSE, & ! analytical derivatives
+                           PETSC_FALSE, & ! update the upwind direction
+                           count_upwind_direction_flip, &
+                           PETSC_FALSE)
+
+
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif !forward difference
   endif
 
   if (general_isothermal) then
@@ -4824,6 +4962,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
@@ -4836,32 +4975,58 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
 
   ! Index 0 contains user-specified conditions
   ! Index 1 contains auxvars to be used in src/sink calculations
-  call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
-                      gen_auxvar_ss(ZERO_INTEGER), gen_auxvar(ZERO_INTEGER),&
-                      global_auxvar, global_auxvar_ss, &
-                      material_auxvar, dummy_real, characteristic_curves, &
-                      natural_id, scale,res,Jdum, &
-                      general_analytical_derivatives, PETSC_FALSE, soluble_matrix, &
-                      PETSC_FALSE)
+  if (.not. general_central_diff_jacobian) then
+    call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                        gen_auxvar_ss(ZERO_INTEGER), gen_auxvar(ZERO_INTEGER),&
+                        global_auxvar, global_auxvar_ss, &
+                        material_auxvar, dummy_real, characteristic_curves, &
+                        natural_id, scale,res,Jdum, &
+                        general_analytical_derivatives, PETSC_FALSE, soluble_matrix, &
+                        PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     Jac = Jdum
   else
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
-                             gen_auxvar_ss(ONE_INTEGER), option)
-      call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
-                          gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
-                          global_auxvar,global_auxvar_ss, &
-                          material_auxvar, dummy_real,characteristic_curves, &
-                          natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
-                          PETSC_FALSE, soluble_matrix, PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
+                               gen_auxvar_ss(ONE_INTEGER), option)
+        call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
+                            global_auxvar,global_auxvar_ss, &
+                            material_auxvar, dummy_real, characteristic_curves, &
+                            natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
+                            PETSC_FALSE, soluble_matrix, PETSC_FALSE)
+        call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof+option%nflowdof), &
+                            global_auxvar,global_auxvar_ss, &
+                            material_auxvar, dummy_real, characteristic_curves, &
+                            natural_id, scale, res_pert_minus,Jdum,PETSC_FALSE, &
+                            PETSC_FALSE, soluble_matrix, PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
-        Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
+                            gen_auxvar(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
+                               gen_auxvar_ss(ONE_INTEGER), option)
+        call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
+                            global_auxvar,global_auxvar_ss, &
+                            material_auxvar, dummy_real,characteristic_curves, &
+                            natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
+                            PETSC_FALSE, soluble_matrix, PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif !forward diff
   endif
 
   if (general_isothermal) then
