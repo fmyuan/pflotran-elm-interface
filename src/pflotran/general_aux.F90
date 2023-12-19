@@ -2308,19 +2308,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
     if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
       dpor_dp = 0.d0
       gen_auxvar%effective_porosity = material_auxvar%porosity_base
-#if 0
-  !geh this code is no longer valid
-      if (associated(material_auxvar%fracture) .and. &
-        material_auxvar%fracture%setup) then
-        ! The initiating pressure and maximum pressure must be calculated
-        ! before fracture function applies - Heeho
-        call FractureInitialSetup(material_auxvar,cell_pressure)
-      endif
-      if (soil_compressibility_index > 0 .and. &
-        material_auxvar%setup_reference_pressure) then
-        call MaterialReferencePressureSetup(material_auxvar,cell_pressure)
-      endif
-#endif
       ! creep_closure, fracture, and soil_compressibility are mutually exclusive
       if (option%flow%creep_closure_on) then
         creep_closure => wipp%creep_closure_tables_array( &
@@ -2674,7 +2661,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%xmol(sid,pid) = 1.d0
 
   call EOSPrecipitateEnergy(gen_auxvar%temp,U_precip)
-  U_precip = 3.d0
   gen_auxvar%U(pid) = U_precip
   gen_auxvar%H(pid) = U_precip
 

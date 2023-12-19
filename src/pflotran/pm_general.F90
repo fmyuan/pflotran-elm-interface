@@ -193,7 +193,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
     option%nphase = 3
     option%precipitate_phase = 3
     general_max_states = 7
-    max_change_index = 7
+    max_change_index = 8
     if (.not.general_set_solute) then
       option%io_buffer = 'Solute must be acknowledged in the OPTIONS block &
                           &of GENERAL MODE.'
@@ -276,12 +276,12 @@ subroutine PMGeneralSetFlowMode(pm,option)
     residual_abs_inf_tol = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
                             s_mass_abs_inf_tol,u_abs_inf_tol]
     residual_scaled_inf_tol(:) = 1.d-6
-    allocate(pm%max_change_ivar(7))
+    allocate(pm%max_change_ivar(8))
     pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                          LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                          GAS_SATURATION, POROSITY]
-    allocate(pm%max_change_isubvar(7))
-    pm%max_change_isubvar = [0,0,0,2,0,0,0]
+                          LIQUID_MOLE_FRACTION, LIQUID_MOLE_FRACTION, &
+                          TEMPERATURE, GAS_SATURATION, POROSITY]
+    allocate(pm%max_change_isubvar(8))
+    pm%max_change_isubvar = [0,0,0,2,3,0,0,0]
   endif
   pm%damping_factor = -1.d0
   pm%residual_abs_inf_tol = residual_abs_inf_tol
@@ -1779,7 +1779,7 @@ subroutine PMGeneralMaxChange(this)
   if (option%nflowdof == 3) then
     max_change_index = SIX_INTEGER
   elseif (option%nflowdof == 4) then
-    max_change_index = SEVEN_INTEGER
+    max_change_index = EIGHT_INTEGER
   endif
   allocate(max_change_local(max_change_index))
   allocate(max_change_global(max_change_index))
@@ -1829,8 +1829,8 @@ subroutine PMGeneralMaxChange(this)
         max_change_global(1:max_change_index)
     elseif (option%nflowdof == 4) then
       write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-        & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4," dxs= ",1pe12.4,&
+        & "  dt= ",1pe12.4,/,15x," dsg= ",1pe12.4," dpo= ",1pe12.4)') &
         max_change_global(1:max_change_index)
     endif
   endif
@@ -1848,12 +1848,13 @@ subroutine PMGeneralMaxChange(this)
     endif
   endif
 
-  this%max_pressure_change = maxval(max_change_global(1:2))
-  this%max_xmol_change = max_change_global(4)
+  this%max_pressure_change = maxval(max_change_global(1:3))
   this%max_temperature_change = max_change_global(5)
   if (option%nflowdof == 3) then
     this%max_saturation_change = max_change_global(6)
+    this%max_xmol_change = max_change_global(4)
   elseif (option%nflowdof == 4) then
+    this%max_xmol_change = maxval(max_change_global(4:5))
     this%max_saturation_change = maxval(max_change_global(6:7))
   endif
 
