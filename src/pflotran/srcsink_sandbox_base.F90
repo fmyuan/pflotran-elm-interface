@@ -107,7 +107,7 @@ subroutine SSSandboxBaseSetup(this,grid,material_auxvars,option)
   endif
   if (num_local > 0) then
     allocate(this%local_cell_ids(num_local))
-    this%local_cell_ids = local_cell_ids
+    this%local_cell_ids = local_cell_ids(1:num_local)
   endif
   deallocate(local_cell_ids)
 

@@ -1426,7 +1426,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
       call InputPushCard(input,word,option)
       call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
-      input%err_buf2 = comment
+      input%err_buf2 = trim(comment)
       call InputErrorMsg(input,option)
       input2 => InputCreate(input,string2,option)
     else
@@ -1555,7 +1555,7 @@ subroutine UtilityEnforceUseOfContinuation(input,option,comment)
 
   type(input_type) :: input
   type(option_type) :: option
-  character(len=MAXSTRINGLENGTH) :: comment
+  character(len=*) :: comment
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt, parameter :: max_char_in_line = 480
