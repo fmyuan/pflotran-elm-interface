@@ -148,23 +148,25 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
   PetscInt :: lid, gid, pid, tgid, wid, co2_id, sid
   PetscReal :: perm_up, perm_dn
-  PetscReal :: delta_pressure, delta_temp
+  PetscReal :: delta_pressure
+  ! PetscReal :: delta_temp
   PetscReal :: density_kg_ave
   PetscReal :: uH
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: gravity_term
   PetscReal :: mobility, q
-  PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
-  PetscReal :: dkeff_up_dsatlup, dkeff_up_dTup, dkeff_dn_dsatldn, dkeff_dn_dTdn
+  ! PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
+  ! PetscReal :: dkeff_up_dsatlup, dkeff_up_dTup, dkeff_dn_dsatldn, dkeff_dn_dTdn
 
   PetscReal :: xmass(option%nflowspec)
   PetscReal :: tot_mass_flux, component_mass_flux, co2_mass_flux, &
                co2_mole_flux, salt_mass_flux, salt_mole_flux, &
                water_mass_flux
   PetscReal :: delta_xmol, den_dn, den_up, density_ave
-  PetscReal :: sat_dn, sat_up
+  ! PetscReal :: sat_dn, sat_up
   PetscReal :: stpd_ave_over_dist, stpd_up, stpd_dn 
-  PetscReal :: dheat_flux_ddelta_temp, dsalt_mole_flux_ddeltaX, &
+  ! PetscReal :: dheat_flux_ddelta_temp
+  PetscReal :: dsalt_mole_flux_ddeltaX, &
                dtot_mole_flux_ddeltaX 
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
@@ -437,14 +439,15 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
 
   PetscInt :: lid, gid, pid, tgid, wid, co2_id, sid
   PetscReal :: perm_dn
-  PetscReal :: delta_pressure, delta_temp
+  PetscReal :: delta_pressure
+  ! PetscReal :: delta_temp
   PetscReal :: density_kg_ave
   PetscReal :: uH
   PetscReal :: perm_dn_adj(option%nphase)
   PetscReal :: perm_ave_over_dist
   PetscReal :: gravity_term
   PetscReal :: mobility, q
-  PetscReal :: k_eff_dn, k_eff_ave, heat_flux
+  ! PetscReal :: k_eff_dn, k_eff_ave, heat_flux
 
   PetscInt :: bc_type
   PetscReal :: boundary_pressure
@@ -455,8 +458,9 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   PetscReal :: dn_scale
   PetscBool :: upwind
   PetscReal :: delta_xmol, den_dn, density_ave
-  PetscReal :: dheat_flux_ddelta_temp, dkeff_dn_dsatldn, &
-               dkeff_dn_dtdn, dsalt_mole_flux_ddeltax, &
+  ! PetscReal :: dheat_flux_ddelta_temp, dkeff_dn_dsatldn, &
+  !              dkeff_dn_dtdn
+  PetscReal :: dsalt_mole_flux_ddeltax, &
                dtot_mole_flux_ddeltax, dv_darcy_ddelta_pressure
   PetscReal :: stpd_ave_over_dist, stpd_dn
   PetscReal :: water_mass_flux

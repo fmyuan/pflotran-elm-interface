@@ -686,7 +686,8 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
 
   PetscReal :: fac
   PetscInt :: ifac
-  PetscReal :: up, ut, ux, us, um, umin
+  PetscReal :: up, ux, us, um, umin
+  ! PetscReal :: ut
   PetscReal :: dtt
   PetscReal :: governed_dt
   PetscReal :: umin_scale
