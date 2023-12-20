@@ -67,6 +67,8 @@ module PM_Fracture_class
     PetscReal :: t_coeff
     ! number of fractures in the domain
     PetscInt :: nfrac 
+    ! flag to update material_auxvar (permeability) object
+    PetscBool :: update_material_auxvar_perm
   contains
     procedure, public :: Setup => PMFracSetup
     procedure, public :: ReadPMBlock => PMFracReadPMBlock
@@ -113,7 +115,8 @@ function PMFracCreate()
   nullify(this%frac_common_cell_ids)
   this%nfrac = 0  
   this%max_distance = 5.0  
-  this%t_coeff = 40.d-6
+  this%t_coeff = 40.d-6 ! granite value
+  this%update_material_auxvar_perm = PETSC_FALSE
 
   PMFracCreate => this
 
@@ -352,6 +355,14 @@ subroutine PMFracSetup(this)
   allocate(this%frac_common_cell_ids(j))
   this%frac_common_cell_ids(1:j) = temp_cell_ids(1:j)
 
+  if (.not.associated(this%realization%reaction)) then
+    this%update_material_auxvar_perm = PETSC_TRUE
+  else
+    if (.not.this%realization%reaction%update_permeability) then
+      this%update_material_auxvar_perm = PETSC_TRUE
+    endif
+  endif
+
   deallocate(temp_cell_ids)
   deallocate(temp_allfrac_cell_ids)
   deallocate(temp_frac_common_cell_ids)
@@ -386,6 +397,7 @@ subroutine PMFracInitializeRun(this)
   !
   use Material_Aux_module
   use Global_Aux_module
+  use Field_module
 
   implicit none
 
@@ -394,13 +406,20 @@ subroutine PMFracInitializeRun(this)
   type(material_auxvar_type), pointer :: material_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   type(option_type), pointer :: option
+  type(field_type), pointer :: field
   type(fracture_type), pointer :: cur_fracture
+  PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscInt :: icell,k
   PetscReal :: kx,ky,kz
   PetscReal :: L 
   PetscErrorCode :: ierr
 
   option => this%option
+  field => this%realization%field
+
+  call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
 
   cur_fracture => this%fracture_list
   do
@@ -413,9 +432,9 @@ subroutine PMFracInitializeRun(this)
                                                            ! should be ghosted_id
       ! if cells aren't too pancaked, L should be a good estimate of length
       L = (material_auxvar%volume)**(1.d0/3.d0) 
-      cur_fracture%kx0(k) = material_auxvar%permeability(1)
-      cur_fracture%ky0(k) = material_auxvar%permeability(2)
-      cur_fracture%kz0(k) = material_auxvar%permeability(3)
+      cur_fracture%kx0(k) = perm0_xx_p(icell)  ! the input here
+      cur_fracture%ky0(k) = perm0_yy_p(icell)  ! should be ghosted_id
+      cur_fracture%kz0(k) = perm0_zz_p(icell)
 
       call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
 
@@ -430,6 +449,20 @@ subroutine PMFracInitializeRun(this)
 
     cur_fracture => cur_fracture%next
   enddo
+
+  do k = 1,size(this%allfrac_cell_ids)
+    icell = this%allfrac_cell_ids(k)
+    material_auxvar => &
+        this%realization%patch%aux%material%auxvars(icell) ! the input here
+                                                           ! should be ghosted_id
+    perm0_xx_p(icell) = material_auxvar%permeability(1)
+    perm0_yy_p(icell) = material_auxvar%permeability(2)
+    perm0_zz_p(icell) = material_auxvar%permeability(3)
+  enddo
+
+  call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMFracInitializeRun
 
@@ -459,16 +492,25 @@ subroutine PMFracInitializeTimestep(this)
   ! Date: 12/13/2023
   !
   use Material_Aux_module
+  use Field_module
 
   implicit none
 
   class(pm_fracture_type) :: this
 
   type(material_auxvar_type), pointer :: material_auxvar
+  type(field_type), pointer :: field
   type(fracture_type), pointer :: cur_fracture
+  PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscInt :: icell,k
+  PetscErrorCode :: ierr
 
-  ! update the base permeability
+  field => this%realization%field
+
+  call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+
   cur_fracture => this%fracture_list
   do
     if (.not.associated(cur_fracture)) exit
@@ -478,14 +520,18 @@ subroutine PMFracInitializeTimestep(this)
       material_auxvar => &
         this%realization%patch%aux%material%auxvars(icell) ! the input here
                                                            ! should be ghosted_id
-      !cur_fracture%kx0(k) = material_auxvar%permeability(1)
-      !cur_fracture%ky0(k) = material_auxvar%permeability(2)
-      !cur_fracture%kz0(k) = material_auxvar%permeability(3)
+      ! reset permeability back to initial permeability
+      perm0_xx_p(icell) = cur_fracture%kx0(k)
+      perm0_yy_p(icell) = cur_fracture%ky0(k)
+      perm0_zz_p(icell) = cur_fracture%kz0(k)
     enddo
 
     cur_fracture => cur_fracture%next
   enddo
 
+  call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMFracInitializeTimestep
 
@@ -858,32 +904,6 @@ end subroutine PMFracCalcK
 
 ! ************************************************************************** !
 
-subroutine PMFracUpdateK(material_auxvar,dkx,dky,dkz)
-  !
-  ! Calculates cell permeability from fracture permeability.
-  !
-  ! Author: Jennifer M. Frederick, SNL
-  ! Date: 12/15/2023
-  !
-  use Material_Aux_module
-
-  implicit none
-
-  type(material_auxvar_type), pointer :: material_auxvar
-  PetscReal :: dkx,dky,dkz
-
-  ! This only works because in PMFracInitializeRun the material_auxvar
-  ! permeability was already increased to the fracture permeability.
-  ! Here we only change it when aperture changes which results in a non-zero
-  ! value for dk(z,y,z).
-  material_auxvar%permeability(1) = material_auxvar%permeability(1) + dkx 
-  material_auxvar%permeability(2) = material_auxvar%permeability(2) + dky 
-  material_auxvar%permeability(3) = material_auxvar%permeability(3) + dkz
-
-end subroutine PMFracUpdateK
-
-! ************************************************************************** !
-
 subroutine PMFracSolve(this,time,ierr)
   !
   ! Main solve step for the fracture process model.
@@ -893,6 +913,7 @@ subroutine PMFracSolve(this,time,ierr)
   !
   use Material_Aux_module
   use Global_Aux_module
+  use Field_module
 
   implicit none
 
@@ -902,14 +923,21 @@ subroutine PMFracSolve(this,time,ierr)
 
   type(material_auxvar_type), pointer :: material_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
+  type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(fracture_type), pointer :: cur_fracture
+  PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscReal :: cur_temperature,L
   PetscReal :: kx,ky,kz
   PetscReal :: dkx,dky,dkz
   PetscInt :: icell,k
 
   option => this%option
+  field => this%realization%field
+
+  call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
 
   cur_fracture => this%fracture_list
   do
@@ -940,7 +968,9 @@ subroutine PMFracSolve(this,time,ierr)
       call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
 
       ! update domain material permeability of cells with fractures
-      call PMFracUpdateK(material_auxvar,dkx,dky,dkz)
+      perm0_xx_p(icell) = perm0_xx_p(icell) + kx 
+      perm0_yy_p(icell) = perm0_yy_p(icell) + ky 
+      perm0_zz_p(icell) = perm0_zz_p(icell) + kz 
 
       ! reset previous temperature for next time step
       cur_fracture%prev_temperature(k) = cur_temperature
@@ -948,6 +978,22 @@ subroutine PMFracSolve(this,time,ierr)
 
     cur_fracture => cur_fracture%next
   enddo
+
+  if (this%update_material_auxvar_perm) then
+    do k = 1,size(this%allfrac_cell_ids)
+      icell = this%allfrac_cell_ids(k)
+      material_auxvar => &
+        this%realization%patch%aux%material%auxvars(icell) ! the input here
+                                                           ! should be ghosted_id
+      material_auxvar%permeability(1) = perm0_xx_p(icell)
+      material_auxvar%permeability(2) = perm0_yy_p(icell)
+      material_auxvar%permeability(3) = perm0_zz_p(icell)
+    enddo
+  endif
+
+  call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs
 
