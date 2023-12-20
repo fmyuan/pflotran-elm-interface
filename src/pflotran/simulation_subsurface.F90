@@ -325,6 +325,8 @@ subroutine SimSubsurfInputRecord(this)
       write(id,'(a)') 'thermo-hydro'
     case(TH_TS_MODE)
       write(id,'(a)') 'thermo-hydro_ts'
+    case(SCO2_MODE)
+      write(id,'(a)') 'SCO2'
   end select
 
   ! print time information

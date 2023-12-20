@@ -24,6 +24,7 @@ module Characteristic_Curves_Base_module
     type(polynomial_type), pointer :: pres_poly
     PetscReal :: Sr
     PetscReal :: pcmax
+    PetscReal :: Sgt_max ! max trapped gas saturation
     PetscBool :: analytical_derivative_available
     PetscBool :: calc_int_tension
     PetscBool :: calc_vapor_pressure
@@ -114,6 +115,7 @@ subroutine SFBaseInit(this)
   nullify(this%pres_poly)
   this%Sr = UNINITIALIZED_DOUBLE
   this%pcmax = DEFAULT_PCMAX
+  this%Sgt_max = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   this%calc_int_tension = PETSC_FALSE
   this%calc_vapor_pressure = PETSC_FALSE

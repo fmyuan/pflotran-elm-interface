@@ -195,7 +195,8 @@ subroutine PMGeneralSetFlowMode(pm,option)
     general_max_states = 7
     max_change_index = 7
     if (.not.general_set_solute) then
-      option%io_buffer = 'Solute must be acknowledged in the OPTIONS block of GENERAL MODE.'
+      option%io_buffer = 'Solute must be acknowledged in the OPTIONS block &
+                          &of GENERAL MODE.'
       call PrintErrMsg(option)
     endif
   else
@@ -218,17 +219,17 @@ subroutine PMGeneralSetFlowMode(pm,option)
   allocate(pm%converged_cell(option%nflowdof,general_max_states,MAX_INDEX))
   allocate(pm%converged_real(option%nflowdof,general_max_states,MAX_INDEX))
 
-  if (optioN%nflowdof == 3) then
+  if (option%nflowdof == 3) then
     rel_update_inf_tol = &
       reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
                pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
                pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
-               shape(rel_update_inf_tol))*1.d0 ! change to 0.d0 to zero tolerances
+               shape(rel_update_inf_tol))*1.d0 !change to 0 to zero tolerances
     abs_update_inf_tol = &
       reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
                pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
                pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
-               shape(abs_update_inf_tol))*1.d0 ! change to 0.d0 to zero tolerances
+               shape(abs_update_inf_tol))*1.d0 !change to 0 to zero tolerances
     residual_abs_inf_tol(:) = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
                                u_abs_inf_tol]
     residual_scaled_inf_tol(:) = 1.d-6
@@ -243,23 +244,33 @@ subroutine PMGeneralSetFlowMode(pm,option)
     pm%max_change_isubvar = [0,0,0,2,0,0]
   elseif (option%nflowdof == 4) then
     rel_update_inf_tol = &
-      reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol,xmol_rel_inf_tol,&
+      reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+               xmol_rel_inf_tol,&
                pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol,999.d0,&
-               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol,xmol_rel_inf_tol,&
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+               xmol_rel_inf_tol,&
                pres_rel_inf_tol,999.d0,temp_rel_inf_tol,999.d0,&
-               pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol,&
-               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol,&
-               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol], &
+               pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+               sat_rel_inf_tol,&
+               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+               sat_rel_inf_tol,&
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+               sat_rel_inf_tol], &
                shape(rel_update_inf_tol)) * &
                1.d0 ! change to 0.d0 to zero tolerances
     abs_update_inf_tol = &
-      reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,xmol_abs_inf_tol,&
+      reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,&
+               xmol_abs_inf_tol,&
                pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol,999.d0,&
-               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol,xmol_abs_inf_tol,&
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+               xmol_abs_inf_tol,&
                pres_abs_inf_tol,999.d0,temp_abs_inf_tol,999.d0,&
-               pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol,&
-               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol,&
-               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol], &
+               pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+               sat_abs_inf_tol,&
+               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+               sat_abs_inf_tol,&
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+               sat_abs_inf_tol], &
                shape(abs_update_inf_tol)) * &
                1.d0 ! change to 0.d0 to zero tolerances
     residual_abs_inf_tol = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
@@ -1933,6 +1944,7 @@ subroutine PMGeneralRestartBinary(this,viewer)
   call PMSubsurfaceFlowRestartBinary(this,viewer)
 
 end subroutine PMGeneralRestartBinary
+
 ! ************************************************************************** !
 
 subroutine PMGeneralDestroy(this)

@@ -137,6 +137,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
   use PM_Well_class
+  use PM_SCO2_class
   use Solver_module
   use Timestepper_Base_class
   use Timestepper_SNES_class
@@ -194,6 +195,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           string = " mode = Hydrate: p, sg/sh/si/X, T"
         case(WF_MODE)
           string = " mode = WIPP Flow: p, sg"
+        case(SCO2_MODE)
+          string = " mode = SCO2: p, x/sg/p, T, x"
         case default
           string = "mode unknown"
       end select

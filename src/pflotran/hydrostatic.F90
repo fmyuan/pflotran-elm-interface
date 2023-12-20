@@ -43,6 +43,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   use ZFlow_Aux_module
+  use SCO2_Aux_module
 
   implicit none
 
@@ -83,8 +84,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   datum_dataset_rmax = -MAX_DOUBLE
   datum_dataset_rmin = MAX_DOUBLE
 
-  xm_nacl = option%m_nacl * FMWNACL
-  xm_nacl = xm_nacl /(1.d3 + xm_nacl)
+  if (option%iflowmode == SCO2_MODE) then
+    xm_nacl = condition%sco2%salt_mass%dataset%rarray(1)
+  else
+    xm_nacl = option%m_nacl * FMWNACL
+    xm_nacl = xm_nacl /(1.d3 + xm_nacl)
+  endif
+
   aux(1) = xm_nacl
 
   nullify(pressure_array)
@@ -220,6 +226,52 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           condition%general%liquid_pressure%gradient%rarray(1:3)
       endif
       coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = 1
+    case(SCO2_MODE)
+      call HydrostaticHDF5DatasetError(condition%sco2%temperature, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%sco2%co2_mass_fraction, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%sco2%liquid_pressure, &
+                                       condition%name,option)
+      call HydrostaticHDF5DatasetError(condition%sco2%gas_pressure, &
+                                       condition%name,option)
+      ! temperature_at_datum = &
+      !   condition%sco2%temperature%dataset%rarray(1)
+      ! if (associated(condition%sco2%temperature%gradient)) then
+      !   temperature_gradient(1:3) = &
+      !     condition%sco2%temperature%gradient%rarray(1:3)
+      ! endif
+      concentration_at_datum = &
+        condition%sco2%co2_mass_fraction%dataset%rarray(1)
+      if (associated(condition%sco2%co2_mass_fraction%gradient)) then
+        concentration_gradient(1:3) = &
+        condition%sco2%co2_mass_fraction%gradient%rarray(1:3)
+      endif
+      
+      salt_fraction_at_datum = &
+        condition%sco2%salt_mass%dataset%rarray(1)
+      
+      pressure_at_datum = &
+        condition%sco2%liquid_pressure%dataset%rarray(1)
+
+      gas_pressure = option%flow%reference_pressure
+      if (associated(condition%sco2%gas_pressure)) then
+        gas_pressure = condition%sco2%gas_pressure%dataset%rarray(1)
+      endif
+      ! gradient is in m/m; needs conversion to Pa/m
+      if (associated(condition%sco2%liquid_pressure%gradient)) then
+        piezometric_head_gradient(1:3) = &
+          condition%sco2%liquid_pressure%gradient%rarray(1:3)
+      endif
+      ! for liquid state
+      coupler%flow_aux_mapping(SCO2_LIQUID_PRESSURE_DOF) = 1
+      coupler%flow_aux_mapping(SCO2_CO2_MASS_FRAC_DOF) = 2
+      coupler%flow_aux_mapping(SCO2_SALT_MASS_FRAC_DOF) = 3
+      ! coupler%flow_aux_mapping(SCO2_TEMPERATURE_DOF) = 3
+      ! coupler%flow_aux_mapping(SCO2_SALT_MASS_FRAC_DOF) = 4
+
+      ! for two-phase state
+      coupler%flow_aux_mapping(SCO2_TWO_PHASE_GAS_PRES_DOF) = 2
     case default
       call HydrostaticHDF5DatasetError(condition%temperature, &
                                        condition%name,option)
@@ -410,7 +462,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,H_MODE)
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,H_MODE,SCO2_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0, &
@@ -450,7 +502,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE)
+      case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,SCO2_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -458,7 +510,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE)
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,SCO2_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
@@ -575,7 +627,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign pressure
     select case(option%iflowmode)
-      case(G_MODE,WF_MODE,H_MODE)
+      case(G_MODE,WF_MODE,H_MODE,SCO2_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case(MPH_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
@@ -657,8 +709,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                     temperature_gradient(X_DIRECTION)*dist_x + &
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z
-        coupler%flow_aux_real_var(3,iconn) = &
-          temperature
+        coupler%flow_aux_real_var(3,iconn) = temperature
         ! switch to two-phase if liquid pressure drops below gas pressure
         if (pressure < gas_pressure) then
           ! we hijack the air pressure entry, storing capillary pressure there
@@ -704,6 +755,29 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
               coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = L_STATE
             endif
         end select
+      case(SCO2_MODE)
+        ! temperature = temperature_at_datum + &
+        !             ! gradient in K/m
+        !             temperature_gradient(X_DIRECTION)*dist_x + &
+        !             temperature_gradient(Y_DIRECTION)*dist_y + &
+        !             temperature_gradient(Z_DIRECTION)*dist_z
+        ! coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF,iconn) = temperature
+        ! switch to two-phase if liquid pressure drops below gas pressure
+        ! MAN: need to test how this works
+        if (pressure < gas_pressure) then
+          coupler%flow_aux_real_var(SCO2_LIQUID_PRESSURE_DOF,iconn) = &
+                                                       gas_pressure
+          coupler%flow_aux_real_var(SCO2_TWO_PHASE_GAS_PRES_DOF,iconn) = &
+                                                       gas_pressure - pressure
+          coupler%flow_aux_int_var(ONE_INTEGER,iconn) = &
+                                                         SCO2_LIQUID_GAS_STATE
+        else
+          coupler%flow_aux_real_var(SCO2_CO2_MASS_FRAC_DOF,iconn) = &
+                                                        concentration_at_datum
+          coupler%flow_aux_int_var(ONE_INTEGER,iconn) = SCO2_LIQUID_STATE
+        endif
+        coupler%flow_aux_real_var(SCO2_SALT_MASS_FRAC_DOF,iconn) = &
+                                                        salt_fraction_at_datum
       case default
         coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,iconn) = 1
     end select

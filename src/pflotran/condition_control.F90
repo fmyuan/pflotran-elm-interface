@@ -52,6 +52,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   use General_Aux_module, gen_dof_to_primary_variable => dof_to_primary_variable
   use WIPP_Flow_Aux_module, wf_dof_to_primary_variable => dof_to_primary_variable
   use Hydrate_Aux_module, hyd_dof_to_primary_variable => dof_to_primary_variable
+  use SCO2_Aux_module, sco2_dof_to_primary_variable => dof_to_primary_variable
 
   implicit none
 
@@ -73,6 +74,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
   type(flow_hydrate_condition_type), pointer :: hydrate
+  type(flow_sco2_condition_type) , pointer :: sco2
   class(dataset_base_type), pointer :: dataset
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
@@ -1010,6 +1012,190 @@ subroutine CondControlAssignFlowInitCond(realization)
                   initial_condition%flow_aux_real_var( &
                     initial_condition%flow_aux_mapping( &
                       hyd_dof_to_primary_variable(idof,istate)),iconn)
+              enddo
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+            enddo
+          endif
+          initial_condition => initial_condition%next
+        enddo
+
+        call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+
+      case(SCO2_MODE) 
+
+        call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+
+        xx_p = UNINITIALIZED_DOUBLE
+
+        initial_condition => cur_patch%initial_condition_list%first
+        do
+
+          if (.not.associated(initial_condition)) exit
+
+          if (.not.associated(initial_condition%flow_aux_real_var)) then
+            if (.not.associated(initial_condition%flow_condition)) then
+              option%io_buffer = 'Flow condition is NULL in initial condition'
+              call PrintErrMsg(option)
+            endif
+
+            sco2 => initial_condition%flow_condition%sco2
+
+            string = 'in flow condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" within initial condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" must be of type Dirichlet or Hydrostatic'
+            ! error checking.  the data must match the state
+            select case(initial_condition%flow_condition%iphase)
+              case(SCO2_LIQUID_GAS_STATE)
+                if (.not. &
+                    (sco2%gas_pressure%itype == DIRICHLET_BC .or. &
+                      sco2%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (sco2%liquid_pressure%itype == DIRICHLET_BC .or. &
+                      sco2%liquid_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(SCO2_LIQUID_STATE)
+                if (.not. &
+                    (sco2%liquid_pressure%itype == DIRICHLET_BC .or. &
+                      sco2%liquid_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (sco2%co2_mass_fraction%itype == DIRICHLET_BC)) then
+                  option%io_buffer = 'CO2 mass fraction ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(SCO2_GAS_STATE)
+                if (.not. &
+                    (sco2%gas_pressure%itype == DIRICHLET_BC .or. &
+                      sco2%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (sco2%co2_pressure%itype == DIRICHLET_BC .or. &
+                      sco2%co2_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'CO2 partial pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(SCO2_TRAPPED_GAS_STATE)
+                if (.not. &
+                    (sco2%liquid_pressure%itype == DIRICHLET_BC .or. &
+                      sco2%liquid_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (sco2%gas_saturation%itype == DIRICHLET_BC .or. &
+                      sco2%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+            end select
+            ! if (.not. &
+            !     (sco2%temperature%itype == DIRICHLET_BC .or. &
+            !       sco2%temperature%itype == HYDROSTATIC_BC)) then
+            !   option%io_buffer = 'Temperature ' // trim(string)
+            !   call PrintErrMsg(option)
+            ! endif
+
+            ! Salt mass is either total mass or total mass fraction
+            if (.not. &
+                (sco2%salt_mass%itype == DIRICHLET_BC)) then
+              option%io_buffer = 'Salt mass ' // trim(string)
+              call PrintErrMsg(option)
+            endif
+
+
+            do icell = 1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              iend = local_id*option%nflowdof
+              ibegin = iend-option%nflowdof+1
+
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                xx_p(ibegin:iend) = 0.d0
+                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                cycle
+              endif
+
+              ! decrement ibegin to give a local offset of 0
+              ibegin = ibegin - 1
+              select case(initial_condition%flow_condition%iphase)
+                case(SCO2_LIQUID_GAS_STATE)
+
+                  xx_p(ibegin + SCO2_LIQUID_PRESSURE_DOF) = &
+                    sco2%liquid_pressure%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_TWO_PHASE_GAS_PRES_DOF) = &
+                    sco2%gas_pressure%dataset%rarray(1)
+                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
+                  !   sco2%temperature%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
+                         sco2%salt_mass%dataset%rarray(1)
+
+                case(SCO2_LIQUID_STATE)
+                  
+                  xx_p(ibegin + SCO2_LIQUID_PRESSURE_DOF) = &
+                    sco2%liquid_pressure%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_CO2_MASS_FRAC_DOF) = &
+                    sco2%co2_mass_fraction%dataset%rarray(1)
+                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
+                  !   sco2%temperature%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
+                      sco2%salt_mass%dataset%rarray(1)
+
+                case(SCO2_GAS_STATE)
+
+                  xx_p(ibegin + SCO2_GAS_PRESSURE_DOF) = &
+                    sco2%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_CO2_PRESSURE_DOF) = &
+                    sco2%co2_pressure%dataset%rarray(1)
+                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
+                  !   sco2%temperature%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
+                      sco2%salt_mass%dataset%rarray(1)
+                  
+
+                case(SCO2_TRAPPED_GAS_STATE)
+
+                  xx_p(ibegin + SCO2_LIQUID_PRESSURE_DOF) = &
+                    sco2%liquid_pressure%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_GAS_SATURATION_DOF) = &
+                    sco2%gas_saturation%dataset%rarray(1)
+                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
+                  !   sco2%temperature%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
+                      sco2%salt_mass%dataset%rarray(1)
+                 
+              end select
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+                initial_condition%flow_condition%iphase
+            enddo
+          else
+            do iconn=1,initial_condition%connection_set%num_connections
+              local_id = initial_condition%connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                xx_p(ibegin:iend) = 0.d0
+                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                cycle
+              endif
+              offset = (local_id-1)*option%nflowdof
+              istate = initial_condition%flow_aux_int_var(1,iconn)
+              do idof = 1, option%nflowdof
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      sco2_dof_to_primary_variable(idof,istate)),iconn)
               enddo
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
@@ -1994,7 +2180,7 @@ subroutine CondControlScaleSourceSink(realization)
 
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE,&
-               ZFLOW_MODE)
+               ZFLOW_MODE,SCO2_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -2048,7 +2234,7 @@ subroutine CondControlScaleSourceSink(realization)
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE, &
-               ZFLOW_MODE)
+               ZFLOW_MODE,SCO2_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
         end select

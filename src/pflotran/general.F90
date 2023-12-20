@@ -2556,7 +2556,7 @@ end subroutine GeneralMapBCAuxVarsToGlobal
 
 subroutine GeneralDestroy(realization)
   !
-  ! Deallocates variables associated with Richard
+  ! Deallocates variables associated with General
   !
   ! Author: Glenn Hammond
   ! Date: 03/09/11

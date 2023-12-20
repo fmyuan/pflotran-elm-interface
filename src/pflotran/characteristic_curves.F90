@@ -390,7 +390,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   character(len=MAXWORDLENGTH) :: unsat_ext
   PetscBool :: loop_invariant
   PetscInt :: vg_rpf_opt
-  PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg
+  PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg, Sgt_max
 
   PetscInt :: wipp_krp, wipp_kpc, spline
   PetscReal :: wipp_expon, wipp_pct_alpha, wipp_pct_expon
@@ -404,15 +404,16 @@ function SaturationFunctionRead(saturation_function,input,option) &
   loop_invariant = PETSC_FALSE
   unsat_ext = ''
   vg_rpf_opt = 1 ! Mualem. Burdine option in progress
-  alpha = 0d0
-  m = 0d0
-  Pcmax = 1d9
-  Slj = 0d0
-  Sr = 0d0
-  Srg = 0d0
+  alpha = 0.d0
+  m = 0.d0
+  Pcmax = 1.d9
+  Sgt_max = 0.d0
+  Slj = 0.d0
+  Sr = 0.d0
+  Srg = 0.d0
   wipp_krp = 0
   wipp_kpc = 0
-  wipp_expon = 0d0
+  wipp_expon = 0.d0
 
   input%ierr = 0
   smooth = PETSC_FALSE
@@ -479,6 +480,11 @@ function SaturationFunctionRead(saturation_function,input,option) &
         call InputReadDouble(input,option,Pcmax)
         saturation_function%Pcmax = Pcmax
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
+                            error_string)
+      case('MAX_TRAPPED_GAS_SAT')
+        call InputReadDouble(input,option,Sgt_max)
+        saturation_function%Sgt_max = Sgt_max
+        call InputErrorMsg(input,option,'MAX_TRAPPED_GAS_SAT', &
                             error_string)
       case('SMOOTH')
         smooth = PETSC_TRUE
@@ -981,7 +987,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       select type (saturation_function)
       class is (sat_func_VG_type)
         call StringtoUpper(unsat_ext)
-        sf_swap => SFVGctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj)
+        sf_swap => SFVGctor(unsat_ext, alpha, m, Sr, Sgt_max, vg_rpf_opt, &
+                            Pcmax, Slj)
       class default
         option%io_buffer = 'Loop-invariant optimizations are not yet &
        & implemented for the designated saturation function type.'
@@ -2291,7 +2298,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
     if (option%iflowmode == G_MODE .or. option%iflowmode == WF_MODE .or. &
-        option%iflowmode == H_MODE) then
+        option%iflowmode == H_MODE .or. option%iflowmode == SCO2_MODE) then
       option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &

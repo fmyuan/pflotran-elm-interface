@@ -46,6 +46,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: SetAlpha_ => SFVGSetAlpha
     procedure, public :: SetM_ => SFVGSetM
   end type sat_func_VG_type
+
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_BC_type
     PetscReal :: alpha
@@ -554,7 +555,7 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call PrintErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,MPH_MODE,H_MODE)
+    case(WF_MODE,G_MODE,MPH_MODE,H_MODE,SCO2_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &

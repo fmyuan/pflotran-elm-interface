@@ -1264,6 +1264,8 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         matrix_zeroing => patch%aux%Hydrate%matrix_zeroing
       case(WF_MODE)
         matrix_zeroing => patch%aux%WIPPFlo%matrix_zeroing
+      case(SCO2_MODE)
+        matrix_zeroing => patch%aux%SCO2%matrix_zeroing
     end select
     call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
                                        inactive_cells_exist,option)
@@ -1292,6 +1294,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(WF_MODE)
         patch%aux%WIPPFlo%matrix_zeroing => matrix_zeroing
         patch%aux%WIPPFlo%inactive_cells_exist = inactive_cells_exist
+      case(SCO2_MODE)
+        patch%aux%SCO2%matrix_zeroing => matrix_zeroing
+        patch%aux%SCO2%inactive_cells_exist = inactive_cells_exist
     end select
     deallocate(dof_is_active)
   endif

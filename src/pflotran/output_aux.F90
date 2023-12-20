@@ -869,6 +869,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = ''
       category = OUTPUT_SATURATION
       id = PRECIPITATE_SATURATION
+    case ('TRAPPED_GAS_SATURATION')
+      name = 'Trapped Gas Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = TRAPPED_GAS_SATURATION
     case ('XGL')
       name = 'X_g^l'
       units = ''
@@ -949,6 +954,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       units = 'Pa'
       category = OUTPUT_PRESSURE
       id = SATURATION_PRESSURE
+    case ('CO2_PRESSURE')
+      name = 'CO2 Partial Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = CO2_PRESSURE
     case('THERMODYNAMIC_STATE')
       name = 'Thermodynamic State'
       units = ''

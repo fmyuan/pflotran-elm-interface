@@ -3396,7 +3396,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
       dirichlet_solute = PETSC_TRUE
     endif
-  elseif (.not. general_salt) then
+  else
     if (ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
       dirichlet_solute = PETSC_TRUE
     endif
@@ -3448,7 +3448,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     else ! delta of mass fraction
       ! 4th dof not implemented here.
       if (general_salt) then
-        option%io_buffer = 'Mass-based flux not implented for general mode with fully coupled salt transport.'
+        option%io_buffer = 'Mass-based flux not implented for general mode &
+                            &with fully coupled salt transport.'
         call PrintErrMsg(option)
       endif
       xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
@@ -3457,7 +3458,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       xmass_air_up = xmol_air_up*fmw_comp(2) / tempreal
       tempreal = (xmol_air_dn*fmw_comp(2) + (1.d0-xmol_air_dn)*fmw_comp(1))
       xmass_air_dn = xmol_air_dn*fmw_comp(2) / tempreal
-      dxmass_air_dn_dxmol_air_dn = (fmw_comp(2) - xmass_air_dn * (fmw_comp(2) - fmw_comp(1))) / tempreal
+      dxmass_air_dn_dxmol_air_dn = (fmw_comp(2) - xmass_air_dn * (fmw_comp(2) &
+                                    - fmw_comp(1))) / tempreal
       delta_xmass = xmass_air_up - xmass_air_dn
       delta_X_whatever = delta_xmass
       delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
@@ -3469,7 +3471,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                              area
     if (general_salt) then
       dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
-                               general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) * &
+                               general_parameter% &
+                               diffusion_coefficient(PRECIPITATE_PHASE) * &
                                area
     endif
 
@@ -4032,6 +4035,8 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   J = 0.d0
 
   ! Index 0 contains user-defined source/sink characteristics.
+  ! If certain variables are not defined in the source sink,
+  ! those are set to internal values.
   xxss(1) = maxval(gen_auxvar_ss%pres(option% &
                      liquid_phase:option%gas_phase))
   xxss(2) = gen_auxvar_ss%sat(gid)
@@ -4062,6 +4067,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
           xxss(TWO_INTEGER) = gen_auxvar%pres(apid)
         else
+          !MAN: I think this should be air partial pressure?
           xxss(TWO_INTEGER) = gen_auxvar%xmol(wat_comp_id,air_comp_id)
         endif
         xxss(THREE_INTEGER) = gen_auxvar%temp
@@ -4086,6 +4092,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
           xxss(TWO_INTEGER) = gen_auxvar_ss%pres(apid)
         else
+          !MAN: I think this should be air partial pressure?
           xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(wat_comp_id,air_comp_id)
         endif
         xxss(THREE_INTEGER) = gen_auxvar_ss%temp

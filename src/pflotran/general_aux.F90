@@ -3116,12 +3116,12 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
 
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
           if (.not.general_isothermal) then
-            X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
+            x(GENERAL_ENERGY_DOF) = x(GENERAL_ENERGY_DOF) * &
                                    (1.d0 + epsilon - epsilon)
           endif
         else
           if (gas_flag) then
-            X(GENERAL_ENERGY_DOF) = gen_auxvar%pres(apid)*(1.d0-epsilon)
+            x(GENERAL_ENERGY_DOF) = gen_auxvar%pres(apid)*(1.d0-epsilon)
           else
             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = max(0.01d0* &
                  x(GENERAL_GAS_PRESSURE_DOF), x(GENERAL_GAS_PRESSURE_DOF) - &

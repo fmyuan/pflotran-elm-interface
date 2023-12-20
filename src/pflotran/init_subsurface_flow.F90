@@ -41,10 +41,12 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use PM_General_class
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
+  use PM_SCO2_class
   use Richards_module
   use TH_module
   use General_module
   use Hydrate_module
+  use SCO2_module
   use WIPP_Flow_module
   use ZFlow_module
   use PNF_module
@@ -70,7 +72,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE, &
+           SCO2_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -104,6 +107,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       class is(pm_hydrate_type)
         call HydrateSetup(realization)
         call PMHydrateAssignParameters(realization,pm)
+      class is (pm_sco2_type)
+        call SCO2Setup(realization)
       class default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call PrintErrMsg(option)
@@ -142,6 +147,9 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call HydrateUpdateAuxVars(realization,PETSC_FALSE)
       case(WF_MODE)
         call WIPPFloUpdateAuxVars(realization)
+      case(SCO2_MODE)
+        ! Update BC's
+        call SCO2UpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
         call PrintErrMsg(option)
