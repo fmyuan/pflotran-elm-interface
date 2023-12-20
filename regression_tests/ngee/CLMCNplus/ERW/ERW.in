@@ -61,6 +61,14 @@ REGION bottom
   FACE BOTTOM
 END
 
+REGION tillage
+  COORDINATES
+    -1.d20 -1.d20 42.103197276099188d0
+    1.0d20 1.0d20 42.083197276099188d0
+  /
+  #FACE TOP
+END
+
 REGION all
   COORDINATES
     -1.d20 -1.d20 0.0d0
@@ -389,7 +397,7 @@ END
 
 INITIAL_CONDITION
   TRANSPORT_CONDITION rockypowder_app
-  REGION top
+  REGION tillage
 END
 
 # top boundary condition
