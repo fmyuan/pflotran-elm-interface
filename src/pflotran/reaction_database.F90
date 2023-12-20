@@ -817,23 +817,23 @@ subroutine BasisInit(reaction,option)
   ! Date: 09/01/08
   !
 
+  use CLM_Rxn_module
+  use Input_Aux_module
   use Option_module
+  use Reaction_Gas_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Inhibition_Aux_module
+  use Reaction_Isotherm_Aux_module
+  use Reaction_Microbial_Aux_module
+  use Reaction_Mineral_Aux_module
+  use Reaction_Sandbox_module
+  use Reaction_Surface_Complexation_Aux_module
   use String_module
   use Utility_module
-  use Input_Aux_module
-
-  use Reaction_Surface_Complexation_Aux_module
-  use Reaction_Mineral_Aux_module
-  use Reaction_Microbial_Aux_module
-  use Reaction_Immobile_Aux_module
-  use Reaction_Gas_Aux_module
-  use Reaction_Isotherm_Aux_module
 
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module
 #endif
-  use Reaction_Sandbox_module
-  use CLM_Rxn_module
 
   implicit none
 
@@ -3737,7 +3737,7 @@ subroutine BasisInit(reaction,option)
 
     if (surface_complexation%nsrfcplxrxn > 0) then
       write(option%fid_out,100) surface_complexation%nsrfcplxrxn, &
-        'Surface Complexation Reaction Sites' 
+        'Surface Complexation Reaction Sites'
       write(option%fid_out,110) &
         (surface_complexation%srfcplxrxn_site_names(i), &
          i=1,surface_complexation%nsrfcplxrxn)

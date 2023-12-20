@@ -1232,7 +1232,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !....................
       case ('SOURCE_SINK_SANDBOX')
-        call SSSandboxInit(option)
         call SSSandboxRead(input,option)
 
 !....................

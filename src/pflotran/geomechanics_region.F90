@@ -322,6 +322,12 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
   PetscInt :: remainder
   PetscErrorCode :: ierr
 
+
+#ifdef GEOMECH_DEBUG
+  PetscInt :: ii
+  character(len=MAXSTRINGLENGTH) :: string, string1
+#endif
+
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++

@@ -1,5 +1,5 @@
 module Base_module
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscsnes.h"
   use petscsnes
   implicit none
   private
@@ -21,7 +21,7 @@ end subroutine BasePrint
 end module Base_module
 
 module Extended_module
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Base_module
   implicit none
@@ -48,6 +48,8 @@ module Function_module
   public :: TestFunction
   contains
 subroutine TestFunction(snes,xx,r,ctx,ierr)
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Base_module
   implicit none
   SNES :: snes
@@ -61,7 +63,7 @@ end module Function_module
 
 program test
 
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Base_module
   use Extended_module
@@ -72,6 +74,8 @@ program test
 #if 1
 interface
   subroutine SNESSetFunction(snes_base,x,TestFunction,base,ierr)
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
     use Base_module
     SNES snes_base
     Vec x

@@ -345,6 +345,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscInt :: local_id, ghosted_id, material_id, i
   PetscErrorCode :: ierr
 
+#ifdef GEOMECH_DEBUG
+  PetscViewer :: viewer
+#endif
+
   option => realization%option
   discretization => realization%discretization
   field => realization%field
@@ -664,7 +668,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
          vec_p(ghosted_id)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
-    
+
     call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax
       vec_p(local_id) = &
@@ -693,9 +697,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
       material_auxvars(ghosted_id)%secondary_prop%ncells = &
          int(vec_p(ghosted_id))
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr) 
+    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   endif
- 
+
   if (option%geomech_on) then
     call VecCopy(field%porosity0,field%porosity_geomech_store, &
                  ierr);CHKERRQ(ierr)
@@ -1199,8 +1203,9 @@ subroutine SubsurfSandboxesSetup(realization)
 
   class(realization_subsurface_type) :: realization
 
-  call SSSandboxSetup(realization%patch%grid,realization%option, &
-                      realization%output_option)
+  call SSSandboxSetup(realization%patch%grid, &
+                      realization%patch%aux%Material%auxvars, &
+                      realization%option,realization%output_option)
 
 end subroutine SubsurfSandboxesSetup
 

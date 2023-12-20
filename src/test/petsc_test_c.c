@@ -17,25 +17,25 @@ int main(int argc,char* argv[]){
   Vec vec;
   PetscViewer viewer;
 
-  PetscInitialize(&argc,&argv,(char *)0,(char *)0);
-  MPI_Comm_size(PETSC_COMM_WORLD, &size);
-  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  PetscCall(PetscInitialize(&argc,&argv,(char *)0,(char *)0));
+  PetscCall(MPI_Comm_size(PETSC_COMM_WORLD, &size));
+  PetscCall(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));
 
   if (!rank) printf("Beginning of C test program\n");
 
   ndof = 100000;
   my_ndof = ((int)(ndof / size)) + (ndof % size) > rank ? 1 : 0;
 
-  VecCreateMPI(PETSC_COMM_WORLD, my_ndof, ndof, &vec);
-  VecSet(vec, -999.);
-  PetscViewerBinaryOpen(PETSC_COMM_WORLD, "vec.bin", FILE_MODE_WRITE, 
-                        &viewer);
-  PetscViewerBinarySetFlowControl(viewer,2);
+  PetscCall(VecCreateMPI(PETSC_COMM_WORLD, my_ndof, ndof, &vec));
+  PetscCall(VecSet(vec, -999.));
+  PetscCall(PetscViewerBinaryOpen(PETSC_COMM_WORLD, "vec.bin", FILE_MODE_WRITE, 
+                        &viewer));
+  PetscCall(PetscViewerBinarySetFlowControl(viewer,2));
   if (!rank) printf("Before VecView\n");
-  VecView(vec, viewer);
+  PetscCall(VecView(vec, viewer));
   if (!rank) printf("After VecView\n");
-  PetscViewerDestroy(viewer);
-  VecDestroy(vec);
+  PetscCall(PetscViewerDestroy(&viewer));
+  PetscCall(VecDestroy(&vec));
 
   if (!rank) printf("End of C test program\n");
 

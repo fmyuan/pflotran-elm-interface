@@ -208,6 +208,10 @@ ifdef catch_warnings_as_errors
   MYFLAGS += -Werror=all -Wno-maybe-uninitialized -Wno-unused-dummy-argument 
 endif
 
+ifdef no_warnings
+  MYFLAGS += -w
+endif
+
 ###############################################################################
 # Assign additional compiler/preprocessor flags
 ###############################################################################

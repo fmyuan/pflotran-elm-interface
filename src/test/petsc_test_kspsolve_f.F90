@@ -37,9 +37,9 @@ program test
   
   PetscErrorCode :: ierr
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
-  call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr)
-  call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr)
+  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
+  call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr);CHKERRQ(ierr)
+  call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr);CHKERRQ(ierr)
 
   if (rank == 0) print *, 'Beginning of Fortran90 test program'
 

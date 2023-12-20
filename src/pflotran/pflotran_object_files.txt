@@ -126,6 +126,8 @@ chem_obj = \
 	${common_src}reaction_gas_aux.o \
 	${common_src}reaction_immobile.o \
 	${common_src}reaction_immobile_aux.o \
+	${common_src}reaction_inhibition_aux.o \
+	${common_src}reaction_inhibition.o \
 	${common_src}reaction_isotherm.o \
 	${common_src}reaction_isotherm_aux.o \
 	${common_src}reaction_microbial.o \
@@ -207,8 +209,9 @@ dataset_obj = \
 srcsink_obj = \
 	${common_src}srcsink_sandbox.o \
 	${common_src}srcsink_sandbox_base.o \
-	${common_src}srcsink_sandbox_mass_rate.o \
 	${common_src}srcsink_sandbox_downreg.o \
+	${common_src}srcsink_sandbox_mass_rate.o \
+	${common_src}srcsink_sandbox_pressure.o \
 	${common_src}srcsink_sandbox_wipp_gas.o \
 	${common_src}srcsink_sandbox_wipp_well.o
 

@@ -292,6 +292,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('IMMOBILE_DECAY_REACTION')
         call ImmobileDecayRxnRead(reaction%immobile,input,option)
       case('RADIOACTIVE_DECAY_REACTION')
+        error_string = 'CHEMISTRY,RADIOACTIVE_DECAY_REACTION'
         reaction%nradiodecay_rxn = reaction%nradiodecay_rxn + 1
         radioactive_decay_rxn => RadioactiveDecayRxnCreate()
         radioactive_decay_rxn%rate_constant = UNINITIALIZED_DOUBLE
@@ -302,8 +303,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           if (InputCheckExit(input,option)) exit
 
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword', &
-                             'CHEMISTRY,RADIOACTIVE_DECAY_REACTION')
+          call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
 
           select case(trim(word))
@@ -313,12 +313,12 @@ subroutine ReactionReadPass1(reaction,input,option)
               ! set flag for error message
               if (len_trim(radioactive_decay_rxn%reaction) < 2) input%ierr = 1
               call InputErrorMsg(input,option,'reaction', &
-                               'CHEMISTRY,RADIOACTIVE_DECAY_REACTION,REACTION')
+                                 trim(error_string)//',REACTION')
             case('RATE_CONSTANT')
               call InputReadDouble(input,option, &
                                    radioactive_decay_rxn%rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
-                'CHEMISTRY,RADIOACTIVE_DECAY_REACTION,RATE_CONSTANT')
+                                 trim(error_string)//',RATE_CONSTANT')
               call InputReadAndConvertUnits(input, &
                      radioactive_decay_rxn%rate_constant,'unitless/sec', &
                     'CHEMISTRY,RADIOACTIVE_DECAY_REACTION,RATE_CONSTANT',option)
@@ -326,7 +326,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               call InputReadDouble(input,option, &
                                    radioactive_decay_rxn%half_life)
               call InputErrorMsg(input,option,'half life', &
-                'CHEMISTRY,RADIOACTIVE_DECAY_REACTION,HALF_LIFE')
+                                 trim(error_string)//',HALF_LIFE')
               call InputReadAndConvertUnits(input, &
                      radioactive_decay_rxn%half_life,'sec', &
                     'CHEMISTRY,RADIOACTIVE_DECAY_REACTION,HALF_LIFE',option)
@@ -334,8 +334,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               radioactive_decay_rxn%rate_constant = &
                 -1.d0*log(0.5d0)/radioactive_decay_rxn%half_life
             case default
-              call InputKeywordUnrecognized(input,word, &
-                'CHEMISTRY,IMMOBILE_DECAY_REACTION',option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -355,6 +354,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         prev_radioactive_decay_rxn => radioactive_decay_rxn
         nullify(radioactive_decay_rxn)
       case('GENERAL_REACTION')
+        error_string = 'CHEMISTRY,GENERAL_REACTION'
         reaction%ngeneral_rxn = reaction%ngeneral_rxn + 1
         general_rxn => GeneralRxnCreate()
         call InputPushBlock(input,option)
@@ -364,7 +364,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           if (InputCheckExit(input,option)) exit
 
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword','CHEMISTRY,GENERAL_REACTION')
+          call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
 
           select case(trim(word))
@@ -373,8 +373,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               general_rxn%reaction = trim(adjustl(input%buf))
               ! set flag for error message
               if (len_trim(general_rxn%reaction) < 2) input%ierr = 1
-              call InputErrorMsg(input,option,'reaction', &
-                                 'CHEMISTRY,GENERAL_REACTION,REACTION')
+              call InputErrorMsg(input,option,'REACTION',error_string)
 ! For now, the reactants are negative stoich, products positive in reaction equation - geh
 #if 0
             case('FORWARD_SPECIES')
@@ -387,8 +386,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
                 species => AqueousSpeciesCreate()
                 call InputReadCard(input,option,species%name)
-                call InputErrorMsg(input,option,'keyword','CHEMISTRY, &
-                                   GENERAL_REACTION,FORWARD_SPECIES')
+                call InputErrorMsg(input,option,'FORWARD_SPECIES',error_string)
                 if (.not.associated(general_rxn%forward_species_list)) then
                   general_rxn%forward_species_list => species
                   species%id = 1
@@ -412,8 +410,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
                 species => AqueousSpeciesCreate()
                 call InputReadCard(input,option,species%name)
-                call InputErrorMsg(input,option,'keyword','CHEMISTRY, &
-                                   GENERAL_REACTION,BACKWARD_SPECIES')
+                call InputErrorMsg(input,option,'BACKWARD_SPECIES',error_string)
                 if (.not.associated(general_rxn%backward_species_list)) then
                   general_rxn%forward_species_list => species
                   species%id = 1
@@ -430,18 +427,18 @@ subroutine ReactionReadPass1(reaction,input,option)
 #endif
             case('FORWARD_RATE')
               call InputReadDouble(input,option,general_rxn%forward_rate)
-              call InputErrorMsg(input,option,'forward rate', &
-                                 'CHEMISTRY,GENERAL_REACTION')
+              call InputErrorMsg(input,option,'FORWARD_RATE',error_string)
               call InputReadAndConvertUnits(input,general_rxn%forward_rate, &
                      'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
-                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
+                     trim(error_string)//',FORWARD_RATE',option)
             case('BACKWARD_RATE')
               call InputReadDouble(input,option,general_rxn%backward_rate)
-              call InputErrorMsg(input,option,'backward rate', &
-                                 'CHEMISTRY,GENERAL_REACTION')
+              call InputErrorMsg(input,option,'BACKWARD_RATE',error_string)
               call InputReadAndConvertUnits(input,general_rxn%backward_rate, &
                      'mol/L-sec|1/sec|L/mol-sec|L^2/mol^2-sec|L^3/mol^3-sec', &
-                     'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT',option)
+                     trim(error_string)//',BACKWARD_RATE',option)
+            case default
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -467,6 +464,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('MINERALS')
         call MineralRead(reaction%mineral,input,option)
       case('MINERAL_KINETICS') ! mineral kinetics read on second round
+        error_string = 'CHEMISTRY,MINERAL_KINETICS'
         !geh: but we need to count the number of kinetic minerals this round
         temp_int = 0 ! used to count kinetic minerals
         call InputPushBlock(input,option)
@@ -475,7 +473,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
           call InputReadCard(input,option,name)
-          call InputErrorMsg(input,option,name,'CHEMISTRY,MINERAL_KINETICS')
+          call InputErrorMsg(input,option,name,error_string)
           temp_int = temp_int + 1
 
           call InputPushBlock(input,option)
@@ -484,8 +482,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             call InputReadStringErrorMsg(input,option,card)
             if (InputCheckExit(input,option)) exit
             call InputReadCard(input,option,word)
-            call InputErrorMsg(input,option,'keyword', &
-                                    'CHEMISTRY,MINERAL_KINETICS')
+            call InputErrorMsg(input,option,'keyword',error_string)
             call StringToUpper(word)
             select case(word)
               case('PREFACTOR')
@@ -496,11 +493,12 @@ subroutine ReactionReadPass1(reaction,input,option)
                   if (InputCheckExit(input,option)) exit
                   call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword', &
-                                      'CHEMISTRY,MINERAL_KINETICS,PREFACTOR')
+                                     trim(error_string)//',PREFACTOR')
                   call StringToUpper(word)
                   select case(word)
                     case('PREFACTOR_SPECIES')
                       call InputSkipToEnd(input,option,word)
+                    ! no default here as skipping
                   end select
                 enddo
                 call InputPopBlock(input,option)
@@ -538,6 +536,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           select case(trim(word))
 
             case('DYNAMIC_KD_REACTIONS')
+              error_string = 'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS'
               call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
@@ -549,8 +548,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                 dynamic_kd_rxn => DynamicKDRxnCreate()
                 ! first string is species name
                 call InputReadCard(input,option,word)
-                call InputErrorMsg(input,option,'kd species name', &
-                                   'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                call InputErrorMsg(input,option,'kd species name',error_string)
                 dynamic_kd_rxn%kd_species_name = trim(word)
                 call InputPushBlock(input,option)
                 do
@@ -568,30 +566,30 @@ subroutine ReactionReadPass1(reaction,input,option)
                     case('REFERENCE_SPECIES')
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'REFERENCE_SPECIES', &
-                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                                         error_string)
                       dynamic_kd_rxn%ref_species_name = word
                     case('REFERENCE_SPECIES_HIGH')
                       call InputReadDouble(input,option, &
                                            dynamic_kd_rxn%ref_species_high)
                       call InputErrorMsg(input,option, &
                                          'REFERENCE_SPECIES_HIGH', &
-                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                                         error_string)
                     case('KD_LOW')
                       call InputReadDouble(input,option,dynamic_kd_rxn%KD_low)
                       call InputErrorMsg(input,option,'KD_LOW', &
-                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                                         error_string)
                     case('KD_HIGH')
                       call InputReadDouble(input,option,dynamic_kd_rxn%KD_high)
                       call InputErrorMsg(input,option,'KD_HIGH', &
-                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                                         error_string)
                     case('KD_POWER')
                       call InputReadDouble(input,option, &
                                            dynamic_kd_rxn%KD_power)
                       call InputErrorMsg(input,option,'KD_POWER', &
-                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                                         error_string)
                     case default
                       call InputKeywordUnrecognized(input,word, &
-                              'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS',option)
+                                                    error_string,option)
                   end select
                 enddo
                 call InputPopBlock(input,option)
@@ -623,6 +621,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('SURFACE_COMPLEXATION_RXN')
               call SurfaceComplexationRead(reaction,input,option)
             case('ION_EXCHANGE_RXN')
+              error_string = 'CHEMISTRY,ION_EXCHANGE_RXN'
               ionx_rxn => IonExchangeRxnCreate()
               call InputPushBlock(input,option)
               do
@@ -631,20 +630,17 @@ subroutine ReactionReadPass1(reaction,input,option)
                 if (InputCheckExit(input,option)) exit
 
                 call InputReadCard(input,option,word)
-                call InputErrorMsg(input,option,'keyword', &
-                                   'CHEMISTRY,ION_EXCHANGE_RXN')
+                call InputErrorMsg(input,option,'keyword',error_string)
                 call StringToUpper(word)
 
                 select case(trim(word))
                   case('MINERAL')
                     call InputReadWord(input,option,ionx_rxn%mineral_name, &
                                        PETSC_TRUE)
-                    call InputErrorMsg(input,option,'keyword', &
-                      'CHEMISTRY,ION_EXCHANGE_RXN,MINERAL_NAME')
+                    call InputErrorMsg(input,option,word,error_string)
                   case('CEC')
                     call InputReadDouble(input,option,ionx_rxn%CEC)
-                    call InputErrorMsg(input,option,'keyword', &
-                                       'CHEMISTRY,ION_EXCHANGE_RXN,CEC')
+                    call InputErrorMsg(input,option,word,error_string)
                   case('CATIONS')
                     string = '' ! string denotes the reference cation
                     nullify(prev_cation)
@@ -658,17 +654,17 @@ subroutine ReactionReadPass1(reaction,input,option)
                       reaction%neqionxcation = reaction%neqionxcation + 1
                       call InputReadCard(input,option,cation%name)
                       call InputErrorMsg(input,option,'keyword', &
-                        'CHEMISTRY,ION_EXCHANGE_RXN,CATION_NAME')
+                        trim(error_string)//'CATIONS,CATION_NAME')
                       call InputReadDouble(input,option,cation%k)
                       call InputErrorMsg(input,option,'keyword', &
-                                         'CHEMISTRY,ION_EXCHANGE_RXN,K')
+                                         trim(error_string)//'CATIONS,K')
                       call InputReadCard(input,option,word)
                       if (input%ierr == 0) then
                         if (StringCompareIgnoreCase(word,'REFERENCE')) then
                           string = cation%name
                         else
                           call InputKeywordUnrecognized(input,word, &
-                                  'CHEMISTRY,ION_EXCHANGE_RXN,CATIONS',option)
+                                        trim(error_string)//'CATIONS',option)
                         endif
                       endif
                       if (.not.associated(ionx_rxn%cation_list)) then
@@ -710,8 +706,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                       cation => cation%next
                     enddo
                   case default
-                    call InputKeywordUnrecognized(input,word, &
-                              'CHEMISTRY,ION_EXCHANGE_RXN',option)
+                    call InputKeywordUnrecognized(input,word,error_string,option)
                 end select
               enddo
               call InputPopBlock(input,option)
@@ -735,6 +730,8 @@ subroutine ReactionReadPass1(reaction,input,option)
               option%transport%no_checkpoint_kinetic_sorption = PETSC_TRUE
             case('NO_RESTART_KINETIC_SORPTION')
               option%transport%no_restart_kinetic_sorption = PETSC_TRUE
+            case default
+              call InputKeywordUnrecognized(input,word,'SORPTION',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -955,6 +952,7 @@ subroutine ReactionReadPass2(reaction,input,option)
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: card
+  character(len=MAXSTRINGLENGTH) :: error_string
 
   call InputPushBlock(input,'CHEMISTRY_2ND_PASS',option)
   do
@@ -995,24 +993,24 @@ subroutine ReactionReadPass2(reaction,input,option)
           call InputErrorMsg(input,option,'SORPTION','CHEMISTRY')
           select case(trim(word))
             case('DYNAMIC_KD_REACTIONS')
+              error_string = 'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS'
               do
                 call InputReadPflotranString(input,option)
                 call InputReadStringErrorMsg(input,option,card)
                 if (InputCheckExit(input,option)) exit
                 call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,word, &
-                                    'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS')
+                call InputErrorMsg(input,option,word,error_string)
                 ! skip over remaining cards to end of each kd entry
                 call InputSkipToEnd(input,option,word)
               enddo
             case('ISOTHERM_REACTIONS')
+              error_string = 'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS'
               do
                 call InputReadPflotranString(input,option)
                 call InputReadStringErrorMsg(input,option,card)
                 if (InputCheckExit(input,option)) exit
                 call InputReadWord(input,option,word,PETSC_TRUE)
-                call InputErrorMsg(input,option,word, &
-                                    'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS')
+                call InputErrorMsg(input,option,word,error_string)
                 ! skip over remaining cards to end of each kd entry
                 call InputSkipToEnd(input,option,word)
               enddo

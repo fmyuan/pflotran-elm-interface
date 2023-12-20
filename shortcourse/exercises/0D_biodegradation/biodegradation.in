@@ -1,0 +1,155 @@
+#Description: Batch biodegradation
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+REFERENCE_LIQUID_DENSITY 1000.d0
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Aaq
+    Baq
+    Caq
+    Daq
+  /
+  IMMOBILE_SPECIES
+    Xim
+  /
+  MICROBIAL_REACTION
+    REACTION Aaq + 0.25 Baq <-> 0.33 Caq + Daq
+    RATE_CONSTANT 9.d-2
+    MONOD
+      SPECIES_NAME Aaq
+      HALF_SATURATION_CONSTANT 2.d-4
+    /
+    MONOD
+      SPECIES_NAME Baq
+      HALF_SATURATION_CONSTANT 1.25d-5
+    /
+    INHIBITION
+      SPECIES_NAME Caq
+      TYPE MONOD
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 2.5d-4
+    /
+    BIOMASS
+      SPECIES_NAME Xim
+      YIELD 1.d-4
+    /
+  /
+  IMMOBILE_DECAY_REACTION
+    SPECIES_NAME Xim
+    RATE_CONSTANT 1.d-6
+  /
+  DATABASE ../../../database/simple_rxn_database.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    FREE_ION
+    ALL
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.d0
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION middle
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION middle
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  TIME_UNITS d
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 w
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 h
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS # [mol/L]
+    Aaq  1.d-3   F
+    Baq  5.d-4   F
+    Caq  1.d-10  F
+    Daq  1.d-10  F
+  /
+  IMMOBILE     # [mol/m^3 bulk]
+    Xim  1.d-4
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

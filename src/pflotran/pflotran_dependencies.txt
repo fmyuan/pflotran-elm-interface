@@ -2657,6 +2657,7 @@ reaction_database.o : \
   reaction_gas_aux.o \
   reaction_immobile.o \
   reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
   reaction_isotherm_aux.o \
   reaction_microbial.o \
   reaction_microbial_aux.o \
@@ -2708,6 +2709,16 @@ reaction_immobile_aux.o : \
   reaction_database_aux.o \
   string.o \
   utility.o
+reaction_inhibition.o : \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_inhibition_aux.o \
+  string.o
+reaction_inhibition_aux.o : \
+  pflotran_constants.o \
+  utility.o
 reaction_isotherm.o : \
   global_aux.o \
   input_aux.o \
@@ -2731,6 +2742,8 @@ reaction_microbial.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_immobile_aux.o \
+  reaction_inhibition.o \
+  reaction_inhibition_aux.o \
   reaction_microbial_aux.o \
   reactive_transport_aux.o \
   string.o \
@@ -2738,6 +2751,7 @@ reaction_microbial.o : \
 reaction_microbial_aux.o : \
   pflotran_constants.o \
   reaction_database_aux.o \
+  reaction_inhibition_aux.o \
   utility.o
 reaction_mineral.o : \
   global_aux.o \
@@ -2917,6 +2931,7 @@ reaction_sandbox_pnnl_cyber.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
   reaction_mineral_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
@@ -2930,6 +2945,7 @@ reaction_sandbox_pnnl_lambda.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  reaction_inhibition_aux.o \
   reaction_mineral_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
@@ -3035,6 +3051,7 @@ reactive_transport.o : \
   secondary_continuum.o \
   secondary_continuum_aux.o \
   secondary_continuum_np.o \
+  srcsink_sandbox.o \
   string.o \
   transport.o \
   transport_constraint_rt.o \
@@ -3174,6 +3191,7 @@ richards.o : \
   srcsink_sandbox.o \
   srcsink_sandbox_base.o \
   srcsink_sandbox_downreg.o \
+  srcsink_sandbox_pressure.o \
   utility.o \
   variables.o
 richards_aux.o : \
@@ -3416,6 +3434,7 @@ srcsink_sandbox.o : \
   srcsink_sandbox_base.o \
   srcsink_sandbox_downreg.o \
   srcsink_sandbox_mass_rate.o \
+  srcsink_sandbox_pressure.o \
   srcsink_sandbox_wipp_gas.o \
   srcsink_sandbox_wipp_well.o \
   string.o \
@@ -3456,6 +3475,17 @@ srcsink_sandbox_mass_rate.o : \
   string.o \
   units.o \
   wipp_flow_aux.o
+srcsink_sandbox_pressure.o : \
+  grid.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  srcsink_sandbox_base.o \
+  string.o \
+  units.o \
+  utility.o
 srcsink_sandbox_wipp_gas.o : \
   eos_gas.o \
   grid.o \

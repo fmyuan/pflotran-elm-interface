@@ -1,8 +1,35 @@
 import h5py
 import numpy
 
+tet_map = numpy.zeros((6,4),'=i4')
+tet_map[0,:] = [1,8,3,4]
+tet_map[1,:] = [1,3,8,5]
+tet_map[2,:] = [8,7,5,3]
+tet_map[3,:] = [1,2,3,5]
+tet_map[4,:] = [2,5,7,3]
+tet_map[5,:] = [2,7,5,6]
 
-def struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin):
+def local_vertex_to_offset(i,j,k,nxp1,nyp1,vertex_id):
+  offset = -999
+  if vertex_id == 1:
+    offset = i + j*nxp1 + k*nxp1*nyp1
+  elif vertex_id == 2:
+    offset = i + 1 + j*nxp1 + k*nxp1*nyp1
+  elif vertex_id == 3:
+    offset = i + 1 + (j+1)*nxp1 + k*nxp1*nyp1
+  elif vertex_id == 4:
+    offset = i + (j+1)*nxp1 + k*nxp1*nyp1
+  elif vertex_id == 5:
+    offset = i + j*nxp1 + (k+1)*nxp1*nyp1
+  elif vertex_id == 6:
+    offset = i + 1 + j*nxp1 + (k+1)*nxp1*nyp1
+  elif vertex_id == 7:
+    offset = i + 1 + (j+1)*nxp1 + (k+1)*nxp1*nyp1
+  else:
+    offset = i + (j+1)*nxp1 + (k+1)*nxp1*nyp1
+  return offset
+
+def struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin, hex_):
   """
   Create a unstructured implicit grid for PFLOTRAN
   out: output file
@@ -21,21 +48,29 @@ def struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin):
   dx,dy,dz = d
   nxp1 = nx+1; nyp1 = ny+1; nzp1 = nz+1
   
-  element_array = numpy.zeros((nx*ny*nz,9),'=i4')
-  
-  for k in range(nz):
-    for j in range(ny):
-      for i in range(nx):
-        cell_id = i + j*nx + k*nx*ny
-        element_array[cell_id,0] = 8
-        element_array[cell_id,1] = i + j*nxp1 + k*nxp1*nyp1
-        element_array[cell_id,2] = i + 1 + j*nxp1 + k*nxp1*nyp1
-        element_array[cell_id,3] = i + 1 + (j+1)*nxp1 + k*nxp1*nyp1
-        element_array[cell_id,4] = i + (j+1)*nxp1 + k*nxp1*nyp1
-        element_array[cell_id,5] = i + j*nxp1 + (k+1)*nxp1*nyp1
-        element_array[cell_id,6] = i + 1 + j*nxp1 + (k+1)*nxp1*nyp1
-        element_array[cell_id,7] = i + 1 + (j+1)*nxp1 + (k+1)*nxp1*nyp1
-        element_array[cell_id,8] = i + (j+1)*nxp1 + (k+1)*nxp1*nyp1
+  if hex_:
+    element_array = numpy.zeros((nx*ny*nz,9),'=i4')
+    icell = 0
+    for k in range(nz):
+      for j in range(ny):
+        for i in range(nx):
+          element_array[icell,0] = 8
+          for ivert in range(1,9):
+            element_array[icell,ivert] = \
+              local_vertex_to_offset(i,j,k,nxp1,nyp1,ivert)
+          icell += 1
+  else:
+    element_array = numpy.zeros((nx*ny*nz*6,9),'=i4')
+    icell = 0
+    for k in range(nz):
+      for j in range(ny):
+        for i in range(nx):
+          for itet in range(6):
+            element_array[icell,0] = 4
+            for ii in range(4):
+              element_array[icell,ii+1] = \
+                local_vertex_to_offset(i,j,k,nxp1,nyp1,tet_map[itet,ii])
+            icell += 1
   
   vertex_array = numpy.zeros((nxp1*nyp1*nzp1,3),'=f8')
   x_origin,y_origin,z_origin = origin
@@ -73,15 +108,18 @@ def struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin):
     h5dset = out.create_dataset('Domain/Cells', data=element_array)
     h5dset = out.create_dataset('Domain/Vertices', data=vertex_array)
   else:
-    out.write('%d %d\n' % (nx*ny*nz,nxp1*nyp1*nzp1))
-    for k in range(nz):
-      for j in range(ny):
-        for i in range(nx):
-          cell_id = i + j*nx + k*nx*ny
-          out.write('H')
-          for iv in range(element_array[cell_id,0]):
-            out.write(' %d' % (element_array[cell_id,iv+1]+1))
-          out.write('\n')
+    num_cells = nx*ny*nz
+    if not hex_:
+      num_cells *= 6
+    out.write('%d %d\n' % (num_cells,nxp1*nyp1*nzp1))
+    for icell in range(num_cells):
+      if hex_:
+        out.write('H')
+      else:
+        out.write('T')
+      for iv in range(element_array[icell,0]):
+        out.write(' %d' % (element_array[icell,iv+1]+1))
+      out.write('\n')
     for i in range(nxp1*nyp1*nzp1):
       out.write('%12.6e %12.6e %12.6e\n' % 
                     (vertex_array[i,0],vertex_array[i,1],vertex_array[i,2]))
@@ -118,6 +156,8 @@ if __name__ == "__main__":
   else:
     out_name = "mesh.ugi"
   
-  struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin)
+  hex_ = True
+  struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin, hex_)
+
   
 

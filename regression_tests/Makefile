@@ -89,6 +89,7 @@ STANDARD_CFG = \
 	default/regions/regions.cfg \
 	default/salinity/salinity.cfg \
 	default/scco2/mphase/mphase.cfg \
+	default/srcsink_sandbox/srcsink_sandbox.cfg \
 	default/steady/steady.cfg \
 	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
@@ -114,6 +115,7 @@ STANDARD_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
+	shortcourse/electron_tower/electron_tower.cfg \
 	surfaceflow/inlinesurface/inlinesurface.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
