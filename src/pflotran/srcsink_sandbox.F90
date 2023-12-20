@@ -76,6 +76,11 @@ subroutine SSSandboxRead1(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  if (associated(ss_sandbox_list)) then
+    option%io_buffer = 'All source/sink sandboxes must be placed in &
+      &a single SOURCE_SINK_SANDBOX block.'
+    call PrintErrMsg(option)
+  endif
   call SSSandboxRead(ss_sandbox_list,input,option)
 
 end subroutine SSSandboxRead1
