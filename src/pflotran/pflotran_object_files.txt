@@ -50,7 +50,8 @@ mode_aux_obj = \
 	${common_src}richards_aux.o \
 	${common_src}th_aux.o \
 	${common_src}zflow_aux.o \
-	${common_src}inlinesurface_aux.o
+	${common_src}inlinesurface_aux.o \
+	${common_src}sco2_aux.o
 
 mode_process_model_obj = \
 	${common_src}pm_auxiliary.o \
@@ -77,6 +78,7 @@ mode_process_model_obj = \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}pm_zflow.o \
 	${common_src}pm_material_transform.o \
+	${common_src}pm_sco2.o \
 
 mode_obj = \
 	${common_src}general.o \
@@ -96,7 +98,9 @@ mode_obj = \
 	${common_src}th.o \
 	${common_src}zflow.o \
 	${common_src}zflow_common.o \
-	${common_src}inlinesurface.o
+	${common_src}inlinesurface.o \
+	${common_src}sco2.o \
+	${common_src}sco2_common.o
 
 # DO NOT place any object files that depend on the discretization within
 # util_obj

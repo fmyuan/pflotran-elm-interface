@@ -13,6 +13,7 @@ auxiliary.o : \
   pnf_aux.o \
   reactive_transport_aux.o \
   richards_aux.o \
+  sco2_aux.o \
   secondary_continuum_aux.o \
   th_aux.o \
   wipp_flow_aux.o \
@@ -137,6 +138,7 @@ condition.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_base.o \
+  sco2_aux.o \
   string.o \
   time_storage.o \
   transport_constraint.o \
@@ -176,6 +178,7 @@ condition_control.o : \
   reactive_transport_aux.o \
   realization_subsurface.o \
   region.o \
+  sco2_aux.o \
   secondary_continuum_aux.o \
   transport_constraint_base.o \
   transport_constraint_nwt.o \
@@ -367,7 +370,8 @@ ert.o : \
   patch.o \
   pflotran_constants.o \
   realization_subsurface.o \
-  survey.o
+  survey.o \
+  variables.o
 ert_aux.o : \
   global_aux.o \
   material_aux.o \
@@ -465,14 +469,14 @@ factory_pflotran.o : \
   simulation_inverse.o \
   simulation_multirealization.o \
   simulation_subsurface.o \
-  string.o
+  string.o \
+  utility.o
 factory_subsurface.o : \
   checkpoint.o \
   dataset.o \
   discretization.o \
   eos.o \
   factory_subsurface_linkage.o \
-  general_aux.o \
   global.o \
   init_common.o \
   init_subsurface.o \
@@ -498,6 +502,7 @@ factory_subsurface.o : \
   pm_pnf.o \
   pm_richards.o \
   pm_richards_ts.o \
+  pm_sco2.o \
   pm_subsurface_flow.o \
   pm_th.o \
   pm_th_ts.o \
@@ -582,7 +587,6 @@ factory_subsurface_read.o : \
   eos_water.o \
   field.o \
   fluid.o \
-  general.o \
   grid.o \
   grid_structured.o \
   grid_unstructured_aux.o \
@@ -612,6 +616,7 @@ factory_subsurface_read.o : \
   pm_richards.o \
   pm_richards_ts.o \
   pm_rt.o \
+  pm_sco2.o \
   pm_th.o \
   pm_th_ts.o \
   pm_ufd_biosphere.o \
@@ -951,6 +956,7 @@ grid.o : \
   option.o \
   pflotran_constants.o \
   region.o \
+  string.o \
   utility.o
 grid_structured.o : \
   connection.o \
@@ -1091,6 +1097,7 @@ hydrostatic.o : \
   option.o \
   pflotran_constants.o \
   region.o \
+  sco2_aux.o \
   string.o \
   utility.o \
   wipp_flow_aux.o \
@@ -1164,6 +1171,7 @@ init_subsurface_flow.o : \
   pm_pnf.o \
   pm_richards.o \
   pm_richards_ts.o \
+  pm_sco2.o \
   pm_th.o \
   pm_th_ts.o \
   pm_wipp_flow.o \
@@ -1276,7 +1284,6 @@ inversion_parameter.o : \
   input_aux.o \
   material_aux.o \
   option.o \
-  option_inversion.o \
   pflotran_constants.o \
   string.o \
   units.o \
@@ -1548,6 +1555,7 @@ output.o : \
   realization_base.o \
   realization_subsurface.o \
   region.o \
+  sco2_aux.o \
   string.o \
   units.o \
   utility.o \
@@ -1672,6 +1680,8 @@ output_observation.o : \
   realization_subsurface.o \
   region.o \
   richards.o \
+  sco2.o \
+  sco2_aux.o \
   string.o \
   th.o \
   utility.o \
@@ -1765,6 +1775,7 @@ patch.o : \
   region.o \
   richards_aux.o \
   saturation_function.o \
+  sco2_aux.o \
   strata.o \
   string.o \
   th_aux.o \
@@ -2120,6 +2131,29 @@ pm_rt.o : \
   string.o \
   utility.o \
   variables.o
+pm_sco2.o : \
+  checkpoint.o \
+  convergence.o \
+  field.o \
+  global.o \
+  global_aux.o \
+  grid.o \
+  input_aux.o \
+  option.o \
+  patch.o \
+  pflotran_constants.o \
+  pm_base.o \
+  pm_subsurface_flow.o \
+  realization_base.o \
+  realization_subsurface.o \
+  saturation_function.o \
+  sco2.o \
+  sco2_aux.o \
+  solver.o \
+  string.o \
+  upwind_direction.o \
+  utility.o \
+  variables.o
 pm_subsurface_flow.o : \
   characteristic_curves.o \
   characteristic_curves_wipp.o \
@@ -2466,6 +2500,7 @@ pmc_subsurface.o : \
   pm_nwt.o \
   pm_richards.o \
   pm_rt.o \
+  pm_sco2.o \
   pm_subsurface_flow.o \
   pm_th.o \
   pm_ufd_decay.o \
@@ -3168,6 +3203,56 @@ saturation_function.o : \
   pflotran_constants.o \
   string.o \
   utility.o
+sco2.o : \
+  connection.o \
+  coupler.o \
+  debug.o \
+  discretization.o \
+  eos_water.o \
+  field.o \
+  fluid.o \
+  global_aux.o \
+  grid.o \
+  material.o \
+  material_aux.o \
+  matrix_zeroing.o \
+  option.o \
+  output_aux.o \
+  patch.o \
+  pflotran_constants.o \
+  realization_subsurface.o \
+  saturation_function.o \
+  sco2_aux.o \
+  sco2_common.o \
+  upwind_direction.o \
+  variables.o
+sco2_aux.o : \
+  characteristic_curves.o \
+  characteristic_curves_common.o \
+  eos_gas.o \
+  eos_water.o \
+  global_aux.o \
+  material_aux.o \
+  matrix_zeroing.o \
+  option.o \
+  pflotran_constants.o \
+  utility.o \
+  wipp.o
+sco2_common.o : \
+  characteristic_curves.o \
+  characteristic_curves_thermal.o \
+  connection.o \
+  coupler.o \
+  eos_gas.o \
+  eos_water.o \
+  global_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  sco2_aux.o \
+  upwind_direction.o \
+  utility.o \
+  wipp.o
 secondary_continuum.o : \
   block_solve.o \
   block_tridiag.o \
@@ -3581,6 +3666,7 @@ utility.o : \
   input_aux.o \
   option.o \
   pflotran_constants.o \
+  print.o \
   string.o
 variables.o :
 waypoint.o : \
