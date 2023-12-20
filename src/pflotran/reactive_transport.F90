@@ -2315,6 +2315,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   use Secondary_Continuum_module, only : SecondaryRTResJacMulti
   use Secondary_Continuum_NP_module, only : SecondaryRTResJacMulti_NP
   use Transport_Constraint_RT_module
+  use SrcSink_Sandbox_module
 
   implicit none
 
@@ -2541,6 +2542,12 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+
+  if (associated(ss_sandbox_list)) then
+    option%io_buffer = 'Source/Sink Sandbox must be implemented in &
+      &reactive_transport.F90'
+    call PrintErrMsg(option)
+  endif
 
   ! CO2-specific
   select case(option%iflowmode)

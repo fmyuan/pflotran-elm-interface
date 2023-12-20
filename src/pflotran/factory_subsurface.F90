@@ -519,12 +519,15 @@ subroutine FactorySubsurfSetupRealization(simulation)
   ! must process conditions before couplers in order to determine dataset types
   call RealizationProcessConditions(realization)
   call RealizationProcessCouplers(realization)
-  call SubsurfSandboxesSetup(realization)
   call RealProcessFluidProperties(realization)
   call SubsurfInitMaterialProperties(realization)
-  ! assignVolumesToMaterialAuxVars() must be called after
-  ! RealizInitMaterialProperties() where the Material object is created
+  ! SubsurfAssignVolsToMatAuxVars() must be called after
+  ! SubsurfInitMaterialProperties() where the Material object is created
   call SubsurfAssignVolsToMatAuxVars(realization)
+  ! SubsurfSandboxesSetup() must be called after
+  ! SubsurfAssignVolsToMatAuxVars() where volumes are assigned to Material
+  ! objects
+  call SubsurfSandboxesSetup(realization)
   call RealizationInitAllCouplerAuxVars(realization)
   if (option%ntrandof > 0) then
     call PrintMsg(option,"  Setting up TRAN Realization ")

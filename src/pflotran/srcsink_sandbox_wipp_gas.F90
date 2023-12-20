@@ -146,7 +146,7 @@ end subroutine WIPPGasGenerationRead
 
 ! ************************************************************************** !
 
-subroutine WIPPGasGenerationSetup(this,grid,option)
+subroutine WIPPGasGenerationSetup(this,grid,material_auxvars,option)
   !
   ! Sets up the WIPP gas generation src/sink
   !
@@ -154,14 +154,16 @@ subroutine WIPPGasGenerationSetup(this,grid,option)
   ! Date: 04/11/14
   use Option_module
   use Grid_module
+  use Material_Aux_module, only: material_auxvar_type
 
   implicit none
 
   class(srcsink_sandbox_wipp_gas_type) :: this
   type(grid_type) :: grid
+  type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
-  call SSSandboxBaseSetup(this,grid,option)
+  call SSSandboxBaseSetup(this,grid,material_auxvars,option)
 
 end subroutine WIPPGasGenerationSetup
 
