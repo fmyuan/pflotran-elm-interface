@@ -48,6 +48,8 @@ module Material_Aux_module
   PetscInt, public :: archie_tortuosity_index
   PetscInt, public :: surf_elec_conduct_index
   PetscInt, public :: ws_clay_conduct_index
+  PetscInt, public :: tortuosity_yy_index
+  PetscInt, public :: tortuosity_zz_index
   PetscInt, public :: max_material_index
 
   type, public :: material_auxvar_type
@@ -143,7 +145,8 @@ module Material_Aux_module
             MaterialAuxVarSetValue, &
             MaterialAuxDestroy, &
             MaterialAuxVarFractureStrip, &
-            MaterialAuxSetPermTensorModel
+            MaterialAuxSetPermTensorModel, &
+            MaterialAuxVarGetSoilPropIndex
 
   public :: MaterialAuxVarCompute
 
@@ -167,7 +170,8 @@ function MaterialAuxCreate(option)
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
-                               NUMBER_SECONDARY_CELLS
+                               NUMBER_SECONDARY_CELLS, &
+                               TORTUOSITY_Y, TORTUOSITY_Z
 
   implicit none
 
@@ -213,6 +217,12 @@ function MaterialAuxCreate(option)
     call MaterialAuxInitSoilPropertyMap(aux,ws_clay_conduct_index, &
                                         WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                         'Waxman-Smits Clay Conductivity')
+    call MaterialAuxInitSoilPropertyMap(aux,tortuosity_yy_index, &
+                                        TORTUOSITY_Y, &
+                                        'Anisotropic Tortuosity Y')
+    call MaterialAuxInitSoilPropertyMap(aux,tortuosity_yy_index, &
+                                        TORTUOSITY_Z, &
+                                        'Anisotropic Tortuosity Z')
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     do i = 1, max_material_index
       if (Uninitialized(aux%soil_properties_ivar(i))) then
@@ -693,6 +703,64 @@ end function FullPermTensorToScalarPotSafe
 
 ! ************************************************************************** !
 
+function MaterialAuxVarGetSoilPropIndex(ivar)
+  !
+  ! Returns the index in the soil properties array for the desire parameter
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/21/23
+  !
+  use Variables_module, only : SOIL_COMPRESSIBILITY, &
+                               SOIL_REFERENCE_PRESSURE, &
+                               ELECTRICAL_CONDUCTIVITY, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                               NUMBER_SECONDARY_CELLS, &
+                               TORTUOSITY_Y, TORTUOSITY_Z
+
+  implicit none
+
+  PetscInt :: ivar
+
+  PetscInt :: MaterialAuxVarGetSoilPropIndex
+
+  PetscInt :: index_
+
+  select case(ivar)
+    case(SOIL_COMPRESSIBILITY)
+      index_ = soil_compressibility_index
+    case(SOIL_REFERENCE_PRESSURE)
+      index_ = soil_reference_pressure_index
+    case(ELECTRICAL_CONDUCTIVITY)
+      index_ = electrical_conductivity_index
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      index_ = archie_cementation_exp_index
+    case(ARCHIE_SATURATION_EXPONENT)
+      index_ = archie_saturation_exp_index
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      index_ = archie_tortuosity_index
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      index_ = surf_elec_conduct_index
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      index_ = ws_clay_conduct_index
+    case(TORTUOSITY_Y)
+      index_ = tortuosity_yy_index
+    case(TORTUOSITY_Z)
+      index_ = tortuosity_zz_index
+    case default
+      print *, 'Unrecognized variable in MaterialAuxVarGetSoilPropIndex: ', &
+               ivar
+      stop
+  end select
+  MaterialAuxVarGetSoilPropIndex = index_
+
+end function MaterialAuxVarGetSoilPropIndex
+
+! ************************************************************************** !
+
 function MaterialAuxVarGetValue(material_auxvar,ivar)
   !
   ! Returns the value of an entry in material_auxvar_type based on ivar.
@@ -709,6 +777,8 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
   PetscInt :: ivar
 
   PetscReal :: MaterialAuxVarGetValue
+
+  PetscInt :: index_
 
   MaterialAuxVarGetValue = UNINITIALIZED_DOUBLE
   select case(ivar)
@@ -744,39 +814,14 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
       else
         MaterialAuxVarGetValue = 0.d0
       endif
-    case(SOIL_COMPRESSIBILITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(soil_compressibility_index)
-    case(SOIL_REFERENCE_PRESSURE)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(soil_reference_pressure_index)
     case(EPSILON)
       MaterialAuxVarGetValue = material_auxvar%secondary_prop%epsilon
     case(HALF_MATRIX_WIDTH)
       MaterialAuxVarGetValue = &
         material_auxvar%secondary_prop%half_matrix_width
-    case(ELECTRICAL_CONDUCTIVITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(electrical_conductivity_index)
-    case(ARCHIE_CEMENTATION_EXPONENT)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(archie_cementation_exp_index)
-    case(ARCHIE_SATURATION_EXPONENT)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(archie_saturation_exp_index)
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(archie_tortuosity_index)
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(surf_elec_conduct_index)
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(ws_clay_conduct_index)
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
-    case default
-      print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
-      stop
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
+      MaterialAuxVarGetValue = material_auxvar%soil_properties(index_)
   end select
 
 end function MaterialAuxVarGetValue
@@ -798,6 +843,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: ivar
   PetscReal :: value
+
+  PetscInt :: index_
 
   select case(ivar)
     case(VOLUME)
@@ -822,32 +869,15 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%permeability(perm_yz_index) = value
     case(PERMEABILITY_XZ)
       material_auxvar%permeability(perm_xz_index) = value
-    case(SOIL_COMPRESSIBILITY)
-      material_auxvar%soil_properties(soil_compressibility_index) = value
-    case(SOIL_REFERENCE_PRESSURE)
-      material_auxvar%soil_properties(soil_reference_pressure_index) = value
     case(EPSILON)
       material_auxvar%secondary_prop%epsilon = value
     case(HALF_MATRIX_WIDTH)
       material_auxvar%secondary_prop%half_matrix_width = value
     case(NUMBER_SECONDARY_CELLS)
       material_auxvar%secondary_prop%ncells = int(value)
-    case(ELECTRICAL_CONDUCTIVITY)
-      material_auxvar%soil_properties(electrical_conductivity_index) = value
-    case(ARCHIE_CEMENTATION_EXPONENT)
-      material_auxvar%soil_properties(archie_cementation_exp_index) = value
-    case(ARCHIE_SATURATION_EXPONENT)
-      material_auxvar%soil_properties(archie_saturation_exp_index) = value
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      material_auxvar%soil_properties(archie_tortuosity_index) = value
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      material_auxvar%soil_properties(surf_elec_conduct_index) = value
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      material_auxvar%soil_properties(ws_clay_conduct_index) = value
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
-    case default
-      print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
-      stop
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
+      material_auxvar%soil_properties(index_) = value
   end select
 
 end subroutine MaterialAuxVarSetValue

@@ -1094,20 +1094,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call DebugRead(realization%debug,input,option)
 
 !....................
-      case ('PRINT_PRIMAL_GRID')
-        !option%print_explicit_primal_grid = PETSC_TRUE
-        option%io_buffer = 'PRINT_PRIMAL_GRID must now be entered under &
-                            &OUTPUT card.'
-        call PrintErrMsg(option)
-
-!....................
-      case ('PRINT_DUAL_GRID')
-        !option%print_explicit_dual_grid = PETSC_TRUE
-        option%io_buffer = 'PRINT_DUAL_GRID must now be entered under &
-                            &OUTPUT card.'
-        call PrintErrMsg(option)
-
-!....................
       case ('PROC')
 
 !....................
@@ -1746,31 +1732,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
               output_option%print_final_obs = PETSC_TRUE
               output_option%print_final_snap = PETSC_TRUE
               output_option%print_final_massbal = PETSC_TRUE
-            case('PROCESSOR_ID')
-              option%io_buffer = 'PROCESSOR_ID output must now be entered &
-                                 &under OUTPUT/VARIABLES card as PROCESS_ID.'
-              call PrintErrMsg(option)
-!              output_option%print_iproc = PETSC_TRUE
-            case('PERMEABILITY')
-              option%io_buffer = 'PERMEABILITY output must now be entered &
-                                 &under OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_permeability = PETSC_TRUE
-            case('POROSITY')
-              option%io_buffer = 'POROSITY output must now be entered under &
-                                 &OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_porosity = PETSC_TRUE
-            case('TORTUOSITY')
-              option%io_buffer = 'TORTUOSITY output must now be entered under &
-                                 &OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_tortuosity = PETSC_TRUE
-            case('VOLUME')
-              option%io_buffer = 'VOLUME output must now be entered under &
-                                 &OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_volume = PETSC_TRUE
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               output_option%periodic_msbl_output_ts_imod = 1

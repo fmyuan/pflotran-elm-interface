@@ -39,6 +39,7 @@ module Material_module
     class(dataset_base_type), pointer :: porosity_dataset
     class(dataset_base_type), pointer :: tortuosity_dataset
     PetscReal :: tortuosity
+    PetscReal :: tortuosity_anisotropic(3)
     PetscBool :: tortuosity_function_of_porosity
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
@@ -201,6 +202,7 @@ function MaterialPropertyCreate(option)
   nullify(material_property%tortuosity_dataset)
   material_property%tortuosity_function_of_porosity = PETSC_FALSE
   material_property%tortuosity = 1.d0
+  material_property%tortuosity_anisotropic = UNINITIALIZED_DOUBLE
   material_property%tortuosity_pwr = 0.d0
   material_property%tortuosity_func_porosity_pwr = UNINITIALIZED_DOUBLE
   material_property%saturation_function_id = 0
@@ -301,7 +303,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, error_str
   character(len=MAXSTRINGLENGTH) :: string, buffer_save
   character(len=MAXSTRINGLENGTH) :: tcc_name
 
@@ -312,33 +314,38 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
   PetscBool :: perm_iso_read
+  PetscBool :: tort_iso_read
   PetscBool :: perm_horizontal_read
+  PetscBool :: is_nested_cubes
+  PetscBool :: is_slab
+  PetscBool :: is_nested_spheres
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
+  tort_iso_read = PETSC_FALSE
 
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-
+    error_str = 'MATERIAL_PROPERTY'
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','MATERIAL_PROPERTY')
+    call InputErrorMsg(input,option,'keyword',error_str)
     call StringToUpper(keyword)
 
     select case(trim(keyword))
 
       case('NAME')
         call InputReadWord(input,option,material_property%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'name','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('ID')
         call InputReadInt(input,option,material_property%external_id)
-        call InputErrorMsg(input,option,'id','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         if (material_property%external_id == UNINITIALIZED_INTEGER) then
-          write(string,*) UNINITIALIZED_INTEGER
-          option%io_buffer = 'Material ID "' // trim(adjustl(string)) // &
+          option%io_buffer = 'Material ID "' // &
+            StringWrite(material_property%external_id) // &
             '" is reserved for uninitialized materials.  Please choose a &
             &different value.'
         endif
@@ -349,8 +356,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('SATURATION_FUNCTION','CHARACTERISTIC_CURVES')
         call InputReadCardDbaseCompatible(input,option, &
                            material_property%saturation_function_name)
-        call InputErrorMsg(input,option,'saturation function name', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('THERMAL_CHARACTERISTIC_CURVES')
         call InputReadWord(input,option, &
              material_property%thermal_conductivity_func_name,PETSC_TRUE)
@@ -359,73 +365,63 @@ subroutine MaterialPropertyRead(material_property,input,option)
              material_property%material_transform_name,PETSC_TRUE)
       case('ROCK_DENSITY')
         call InputReadDouble(input,option,material_property%rock_density)
-        call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         call InputReadAndConvertUnits(input,material_property%rock_density, &
-                          'kg/m^3','MATERIAL_PROPERTY,rock density',option)
+                        'kg/m^3',trim(error_str)//','//trim(keyword),option)
       case('SPECIFIC_HEAT','HEAT_CAPACITY')
         call InputReadDouble(input,option,material_property%specific_heat)
-        call InputErrorMsg(input,option,'specific heat','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         call InputReadAndConvertUnits(input,material_property%specific_heat, &
-                          'J/kg-C','MATERIAL_PROPERTY,specific heat',option)
+                        'J/kg-C',trim(error_str)//','//trim(keyword),option)
       case('LONGITUDINAL_DISPERSIVITY')
         call InputReadDouble(input,option,material_property%dispersivity(1))
-        call InputErrorMsg(input,option,'longitudinal_dispersivity', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('TRANSVERSE_DISPERSIVITY_H')
         call InputReadDouble(input,option,material_property%dispersivity(2))
-        call InputErrorMsg(input,option,'transverse_dispersivity_h', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('TRANSVERSE_DISPERSIVITY_V')
         call InputReadDouble(input,option,material_property%dispersivity(3))
-        call InputErrorMsg(input,option,'transverse_dispersivity_v', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_dry)
-        call InputErrorMsg(input,option,'dry thermal conductivity', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_dry, &
-                   'W/m-C','MATERIAL_PROPERTY,dry thermal conductivity',option)
+                   'W/m-C',trim(error_str)//','//trim(keyword),option)
         write(tcc_name,*)material_property%external_id
         material_property%thermal_conductivity_func_name = "_TCC_"//&
           trim(adjustl(tcc_name))
       case('THERMAL_CONDUCTIVITY_WET')
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_wet)
-        call InputErrorMsg(input,option,'wet thermal conductivity', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_wet, &
-                   'W/m-C','MATERIAL_PROPERTY,wet thermal conductivity',option)
+                   'W/m-C',trim(error_str)//','//trim(keyword),option)
         write(tcc_name,*)material_property%external_id
         material_property%thermal_conductivity_func_name = "_TCC_"//&
            trim(adjustl(tcc_name))
       case('THERMAL_COND_EXPONENT')
         call InputReadDouble(input,option, &
                              material_property%alpha)
-        call InputErrorMsg(input,option,'thermal conductivity exponent', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('THERMAL_CONDUCTIVITY_FROZEN')
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_frozen)
-        call InputErrorMsg(input,option,'frozen thermal conductivity', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         call InputReadAndConvertUnits(input, &
                  material_property%thermal_conductivity_frozen, &
-                 'W/m-C','MATERIAL_PROPERTY,frozen thermal conductivity',option)
+                 'W/m-C',trim(error_str)//','//trim(keyword),option)
       case('THERMAL_COND_EXPONENT_FROZEN')
         call InputReadDouble(input,option, &
                              material_property%alpha_fr)
-        call InputErrorMsg(input,option, &
-                           'thermal conductivity frozen exponent', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('SOIL_COMPRESSIBILITY_FUNCTION')
         call InputReadCard(input,option, &
                            material_property%soil_compressibility_function, &
                            PETSC_TRUE)
-        call InputErrorMsg(input,option,'soil compressibility function', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('SOIL_COMPRESSIBILITY','BULK_COMPRESSIBILITY', &
            'POROSITY_COMPRESSIBILITY')
         select case(keyword)
@@ -439,15 +435,14 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call DatasetReadDoubleOrDataset(input,material_property% &
                                           soil_compressibility, &
                                    material_property%compressibility_dataset, &
-                                        'soil compressibility', &
-                                        'MATERIAL_PROPERTY',option)
+                                        keyword, &
+                                        error_str,option)
       case('SOIL_REFERENCE_PRESSURE')
         string = trim(input%buf)
         ! first read the word to determine if it is the keyword
         ! INITIAL_CELL_PRESSURE.
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'soil reference pressure', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
         length = 16
         if (StringCompare(word,'INITIAL_PRESSURE',length)) then
           call InputPushCard(input,word,option)
@@ -459,16 +454,48 @@ subroutine MaterialPropertyRead(material_property,input,option)
           call DatasetReadDoubleOrDataset(input, &
                   material_property%soil_reference_pressure, &
                   material_property%soil_reference_pressure_dataset, &
-                  'soil reference pressure','MATERIAL_PROPERTY',option)
+                  keyword,error_str,option)
         endif
       case('POROSITY')
         call DatasetReadDoubleOrDataset(input,material_property%porosity, &
                                         material_property%porosity_dataset, &
-                                        'porosity','MATERIAL_PROPERTY',option)
+                                        keyword,error_str,option)
       case('TORTUOSITY')
-        call DatasetReadDoubleOrDataset(input,material_property%tortuosity, &
-                                        material_property%tortuosity_dataset, &
-                                        'tortuosity','MATERIAL_PROPERTY',option)
+        tort_iso_read = PETSC_TRUE
+        call DatasetReadDoubleOrDataset(input, &
+                              material_property%tortuosity, &
+                              material_property%tortuosity_dataset, &
+                              keyword,error_str,option)
+      case('ANISOTROPIC_TORTUOSITY')
+        error_str = trim(error_str)//',ANISOTROPIC_TORTUOSITY'
+        option%transport%anisotropic_tortuosity = PETSC_TRUE
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,error_str)
+
+          if (InputCheckExit(input,option)) exit
+
+          if (InputError(input)) exit
+          call InputReadCard(input,option,word)
+          call InputErrorMsg(input,option,'keyword',error_str)
+          select case(trim(word))
+            case('TORTUOSITY_X')
+              call InputReadDouble(input,option, &
+                                 material_property%tortuosity_anisotropic(1))
+              call InputErrorMsg(input,option,word,error_str)
+            case('TORTUOSITY_Y')
+              call InputReadDouble(input,option, &
+                                 material_property%tortuosity_anisotropic(2))
+              call InputErrorMsg(input,option,word,error_str)
+            case('TORTUOSITY_Z')
+              call InputReadDouble(input,option, &
+                                 material_property%tortuosity_anisotropic(3))
+              call InputErrorMsg(input,option,word,error_str)
+            case default
+              call InputKeywordUnrecognized(input,word,error_str,option)
+          end select
+        enddo
       case('GEOMECHANICS_SUBSURFACE_PROPS')
         ! Changes the subsurface props (perm/porosity) due to changes in
         ! geomechanical stresses and strains
@@ -482,8 +509,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         material_property%tortuosity = UNINITIALIZED_DOUBLE
         call InputReadDouble(input,option, &
                              material_property%tortuosity_func_porosity_pwr)
-        call InputErrorMsg(input,option,'tortuosity power as a function of &
-                           &porosity','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('WIPP-FRACTURE')
         ! Calculates permeability and porosity induced by fracture,
         ! which is described by pressure within certain range of pressure
@@ -495,9 +521,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('CREEP_CLOSURE_TABLE')
         call InputReadCardDbaseCompatible(input,option, &
                            material_property%creep_closure_name)
-        call InputErrorMsg(input,option,'creep closure table name', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('PERMEABILITY')
+        error_str = trim(error_str)//',PERMEABILITY'
         ! if PERM_ISO is read, we cannot assign anisotropy
         perm_iso_read = PETSC_FALSE
         ! if PERM_HORIZTONAL is read, we can assign vertical anisotropy
@@ -505,15 +531,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option, &
-                                       'MATERIAL_PROPERTY,PERMEABILITY')
+          call InputReadStringErrorMsg(input,option,error_str)
 
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword', &
-                             'MATERIAL_PROPERTY,PERMEABILITY')
+          call InputErrorMsg(input,option,'keyword',error_str)
           select case(trim(word))
             case('ANISOTROPIC')
               material_property%isotropic_permeability = PETSC_FALSE
@@ -524,80 +548,65 @@ subroutine MaterialPropertyRead(material_property,input,option)
               material_property%isotropic_permeability = PETSC_FALSE
               call InputReadDouble(input,option, &
                                    material_property%vertical_anisotropy_ratio)
-              call InputErrorMsg(input,option,'vertical anisotropy ratio', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('ISOTROPIC')
               material_property%isotropic_permeability = PETSC_TRUE
             case('PERMEABILITY_SCALING_FACTOR')
               call InputReadDouble(input,option, &
-                                  material_property%permeability_scaling_factor)
-              call InputErrorMsg(input,option,'permeability scaling factor', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+                              material_property%permeability_scaling_factor)
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_X')
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
-              call InputErrorMsg(input,option,'x permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_Y')
               call InputReadDouble(input,option, &
                                    material_property%permeability(2,2))
-              call InputErrorMsg(input,option,'y permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_Z')
               call InputReadDouble(input,option, &
                                    material_property%permeability(3,3))
-              call InputErrorMsg(input,option,'z permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_X_LOG10')
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 x permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(1,1) = 10.d0**tempreal
             case('PERM_Y_LOG10')
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 y permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(2,2) = 10.d0**tempreal
             case('PERM_Z_LOG10')
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 z permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(3,3) = 10.d0**tempreal
             case('PERM_XY')
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,2))
-              call InputErrorMsg(input,option,'xy permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_XZ')
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,3))
-              call InputErrorMsg(input,option,'xz permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_YZ')
               call InputReadDouble(input,option, &
                                    material_property%permeability(2,3))
-              call InputErrorMsg(input,option,'yz permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_XY_LOG10')
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 xy permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(1,2) = 10.d0**tempreal
             case('PERM_XZ_LOG10')
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 xz permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(1,3) = 10.d0**tempreal
             case('PERM_YZ_LOG10')
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 yz permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(2,3) = 10.d0**tempreal
             case('PERM_ISO_LOG10')
               perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 isotropic permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(1,1) = 10.d0**tempreal
               material_property%permeability(2,2) = 10.d0**tempreal
               material_property%permeability(3,3) = 10.d0**tempreal
@@ -605,8 +614,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
-              call InputErrorMsg(input,option,'isotropic permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(2,2) = &
                 material_property%permeability(1,1)
               material_property%permeability(3,3) = &
@@ -623,20 +631,17 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                    material_property% &
                                      permeability_dataset%name, &
                                    MAXWORDLENGTH,PETSC_TRUE)
-              call InputErrorMsg(input,option,'DATASET,NAME', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
             case('PERM_HORIZONTAL')
               perm_horizontal_read = PETSC_TRUE
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
-              call InputErrorMsg(input,option,'horizontal permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%permeability(2,2) = &
                 material_property%permeability(1,1)
               material_property%permeability(3,3) = UNINITIALIZED_DOUBLE
             case default
-              call InputKeywordUnrecognized(input,word, &
-                     'MATERIAL_PROPERTY,PERMEABILITY',option)
+              call InputKeywordUnrecognized(input,word,error_str,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -699,6 +704,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         endif
 #if 0
       case('PERM_PRINCIPAL_DIRECTION')
+      error_str = trim(error_str)//',PERM_PRINCIPAL_DIRECTION'
       ! Specify the principal direction of permeability and compute
       ! The off diagonal permeability tensor component
       ! Option: Azimut/Dip for kx and ky equal
@@ -708,15 +714,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
         material_property%isotropic_permeability = PETSC_FALSE
         do
           call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option, &
-                                       'MATERIAL_PROPERTY,PERM_PRINCIPAL_DIRECTION')
+          call InputReadStringErrorMsg(input,option,error_str)
 
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
           call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'keyword', &
-                             'MATERIAL_PROPERTY,PERM_FACTOR')
+          call InputErrorMsg(input,option,'keyword',error_str)
           select case(trim(word))
             case('AZIMUT_DIP')
               !To be complete
@@ -731,59 +735,54 @@ subroutine MaterialPropertyRead(material_property,input,option)
 #endif
 
       case('PERM_FACTOR')
+        error_str = trim(error_str)//',PERM_FACTOR'
       ! Permfactor is the multiplier to permeability to increase perm
       ! The perm increase could be due to pressure or other variable
       ! Added by Satish Karra, LANL, 1/8/12
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option, &
-                                       'MATERIAL_PROPERTY,PERM_FACTOR')
+          call InputReadStringErrorMsg(input,option,error_str)
 
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword', &
-                             'MATERIAL_PROPERTY,PERM_FACTOR')
+          call InputErrorMsg(input,option,'keyword',error_str)
           select case(trim(word))
           ! Assuming only ramp function for now
           ! The permfactor ramps from 1 to max_permfactor at max_pressure
           ! and remains same
             case('MIN_PRESSURE')
               call InputReadDouble(input,option,material_property%min_pressure)
-              call InputErrorMsg(input,option,'min pressure','PERM_FACTOR')
+              call InputErrorMsg(input,option,word,error_str)
             case('MAX_PRESSURE')
               call InputReadDouble(input,option,material_property%max_pressure)
-              call InputErrorMsg(input,option,'max pressure','PERM_FACTOR')
+              call InputErrorMsg(input,option,word,error_str)
             case('MAX_PERMFACTOR')
               call InputReadDouble(input,option,material_property%max_permfactor)
-              call InputErrorMsg(input,option,'max permfactor','PERM_FACTOR')
+              call InputErrorMsg(input,option,word,error_str)
             case default
-              call InputKeywordUnrecognized(input,word, &
-                     'MATERIAL_PROPERTY,PERM_FACTOR',option)
+              call InputKeywordUnrecognized(input,word,error_str,option)
           end select
         enddo
         call InputPopBlock(input,option)
       case('PERMEABILITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%permeability_pwr)
-        call InputErrorMsg(input,option,'permeability power', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('PERMEABILITY_CRITICAL_POROSITY')
         call InputReadDouble(input,option, &
                              material_property%permeability_crit_por)
-        call InputErrorMsg(input,option,'permeability critical porosity', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('PERMEABILITY_MIN_SCALE_FACTOR')
         call InputReadDouble(input,option, &
                              material_property%permeability_min_scale_fac)
-        call InputErrorMsg(input,option,'permeability min scale factor', &
-                           'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('TORTUOSITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%tortuosity_pwr)
-        call InputErrorMsg(input,option,'tortuosity power','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('MINERAL_SURFACE_AREA_POWER')
         option%io_buffer = 'Adjustment of mineral surface area based on ' // &
           'mineral volume fraction or porosity must be performed on a ' // &
@@ -794,182 +793,173 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadNDoubles(input,option, &
                                material_property%tensorial_rel_perm_exponent, &
                                THREE_INTEGER)
-        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('SECONDARY_CONTINUUM')
+        error_str = trim(error_str)//',SECONDARY_CONTINUUM'
+        is_nested_cubes = PETSC_FALSE
+        is_nested_spheres = PETSC_FALSE
+        is_slab = PETSC_FALSE
         call InputPushBlock(input,option)
         call InputReadPflotranString(input,option)
-        call InputReadStringErrorMsg(input,option, &
-                                    'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
+        call InputReadStringErrorMsg(input,option,error_str)
 
         if (InputCheckExit(input,option)) exit
         if (InputError(input)) exit
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'keyword', &
-                           'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
+        call InputErrorMsg(input,option,'keyword',error_str)
         select case(trim(word))
           case('TYPE')
-              call InputReadNChars(input,option, &
-                                   material_property%multicontinuum%name,&
-                                   MAXWORDLENGTH,PETSC_TRUE)
-              call InputErrorMsg(input,option,'type', &
-                   'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+            call InputReadNChars(input,option, &
+                                 material_property%multicontinuum%name,&
+                                 MAXWORDLENGTH,PETSC_TRUE)
+            call InputErrorMsg(input,option,word,error_str)
+            select case(material_property%multicontinuum%name)
+              case('NESTED_CUBES')
+                is_nested_cubes = PETSC_TRUE
+              case('SLAB')
+                is_slab = PETSC_TRUE
+              case('NESTED_SPHERES')
+                is_nested_spheres = PETSC_TRUE
+            end select
           case default
-                option%io_buffer = 'TYPE must be specified first in &
-                                    &MATERIAL_PROPERTY, SECONDARY_CONTINUUM'
-                call PrintErrMsg(option)
+            option%io_buffer = 'TYPE must be specified first in ' // &
+                               trim(error_str)
+            call PrintErrMsg(option)
         endselect
         do
           call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option, &
-                                       'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
+          call InputReadStringErrorMsg(input,option,error_str)
 
           if (InputCheckExit(input,option)) exit
           if (InputError(input)) exit
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword', &
-                             'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
+          call InputErrorMsg(input,option,'keyword',error_str)
           select case(trim(word))
             case('MATRIX_BLOCK_SIZE')
-              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
-                option%io_buffer = 'MATRIX_BLOCK_SIZE is &
-                                    &only supported for NESTED_CUBES.'
+              if (.not.is_nested_cubes) then
+                option%io_buffer = trim(word) // ' in ' // trim(error_str) &
+                                   // ' is only supported for NESTED_CUBES.'
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
                         material_property%multicontinuum%matrix_block_size)
-              call InputErrorMsg(input,option,'matrix_block_size', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call InputErrorMsg(input,option,word,error_str)
             case('FRACTURE_SPACING')
-              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
-                option%io_buffer = 'FRACTURE_SPACING is &
-                                    &only supported for NESTED_CUBES.'
+              if (.not.is_nested_cubes) then
+                option%io_buffer = trim(word) // ' in ' // trim(error_str) &
+                                   // ' is only supported for NESTED_CUBES.'
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
                         material_property%multicontinuum%fracture_spacing)
-              call InputErrorMsg(input,option,'fracture_spacing', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call InputErrorMsg(input,option,word,error_str)
             case('RADIUS')
-              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
-                option%io_buffer = 'RADIUS is &
-                                    &only supported for NESTED_SPHERES.'
+              if (.not.is_nested_spheres) then
+                option%io_buffer = trim(word) // ' in ' // trim(error_str) &
+                                   // ' is only supported for NESTED_SPHERES.'
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
                                    material_property%multicontinuum%radius)
-              call InputErrorMsg(input,option,'radius', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call InputErrorMsg(input,option,word,error_str)
             case('LENGTH')
-              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
-                option%io_buffer = 'LENGTH is &
-                                    &only supported for SLAB.'
+              if (.not.is_slab) then
+                option%io_buffer = trim(word) // ' in ' // trim(error_str) &
+                                   // ' only supported for SLAB.'
                 call PrintErrMsg(option)
               endif
               call DatasetReadDoubleorDataset(input, &
                 material_property%multicontinuum%half_matrix_width, &
                 material_property%multicontinuum%half_matrix_width_dataset, &
-                'length', 'MATERIAL_PROPERTY',option)
+                word,error_str,option)
             case('AREA')
-              call PrintErrMsg(option,'AREA has been removed as input &
-                               &in multiple continuum model.')
+              call InputKeywordDeprecated(word,'nothing',option)
             case('NUM_CELLS')
               buffer_save = trim(input%buf)
-              call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
-              call InputErrorMsg(input,option,'num cells','MATERIAL_PROPERTY')
+              call InputReadNChars(input,option,string, &
+                                   MAXSTRINGLENGTH,PETSC_TRUE)
+              call InputErrorMsg(input,option,word,error_str)
               call StringToUpper(string)
               if (StringCompare(string,'DATASET',SEVEN_INTEGER)) then
-                 material_property%multicontinuum%ncells_dataset => DatasetBaseCreate()
+                 material_property%multicontinuum%ncells_dataset => &
+                   DatasetBaseCreate()
                  call InputReadNChars(input,option, &
                                       material_property% &
                                         multicontinuum%ncells_dataset%name, &
                                       MAXWORDLENGTH,PETSC_TRUE)
-                 call InputErrorMsg(input,option,'DATASET,NAME','MATERIAL_PROPERTY,num cells')
+                 call InputErrorMsg(input,option,'DATASET', &
+                                    trim(error_str)//','//word)
               else
                  input%buf = buffer_save
                  call InputReadInt(input,option,material_property%multicontinuum%ncells)
-                 call InputErrorMsg(input,option,'num cells','MATERIAL_PROPERTY')
+                 call InputErrorMsg(input,option,word,error_str)
               endif
             case('EPSILON')
               call DatasetReadDoubleorDataset(input, &
                 material_property%multicontinuum%epsilon, &
                 material_property%multicontinuum%epsilon_dataset, &
-                'epsilon', 'MATERIAL_PROPERTY',option)
+                word,error_str,option)
             case('APERTURE')
-              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
-                option%io_buffer = 'APERTURE is &
-                                    &only supported for SLAB and NESTED_CUBES.'
+              if (.not.is_nested_spheres) then
+                option%io_buffer = trim(word) // ' in ' // trim(error_str) &
+                            // ' is only supported for SLAB and NESTED_CUBES.'
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%half_aperture)
-              call InputErrorMsg(input,option,'aperture', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('TEMPERATURE')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%init_temp)
-              call InputErrorMsg(input,option,'secondary continuum init temp', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
               option%flow%set_secondary_init_temp = PETSC_TRUE
             case('CONCENTRATION')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%init_conc)
-              call InputErrorMsg(input,option,'secondary continuum init conc', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('POROSITY')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%porosity)
-              call InputErrorMsg(input,option,'secondary continuum porosity', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('LIQUID_DIFFUSION_COEFFICIENT')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%diff_coeff(1))
-              call InputErrorMsg(input,option, &
-                                 'secondary continuum diff coeff', &
-                                 'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('GAS_DIFFUSION_COEFFICIENT')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%diff_coeff(2))
-              call InputErrorMsg(input,option, &
-                                 'secondary continuum gas diff coeff', &
-                                 'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('DIFFUSION_COEFFICIENT')
-              call PrintErrMsg(option,'DIFFUSION_COEFFICIENT has been renamed &
-                               &in multiple continuum model. Please use &
-                               &LIQUID_DIFFUSION_COEFFICIENT')
+              call InputKeywordDeprecated(word, &
+                                      'LIQUID_DIFFUSION_COEFFICIENT',option)
             case('MINERAL_VOLFRAC')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%mnrl_volfrac)
-              call InputErrorMsg(input,option,'secondary cont. mnrl volfrac.', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('MINERAL_AREA')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%mnrl_area)
-              call InputErrorMsg(input,option,'secondary cont. mnrl area', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('LOG_GRID_SPACING')
-              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
-                option%io_buffer = 'LOG_GRID_SPACING is &
-                                    &not supported for NESTED_SPHERES.'
+              if (is_nested_spheres) then
+                option%io_buffer = trim(word) // ' in ' // trim(error_str) &
+                                 // ' is not supported for NESTED_SPHERES.'
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
                               material_property%multicontinuum%outer_spacing)
-              call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
-                             'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
               material_property%multicontinuum%log_spacing = PETSC_TRUE
             case('AREA_SCALING_FACTOR')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%area_scaling)
-              call InputErrorMsg(input,option,'secondary area scaling factor', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option,word,error_str)
             case('TORTUOSITY')
               call InputReadDouble(input,option, &
                         material_property%multicontinuum%tortuosity)
-              call InputErrorMsg(input,option,'secondary continuum tortuosity', &
-                               'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call InputErrorMsg(input,option,word,error_str)
             case default
-              call InputKeywordUnrecognized(input,word, &
-                     'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
+              call InputKeywordUnrecognized(input,word,error_str,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -977,29 +967,29 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call DatasetReadDoubleOrDataset(input, &
                       material_property%electrical_conductivity, &
                       material_property%electrical_conductivity_dataset, &
-                      'electrical conductivity','MATERIAL_PROPERTY',option)
+                      keyword,error_str,option)
       case('ARCHIE_CEMENTATION_EXPONENT')
         call InputReadDouble(input,option, &
                              material_property%archie_cementation_exponent)
-        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('ARCHIE_SATURATION_EXPONENT')
         call InputReadDouble(input,option, &
                              material_property%archie_saturation_exponent)
-        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('ARCHIE_TORTUOSITY_CONSTANT')
         call InputReadDouble(input,option, &
                              material_property%archie_tortuosity_constant)
-        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option, &
                              material_property%surface_electrical_conductivity)
-        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
         call InputReadDouble(input,option, &
                              material_property%waxman_smits_clay_conductivity)
-        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,keyword,error_str)
       case default
-        call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword,error_str,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -1109,6 +1099,27 @@ subroutine MaterialPropertyRead(material_property,input,option)
           &for the requested flow mode.'
         call PrintErrMsg(option)
     end select
+  endif
+
+  if (tort_iso_read) then
+    if (Initialized(material_property%tortuosity_anisotropic(1)) .or. &
+        Initialized(material_property%tortuosity_anisotropic(2)) .or. &
+        Initialized(material_property%tortuosity_anisotropic(3))) then
+      option%io_buffer = 'TORTUOSITY and ANISOTROPIC_TORTUOSITY are &
+        &both specified in MATERIAL_PROPERTY "' // &
+        trim(material_property%name) // '". Pick one or the other.'
+      call PrintErrMsg(option)
+    endif
+  else if (option%transport%anisotropic_tortuosity) then
+    if (Uninitialized(material_property%tortuosity_anisotropic(1)) .or. &
+        Uninitialized(material_property%tortuosity_anisotropic(2)) .or. &
+        Uninitialized(material_property%tortuosity_anisotropic(3))) then
+      option%io_buffer = 'TORTUOSITY_X, TORTUOSITY_Y and TORTUOSITY_Z &
+        &must all be defined when ANISOTROPIC_TORTUOSITY is &
+        &specified in MATERIAL_PROPERTY "' // &
+        trim(material_property%name) // '".'
+      call PrintErrMsg(option)
+    endif
   endif
 
   ! material id must be > 0
@@ -1607,6 +1618,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   PetscInt :: num_archie_tort_const
   PetscInt :: num_surf_elec_conduct
   PetscInt :: num_ws_clay_conduct
+  PetscInt :: num_tortuosity_yy
+  PetscInt :: num_tortuosity_zz
   PetscBool :: error_found
 
   procedure(MaterialCompressSoilDummy), pointer :: &
@@ -1621,6 +1634,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   num_archie_tort_const = 0
   num_surf_elec_conduct = 0
   num_ws_clay_conduct = 0
+  num_tortuosity_yy = 0
+  num_tortuosity_zz = 0
 
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
@@ -1630,6 +1645,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   archie_tortuosity_index = 0
   surf_elec_conduct_index = 0
   ws_clay_conduct_index = 0
+  tortuosity_yy_index = 0
+  tortuosity_zz_index = 0
   ! ADD_SOIL_PROPERTY_INDEX_HERE - also need to add num_xxx counter above
   max_material_index = 0
 
@@ -1742,6 +1759,22 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       endif
       num_ws_clay_conduct = num_ws_clay_conduct + 1
     endif
+    if (Initialized(material_property_ptrs(i)%ptr% &
+                      tortuosity_anisotropic(2))) then
+      if (tortuosity_yy_index == 0) then
+        icount = icount + 1
+        tortuosity_yy_index = icount
+      endif
+      num_tortuosity_yy = num_tortuosity_yy + 1
+    endif
+    if (Initialized(material_property_ptrs(i)%ptr% &
+                      tortuosity_anisotropic(3))) then
+      if (tortuosity_zz_index == 0) then
+        icount = icount + 1
+        tortuosity_zz_index = icount
+      endif
+      num_tortuosity_zz = num_tortuosity_zz + 1
+    endif
     ! ADD_SOIL_PROPERTY_INDEX_HERE
   enddo
   max_material_index = icount
@@ -1815,6 +1848,18 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       &for all materials.'
     call PrintMsg(option)
   endif
+  if (num_tortuosity_yy > 0 .and. &
+      num_tortuosity_yy /= num_material_properties) then
+    error_found = PETSC_TRUE
+    option%io_buffer = 'TORTUOSITY_Y must be defined for all materials.'
+    call PrintMsg(option)
+  endif
+  if (num_tortuosity_zz > 0 .and. &
+      num_tortuosity_zz /= num_material_properties) then
+    error_found = PETSC_TRUE
+    option%io_buffer = 'TORTUOSITY_Z must be defined for all materials.'
+    call PrintMsg(option)
+  endif
   ! ADD_SOIL_PROPERTY_INDEX_HERE
   if (error_found) then
     option%io_buffer = 'Undefined material properties above.'
@@ -1863,13 +1908,13 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
     if (Initialized(material_property%multicontinuum%half_matrix_width)) then
       material_auxvar%secondary_prop%half_matrix_width = &
         material_property%multicontinuum%half_matrix_width
-    endif   
+    endif
     if (Initialized(material_property%multicontinuum%ncells)) then
       material_auxvar%secondary_prop%ncells = &
         material_property%multicontinuum%ncells
     endif
   endif
- 
+
   if (associated(material_auxvar%soil_properties)) then
     if (soil_compressibility_index > 0) then
       material_auxvar%soil_properties(soil_compressibility_index) = &
@@ -1907,6 +1952,14 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
       material_auxvar%soil_properties(ws_clay_conduct_index) = &
         material_property%waxman_smits_clay_conductivity
     endif
+    if (tortuosity_yy_index > 0) then
+      material_auxvar%soil_properties(tortuosity_yy_index) = &
+        material_property%tortuosity_anisotropic(2)
+    endif
+    if (tortuosity_zz_index > 0) then
+      material_auxvar%soil_properties(tortuosity_zz_index) = &
+        material_property%tortuosity_anisotropic(3)
+    endif
     ! ADD_SOIL_PROPERTY_INDEX_HERE
   endif
 
@@ -1932,6 +1985,7 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
   PetscInt :: isubvar
 
   PetscInt :: i
+  PetscInt :: index_
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   material_auxvars => Material%auxvars
@@ -1987,38 +2041,12 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
     case(PERMEABILITY_XZ)
       do i=1, Material%num_aux
         material_auxvars(i)%permeability(perm_xz_index) = value
-      enddo 
-    case(ELECTRICAL_CONDUCTIVITY)
-      do i=1, Material%num_aux
-        material_auxvars(i)% &
-          soil_properties(electrical_conductivity_index) = value
       enddo
-    case(ARCHIE_CEMENTATION_EXPONENT)
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
       do i=1, Material%num_aux
-        material_auxvars(i)% &
-          soil_properties(archie_cementation_exp_index) = value
+        material_auxvars(i)%soil_properties(index_) = value
       enddo
-    case(ARCHIE_SATURATION_EXPONENT)
-      do i=1, Material%num_aux
-        material_auxvars(i)% &
-          soil_properties(archie_saturation_exp_index) = value
-      enddo
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      do i=1, Material%num_aux
-        material_auxvars(i)% &
-          soil_properties(archie_tortuosity_index) = value
-      enddo
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      do i=1, Material%num_aux
-        material_auxvars(i)% &
-          soil_properties(surf_elec_conduct_index) = value
-      enddo
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      do i=1, Material%num_aux
-        material_auxvars(i)% &
-          soil_properties(ws_clay_conduct_index) = value
-      enddo
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
 end subroutine MaterialSetAuxVarScalar
@@ -2043,6 +2071,7 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   PetscInt :: isubvar
 
   PetscInt :: ghosted_id
+  PetscInt :: index_
   PetscReal, pointer :: vec_loc_p(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
@@ -2051,16 +2080,6 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
-    case(SOIL_COMPRESSIBILITY)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(soil_compressibility_index) = vec_loc_p(ghosted_id)
-      enddo
-    case(SOIL_REFERENCE_PRESSURE)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(soil_reference_pressure_index) = vec_loc_p(ghosted_id)
-      enddo
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%volume = vec_loc_p(ghosted_id)
@@ -2133,38 +2152,13 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)% &
           secondary_prop%ncells = int(vec_loc_p(ghosted_id))
-      enddo 
-    case(ELECTRICAL_CONDUCTIVITY)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(electrical_conductivity_index) = vec_loc_p(ghosted_id)
       enddo
-    case(ARCHIE_CEMENTATION_EXPONENT)
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
       do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(archie_cementation_exp_index) = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%soil_properties(index_) = &
+          vec_loc_p(ghosted_id)
       enddo
-    case(ARCHIE_SATURATION_EXPONENT)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(archie_saturation_exp_index) = vec_loc_p(ghosted_id)
-      enddo
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(archie_tortuosity_index) = vec_loc_p(ghosted_id)
-      enddo
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(surf_elec_conduct_index) = vec_loc_p(ghosted_id)
-      enddo
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)% &
-          soil_properties(ws_clay_conduct_index) = vec_loc_p(ghosted_id)
-      enddo
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
@@ -2190,6 +2184,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   PetscInt :: isubvar
 
   PetscInt :: ghosted_id
+  PetscInt :: index_
   PetscReal, pointer :: vec_loc_p(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
@@ -2198,24 +2193,6 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
-    case(SOIL_COMPRESSIBILITY)
-      if (soil_compressibility_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)% &
-                                     soil_properties(soil_compressibility_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
-    case(SOIL_REFERENCE_PRESSURE)
-      if (soil_reference_pressure_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)% &
-                                  soil_properties(soil_reference_pressure_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%volume
@@ -2273,67 +2250,16 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         vec_loc_p(ghosted_id) = &
           material_auxvars(ghosted_id)%permeability(perm_xz_index)
       enddo
-    case(ELECTRICAL_CONDUCTIVITY)
-      if (electrical_conductivity_index > 0) then
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
+      if (index_ > 0) then
         do ghosted_id=1, Material%num_aux
           vec_loc_p(ghosted_id) = &
-            material_auxvars(ghosted_id)% &
-              soil_properties(electrical_conductivity_index)
+            material_auxvars(ghosted_id)%soil_properties(index_)
         enddo
       else
         vec_loc_p(:) = UNINITIALIZED_DOUBLE
       endif
-    case(ARCHIE_CEMENTATION_EXPONENT)
-      if (archie_cementation_exp_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = &
-            material_auxvars(ghosted_id)% &
-              soil_properties(archie_cementation_exp_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
-    case(ARCHIE_SATURATION_EXPONENT)
-      if (archie_saturation_exp_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = &
-            material_auxvars(ghosted_id)% &
-              soil_properties(archie_saturation_exp_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      if (archie_tortuosity_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = &
-            material_auxvars(ghosted_id)% &
-              soil_properties(archie_tortuosity_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      if (surf_elec_conduct_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = &
-            material_auxvars(ghosted_id)% &
-              soil_properties(surf_elec_conduct_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      if (ws_clay_conduct_index > 0) then
-        do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = &
-            material_auxvars(ghosted_id)% &
-              soil_properties(ws_clay_conduct_index)
-        enddo
-      else
-        vec_loc_p(:) = UNINITIALIZED_DOUBLE
-      endif
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
