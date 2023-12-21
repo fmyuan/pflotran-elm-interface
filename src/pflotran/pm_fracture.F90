@@ -296,18 +296,20 @@ subroutine PMFracSetup(this)
     ! a X b = c, where c is perpendicular to a and b (a and b can't be parallel)
     ! take a as the unit normal, and b as slightly rotated unit normal
     ! then c will be perpendicular to a, and parallel to fracture plane
-    a1 = cur_fracture%normal%x; b1 = cur_fracture%normal%x
-    a2 = cur_fracture%normal%y; b2 = cur_fracture%normal%y 
-    a3 = cur_fracture%normal%z; b3 = cur_fracture%normal%z + 1
+    a1 = cur_fracture%normal%x; b1 = cur_fracture%normal%x + 0.25
+    a2 = cur_fracture%normal%y; b2 = cur_fracture%normal%y + 0.5
+    a3 = cur_fracture%normal%z; b3 = cur_fracture%normal%z + 1.0
     c1 = a2*b3 - a3*b2
     c2 = -1.d0*(a1*b3 - a3*b1)
     c3 = a1*b2 - a2*b1
+
     cur_fracture%parallel%x = c1
     cur_fracture%parallel%y = c2
     cur_fracture%parallel%z = c3
     vmag = sqrt((cur_fracture%parallel%x)**2.d0 + &
         	    (cur_fracture%parallel%y)**2.d0 + &
         	    (cur_fracture%parallel%z)**2.d0)
+  
     cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
     cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
     cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
@@ -432,6 +434,7 @@ subroutine PMFracInitializeRun(this)
                                                            ! should be ghosted_id
       ! if cells aren't too pancaked, L should be a good estimate of length
       L = (material_auxvar%volume)**(1.d0/3.d0) 
+
       cur_fracture%kx0(k) = perm0_xx_p(icell)  ! the input here
       cur_fracture%ky0(k) = perm0_yy_p(icell)  ! should be ghosted_id
       cur_fracture%kz0(k) = perm0_zz_p(icell)
