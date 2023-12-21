@@ -4675,7 +4675,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
   option%iflag = GENERAL_UPDATE_FOR_DERIVATIVE
   do idof = 1, option%nflowdof
     if (general_central_diff_jacobian) then
-      pert(idof) = max(1.d-4 * x(idof),1.d-4)
+      pert(idof) = max(1.d-7 * x(idof),1.d-7)
 
       x_pert_minus = x
       x_pert_minus(idof) = x(idof) - pert(idof)

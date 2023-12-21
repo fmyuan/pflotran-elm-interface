@@ -6308,6 +6308,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Variables_module
   use Material_Aux_module
   use Reaction_Base_module
+  use Characteristic_Curves_Thermal_module
 
   implicit none
 
@@ -6326,10 +6327,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
+  class(cc_thermal_type), pointer :: thermal_cc
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: xmass, lnQKgas, eh0, pe0, ph0
-  PetscReal :: tempreal
-  PetscInt :: tempint, tempint2
+  PetscReal :: tempreal, dummy1, dummy2
+  PetscInt :: tempint, tempint2, icct
   PetscInt :: irate, irxn
   PetscInt :: ivar_temp
   PetscErrorCode :: ierr
@@ -8011,6 +8013,32 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           endif
         endif
       enddo
+    case(THERMAL_CONDUCTIVITY)
+      select case(option%iflowmode)
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            !if isotropic then
+              ! if (x) then dist = (1,1,0,0)
+            ! call thermal_cc%thermal_conductivity_function% &
+            !      TCondTensorToScalar(dist,option)
+              ! if (y) then dist = (1,0,1,0)
+              ! if (z) then dist = (1,0,0,1)
+            !else
+
+            !endif
+            ghosted_id = grid%nL2G(local_id)
+            icct = patch%cct_id(ghosted_id)
+            thermal_cc => patch%char_curves_thermal_array(icct)%ptr
+            call thermal_cc%thermal_conductivity_function%CalculateTCond(&
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%sat(option%liquid_phase), & !saturation
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%temp, & !temperature
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%effective_porosity, & !effective porosity
+                            vec_ptr(local_id),dummy1,dummy2,option)
+          enddo
+      end select
     case(ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -8184,6 +8212,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use ZFlow_Aux_module
   use SCO2_Aux_module
   use Material_Aux_module
+  use Characteristic_Curves_Thermal_module
 
   implicit none
 
@@ -8195,20 +8224,21 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
+  class(cc_thermal_type), pointer :: thermal_cc
   PetscInt :: ivar
   PetscInt :: isubvar
   PetscInt :: tempint, tempint2
   PetscInt :: isubvar2
   PetscInt :: iphase
   PetscInt :: ghosted_id
-  PetscInt :: local_id
+  PetscInt :: local_id, icct
   PetscInt :: ivar_temp
 
   PetscReal :: value, xmass, lnQKgas, eh0, pe0, ph0
   PetscInt :: irate, irxn
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
-  PetscReal :: tempreal
+  PetscReal :: tempreal, dummy1, dummy2
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -9190,6 +9220,32 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case default
           option%io_buffer = 'Output of gas phase relative permeability &
             &not supported for current flow mode.'
+      end select
+    case(THERMAL_CONDUCTIVITY)
+      select case(option%iflowmode)
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            !if isotropic then
+              ! if (x) then dist = (1,1,0,0)
+            ! call thermal_cc%thermal_conductivity_function% &
+            !      TCondTensorToScalar(dist,option)
+              ! if (y) then dist = (1,0,1,0)
+              ! if (z) then dist = (1,0,0,1)
+            !else
+
+            !endif
+            ghosted_id = grid%nL2G(local_id)
+            icct = patch%cct_id(ghosted_id)
+            thermal_cc => patch%char_curves_thermal_array(icct)%ptr
+            call thermal_cc%thermal_conductivity_function%CalculateTCond(&
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%sat(option%liquid_phase), & !saturation
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%temp, & !temperature
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%effective_porosity, & !effective porosity
+                            value,dummy1,dummy2,option)
+          enddo
       end select
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(abs(patch%imat(ghosted_id)))

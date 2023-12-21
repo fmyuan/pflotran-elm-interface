@@ -2353,6 +2353,11 @@ subroutine GeneralSetPlotVariables(realization,list)
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                 GAS_ENERGY)
 
+    name = 'Thermal Conductivity'
+    units = 'W/m-K'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_ENERGY)
+
     name = 'Thermodynamic State'
     units = ''
     output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
