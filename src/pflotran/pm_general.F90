@@ -437,7 +437,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         option%nflowdof = FOUR_INTEGER
       case('CENTRAL_DIFFERENCE_JACOBIAN')
         general_central_diff_jacobian = PETSC_TRUE
-      case('MIN_CENTRAL_DIFFERENCE_PERTURBATION')
+     case('MIN_CENTRAL_DIFFERENCE_PERT')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         general_min_cd_pert = tempreal
