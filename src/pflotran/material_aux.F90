@@ -8,7 +8,6 @@ module Material_Aux_module
 
   private
 
-
   PetscInt, parameter, public :: perm_xx_index = 1
   PetscInt, parameter, public :: perm_yy_index = 2
   PetscInt, parameter, public :: perm_zz_index = 3
@@ -36,7 +35,8 @@ module Material_Aux_module
 
   ! flag to determine which model to use for tensor to scalar conversion
   ! of permeability
-  PetscInt :: perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
+  PetscInt :: perm_tensor_to_scalar_model = TENSOR_TO_SCALAR_LINEAR
+  PetscInt :: tort_tensor_to_scalar_model = TENSOR_TO_SCALAR_LINEAR
 
   ! when adding a new index, add it above max_material_index and grep on
   ! "ADD_SOIL_PROPERTY_INDEX_HERE" to see whereall you must update the code.
@@ -136,6 +136,7 @@ module Material_Aux_module
             MaterialCompressSoilQuadratic
 
   public :: PermeabilityTensorToScalar
+  Public :: TortuosityTensorToScalar
 
   public :: MaterialAuxCreate, &
             MaterialAuxVarInit, &
@@ -371,24 +372,42 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
   PetscInt :: model
   type(option_type) :: option
 
-  !! simple if longwinded little safety measure here, the calling routine
-  !! should also check that model is a sane number but in principle this
-  !! routine should protect itself too.
-  !! Please note that if you add a new model type above then you MUST add
-  !! it to this little list here too.
-  if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
-      model == TENSOR_TO_SCALAR_FLOW .OR. &
-      model == TENSOR_TO_SCALAR_POTENTIAL .OR. &
-      model == TENSOR_TO_SCALAR_FLOW_FT .OR. &
-      model == TENSOR_TO_SCALAR_POTENTIAL_FT) then
-    perm_tens_to_scal_model = model
-  else
-    option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
-                        &model type is not recognized.'
-    call PrintErrMsg(option)
-  endif
+  select case(model)
+    case(TENSOR_TO_SCALAR_LINEAR,TENSOR_TO_SCALAR_FLOW, &
+         TENSOR_TO_SCALAR_POTENTIAL,TENSOR_TO_SCALAR_FLOW_FT, &
+         TENSOR_TO_SCALAR_POTENTIAL_FT)
+      perm_tensor_to_scalar_model = model
+    case default
+      option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
+                          &model type is not recognized.'
+      call PrintErrMsg(option)
+  end select
 
 end subroutine MaterialAuxSetPermTensorModel
+
+! ************************************************************************** !
+
+subroutine MaterialAuxSetTortTensorModel(model,option)
+
+  use Option_module
+
+  implicit none
+
+  PetscInt :: model
+  type(option_type) :: option
+
+  select case(model)
+    case(TENSOR_TO_SCALAR_LINEAR,TENSOR_TO_SCALAR_FLOW, &
+         TENSOR_TO_SCALAR_POTENTIAL,TENSOR_TO_SCALAR_FLOW_FT, &
+         TENSOR_TO_SCALAR_POTENTIAL_FT)
+      tort_tensor_to_scalar_model = model
+    case default
+      option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
+                          &model type is not recognized.'
+      call PrintErrMsg(option)
+  end select
+
+end subroutine MaterialAuxSetTortTensorModel
 
 ! ************************************************************************** !
 
@@ -421,7 +440,7 @@ subroutine PermeabilityTensorToScalar(material_auxvar,dist,scalar_permeability)
   ky = material_auxvar%permeability(perm_yy_index)
   kz = material_auxvar%permeability(perm_zz_index)
 
-  select case(perm_tens_to_scal_model)
+  select case(perm_tensor_to_scalar_model)
     case(TENSOR_TO_SCALAR_LINEAR)
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_FLOW)
@@ -477,7 +496,7 @@ subroutine PermeabilityTensorToScalarSafe(material_auxvar,dist, &
   ky = material_auxvar%permeability(perm_yy_index)
   kz = material_auxvar%permeability(perm_zz_index)
 
-  select case(perm_tens_to_scal_model)
+  select case(perm_tensor_to_scalar_model)
     case(TENSOR_TO_SCALAR_LINEAR)
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_FLOW)
@@ -700,6 +719,45 @@ function FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
   FullPermTensorToScalarPotSafe = deni
 
 end function FullPermTensorToScalarPotSafe
+
+! ************************************************************************** !
+
+function TortuosityTensorToScalar(material_auxvar,dist)
+  !
+  ! Calculates a scalar tortuosity from a tensor
+  !
+  ! Author: Jens Eckel
+  ! Date: 12/21/23
+  !
+  implicit none
+
+  type(material_auxvar_type) :: material_auxvar
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal, intent(in) :: dist(-1:3)
+
+  PetscReal :: TortuosityTensorToScalar
+
+  PetscReal :: tx, ty, tz
+
+  tx = material_auxvar%tortuosity
+  ty = material_auxvar%soil_properties(tortuosity_yy_index)
+  tz = material_auxvar%soil_properties(tortuosity_zz_index)
+
+  ! up to now only by structured/unstructured grid
+  select case(tort_tensor_to_scalar_model)
+    case(TENSOR_TO_SCALAR_LINEAR)
+      TortuosityTensorToScalar = DiagPermTensorToScalar_Linear(tx,ty,tz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL)
+      TortuosityTensorToScalar = DiagPermTensorToScalarPotSafe(tx,ty,tz,dist)
+    case default
+      TortuosityTensorToScalar = DiagPermTensorToScalar_Linear(tx,ty,tz,dist)
+  end select
+
+end function TortuosityTensorToScalar
 
 ! ************************************************************************** !
 

@@ -355,7 +355,13 @@ subroutine PMSubsurfaceFlowSetup(this)
         this%option%transport%anisotropic_tortuosity) then
       this%option%io_buffer = 'Updating of tortuosity is not currently &
                               &supported for anisotropic tortuosity.'
+      call PrintErrMsg(this%option)
     endif
+  endif
+  if (this%option%transport%anisotropic_tortuosity) then
+    this%option%io_buffer = 'Anisotropic tortuosity not supported in &
+      &the flow process models.'
+    call PrintErrMsg(this%option)
   endif
   if (this%option%flow%transient_porosity) then
     this%store_porosity_for_ts_cut = PETSC_TRUE
