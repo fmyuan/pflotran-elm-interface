@@ -9232,7 +9232,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
               ! if (y) then dist = (1,0,1,0)
               ! if (z) then dist = (1,0,0,1)
             !else
-
             !endif
             ghosted_id = grid%nL2G(local_id)
             icct = patch%cct_id(ghosted_id)

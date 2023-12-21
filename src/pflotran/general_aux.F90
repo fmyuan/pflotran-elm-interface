@@ -15,6 +15,7 @@ module General_Aux_module
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscBool, public :: general_non_darcy_flow = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
+  PetscReal, public :: general_min_cd_pert = 1.d-7
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscBool, public :: general_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: general_salt = PETSC_FALSE
@@ -40,8 +41,6 @@ module General_Aux_module
   PetscInt, public :: general_newton_iteration_number = 0
   PetscInt, public :: general_sub_newton_iter_num = 0
   PetscInt, public :: general_newtontrdc_prev_iter_num = 0
-
-
 
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: general_allow_state_change = PETSC_TRUE
@@ -2662,6 +2661,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%xmol(sid,pid) = 1.d0
 
   call EOSPrecipitateEnergy(gen_auxvar%temp,U_precip)
+  U_precip = U_precip * 1.d-6 !J/kmol -> MJ/kmol
   gen_auxvar%U(pid) = U_precip
   gen_auxvar%H(pid) = U_precip
 
@@ -4117,7 +4117,7 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
   do idof = 1, option%nflowdof
 
     if (general_central_diff_jacobian) then
-      pert(idof) = max(1.d-7 * x(idof),1.d-7)
+      pert(idof) = max(general_min_cd_pert * x(idof),general_min_cd_pert)
 
       x_pert_minus = x
       x_pert_minus(idof) = x(idof) - pert(idof)
@@ -4675,7 +4675,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
   option%iflag = GENERAL_UPDATE_FOR_DERIVATIVE
   do idof = 1, option%nflowdof
     if (general_central_diff_jacobian) then
-      pert(idof) = max(1.d-7 * x(idof),1.d-7)
+      pert(idof) = max(general_min_cd_pert * x(idof),general_min_cd_pert)
 
       x_pert_minus = x
       x_pert_minus(idof) = x(idof) - pert(idof)

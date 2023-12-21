@@ -437,6 +437,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         option%nflowdof = FOUR_INTEGER
       case('CENTRAL_DIFFERENCE_JACOBIAN')
         general_central_diff_jacobian = PETSC_TRUE
+      case('MIN_CENTRAL_DIFFERENCE_PERTURBATION')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        general_min_cd_pert = tempreal
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
