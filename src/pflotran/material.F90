@@ -496,6 +496,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputKeywordUnrecognized(input,word,error_str,option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('GEOMECHANICS_SUBSURFACE_PROPS')
         ! Changes the subsurface props (perm/porosity) due to changes in
         ! geomechanical stresses and strains

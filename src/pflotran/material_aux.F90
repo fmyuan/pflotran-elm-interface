@@ -163,6 +163,7 @@ function MaterialAuxCreate(option)
   ! Date: 01/09/14
   !
   use Option_module
+  use String_module
   use Variables_module, only : SOIL_COMPRESSIBILITY, &
                                SOIL_REFERENCE_PRESSURE, &
                                ELECTRICAL_CONDUCTIVITY, &
@@ -181,7 +182,7 @@ function MaterialAuxCreate(option)
   type(material_type), pointer :: MaterialAuxCreate
 
   type(material_type), pointer :: aux
-  PetscInt :: i
+  PetscInt :: i, j
 
   allocate(aux)
   nullify(aux%auxvars)
@@ -221,12 +222,18 @@ function MaterialAuxCreate(option)
     call MaterialAuxInitSoilPropertyMap(aux,tortuosity_yy_index, &
                                         TORTUOSITY_Y, &
                                         'Anisotropic Tortuosity Y')
-    call MaterialAuxInitSoilPropertyMap(aux,tortuosity_yy_index, &
+    call MaterialAuxInitSoilPropertyMap(aux,tortuosity_zz_index, &
                                         TORTUOSITY_Z, &
                                         'Anisotropic Tortuosity Z')
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     do i = 1, max_material_index
       if (Uninitialized(aux%soil_properties_ivar(i))) then
+        do j = 1, max_material_index
+          option%io_buffer = StringWrite(j) // ' : ' // 'name = ' // &
+            trim(aux%soil_properties_name(j)) // ', ivar = ' // &
+            StringWrite(aux%soil_properties_ivar(j))
+          call PrintMsg(option)
+        enddo
         option%io_buffer = 'Uninitialized value(s) exist within &
             &material_auxvar%soil_properties_ivar in MaterialAuxCreate(). &
             &Please email your input deck to pflotran-dev@googlegroups.com.'

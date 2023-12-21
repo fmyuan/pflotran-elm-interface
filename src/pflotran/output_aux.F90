@@ -989,7 +989,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       id = TORTUOSITY
     case ('TORTUOSITY_Y')
       units = ''
-      name = 'Tortuosity'
+      name = 'Tortuosity Y'
       category = OUTPUT_GENERIC
       id = TORTUOSITY_Y
     case ('TORTUOSITY_Z')
