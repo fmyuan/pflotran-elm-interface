@@ -129,7 +129,8 @@ STANDARD_CFG = \
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
 	general/cpr_general/cpr_general.cfg \
-	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
+	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg \
+	wipp/well_model/cpr/cpr_well.cfg
 endif
 
 ifdef RUNTIME_ERROR_CHECKING
