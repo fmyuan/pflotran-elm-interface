@@ -6034,11 +6034,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%kr(option%liquid_phase) / &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%mobility(option%liquid_phase)
+              tempreal = patch%aux%General%auxvars(ZERO_INTEGER, &
+                         ghosted_id)%mobility(option%liquid_phase)
+              if (tempreal > 0.d0) then   
+                vec_ptr(local_id) = &
+                  patch%aux%General%auxvars(ZERO_INTEGER, &
+                    ghosted_id)%kr(option%liquid_phase) / &
+                    tempreal
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
