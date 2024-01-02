@@ -2786,8 +2786,6 @@ subroutine GeneralAuxNaClSolubility(T,x_sol,solubility_function)
       avg_molar_mass = (w_sol/fmw_comp(3)+(1-w_sol)/fmw_comp(1))**(-1)
       x_sol = w_sol/fmw_comp(3)*avg_molar_mass
   end select
-  print *, 'temperature: ',T
-  print *, 'x_sol: ',x_sol
 
 end subroutine GeneralAuxNaClSolubility
 
