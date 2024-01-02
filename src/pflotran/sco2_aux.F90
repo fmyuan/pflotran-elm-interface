@@ -421,7 +421,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
                xmolsl, xmolwl, salt_mass
   PetscReal :: sigma, beta_gl
   PetscReal :: Pv, Psat, Prvap
-  PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dt, dsg
+  PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg ! ,dt
   PetscReal :: cell_pressure, sgt_max
   PetscInt :: idof
 
@@ -648,7 +648,6 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   PetscReal :: Pc, Pl, Pv, Prvap, Pco2, Psat, Pg
   PetscReal :: rho_liq, rho_co2
   PetscReal :: beta_gl, sgt_max
-  PetscReal :: dsat_dpres
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
                xmolsl, xmolwl
   PetscReal :: salt_solubility, sigma 
@@ -1146,7 +1145,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
                xmolsl, xmolwl
   PetscReal :: mw_mix
-  PetscReal :: den_kg, den_mol, den_brine_kg
+  PetscReal :: den_mol, den_brine_kg
   PetscReal :: den_co2, den_steam
   PetscReal :: salt_solubility, x_salt_dissolved
   PetscReal :: x_co2
