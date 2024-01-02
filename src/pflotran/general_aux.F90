@@ -2763,11 +2763,9 @@ subroutine GeneralAuxNaClSolubility(T,x_sol,solubility_function)
   PetscInt, intent(in)   :: solubility_function
   PetscReal, intent(out) :: x_sol
 
-  PetscReal :: w_sol = 0.d0! Mass fraction NaCl
-  PetscReal :: avg_molar_mass = 0.d0
-  PetscReal :: c = 0.d0
-
-  x_sol = 0.d0
+  PetscReal :: w_sol ! Mass fraction NaCl
+  PetscReal :: avg_molar_mass
+  PetscReal :: c
 
   select case(solubility_function)
 
