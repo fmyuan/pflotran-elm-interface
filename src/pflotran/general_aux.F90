@@ -2750,7 +2750,7 @@ subroutine GeneralAuxNaClSolubility(T,x_sol,solubility_function)
   !
   ! Determines solubility of NaCl in water based on Sparrow, 2003 or
   ! Langer and Offerman, 1982.
-  ! https://doi.org/10.1016/S0011-9164(03)90068-3
+  ! https://doi.org/10.1016/S0011-9164(03)90068-3 (Sparrow)
   ! Returns solubility (mole fraction)
   !
   ! Author: David Fukuyama
@@ -2763,20 +2763,23 @@ subroutine GeneralAuxNaClSolubility(T,x_sol,solubility_function)
   PetscInt, intent(in)   :: solubility_function
   PetscReal, intent(out) :: x_sol
 
-  PetscReal :: w_sol ! Mass fraction NaCl
-  PetscReal :: avg_molar_mass
-  PetscReal :: c
+  PetscReal :: w_sol = 0.d0! Mass fraction NaCl
+  PetscReal :: avg_molar_mass = 0.d0
+  PetscReal :: c = 0.d0
+
+  x_sol = 0.d0
 
   select case(solubility_function)
-    case(1) !Sparrow
+
+    case(1)  !Sparrow
+       ! mass fraction: kg solute/kg solution
+       w_sol = 0.2628 + 62.75d-6 * T + 1.084d-6 * T**2
+       avg_molar_mass = (w_sol/fmw_comp(3)+(1-w_sol)/fmw_comp(1))**(-1)
+       x_sol = w_sol/fmw_comp(3)*avg_molar_mass
+    case(2)!Lagner and Offerman
        ! mass fraction: mass of component/mass of phase
        c = (35.335-0.22947*T)/(1-0.0069059*T)
        w_sol = c/(100+c)
-       avg_molar_mass = (w_sol/fmw_comp(3)+(1-w_sol)/fmw_comp(1))**(-1)
-       x_sol = w_sol/fmw_comp(3)*avg_molar_mass
-    case(2) !Lagner and Offerman
-       ! mass fraction: kg solute/kg solution
-       w_sol = 0.2628 + 62.75d-6 * T + 1.084d-6 * T**2
        avg_molar_mass = (w_sol/fmw_comp(3)+(1-w_sol)/fmw_comp(1))**(-1)
        x_sol = w_sol/fmw_comp(3)*avg_molar_mass
     case default
@@ -2785,6 +2788,8 @@ subroutine GeneralAuxNaClSolubility(T,x_sol,solubility_function)
       avg_molar_mass = (w_sol/fmw_comp(3)+(1-w_sol)/fmw_comp(1))**(-1)
       x_sol = w_sol/fmw_comp(3)*avg_molar_mass
   end select
+  print *, 'temperature: ',T
+  print *, 'x_sol: ',x_sol
 
 end subroutine GeneralAuxNaClSolubility
 

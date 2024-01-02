@@ -4108,16 +4108,38 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar_ss%pres(apid)
         endif
-        if (general_salt .and. .not. soluble_matrix) then
+        if (general_salt) then
           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-        elseif (general_salt .and. soluble_matrix) then
-          xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+        endif
+      case(LP_STATE)
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          endif
         endif
       case(LGP_STATE)
-        if (general_salt .and. .not. soluble_matrix) then
-           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-        elseif (general_salt .and. soluble_matrix) then
-           xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
+      case(GP_STATE)
+        if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+          xxss(TWO_INTEGER) = gen_auxvar_ss%pres(apid)
+        else
+          xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(wat_comp_id,air_comp_id)
+        endif
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
         endif
     end select
   endif
