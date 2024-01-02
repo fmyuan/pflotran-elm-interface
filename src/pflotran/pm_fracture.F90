@@ -239,13 +239,13 @@ subroutine PMFracSetup(this)
     option%io_buffer = 'GEOTHERMAL_FRACTURE_MODEL: Mapping fracture ID# [' &
                        // trim(word) // '].'
     call PrintMsg(option)
-    call GridGetLocalIDFromCoordinate(res_grid,cur_fracture%center,option, &
-    	                              local_id_center)
-    if (Uninitialized(local_id_center)) then
-      option%io_buffer = 'Fracture ID# [' // trim(word) // '] CENTER &
-        &coordinate is not within the reservoir domain.'
-      call PrintErrMsg(option)
-    endif
+    !call GridGetLocalIDFromCoordinate(res_grid,cur_fracture%center,option, &
+    !	                              local_id_center)
+    !if (Uninitialized(local_id_center)) then
+    !  option%io_buffer = 'Fracture ID# [' // trim(word) // '] CENTER &
+    !    &coordinate is not within the reservoir domain.'
+    !  call PrintErrMsg(option)
+    !endif
     ! Equation of a plane normal to vector (A,B,C) is
     ! Ax + By + Cz + D = 0
     ! Get D by knowing the plane must contain the center point (x,y,z)
@@ -253,10 +253,10 @@ subroutine PMFracSetup(this)
     	       cur_fracture%normal%y*cur_fracture%center%y + &
     	       cur_fracture%normal%z*cur_fracture%center%z)
     j = 0
-    do k = 1,res_grid%nmax
-      distance = cur_fracture%normal%x*res_grid%x(k) + &
-                 cur_fracture%normal%y*res_grid%y(k) + &
-                 cur_fracture%normal%z*res_grid%z(k) + D
+    do k = 1,res_grid%nlmax
+      distance = cur_fracture%normal%x*res_grid%x(res_grid%nL2G(k)) + &
+                 cur_fracture%normal%y*res_grid%y(res_grid%nL2G(k)) + &
+                 cur_fracture%normal%z*res_grid%z(res_grid%nL2G(k)) + D
       if (abs(distance) < this%max_distance) then
         j = j + 1
         temp_cell_ids(j) = k
@@ -270,20 +270,22 @@ subroutine PMFracSetup(this)
         &of read_max in PMFracSetup() or email the PFLOTRAN developers group.'
       call PrintErrMsg(option)
     endif
-    allocate(cur_fracture%cell_ids(cur_fracture%ncells))
-    allocate(cur_fracture%prev_temperature(cur_fracture%ncells))
-    allocate(cur_fracture%dT(cur_fracture%ncells))
-    allocate(cur_fracture%dL(cur_fracture%ncells))
-    allocate(cur_fracture%hap(cur_fracture%ncells))
-    allocate(cur_fracture%kx0(cur_fracture%ncells))
-    allocate(cur_fracture%ky0(cur_fracture%ncells))
-    allocate(cur_fracture%kz0(cur_fracture%ncells))
+    if (cur_fracture%ncells > 0) then
+      allocate(cur_fracture%cell_ids(cur_fracture%ncells))
+      allocate(cur_fracture%prev_temperature(cur_fracture%ncells))
+      allocate(cur_fracture%dT(cur_fracture%ncells))
+      allocate(cur_fracture%dL(cur_fracture%ncells))
+      allocate(cur_fracture%hap(cur_fracture%ncells))
+      allocate(cur_fracture%kx0(cur_fracture%ncells))
+      allocate(cur_fracture%ky0(cur_fracture%ncells))
+      allocate(cur_fracture%kz0(cur_fracture%ncells))
 
-    cur_fracture%hap(:) = cur_fracture%hap0
-    cur_fracture%cell_ids(1:cur_fracture%ncells) = &
+      cur_fracture%hap(:) = cur_fracture%hap0
+      cur_fracture%cell_ids(1:cur_fracture%ncells) = &
                                           temp_cell_ids(1:cur_fracture%ncells)
-    temp_allfrac_cell_ids(tfc+1:tfc+cur_fracture%ncells) = &
+      temp_allfrac_cell_ids(tfc+1:tfc+cur_fracture%ncells) = &
                                   cur_fracture%cell_ids(1:cur_fracture%ncells)
+    endif
 
     tfc = tfc + cur_fracture%ncells
     if (tfc > (read_max*10)) then
@@ -336,26 +338,28 @@ subroutine PMFracSetup(this)
     cur_fracture => cur_fracture%next
   enddo
 
-  allocate(this%allfrac_cell_ids(tfc))
-  this%allfrac_cell_ids(1:tfc) = temp_allfrac_cell_ids(1:tfc)
-
-  deallocate(temp_allfrac_cell_ids)
-  allocate(temp_allfrac_cell_ids(tfc))
-  temp_allfrac_cell_ids(:) = UNINITIALIZED_INTEGER
-  deallocate(temp_cell_ids)
-  allocate(temp_cell_ids(tfc))
-  temp_cell_ids(:) = UNINITIALIZED_INTEGER
-  j = 1
-  do k = 1,tfc 
-    if (any(temp_allfrac_cell_ids == this%allfrac_cell_ids(k))) then
-      temp_cell_ids(j) = this%allfrac_cell_ids(k)
-      j = j + 1
-    endif
-    temp_allfrac_cell_ids(k) = this%allfrac_cell_ids(k)
-  enddo
-
-  allocate(this%frac_common_cell_ids(j))
-  this%frac_common_cell_ids(1:j) = temp_cell_ids(1:j)
+  if (tfc > 0) then
+    allocate(this%allfrac_cell_ids(tfc))
+    this%allfrac_cell_ids(1:tfc) = temp_allfrac_cell_ids(1:tfc)
+    deallocate(temp_allfrac_cell_ids)
+    allocate(temp_allfrac_cell_ids(tfc))
+    temp_allfrac_cell_ids(:) = UNINITIALIZED_INTEGER
+  
+    deallocate(temp_cell_ids)
+    allocate(temp_cell_ids(tfc))
+    temp_cell_ids(:) = UNINITIALIZED_INTEGER
+    j = 1
+    do k = 1,tfc 
+      if (any(temp_allfrac_cell_ids == this%allfrac_cell_ids(k))) then
+        temp_cell_ids(j) = this%allfrac_cell_ids(k)
+        j = j + 1
+      endif
+      temp_allfrac_cell_ids(k) = this%allfrac_cell_ids(k)
+    enddo
+    allocate(this%frac_common_cell_ids(j))
+    this%frac_common_cell_ids(1:j) = temp_cell_ids(1:j)
+  deallocate(temp_frac_common_cell_ids)
+  endif
 
   if (.not.associated(this%realization%reaction)) then
     this%update_material_auxvar_perm = PETSC_TRUE
@@ -367,7 +371,6 @@ subroutine PMFracSetup(this)
 
   deallocate(temp_cell_ids)
   deallocate(temp_allfrac_cell_ids)
-  deallocate(temp_frac_common_cell_ids)
 
 end subroutine PMFracSetup
 
@@ -400,6 +403,7 @@ subroutine PMFracInitializeRun(this)
   use Material_Aux_module
   use Global_Aux_module
   use Field_module
+  use Grid_module
 
   implicit none
 
@@ -409,15 +413,16 @@ subroutine PMFracInitializeRun(this)
   type(global_auxvar_type), pointer :: global_auxvar
   type(option_type), pointer :: option
   type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
   type(fracture_type), pointer :: cur_fracture
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscInt :: icell,k
-  PetscReal :: kx,ky,kz
-  PetscReal :: L 
+  PetscReal :: kx,ky,kz,L
   PetscErrorCode :: ierr
 
   option => this%option
   field => this%realization%field
+  grid => this%realization%patch%grid
 
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
@@ -430,13 +435,12 @@ subroutine PMFracInitializeRun(this)
     do k = 1,cur_fracture%ncells
       icell = cur_fracture%cell_ids(k)
       material_auxvar => &
-        this%realization%patch%aux%material%auxvars(icell) ! the input here
-                                                           ! should be ghosted_id
+        this%realization%patch%aux%material%auxvars(grid%nL2G(icell)) 
       ! if cells aren't too pancaked, L should be a good estimate of length
       L = (material_auxvar%volume)**(1.d0/3.d0) 
 
-      cur_fracture%kx0(k) = perm0_xx_p(icell)  ! the input here
-      cur_fracture%ky0(k) = perm0_yy_p(icell)  ! should be ghosted_id
+      cur_fracture%kx0(k) = perm0_xx_p(icell)
+      cur_fracture%ky0(k) = perm0_yy_p(icell) 
       cur_fracture%kz0(k) = perm0_zz_p(icell)
 
       call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
@@ -445,23 +449,24 @@ subroutine PMFracInitializeRun(this)
       material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky 
       material_auxvar%permeability(3) = material_auxvar%permeability(3) + kz
 
-      global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
-                                                                       ! should be ghosted_id
+      global_auxvar => &
+        this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
       cur_fracture%prev_temperature(k) = global_auxvar%temp
     enddo
 
     cur_fracture => cur_fracture%next
   enddo
 
-  do k = 1,size(this%allfrac_cell_ids)
-    icell = this%allfrac_cell_ids(k)
-    material_auxvar => &
-        this%realization%patch%aux%material%auxvars(icell) ! the input here
-                                                           ! should be ghosted_id
-    perm0_xx_p(icell) = material_auxvar%permeability(1)
-    perm0_yy_p(icell) = material_auxvar%permeability(2)
-    perm0_zz_p(icell) = material_auxvar%permeability(3)
-  enddo
+  if (associated(this%allfrac_cell_ids)) then
+    do k = 1,size(this%allfrac_cell_ids)
+      icell = this%allfrac_cell_ids(k)
+      material_auxvar => &
+          this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
+      perm0_xx_p(icell) = material_auxvar%permeability(1) 
+      perm0_yy_p(icell) = material_auxvar%permeability(2)
+      perm0_zz_p(icell) = material_auxvar%permeability(3)
+    enddo
+  endif
 
   call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
@@ -496,6 +501,7 @@ subroutine PMFracInitializeTimestep(this)
   !
   use Material_Aux_module
   use Field_module
+  use Grid_module
 
   implicit none
 
@@ -503,12 +509,14 @@ subroutine PMFracInitializeTimestep(this)
 
   type(material_auxvar_type), pointer :: material_auxvar
   type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
   type(fracture_type), pointer :: cur_fracture
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscInt :: icell,k
   PetscErrorCode :: ierr
 
   field => this%realization%field
+  grid => this%realization%patch%grid
 
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
@@ -521,8 +529,7 @@ subroutine PMFracInitializeTimestep(this)
     do k = 1,cur_fracture%ncells
       icell = cur_fracture%cell_ids(k)
       material_auxvar => &
-        this%realization%patch%aux%material%auxvars(icell) ! the input here
-                                                           ! should be ghosted_id
+        this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
       ! reset permeability back to initial permeability
       perm0_xx_p(icell) = cur_fracture%kx0(k)
       perm0_yy_p(icell) = cur_fracture%ky0(k)
@@ -917,6 +924,7 @@ subroutine PMFracSolve(this,time,ierr)
   use Material_Aux_module
   use Global_Aux_module
   use Field_module
+  use Grid_module
 
   implicit none
 
@@ -927,6 +935,7 @@ subroutine PMFracSolve(this,time,ierr)
   type(material_auxvar_type), pointer :: material_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(fracture_type), pointer :: cur_fracture
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
@@ -937,6 +946,7 @@ subroutine PMFracSolve(this,time,ierr)
 
   option => this%option
   field => this%realization%field
+  grid => this%realization%patch%grid
 
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
@@ -949,10 +959,9 @@ subroutine PMFracSolve(this,time,ierr)
     do k = 1,cur_fracture%ncells
       icell = cur_fracture%cell_ids(k)
       material_auxvar => &
-        this%realization%patch%aux%material%auxvars(icell) ! the input here
-                                                           ! should be ghosted_id
-      global_auxvar => this%realization%patch%aux%Global%auxvars(icell)! the input here
-                                                                       ! should be ghosted_id
+        this%realization%patch%aux%material%auxvars(grid%nL2G(icell)) 
+      global_auxvar => &
+        this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
       cur_temperature = global_auxvar%temp
       cur_fracture%dT(k) = cur_temperature - cur_fracture%prev_temperature(k)
 
@@ -983,15 +992,16 @@ subroutine PMFracSolve(this,time,ierr)
   enddo
 
   if (this%update_material_auxvar_perm) then
-    do k = 1,size(this%allfrac_cell_ids)
-      icell = this%allfrac_cell_ids(k)
-      material_auxvar => &
-        this%realization%patch%aux%material%auxvars(icell) ! the input here
-                                                           ! should be ghosted_id
-      material_auxvar%permeability(1) = perm0_xx_p(icell)
-      material_auxvar%permeability(2) = perm0_yy_p(icell)
-      material_auxvar%permeability(3) = perm0_zz_p(icell)
-    enddo
+    if (associated(this%allfrac_cell_ids)) then
+      do k = 1,size(this%allfrac_cell_ids)
+        icell = this%allfrac_cell_ids(k)
+        material_auxvar => &
+          this%realization%patch%aux%material%auxvars(grid%nL2G(icell)) 
+        material_auxvar%permeability(1) = perm0_xx_p(icell)
+        material_auxvar%permeability(2) = perm0_yy_p(icell)
+        material_auxvar%permeability(3) = perm0_zz_p(icell)
+      enddo
+    endif
   endif
 
   call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
@@ -1019,14 +1029,18 @@ subroutine PMFracDestroy(this)
 
   type(fracture_type), pointer :: cur_fracture
 
-  call DeallocateArray(this%allfrac_cell_ids)
-  call DeallocateArray(this%frac_common_cell_ids)
+  if (associated(this%allfrac_cell_ids)) then
+    call DeallocateArray(this%allfrac_cell_ids)
+  endif
+  if (associated(this%frac_common_cell_ids)) then
+    call DeallocateArray(this%frac_common_cell_ids)
+  endif
 
   cur_fracture => this%fracture_list
   do
     if (.not.associated(cur_fracture)) exit
     
-      call PMFracStripFrac(cur_fracture)
+    if (cur_fracture%ncells > 0) call PMFracStripFrac(cur_fracture)
 
     cur_fracture => cur_fracture%next
   enddo
