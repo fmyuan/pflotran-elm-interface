@@ -3113,7 +3113,7 @@ subroutine OutputMassBalance(realization_base)
             write(fid,110,advance="no") -sum_kg_global*output_option%tconv
           endif
 
-        case(MPH_MODE,SCO2_MODE)
+        case(MPH_MODE) !,SCO2_MODE)
         ! print out cumulative H2O & CO2 fluxes in kmol and kmol/time
           sum_kg = 0.d0
           do icomp = 1, option%nflowspec

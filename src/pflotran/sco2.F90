@@ -146,9 +146,15 @@ subroutine SCO2Setup(realization)
     allocate(sco2_auxvars(0:ndof,grid%ngmax))
   endif
   do ghosted_id = 1, grid%ngmax
-    do idof = 0, ndof
-      call SCO2AuxVarInit(sco2_auxvars(idof,ghosted_id),option)
-    enddo
+    if (sco2_central_diff_jacobian) then
+      do idof = 0, 2*ndof
+        call SCO2AuxVarInit(sco2_auxvars(idof,ghosted_id),option)
+      enddo
+    else
+      do idof = 0, ndof
+        call SCO2AuxVarInit(sco2_auxvars(idof,ghosted_id),option)
+      enddo
+    endif
   enddo
   patch%aux%SCO2%auxvars => sco2_auxvars
   patch%aux%SCO2%num_aux = grid%ngmax
@@ -754,6 +760,53 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                    patch%characteristic_curves_array( &
                                    patch%cc_id(ghosted_id))%ptr, &
                                    sco2_parameter,natural_id,option)
+        if (.not. any(boundary_condition%flow_bc_type == NEUMANN_BC)) then
+            boundary_condition%flow_aux_int_var(ONE_INTEGER,iconn) = &
+                          global_auxvars_bc(sum_connection)%istate
+            select case(boundary_condition%flow_aux_int_var(ONE_INTEGER,iconn))
+              case(SCO2_LIQUID_STATE)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_LIQUID_PRESSURE_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%pres(lid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_CO2_MASS_FRAC_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%xmass(co2_id,lid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_SALT_MASS_FRAC_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%m_salt(1)
+              case(SCO2_GAS_STATE)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_GAS_PRESSURE_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%pres(gid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_CO2_PRESSURE_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)% &
+                               pres(co2_pressure_id)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_SALT_MASS_FRAC_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%m_salt(2)
+              case(SCO2_TRAPPED_GAS_STATE)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_LIQUID_PRESSURE_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%pres(lid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_GAS_SATURATION_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%sat(gid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_SALT_MASS_FRAC_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%m_salt(1)
+              case(SCO2_LIQUID_GAS_STATE)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_LIQUID_PRESSURE_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%pres(lid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_GAS_PRESSURE_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%pres(gid)
+                boundary_condition%flow_aux_real_var( &
+                               SCO2_SALT_MASS_FRAC_DOF,iconn) = &
+                               sco2_auxvars_bc(sum_connection)%m_salt(1)
+            end select
+        endif
       endif
     enddo
     boundary_condition => boundary_condition%next

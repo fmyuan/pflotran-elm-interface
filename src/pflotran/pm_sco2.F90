@@ -397,6 +397,8 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
     ! Tolerances
 
     ! All Residual
+    case('CENTRAL_DIFFERENCE_JACOBIAN')
+      sco2_central_diff_jacobian = PETSC_TRUE 
     case('RESIDUAL_INF_TOL')
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -898,131 +900,130 @@ end subroutine PMSCO2CheckUpdatePre
 
 subroutine PMSCO2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                  X1_changed,ierr)
-!
-! Author: Michael Nole
-! Date: 11/21/23
-!
-use SCO2_Aux_module
-use Global_Aux_module
-use Grid_module
-use Option_module
-use Realization_Subsurface_class
-use Grid_module
-use Field_module
-use Patch_module
-use Option_module
+  !
+  ! Author: Michael Nole
+  ! Date: 11/21/23
+  !
+  use SCO2_Aux_module
+  use Global_Aux_module
+  use Grid_module
+  use Option_module
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Patch_module
+  use Option_module
 
-implicit none
+  implicit none
 
-class(pm_sco2_type) :: this
-SNES :: snes
-Vec :: X0
-Vec :: dX
-Vec :: X1
-PetscBool :: dX_changed
-PetscBool :: X1_changed
-PetscErrorCode :: ierr
+  class(pm_sco2_type) :: this
+  SNES :: snes
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
+  PetscErrorCode :: ierr
 
-PetscReal, pointer :: X0_p(:)
-PetscReal, pointer :: dX_p(:)
-type(grid_type), pointer :: grid
-type(option_type), pointer :: option
-type(field_type), pointer :: field
-type(patch_type), pointer :: patch
-type(global_auxvar_type), pointer :: global_auxvars(:)
+  PetscReal, pointer :: X0_p(:)
+  PetscReal, pointer :: dX_p(:)
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch
+  type(global_auxvar_type), pointer :: global_auxvars(:)
 
-PetscInt :: local_id, ghosted_id, natural_id
-PetscInt :: offset, ival, idof
-PetscReal :: dX_abs, dX_X0
-PetscBool, pointer :: converged_abs_update_flag(:,:)
-PetscBool, pointer :: converged_rel_update_flag(:,:)
-PetscInt, pointer :: converged_abs_update_cell(:,:)
-PetscInt, pointer :: converged_rel_update_cell(:,:)
-PetscReal, pointer :: converged_abs_update_real(:,:)
-PetscReal, pointer :: converged_rel_update_real(:,:)
-PetscInt :: istate
-PetscBool :: converged_absolute
-PetscBool :: converged_relative
+  PetscInt :: local_id, ghosted_id, natural_id
+  PetscInt :: offset, ival, idof
+  PetscReal :: dX_abs, dX_X0
+  PetscBool, pointer :: converged_abs_update_flag(:,:)
+  PetscBool, pointer :: converged_rel_update_flag(:,:)
+  PetscInt, pointer :: converged_abs_update_cell(:,:)
+  PetscInt, pointer :: converged_rel_update_cell(:,:)
+  PetscReal, pointer :: converged_abs_update_real(:,:)
+  PetscReal, pointer :: converged_rel_update_real(:,:)
+  PetscInt :: istate
+  PetscBool :: converged_absolute
+  PetscBool :: converged_relative
 
-grid => this%realization%patch%grid
-option => this%realization%option
-field => this%realization%field
-patch => this%realization%patch
-global_auxvars => patch%aux%Global%auxvars
+  grid => this%realization%patch%grid
+  option => this%realization%option
+  field => this%realization%field
+  patch => this%realization%patch
+  global_auxvars => patch%aux%Global%auxvars
 
-allocate(converged_abs_update_flag(option%nflowdof,sco2_max_states))
-allocate(converged_rel_update_flag(option%nflowdof,sco2_max_states))
-allocate(converged_abs_update_cell(option%nflowdof,sco2_max_states))
-allocate(converged_rel_update_cell(option%nflowdof,sco2_max_states))
-allocate(converged_abs_update_real(option%nflowdof,sco2_max_states))
-allocate(converged_rel_update_real(option%nflowdof,sco2_max_states))
+  allocate(converged_abs_update_flag(option%nflowdof,sco2_max_states))
+  allocate(converged_rel_update_flag(option%nflowdof,sco2_max_states))
+  allocate(converged_abs_update_cell(option%nflowdof,sco2_max_states))
+  allocate(converged_rel_update_cell(option%nflowdof,sco2_max_states))
+  allocate(converged_abs_update_real(option%nflowdof,sco2_max_states))
+  allocate(converged_rel_update_real(option%nflowdof,sco2_max_states))
 
-dX_changed = PETSC_FALSE
-X1_changed = PETSC_FALSE
+  dX_changed = PETSC_FALSE
+  X1_changed = PETSC_FALSE
 
-call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-converged_abs_update_flag = PETSC_TRUE
-converged_rel_update_flag = PETSC_TRUE
-converged_abs_update_cell = ZERO_INTEGER
-converged_rel_update_cell = ZERO_INTEGER
-converged_abs_update_real = 0.d0
-converged_rel_update_real = 0.d0
+  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  converged_abs_update_flag = PETSC_TRUE
+  converged_rel_update_flag = PETSC_TRUE
+  converged_abs_update_cell = ZERO_INTEGER
+  converged_rel_update_cell = ZERO_INTEGER
+  converged_abs_update_real = 0.d0
+  converged_rel_update_real = 0.d0
+  
+  do local_id = 1, grid%nlmax
+    offset = (local_id-1)*option%nflowdof
+    ghosted_id = grid%nL2G(local_id)
+    natural_id = grid%nG2A(ghosted_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    istate = global_auxvars(ghosted_id)%istate
 
-do local_id = 1, grid%nlmax
-  offset = (local_id-1)*option%nflowdof
-  ghosted_id = grid%nL2G(local_id)
-  natural_id = grid%nG2A(ghosted_id)
-  if (patch%imat(ghosted_id) <= 0) cycle
-  istate = global_auxvars(ghosted_id)%istate
+    do idof = 1, option%nflowdof
 
-  do idof = 1, option%nflowdof
+      ival = offset+idof
 
-    ival = offset+idof
+      ! infinity norms on update
+      converged_absolute = PETSC_TRUE
+      converged_relative = PETSC_TRUE
+      dX_abs = dabs(dX_p(ival))
+      if (X0_p(ival) > 0.d0) then
+        dX_X0 = dabs(dX_abs/(X0_p(ival)))
+      else
+        dX_X0 = dabs(dX_abs/1.d-40)
+      endif
 
-    ! infinity norms on update
-    converged_absolute = PETSC_TRUE
-    converged_relative = PETSC_TRUE
-    dX_abs = dabs(dX_p(ival))
-    if (X0_p(ival) > 0.d0) then
-      dX_X0 = dabs(dX_abs/(X0_p(ival)))
-    else
-      dX_X0 = dabs(dX_abs/1.d-40)
-    endif
+      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
+        converged_absolute = PETSC_FALSE
+      endif
+      if (converged_abs_update_real(idof,istate) < dX_abs) then
+        converged_abs_update_real(idof,istate) = dX_abs
+        converged_abs_update_cell(idof,istate) = natural_id
+      endif
+      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+        converged_relative = PETSC_FALSE
+      endif
+      if (converged_rel_update_real(idof,istate) < dX_X0) then
+        converged_rel_update_real(idof,istate) = dX_X0
+        converged_rel_update_cell(idof,istate) = natural_id
+      endif
 
-    if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-      converged_absolute = PETSC_FALSE
-    endif
-    if (converged_abs_update_real(idof,istate) < dX_abs) then
-      converged_abs_update_real(idof,istate) = dX_abs
-      converged_abs_update_cell(idof,istate) = natural_id
-    endif
-    if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-      converged_relative = PETSC_FALSE
-    endif
-    if (converged_rel_update_real(idof,istate) < dX_X0) then
-      converged_rel_update_real(idof,istate) = dX_X0
-      converged_rel_update_cell(idof,istate) = natural_id
-    endif
-
-    ! only enter this condition if both are not converged
-    if (.not.(converged_absolute .or. converged_relative)) then
-      converged_abs_update_flag(idof,istate) = PETSC_FALSE
-      converged_rel_update_flag(idof,istate) = PETSC_FALSE
-    endif
+      ! only enter this condition if both are not converged
+      if (.not.(converged_absolute .or. converged_relative)) then
+        converged_abs_update_flag(idof,istate) = PETSC_FALSE
+        converged_rel_update_flag(idof,istate) = PETSC_FALSE
+      endif
+    enddo
   enddo
 
-enddo
+  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
 
-call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-
-this%converged_flag(:,:,ABS_UPDATE_INDEX) = converged_abs_update_flag(:,:)
-this%converged_flag(:,:,REL_UPDATE_INDEX) = converged_rel_update_flag(:,:)
-this%converged_real(:,:,ABS_UPDATE_INDEX) = converged_abs_update_real(:,:)
-this%converged_real(:,:,REL_UPDATE_INDEX) = converged_rel_update_real(:,:)
-this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
-this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
+  this%converged_flag(:,:,ABS_UPDATE_INDEX) = converged_abs_update_flag(:,:)
+  this%converged_flag(:,:,REL_UPDATE_INDEX) = converged_rel_update_flag(:,:)
+  this%converged_real(:,:,ABS_UPDATE_INDEX) = converged_abs_update_real(:,:)
+  this%converged_real(:,:,REL_UPDATE_INDEX) = converged_rel_update_real(:,:)
+  this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
+  this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
 
 end subroutine PMSCO2CheckUpdatePost
 
@@ -1116,13 +1117,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               'Gas Pressure     ','Gas Saturation   ', &
               'Salt Mass Frac   ', &
               'Gas Pressure     ','Liquid Pressure  ', &
-              'Salt Mass Frac   ', &
-              'Liquid Pressure  ','CO2 Fraction     ', &
-              'Precipitate Sat  ', &
-              'Gas Pressure     ','Liquid Saturation', &
-              'Precipitate Sat  ', &
-              'Gas Pressure     ','Liquid Saturation', &
-              'Precipitate Sat  '], &
+              'Salt Mass Frac   '], &
              shape(dof_string))
   ! With Energy
   ! dof_string = &
@@ -1133,13 +1128,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   !            'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
   !            'Salt Mass Frac   ', &
   !            'Gas Pressure     ','Liquid Pressure  ','Temperature      ', &
-  !            'Salt Mass Frac   ', &
-  !            'Liquid Pressure  ','CO2 Fraction     ','Temperature      ', &
-  !            'Precipitate Sat  ', &
-  !            'Gas Pressure     ','Liquid Saturation','Temperature      ', &
-  !            'Precipitate Sat  ', &
-  !            'Gas Pressure     ','Liquid Saturation','Temperature      ', &
-  !            'Precipitate Sat  '], &
+  !            'Salt Mass Frac   '], &
   !           shape(dof_string))
 
   call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);

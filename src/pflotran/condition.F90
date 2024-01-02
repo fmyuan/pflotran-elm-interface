@@ -2840,10 +2840,11 @@ subroutine FlowConditionSCO2Read(condition,input,option)
       endif
       if (.not.associated(sco2%co2_mass_fraction) .and. &
           .not.associated(sco2%co2_pressure) .and. &
-          .not.associated(sco2%gas_saturation)) then
+          .not.associated(sco2%gas_saturation) .and. &
+          .not.associated(sco2%gas_pressure)) then
         option%io_buffer = 'SCO2 Mode non-rate condition must include &
             &a CO2 partial pressure, CO2 mass fraction, &
-            &or gas/liquid saturation.'
+            &gas pressure, or gas/liquid saturation.'
         call PrintErrMsg(option)
       endif
       ! if (.not.associated(sco2%temperature)) then
