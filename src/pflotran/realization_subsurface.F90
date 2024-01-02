@@ -870,6 +870,24 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call PrintErrMsg(option)
       end select
     endif
+    if (associated(cur_material_property%surf_elec_cond_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),SURFACE_ELECTRICAL_CONDUCTIVITY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property% &
+                                surf_elec_cond_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%surf_elec_cond_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%surf_elec_cond_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for surface electrical &
+                             &conductivity.'
+          call PrintErrMsg(option)
+      end select
+    endif
     if (associated(cur_material_property%multicontinuum)) then
       if (associated(cur_material_property%multicontinuum%epsilon_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &

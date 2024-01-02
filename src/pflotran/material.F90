@@ -61,6 +61,7 @@ module Material_module
     PetscReal :: archie_saturation_exponent
     PetscReal :: archie_tortuosity_constant
     PetscReal :: surface_electrical_conductivity
+    class(dataset_base_type), pointer :: surf_elec_cond_dataset
     PetscReal :: waxman_smits_clay_conductivity
 
     class(fracture_type), pointer :: fracture
@@ -223,6 +224,7 @@ function MaterialPropertyCreate(option)
   material_property%archie_saturation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_tortuosity_constant = UNINITIALIZED_DOUBLE
   material_property%surface_electrical_conductivity = UNINITIALIZED_DOUBLE
+  nullify(material_property%surf_elec_cond_dataset)
   material_property%waxman_smits_clay_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(material_property%fracture)
@@ -982,9 +984,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%archie_tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_str)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
-        call InputReadDouble(input,option, &
-                             material_property%surface_electrical_conductivity)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%surface_electrical_conductivity, &
+                      material_property%surf_elec_cond_dataset, &
+                      keyword,error_str,option)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
         call InputReadDouble(input,option, &
                              material_property%waxman_smits_clay_conductivity)
@@ -1745,7 +1748,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_archie_tort_const = num_archie_tort_const + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%surface_electrical_conductivity)) then
+                      ptr%surface_electrical_conductivity) .or. &
+        associated(material_property_ptrs(i)%ptr%surf_elec_cond_dataset)) then
       if (surf_elec_conduct_index == 0) then
         icount = icount + 1
         surf_elec_conduct_index = icount
@@ -2665,6 +2669,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
   nullify(material_property%electrical_conductivity_dataset)
+  nullify(material_property%surf_elec_cond_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
 
