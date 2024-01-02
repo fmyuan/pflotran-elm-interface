@@ -204,8 +204,10 @@ subroutine PMFracSetup(this)
   PetscInt :: k,j,local_id,local_id_center
   PetscInt :: nf,tfc,read_max
   PetscReal :: D,distance 
+  PetscReal :: min_x,max_x,min_y,max_y 
   PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
   PetscReal :: ra, sinra, cosra
+  PetscBool :: within_x,within_y
 
   option => this%option
   res_grid => this%realization%patch%grid
@@ -258,8 +260,27 @@ subroutine PMFracSetup(this)
                  cur_fracture%normal%y*res_grid%y(res_grid%nL2G(k)) + &
                  cur_fracture%normal%z*res_grid%z(res_grid%nL2G(k)) + D
       if (abs(distance) < this%max_distance) then
-        j = j + 1
-        temp_cell_ids(j) = k
+        ! entered here if the center of the grid cell is within a tolerance 
+        ! of max_distance of the plane.
+        ! next check if the (x,y) position of the grid cell lies within the 
+        ! requested rad(x,y) of the plane from the center point.
+        min_x = cur_fracture%center%x - cur_fracture%radx 
+        max_x = cur_fracture%center%x + cur_fracture%radx 
+        min_y = cur_fracture%center%y - cur_fracture%rady 
+        max_y = cur_fracture%center%y + cur_fracture%rady 
+        within_x = PETSC_FALSE; within_y = PETSC_FALSE
+        if ((res_grid%x(res_grid%nL2G(k)) <= max_x) .and. &
+            (res_grid%x(res_grid%nL2G(k)) >= min_x)) then
+          within_x = PETSC_TRUE
+        endif
+        if ((res_grid%y(res_grid%nL2G(k)) <= max_y) .and. &
+            (res_grid%y(res_grid%nL2G(k)) >= min_y)) then
+          within_y = PETSC_TRUE
+        endif
+        if (within_x .and. within_y) then
+          j = j + 1
+          temp_cell_ids(j) = k
+        endif
       endif
     enddo
     cur_fracture%ncells = j
