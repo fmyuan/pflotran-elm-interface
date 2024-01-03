@@ -423,6 +423,7 @@ subroutine PMFracInitializeRun(this)
   !
   use Material_Aux_module
   use Global_Aux_module
+  use General_Aux_module
   use Field_module
   use Grid_module
 
@@ -432,6 +433,7 @@ subroutine PMFracInitializeRun(this)
 
   type(material_auxvar_type), pointer :: material_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
+  type(general_auxvar_type), pointer :: general_auxvar
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
@@ -470,9 +472,15 @@ subroutine PMFracInitializeRun(this)
       material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky 
       material_auxvar%permeability(3) = material_auxvar%permeability(3) + kz
 
-      global_auxvar => &
-        this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
-      cur_fracture%prev_temperature(k) = global_auxvar%temp
+      if (option%iflowmode == G_MODE) then
+        general_auxvar => &
+          this%realization%patch%aux%General%auxvars(1,grid%nL2G(icell))
+        cur_fracture%prev_temperature(k) = general_auxvar%temp
+      elseif (option%iflowmode == TH_MODE) then
+        global_auxvar => &
+          this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
+        cur_fracture%prev_temperature(k) = global_auxvar%temp
+      endif 
     enddo
 
     cur_fracture => cur_fracture%next
@@ -944,6 +952,7 @@ subroutine PMFracSolve(this,time,ierr)
   !
   use Material_Aux_module
   use Global_Aux_module
+  use General_Aux_module
   use Field_module
   use Grid_module
 
@@ -955,6 +964,7 @@ subroutine PMFracSolve(this,time,ierr)
 
   type(material_auxvar_type), pointer :: material_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
+  type(general_auxvar_type), pointer :: general_auxvar
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -980,11 +990,24 @@ subroutine PMFracSolve(this,time,ierr)
     do k = 1,cur_fracture%ncells
       icell = cur_fracture%cell_ids(k)
       material_auxvar => &
-        this%realization%patch%aux%material%auxvars(grid%nL2G(icell)) 
-      global_auxvar => &
-        this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
-      cur_temperature = global_auxvar%temp
-      cur_fracture%dT(k) = cur_temperature - cur_fracture%prev_temperature(k)
+        this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
+      if (option%iflowmode == G_MODE) then
+        general_auxvar => &
+          this%realization%patch%aux%General%auxvars(1,grid%nL2G(icell))
+        cur_temperature = general_auxvar%temp
+      elseif (option%iflowmode == TH_MODE) then
+        global_auxvar => &
+          this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
+        cur_temperature = global_auxvar%temp
+      endif 
+      
+      if (cur_fracture%prev_temperature(k) == 0.d0) then
+        ! for whatever reason, in general_mode the auxvar temperature is not
+        ! initialized before the fracture pm calls initialize run.
+        cur_fracture%dT(k) = 0.d0
+      else
+        cur_fracture%dT(k) = cur_temperature - cur_fracture%prev_temperature(k)
+      endif
 
       ! if cells aren't too pancaked, L should be a good estimate of length
       L = (material_auxvar%volume)**(1.d0/3.d0)

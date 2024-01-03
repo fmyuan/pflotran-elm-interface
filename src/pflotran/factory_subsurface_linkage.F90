@@ -1111,9 +1111,10 @@ subroutine FactSubLinkAddPMCFracture(simulation,pm_fracture,pmc_name,input)
   call InputFindStringErrorMsg(input,option,string)
   call pm_fracture%ReadPMBlock(input)
 
-  if (option%iflowmode /= TH_MODE) then
+  if ((option%iflowmode /= TH_MODE) .and. &
+      (option%iflowmode /= G_MODE)) then
      option%io_buffer = 'The GEOTHERMAL FRACTURE process model can only be &
-                        &used with TH mode at the moment.'
+                        &used with TH Mode or GENERAL Mode.'
      call PrintErrMsg(option)
   endif
 
