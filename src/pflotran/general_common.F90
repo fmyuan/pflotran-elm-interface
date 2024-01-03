@@ -4534,8 +4534,9 @@ endif
       if (general_salt) then
         if (dabs(qsrc(salt_comp_id)) > 1.d-40) then
           if (soluble_matrix) then
-            Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * &
-              material_auxvar%soil_particle_density * soil_heat_capacity * gen_auxvar_ss%temp
+                             !kmol/sec * kg/kmol * MJ/kg-K * T[C] = MJ/sec
+            Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * FMWNACL * &
+              soil_heat_capacity * gen_auxvar_ss%temp
           else
             internal_energy = gen_auxvar_ss%u(salt_comp_id)
             enthalpy = gen_auxvar_ss%h(salt_comp_id)
