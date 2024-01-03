@@ -787,6 +787,10 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   PetscReal :: jac_num(3,3)
   PetscReal :: jac_dum(3,3)
 
+  PetscReal :: dummy_real 
+
+  dummy_real = 123.d0
+
   qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
   flow_src_sink_type=source_sink%flow_condition%general%rate%itype
 
@@ -805,7 +809,8 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                       global_auxvar_ss(natural_id), &
                       material_auxvar(natural_id), ss_flow_vol_flux, &
                       characteristic_curves, natural_id, &
-                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
+                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE,&
+                      dummy_real,PETSC_FALSE)
 
   do idof = 1, option%nflowdof
     call GeneralAuxVarCopy(general_auxvar_ss(ZERO_INTEGER), &
@@ -818,7 +823,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                         ss_flow_vol_flux, &
                         characteristic_curves, natural_id, &
                         scale,res_pert(:,idof),jac_dum,PETSC_FALSE, &
-                        PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
+                        PETSC_FALSE,PETSC_FALSE,dummy_real, PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num(irow,idof) = (res_pert(irow,idof)-res(irow))/pert(idof)
     enddo !irow

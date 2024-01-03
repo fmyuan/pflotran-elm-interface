@@ -706,6 +706,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
 
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_ptr_type), pointer :: material_property_array(:)
+  type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
@@ -747,6 +748,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
   material_property_array => patch%material_property_array  
+  material_parameter => patch%aux%Material%material_parameter
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
@@ -1138,6 +1140,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           PETSC_TRUE, & ! aux_var_compute_only
                           material_property_array(patch%imat( &
                             ghosted_id))%ptr%soluble, &
+                          material_parameter%soil_heat_capacity(&
+                            patch%imat(ghosted_id)), &
                           local_id == general_debug_cell_id)
 
     enddo
@@ -1610,6 +1614,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                           PETSC_FALSE, &
                           material_property_array(patch%imat( &
                             ghosted_id))%ptr%soluble, &
+                          material_parameter%soil_heat_capacity(&
+                            patch%imat(ghosted_id)), &
                           local_id == general_debug_cell_id)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
@@ -2022,7 +2028,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                         scale, &
                         material_property_array(patch%imat( &
                           ghosted_id))%ptr%soluble, &
-                        Jup)
+                        material_parameter%soil_heat_capacity(&
+                          patch%imat(ghosted_id)), Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)

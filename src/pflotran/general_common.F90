@@ -3980,7 +3980,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           material_auxvar,ss_flow_vol_flux, &
                           characteristic_curves, natural_id, scale,Res,J, &
                           analytical_derivatives,aux_var_compute_only, &
-                          soluble_matrix,debug_cell)
+                          soluble_matrix,soil_heat_capacity,debug_cell)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -4024,6 +4024,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: cell_pressure
   PetscReal :: xxss(option%nflowdof)
   PetscInt :: lid, gid, pid, apid
+  PetscReal :: soil_heat_capacity
 
   PetscBool :: soluble_matrix
 
@@ -4083,6 +4084,40 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar%pres(apid)
         endif
+      case(LP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(air_comp_id, wat_comp_id)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          endif
+        endif
+      case(LGP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%sat(gid)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
+      case(GP_STATE)
+        if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+          xxss(TWO_INTEGER) = gen_auxvar_ss%pres(apid)
+        else
+          xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(wat_comp_id,air_comp_id)
+        endif
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
     end select
     global_auxvar_ss%istate = global_auxvar%istate
   else ! If injecting, use primary variables from user-supplied conditions
@@ -4112,6 +4147,8 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
         endif
       case(LP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(air_comp_id, wat_comp_id)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
         if (general_salt) then
           if (soluble_matrix) then
             xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
@@ -4120,6 +4157,8 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
           endif
         endif
       case(LGP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%sat(gid)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
         if (general_salt) then
           if (soluble_matrix) then
             xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
@@ -4494,19 +4533,14 @@ endif
       endif
       if (general_salt) then
         if (dabs(qsrc(salt_comp_id)) > 1.d-40) then
-           ! this is pure air, we use the enthalpy of air, NOT the air/water
-           ! mixture in gas
-           ! air enthalpy is only a function of temperature
-           if (associated(gen_auxvar_ss%d)) then
-              ha_dp = gen_auxvar_ss%d%Ha_pg
-              ha_dT = gen_auxvar_ss%d%Ha_T
-           endif
-
-           internal_energy = gen_auxvar_ss%u(salt_comp_id)
-           enthalpy = gen_auxvar_ss%h(salt_comp_id)
-           
-           Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * enthalpy
-           
+          if (soluble_matrix) then
+            Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * &
+              material_auxvar%soil_particle_density * soil_heat_capacity * gen_auxvar_ss%temp
+          else
+            internal_energy = gen_auxvar_ss%u(salt_comp_id)
+            enthalpy = gen_auxvar_ss%h(salt_comp_id)
+            Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * enthalpy
+          endif
         endif
       endif
     endif
@@ -4956,7 +4990,8 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                                     gen_auxvar,global_auxvar, &
                                     global_auxvar_ss, &
                                     characteristic_curves,natural_id, &
-                                    material_auxvar,scale,soluble_matrix,Jac)
+                                    material_auxvar,scale,soluble_matrix, &
+                                    soil_heat_capacity, Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -4989,6 +5024,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
   PetscBool :: soluble_matrix
+  PetscReal :: soil_heat_capacity
 
   qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
   flow_src_sink_type = source_sink%flow_condition%general%rate%itype
@@ -5004,7 +5040,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                         material_auxvar, dummy_real, characteristic_curves, &
                         natural_id, scale,res,Jdum, &
                         general_analytical_derivatives, PETSC_FALSE, soluble_matrix, &
-                        PETSC_FALSE)
+                        soil_heat_capacity, PETSC_FALSE)
   endif
 
   if (general_analytical_derivatives) then
@@ -5020,13 +5056,13 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                             global_auxvar,global_auxvar_ss, &
                             material_auxvar, dummy_real, characteristic_curves, &
                             natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
-                            PETSC_FALSE, soluble_matrix, PETSC_FALSE)
+                            PETSC_FALSE, soluble_matrix, soil_heat_capacity, PETSC_FALSE)
         call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                             gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof+option%nflowdof), &
                             global_auxvar,global_auxvar_ss, &
                             material_auxvar, dummy_real, characteristic_curves, &
                             natural_id, scale, res_pert_minus,Jdum,PETSC_FALSE, &
-                            PETSC_FALSE, soluble_matrix, PETSC_FALSE)
+                            PETSC_FALSE, soluble_matrix, soil_heat_capacity, PETSC_FALSE)
 
         do irow = 1, option%nflowdof
           Jac(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
@@ -5042,7 +5078,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                             global_auxvar,global_auxvar_ss, &
                             material_auxvar, dummy_real,characteristic_curves, &
                             natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
-                            PETSC_FALSE, soluble_matrix, PETSC_FALSE)
+                            PETSC_FALSE, soluble_matrix, soil_heat_capacity, PETSC_FALSE)
 
         do irow = 1, option%nflowdof
           Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
