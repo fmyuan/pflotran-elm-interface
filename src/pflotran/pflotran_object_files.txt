@@ -64,6 +64,7 @@ mode_process_model_obj = \
 	${common_src}pm_mphase.o \
 	${common_src}pm_nwt.o \
 	${common_src}pm_osrt.o \
+	${common_src}pm_parameter.o \
 	${common_src}pm_pnf.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \

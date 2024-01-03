@@ -2042,6 +2042,17 @@ pm_osrt.o : \
   reaction_aux.o \
   reactive_transport.o \
   realization_subsurface.o
+pm_parameter.o : \
+  communicator_base.o \
+  condition.o \
+  coupler.o \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  pm_base.o \
+  reaction_aux.o \
+  realization_subsurface.o \
+  string.o
 pm_pnf.o : \
   checkpoint.o \
   communicator_base.o \
