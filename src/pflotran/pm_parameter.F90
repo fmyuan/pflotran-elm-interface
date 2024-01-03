@@ -149,6 +149,8 @@ subroutine PMParameterRead(this,input)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_str
 
+  option => this%option
+
   error_str = 'SIMULATION,PROCESS_MODELS,PARAMETER'
 
   input%ierr = 0
@@ -165,10 +167,12 @@ subroutine PMParameterRead(this,input)
 
     select case(trim(keyword))
       case('')
+        call InputReadWord(input,option,word,PETSC_TRUE)
       case default
         call InputKeywordUnrecognized(input,keyword,error_str,option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine PMParameterRead
 
