@@ -53,7 +53,7 @@
       Min:   0.0000000000000E+00
      Mean:   3.3838121503374E-02
         5:   3.5113694594028E-02
--- GENERIC: Permeability X --
+-- GENERIC: Permeability --
       Max:   1.0000000000000E-12
       Min:   1.0000000000000E-12
      Mean:   1.0000000000000E-12

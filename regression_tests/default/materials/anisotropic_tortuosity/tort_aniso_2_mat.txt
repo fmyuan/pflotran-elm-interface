@@ -1,0 +1,207 @@
+!=========================== chenmistry =================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  /
+  AQUEOUS_DIFFUSION_COEFFICIENTS
+    Tracer 1.157d-7
+  END
+  OUTPUT
+    Tracer
+    TOTAL
+  /
+END
+
+!=========================== grid & regions =================================
+GRID
+  TYPE structured
+  NXYZ 5 5 5
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 5.d0 5.d0
+  /
+END
+
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION bottom_half
+  COORDINATES
+    -1.d20 -1.d20 0.d0
+    1.d20 1.d20 2.5d0
+  /
+END
+
+REGION inlet
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 0.d0 0.d0
+  /
+END
+
+REGION outlet
+  COORDINATES
+    5.d0 5.d0 5.d0
+    5.d0 5.d0 5.d0
+  /
+END
+
+REGION center
+  COORDINATE 2.5 2.5 2.5
+END
+
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 0.d-9
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY mat1
+  ID 1
+  POROSITY 0.3d0
+  PERMEABILITY 
+    PERM_ISO 1.d-12
+  /
+  ANISOTROPIC_TORTUOSITY
+    TORTUOSITY_X 1.1d0
+    TORTUOSITY_Y 0.6d0
+    TORTUOSITY_Z 2.d0
+  END
+  CHARACTERISTIC_CURVES default
+END
+
+MATERIAL_PROPERTY mat2
+  ID 2
+  POROSITY 0.3d0
+  PERMEABILITY 
+    PERM_ISO 1.d-13
+  /
+  ANISOTROPIC_TORTUOSITY
+    TORTUOSITY_X 0.7d0
+    TORTUOSITY_Y 0.9d0
+    TORTUOSITY_Z 0.2d0
+  END
+  CHARACTERISTIC_CURVES default
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+#=========================== output options ===================================
+#skip
+OUTPUT
+  TIME_UNITS day
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    TIMES day 20.d0
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+/
+#noskip
+
+#=========================== regression =======================================
+REGRESSION
+  VARIABLES
+    TORTUOSITY_X
+    TORTUOSITY_Y
+    TORTUOSITY_Z
+  /  
+  CELL_IDS
+    32
+    63
+    90
+    98
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 2.0d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-3 d
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 d
+/
+
+#=========================== observations =====================================
+OBSERVATION
+  AT_CELL_CENTER
+  REGION center
+/
+
+!=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  LIQUID_PRESSURE 1.d6
+END
+
+FLOW_CONDITION inlet
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 5. kg/min
+END
+
+FLOW_CONDITION outlet
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE -5. kg/min
+END
+
+!=========================== transport conditions =============================
+TRANSPORT_CONDITION inlet
+  TYPE dirichlet
+  CONSTRAINT links
+    CONCENTRATIONS
+      Tracer 1.d-2 T
+    /
+  /
+END
+
+TRANSPORT_CONDITION initial
+  TYPE dirichlet
+  CONSTRAINT initial
+    CONCENTRATIONS
+      Tracer 1.d-20 T
+    /
+  /
+END
+
+!=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+SOURCE_SINK inlet
+  FLOW_CONDITION inlet
+  TRANSPORT_CONDITION inlet
+  REGION inlet
+END
+
+SOURCE_SINK outlet
+  FLOW_CONDITION outlet
+  TRANSPORT_CONDITION initial
+  REGION outlet
+END
+
+!=========================== strata ===========================================
+STRATA
+  REGION all
+  MATERIAL mat1
+END
+
+STRATA
+  REGION bottom_half
+  MATERIAL mat2
+END

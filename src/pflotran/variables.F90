@@ -195,5 +195,7 @@ module Variables_module
   PetscInt, parameter, public :: NUMBER_SECONDARY_CELLS = 157
 
   PetscInt, parameter, public :: VERTICAL_PERM_ANISOTROPY_RATIO = 158
+  PetscInt, parameter, public :: TORTUOSITY_Y                   = 159
+  PetscInt, parameter, public :: TORTUOSITY_Z                   = 160
 
 end module Variables_module
