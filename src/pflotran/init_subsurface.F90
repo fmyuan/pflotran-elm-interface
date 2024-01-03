@@ -313,6 +313,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, ELECTRICAL_CONDUCTIVITY, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS, &
                                TORTUOSITY_Y,TORTUOSITY_Z
 
@@ -570,6 +571,14 @@ subroutine InitSubsurfAssignMatProperties(realization)
         call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
                                              material_property%internal_id, &
                                              ELECTRICAL_CONDUCTIVITY)
+      endif
+      if (associated(material_property%surf_elec_cond_dataset)) then
+        call SubsurfReadDatasetToVecWithMask(realization, &
+               material_property%surf_elec_cond_dataset, &
+               material_property%internal_id,PETSC_FALSE,field%work)
+        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
+                                             material_property%internal_id, &
+                                             SURFACE_ELECTRICAL_CONDUCTIVITY)
       endif
       if (associated(material_property%multicontinuum)) then
         if (associated(material_property%multicontinuum%epsilon_dataset)) then
