@@ -90,7 +90,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   call VecSet(field%work_loc,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
   call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
 
-  ! TODO(patch_list): fix indentation
+  ! TODO(geh) fix indentation after 7/1/24
 
     select case(option%iflowmode)
 
@@ -1210,7 +1210,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   vec1_loc = PETSC_NULL_VEC
   vec2_loc = PETSC_NULL_VEC
 
-  ! TODO(patch_list) fix indentation
+  ! TODO(geh) fix indentation after 7/1/24
 
     rt_auxvars => patch%aux%RT%auxvars
     global_auxvars => patch%aux%Global%auxvars
@@ -1714,7 +1714,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
 
   !TODO(jenn) Do not allow MPH_MODE with NW Transport.
 
-  ! TODO(patch_list) fix indentation
+  ! TODO(geh) fix indentation after 7/1/24
 
     material_auxvars => patch%aux%Material%auxvars
     global_auxvars => patch%aux%Global%auxvars
@@ -1951,7 +1951,7 @@ subroutine CondControlScaleSourceSink(realization)
       call PrintErrMsg(option)
   end select
 
-  ! TODO(patch_list) fix indentation
+  ! TODO(geh) fix indentation after 7/1/24
 
     cur_source_sink => patch%source_sink_list%first
     do
@@ -2082,7 +2082,7 @@ subroutine CondControlReadTransportIC(realization,filename)
   grid => patch%grid
   reaction => realization%reaction
 
-  ! TODO(patch_list) fix indentation
+  ! TODO(geh) fix indentation after 7/1/24
 
       ! assign initial conditions values to domain
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)

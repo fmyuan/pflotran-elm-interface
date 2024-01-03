@@ -71,11 +71,7 @@ private
             RealizUpdateUniformVelocity, &
             RealizationRevertFlowParameters, &
             RealizStoreRestartFlowParams, &
-!            RealizationGetVariable, &
-!            RealizGetVariableValueAtCell, &
-!            RealizationSetVariable, &
             RealizationPrintCouplers, &
-            RealizationInitConstraints, &
             RealProcessMatPropAndSatFunc, &
             RealProcessFluidProperties, &
             RealizationUpdatePropertiesTS, &
@@ -93,10 +89,6 @@ private
             RealizationReadGeopSurveyFile, &
             RealizationCheckConsistency, &
             RealizationPrintStateAtCells
-
-  !TODO(intel)
-  ! public from Realization_Base_class
-  !public :: RealizationGetVariable
 
 contains
 
@@ -1335,26 +1327,6 @@ subroutine RealProcessTranConditions(realization)
   enddo
 
 end subroutine RealProcessTranConditions
-
-! ************************************************************************** !
-
-subroutine RealizationInitConstraints(realization)
-  !
-  ! Initializes constraint concentrations
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/04/08
-  !
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  ! TODO(patch_list): remove
-  call PatchInitConstraints(realization%patch,realization%reaction_base, &
-                            realization%option)
-
-end subroutine RealizationInitConstraints
 
 ! ************************************************************************** !
 
