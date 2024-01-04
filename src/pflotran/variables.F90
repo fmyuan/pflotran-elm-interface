@@ -198,8 +198,8 @@ module Variables_module
   PetscInt, parameter, public :: TORTUOSITY_Y                   = 159
   PetscInt, parameter, public :: TORTUOSITY_Z                   = 160
 
-  PetscInt, parameter, public :: CO2_PRESSURE = 159
-  PetscInt, parameter, public :: LIQUID_SALT_MASS_FRAC = 160
-  PetscInt, parameter, public :: TRAPPED_GAS_SATURATION = 161
+  PetscInt, parameter, public :: CO2_PRESSURE = 161
+  PetscInt, parameter, public :: LIQUID_SALT_MASS_FRAC = 162
+  PetscInt, parameter, public :: TRAPPED_GAS_SATURATION = 163
 
 end module Variables_module
