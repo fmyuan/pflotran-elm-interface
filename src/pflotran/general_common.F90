@@ -1945,7 +1945,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_dn = gen_auxvar_dn%sat(iphase)
   !geh: i am not sure why both of these conditionals were included.  seems
   !     like the latter would never be false.
-  if (sqrt(sat_up*sat_dn) > eps) then
+  if (sat_up > eps .and. sat_dn > eps) then
+  !if (sqrt(sat_up*sat_dn) > eps) then
     dsatup = 1.d0
     dsatdn = 1.d0
     if (general_harmonic_diff_density) then
