@@ -451,10 +451,11 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   rvpid = option%reduced_vapor_pressure_id
         
   call SCO2ComputeSaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
+  dxs = 1.0d-5 * xsl
   !MAN: need to make sure total salt mass is updated in AuxVarCompute
-  salt_mass = sco2_auxvar(ZERO_INTEGER)%m_salt(TWO_INTEGER)
+  salt_mass = sco2_auxvar(ZERO_INTEGER)%m_salt(ONE_INTEGER)
   xsl = min(salt_mass,xsl)
-  dxs = 1.0d-5 * xsl 
+  
 
   ! dt = -1.d0 * perturbation_tolerance * (sco2_auxvar(ZERO_INTEGER)%temp + &
   !      min_perturbation)
@@ -516,6 +517,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   dpco2 = dpco2 + sign(min_perturbation,dpco2)
   dsg = dsg + sign(min_perturbation,dsg)
   dxs = dxs + sign(min_perturbation,dxs)
+  dxco2 = dxco2 + sign(min_perturbation,dxco2)
 
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)
@@ -1189,7 +1191,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   sco2_auxvar%xmol = 0.d0
   sco2_auxvar%effective_diffusion_coeff = 0.d0
   sco2_auxvar%dispersivity = 0.d0
-  sco2_auxvar%effective_porosity = 0.d0
+  sco2_auxvar%effective_porosity = material_auxvar%porosity_base
   sco2_auxvar%effective_permeability = 0.d0
   sco2_auxvar%tortuosity = 0.d0
 
@@ -1283,15 +1285,16 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmass(sid,lid) = x_salt_dissolved + &
                               (xsl-x_salt_dissolved) * &
                               (sco2_auxvar%xmass(co2_id,lid) / xco2l)
-      sco2_auxvar%xmass(wid,lid) = 1.d0 - sco2_auxvar%xmass(sid,lid) - &
-                                   sco2_auxvar%xmass(co2_id,lid)
 
       call SCO2ComputeSaltDensity(sco2_auxvar%temp, sco2_auxvar%pres(lid), &
                                   sco2_auxvar%den_kg(pid))
-
       sco2_auxvar%sat(pid) = max((sco2_auxvar%m_salt(1) - &
                              salt_solubility),0.d0)* &
                              den_brine_kg / sco2_auxvar%den_kg(pid)
+      ! if (sco2_auxvar%sat(pid) > 0.d0) sco2_auxvar%xmass(sid,lid) = salt_solubility
+
+      sco2_auxvar%xmass(wid,lid) = 1.d0 - sco2_auxvar%xmass(sid,lid) - &
+                                   sco2_auxvar%xmass(co2_id,lid)
       sco2_auxvar%sat(lid) = 1.d0 !- sco2_auxvar%sat(pid)
       sco2_auxvar%sat(gid) = 0.d0
 
@@ -1462,7 +1465,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       !      with salt precipitate
       sco2_auxvar%sat(pid) = max((sco2_auxvar%m_salt(1) - &
                              salt_solubility),0.d0)* &
-                             den_brine_kg / sco2_auxvar%den_kg(pid)
+                             den_brine_kg / sco2_auxvar%den_kg(pid) * &
+                             sco2_auxvar%sat(lid)
 
       ! Update trapped gas
       sco2_auxvar%sat(tgid) = sco2_auxvar%sat(gid)
@@ -1540,14 +1544,17 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       
       ! Compute Saturation including Hysteresis
       call SCO2ComputeSatHysteresis(characteristic_curves, &
-                                    sco2_auxvar%pres(cpid), sco2_auxvar%sl_min, &
-                                    sl_temp,sgt_temp, option)
+                                   sco2_auxvar%pres(cpid), sco2_auxvar%sl_min, &
+                                   sl_temp,sgt_temp, option)
 
       sco2_auxvar%sat(pid) = max((sco2_auxvar%m_salt(1) - &
                              salt_solubility),0.d0)* &
-                             den_brine_kg / sco2_auxvar%den_kg(pid)
+                             den_brine_kg / sco2_auxvar%den_kg(pid) * &
+                             sl_temp * sco2_auxvar%effective_porosity / &
+                             material_auxvar%porosity_base
+      sco2_auxvar%sat(pid) = min(max(sco2_auxvar%sat(pid),0.d0),1.d0 - sl_temp)
       ! Rescale to include salt
-      sco2_auxvar%sat(lid) = sl_temp !* (1.d0 - sco2_auxvar%sat(pid))
+      sco2_auxvar%sat(lid) = sl_temp 
       sco2_auxvar%sat(gid) = 1.d0 - (sco2_auxvar%sat(lid)) ! + &
                              !sco2_auxvar%sat(pid))
 
@@ -1595,7 +1602,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
   ! Update Porosity
   ! MAN: need to update the porosity compressibility model.
-  sco2_auxvar%effective_porosity = material_auxvar%porosity_base
   if (option%iflag /= SCO2_UPDATE_FOR_BOUNDARY) then
     dpor_dp = 0.d0
     sco2_auxvar%effective_porosity = material_auxvar%porosity_base
@@ -1758,10 +1764,14 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   sco2_auxvar%mobility(lid) = sco2_auxvar%kr(lid) / sco2_auxvar%visc(lid)
   sco2_auxvar%mobility(gid) = sco2_auxvar%kr(gid) / sco2_auxvar%visc(gid)
 
-  ! Update total NaCl mass
+  ! Update total NaCl mass (kg salt / m^3 total)
   if (sco2_auxvar%sat(lid) > 0.d0) then
-    sco2_auxvar%m_salt(2) = sco2_auxvar%m_salt(1) * sco2_auxvar%den_kg(lid) * &
-                            sco2_auxvar%sat(lid) * &
+    sco2_auxvar%m_salt(2) = sco2_auxvar%sat(lid) * sco2_auxvar%den_kg(lid) * &
+                            sco2_auxvar%xmass(sid,lid) * &
+                            sco2_auxvar%effective_porosity
+    sco2_auxvar%m_salt(2) = sco2_auxvar%m_salt(2) + sco2_auxvar%sat(pid) * &
+                            sco2_auxvar%den_kg(pid) * &
+                            sco2_auxvar%xmass(sid,pid) * &
                             material_auxvar%porosity_base
   endif
 
@@ -3000,14 +3010,10 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
   phi_r = 8.d-1
   f = phi_r
 
-  !sco2_auxvar%effective_porosity = max(sco2_auxvar%effective_porosity * &
-  !                                       (1.d0 - sco2_auxvar%sat(pid)), &
-  !                                       phi_r * phi_0, 1.d-12)
-
-  sco2_auxvar%effective_porosity = material_auxvar%porosity_base
-  sco2_auxvar%effective_permeability = 1.d0
-
-  return
+  sco2_auxvar%effective_porosity = max(sco2_auxvar%effective_porosity * &
+                                         (1.d0 - sco2_auxvar%sat(pid)), &
+                                         phi_r * phi_0, 1.d-12)
+                                         
 
   select case(permeability_reduction_model)
 

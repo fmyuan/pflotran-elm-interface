@@ -135,10 +135,10 @@ subroutine PMSCO2SetFlowMode(pm,option)
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
   PetscReal, parameter :: xmass_rel_inf_tol = 1.d-3
 
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_water/sec
-  PetscReal, parameter :: co2_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_co2/sec
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-7 !1.d-7 !kg_water/sec
+  PetscReal, parameter :: co2_mass_abs_inf_tol = 1.d-7 !1.d-7 !kg_co2/sec
   ! PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7 !MW
-  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_salt/sec
+  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-7 !1.d-7 !kg_salt/sec
 
   !With Energy
   ! PetscReal, parameter :: residual_abs_inf_tol(MAX_DOF) = &

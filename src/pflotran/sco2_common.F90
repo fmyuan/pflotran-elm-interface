@@ -52,7 +52,6 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
 
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
-  porosity = sco2_auxvar%effective_porosity
 
   ! accumulation term units = kg/s
   Res = 0.d0
@@ -63,21 +62,23 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
     !                         xmass[kg comp/kg phase] * 
     !                         por[m^3 void/m^3 bulk] *
     !                         vol/dt[m^3 bulk/sec]
+    if (iphase == THREE_INTEGER) then
+      porosity = material_auxvar%porosity_base
+    else
+      porosity = sco2_auxvar%effective_porosity
+    endif
+    
     do icomp = 1, option%nflowspec
-      if (icomp == THREE_INTEGER) then
-        Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
-                              (sco2_auxvar%sat(iphase) * &
-                              sco2_auxvar%den_kg(iphase) * &
-                              sco2_auxvar%xmass(icomp,iphase) ) * &
-                              porosity * volume_over_dt
-      else
-        Res(icomp) = Res(icomp) + ( sco2_auxvar%sat(iphase) * &
-                              sco2_auxvar%den_kg(iphase) * &
-                              sco2_auxvar%xmass(icomp,iphase) ) * &
-                              porosity * volume_over_dt
-      endif
+      Res(icomp) = Res(icomp) + ( sco2_auxvar%sat(iphase) * &
+                            sco2_auxvar%den_kg(iphase) * &
+                            sco2_auxvar%xmass(icomp,iphase) ) * &
+                            porosity * volume_over_dt
     enddo
   enddo
+
+  ! Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
+  !                             sco2_auxvar%m_salt(TWO_INTEGER) * &
+  !                             volume_over_dt
 
   ! do iphase = 1, option%nphase
   !   ! Res[MJ/s] =    sat[m^3 phase/m^3 void] *
@@ -1048,6 +1049,11 @@ subroutine SCO2AccumDerivative(sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
 
+  J = 0.d0
+  res = 0.d0
+  res_pert_plus = 0.d0
+  res_pert_minus = 0.d0
+
   if (.not. sco2_central_diff_jacobian) then
     call SCO2Accumulation(sco2_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,soil_heat_capacity,option,res)
@@ -1124,6 +1130,10 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
   PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
   PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
+
+  res = 0.d0
+  res_pert_plus = 0.d0
+  res_pert_minus = 0.d0
 
   Jup = 0.d0
   Jdn = 0.d0
@@ -1288,6 +1298,9 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
 
+  res = 0.d0
+  res_pert_plus = 0.d0
+  res_pert_minus = 0.d0
   Jdn = 0.d0
 
   option%iflag = -2
@@ -1393,6 +1406,11 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
   PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
   PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
+
+  res = 0.d0
+  res_pert_plus = 0.d0
+  res_pert_minus = 0.d0
+  Jac = 0.d0
 
   qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
   flow_src_sink_type = source_sink%flow_condition%sco2%rate%itype
