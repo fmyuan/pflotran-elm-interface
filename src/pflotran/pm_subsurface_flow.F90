@@ -359,6 +359,20 @@ subroutine PMSubsurfaceFlowSetup(this)
       this%store_porosity_for_ts_cut = PETSC_TRUE
       this%store_porosity_for_transport = PETSC_TRUE
     endif
+    if (this%realization%reaction%update_tortuosity .and. &
+        this%option%transport%anisotropic_tortuosity) then
+      this%option%io_buffer = 'Updating of tortuosity is not currently &
+                              &supported for anisotropic tortuosity.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
+  if (this%option%transport%anisotropic_tortuosity) then
+    select case(this%option%iflowmode)
+      case(G_MODE,H_MODE,MPH_MODE)
+        this%option%io_buffer = 'Anisotropic tortuosity not supported in &
+          &the miscible multiphase flow process models.'
+        call PrintErrMsg(this%option)
+    end select
   endif
   if (this%option%flow%transient_porosity) then
     this%store_porosity_for_ts_cut = PETSC_TRUE

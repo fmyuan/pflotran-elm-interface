@@ -1,0 +1,40 @@
+-- GENERIC: Tortuosity X --
+      Max:   1.1000000000000E+00
+      Min:   7.0000000000000E-01
+     Mean:   8.6000000000000E-01
+       32:   7.0000000000000E-01
+       63:   7.0000000000000E-01
+       90:   1.1000000000000E+00
+       98:   1.1000000000000E+00
+-- GENERIC: Tortuosity Y --
+      Max:   9.0000000000000E-01
+      Min:   6.0000000000000E-01
+     Mean:   7.8000000000000E-01
+       32:   9.0000000000000E-01
+       63:   9.0000000000000E-01
+       90:   6.0000000000000E-01
+       98:   6.0000000000000E-01
+-- GENERIC: Tortuosity Z --
+      Max:   2.0000000000000E+00
+      Min:   2.0000000000000E-01
+     Mean:   9.2000000000000E-01
+       32:   2.0000000000000E-01
+       63:   2.0000000000000E-01
+       90:   2.0000000000000E+00
+       98:   2.0000000000000E+00
+-- SOLUTION: Flow --
+   Time (seconds):   2.3307053499980E-01
+   Time Steps:           27
+   Newton Iterations:           31
+   Linear Solver Iterations:          395
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.0928681420275E+07
+   Residual 2-Norm:   8.0002072731631E-17
+-- SOLUTION: Transport --
+   Time (seconds):   8.3310030000575E-02
+   Time Steps:           27
+   Newton Iterations:           37
+   Linear Solver Iterations:           65
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.7824881490332E-02
+   Residual 2-Norm:   1.8503329707326E-13

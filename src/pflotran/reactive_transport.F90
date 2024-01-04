@@ -111,6 +111,7 @@ subroutine RTSetup(realization)
   use Output_Aux_module
   use Generic_module
   use String_module
+  use Variables_module, only : TORTUOSITY_Y, TORTUOSITY_Z
 
   implicit none
 
@@ -173,6 +174,7 @@ subroutine RTSetup(realization)
     cur_material_property => cur_material_property%next
   enddo
 
+  rt_parameter%anisotropic_tortuosity = option%transport%anisotropic_tortuosity
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
   !TODO(geh): change to looping over ghosted ids once the legacy code is
@@ -193,10 +195,22 @@ subroutine RTSetup(realization)
       option%io_buffer = 'Non-initialized porosity.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
-      flag(3) = 1
-      option%io_buffer = 'Non-initialized tortuosity.'
-      call PrintMsg(option)
+    if (flag(3) == 0) then
+      if (rt_parameter%anisotropic_tortuosity) then
+        if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .or. &
+            MaterialAuxVarGetValue(material_auxvars(ghosted_id),TORTUOSITY_Y) &
+              < 0.d0 .or. &
+            MaterialAuxVarGetValue(material_auxvars(ghosted_id),TORTUOSITY_Z) &
+              < 0.d0) then
+          flag(3) = 1
+          option%io_buffer = 'Non-initialized anisotropic tortuosity.'
+          call PrintMsg(option)
+        endif
+      else if (material_auxvars(ghosted_id)%tortuosity < 0.d0) then
+        flag(3) = 1
+        option%io_buffer = 'Non-initialized tortuosity.'
+        call PrintMsg(option)
+      endif
     endif
     if (reaction%isotherm%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &

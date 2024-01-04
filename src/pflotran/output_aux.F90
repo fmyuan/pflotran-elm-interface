@@ -737,6 +737,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       case('LIQUID_SATURATION','LIQUID_DENSITY','GAS_SATURATION', &
            'GAS_DENSITY','TEMPERATURE','POROSITY','MINERAL_POROSITY', &
            'TORTUOSITY','NATURAL_ID','PROCESS_ID','VOLUME','MATERIAL_ID', &
+           'TORTUOSITY_X','TORTUOSITY_Y','TORTUOSITY_Z', &
            'MATERIAL_ID_KLUDGE_FOR_VISIT','X_COORDINATE','Y_COORDINATE', &
            'Z_COORDINATE', &
            'ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
@@ -991,7 +992,27 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Tortuosity'
       category = OUTPUT_GENERIC
       id = TORTUOSITY
-    case ('PERMEABILITY','PERMEABILITY_X')
+    case ('TORTUOSITY_X')
+      units = ''
+      name = 'Tortuosity X'
+      category = OUTPUT_GENERIC
+      id = TORTUOSITY
+    case ('TORTUOSITY_Y')
+      units = ''
+      name = 'Tortuosity Y'
+      category = OUTPUT_GENERIC
+      id = TORTUOSITY_Y
+    case ('TORTUOSITY_Z')
+      units = ''
+      name = 'Tortuosity Z'
+      category = OUTPUT_GENERIC
+      id = TORTUOSITY_Z
+    case ('PERMEABILITY')
+      units = 'm^2'
+      name = 'Permeability'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY
+    case ('PERMEABILITY_X')
       units = 'm^2'
       name = 'Permeability X'
       category = OUTPUT_GENERIC

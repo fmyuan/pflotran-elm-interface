@@ -73,6 +73,7 @@ STANDARD_CFG = \
 	default/infiltration1d/infiltration1d.cfg \
 	default/input_format/input_format.cfg \
 	default/integral_flux/integral_flux.cfg \
+	default/materials/anisotropic_tortuosity/anisotropic_tortuosity.cfg \
 	default/materials/full_tensor/full_tensor.cfg \
 	default/materials/materials.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \

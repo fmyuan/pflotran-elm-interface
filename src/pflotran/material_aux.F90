@@ -8,7 +8,6 @@ module Material_Aux_module
 
   private
 
-
   PetscInt, parameter, public :: perm_xx_index = 1
   PetscInt, parameter, public :: perm_yy_index = 2
   PetscInt, parameter, public :: perm_zz_index = 3
@@ -36,7 +35,8 @@ module Material_Aux_module
 
   ! flag to determine which model to use for tensor to scalar conversion
   ! of permeability
-  PetscInt :: perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
+  PetscInt :: perm_tensor_to_scalar_model = TENSOR_TO_SCALAR_LINEAR
+  PetscInt :: tort_tensor_to_scalar_model = TENSOR_TO_SCALAR_LINEAR
 
   ! when adding a new index, add it above max_material_index and grep on
   ! "ADD_SOIL_PROPERTY_INDEX_HERE" to see whereall you must update the code.
@@ -48,6 +48,8 @@ module Material_Aux_module
   PetscInt, public :: archie_tortuosity_index
   PetscInt, public :: surf_elec_conduct_index
   PetscInt, public :: ws_clay_conduct_index
+  PetscInt, public :: tortuosity_yy_index
+  PetscInt, public :: tortuosity_zz_index
   PetscInt, public :: max_material_index
 
   type, public :: material_auxvar_type
@@ -134,6 +136,7 @@ module Material_Aux_module
             MaterialCompressSoilQuadratic
 
   public :: PermeabilityTensorToScalar
+  Public :: TortuosityTensorToScalar
 
   public :: MaterialAuxCreate, &
             MaterialAuxVarInit, &
@@ -143,7 +146,8 @@ module Material_Aux_module
             MaterialAuxVarSetValue, &
             MaterialAuxDestroy, &
             MaterialAuxVarFractureStrip, &
-            MaterialAuxSetPermTensorModel
+            MaterialAuxSetPermTensorModel, &
+            MaterialAuxVarGetSoilPropIndex
 
   public :: MaterialAuxVarCompute
 
@@ -159,6 +163,7 @@ function MaterialAuxCreate(option)
   ! Date: 01/09/14
   !
   use Option_module
+  use String_module
   use Variables_module, only : SOIL_COMPRESSIBILITY, &
                                SOIL_REFERENCE_PRESSURE, &
                                ELECTRICAL_CONDUCTIVITY, &
@@ -167,7 +172,8 @@ function MaterialAuxCreate(option)
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
-                               NUMBER_SECONDARY_CELLS
+                               NUMBER_SECONDARY_CELLS, &
+                               TORTUOSITY_Y, TORTUOSITY_Z
 
   implicit none
 
@@ -176,7 +182,7 @@ function MaterialAuxCreate(option)
   type(material_type), pointer :: MaterialAuxCreate
 
   type(material_type), pointer :: aux
-  PetscInt :: i
+  PetscInt :: i, j
 
   allocate(aux)
   nullify(aux%auxvars)
@@ -213,9 +219,21 @@ function MaterialAuxCreate(option)
     call MaterialAuxInitSoilPropertyMap(aux,ws_clay_conduct_index, &
                                         WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                         'Waxman-Smits Clay Conductivity')
+    call MaterialAuxInitSoilPropertyMap(aux,tortuosity_yy_index, &
+                                        TORTUOSITY_Y, &
+                                        'Anisotropic Tortuosity Y')
+    call MaterialAuxInitSoilPropertyMap(aux,tortuosity_zz_index, &
+                                        TORTUOSITY_Z, &
+                                        'Anisotropic Tortuosity Z')
     ! ADD_SOIL_PROPERTY_INDEX_HERE
     do i = 1, max_material_index
       if (Uninitialized(aux%soil_properties_ivar(i))) then
+        do j = 1, max_material_index
+          option%io_buffer = StringWrite(j) // ' : ' // 'name = ' // &
+            trim(aux%soil_properties_name(j)) // ', ivar = ' // &
+            StringWrite(aux%soil_properties_ivar(j))
+          call PrintMsg(option)
+        enddo
         option%io_buffer = 'Uninitialized value(s) exist within &
             &material_auxvar%soil_properties_ivar in MaterialAuxCreate(). &
             &Please email your input deck to pflotran-dev@googlegroups.com.'
@@ -361,24 +379,42 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
   PetscInt :: model
   type(option_type) :: option
 
-  !! simple if longwinded little safety measure here, the calling routine
-  !! should also check that model is a sane number but in principle this
-  !! routine should protect itself too.
-  !! Please note that if you add a new model type above then you MUST add
-  !! it to this little list here too.
-  if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
-      model == TENSOR_TO_SCALAR_FLOW .OR. &
-      model == TENSOR_TO_SCALAR_POTENTIAL .OR. &
-      model == TENSOR_TO_SCALAR_FLOW_FT .OR. &
-      model == TENSOR_TO_SCALAR_POTENTIAL_FT) then
-    perm_tens_to_scal_model = model
-  else
-    option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
-                        &model type is not recognized.'
-    call PrintErrMsg(option)
-  endif
+  select case(model)
+    case(TENSOR_TO_SCALAR_LINEAR,TENSOR_TO_SCALAR_FLOW, &
+         TENSOR_TO_SCALAR_POTENTIAL,TENSOR_TO_SCALAR_FLOW_FT, &
+         TENSOR_TO_SCALAR_POTENTIAL_FT)
+      perm_tensor_to_scalar_model = model
+    case default
+      option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
+                          &model type is not recognized.'
+      call PrintErrMsg(option)
+  end select
 
 end subroutine MaterialAuxSetPermTensorModel
+
+! ************************************************************************** !
+
+subroutine MaterialAuxSetTortTensorModel(model,option)
+
+  use Option_module
+
+  implicit none
+
+  PetscInt :: model
+  type(option_type) :: option
+
+  select case(model)
+    case(TENSOR_TO_SCALAR_LINEAR,TENSOR_TO_SCALAR_FLOW, &
+         TENSOR_TO_SCALAR_POTENTIAL,TENSOR_TO_SCALAR_FLOW_FT, &
+         TENSOR_TO_SCALAR_POTENTIAL_FT)
+      tort_tensor_to_scalar_model = model
+    case default
+      option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
+                          &model type is not recognized.'
+      call PrintErrMsg(option)
+  end select
+
+end subroutine MaterialAuxSetTortTensorModel
 
 ! ************************************************************************** !
 
@@ -411,32 +447,30 @@ subroutine PermeabilityTensorToScalar(material_auxvar,dist,scalar_permeability)
   ky = material_auxvar%permeability(perm_yy_index)
   kz = material_auxvar%permeability(perm_zz_index)
 
-  select case(perm_tens_to_scal_model)
+  select case(perm_tensor_to_scalar_model)
     case(TENSOR_TO_SCALAR_LINEAR)
-      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalar_Linear(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_FLOW)
-      scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalar_Flow(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_POTENTIAL)
-      scalar_permeability = DiagPermTensortoScalar_Potential(kx,ky,kz,dist)
+      scalar_permeability = DiagTensortoScalar_Potential(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_FLOW_FT)
       kxy = material_auxvar%permeability(perm_xy_index)
       kxz = material_auxvar%permeability(perm_xz_index)
       kyz = material_auxvar%permeability(perm_yz_index)
-      scalar_permeability = &
-        FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
+      scalar_permeability = FullTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
     case(TENSOR_TO_SCALAR_POTENTIAL_FT)
       kxy = material_auxvar%permeability(perm_xy_index)
       kxz = material_auxvar%permeability(perm_xz_index)
       kyz = material_auxvar%permeability(perm_yz_index)
-      scalar_permeability = &
-        FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
+      scalar_permeability = FullTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
     case default
       ! as default, just do linear
-      !scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      !scalar_permeability = DiagTensorToScalar_Linear(kx,ky,kz,dist)
       ! as default, do perm in direction of flow
-      !scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+      !scalar_permeability = DiagTensorToScalar_Flow(kx,ky,kz,dist)
       ! as default, do perm in direction of potential gradient
-      scalar_permeability = DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalar_Potential(kx,ky,kz,dist)
   end select
 
 
@@ -467,108 +501,106 @@ subroutine PermeabilityTensorToScalarSafe(material_auxvar,dist, &
   ky = material_auxvar%permeability(perm_yy_index)
   kz = material_auxvar%permeability(perm_zz_index)
 
-  select case(perm_tens_to_scal_model)
+  select case(perm_tensor_to_scalar_model)
     case(TENSOR_TO_SCALAR_LINEAR)
-      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalar_Linear(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_FLOW)
-      scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalar_Flow(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_POTENTIAL)
-      scalar_permeability = DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalarPotSafe(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_FLOW_FT)
       kxy = material_auxvar%permeability(perm_xy_index)
       kxz = material_auxvar%permeability(perm_xz_index)
       kyz = material_auxvar%permeability(perm_yz_index)
-      scalar_permeability = &
-        FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
+      scalar_permeability = FullTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
     case(TENSOR_TO_SCALAR_POTENTIAL_FT)
       kxy = material_auxvar%permeability(perm_xy_index)
       kxz = material_auxvar%permeability(perm_xz_index)
       kyz = material_auxvar%permeability(perm_yz_index)
-      scalar_permeability = &
-        FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
+      scalar_permeability = FullTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
     case default
-      scalar_permeability = DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
+      scalar_permeability = DiagTensorToScalarPotSafe(kx,ky,kz,dist)
   end select
 
 end subroutine PermeabilityTensorToScalarSafe
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+function DiagTensorToScalar_Linear(valx,valy,valz,dist)
   implicit none
-  PetscReal :: DiagPermTensorToScalar_Linear
+  PetscReal :: DiagTensorToScalar_Linear
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx,ky,kz
+  PetscReal :: valx,valy,valz
 
-  DiagPermTensorToScalar_Linear = kx*dabs(dist(1))+ky*dabs(dist(2))+&
-                                  kz*dabs(dist(3))
+  DiagTensorToScalar_Linear = valx*dabs(dist(1))+valy*dabs(dist(2))+&
+                              valz*dabs(dist(3))
 
-end function DiagPermTensorToScalar_Linear
+end function DiagTensorToScalar_Linear
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+function DiagTensorToScalar_Flow(valx,valy,valz,dist)
 
-  !Permeability in the direction of flow
+  ! Tensor in the direction of flow
 
   implicit none
-  PetscReal :: DiagPermTensorToScalar_Flow
+  PetscReal :: DiagTensorToScalar_Flow
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx,ky,kz
+  PetscReal :: valx,valy,valz
 
-  DiagPermTensorToScalar_Flow = kx*dabs(dist(1))**2.0 + &
-                                     ky*dabs(dist(2))**2.0 + &
-                                     kz*dabs(dist(3))**2.0
+  DiagTensorToScalar_Flow = valx*dabs(dist(1))**2.0 + &
+                            valy*dabs(dist(2))**2.0 + &
+                            valz*dabs(dist(3))**2.0
 
-end function DiagPermTensorToScalar_Flow
+end function DiagTensorToScalar_Flow
 
 ! ************************************************************************** !
 
-function FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
+function FullTensorToScalar_Flow(valx,valy,valz,valxy,valxz,valyz,dist)
 
-  ! Permeability in the direction of flow
-  ! Include non diagonal term of the full symetric permeability tensor
+  ! Tensor in the direction of flow
+  ! Include non diagonal term of the full symetric tensor
   !
   ! Author: Moise Rousseau
   ! Date: 08/26/19
 
   implicit none
 
-  PetscReal :: FullPermTensorToScalar_Flow
+  PetscReal :: FullTensorToScalar_Flow
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx,ky,kz,kxy,kxz,kyz
+  PetscReal :: valx,valy,valz,valxy,valxz,valyz
 
-  FullPermTensorToScalar_Flow = kx*dabs(dist(1))**2.0 + &
-                                ky*dabs(dist(2))**2.0 + &
-                                kz*dabs(dist(3))**2.0 + &
-                                2*kxy*dist(1)*dist(2) + &
-                                2*kxz*dist(1)*dist(3) + &
-                                2*kyz*dist(2)*dist(3)
+  FullTensorToScalar_Flow = valx*dabs(dist(1))**2.0 + &
+                            valy*dabs(dist(2))**2.0 + &
+                            valz*dabs(dist(3))**2.0 + &
+                            2*valxy*dist(1)*dist(2) + &
+                            2*valxz*dist(1)*dist(3) + &
+                            2*valyz*dist(2)*dist(3)
 
-end function FullPermTensorToScalar_Flow
+end function FullTensorToScalar_Flow
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
+function DiagTensorToScalar_Potential(valx,valy,valz,dist)
 
-  !Permeability in the direction of the potential gradient
+  ! Tensor in the direction of the potential gradient
 
   implicit none
-  PetscReal :: DiagPermTensorToScalar_Potential
+  PetscReal :: DiagTensorToScalar_Potential
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx,ky,kz
+  PetscReal :: valx,valy,valz
 
-  DiagPermTensorToScalar_Potential = 1.d0/(dist(1)*dist(1)/kx + &
-                                         dist(2)*dist(2)/ky + &
-                                         dist(3)*dist(3)/kz)
+  DiagTensorToScalar_Potential = 1.d0/(dist(1)*dist(1)/valx + &
+                                       dist(2)*dist(2)/valy + &
+                                       dist(3)*dist(3)/valz)
 
-end function DiagPermTensorToScalar_Potential
+end function DiagTensorToScalar_Potential
 
 ! ************************************************************************** !
 
-function FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
+function FullTensorToScalar_Pot(valx,valy,valz,valxy,valxz,valyz,dist)
 
-  ! Permeability in the direction of the potential gradient
+  ! Tensor in the direction of the potential gradient
   ! Include off diagonal term
   ! Not working
   !
@@ -576,50 +608,50 @@ function FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
   ! Date: 08/26/19
 
   implicit none
-  PetscReal :: FullPermTensorToScalar_Pot
+  PetscReal :: FullTensorToScalar_Pot
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx,ky,kz,kxy,kxz,kyz
+  PetscReal :: valx,valy,valz,valxy,valxz,valyz
 
-  FullPermTensorToScalar_Pot = 1.d0/(dist(1)*dist(1)/kx + &
-                               dist(2)*dist(2)/ky + &
-                               dist(3)*dist(3)/kz + &
-                               2*dist(1)*dist(2)/kxy + &
-                               2*dist(1)*dist(3)/kxz + &
-                               2*dist(2)*dist(3)/kyz)
+  FullTensorToScalar_Pot = 1.d0/(dist(1)*dist(1)/valx + &
+                                 dist(2)*dist(2)/valy + &
+                                 dist(3)*dist(3)/valz + &
+                                 2*dist(1)*dist(2)/valxy + &
+                                 2*dist(1)*dist(3)/valxz + &
+                                 2*dist(2)*dist(3)/valyz)
 
-end function FullPermTensorToScalar_Pot
+end function FullTensorToScalar_Pot
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
+function DiagTensorToScalarPotSafe(valx,valy,valz,dist)
 
-  ! Permeability in the direction of the potential gradient
-  ! This version will not generate NaNs for zero permeabilities
+  ! Tensor in the direction of the potential gradient
+  ! This version will not generate NaNs for zero terms
   !
   ! Author: Dave Ponting
   ! Date: 03/19/19
   !
 
   implicit none
-  PetscReal :: DiagPermTensorToScalarPotSafe
+  PetscReal :: DiagTensorToScalarPotSafe
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx, ky, kz, kxi, kyi, kzi, den, deni
+  PetscReal :: valx, valy, valz, valxi, valyi, valzi, den, deni
 
   !  Form safe inverse permeabilities
 
-  kxi = 0.0
-  kyi = 0.0
-  kzi = 0.0
+  valxi = 0.0
+  valyi = 0.0
+  valzi = 0.0
 
-  if (kx>0.0) kxi = 1.0/kx
-  if (ky>0.0) kyi = 1.0/ky
-  if (kz>0.0) kzi = 1.0/kz
+  if (valx>0.0) valxi = 1.0/valx
+  if (valy>0.0) valyi = 1.0/valy
+  if (valz>0.0) valzi = 1.0/valz
 
   !  Form denominator
 
-  den = dist(1)*dist(1)*kxi + &
-        dist(2)*dist(2)*kyi + &
-        dist(3)*dist(3)*kzi
+  den = dist(1)*dist(1)*valxi + &
+        dist(2)*dist(2)*valyi + &
+        dist(3)*dist(3)*valzi
 
   !  Form safe inverse denominator
 
@@ -628,16 +660,16 @@ function DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
 
   !  Store final value
 
-  DiagPermTensorToScalarPotSafe = deni
+  DiagTensorToScalarPotSafe = deni
 
-end function DiagPermTensorToScalarPotSafe
+end function DiagTensorToScalarPotSafe
 
 ! ************************************************************************** !
 
-function FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
+function FullTensorToScalarPotSafe(valx,valy,valz,valxy,valxz,valyz,dist)
 
-  ! Permeability in the direction of the potential gradient
-  ! This version will not generate NaNs for zero permeabilities
+  ! Tensor in the direction of the potential gradient
+  ! This version will not generate NaNs for zero terms
   !
   ! Author: Dave Ponting
   ! Date: 03/19/19
@@ -650,35 +682,35 @@ function FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
 
   implicit none
 
-  PetscReal :: FullPermTensorToScalarPotSafe
+  PetscReal :: FullTensorToScalarPotSafe
   PetscReal, intent(in) :: dist(-1:3)
-  PetscReal :: kx, ky, kz, kxi, kyi, kzi, den, deni
-  PetscReal :: kxy, kxz, kyz, kxyi, kxzi, kyzi
+  PetscReal :: valx, valy, valz, valxi, valyi, valzi, den, deni
+  PetscReal :: valxy, valxz, valyz, valxyi, valxzi, valyzi
 
   !  Form safe inverse permeabilities
 
-  kxi = 0.0
-  kyi = 0.0
-  kzi = 0.0
-  kxyi = 0.0
-  kxzi = 0.0
-  kyzi = 0.0
+  valxi = 0.0
+  valyi = 0.0
+  valzi = 0.0
+  valxyi = 0.0
+  valxzi = 0.0
+  valyzi = 0.0
 
-  if (kx>0.0) kxi = 1.0/kx
-  if (ky>0.0) kyi = 1.0/ky
-  if (kz>0.0) kzi = 1.0/kz
-  if (kxy>0.0) kxyi = 1.0/kxy
-  if (kxz>0.0) kxzi = 1.0/kxz
-  if (kyz>0.0) kyzi = 1.0/kyz
+  if (valx>0.0) valxi = 1.0/valx
+  if (valy>0.0) valyi = 1.0/valy
+  if (valz>0.0) valzi = 1.0/valz
+  if (valxy>0.0) valxyi = 1.0/valxy
+  if (valxz>0.0) valxzi = 1.0/valxz
+  if (valyz>0.0) valyzi = 1.0/valyz
 
   !  Form denominator
 
-  den = dist(1)*dist(1)*kxi + &
-        dist(2)*dist(2)*kyi + &
-        dist(3)*dist(3)*kzi + &
-        2*dist(1)*dist(2)*kxyi + &
-        2*dist(1)*dist(3)*kxzi + &
-        2*dist(2)*dist(3)*kyzi
+  den = dist(1)*dist(1)*valxi + &
+        dist(2)*dist(2)*valyi + &
+        dist(3)*dist(3)*valzi + &
+        2*dist(1)*dist(2)*valxyi + &
+        2*dist(1)*dist(3)*valxzi + &
+        2*dist(2)*dist(3)*valyzi
 
   !  Form safe inverse denominator
 
@@ -687,9 +719,107 @@ function FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
 
   !  Store final value
 
-  FullPermTensorToScalarPotSafe = deni
+  FullTensorToScalarPotSafe = deni
 
-end function FullPermTensorToScalarPotSafe
+end function FullTensorToScalarPotSafe
+
+! ************************************************************************** !
+
+function TortuosityTensorToScalar(material_auxvar,dist)
+  !
+  ! Calculates a scalar tortuosity from a tensor
+  !
+  ! Author: Jens Eckel
+  ! Date: 12/21/23
+  !
+  implicit none
+
+  type(material_auxvar_type) :: material_auxvar
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal, intent(in) :: dist(-1:3)
+
+  PetscReal :: TortuosityTensorToScalar
+
+  PetscReal :: tx, ty, tz
+
+  tx = material_auxvar%tortuosity
+  ty = material_auxvar%soil_properties(tortuosity_yy_index)
+  tz = material_auxvar%soil_properties(tortuosity_zz_index)
+
+  ! up to now only by structured/unstructured grid
+  select case(tort_tensor_to_scalar_model)
+    case(TENSOR_TO_SCALAR_LINEAR)
+      TortuosityTensorToScalar = DiagTensorToScalar_Linear(tx,ty,tz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL)
+      TortuosityTensorToScalar = DiagTensorToScalarPotSafe(tx,ty,tz,dist)
+    case default
+      TortuosityTensorToScalar = DiagTensorToScalar_Linear(tx,ty,tz,dist)
+  end select
+
+end function TortuosityTensorToScalar
+
+! ************************************************************************** !
+
+function MaterialAuxVarGetSoilPropIndex(ivar)
+  !
+  ! Returns the index in the soil properties array for the desire parameter
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/21/23
+  !
+  use Variables_module, only : SOIL_COMPRESSIBILITY, &
+                               SOIL_REFERENCE_PRESSURE, &
+                               ELECTRICAL_CONDUCTIVITY, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+                               NUMBER_SECONDARY_CELLS, &
+                               TORTUOSITY_Y, TORTUOSITY_Z
+
+  implicit none
+
+  PetscInt :: ivar
+
+  PetscInt :: MaterialAuxVarGetSoilPropIndex
+
+  PetscInt :: index_
+
+  select case(ivar)
+    case(SOIL_COMPRESSIBILITY)
+      index_ = soil_compressibility_index
+    case(SOIL_REFERENCE_PRESSURE)
+      index_ = soil_reference_pressure_index
+    case(ELECTRICAL_CONDUCTIVITY)
+      index_ = electrical_conductivity_index
+    case(ARCHIE_CEMENTATION_EXPONENT)
+      index_ = archie_cementation_exp_index
+    case(ARCHIE_SATURATION_EXPONENT)
+      index_ = archie_saturation_exp_index
+    case(ARCHIE_TORTUOSITY_CONSTANT)
+      index_ = archie_tortuosity_index
+    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+      index_ = surf_elec_conduct_index
+    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+      index_ = ws_clay_conduct_index
+    case(TORTUOSITY_Y)
+      index_ = tortuosity_yy_index
+    case(TORTUOSITY_Z)
+      index_ = tortuosity_zz_index
+    ! ADD_SOIL_PROPERTY_INDEX_HERE
+    case default
+      print *, 'Unrecognized variable in MaterialAuxVarGetSoilPropIndex: ', &
+               ivar
+      stop
+  end select
+  MaterialAuxVarGetSoilPropIndex = index_
+
+end function MaterialAuxVarGetSoilPropIndex
 
 ! ************************************************************************** !
 
@@ -709,6 +839,8 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
   PetscInt :: ivar
 
   PetscReal :: MaterialAuxVarGetValue
+
+  PetscInt :: index_
 
   MaterialAuxVarGetValue = UNINITIALIZED_DOUBLE
   select case(ivar)
@@ -744,39 +876,14 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
       else
         MaterialAuxVarGetValue = 0.d0
       endif
-    case(SOIL_COMPRESSIBILITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(soil_compressibility_index)
-    case(SOIL_REFERENCE_PRESSURE)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(soil_reference_pressure_index)
     case(EPSILON)
       MaterialAuxVarGetValue = material_auxvar%secondary_prop%epsilon
     case(HALF_MATRIX_WIDTH)
       MaterialAuxVarGetValue = &
         material_auxvar%secondary_prop%half_matrix_width
-    case(ELECTRICAL_CONDUCTIVITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(electrical_conductivity_index)
-    case(ARCHIE_CEMENTATION_EXPONENT)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(archie_cementation_exp_index)
-    case(ARCHIE_SATURATION_EXPONENT)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(archie_saturation_exp_index)
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(archie_tortuosity_index)
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(surf_elec_conduct_index)
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      MaterialAuxVarGetValue = &
-        material_auxvar%soil_properties(ws_clay_conduct_index)
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
-    case default
-      print *, 'Unrecognized variable in MaterialAuxVarGetValue: ', ivar
-      stop
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
+      MaterialAuxVarGetValue = material_auxvar%soil_properties(index_)
   end select
 
 end function MaterialAuxVarGetValue
@@ -798,6 +905,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: ivar
   PetscReal :: value
+
+  PetscInt :: index_
 
   select case(ivar)
     case(VOLUME)
@@ -822,32 +931,15 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%permeability(perm_yz_index) = value
     case(PERMEABILITY_XZ)
       material_auxvar%permeability(perm_xz_index) = value
-    case(SOIL_COMPRESSIBILITY)
-      material_auxvar%soil_properties(soil_compressibility_index) = value
-    case(SOIL_REFERENCE_PRESSURE)
-      material_auxvar%soil_properties(soil_reference_pressure_index) = value
     case(EPSILON)
       material_auxvar%secondary_prop%epsilon = value
     case(HALF_MATRIX_WIDTH)
       material_auxvar%secondary_prop%half_matrix_width = value
     case(NUMBER_SECONDARY_CELLS)
       material_auxvar%secondary_prop%ncells = int(value)
-    case(ELECTRICAL_CONDUCTIVITY)
-      material_auxvar%soil_properties(electrical_conductivity_index) = value
-    case(ARCHIE_CEMENTATION_EXPONENT)
-      material_auxvar%soil_properties(archie_cementation_exp_index) = value
-    case(ARCHIE_SATURATION_EXPONENT)
-      material_auxvar%soil_properties(archie_saturation_exp_index) = value
-    case(ARCHIE_TORTUOSITY_CONSTANT)
-      material_auxvar%soil_properties(archie_tortuosity_index) = value
-    case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-      material_auxvar%soil_properties(surf_elec_conduct_index) = value
-    case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-      material_auxvar%soil_properties(ws_clay_conduct_index) = value
-    ! ADD_SOIL_PROPERTY_INDEX_HERE
-    case default
-      print *, 'Unrecognized variable in MaterialAuxVarSetValue: ', ivar
-      stop
+    case default ! entries in material_auxvars%soil_properties
+      index_ = MaterialAuxVarGetSoilPropIndex(ivar)
+      material_auxvar%soil_properties(index_) = value
   end select
 
 end subroutine MaterialAuxVarSetValue

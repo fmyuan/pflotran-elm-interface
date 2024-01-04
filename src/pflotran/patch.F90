@@ -2926,7 +2926,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                 coupler%flow_bc_type(3) = DIRICHLET_BC
               endif
             elseif (associated(hydrate%energy_flux)) then
-              coupler%flow_bc_type(3) = NEUMANN_BC 
+              coupler%flow_bc_type(3) = NEUMANN_BC
             endif
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
@@ -6921,11 +6921,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%kr(option%liquid_phase) / &
-                patch%aux%General%auxvars(ZERO_INTEGER, &
-                  ghosted_id)%mobility(option%liquid_phase)
+              tempreal = patch%aux%General%auxvars(ZERO_INTEGER, &
+                         ghosted_id)%mobility(option%liquid_phase)
+              if (tempreal > 0.d0) then   
+                vec_ptr(local_id) = &
+                  patch%aux%General%auxvars(ZERO_INTEGER, &
+                    ghosted_id)%kr(option%liquid_phase) / &
+                    tempreal
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
@@ -7936,7 +7941,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
-         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
+         TORTUOSITY,TORTUOSITY_Y,TORTUOSITY_Z, &
+         VOLUME,SOIL_COMPRESSIBILITY, &
          EPSILON,HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS,&
          SOIL_REFERENCE_PRESSURE, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
@@ -9050,7 +9056,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(PRIMARY_MOLARITY)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar)*xmass * &
                   patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase) / 1000.d0
-        case(SECONDARY_MOLALITY)  
+        case(SECONDARY_MOLALITY)
           value = patch%aux%RT%auxvars(ghosted_id)%sec_molal(isubvar)
         case(SECONDARY_MOLARITY)
           value = patch%aux%RT%auxvars(ghosted_id)%sec_molal(isubvar)*xmass * &
@@ -9144,7 +9150,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             patch%aux%RT%auxvars(ghosted_id)%kinsrfcplx_free_site_conc(isubvar)
         case(PRIMARY_ACTIVITY_COEF)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)
-        case(SECONDARY_ACTIVITY_COEF)  
+        case(SECONDARY_ACTIVITY_COEF)
           value = patch%aux%RT%auxvars(ghosted_id)%sec_act_coef(isubvar)
         case(PRIMARY_KD)
           call ReactionComputeKd(isubvar,value, &
@@ -9184,7 +9190,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
     case(STATE,PHASE)
       value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
-         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
+         TORTUOSITY,TORTUOSITY_Y,TORTUOSITY_Z, &
+         VOLUME,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
          EPSILON,HALF_MATRIX_WIDTH, &
          ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
@@ -10203,7 +10210,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         patch%aux%Global%auxvars(grid%nL2G(local_id))%istate = &
           int(vec_ptr(local_id)+1.d-10)
       enddo
-    case(VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
+    case(VOLUME,TORTUOSITY,TORTUOSITY_Y,TORTUOSITY_Z,SOIL_COMPRESSIBILITY, &
+         SOIL_REFERENCE_PRESSURE)
       option%io_buffer = 'Setting of volume, tortuosity, ' // &
         'soil compressibility or soil reference pressure in ' // &
         '"PatchSetVariable" not supported.'
