@@ -52,23 +52,18 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
 
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
+  porosity = sco2_auxvar%effective_porosity
 
   ! accumulation term units = kg/s
   Res = 0.d0
   ! Trapped gas should be accounted for in the gas phase
-  do iphase = 1, option%nphase
+  do iphase = 1, option%nphase - 1
     ! Res[kg comp/sec] =      sat[m^3 phase/m^3 void] *
     !                         den_kg[kg phase/m^3 phase] *
     !                         xmass[kg comp/kg phase] * 
     !                         por[m^3 void/m^3 bulk] *
     !                         vol/dt[m^3 bulk/sec]
-    if (iphase == THREE_INTEGER) then
-      porosity = material_auxvar%porosity_base
-    else
-      porosity = sco2_auxvar%effective_porosity
-    endif
-    
-    do icomp = 1, option%nflowspec
+    do icomp = 1, option%nflowspec - 1
       Res(icomp) = Res(icomp) + ( sco2_auxvar%sat(iphase) * &
                             sco2_auxvar%den_kg(iphase) * &
                             sco2_auxvar%xmass(icomp,iphase) ) * &
@@ -76,9 +71,9 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
     enddo
   enddo
 
-  ! Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
-  !                             sco2_auxvar%m_salt(TWO_INTEGER) * &
-  !                             volume_over_dt
+  Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
+                              sco2_auxvar%m_salt(TWO_INTEGER) * &
+                              volume_over_dt
 
   ! do iphase = 1, option%nphase
   !   ! Res[MJ/s] =    sat[m^3 phase/m^3 void] *

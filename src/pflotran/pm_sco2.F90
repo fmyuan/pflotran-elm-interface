@@ -230,7 +230,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
 
   ! Extras: individual component properties, trapped gas phase
   option%pure_water_phase = 5
-  option%steam_phase = 6
+  option%pure_brine_phase = 6
   
   option%trapped_gas_phase = 4
 

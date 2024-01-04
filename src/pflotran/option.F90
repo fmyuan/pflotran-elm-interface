@@ -57,8 +57,8 @@ module Option_module
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
     PetscInt :: precipitate_phase
-    PetscInt :: pure_water_phase ! for storing pure phase properties
-    PetscInt :: steam_phase ! for storing steam properties
+    PetscInt :: pure_water_phase ! for storing pure water properties
+    PetscInt :: pure_brine_phase ! for storing pure brine properties
     PetscInt :: trapped_gas_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
@@ -502,7 +502,7 @@ subroutine OptionInitRealization(option)
   option%ice_phase = UNINITIALIZED_INTEGER
   option%precipitate_phase = UNINITIALIZED_INTEGER
   option%pure_water_phase = UNINITIALIZED_INTEGER
-  option%steam_phase = UNINITIALIZED_INTEGER
+  option%pure_brine_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%co2_pressure_id = 0
