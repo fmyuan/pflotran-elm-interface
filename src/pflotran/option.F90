@@ -10,6 +10,7 @@ module Option_module
   use Option_Transport_module
   use Option_Geophysics_module
   use Option_Inversion_module
+  use Option_Parameter_module
   use Print_module
 
   implicit none
@@ -24,6 +25,7 @@ module Option_module
     type(geophysics_option_type), pointer :: geophysics
     type(checkpoint_option_type), pointer :: checkpoint
     type(inversion_option_type), pointer :: inversion
+    type(parameter_option_type), pointer :: parameter
     type(comm_type), pointer :: comm
     class(driver_type), pointer :: driver
 
@@ -273,6 +275,7 @@ function OptionCreate1()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  option%parameter => OptionParameterCreate()
   nullify(option%checkpoint)
   nullify(option%inversion)
   nullify(option%driver)
@@ -1423,6 +1426,7 @@ subroutine OptionDestroy(option)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
   call OptionCheckpointDestroy(option%checkpoint)
+  call OptionParameterDestroy(option%parameter)
   nullify(option%comm)
   nullify(option%inversion)
   ! never destroy the driver as it was created elsewhere

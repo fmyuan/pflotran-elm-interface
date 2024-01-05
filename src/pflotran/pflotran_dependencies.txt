@@ -1516,6 +1516,7 @@ option.o : \
   option_flow.o \
   option_geophysics.o \
   option_inversion.o \
+  option_parameter.o \
   option_transport.o \
   pflotran_constants.o \
   print.o \
@@ -1528,6 +1529,8 @@ option_geophysics.o : \
   pflotran_constants.o
 option_inversion.o : \
   communicator_aux.o \
+  pflotran_constants.o
+option_parameter.o : \
   pflotran_constants.o
 option_transport.o : \
   pflotran_constants.o
@@ -1734,6 +1737,7 @@ output_vtk.o : \
 parameter.o : \
   input_aux.o \
   option.o \
+  option_parameter.o \
   pflotran_constants.o \
   string.o \
   units.o
@@ -3090,6 +3094,7 @@ realization_base.o : \
   nw_transport_aux.o \
   option.o \
   output_aux.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   reaction_aux.o \

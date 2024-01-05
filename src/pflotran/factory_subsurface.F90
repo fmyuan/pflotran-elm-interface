@@ -456,6 +456,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use EOS_module
   use Dataset_module
   use Patch_module
+  use Parameter_module
   use EOS_module !to be removed as already present above
 
   implicit none
@@ -506,9 +507,11 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
-  call InitCommonReadRegionFiles(realization%patch,realization%region_list,realization%option)
+  call InitCommonReadRegionFiles(realization%patch,realization%region_list, &
+                                 realization%option)
   ! clip regions and set up boundary connectivity, distance
-  call RealizationLocalizeRegions(realization%patch,realization%region_list,realization%option)
+  call RealizationLocalizeRegions(realization%patch,realization%region_list, &
+                                  realization%option)
   call RealizationPassPtrsToPatches(realization)
   call RealizationProcessDatasets(realization)
   if (realization%output_option%mass_balance_region_flag) then
@@ -528,6 +531,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   ! SubsurfSandboxesSetup() must be called after
   ! SubsurfAssignVolsToMatAuxVars() where volumes are assigned to Material
   ! objects
+  call ParameterSetup(realization%parameter_list,option)
   call SubsurfSandboxesSetup(realization)
   call RealizationInitAllCouplerAuxVars(realization)
   if (option%ntrandof > 0) then

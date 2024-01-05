@@ -48,7 +48,6 @@ subroutine GlobalSetup(realization)
   type(parameter_type), pointer :: cur_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iparameter
   type(global_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: auxvars_bc(:)
   type(global_auxvar_type), pointer :: auxvars_ss(:)
@@ -59,19 +58,6 @@ subroutine GlobalSetup(realization)
 
   patch%aux%Global => GlobalAuxCreate()
 
-  ! count global_aux%parameters
-  iparameter = 0
-  cur_parameter => realization%parameter_list
-  do
-    if (.not.associated(cur_parameter)) exit
-    iparameter = iparameter + 1
-    cur_parameter => cur_parameter%next
-  enddo
-  if (iparameter > 0) then
-    allocate(patch%aux%Global%parameter_names(iparameter))
-    patch%aux%Global%parameter_names = ''
-  endif
-
   ! allocate auxvar data structures for all grid cells
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   option%iflag = 1 ! allocate mass_balance array
@@ -80,21 +66,18 @@ subroutine GlobalSetup(realization)
 #endif
   allocate(auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call GlobalAuxVarInit(auxvars(ghosted_id),option,iparameter)
+    call GlobalAuxVarInit(auxvars(ghosted_id),option)
   enddo
   patch%aux%Global%auxvars => auxvars
   patch%aux%Global%num_aux = grid%ngmax
 
   ! at this point, field%work and field%work_loc are available to perform
   ! operations such as reading datasets
-  iparameter = 0
   cur_parameter => realization%parameter_list
   do
     if (.not.associated(cur_parameter)) exit
-    iparameter = iparameter + 1
-    patch%aux%Global%parameter_names(iparameter) = cur_parameter%name
     do ghosted_id = 1, grid%ngmax
-      auxvars(ghosted_id)%parameters(iparameter) = cur_parameter%value
+      auxvars(ghosted_id)%parameters(cur_parameter%id) = cur_parameter%value
     enddo
     cur_parameter => cur_parameter%next
   enddo

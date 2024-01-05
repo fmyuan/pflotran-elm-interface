@@ -41,7 +41,6 @@ module Global_Aux_module
     type(global_auxvar_type), pointer :: auxvars(:)
     type(global_auxvar_type), pointer :: auxvars_bc(:)
     type(global_auxvar_type), pointer :: auxvars_ss(:)
-    character(len=MAXWORDLENGTH), pointer :: parameter_names(:)
   end type global_type
 
   interface GlobalAuxVarDestroy
@@ -82,7 +81,6 @@ function GlobalAuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  nullify(aux%parameter_names)
 
   GlobalAuxCreate => aux
 
@@ -90,7 +88,7 @@ end function GlobalAuxCreate
 
 ! ************************************************************************** !
 
-subroutine GlobalAuxVarInit(auxvar,option,num_parameters)
+subroutine GlobalAuxVarInit(auxvar,option)
   !
   ! Initialize auxiliary object
   !
@@ -104,7 +102,6 @@ subroutine GlobalAuxVarInit(auxvar,option,num_parameters)
 
   type(global_auxvar_type) :: auxvar
   type(option_type) :: option
-  PetscInt, optional :: num_parameters
 
   PetscInt :: nphase
 
@@ -236,11 +233,9 @@ subroutine GlobalAuxVarInit(auxvar,option,num_parameters)
     auxvar%mass_balance_delta = 0.d0
   endif
 
-  if (present(num_parameters)) then
-    if (num_parameters > 0) then
-      allocate(auxvar%parameters(num_parameters))
-      auxvar%parameters = 0.d0
-    endif
+  if (option%parameter%num_parameters > 0) then
+    allocate(auxvar%parameters(option%parameter%num_parameters))
+    auxvar%parameters = 0.d0
   endif
 
 end subroutine GlobalAuxVarInit
@@ -430,8 +425,6 @@ subroutine GlobalAuxDestroy(aux)
   call GlobalAuxVarDestroy(aux%auxvars)
   call GlobalAuxVarDestroy(aux%auxvars_bc)
   call GlobalAuxVarDestroy(aux%auxvars_ss)
-
-  call DeallocateArray(aux%parameter_names)
 
   deallocate(aux)
   nullify(aux)

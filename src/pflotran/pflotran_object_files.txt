@@ -13,9 +13,10 @@ util_obj = \
 	${common_src}option.o \
 	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
-	${common_src}option_inversion.o \
-	${common_src}option_transport.o \
 	${common_src}option_geophysics.o \
+	${common_src}option_inversion.o \
+	${common_src}option_parameter.o \
+	${common_src}option_transport.o \
 	${common_src}output_aux.o \
 	${common_src}petsc_utility.o \
 	${common_src}pflotran_constants.o \
