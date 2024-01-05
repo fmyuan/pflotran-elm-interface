@@ -307,7 +307,8 @@ subroutine PrintErrorMessage2(print_flags,comm,fid,string,exit_code, &
   PetscErrorCode :: ierr
 
   if (byrank) then
-    local_string = 'ERROR(' // StringWrite(comm%rank) // '): ' // trim(string)
+    allocate(local_string,source = 'ERROR(' //  StringWrite(comm%rank) // &
+                                   '): ' // trim(string))
     if (print_flags%print_to_screen) then
       write(STDOUT_UNIT,'(/,a,//,"Stopping!")') local_string
     endif
@@ -315,7 +316,7 @@ subroutine PrintErrorMessage2(print_flags,comm,fid,string,exit_code, &
       write(fid,'(/,a,//,"Stopping!")') local_string
     endif
   else
-    local_string = 'ERROR: ' // trim(string)
+    allocate(local_string,source = 'ERROR: ' // trim(string))
     if (PrintToScreen(print_flags,comm)) then
       write(STDOUT_UNIT,'(/,a,//,"Stopping!")') local_string
     endif
@@ -382,7 +383,8 @@ subroutine PrintMessage2(print_flags,comm,fid,string,advance_,byrank)
   character(len=:), allocatable :: local_string
 
   if (byrank) then
-    local_string = '(' // StringWrite(comm%rank) // '): ' // trim(string)
+    allocate(local_string,source = '(' // StringWrite(comm%rank) // &
+                                   '): ' // trim(string))
     if (print_flags%print_to_screen) then
       if (.not.advance_) then
         write(STDOUT_UNIT,'(a)',advance='no') trim(local_string)

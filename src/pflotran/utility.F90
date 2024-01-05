@@ -2807,6 +2807,11 @@ subroutine ThrowRuntimeError(error_name,option)
     case('pointer')
       call PrintMsg(option,'Checking pointer:')
       allocate(array(10))
+      ! this following three lines work around uninitialized warning for array2
+      allocate(array2(0))
+      deallocate(array2)
+      nullify(array2)
+      ! the actual test (setting an unallocated pointer equal to an array)
       array2 = array(:)
     case default
       option%io_buffer = 'Unrecognized error "' // trim(error_name) // &

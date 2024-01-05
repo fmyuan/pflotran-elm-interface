@@ -1433,9 +1433,9 @@ subroutine InvSubsurfWriteIterationInfoLoc(this)
   character(len=:), allocatable :: nl
   character(len=80) :: divider
 
-  nl = new_line('a')
+  allocate(nl,source = new_line('a'))
   write(divider,'(40("=+"))')
-  string = nl // trim(divider) // nl
+  allocate(string,source = nl // trim(divider) // nl)
   call this%driver%PrintMsg(string)
   call InvSubsurfWriteIterationInfo(this)
   string = nl // divider // nl
