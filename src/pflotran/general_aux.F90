@@ -16,8 +16,10 @@ module General_Aux_module
   PetscBool, public :: general_non_darcy_flow = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
   PetscReal, public :: general_min_cd_pert = 1.d-7
+  PetscReal, public :: general_min_liq_sat = UNINITIALIZED_DOUBLE
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscBool, public :: general_central_diff_jacobian = PETSC_FALSE
+  PetscBool, public :: general_prevent_gp_phase = PETSC_FALSE
   PetscBool, public :: general_salt = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(3) = [FMWH2O,FMWAIR,FMWNACL]
@@ -2222,12 +2224,19 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
     case(LGP_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
+
+      if (general_prevent_gp_phase) then
+        gen_auxvar%sat(gid) = min(x(GENERAL_GAS_SATURATION_DOF),1.d0-general_min_liq_sat)
+      else
+        gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
+      endif
+
       if (soluble_matrix) then
         gen_auxvar%effective_porosity = max(1d-12,x(GENERAL_POROSITY_DOF))
       else
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       endif
+
       call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
       gen_auxvar%xmol(sid,lid) = NaClSolubility
       if (gen_auxvar%istatechng) then
@@ -2666,6 +2675,10 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%H(pid) = U_precip
 
   gen_auxvar%mobility(pid) = 0.d0
+  
+  if (min(gen_auxvar%sat(1),gen_auxvar%sat(2),gen_auxvar%sat(3))<0.d0) then
+    call GeneralPrintNegativeSat(natural_id,gen_auxvar,option)
+  endif
 
 #if 0
   if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
@@ -2823,8 +2836,39 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
     general_high_temp_ts_cut = PETSC_TRUE
   endif
 
-
 end subroutine GeneralEOSGasError
+
+! ************************************************************************** !
+
+subroutine GeneralPrintNegativeSat(natural_id,gen_auxvar,option)
+
+  !
+  !  GeneralPrintNegativeSat: Prints when a negative saturation is encountered
+  !                      
+  !
+  !  Author: David Fukuyama
+  !  Date: 01/05/24
+  !
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: natural_id
+  type(general_auxvar_type) :: gen_auxvar
+  type(option_type) :: option
+
+
+  call PrintMsgByCell(option,natural_id, &
+                      'Negative saturation encountered in GeneralAuxVarCompute')
+  option%io_buffer = 'Saturation at cell ID ' // trim(StringWrite(natural_id)) // &
+                             ' S_l: ' // trim(StringWrite(gen_auxvar%sat(1))) // &
+                             ' S_g: ' // trim(StringWrite(gen_auxvar%sat(2))) // &
+                             ' phi: ' // trim(StringWrite(gen_auxvar%effective_porosity)) // '.'
+  call PrintMsgByRank(option)
+
+end subroutine GeneralPrintNegativeSat
 
 ! ************************************************************************** !
 
@@ -3491,10 +3535,13 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
           endif
 
         elseif (Sg_new > 1.d0+window_epsilon) then
-
-          global_auxvar%istate = GP_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
-          istatechng = PETSC_TRUE
+          if (general_prevent_gp_phase) then
+            istatechng = PETSC_FALSE
+          else
+            global_auxvar%istate = GP_STATE
+            two_phase_epsilon = general_phase_chng_epsilon
+            istatechng = PETSC_TRUE
+          endif
 
 #ifdef DEBUG_GENERAL_INFO
           call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
