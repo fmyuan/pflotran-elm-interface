@@ -97,21 +97,6 @@ module Patch_module
 
   end type patch_type
 
-  ! pointer data structure required for making an array of patch pointers in F90
-  type, public :: patch_ptr_type
-    type(patch_type), pointer :: ptr           ! pointer to the patch_type
-  end type patch_ptr_type
-
-  type, public :: patch_list_type
-    PetscInt :: num_patch_objects
-    type(patch_type), pointer :: first
-    type(patch_type), pointer :: last
-    type(patch_ptr_type), pointer :: array(:)
-  end type patch_list_type
-
-  PetscInt, parameter, public :: INT_VAR = 0
-  PetscInt, parameter, public :: REAL_VAR = 1
-
   interface PatchGetVariable
     module procedure PatchGetVariable1
     module procedure PatchGetVariable2
@@ -124,15 +109,12 @@ module Patch_module
     module procedure PatchUnsupportedVariable4
   end interface
 
-  public :: PatchCreate, PatchDestroy, PatchCreateList, PatchDestroyList, &
-            PatchAddToList, PatchConvertListToArray, PatchProcessCouplers, &
+  public :: PatchCreate, PatchDestroy, PatchProcessCouplers, &
             PatchUpdateAllCouplerAuxVars, PatchInitAllCouplerAuxVars, &
             PatchLocalizeRegions, PatchUpdateUniformVelocity, &
             PatchGetVariable, PatchGetVariableValueAtCell, &
             PatchSetVariable, PatchCouplerInputRecord, &
-            PatchInitConstraints, &
-            PatchCountCells, PatchGetIvarsFromKeyword, &
-            PatchGetVarNameFromKeyword, &
+            PatchInitConstraints, PatchCountCells, &
             PatchCalculateCFL1Timestep, &
             PatchGetCellCenteredVelocities, &
             PatchGetWaterMassInRegion, &
@@ -224,85 +206,6 @@ function PatchCreate()
   PatchCreate => patch
 
 end function PatchCreate
-
-! ************************************************************************** !
-
-function PatchCreateList()
-  !
-  ! PatchListCreate: Creates a patch list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/22/08
-  !
-
-  implicit none
-
-  type(patch_list_type), pointer :: PatchCreateList
-
-  type(patch_list_type), pointer :: patch_list
-
-  allocate(patch_list)
-  nullify(patch_list%first)
-  nullify(patch_list%last)
-  nullify(patch_list%array)
-  patch_list%num_patch_objects = 0
-
-  PatchCreateList => patch_list
-
-end function PatchCreateList
-
-! ************************************************************************** !
-
-subroutine PatchAddToList(new_patch,patch_list)
-  !
-  ! Adds a new patch to list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/22/08
-  !
-
-  implicit none
-
-  type(patch_type), pointer :: new_patch
-  type(patch_list_type) :: patch_list
-
-  if (associated(new_patch)) then
-     patch_list%num_patch_objects = patch_list%num_patch_objects + 1
-     new_patch%id = patch_list%num_patch_objects
-     if (.not.associated(patch_list%first)) patch_list%first => new_patch
-     if (associated(patch_list%last)) patch_list%last%next => new_patch
-     patch_list%last => new_patch
-  end if
-end subroutine PatchAddToList
-
-! ************************************************************************** !
-
-subroutine PatchConvertListToArray(patch_list)
-  !
-  ! Creates an array of pointers to the
-  ! patchs in the patch list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/22/08
-  !
-
-  implicit none
-
-  type(patch_list_type) :: patch_list
-
-  type(patch_type), pointer :: cur_patch
-
-
-  allocate(patch_list%array(patch_list%num_patch_objects))
-
-  cur_patch => patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    patch_list%array(cur_patch%id)%ptr => cur_patch
-    cur_patch => cur_patch%next
-  enddo
-
-end subroutine PatchConvertListToArray
 
 ! ************************************************************************** !
 
@@ -6036,7 +5939,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               ghosted_id = grid%nL2G(local_id)
               tempreal = patch%aux%General%auxvars(ZERO_INTEGER, &
                          ghosted_id)%mobility(option%liquid_phase)
-              if (tempreal > 0.d0) then   
+              if (tempreal > 0.d0) then
                 vec_ptr(local_id) = &
                   patch%aux%General%auxvars(ZERO_INTEGER, &
                     ghosted_id)%kr(option%liquid_phase) / &
@@ -9122,80 +9025,6 @@ end subroutine PatchCalculateCFL1Timestep
 
 ! ************************************************************************** !
 
-function PatchGetVarNameFromKeyword(keyword,option)
-  !
-  ! Returns the name of variable defined by keyword
-  !
-  ! Author: Glenn Hammond
-  ! Date: 07/28/11
-  !
-
-  use Option_module
-
-  implicit none
-
-  character(len=MAXWORDLENGTH) :: keyword
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: PatchGetVarNameFromKeyword
-  character(len=MAXSTRINGLENGTH) :: var_name
-
-  select case(keyword)
-    case('PROCESS_ID')
-      var_name = 'Processor ID'
-    case('NATURAL_ID')
-      var_name = 'Natural ID'
-    case default
-      option%io_buffer = 'Keyword "' // trim(keyword) // '" not ' // &
-                         'recognized in PatchGetIvarsFromKeyword()'
-      call PrintErrMsg(option)
-  end select
-
-  PatchGetVarNameFromKeyword = var_name
-
-end function PatchGetVarNameFromKeyword
-
-! ************************************************************************** !
-
-subroutine PatchGetIvarsFromKeyword(keyword,ivar,isubvar,var_type,option)
-  !
-  ! Returns the ivar and isubvars for extracting
-  ! datasets using PatchGet/PatchSet routines
-  !
-  ! Author: Glenn Hammond
-  ! Date: 07/28/11
-  !
-
-  use Option_module
-  use Variables_module
-
-  implicit none
-
-  character(len=MAXWORDLENGTH) :: keyword
-  PetscInt :: ivar
-  PetscInt :: isubvar
-  PetscInt :: var_type
-  type(option_type) :: option
-
-  select case(keyword)
-    case('PROCESS_ID')
-      ivar = PROCESS_ID
-      isubvar = ZERO_INTEGER
-      var_type = INT_VAR
-    case('NATURAL_ID')
-      ivar = NATURAL_ID
-      isubvar = ZERO_INTEGER
-      var_type = INT_VAR
-    case default
-      option%io_buffer = 'Keyword "' // trim(keyword) // '" not ' // &
-                         'recognized in PatchGetIvarsFromKeyword()'
-      call PrintErrMsg(option)
-  end select
-
-end subroutine
-
-! ************************************************************************** !
-
 subroutine PatchGetVariable2(patch,option,output_option,vec, &
                              ivar,isubvar,isubvar2)
   !
@@ -10404,44 +10233,6 @@ subroutine PatchUnsupportedVariable4(ivar,option)
   call PatchUnsupportedVariable('','',ivar,option)
 
 end subroutine PatchUnsupportedVariable4
-
-! ************************************************************************** !
-
-subroutine PatchDestroyList(patch_list)
-  !
-  ! Deallocates a patch list and array of patches
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/15/07
-  !
-
-  implicit none
-
-  type(patch_list_type), pointer :: patch_list
-
-  type(patch_type), pointer :: cur_patch, prev_patch
-
-  if (.not.associated(patch_list)) return
-
-  if (associated(patch_list%array)) deallocate(patch_list%array)
-  nullify(patch_list%array)
-
-  cur_patch => patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    prev_patch => cur_patch
-    cur_patch => cur_patch%next
-    call PatchDestroy(prev_patch)
-  enddo
-
-  nullify(patch_list%first)
-  nullify(patch_list%last)
-  patch_list%num_patch_objects = 0
-
-  deallocate(patch_list)
-  nullify(patch_list)
-
-end subroutine PatchDestroyList
 
 ! ************************************************************************** !
 
