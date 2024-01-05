@@ -44,7 +44,7 @@ def main(args):
   parser.add_argument("--no_user_defined", help="If passed, strips the 6 user-defined fractures "\
       "out before meshing.", action='store_true' )
   parser.add_argument("--no_correction_factor", help="If passed, stairstep correction not applied to permeability "\
-      "out before meshing.", action='store_false' )
+      "out before meshing.", action='store_true' )
   pa = parser.parse_args(args)
 
   if pa.no_user_defined and ( not pa.meshing_case == 'whole_domain' ):
