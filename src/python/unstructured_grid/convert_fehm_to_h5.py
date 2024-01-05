@@ -34,6 +34,9 @@ def convert_fehm_grid_to_h5(fehm_in, h5_out):
         element_vertices[cell_id][0] = num_vertex_per_cell
         for i in range(1,num_vertex_per_cell+1):
             element_vertices[cell_id][i] = int(w[i])
+        i = element_vertices[cell_id][2]
+        element_vertices[cell_id][2] = element_vertices[cell_id][3]
+        element_vertices[cell_id][3] = i
     src.close()
   
     #write to hdf5 output
