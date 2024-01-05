@@ -602,6 +602,7 @@ factory_subsurface_read.o : \
   output.o \
   output_aux.o \
   output_tecplot.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
@@ -933,6 +934,7 @@ global.o : \
   material.o \
   option.o \
   output_common.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   realization_base.o \
@@ -1729,6 +1731,12 @@ output_vtk.o : \
   realization_base.o \
   string.o \
   variables.o
+parameter.o : \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  string.o \
+  units.o
 patch.o : \
   auxiliary.o \
   characteristic_curves.o \
