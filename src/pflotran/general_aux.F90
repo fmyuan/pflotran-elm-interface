@@ -2677,7 +2677,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%mobility(pid) = 0.d0
   
   if (min(gen_auxvar%sat(1),gen_auxvar%sat(2),gen_auxvar%sat(3))<0.d0) then
-    call GeneralPrintNegativeSat(natural_id,gen_auxvar,option)
+    call GeneralPrintNegativeSat(natural_id,gen_auxvar,global_auxvar%istate,option)
   endif
 
 #if 0
@@ -2840,7 +2840,7 @@ end subroutine GeneralEOSGasError
 
 ! ************************************************************************** !
 
-subroutine GeneralPrintNegativeSat(natural_id,gen_auxvar,option)
+subroutine GeneralPrintNegativeSat(natural_id,gen_auxvar,phase_state,option)
 
   !
   !  GeneralPrintNegativeSat: Prints when a negative saturation is encountered
@@ -2856,6 +2856,7 @@ subroutine GeneralPrintNegativeSat(natural_id,gen_auxvar,option)
   implicit none
 
   PetscInt :: natural_id
+  PetscInt :: phase_state
   type(general_auxvar_type) :: gen_auxvar
   type(option_type) :: option
 
@@ -2865,7 +2866,9 @@ subroutine GeneralPrintNegativeSat(natural_id,gen_auxvar,option)
   option%io_buffer = 'Saturation at cell ID ' // trim(StringWrite(natural_id)) // &
                              ' S_l: ' // trim(StringWrite(gen_auxvar%sat(1))) // &
                              ' S_g: ' // trim(StringWrite(gen_auxvar%sat(2))) // &
-                             ' phi: ' // trim(StringWrite(gen_auxvar%effective_porosity)) // '.'
+                             ' S_p: ' // trim(StringWrite(gen_auxvar%sat(3))) // &
+                             ' phi: ' // trim(StringWrite(gen_auxvar%effective_porosity)) // &
+                             ' phase: ' // trim(StringWrite(phase_state)) // '.'
   call PrintMsgByRank(option)
 
 end subroutine GeneralPrintNegativeSat
