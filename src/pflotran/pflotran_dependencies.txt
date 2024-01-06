@@ -488,6 +488,7 @@ factory_subsurface.o : \
   option.o \
   output.o \
   output_aux.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   pm_auxiliary.o \
@@ -927,10 +928,14 @@ global.o : \
   communicator_base.o \
   connection.o \
   coupler.o \
+  dataset_base.o \
+  dataset_common_hdf5.o \
+  dataset_gridded_hdf5.o \
   discretization.o \
   field.o \
   global_aux.o \
   grid.o \
+  hdf5.o \
   material.o \
   option.o \
   output_common.o \
@@ -2948,6 +2953,7 @@ reaction_sandbox_pnnl_cyber.o : \
   material_aux.o \
   option.o \
   output_aux.o \
+  parameter.o \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_immobile_aux.o \

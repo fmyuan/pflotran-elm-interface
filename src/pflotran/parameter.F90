@@ -18,7 +18,7 @@ module Parameter_module
 
   public :: ParameterCreate, ParameterDestroy, &
             ParameterRead, ParameterAddToList, &
-            ParameterSetup, ParameterGetIndex
+            ParameterSetup, ParameterGetIDFromName
 
 contains
 
@@ -85,7 +85,7 @@ subroutine ParameterRead(parameter,input,option)
       case('NAME')
         call InputReadWord(input,option,parameter%name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_str)
-      case('SCALAR')
+      case('VALUE')
         call InputReadDouble(input,option,parameter%value)
         call InputErrorMsg(input,option,keyword,error_str)
       case('DATASET')
@@ -97,6 +97,18 @@ subroutine ParameterRead(parameter,input,option)
 
   enddo
   call InputPopBlock(input,option)
+
+  if (len_trim(parameter%name) == 0) then
+    option%io_buffer = 'No NAME specified for a PARAMETER in the input file.'
+    call PrintErrMsg(option)
+  endif
+
+  if (Uninitialized(parameter%value) .and. &
+     len_trim(parameter%dataset_name) == 0) then
+    option%io_buffer = 'No VALUE or DATASET specified for a PARAMETER "' // &
+      trim(parameter%name) // '" in the input file.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine ParameterRead
 
@@ -170,9 +182,9 @@ end subroutine ParameterSetup
 
 ! ************************************************************************** !
 
-function ParameterGetIndex(parameter_name,option)
+function ParameterGetIDFromName(parameter_name,option)
   !
-  ! Initializes the parameter module
+  ! Returns the parameter id/index given a name
   !
   ! Author: Glenn Hammond
   ! Date: 01/0523
@@ -183,24 +195,30 @@ function ParameterGetIndex(parameter_name,option)
   character(len=*) :: parameter_name
   type(option_type) :: option
 
-  PetscInt :: ParameterGetIndex
+  PetscInt :: ParameterGetIDFromName
 
   PetscInt :: i
   character(len=MAXWORDLENGTH), pointer :: parameter_names(:)
 
   parameter_names => option%parameter%parameter_names
-  ParameterGetIndex = 0
+  ParameterGetIDFromName = 0
   do i = 1, option%parameter%num_parameters
     if (StringCompare(parameter_name,parameter_names(i))) then
-      ParameterGetIndex = i
+      ParameterGetIDFromName = i
       return
     endif
   enddo
-  option%io_buffer = 'Parameter "' // trim(parameter_name) // '" was not &
-    &found among available parameters: ' // StringsMerge(parameter_names,',')
+  if (option%parameter%num_parameters > 0) then
+    option%io_buffer = 'Parameter "' // trim(parameter_name) // '" was not &
+      &found among available parameters: ' // StringsMerge(parameter_names,',')
+  else
+    option%io_buffer = 'Parameter "' // trim(parameter_name) // '" was &
+      &requested in ParameterGetIDFromName(), but no PARAMETERs were &
+      &included in the input deck.'
+  endif
   call PrintErrMsg(option)
 
-end function ParameterGetIndex
+end function ParameterGetIDFromName
 
 ! ************************************************************************** !
 

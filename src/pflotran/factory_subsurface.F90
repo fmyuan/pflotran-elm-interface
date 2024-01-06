@@ -478,6 +478,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
 
+  call ParameterSetup(realization%parameter_list,option)
   select case(option%itranmode)
     case(RT_MODE)
       ! read reaction database
@@ -531,7 +532,6 @@ subroutine FactorySubsurfSetupRealization(simulation)
   ! SubsurfSandboxesSetup() must be called after
   ! SubsurfAssignVolsToMatAuxVars() where volumes are assigned to Material
   ! objects
-  call ParameterSetup(realization%parameter_list,option)
   call SubsurfSandboxesSetup(realization)
   call RealizationInitAllCouplerAuxVars(realization)
   if (option%ntrandof > 0) then

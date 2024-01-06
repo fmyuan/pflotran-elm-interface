@@ -2413,6 +2413,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
       case ('PARAMETER')
         parameter => ParameterCreate()
+        call InputReadWord(input,option,parameter%name,PETSC_FALSE)
         call ParameterRead(parameter,input,option)
         call ParameterAddToList(parameter,realization%parameter_list)
         nullify(parameter)
