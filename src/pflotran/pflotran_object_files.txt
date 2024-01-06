@@ -206,8 +206,9 @@ dataset_obj = \
 srcsink_obj = \
 	${common_src}srcsink_sandbox.o \
 	${common_src}srcsink_sandbox_base.o \
-	${common_src}srcsink_sandbox_mass_rate.o \
 	${common_src}srcsink_sandbox_downreg.o \
+	${common_src}srcsink_sandbox_mass_rate.o \
+	${common_src}srcsink_sandbox_pressure.o \
 	${common_src}srcsink_sandbox_wipp_gas.o \
 	${common_src}srcsink_sandbox_wipp_well.o
 

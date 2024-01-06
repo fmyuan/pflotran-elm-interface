@@ -30,6 +30,7 @@ module Option_Transport_module
     PetscBool :: steady_state
     PetscBool :: use_np ! nernst-planck diffusion.
     PetscBool :: sc_fixed_water_density
+    PetscBool :: anisotropic_tortuosity
 
     PetscInt :: nphase
 
@@ -125,6 +126,7 @@ subroutine OptionTransportInitRealization(option)
   option%steady_state = PETSC_FALSE
   option%use_np = PETSC_FALSE
   option%sc_fixed_water_density = PETSC_FALSE
+  option%anisotropic_tortuosity = PETSC_FALSE
 
   option%tran_weight_t0 = 0.d0
   option%tran_weight_t1 = 0.d0

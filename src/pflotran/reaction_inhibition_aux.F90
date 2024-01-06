@@ -201,6 +201,8 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
   ! Author: Glenn Hammond - based on Peishi Jiang implementation
   ! Date: 11/27/23
   !
+  use Utility_module
+
   implicit none
 
   PetscReal :: concentration
@@ -211,38 +213,22 @@ subroutine ReactionInhibitionSmoothstep2(concentration, &
 
   PetscReal :: log_inhibition
   PetscReal :: log_concentration
-  PetscReal :: lower_bound, z
+  PetscReal :: lower_bound
 
   log_inhibition = log10(dabs(threshold_concentration))
   log_concentration = log10(concentration)
   lower_bound = log_inhibition - 0.5d0 * log10_interval
-  z = (log_concentration - lower_bound) / log10_interval
+
+  call Smoothstep(log_concentration,lower_bound, &
+                  lower_bound+log10_interval,inhibition_factor, &
+                  derivative)
 
   ! inhibition
   if (threshold_concentration < 0.d0) then ! INHIBIT_ABOVE_THRESHOLD
-    if (z < 0.d0) then
-      inhibition_factor = 1.d0
-      derivative = 0.d0
-    else if (z > 1.d0) then
-      inhibition_factor = 0.d0
-      derivative = 0.d0
-    else
-      inhibition_factor = 1.d0 - (3.d0 * z ** 2 - 2.d0 * z ** 3)
-      derivative = -1.d0 * (6.d0*z - 6.d0*z**2) / &
-                           (log10_interval*concentration*LOG_TO_LN)
-    endif
+    inhibition_factor = 1.d0 - inhibition_factor
+    derivative = -1.d0 * derivative / (concentration*LOG_TO_LN)
   else ! INHIBIT_BELOW_THRESHOLD
-    if (z < 0.d0) then
-      inhibition_factor = 0.d0
-      derivative = 0.d0
-    else if (z > 1.d0) then
-      inhibition_factor = 1.d0
-      derivative = 0.d0
-    else
-      inhibition_factor = 3.d0 * z ** 2 - 2.d0 * z ** 3
-      derivative = (6.d0*z - 6.d0*z**2) / &
-                   (log10_interval*concentration*LOG_TO_LN)
-    endif
+      derivative = derivative / (concentration*LOG_TO_LN)
   endif
 
 end subroutine ReactionInhibitionSmoothstep2

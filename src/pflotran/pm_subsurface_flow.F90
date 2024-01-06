@@ -101,6 +101,8 @@ subroutine PMSubsurfaceFlowInit(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
+  use SrcSink_Sandbox_module
+
   implicit none
 
   class(pm_subsurface_flow_type) :: this
@@ -129,6 +131,8 @@ subroutine PMSubsurfaceFlowInit(this)
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
   this%logging_verbosity = 0
+
+  call SSSandboxInit()
 
 end subroutine PMSubsurfaceFlowInit
 
@@ -304,10 +308,10 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
-       
+
     case('USE_EUCLIDEAN_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_FALSE
-       
+
     case default
       found = PETSC_FALSE
   end select
@@ -347,6 +351,20 @@ subroutine PMSubsurfaceFlowSetup(this)
       this%store_porosity_for_ts_cut = PETSC_TRUE
       this%store_porosity_for_transport = PETSC_TRUE
     endif
+    if (this%realization%reaction%update_tortuosity .and. &
+        this%option%transport%anisotropic_tortuosity) then
+      this%option%io_buffer = 'Updating of tortuosity is not currently &
+                              &supported for anisotropic tortuosity.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
+  if (this%option%transport%anisotropic_tortuosity) then
+    select case(this%option%iflowmode)
+      case(G_MODE,H_MODE,MPH_MODE)
+        this%option%io_buffer = 'Anisotropic tortuosity not supported in &
+          &the miscible multiphase flow process models.'
+        call PrintErrMsg(this%option)
+    end select
   endif
   if (this%option%flow%transient_porosity) then
     this%store_porosity_for_ts_cut = PETSC_TRUE

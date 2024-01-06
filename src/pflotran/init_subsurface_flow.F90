@@ -191,12 +191,12 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
-  type(patch_type), pointer :: cur_patch
 
   option => realization%option
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
+  grid => patch%grid
 
   if (option%iflowmode /= RICHARDS_MODE .and. &
       option%iflowmode /= RICHARDS_TS_MODE) then
@@ -206,38 +206,29 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
                        trim(option%flowmode)
   endif
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
+    ! assign initial conditions values to domain
+  call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-    grid => cur_patch%grid
-
-      ! assign initial conditions values to domain
-    call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
-
-    ! Pressure for all modes
-    offset = 1
-    group_name = ''
-    dataset_name = 'Pressure'
-    call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                      filename,group_name, &
-                                      dataset_name,option%id>0)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-    do local_id=1, grid%nlmax
-      if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
-      if (dabs(vec_p(local_id)) < 1.d-40) then
-        print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
-              ': Potential error - zero pressure in Initial Condition read from file.'
-      endif
-      idx = (local_id-1)*option%nflowdof + offset
-      xx_p(idx) = vec_p(local_id)
-    enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-
-    call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
-
-    cur_patch => cur_patch%next
+  ! Pressure for all modes
+  offset = 1
+  group_name = ''
+  dataset_name = 'Pressure'
+  call HDF5ReadCellIndexedRealArray(realization,field%work, &
+                                    filename,group_name, &
+                                    dataset_name,option%id>0)
+  call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+  do local_id=1, grid%nlmax
+    if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
+    if (dabs(vec_p(local_id)) < 1.d-40) then
+      print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
+            ': Potential error - zero pressure in Initial Condition read from file.'
+    endif
+    idx = (local_id-1)*option%nflowdof + offset
+    xx_p(idx) = vec_p(local_id)
   enddo
+  call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+
+  call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &

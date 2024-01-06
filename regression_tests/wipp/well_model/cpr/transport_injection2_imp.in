@@ -1,4 +1,4 @@
-# This regression test includes transport in a production well that is turned
+# This regression test includes transport in an injection well that is turned
 # on at a later intrusion start time. Transport coupling is quasi-
 # implicit with NWT Mode.
 
@@ -111,12 +111,12 @@ NUMERICAL_METHODS TRANSPORT
     /
     NWT_ITOL_ABSOLUTE_RESIDUAL
       #AM241L  1.D-10
-      PU239L  1.D-10
+      PU239L  1.D-8
     /
     MAXIMUM_NUMBER_OF_ITERATIONS 10
   /
   LINEAR_SOLVER
-    SOLVER ITERATIVE
+    SOLVER DIRECT
   /
 END
 
@@ -167,13 +167,6 @@ REGION well_all
   /
 END
 
-#REGION sink_test
-#  COORDINATES
-#     0.d0  0.d0 100.d0
-#    10.d0 10.d0 110.d0
-#  /
-#END
-
 !=========================== datasets =========================================
 
 
@@ -215,7 +208,7 @@ WELLBORE_MODEL
       GAS_RATE 0.d0 m/s
     /
     TOP_OF_HOLE
-      LIQUID_PRESSURE 100500.d0 Pa # (under-pressurized relative to 101325Pa)
+      LIQUID_PRESSURE 120000.d0 Pa # (pressurized relative to 101325Pa)
       GAS_SATURATION 0.0d0 
       
       #LIQUID_RATE 1.0d-5 m/s # positive goes into well; negative goes out of well
@@ -225,8 +218,8 @@ WELLBORE_MODEL
     /
   /
   
-  WIPP_INTRUSION_START_TIME 5.d-3 yr
-  WIPP_INTRUSION_ZERO_VALUE 0.5d-10 # [T: mol/m3-bulk]
+  WIPP_INTRUSION_START_TIME 5.d-1 yr
+  WIPP_INTRUSION_ZERO_VALUE 0.5d-6 # [T: mol/m3-bulk]
 
   # This will create output in snapshot and observation files.
   # Outside of the well region, the values will read -999
@@ -257,8 +250,8 @@ WELLBORE_MODEL
     TIMESTEP_CUT_FACTOR 2.0             ! default 2.0
     TIMESTEP_RAMP_FACTOR 1.1            ! default 1.1
     ITOL_ABSOLUTE_RESIDUAL 1.0d-10       ! default 1.0d-8
-    ITOL_SCALED_RESIDUAL 1.0d-4         ! default 1.0d-4
-    ITOL_ABSOLUTE_UPDATE 1.0d-1          ! default 1.0d0 
+    ITOL_SCALED_RESIDUAL 1.0d-3         ! default 1.0d-4
+    ITOL_ABSOLUTE_UPDATE 1.0d0          ! default 1.0d0 
     ITOL_RELATIVE_UPDATE 1.0d-1          ! default 1.0d-1
   /
 
@@ -267,9 +260,9 @@ END
 !=========================== times ============================================
 
 TIME
-  FINAL_TIME 1.d-2 yr
-  INITIAL_TIMESTEP_SIZE 1.d-3 yr 
-  MAXIMUM_TIMESTEP_SIZE 5.d-3 yr
+  FINAL_TIME 1.d0 yr
+  INITIAL_TIMESTEP_SIZE 1.d-1 yr 
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 yr
 END
 
 !=========================== fluid properties =================================
@@ -290,11 +283,11 @@ END
 
 !=========================== material properties ==============================
 
-EXTERNAL_FILE mat_props.txt
+EXTERNAL_FILE ../mat_props.txt
 
 !=========================== saturation functions =============================
 
-EXTERNAL_FILE c_curves.txt
+EXTERNAL_FILE ../c_curves.txt
 
 !=========================== output options ===================================
 
@@ -349,14 +342,6 @@ FLOW_CONDITION hydrostatic
   LIQUID_SATURATION 1.0d0
 END
 
-#FLOW_CONDITION sink
-#  TYPE
-#    RATE mass_rate
-#  /
-#     ! liquid gas  
-#  RATE -1.d-7   0.d0     kg/s kg/s
-#END
-
 !=========================== transport conditions =============================
 
 TRANSPORT_CONDITION transport_initial_condition
@@ -388,12 +373,6 @@ BOUNDARY_CONDITION
   TRANSPORT_CONDITION transport_initial_condition
   REGION top
 END
-
-#SOURCE_SINK test
-#  FLOW_CONDITION sink
-#  TRANSPORT_CONDITION transport_initial_condition
-#  REGION sink_test
-#/
 
 !=========================== transport constraints ============================
 

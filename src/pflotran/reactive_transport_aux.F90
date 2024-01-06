@@ -84,6 +84,7 @@ module Reactive_Transport_Aux_module
     PetscInt :: offset_auxiliary
     PetscBool :: species_dependent_diffusion
     PetscBool :: millington_quirk_tortuosity
+    PetscBool :: anisotropic_tortuosity
     PetscReal, pointer :: diffusion_coefficient(:,:)
     PetscReal, pointer :: diffusion_activation_energy(:,:)
     PetscReal, pointer :: pri_spec_diff_coef(:)
@@ -171,6 +172,7 @@ function RTAuxCreate(naqcomp,nphase)
   aux%rt_parameter%offset_auxiliary = 0
   aux%rt_parameter%species_dependent_diffusion = PETSC_FALSE
   aux%rt_parameter%millington_quirk_tortuosity = PETSC_FALSE
+  aux%rt_parameter%anisotropic_tortuosity = PETSC_FALSE
   aux%rt_parameter%calculate_transverse_dispersion = PETSC_FALSE
   aux%rt_parameter%temperature_dependent_diffusion = PETSC_FALSE
 #ifdef OS_STATISTICS
