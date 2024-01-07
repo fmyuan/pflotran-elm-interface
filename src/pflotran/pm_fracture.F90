@@ -14,9 +14,9 @@ module PM_Fracture_class
 
   private
 
-  type :: fracture_type 
+  type :: fracture_type
     ! fracture ID number
-    PetscInt :: id 
+    PetscInt :: id
     ! cell permeability, initial [m]
     PetscReal, pointer :: kx0(:)
     ! cell permeability, initial [m]
@@ -31,6 +31,8 @@ module PM_Fracture_class
     PetscReal :: radx
     ! fracture radius - y [m]
     PetscReal :: rady
+    ! fracture radius - z [m]
+    PetscReal :: radz
     ! fracture center coordinates [m]
     type(point3d_type) :: center
     ! fracture normal vector [m]
@@ -50,7 +52,7 @@ module PM_Fracture_class
     ! total number of cells this fracture occupies
     PetscInt :: ncells
     ! linked list next object
-    class(fracture_type), pointer :: next 
+    class(fracture_type), pointer :: next
   end type fracture_type
 
   type, public, extends(pm_base_type) :: pm_fracture_type
@@ -60,13 +62,13 @@ module PM_Fracture_class
     PetscInt, pointer :: allfrac_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
     PetscInt, pointer :: frac_common_cell_ids(:)
-    ! maximum distance grid cell center can be from the fracture plane in 
+    ! maximum distance grid cell center can be from the fracture plane in
     ! order to mark the cell as being fractured # [m]
     PetscReal :: max_distance
     ! thermal expansion coefficient # [1/C]
     PetscReal :: t_coeff
     ! number of fractures in the domain
-    PetscInt :: nfrac 
+    PetscInt :: nfrac
     ! flag to update material_auxvar (permeability) object
     PetscBool :: update_material_auxvar_perm
   contains
@@ -113,8 +115,8 @@ function PMFracCreate()
   nullify(this%fracture_list)
   nullify(this%allfrac_cell_ids)
   nullify(this%frac_common_cell_ids)
-  this%nfrac = 0  
-  this%max_distance = 5.0  
+  this%nfrac = 0
+  this%max_distance = 5.0
   this%t_coeff = 40.d-6 ! granite value
   this%update_material_auxvar_perm = PETSC_FALSE
 
@@ -165,6 +167,7 @@ subroutine PMFractureInit(this)
   this%hap0 = UNINITIALIZED_DOUBLE
   this%radx = UNINITIALIZED_DOUBLE
   this%rady = UNINITIALIZED_DOUBLE
+  this%radz = UNINITIALIZED_DOUBLE
   this%center%x = UNINITIALIZED_DOUBLE
   this%center%y = UNINITIALIZED_DOUBLE
   this%center%z = UNINITIALIZED_DOUBLE
@@ -203,11 +206,11 @@ subroutine PMFracSetup(this)
   PetscInt, pointer :: temp_frac_common_cell_ids(:)
   PetscInt :: k,j,local_id,local_id_center
   PetscInt :: nf,tfc,read_max
-  PetscReal :: D,distance 
-  PetscReal :: min_x,max_x,min_y,max_y 
+  PetscReal :: D,distance
+  PetscReal :: min_x,max_x,min_y,max_y,min_z,max_z
   PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
   PetscReal :: ra, sinra, cosra
-  PetscBool :: within_x,within_y
+  PetscBool :: within_x,within_y,within_z
 
   option => this%option
   res_grid => this%realization%patch%grid
@@ -237,17 +240,11 @@ subroutine PMFracSetup(this)
   do
     if (.not.associated(cur_fracture)) exit
 
-    write(word,'(i4)') cur_fracture%id 
+    write(word,'(i4)') cur_fracture%id
     option%io_buffer = 'GEOTHERMAL_FRACTURE_MODEL: Mapping fracture ID# [' &
                        // trim(word) // '].'
     call PrintMsg(option)
-    !call GridGetLocalIDFromCoordinate(res_grid,cur_fracture%center,option, &
-    !	                              local_id_center)
-    !if (Uninitialized(local_id_center)) then
-    !  option%io_buffer = 'Fracture ID# [' // trim(word) // '] CENTER &
-    !    &coordinate is not within the reservoir domain.'
-    !  call PrintErrMsg(option)
-    !endif
+
     ! Equation of a plane normal to vector (A,B,C) is
     ! Ax + By + Cz + D = 0
     ! Get D by knowing the plane must contain the center point (x,y,z)
@@ -260,15 +257,18 @@ subroutine PMFracSetup(this)
                  cur_fracture%normal%y*res_grid%y(res_grid%nL2G(k)) + &
                  cur_fracture%normal%z*res_grid%z(res_grid%nL2G(k)) + D
       if (abs(distance) < this%max_distance) then
-        ! entered here if the center of the grid cell is within a tolerance 
+        ! entered here if the center of the grid cell is within a tolerance
         ! of max_distance of the plane.
-        ! next check if the (x,y) position of the grid cell lies within the 
+        ! next check if the (x,y) position of the grid cell lies within the
         ! requested rad(x,y) of the plane from the center point.
-        min_x = cur_fracture%center%x - cur_fracture%radx 
-        max_x = cur_fracture%center%x + cur_fracture%radx 
-        min_y = cur_fracture%center%y - cur_fracture%rady 
-        max_y = cur_fracture%center%y + cur_fracture%rady 
+        min_x = cur_fracture%center%x - cur_fracture%radx
+        max_x = cur_fracture%center%x + cur_fracture%radx
+        min_y = cur_fracture%center%y - cur_fracture%rady
+        max_y = cur_fracture%center%y + cur_fracture%rady
+        min_z = cur_fracture%center%z - cur_fracture%radz
+        max_z = cur_fracture%center%z + cur_fracture%radz
         within_x = PETSC_FALSE; within_y = PETSC_FALSE
+        within_z = PETSC_FALSE
         if ((res_grid%x(res_grid%nL2G(k)) <= max_x) .and. &
             (res_grid%x(res_grid%nL2G(k)) >= min_x)) then
           within_x = PETSC_TRUE
@@ -277,7 +277,17 @@ subroutine PMFracSetup(this)
             (res_grid%y(res_grid%nL2G(k)) >= min_y)) then
           within_y = PETSC_TRUE
         endif
-        if (within_x .and. within_y) then
+        if ((res_grid%z(res_grid%nL2G(k)) <= max_z) .and. &
+            (res_grid%z(res_grid%nL2G(k)) >= min_z)) then
+          within_z = PETSC_TRUE
+        endif
+        ! if you want the fracture oriented exactly along an axis, then allow
+        ! that axis to pass the following logic statement by setting the
+        ! within_* booleans to TRUE
+        if (abs(max_x-min_x) < 1.d-5) within_x = PETSC_TRUE
+        if (abs(max_y-min_y) < 1.d-5) within_y = PETSC_TRUE
+        if (abs(max_z-min_z) < 1.d-5) within_z = PETSC_TRUE
+        if (within_x .and. within_y .and. within_z) then
           j = j + 1
           temp_cell_ids(j) = k
         endif
@@ -332,14 +342,14 @@ subroutine PMFracSetup(this)
     vmag = sqrt((cur_fracture%parallel%x)**2.d0 + &
         	    (cur_fracture%parallel%y)**2.d0 + &
         	    (cur_fracture%parallel%z)**2.d0)
-  
+
     cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
     cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
     cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
     c1 = cur_fracture%parallel%x
     c2 = cur_fracture%parallel%y
     c3 = cur_fracture%parallel%z
-    
+
     ! calculate the rotation angle (ra) between domain/fracture orientations
     ra = acos(a3)
 
@@ -365,12 +375,12 @@ subroutine PMFracSetup(this)
     deallocate(temp_allfrac_cell_ids)
     allocate(temp_allfrac_cell_ids(tfc))
     temp_allfrac_cell_ids(:) = UNINITIALIZED_INTEGER
-  
+
     deallocate(temp_cell_ids)
     allocate(temp_cell_ids(tfc))
     temp_cell_ids(:) = UNINITIALIZED_INTEGER
     j = 1
-    do k = 1,tfc 
+    do k = 1,tfc
       if (any(temp_allfrac_cell_ids == this%allfrac_cell_ids(k))) then
         temp_cell_ids(j) = this%allfrac_cell_ids(k)
         j = j + 1
@@ -458,19 +468,26 @@ subroutine PMFracInitializeRun(this)
     do k = 1,cur_fracture%ncells
       icell = cur_fracture%cell_ids(k)
       material_auxvar => &
-        this%realization%patch%aux%material%auxvars(grid%nL2G(icell)) 
+        this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
       ! if cells aren't too pancaked, L should be a good estimate of length
-      L = (material_auxvar%volume)**(1.d0/3.d0) 
+      L = (material_auxvar%volume)**(1.d0/3.d0)
 
       cur_fracture%kx0(k) = perm0_xx_p(icell)
-      cur_fracture%ky0(k) = perm0_yy_p(icell) 
+      cur_fracture%ky0(k) = perm0_yy_p(icell)
       cur_fracture%kz0(k) = perm0_zz_p(icell)
 
       call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
 
-      material_auxvar%permeability(1) = material_auxvar%permeability(1) + kx 
-      material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky 
+      material_auxvar%permeability(1) = material_auxvar%permeability(1) + kx
+      material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky
       material_auxvar%permeability(3) = material_auxvar%permeability(3) + kz
+
+      material_auxvar%porosity_0 = material_auxvar%porosity_0 + &
+                                   (cur_fracture%hap0/L)
+      material_auxvar%porosity_base = material_auxvar%porosity_base + &
+                                      (cur_fracture%hap0/L)
+      material_auxvar%porosity = material_auxvar%porosity + &
+                                 (cur_fracture%hap0/L)
 
       if (option%iflowmode == G_MODE) then
         general_auxvar => &
@@ -480,7 +497,7 @@ subroutine PMFracInitializeRun(this)
         global_auxvar => &
           this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
         cur_fracture%prev_temperature(k) = global_auxvar%temp
-      endif 
+      endif
     enddo
 
     cur_fracture => cur_fracture%next
@@ -491,7 +508,7 @@ subroutine PMFracInitializeRun(this)
       icell = this%allfrac_cell_ids(k)
       material_auxvar => &
           this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
-      perm0_xx_p(icell) = material_auxvar%permeability(1) 
+      perm0_xx_p(icell) = material_auxvar%permeability(1)
       perm0_yy_p(icell) = material_auxvar%permeability(2)
       perm0_zz_p(icell) = material_auxvar%permeability(3)
     enddo
@@ -706,7 +723,7 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
         select case(trim(word))
         !-----------------------------
           case('ID')
-            call InputReadInt(input,option,new_fracture%id) 
+            call InputReadInt(input,option,new_fracture%id)
             call InputErrorMsg(input,option,'ID',error_string)
         !-----------------------------
           case('HYDRAULIC_APERTURE')
@@ -720,6 +737,10 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
           case('RADIUS_Y')
             call InputReadDouble(input,option,new_fracture%rady)
             call InputErrorMsg(input,option,'RADIUS_Y',error_string)
+        !-----------------------------
+          case('RADIUS_Z')
+            call InputReadDouble(input,option,new_fracture%radz)
+            call InputErrorMsg(input,option,'RADIUS_Z',error_string)
         !-----------------------------
           case('CENTER')
             call InputReadDouble(input,option,new_fracture%center%x)
@@ -767,6 +788,11 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
       endif
       if (Uninitialized(new_fracture%rady)) then
         option%io_buffer = 'ERROR: RADIUS_Y must be specified in ' // &
+                           trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracture%radz)) then
+        option%io_buffer = 'ERROR: RADIUS_Z must be specified in ' // &
                            trim(error_string) // ' block.'
         call PrintMsg(option); num_errors = num_errors + 1
       endif
@@ -870,7 +896,7 @@ end subroutine PMFracReadPass2
 
 subroutine PMFracCalc_dK(L,d_hap,RM,kx,ky,kz)
   !
-  ! Calculates change in cell anisotropic permeability from fracture 
+  ! Calculates change in cell anisotropic permeability from fracture
   ! permeability.
   !
   ! Author: Jennifer M. Frederick, SNL
@@ -879,7 +905,7 @@ subroutine PMFracCalc_dK(L,d_hap,RM,kx,ky,kz)
 
   implicit none
 
-  PetscReal :: L 
+  PetscReal :: L
   PetscReal :: d_hap ! change in hap
   PetscReal :: RM(3,3)
   PetscReal :: kx,ky,kz
@@ -918,7 +944,7 @@ subroutine PMFracCalcK(L,hap,RM,kx,ky,kz)
 
   implicit none
 
-  PetscReal :: L 
+  PetscReal :: L
   PetscReal :: hap
   PetscReal :: RM(3,3)
   PetscReal :: kx,ky,kz
@@ -999,8 +1025,8 @@ subroutine PMFracSolve(this,time,ierr)
         global_auxvar => &
           this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
         cur_temperature = global_auxvar%temp
-      endif 
-      
+      endif
+
       if (cur_fracture%prev_temperature(k) == 0.d0) then
         ! for whatever reason, in general_mode the auxvar temperature is not
         ! initialized before the fracture pm calls initialize run.
@@ -1015,6 +1041,8 @@ subroutine PMFracSolve(this,time,ierr)
 
       ! update the aperture with dL and calculate new perm
       cur_fracture%hap(k) = cur_fracture%hap(k) - cur_fracture%dL(k)
+      ! make sure aperature doesn't go negative
+      cur_fracture%hap(k) = max(0.d0,cur_fracture%hap(k))
 
       ! get change in anisotropic domain permeability from rotation transform
       call PMFracCalc_dK(L,-1.d0*cur_fracture%dL(k),cur_fracture%RM, &
@@ -1024,9 +1052,9 @@ subroutine PMFracSolve(this,time,ierr)
       call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
 
       ! update domain material permeability of cells with fractures
-      perm0_xx_p(icell) = perm0_xx_p(icell) + kx 
-      perm0_yy_p(icell) = perm0_yy_p(icell) + ky 
-      perm0_zz_p(icell) = perm0_zz_p(icell) + kz 
+      perm0_xx_p(icell) = perm0_xx_p(icell) + kx
+      perm0_yy_p(icell) = perm0_yy_p(icell) + ky
+      perm0_zz_p(icell) = perm0_zz_p(icell) + kz
 
       ! reset previous temperature for next time step
       cur_fracture%prev_temperature(k) = cur_temperature
@@ -1040,7 +1068,7 @@ subroutine PMFracSolve(this,time,ierr)
       do k = 1,size(this%allfrac_cell_ids)
         icell = this%allfrac_cell_ids(k)
         material_auxvar => &
-          this%realization%patch%aux%material%auxvars(grid%nL2G(icell)) 
+          this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
         material_auxvar%permeability(1) = perm0_xx_p(icell)
         material_auxvar%permeability(2) = perm0_yy_p(icell)
         material_auxvar%permeability(3) = perm0_zz_p(icell)
@@ -1083,7 +1111,7 @@ subroutine PMFracDestroy(this)
   cur_fracture => this%fracture_list
   do
     if (.not.associated(cur_fracture)) exit
-    
+
     if (cur_fracture%ncells > 0) call PMFracStripFrac(cur_fracture)
 
     cur_fracture => cur_fracture%next
@@ -1105,7 +1133,7 @@ subroutine PMFracStripFrac(frac)
   implicit none
 
   type(fracture_type), pointer :: frac
-    
+
   call DeallocateArray(frac%kx0)
   call DeallocateArray(frac%ky0)
   call DeallocateArray(frac%kx0)

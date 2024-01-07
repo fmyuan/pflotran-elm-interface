@@ -2280,6 +2280,11 @@ subroutine RealizationCalcMineralPorosity(realization)
       ! 1 - sum(mineral volume fractions), but is truncated.
       material_auxvars(ghosted_id)%porosity_base = &
         max(1.d0-sum_volfrac,reaction%minimum_porosity)
+      ! this is the proposed form of the equation for updating porosity
+      ! but it breaks geochemistry:
+      !material_auxvars(ghosted_id)%porosity_base = &
+      !  max(material_auxvars(ghosted_id)%porosity_0-sum_volfrac, &
+      !      reaction%minimum_porosity)
     enddo
   endif
   ! update ghosted porosities
