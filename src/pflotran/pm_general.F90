@@ -446,6 +446,11 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         general_min_liq_sat = tempreal
         general_prevent_gp_phase = PETSC_TRUE
+      case('MIN_POROSITY')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        general_min_porosity = tempreal
+        general_min_porosity_flag = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select

@@ -17,6 +17,8 @@ module General_Aux_module
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
   PetscReal, public :: general_min_cd_pert = 1.d-7
   PetscReal, public :: general_min_liq_sat = UNINITIALIZED_DOUBLE
+  PetscReal, public :: general_min_porosity = 1.d-12
+  PetscBool, public :: general_min_porosity_flag = PETSC_FALSE
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscBool, public :: general_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: general_prevent_gp_phase = PETSC_FALSE
@@ -2052,7 +2054,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       if (.not.soluble_matrix) then
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       else
-        gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
+        gen_auxvar%effective_porosity = max(general_min_porosity,x(GENERAL_POROSITY_DOF))
         gen_auxvar%sat(pid) = 0.d0
       endif
       if (gen_auxvar%istatechng) then
@@ -2127,7 +2129,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
 
       if (soluble_matrix) then
-        gen_auxvar%effective_porosity = max(0.d0,x(GENERAL_POROSITY_DOF))
+        gen_auxvar%effective_porosity = max(general_min_porosity,x(GENERAL_POROSITY_DOF))
         gen_auxvar%sat(pid) = 0.d0
         gen_auxvar%sat(gid) = 1.d0
       else !insoluble matrix
@@ -2232,7 +2234,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
 
       if (soluble_matrix) then
-        gen_auxvar%effective_porosity = max(1d-12,x(GENERAL_POROSITY_DOF))
+        gen_auxvar%effective_porosity = max(general_min_porosity,x(GENERAL_POROSITY_DOF))
       else
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       endif
