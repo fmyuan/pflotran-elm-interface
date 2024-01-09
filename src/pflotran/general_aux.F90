@@ -2677,11 +2677,11 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%H(pid) = U_precip
 
   gen_auxvar%mobility(pid) = 0.d0
-  
+#if 0  
   if (min(gen_auxvar%sat(1),gen_auxvar%sat(2),gen_auxvar%sat(3))<0.d0) then
     call GeneralPrintNegativeSat(natural_id,gen_auxvar,global_auxvar%istate,option)
   endif
-
+#endif
 #if 0
   if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
     write(*,'(a,i3,2f13.4,es13.6,f13.4,a3)') 'i/l/g/x[a/l]/t: ', &
@@ -3518,7 +3518,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
     case(LGP_STATE)
       if (soluble_matrix) then
         Sg_new = x(GENERAL_GAS_SATURATION_DOF)
-        if (Sg_new < 0.d0-window_epsilon) then
+        if (Sg_new <= 0.d0) then
 
           global_auxvar%istate = LP_STATE
           two_phase_epsilon = general_phase_chng_epsilon
@@ -3539,7 +3539,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                                       & i8)') natural_id
           endif
 
-        elseif (Sg_new > 1.d0+window_epsilon) then
+        elseif (Sg_new >= 1.d0) then
           if (general_prevent_gp_phase) then
             istatechng = PETSC_FALSE
           else
