@@ -4152,9 +4152,9 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         xxss(THREE_INTEGER) = gen_auxvar_ss%temp
         if (general_salt) then
           if (soluble_matrix) then
-            xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-          else
             xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
           endif
         endif
       case(LGP_STATE)
