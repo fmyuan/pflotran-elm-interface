@@ -112,8 +112,8 @@ subroutine CalciteSetup(this,reaction,option)
   !
   ! Sets up the calcite reaction with hardwired parameters
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Mineral_Aux_module, only : GetMineralIDFromName
+  use Reaction_Aux_module
+  use Reaction_Mineral_Aux_module
   use Option_module
 
   implicit none
@@ -132,16 +132,16 @@ subroutine CalciteSetup(this,reaction,option)
   ! Aqueous species
   word = 'H+'
   this%h_ion_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Ca++'
   this%calcium_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'HCO3-'
   this%bicarbonate_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Calcite'
   this%mineral_id = &
-    GetMineralIDFromName(word,reaction%mineral,option)
+    MineralGetMnrlIDFromName(word,reaction%mineral,option)
 
 end subroutine CalciteSetup
 

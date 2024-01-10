@@ -73,7 +73,6 @@ subroutine WastePackageRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -147,8 +146,8 @@ subroutine WastePackageSetup(this,reaction,option)
   ! Date: 02/27/14
   !
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
   use Option_module
 
   implicit none
@@ -158,10 +157,10 @@ subroutine WastePackageSetup(this,reaction,option)
   type(option_type) :: option
 
   this%aqueous_species_id = &
-    GetPrimarySpeciesIDFromName(this%aqueous_species_name, &
+    ReactionGetPriSpeciesIDFromName(this%aqueous_species_name, &
                                 reaction,option)
   this%immobile_species_id = &
-    GetImmobileSpeciesIDFromName(this%immobile_species_name, &
+    ImmobileGetSpeciesIDFromName(this%immobile_species_name, &
                                  reaction%immobile,option)
 
 end subroutine WastePackageSetup

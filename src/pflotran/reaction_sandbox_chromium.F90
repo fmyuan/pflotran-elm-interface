@@ -301,9 +301,9 @@ subroutine ChromiumSetup(this,reaction,option)
   ! Date: 08/19/2015
   !
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
-  use Reaction_Mineral_Aux_module, only : GetMineralIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Mineral_Aux_module
   use Option_module
 
   implicit none
@@ -313,31 +313,31 @@ subroutine ChromiumSetup(this,reaction,option)
   type(option_type) :: option
 
   this%D_mobile_id = &
-    GetPrimarySpeciesIDFromName(this%name_D_mobile, &
-                                reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%name_D_mobile, &
+                                    reaction,option)
 
   this%C_id = &
-    GetPrimarySpeciesIDFromName(this%name_C, &
-                                reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%name_C, &
+                                    reaction,option)
 
   this%I_id = &
-    GetPrimarySpeciesIDFromName(this%name_I, &
-                                reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%name_I, &
+                                    reaction,option)
 
   this%X_id = &
-    GetPrimarySpeciesIDFromName(this%name_X, &
-                                reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%name_X, &
+                                    reaction,option)
 
   this%B_id = &
-    GetImmobileSpeciesIDFromName(this%name_B, &
+    ImmobileGetSpeciesIDFromName(this%name_B, &
                                  reaction%immobile,option)
 
   this%D_immobile_id = &
-    GetImmobileSpeciesIDFromName(this%name_D_immobile, &
+    ImmobileGetSpeciesIDFromName(this%name_D_immobile, &
                                  reaction%immobile,option)
   this%biomineral_id = &
-    GetMineralIDFromName(this%name_biomineral, &
-                         reaction%mineral,option)
+    MineralGetMnrlIDFromName(this%name_biomineral, &
+                             reaction%mineral,option)
 
 end subroutine ChromiumSetup
 

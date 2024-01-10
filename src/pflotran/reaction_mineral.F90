@@ -597,7 +597,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
                          ',specific surface area', &
                          option)
     if (per_unit_mass) then
-      mineral_rxn => GetMineralFromName(constraint%names(imnrl),mineral)
+      mineral_rxn => MineralGetMnrlPtrFromName(constraint%names(imnrl),mineral)
       if (mineral_rxn%molar_weight < epsilon .or. &
           Equal(mineral_rxn%molar_weight,500.d0)) then
         option%io_buffer = 'Zero or undefined molar weight for mineral "' // &

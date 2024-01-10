@@ -1155,7 +1155,7 @@ subroutine PMUFDDecayInit(this)
     this%isotope_name(isotope%iisotope) = isotope%name
     if (associated(reaction)) then
       this%isotope_to_primary_species(isotope%iisotope) = &
-        GetPrimarySpeciesIDFromName(isotope%name,reaction,option)
+        ReactionGetPriSpeciesIDFromName(isotope%name,reaction,option)
     elseif (associated(reaction_nw)) then
       this%isotope_to_primary_species(isotope%iisotope) = &
         NWTGetSpeciesIDFromName(isotope%name,reaction_nw,option)
@@ -1164,7 +1164,7 @@ subroutine PMUFDDecayInit(this)
     word = trim(word) // '(s)'
     if (associated(reaction)) then
       this%isotope_to_mineral(isotope%iisotope) = &
-        GetKineticMineralIDFromName(word,reaction%mineral,option)
+        MineralGetKineticMnrlIDFromName(word,reaction%mineral,option)
     endif
     this%element_isotopes(0,isotope%ielement) = &
       this%element_isotopes(0,isotope%ielement) + 1
@@ -2504,7 +2504,7 @@ subroutine PMUFDDecayInputRecord(this)
     enddo
     element => element%next
   enddo
-    
+
   do iiso = 1, this%num_isotopes
     write(id,'(2x,"Isotope: ",a)') this%isotope_name(iiso)
     if (associated(this%realization%reaction)) then

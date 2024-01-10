@@ -310,27 +310,27 @@ module Reaction_Aux_module
  end type reaction_rt_type
 
 
-  interface GetPrimarySpeciesIDFromName
-    module procedure GetPrimarySpeciesIDFromName1
-    module procedure GetPrimarySpeciesIDFromName2
+  interface ReactionGetPriSpeciesIDFromName
+    module procedure ReactionGetPriSpeciesIDFromName1
+    module procedure ReactionGetPriSpeciesIDFromName2
   end interface
 
-  interface GetSecondarySpeciesIDFromName
-    module procedure GetSecondarySpeciesIDFromName1
-    module procedure GetSecondarySpeciesIDFromName2
+  interface ReactionGetSecSpeciesIDFromName
+    module procedure ReactionGetSecSpeciesIDFromName1
+    module procedure ReactionGetSecSpeciesIDFromName2
   end interface
 
   public :: ReactionCreate, &
             ReactionCast, &
             SpeciesIndexCreate, &
             GasSpeciesCreate, &
-            GetPrimarySpeciesCount, &
-            GetPrimarySpeciesNames, &
-            GetPrimarySpeciesIDFromName, &
-            GetSecondarySpeciesCount, &
-            GetSecondarySpeciesNames, &
-            GetSecondarySpeciesIDFromName, &
-            GetImmobileCount, &
+            ReactionGetPriSpeciesCount, &
+            ReactionGetPriSpeciesNames, &
+            ReactionGetPriSpeciesIDFromName, &
+            ReactionGetSecSpeciesCount, &
+            ReactionGetSecSpeciesNames, &
+            ReactionGetSecSpeciesIDFromName, &
+            ReactionGetImmobileCount, &
             ReactionFitLogKCoef, &
             ReactionInitializeLogK, &
             ReactionInterpolateLogK, &
@@ -851,7 +851,7 @@ end function GuessConstraintCreate
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesNames(reaction)
+function ReactionGetPriSpeciesNames(reaction)
   !
   ! Returns the names of primary species in an array
   !
@@ -861,14 +861,14 @@ function GetPrimarySpeciesNames(reaction)
 
   implicit none
 
-  character(len=MAXWORDLENGTH), pointer :: GetPrimarySpeciesNames(:)
+  character(len=MAXWORDLENGTH), pointer :: ReactionGetPriSpeciesNames(:)
   class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(aq_species_type), pointer :: species
 
-  count = GetPrimarySpeciesCount(reaction)
+  count = ReactionGetPriSpeciesCount(reaction)
   allocate(names(count))
 
   count = 1
@@ -880,13 +880,13 @@ function GetPrimarySpeciesNames(reaction)
     species => species%next
   enddo
 
-  GetPrimarySpeciesNames => names
+  ReactionGetPriSpeciesNames => names
 
-end function GetPrimarySpeciesNames
+end function ReactionGetPriSpeciesNames
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesCount(reaction)
+function ReactionGetPriSpeciesCount(reaction)
   !
   ! Returns the number of primary species
   !
@@ -896,24 +896,24 @@ function GetPrimarySpeciesCount(reaction)
 
   implicit none
 
-  PetscInt :: GetPrimarySpeciesCount
+  PetscInt :: ReactionGetPriSpeciesCount
   class(reaction_rt_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
-  GetPrimarySpeciesCount = 0
+  ReactionGetPriSpeciesCount = 0
   species => reaction%primary_species_list
   do
     if (.not.associated(species)) exit
-    GetPrimarySpeciesCount = GetPrimarySpeciesCount + 1
+    ReactionGetPriSpeciesCount = ReactionGetPriSpeciesCount + 1
     species => species%next
   enddo
 
-end function GetPrimarySpeciesCount
+end function ReactionGetPriSpeciesCount
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesIDFromName1(name,reaction,option)
+function ReactionGetPriSpeciesIDFromName1(name,reaction,option)
   !
   ! Returns the id of named primary species
   !
@@ -929,16 +929,16 @@ function GetPrimarySpeciesIDFromName1(name,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetPrimarySpeciesIDFromName1
+  PetscInt :: ReactionGetPriSpeciesIDFromName1
 
-  GetPrimarySpeciesIDFromName1 = GetPrimarySpeciesIDFromName2(name,reaction, &
-          PETSC_TRUE, option)
+  ReactionGetPriSpeciesIDFromName1 = &
+    ReactionGetPriSpeciesIDFromName2(name,reaction,PETSC_TRUE, option)
 
-end function GetPrimarySpeciesIDFromName1
+end function ReactionGetPriSpeciesIDFromName1
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
+function ReactionGetPriSpeciesIDFromName2(name,reaction,return_error,option)
   !
   ! Returns the id of named primary species
   !
@@ -955,20 +955,20 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetPrimarySpeciesIDFromName2
+  PetscInt :: ReactionGetPriSpeciesIDFromName2
 
   type(aq_species_type), pointer :: species
   PetscInt :: i
   PetscBool :: return_error
 
-  GetPrimarySpeciesIDFromName2 = UNINITIALIZED_INTEGER
+  ReactionGetPriSpeciesIDFromName2 = UNINITIALIZED_INTEGER
 
   ! if the primary species name list exists
   if (associated(reaction%primary_species_names)) then
     do i = 1, size(reaction%primary_species_names)
       if (StringCompare(name,reaction%primary_species_names(i), &
                         MAXWORDLENGTH)) then
-        GetPrimarySpeciesIDFromName2 = i
+        ReactionGetPriSpeciesIDFromName2 = i
         exit
       endif
     enddo
@@ -979,24 +979,24 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetPrimarySpeciesIDFromName2 = i
+        ReactionGetPriSpeciesIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (return_error .and. GetPrimarySpeciesIDFromName2 <= 0) then
+  if (return_error .and. ReactionGetPriSpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
-      '" not found among primary species in GetPrimarySpeciesIDFromName().'
+      '" not found among primary species in ReactionGetPriSpeciesIDFromName2().'
     call PrintErrMsg(option)
   endif
 
-end function GetPrimarySpeciesIDFromName2
+end function ReactionGetPriSpeciesIDFromName2
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesNames(reaction)
+function ReactionGetSecSpeciesNames(reaction)
   !
   ! Returns the names of secondary species in an array
   !
@@ -1006,14 +1006,14 @@ function GetSecondarySpeciesNames(reaction)
 
   implicit none
 
-  character(len=MAXWORDLENGTH), pointer :: GetSecondarySpeciesNames(:)
+  character(len=MAXWORDLENGTH), pointer :: ReactionGetSecSpeciesNames(:)
   class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(aq_species_type), pointer :: species
 
-  count = GetSecondarySpeciesCount(reaction)
+  count = ReactionGetSecSpeciesCount(reaction)
   allocate(names(count))
 
   count = 1
@@ -1025,13 +1025,13 @@ function GetSecondarySpeciesNames(reaction)
     species => species%next
   enddo
 
-  GetSecondarySpeciesNames => names
+  ReactionGetSecSpeciesNames => names
 
-end function GetSecondarySpeciesNames
+end function ReactionGetSecSpeciesNames
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesCount(reaction)
+function ReactionGetSecSpeciesCount(reaction)
   !
   ! Returns the number of secondary species
   !
@@ -1041,24 +1041,24 @@ function GetSecondarySpeciesCount(reaction)
 
   implicit none
 
-  PetscInt :: GetSecondarySpeciesCount
+  PetscInt :: ReactionGetSecSpeciesCount
   class(reaction_rt_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
-  GetSecondarySpeciesCount = 0
+  ReactionGetSecSpeciesCount = 0
   species => reaction%secondary_species_list
   do
     if (.not.associated(species)) exit
-    GetSecondarySpeciesCount = GetSecondarySpeciesCount + 1
+    ReactionGetSecSpeciesCount = ReactionGetSecSpeciesCount + 1
     species => species%next
   enddo
 
-end function GetSecondarySpeciesCount
+end function ReactionGetSecSpeciesCount
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesIDFromName1(name,reaction,option)
+function ReactionGetSecSpeciesIDFromName1(name,reaction,option)
   !
   ! Returns the id of named secondary species
   !
@@ -1072,15 +1072,15 @@ function GetSecondarySpeciesIDFromName1(name,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetSecondarySpeciesIDFromName1
-  GetSecondarySpeciesIDFromName1 = &
-    GetSecondarySpeciesIDFromName2(name,reaction, PETSC_TRUE, option)
+  PetscInt :: ReactionGetSecSpeciesIDFromName1
+  ReactionGetSecSpeciesIDFromName1 = &
+    ReactionGetSecSpeciesIDFromName2(name,reaction, PETSC_TRUE, option)
 
-end function GetSecondarySpeciesIDFromName1
+end function ReactionGetSecSpeciesIDFromName1
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
+function ReactionGetSecSpeciesIDFromName2(name,reaction,return_error,option)
   !
   ! Returns the id of named secondary species
   !
@@ -1093,19 +1093,19 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
   character(len=MAXWORDLENGTH) :: name
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  PetscInt :: GetSecondarySpeciesIDFromName2
+  PetscInt :: ReactionGetSecSpeciesIDFromName2
   type(aq_species_type), pointer :: species
   PetscInt :: i
   PetscBool :: return_error
 
-  GetSecondarySpeciesIDFromName2 = UNINITIALIZED_INTEGER
+  ReactionGetSecSpeciesIDFromName2 = UNINITIALIZED_INTEGER
 
   ! if the Secondary species name list exists
   if (associated(reaction%Secondary_species_names)) then
     do i = 1, size(reaction%Secondary_species_names)
       if (StringCompare(name,reaction%Secondary_species_names(i), &
                         MAXWORDLENGTH)) then
-        GetSecondarySpeciesIDFromName2 = i
+        ReactionGetSecSpeciesIDFromName2 = i
         exit
       endif
     enddo
@@ -1116,24 +1116,24 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetSecondarySpeciesIDFromName2 = i
+        ReactionGetSecSpeciesIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (return_error .and. GetSecondarySpeciesIDFromName2 <= 0) then
-    option%io_buffer = 'Species "' // trim(name) // &
-      '" not found among Secondary species in GetSecondarySpeciesIDFromName().'
+  if (return_error .and. ReactionGetSecSpeciesIDFromName2 <= 0) then
+    option%io_buffer = 'Species "' // trim(name) // '" not found among &
+      &secondary species in ReactionGetSecSpeciesIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetSecondarySpeciesIDFromName2
+end function ReactionGetSecSpeciesIDFromName2
 
 ! ************************************************************************** !
 
-function GetImmobileCount(reaction)
+function ReactionGetImmobileCount(reaction)
   !
   ! Returns the number of immobile species
   !
@@ -1143,12 +1143,12 @@ function GetImmobileCount(reaction)
 
   implicit none
 
-  PetscInt :: GetImmobileCount
+  PetscInt :: ReactionGetImmobileCount
   class(reaction_rt_type) :: reaction
 
-  GetImmobileCount = ImmobileGetCount(reaction%immobile)
+  ReactionGetImmobileCount = ImmobileGetCount(reaction%immobile)
 
-end function GetImmobileCount
+end function ReactionGetImmobileCount
 
 ! ************************************************************************** !
 

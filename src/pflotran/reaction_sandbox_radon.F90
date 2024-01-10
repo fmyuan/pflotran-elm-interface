@@ -66,7 +66,6 @@ subroutine RadonRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -123,8 +122,8 @@ subroutine RadonSetup(this,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 03/14/22
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Mineral_Aux_module, only : GetMineralIDFromName
+  use Reaction_Aux_module
+  use Reaction_Mineral_Aux_module
   use Option_module
 
   implicit none
@@ -134,9 +133,9 @@ subroutine RadonSetup(this,reaction,option)
   type(option_type) :: option
 
   this%species_id = &
-    GetPrimarySpeciesIDFromName(this%species_name,reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%species_name,reaction,option)
   this%mineral_id = &
-    GetMineralIDFromName(this%mineral_name,reaction%mineral,option)
+    MineralGetMnrlIDFromName(this%mineral_name,reaction%mineral,option)
   if (Uninitialized(this%radon_generation_rate)) then
     option%io_buffer = 'A "RADON_GENERATION_RATE" must be defined in the &
       &RADON REACTION_SANDBOX.'

@@ -58,8 +58,8 @@ subroutine SimpleSetup(this,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 12/03/15
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
   use Option_module
 
   implicit none
@@ -73,30 +73,30 @@ subroutine SimpleSetup(this,reaction,option)
   ! Aqueous species
   word = 'Aaq'
   this%species_Aaq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Baq'
   this%species_Baq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Caq'
   this%species_Caq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Daq'
   this%species_Daq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Eaq'
   this%species_Eaq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Faq'
   this%species_Faq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
 
   ! Immobile species
   word = 'Xim'
   this%species_Xim_id = &
-    GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
   word = 'Yim'
   this%species_Yim_id = &
-    GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
 
 
 end subroutine SimpleSetup

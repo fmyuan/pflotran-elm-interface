@@ -87,7 +87,6 @@ subroutine GasRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -180,9 +179,9 @@ subroutine GasSetup(this,reaction,option)
   ! Date: July 2018
   !
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
-  use Reaction_Gas_Aux_module, only : GasGetIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Gas_Aux_module
   use Option_module
 
   implicit none
@@ -200,9 +199,9 @@ subroutine GasSetup(this,reaction,option)
 
   do i = 1, this%nspecies
     word = trim(this%name_vec(i))//aq
-    this%aq_vec(i) = GetPrimarySpeciesIDFromName(word,reaction,option)
+    this%aq_vec(i) = ReactionGetPriSpeciesIDFromName(word,reaction,option)
     word = trim(this%name_vec(i))//im
-    this%im_vec(i) = GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
+    this%im_vec(i) = ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
     word = trim(this%name_vec(i))//g
     this%gas_vec(i) = GasGetIDFromName(reaction%gas,word)
   end do

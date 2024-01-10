@@ -56,9 +56,9 @@ module Reaction_Immobile_Aux_module
 
   end type immobile_type
 
-  interface GetImmobileSpeciesIDFromName
-    module procedure GetImmobileSpeciesIDFromName1
-    module procedure GetImmobileSpeciesIDFromName2
+  interface ImmobileGetSpeciesIDFromName
+    module procedure ImmobileGetSpeciesIDFromName1
+    module procedure ImmobileGetSpeciesIDFromName2
   end interface
 
   public :: ImmobileCreate, &
@@ -67,7 +67,7 @@ module Reaction_Immobile_Aux_module
             ImmobileDecayRxnCreate, &
             ImmobileGetCount, &
             ImmobileConstraintDestroy, &
-            GetImmobileSpeciesIDFromName, &
+            ImmobileGetSpeciesIDFromName, &
             ImmobileDestroy
 
 contains
@@ -218,7 +218,7 @@ end function ImmobileGetCount
 
 ! ************************************************************************** !
 
-function GetImmobileSpeciesIDFromName1(name,immobile,option)
+function ImmobileGetSpeciesIDFromName1(name,immobile,option)
   !
   ! Returns the id of named immobile species
   !
@@ -234,16 +234,16 @@ function GetImmobileSpeciesIDFromName1(name,immobile,option)
   type(immobile_type) :: immobile
   type(option_type) :: option
 
-  PetscInt :: GetImmobileSpeciesIDFromName1
+  PetscInt :: ImmobileGetSpeciesIDFromName1
 
-  GetImmobileSpeciesIDFromName1 = &
-    GetImmobileSpeciesIDFromName2(name,immobile,PETSC_TRUE,option)
+  ImmobileGetSpeciesIDFromName1 = &
+    ImmobileGetSpeciesIDFromName2(name,immobile,PETSC_TRUE,option)
 
-end function GetImmobileSpeciesIDFromName1
+end function ImmobileGetSpeciesIDFromName1
 
 ! ************************************************************************** !
 
-function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
+function ImmobileGetSpeciesIDFromName2(name,immobile,return_error,option)
   !
   ! Returns the id of named immobile species
   !
@@ -261,19 +261,19 @@ function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
   PetscBool :: return_error
   type(option_type) :: option
 
-  PetscInt :: GetImmobileSpeciesIDFromName2
+  PetscInt :: ImmobileGetSpeciesIDFromName2
 
   type(immobile_species_type), pointer :: species
   PetscInt :: i
 
-  GetImmobileSpeciesIDFromName2 = UNINITIALIZED_INTEGER
+  ImmobileGetSpeciesIDFromName2 = UNINITIALIZED_INTEGER
 
   ! if the primary species name list exists
   if (associated(immobile%names)) then
     do i = 1, size(immobile%names)
       if (StringCompare(name,immobile%names(i), &
                         MAXWORDLENGTH)) then
-        GetImmobileSpeciesIDFromName2 = i
+        ImmobileGetSpeciesIDFromName2 = i
         exit
       endif
     enddo
@@ -284,20 +284,20 @@ function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetImmobileSpeciesIDFromName2 = i
+        ImmobileGetSpeciesIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (return_error .and. GetImmobileSpeciesIDFromName2 <= 0) then
+  if (return_error .and. ImmobileGetSpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
-      '" not found among immobile species in GetImmobileSpeciesIDFromName().'
+      '" not found among immobile species in ImmobileGetSpeciesIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetImmobileSpeciesIDFromName2
+end function ImmobileGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 

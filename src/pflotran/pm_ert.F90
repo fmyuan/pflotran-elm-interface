@@ -575,8 +575,8 @@ recursive subroutine PMERTInitializeRun(this)
                           'MOBILITY_DATABASE')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,'MOBILITY VALUE','MOBILITY_DATABASE')
-        ispecies = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
-                                              this%option)
+        ispecies = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE, &
+                                                   this%option)
         if (Initialized(ispecies)) then
           this%species_conductivity_coef(ispecies) = & ! [m^2-charge-A/V-mol]
             tempreal * &                               ! mobility [m^2/V-s]

@@ -1049,10 +1049,10 @@ subroutine BasisInit(reaction,option)
     endif
   endif
 
-  reaction%naqcomp = GetPrimarySpeciesCount(reaction)
-  reaction%neqcplx = GetSecondarySpeciesCount(reaction)
+  reaction%naqcomp = ReactionGetPriSpeciesCount(reaction)
+  reaction%neqcplx = ReactionGetSecSpeciesCount(reaction)
   reaction%gas%ngas = GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS)
-  reaction%nimcomp = GetImmobileCount(reaction)
+  reaction%nimcomp = ReactionGetImmobileCount(reaction)
 
   reaction%offset_aqueous = 0
   reaction%offset_immobile = reaction%offset_aqueous + reaction%naqcomp
@@ -1679,7 +1679,7 @@ subroutine BasisInit(reaction,option)
   ispec = -1 ! to catch bugs
 
   ! secondary aqueous complexes
-  reaction%neqcplx = GetSecondarySpeciesCount(reaction)
+  reaction%neqcplx = ReactionGetSecSpeciesCount(reaction)
 
   if (reaction%neqcplx > 0) then
 
@@ -2764,8 +2764,8 @@ subroutine BasisInit(reaction,option)
           ! nothing to do here as the linkage to rick density is already set
         case(MINERAL_SURFACE)
           surface_complexation%srfcplxrxn_to_surf(irxn) = &
-            GetKineticMineralIDFromName(cur_srfcplx_rxn%surface_name, &
-                                        reaction%mineral,option)
+            MineralGetKineticMnrlIDFromName(cur_srfcplx_rxn%surface_name, &
+                                            reaction%mineral,option)
           if (surface_complexation%srfcplxrxn_to_surf(irxn) < 0) then
             option%io_buffer = 'Mineral ' // &
                                 trim(cur_srfcplx_rxn%surface_name) // &
@@ -2870,7 +2870,7 @@ subroutine BasisInit(reaction,option)
       reaction%eqionx_rxn_cation_X_offset(irxn) = icount
       if (len_trim(cur_ionx_rxn%mineral_name) > 1) then
         reaction%eqionx_rxn_to_surf(irxn) = &
-          GetKineticMineralIDFromName(cur_ionx_rxn%mineral_name, &
+          MineralGetKineticMnrlIDFromName(cur_ionx_rxn%mineral_name, &
                                       reaction%mineral,option)
         if (reaction%eqionx_rxn_to_surf(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
@@ -3261,8 +3261,9 @@ subroutine BasisInit(reaction,option)
       if (associated(cur_microbial_rxn%biomass)) then
         ! try aqueous
         temp_int = &
-          GetPrimarySpeciesIDFromName(cur_microbial_rxn%biomass%species_name, &
-                                      reaction,PETSC_FALSE,option)
+          ReactionGetPriSpeciesIDFromName(cur_microbial_rxn% &
+                                            biomass%species_name, &
+                                          reaction,PETSC_FALSE,option)
         ! temp_int will be UNINITIALIZED_INTEGER if not found
         if (Uninitialized(temp_int)) then
           ! check for biomass species in global immobile list
@@ -3331,7 +3332,8 @@ subroutine BasisInit(reaction,option)
         endif
 
         microbial%monod_specid(monod_count) = &
-          GetPrimarySpeciesIDFromName(cur_monod%species_name,reaction,option)
+          ReactionGetPriSpeciesIDFromName(cur_monod%species_name, &
+                                          reaction,option)
         microbial%monod_K(monod_count) = cur_monod%half_saturation_constant
         microbial%monod_Cth(monod_count) = cur_monod%threshold_concentration
         cur_monod => cur_monod%next
@@ -3360,8 +3362,8 @@ subroutine BasisInit(reaction,option)
         endif
 
         microbial%inhibition_specid(inhibition_count) = &
-          GetPrimarySpeciesIDFromName(cur_inhibition%species_name, &
-                                      reaction,option)
+          ReactionGetPriSpeciesIDFromName(cur_inhibition%species_name, &
+                                          reaction,option)
         microbial%inhibition_type(inhibition_count) = &
           cur_inhibition%itype
         microbial%inhibition_C(inhibition_count) = &
@@ -3530,8 +3532,8 @@ subroutine BasisInit(reaction,option)
       ! associate mineral id
       if (len_trim(cur_isotherm_rxn%kd_mineral_name) > 1) then
         reaction%isotherm%eqkdmineral(irxn) = &
-          GetKineticMineralIDFromName(cur_isotherm_rxn%kd_mineral_name, &
-                                      reaction%mineral,option)
+          MineralGetKineticMnrlIDFromName(cur_isotherm_rxn%kd_mineral_name, &
+                                          reaction%mineral,option)
         if (reaction%isotherm%eqkdmineral(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in kd (linear sorption) &

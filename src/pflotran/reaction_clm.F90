@@ -794,12 +794,10 @@ subroutine CLMDec_Setup(this,reaction,option)
       ! same name as the pool with C or N appended.
       word = trim(cur_pool%name) // 'C'
       species_id_pool_c(icount) = &
-        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
-                                     PETSC_FALSE,option)
+        ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
       word = trim(cur_pool%name) // 'N'
       species_id_pool_n(icount) = &
-        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
-                                     PETSC_FALSE,option)
+        ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
       if (species_id_pool_c(icount)<=0 .or. species_id_pool_n(icount)<=0) then
         option%io_buffer = 'For CLMDec pools with no CN ratio defined, ' // &
           'the user must define two immobile species with the same root ' // &
@@ -808,11 +806,12 @@ subroutine CLMDec_Setup(this,reaction,option)
       endif
     else ! only one species (e.g. SOMX)
       species_id_pool_c(icount) = &
-        GetImmobileSpeciesIDFromName(cur_pool%name,reaction%immobile, &
+        ImmobileGetSpeciesIDFromName(cur_pool%name,reaction%immobile, &
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount) <= 0) then
-        species_id_pool_c(icount) = GetPrimarySpeciesIDFromName( &
-          cur_pool%name, reaction, PETSC_FALSE,option)
+        species_id_pool_c(icount) = &
+          ReactionGetPriSpeciesIDFromName(cur_pool%name,reaction, &
+                                          PETSC_FALSE,option)
         if (species_id_pool_c(icount) <= 0) then
           option%io_buffer = 'CLMDec pool: ' // cur_pool%name // 'is not ' // &
             'specified either in the IMMOBILE_SPECIES or PRIMARY_SPECIES!'
@@ -925,8 +924,8 @@ subroutine CLMDec_Setup(this,reaction,option)
       enddo
 
       if (stoich_c < -1.0d-10) then
-        option%io_buffer = 'CLMDec SOM decomposition reaction has negative' // &
-          ' respiration fraction!'
+        option%io_buffer = 'CLMDec SOM decomposition reaction has negative &
+          &respiration fraction!'
         call PrintErrMsg(option)
       endif
 
@@ -937,13 +936,13 @@ subroutine CLMDec_Setup(this,reaction,option)
   enddo
 
   word = 'HCO3-'
-  this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%species_id_co2 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_co2 < 0) then
      word = 'CO2(aq)'
-     this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+     this%species_id_co2 = &
+       ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%species_id_co2 <= 0) then
@@ -953,19 +952,19 @@ subroutine CLMDec_Setup(this,reaction,option)
   endif
 
   word = 'NH4+'
-  this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%species_id_nh4 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_nh4 < 0) then
     word = 'NH3(aq)'
-    this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+    this%species_id_nh4 = &
+      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%species_id_nh4 < 0) then
     word = 'Ammonium'
-    this%species_id_nh4 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%species_id_nh4 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%species_id_nh4 > 0) then
       this%is_NH4_aqueous = PETSC_FALSE
     endif
@@ -978,49 +977,50 @@ subroutine CLMDec_Setup(this,reaction,option)
   endif
 
   word = 'NO3-'
-  this%species_id_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%species_id_no3 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_no3 < 0) then
     word = 'Nitrate'
-    this%species_id_no3 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%species_id_no3 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%species_id_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
   endif
 
   word = 'N2O(aq)'
-  this%species_id_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%species_id_n2o = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'H+'
-  this%species_id_proton = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%species_id_proton = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'Bacteria'
-  this%species_id_bacteria = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%species_id_bacteria = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
+                                                          PETSC_FALSE,option)
 
   word = 'Fungi'
-  this%species_id_fungi = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%species_id_fungi = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'HRimm'
-  this%species_id_hrimm = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%species_id_hrimm = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Nmin'
-  this%species_id_nmin = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%species_id_nmin = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Nimm'
-  this%species_id_nimm = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%species_id_nimm = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'NGASmin'
-  this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
-    word,reaction%immobile,PETSC_FALSE,option)
+  this%species_id_ngasmin = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   if (this%species_id_bacteria > 0 .and. this%species_id_fungi > 0 .and. &
     this%nc_bacteria > 0.0d0 .and. this%nc_fungi > 0.0d0 ) then
@@ -3217,18 +3217,19 @@ subroutine PlantNSetup(this,reaction,option)
   character(len=MAXWORDLENGTH) :: word
 
   word = 'NH4+'
-  this%ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  this%ispec_nh4 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_nh4 < 0) then
     word = 'NH3(aq)'
-    this%ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
-      option)
+    this%ispec_nh4 = &
+      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
     word = 'Ammonium'
-    this%ispec_nh4 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%ispec_nh4 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_nh4 > 0) then
       this%is_NH4_aqueous = PETSC_FALSE
     endif
@@ -3241,20 +3242,21 @@ subroutine PlantNSetup(this,reaction,option)
   endif
 
   word = 'NO3-'
-  this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  this%ispec_no3 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
-    this%ispec_no3 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%ispec_no3 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
   endif
 
   word = 'PlantN'
-  this%ispec_plantn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-    PETSC_FALSE,option)
+  this%ispec_plantn = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   if (this%ispec_plantn < 0) then
     option%io_buffer = 'PlantN is specified in the input file!'
@@ -3262,16 +3264,16 @@ subroutine PlantNSetup(this,reaction,option)
   endif
 
   word = 'Ain'
-  this%ispec_nh4in = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-    PETSC_FALSE,option)
+  this%ispec_nh4in = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Tin'
-  this%ispec_no3in = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-    PETSC_FALSE,option)
+  this%ispec_no3in = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Plantndemand'
-  this%ispec_plantndemand = GetImmobileSpeciesIDFromName(word, &
-    reaction%immobile, PETSC_FALSE,option)
+  this%ispec_plantndemand = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile, PETSC_FALSE,option)
 
 end subroutine PlantNSetup
 
@@ -3800,9 +3802,9 @@ end subroutine NitrRead
 ! ************************************************************************** !
 subroutine NitrSetup(this,reaction,option)
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module
   use Option_module
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Immobile_Aux_module
 
   implicit none
 
@@ -3813,48 +3815,48 @@ subroutine NitrSetup(this,reaction,option)
   character(len=MAXWORDLENGTH) :: word
 
   word = 'H+'
-  this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%ispec_proton = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'NH3(aq)'
-  this%ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%ispec_nh4 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_nh4 < 0) then
     word = 'NH4+'
-    this%ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+    this%ispec_nh4 = &
+      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
     word = 'Ammonium'
-    this%ispec_nh4 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%ispec_nh4 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_nh4 > 0) then
       this%is_NH4_aqueous = PETSC_FALSE
     endif
   endif
 
   word = 'NO3-'
-  this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%ispec_no3 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
-    this%ispec_no3 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%ispec_no3 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
   endif
 
   word = 'N2O(aq)'
-  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%ispec_n2o = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   if (this%ispec_n2o < 0) then
     word = 'NO2-'
-    this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+    this%ispec_n2o = &
+      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
@@ -3876,8 +3878,8 @@ subroutine NitrSetup(this,reaction,option)
 !  endif
 
   word = 'NGASnitr'
-  this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%ispec_ngasnit = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
 end subroutine NitrSetup
 
@@ -4485,9 +4487,9 @@ end subroutine DeniRead
 ! ************************************************************************** !
 subroutine DeniSetup(this,reaction,option)
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module
   use Option_module
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Immobile_Aux_module
 
   implicit none
 
@@ -4498,13 +4500,13 @@ subroutine DeniSetup(this,reaction,option)
   character(len=MAXWORDLENGTH) :: word
 
   word = 'NO3-'
-  this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%ispec_no3 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
-    this%ispec_no3 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    this%ispec_no3 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
@@ -4517,8 +4519,8 @@ subroutine DeniSetup(this,reaction,option)
   endif
 
   word = 'N2(aq)'
-  this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  this%ispec_n2 = &
+    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_n2 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
@@ -4527,8 +4529,8 @@ subroutine DeniSetup(this,reaction,option)
   endif
 
   word = 'NGASdeni'
-  this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+  this%ispec_ngasdeni = &
+    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
 end subroutine DeniSetup
 
@@ -5070,20 +5072,21 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   is_nh4_aqueous = PETSC_TRUE
   word = 'NH4+'
-  ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  ispec_nh4 = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   ires_nh4 = -999
   if (ispec_nh4 < 0) then
     word = 'NH3(aq)'
-    ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, option)
+    ispec_nh4 = &
+      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (ispec_nh4 > 0) ires_nh4 = ispec_nh4
 
   if (ispec_nh4 < 0) then
     word = 'Ammonium'
-    ispec_nh4 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    ispec_nh4 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (ispec_nh4 > 0) then
       is_nh4_aqueous = PETSC_FALSE
       ires_nh4 = ispec_nh4 + reaction%offset_immobile
@@ -5091,21 +5094,21 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif
 
   if (ispec_nh4 < 0) then
-    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
-      'file for clm_rxn!'
+    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input &
+      &file for clm_rxn!'
     call PrintErrMsg(option)
   endif
 
   word = 'NO3-'
-  ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  ispec_no3 = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
   ires_no3 = -999
   if (ispec_no3 > 0) ires_no3 = ispec_no3
 
   if (ispec_no3 < 0) then
     word = 'Nitrate'
-    ispec_no3 = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)
+    ispec_no3 = &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (ispec_no3 > 0) then
       is_no3_aqueous = PETSC_FALSE
       ires_no3 = ispec_no3 + reaction%offset_immobile
@@ -5115,8 +5118,9 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   if (ispec_nh4 > 0 .and. ispec_no3 > 0) then
     if ((is_nh4_aqueous .and. (.not.is_no3_aqueous)) .or. &
         ((.not.is_nh4_aqueous) .and. is_no3_aqueous)) then
-      option%io_buffer = 'ERROR: Ammonium and nitrate have different phases: one in aqueous, the other in immobile,' // &
-        'please use the same in the input file!'
+      option%io_buffer = 'ERROR: Ammonium and nitrate have different &
+        &phases: one in aqueous, the other in immobile, please use the &
+        &same in the input file!'
       call PrintErrMsg(option)
     endif
   endif
@@ -5341,7 +5345,8 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
                 (JacobianSupply_no3(ires_no3,i) * dt * f_supply - &
                 davail_no3* kg_water_or_volume - &
                 Jacobian_nh4_to_no3(i) * downscale_nh4 * dt * f_supply  - &
-                Rate_nh4_to_no3 * ddownscale_nh4(i) * dt * f_supply) * demand_no3 - &
+                Rate_nh4_to_no3 * ddownscale_nh4(i) * dt * f_supply) * &
+                demand_no3 - &
                 supply_no3 * JacobianDemand_no3(ires_no3,i)* dt ) / &
                 demand_no3 / demand_no3
             else
@@ -5359,7 +5364,8 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           do i = 1, reaction%ncomp
             do j = 1, reaction%ncomp
-              Jacobian(i,j) = Jacobian(i,j) + RateDemand_no3(i) * ddownscale_no3(j)
+              Jacobian(i,j) = Jacobian(i,j) + RateDemand_no3(i) * &
+                                              ddownscale_no3(j)
             enddo
           enddo
         endif

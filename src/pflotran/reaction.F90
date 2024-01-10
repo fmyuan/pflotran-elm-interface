@@ -105,9 +105,9 @@ subroutine ReactionInit(reaction,input,option)
   call RCLMRxnInit(option)
 
   call ReactionReadPass1(reaction,input,option)
-  reaction%primary_species_names => GetPrimarySpeciesNames(reaction)
-  option%ntrandof = GetPrimarySpeciesCount(reaction)
-  option%ntrandof = option%ntrandof + GetImmobileCount(reaction)
+  reaction%primary_species_names => ReactionGetPriSpeciesNames(reaction)
+  option%ntrandof = ReactionGetPriSpeciesCount(reaction)
+  option%ntrandof = option%ntrandof + ReactionGetImmobileCount(reaction)
   reaction%ncomp = option%ntrandof
   if (GasGetCount(reaction%gas,ACTIVE_GAS) > 0) then
     option%transport%nphase = 2

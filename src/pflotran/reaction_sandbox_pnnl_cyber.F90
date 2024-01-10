@@ -335,9 +335,9 @@ subroutine CyberSetup(this,reaction,option)
   ! Date: 10/01/15
   !
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
-  use Reaction_Mineral_Aux_module, only : GetKineticMineralIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Mineral_Aux_module
   use Option_module
 
   implicit none
@@ -353,39 +353,39 @@ subroutine CyberSetup(this,reaction,option)
 
   word = 'NH4+'
   this%nh4_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'O2(aq)'
   this%o2_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'NO3-'
   this%no3_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'NO2-'
   this%no2_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'N2(aq)'
   this%n2_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'CH2O(aq)'
   this%doc_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   if (this%mobile_biomass) then
     word = 'C5H7O2N(aq)'
     this%biomass_id = &
-      GetPrimarySpeciesIDFromName(word,reaction,option)
+      ReactionGetPriSpeciesIDFromName(word,reaction,option)
   else
     word = 'C5H7O2N(im)'
     this%biomass_id = &
-      GetImmobileSpeciesIDFromName(word,reaction%immobile,option) + &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,option) + &
       reaction%offset_immobile
   endif
   word = 'CO2(aq)'
   this%co2_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
   if (len_trim(this%carbon_consumption_species) > 0) then
     word = this%carbon_consumption_species
     this%carbon_consumption_species_id = &
-      GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
   endif
   if (this%store_cumulative_mass) then
     this%offset_auxiliary = reaction%nauxiliary

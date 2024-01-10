@@ -106,7 +106,6 @@ subroutine CLM_CN_Read(this,input,option)
   use String_module
   use Input_Aux_module
   use Utility_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -388,11 +387,11 @@ subroutine CLM_CN_Map(this,reaction,option)
       ! same name as the pool with C or N appended.
       word = trim(cur_pool%name) // 'C'
       this%pool_id_to_species_id(CARBON_INDEX,icount) = &
-        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+        ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
                                      PETSC_FALSE,option)
       word = trim(cur_pool%name) // 'N'
       this%pool_id_to_species_id(NITROGEN_INDEX,icount) = &
-        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+        ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
                                      PETSC_FALSE,option)
       this%pool_id_to_species_id(0,icount) = 2
       if (minval(this%pool_id_to_species_id(:,icount)) <= 0) then
@@ -403,7 +402,7 @@ subroutine CLM_CN_Map(this,reaction,option)
       endif
     else ! only one species (e.g. SOMX)
       this%pool_id_to_species_id(SOM_INDEX,icount) = &
-        GetImmobileSpeciesIDFromName(cur_pool%name,reaction%immobile, &
+        ImmobileGetSpeciesIDFromName(cur_pool%name,reaction%immobile, &
                                      PETSC_TRUE,option)
       this%pool_id_to_species_id(0,icount) = 1
     endif
@@ -413,11 +412,11 @@ subroutine CLM_CN_Map(this,reaction,option)
   ! map C and N species (solid phase for now)
   word = 'C'
   this%C_species_id = &
-      GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
                                    PETSC_TRUE,option)
   word = 'N'
   this%N_species_id = &
-      GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+      ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
                                    PETSC_TRUE,option)
 
   icount = 0
