@@ -2677,11 +2677,11 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%H(pid) = U_precip
 
   gen_auxvar%mobility(pid) = 0.d0
-#if 0  
-  if (min(gen_auxvar%sat(1),gen_auxvar%sat(2),gen_auxvar%sat(3))<0.d0) then
-    call GeneralPrintNegativeSat(natural_id,gen_auxvar,global_auxvar%istate,option)
-  endif
-#endif
+
+!  if (min(gen_auxvar%sat(1),gen_auxvar%sat(2),gen_auxvar%sat(3))<0.d0) then
+!    call GeneralPrintNegativeSat(natural_id,gen_auxvar,global_auxvar%istate,option)
+!  endif
+
 #if 0
   if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
     write(*,'(a,i3,2f13.4,es13.6,f13.4,a3)') 'i/l/g/x[a/l]/t: ', &
