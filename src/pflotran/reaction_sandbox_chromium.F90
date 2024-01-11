@@ -336,8 +336,8 @@ subroutine ChromiumSetup(this,reaction,option)
     ReactionImGetSpeciesIDFromName(this%name_D_immobile, &
                                    reaction%immobile,option)
   this%biomineral_id = &
-    MineralGetMnrlIDFromName(this%name_biomineral, &
-                             reaction%mineral,option)
+    ReactionMnrlGetMnrlIDFromName(this%name_biomineral, &
+                                  reaction%mineral,option)
 
 end subroutine ChromiumSetup
 

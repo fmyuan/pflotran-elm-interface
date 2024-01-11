@@ -22,7 +22,8 @@ module Reaction_Sandbox_Calcite_class
   contains
     procedure, public :: ReadInput => CalciteReadInput
     procedure, public :: Setup => CalciteSetup
-    procedure, public :: AuxiliaryPlotVariables => CalciteAuxiliaryPlotVariables
+    procedure, public :: AuxiliaryPlotVariables => &
+                           CalciteAuxiliaryPlotVariables
     procedure, public :: Evaluate => CalciteEvaluate
     procedure, public :: UpdateKineticState => CalciteUpdateKineticState
   end type reaction_sandbox_calcite_type
@@ -141,7 +142,7 @@ subroutine CalciteSetup(this,reaction,option)
     ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'Calcite'
   this%mineral_id = &
-    MineralGetMnrlIDFromName(word,reaction%mineral,option)
+    ReactionMnrlGetMnrlIDFromName(word,reaction%mineral,option)
 
 end subroutine CalciteSetup
 
@@ -229,9 +230,9 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   ! Reaction path #1
   ! the code in this block is very similar to the default mineral
-  ! precipitation-dissolution capability in RKineticMineral(). this block
-  ! illustrates how one can leverage the stoichiometries and logKs from the
-  ! database and solely override the rate expression
+  ! precipitation-dissolution capability in ReactionMnrlKineticRate(). this
+  ! block illustrates how one can leverage the stoichiometries and logKs from
+  ! the database and solely override the rate expression
   ln_conc = log(rt_auxvar%pri_molal)
   ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
 

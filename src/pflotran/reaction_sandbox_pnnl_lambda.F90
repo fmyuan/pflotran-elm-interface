@@ -244,8 +244,8 @@ subroutine LambdaSetup(this,reaction,option)
 
   if (len_trim(this%scaling_mineral_name) > 0) then
     this%i_scaling_mineral = &
-      MineralGetKineticMnrlIDFromName(this%scaling_mineral_name, &
-                                  reaction%mineral,option)
+      ReactionMnrlGetKinMnrlIDFromName(this%scaling_mineral_name, &
+                                       reaction%mineral,option)
   endif
 
   ! Input file must have carbon species indicated by the word "DONOR"

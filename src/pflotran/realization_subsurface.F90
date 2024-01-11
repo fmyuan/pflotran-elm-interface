@@ -2054,9 +2054,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
         if (associated(porosity0_p)) then
           temp_porosity = porosity0_p(local_id)
         endif
-        call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
-                                          material_auxvars(ghosted_id), &
-                                          temp_porosity,option)
+        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                            material_auxvars(ghosted_id), &
+                                            temp_porosity,option)
       enddo
     enddo
 

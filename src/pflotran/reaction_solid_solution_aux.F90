@@ -70,7 +70,7 @@ function SolidSolutionReactionCreate()
 
   nullify(solid_solution_rxn%list)
 
-  solid_solution_rxn%mineral => MineralReactionCreate()
+  solid_solution_rxn%mineral => ReactionMnrleactionCreate()
 
   SolidSolutionReactionCreate => solid_solution_rxn
 

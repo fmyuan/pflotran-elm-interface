@@ -1164,7 +1164,7 @@ subroutine PMUFDDecayInit(this)
     word = trim(word) // '(s)'
     if (associated(reaction)) then
       this%isotope_to_mineral(isotope%iisotope) = &
-        MineralGetKineticMnrlIDFromName(word,reaction%mineral,option)
+        ReactionMnrlGetKinMnrlIDFromName(word,reaction%mineral,option)
     endif
     this%element_isotopes(0,isotope%ielement) = &
       this%element_isotopes(0,isotope%ielement) + 1

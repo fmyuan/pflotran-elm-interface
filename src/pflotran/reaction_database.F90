@@ -377,9 +377,7 @@ subroutine DatabaseRead(reaction,option)
 
         if (.not.found) cycle ! go to next line in database
 
-        call MineralReadFromDatabase(cur_mineral, &
-                                     num_logKs,input, &
-                                     option)
+        call ReactionMnrlReadFromDatabase(cur_mineral,num_logKs,input,option)
       case(4) ! surface complexes
         cur_srfcplx => surface_complexation%complex_list
         found = PETSC_FALSE
@@ -2764,8 +2762,8 @@ subroutine BasisInit(reaction,option)
           ! nothing to do here as the linkage to rick density is already set
         case(MINERAL_SURFACE)
           surface_complexation%srfcplxrxn_to_surf(irxn) = &
-            MineralGetKineticMnrlIDFromName(cur_srfcplx_rxn%surface_name, &
-                                            reaction%mineral,option)
+            ReactionMnrlGetKinMnrlIDFromName(cur_srfcplx_rxn%surface_name, &
+                                             reaction%mineral,option)
           if (surface_complexation%srfcplxrxn_to_surf(irxn) < 0) then
             option%io_buffer = 'Mineral ' // &
                                 trim(cur_srfcplx_rxn%surface_name) // &
@@ -2870,8 +2868,8 @@ subroutine BasisInit(reaction,option)
       reaction%eqionx_rxn_cation_X_offset(irxn) = icount
       if (len_trim(cur_ionx_rxn%mineral_name) > 1) then
         reaction%eqionx_rxn_to_surf(irxn) = &
-          MineralGetKineticMnrlIDFromName(cur_ionx_rxn%mineral_name, &
-                                      reaction%mineral,option)
+          ReactionMnrlGetKinMnrlIDFromName(cur_ionx_rxn%mineral_name, &
+                                           reaction%mineral,option)
         if (reaction%eqionx_rxn_to_surf(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
             ' listed in ion exchange &reaction not found in mineral list'
@@ -3532,8 +3530,8 @@ subroutine BasisInit(reaction,option)
       ! associate mineral id
       if (len_trim(cur_isotherm_rxn%kd_mineral_name) > 1) then
         reaction%isotherm%eqkdmineral(irxn) = &
-          MineralGetKineticMnrlIDFromName(cur_isotherm_rxn%kd_mineral_name, &
-                                          reaction%mineral,option)
+          ReactionMnrlGetKinMnrlIDFromName(cur_isotherm_rxn%kd_mineral_name, &
+                                           reaction%mineral,option)
         if (reaction%isotherm%eqkdmineral(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in kd (linear sorption) &

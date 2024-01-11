@@ -462,7 +462,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('MICROBIAL_REACTION')
         call MicrobialRead(reaction%microbial,input,option)
       case('MINERALS')
-        call MineralRead(reaction%mineral,input,option)
+        call ReactionMnrlRead(reaction%mineral,input,option)
       case('MINERAL_KINETICS') ! mineral kinetics read on second round
         error_string = 'CHEMISTRY,MINERAL_KINETICS'
         !geh: but we need to count the number of kinetic minerals this round
@@ -974,7 +974,7 @@ subroutine ReactionReadPass2(reaction,input,option)
       case('OUTPUT')
         call ReactionReadOutput(reaction,input,option)
       case('MINERAL_KINETICS')
-        call MineralReadKinetics(reaction%mineral,input,option)
+        call ReactionMnrlReadKinetics(reaction%mineral,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
       case('CLM_REACTION')
@@ -1307,8 +1307,8 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   endif
 
   ! minerals
-  call MineralProcessConstraint(reaction%mineral,constraint%name, &
-                                mineral_constraint,option)
+  call ReactionMnrlProcessConstraint(reaction%mineral,constraint%name, &
+                                     mineral_constraint,option)
 
   ! surface complexes
   call SrfCplxProcessConstraint(reaction%surface_complexation, &
@@ -4064,8 +4064,8 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
 
   if (reaction%mineral%nkinmnrl > 0) then
-    call RKineticMineral(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                         material_auxvar,reaction,option)
+    call ReactionMnrlKineticRate(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+                                 material_auxvar,reaction,option)
   endif
 
   if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0) then
@@ -5883,8 +5883,8 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   ! toggled true if any kinetic states are updated in the routines below
   kinetic_state_updated = PETSC_FALSE
 
-  call MineralUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
-                                 reaction,kinetic_state_updated,option)
+  call ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
+                                      reaction,kinetic_state_updated,option)
 
   call RSrfCplxMRUpdateKinState(rt_auxvar,reaction, &
                                 kinetic_state_updated,option)
@@ -5946,10 +5946,10 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
                                     temp, &
                                     reaction%gas%npassive_gas)
     endif
-    call MineralUpdateTempDepCoefs(temp,pres,reaction%mineral, &
-                                   reaction%use_geothermal_hpt, &
-                                   update_mnrl, &
-                                   option)
+    call ReactionMnrlUpdateTempDepCoefs(temp,pres,reaction%mineral, &
+                                        reaction%use_geothermal_hpt, &
+                                        update_mnrl, &
+                                        option)
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
       call ReactionInterpolateLogK(reaction%surface_complexation% &
                                       srfcplx_logKcoef, &
@@ -5981,10 +5981,10 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
                                        pres, &
                                        reaction%gas%npassive_gas)
     endif
-    call MineralUpdateTempDepCoefs(temp,pres,reaction%mineral, &
-                                   reaction%use_geothermal_hpt, &
-                                   update_mnrl, &
-                                   option)
+    call ReactionMnrlUpdateTempDepCoefs(temp,pres,reaction%mineral, &
+                                        reaction%use_geothermal_hpt, &
+                                        update_mnrl, &
+                                        option)
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
       option%io_buffer = 'Temperature dependent surface complexation &
         &coefficients not yet function for high pressure/temperature.'
