@@ -243,7 +243,7 @@ subroutine PNNL_NSetup(this,reaction,option)
     ReactionGetPriSpeciesIDFromName(word,reaction,option)
   word = 'C5H7O2N'
   this%biomass_id = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,option) + &
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,option) + &
     reaction%offset_immobile
   word = 'CO2(aq)'
   this%co2_id = &

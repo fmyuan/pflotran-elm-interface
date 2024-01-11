@@ -387,12 +387,12 @@ subroutine CLM_CN_Map(this,reaction,option)
       ! same name as the pool with C or N appended.
       word = trim(cur_pool%name) // 'C'
       this%pool_id_to_species_id(CARBON_INDEX,icount) = &
-        ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
-                                     PETSC_FALSE,option)
+        ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
+                                       PETSC_FALSE,option)
       word = trim(cur_pool%name) // 'N'
       this%pool_id_to_species_id(NITROGEN_INDEX,icount) = &
-        ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
-                                     PETSC_FALSE,option)
+        ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
+                                       PETSC_FALSE,option)
       this%pool_id_to_species_id(0,icount) = 2
       if (minval(this%pool_id_to_species_id(:,icount)) <= 0) then
         option%io_buffer = 'For CLM-CN pools with no CN ratio defined, ' // &
@@ -402,8 +402,8 @@ subroutine CLM_CN_Map(this,reaction,option)
       endif
     else ! only one species (e.g. SOMX)
       this%pool_id_to_species_id(SOM_INDEX,icount) = &
-        ImmobileGetSpeciesIDFromName(cur_pool%name,reaction%immobile, &
-                                     PETSC_TRUE,option)
+        ReactionImGetSpeciesIDFromName(cur_pool%name,reaction%immobile, &
+                                       PETSC_TRUE,option)
       this%pool_id_to_species_id(0,icount) = 1
     endif
     cur_pool => cur_pool%next
@@ -412,12 +412,12 @@ subroutine CLM_CN_Map(this,reaction,option)
   ! map C and N species (solid phase for now)
   word = 'C'
   this%C_species_id = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
-                                   PETSC_TRUE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_TRUE,option)
   word = 'N'
   this%N_species_id = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
-                                   PETSC_TRUE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_TRUE,option)
 
   icount = 0
   cur_rxn => this%reactions

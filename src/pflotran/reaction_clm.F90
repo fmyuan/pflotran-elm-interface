@@ -794,10 +794,12 @@ subroutine CLMDec_Setup(this,reaction,option)
       ! same name as the pool with C or N appended.
       word = trim(cur_pool%name) // 'C'
       species_id_pool_c(icount) = &
-        ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+        ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
+                                       PETSC_FALSE,option)
       word = trim(cur_pool%name) // 'N'
       species_id_pool_n(icount) = &
-        ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+        ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
+                                       PETSC_FALSE,option)
       if (species_id_pool_c(icount)<=0 .or. species_id_pool_n(icount)<=0) then
         option%io_buffer = 'For CLMDec pools with no CN ratio defined, ' // &
           'the user must define two immobile species with the same root ' // &
@@ -806,7 +808,7 @@ subroutine CLMDec_Setup(this,reaction,option)
       endif
     else ! only one species (e.g. SOMX)
       species_id_pool_c(icount) = &
-        ImmobileGetSpeciesIDFromName(cur_pool%name,reaction%immobile, &
+        ReactionImGetSpeciesIDFromName(cur_pool%name,reaction%immobile, &
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount) <= 0) then
         species_id_pool_c(icount) = &
@@ -964,7 +966,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   if (this%species_id_nh4 < 0) then
     word = 'Ammonium'
     this%species_id_nh4 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%species_id_nh4 > 0) then
       this%is_NH4_aqueous = PETSC_FALSE
     endif
@@ -983,7 +985,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   if (this%species_id_no3 < 0) then
     word = 'Nitrate'
     this%species_id_no3 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%species_id_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
@@ -999,28 +1001,28 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'Bacteria'
   this%species_id_bacteria = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile, &
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
                                                           PETSC_FALSE,option)
 
   word = 'Fungi'
   this%species_id_fungi = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'HRimm'
   this%species_id_hrimm = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Nmin'
   this%species_id_nmin = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Nimm'
   this%species_id_nimm = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'NGASmin'
   this%species_id_ngasmin = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   if (this%species_id_bacteria > 0 .and. this%species_id_fungi > 0 .and. &
     this%nc_bacteria > 0.0d0 .and. this%nc_fungi > 0.0d0 ) then
@@ -3229,7 +3231,7 @@ subroutine PlantNSetup(this,reaction,option)
   if (this%ispec_nh4 < 0) then
     word = 'Ammonium'
     this%ispec_nh4 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_nh4 > 0) then
       this%is_NH4_aqueous = PETSC_FALSE
     endif
@@ -3248,7 +3250,7 @@ subroutine PlantNSetup(this,reaction,option)
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
     this%ispec_no3 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
@@ -3256,7 +3258,7 @@ subroutine PlantNSetup(this,reaction,option)
 
   word = 'PlantN'
   this%ispec_plantn = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   if (this%ispec_plantn < 0) then
     option%io_buffer = 'PlantN is specified in the input file!'
@@ -3265,15 +3267,15 @@ subroutine PlantNSetup(this,reaction,option)
 
   word = 'Ain'
   this%ispec_nh4in = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Tin'
   this%ispec_no3in = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Plantndemand'
   this%ispec_plantndemand = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile, PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile, PETSC_FALSE,option)
 
 end subroutine PlantNSetup
 
@@ -3831,7 +3833,7 @@ subroutine NitrSetup(this,reaction,option)
   if (this%ispec_nh4 < 0) then
     word = 'Ammonium'
     this%ispec_nh4 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_nh4 > 0) then
       this%is_NH4_aqueous = PETSC_FALSE
     endif
@@ -3844,7 +3846,7 @@ subroutine NitrSetup(this,reaction,option)
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
     this%ispec_no3 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
@@ -3879,7 +3881,7 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'NGASnitr'
   this%ispec_ngasnit = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
 end subroutine NitrSetup
 
@@ -4506,7 +4508,7 @@ subroutine DeniSetup(this,reaction,option)
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
     this%ispec_no3 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (this%ispec_no3 > 0) then
       this%is_NO3_aqueous = PETSC_FALSE
     endif
@@ -4530,7 +4532,7 @@ subroutine DeniSetup(this,reaction,option)
 
   word = 'NGASdeni'
   this%ispec_ngasdeni = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
 end subroutine DeniSetup
 
@@ -5086,7 +5088,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   if (ispec_nh4 < 0) then
     word = 'Ammonium'
     ispec_nh4 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (ispec_nh4 > 0) then
       is_nh4_aqueous = PETSC_FALSE
       ires_nh4 = ispec_nh4 + reaction%offset_immobile
@@ -5108,7 +5110,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   if (ispec_no3 < 0) then
     word = 'Nitrate'
     ispec_no3 = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
     if (ispec_no3 > 0) then
       is_no3_aqueous = PETSC_FALSE
       ires_no3 = ispec_no3 + reaction%offset_immobile

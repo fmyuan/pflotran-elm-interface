@@ -160,8 +160,8 @@ subroutine WastePackageSetup(this,reaction,option)
     ReactionGetPriSpeciesIDFromName(this%aqueous_species_name, &
                                 reaction,option)
   this%immobile_species_id = &
-    ImmobileGetSpeciesIDFromName(this%immobile_species_name, &
-                                 reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(this%immobile_species_name, &
+                                   reaction%immobile,option)
 
 end subroutine WastePackageSetup
 

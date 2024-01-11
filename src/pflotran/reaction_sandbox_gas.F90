@@ -201,7 +201,8 @@ subroutine GasSetup(this,reaction,option)
     word = trim(this%name_vec(i))//aq
     this%aq_vec(i) = ReactionGetPriSpeciesIDFromName(word,reaction,option)
     word = trim(this%name_vec(i))//im
-    this%im_vec(i) = ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
+    this%im_vec(i) = &
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,option)
     word = trim(this%name_vec(i))//g
     this%gas_vec(i) = GasGetIDFromName(reaction%gas,word)
   end do

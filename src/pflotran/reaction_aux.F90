@@ -442,7 +442,7 @@ function ReactionCreate()
   reaction%surface_complexation => SurfaceComplexationCreate()
   reaction%mineral => MineralCreate()
   reaction%microbial => MicrobialCreate()
-  reaction%immobile => ImmobileCreate()
+  reaction%immobile => ReactionImCreate()
   reaction%gas => GasCreate()
   reaction%isotherm => IsothermCreate()
 #ifdef SOLID_SOLUTION
@@ -1146,7 +1146,7 @@ function ReactionGetImmobileCount(reaction)
   PetscInt :: ReactionGetImmobileCount
   class(reaction_rt_type) :: reaction
 
-  ReactionGetImmobileCount = ImmobileGetCount(reaction%immobile)
+  ReactionGetImmobileCount = ReactionImGetCount(reaction%immobile)
 
 end function ReactionGetImmobileCount
 
@@ -1948,7 +1948,7 @@ subroutine ReactionDestroy(reaction,option)
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
-  call ImmobileDestroy(reaction%immobile)
+  call ReactionImDestroy(reaction%immobile)
   call GasDestroy(reaction%gas)
   call IsothermDestroy(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION

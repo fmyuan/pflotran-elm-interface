@@ -376,7 +376,7 @@ subroutine CyberSetup(this,reaction,option)
   else
     word = 'C5H7O2N(im)'
     this%biomass_id = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,option) + &
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,option) + &
       reaction%offset_immobile
   endif
   word = 'CO2(aq)'
@@ -385,7 +385,7 @@ subroutine CyberSetup(this,reaction,option)
   if (len_trim(this%carbon_consumption_species) > 0) then
     word = this%carbon_consumption_species
     this%carbon_consumption_species_id = &
-      ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,option)
   endif
   if (this%store_cumulative_mass) then
     this%offset_auxiliary = reaction%nauxiliary

@@ -329,12 +329,12 @@ subroutine ChromiumSetup(this,reaction,option)
                                     reaction,option)
 
   this%B_id = &
-    ImmobileGetSpeciesIDFromName(this%name_B, &
-                                 reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(this%name_B, &
+                                   reaction%immobile,option)
 
   this%D_immobile_id = &
-    ImmobileGetSpeciesIDFromName(this%name_D_immobile, &
-                                 reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(this%name_D_immobile, &
+                                   reaction%immobile,option)
   this%biomineral_id = &
     MineralGetMnrlIDFromName(this%name_biomineral, &
                              reaction%mineral,option)

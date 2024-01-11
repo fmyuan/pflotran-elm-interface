@@ -288,9 +288,9 @@ subroutine ReactionReadPass1(reaction,input,option)
         string = 'CHEMISTRY,PASSIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,PASSIVE_GAS,string,input,option)
       case('IMMOBILE_SPECIES')
-        call ImmobileRead(reaction%immobile,input,option)
+        call ReactionImRead(reaction%immobile,input,option)
       case('IMMOBILE_DECAY_REACTION')
-        call ImmobileDecayRxnRead(reaction%immobile,input,option)
+        call ReactionImDecayRxnRead(reaction%immobile,input,option)
       case('RADIOACTIVE_DECAY_REACTION')
         error_string = 'CHEMISTRY,RADIOACTIVE_DECAY_REACTION'
         reaction%nradiodecay_rxn = reaction%nradiodecay_rxn + 1
@@ -1316,8 +1316,8 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
                                 srfcplx_constraint,option)
 
   ! microbial immobile
-  call ImmobileProcessConstraint(reaction%immobile,constraint%name, &
-                                 immobile_constraint,option)
+  call ReactionImProcessConstraint(reaction%immobile,constraint%name, &
+                                   immobile_constraint,option)
 
 end subroutine ReactionProcessConstraint
 
@@ -4094,8 +4094,8 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   endif
 
   if (reaction%immobile%ndecay_rxn > 0) then
-    call RImmobileDecay(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                        material_auxvar,reaction,option)
+    call ReactionImDecay(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+                         material_auxvar,reaction,option)
   endif
 
   if (associated(rxn_sandbox_list)) then

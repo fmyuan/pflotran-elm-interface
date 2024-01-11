@@ -79,7 +79,7 @@ subroutine BioHillSetup(this,reaction,option)
   ! Immobile species
   word = 'Xim'
   this%species_Xim_id = &
-    ImmobileGetSpeciesIDFromName(word,reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,option)
 
 end subroutine BioHillSetup
 

@@ -1846,7 +1846,7 @@ subroutine BasisInit(reaction,option)
 
 
   ! immobile species
-  immobile%nimmobile = ImmobileGetCount(immobile)
+  immobile%nimmobile = ReactionImGetCount(immobile)
   if (immobile%nimmobile > 0) then
     allocate(immobile%names(immobile%nimmobile))
     immobile%names = ''

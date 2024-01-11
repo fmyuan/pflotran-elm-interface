@@ -574,7 +574,7 @@ subroutine BioTH_Setup(this,reaction,option)
     ReactionGetPriSpeciesIDFromName(this%name_aqueous,reaction,option)
 
   this%species_Vim_id = &
-    ImmobileGetSpeciesIDFromName(this%name_immobile,reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(this%name_immobile,reaction%immobile,option)
 
 end subroutine BioTH_Setup
 
