@@ -6570,8 +6570,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               ! mol/m^3 gas
               vec_ptr(local_id) = &
                 ReactionGasPartialPresToConc(vec_ptr(local_id), &
-                                  patch%aux%Global% &
-                                    auxvars(grid%nL2G(local_id))%temp)
+                          patch%aux%Global%auxvars(grid%nL2G(local_id))%temp)
             enddo
           endif
         case(MINERAL_VOLUME_FRACTION)
@@ -7732,8 +7731,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           endif
           if (ivar == GAS_CONCENTRATION) then
             value = ReactionGasPartialPresToConc(value, &
-                                      patch%aux%Global% &
-                                        auxvars(ghosted_id)%temp)
+                               patch%aux%Global%auxvars(ghosted_id)%temp)
           endif
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)

@@ -462,7 +462,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         call RCLMRxnRead(input,option)
         reaction_clm_read = PETSC_TRUE
       case('MICROBIAL_REACTION')
-        call MicrobialRead(reaction%microbial,input,option)
+        call ReactionMicrobReadMicrobial(reaction%microbial,input,option)
       case('MINERALS')
         call ReactionMnrlRead(reaction%mineral,input,option)
       case('MINERAL_KINETICS') ! mineral kinetics read on second round
@@ -4091,7 +4091,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   endif
 
   if (reaction%microbial%nrxn > 0) then
-    call RMicrobial(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+    call ReactionMicrobRate(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                     material_auxvar,reaction,option)
   endif
 

@@ -3170,10 +3170,10 @@ subroutine BasisInit(reaction,option)
       endif
       temp_int = cur_microbial_rxn%dbaserxn%nspec
       if (temp_int > max_species_count) max_species_count = temp_int
-      temp_int = MicrobialGetMonodCount(cur_microbial_rxn)
+      temp_int = ReactionMicrobGetMonodCount(cur_microbial_rxn)
       monod_count = monod_count + temp_int
       if (temp_int > max_monod_count) max_monod_count = temp_int
-      temp_int = MicrobialGetInhibitionCount(cur_microbial_rxn)
+      temp_int = ReactionMicrobGetInhibtionCount(cur_microbial_rxn)
       inhibition_count = inhibition_count + temp_int
       if (temp_int > max_inhibition_count) max_inhibition_count = temp_int
       cur_microbial_rxn => cur_microbial_rxn%next

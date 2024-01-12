@@ -11,14 +11,14 @@ module Reaction_Microbial_module
 
   private
 
-  public :: MicrobialRead, &
-            RMicrobial
+  public :: ReactionMicrobReadMicrobial, &
+            ReactionMicrobRate
 
 contains
 
 ! ************************************************************************** !
 
-subroutine MicrobialRead(microbial,input,option)
+subroutine ReactionMicrobReadMicrobial(microbial,input,option)
   !
   ! Reads chemical species
   !
@@ -46,7 +46,7 @@ subroutine MicrobialRead(microbial,input,option)
 
   microbial%nrxn = microbial%nrxn + 1
 
-  microbial_rxn => MicrobialRxnCreate()
+  microbial_rxn => ReactionMicrobCreateRxn()
   nullify(prev_monod)
   nullify(prev_inhibition)
   nullify(microbial_biomass)
@@ -108,7 +108,7 @@ subroutine MicrobialRead(microbial,input,option)
                      'J/mol', &
                      'CHEMISTRY,MICROBIAL_REACTION,ACTIVATION_ENERGY',option)
       case('MONOD')
-        monod => MicrobialMonodCreate()
+        monod => ReactionMicrobCreateMonodTerm()
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -162,9 +162,9 @@ subroutine MicrobialRead(microbial,input,option)
         nullify(inhibition)
       case('BIOMASS')
         if (associated(microbial_biomass)) then
-          call MicrobialBiomassDestroy(microbial_biomass)
+          call ReactionMicrobDestroyBiomass(microbial_biomass)
         endif
-        microbial_biomass => MicrobialBiomassCreate()
+        microbial_biomass => ReactionMicrobCreateBiomass()
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -223,12 +223,12 @@ subroutine MicrobialRead(microbial,input,option)
     microbial%concentration_units = MICROBIAL_MOLARITY
   endif
 
-end subroutine MicrobialRead
+end subroutine ReactionMicrobReadMicrobial
 
 ! ************************************************************************** !
 
-subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
-                      global_auxvar,material_auxvar,reaction,option)
+subroutine ReactionMicrobRate(Res,Jac,compute_derivative,rt_auxvar, &
+                            1 global_auxvar,material_auxvar,reaction,option)
   !
   ! Computes the microbial reaction
   !
@@ -491,6 +491,6 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
 
   enddo
 
-end subroutine RMicrobial
+end subroutine ReactionMicrobRate
 
 end module Reaction_Microbial_module
