@@ -1946,7 +1946,7 @@ subroutine ReactionDestroy(reaction,option)
   call ReactionGasDestroyGas(reaction%gas)
   call ReactionIsothermDestroyObject(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION
-  call SolidSolutionDestroy(reaction%solid_solution_list)
+  call ReactionSolidSolnDestroyObject(reaction%solid_solution_list)
 #endif
 
   if (associated(reaction%dbase_temperatures)) &

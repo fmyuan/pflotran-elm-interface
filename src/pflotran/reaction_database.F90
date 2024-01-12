@@ -2401,8 +2401,8 @@ subroutine BasisInit(reaction,option)
     endif
 
 #ifdef SOLID_SOLUTION
-    call SolidSolutionLinkNamesToIDs(reaction%solid_solution_list, &
-                                     mineral,option)
+    call ReactionSolidSolnLinkNamesToIDs(reaction%solid_solution_list, &
+                                         mineral,option)
 #endif
   endif
 

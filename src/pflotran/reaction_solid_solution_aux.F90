@@ -39,8 +39,8 @@ module Reaction_Solid_Soln_Aux_module
   end type solid_solution_rxn_type
 #endif
 
-  public :: SolidSolutionCreate, &
-            SolidSolutionDestroy
+  public :: ReactionSolidSolnCreateObject, &
+            ReactionSolidSolnDestroyObject
 
 contains
 
@@ -79,7 +79,7 @@ end function SolidSolutionReactionCreate
 
 ! ************************************************************************** !
 
-function SolidSolutionCreate()
+function ReactionSolidSolnCreateObject()
   !
   ! Allocate and initialize solid solution object
   !
@@ -89,7 +89,7 @@ function SolidSolutionCreate()
 
   implicit none
 
-  type(solid_solution_type), pointer :: SolidSolutionCreate
+  type(solid_solution_type), pointer :: ReactionSolidSolnCreateObject
 
   type(solid_solution_type), pointer :: solid_solution
 
@@ -105,9 +105,9 @@ function SolidSolutionCreate()
   nullify(solid_solution%stoich_solid_ids)
   nullify(solid_solution%next)
 
-  SolidSolutionCreate => solid_solution
+  ReactionSolidSolnCreateObject => solid_solution
 
-end function SolidSolutionCreate
+end function ReactionSolidSolnCreateObject
 
 #if 0
 
@@ -175,7 +175,7 @@ end subroutine StoichiometricSolidDestroy
 
 ! ************************************************************************** !
 
-recursive subroutine SolidSolutionDestroy(solid_solution)
+recursive subroutine ReactionSolidSolnDestroyObject(solid_solution)
   !
   ! Deallocates solid solution object
   !
@@ -195,7 +195,7 @@ recursive subroutine SolidSolutionDestroy(solid_solution)
   if (.not.associated(solid_solution)) return
 
   ! recursive
-  call SolidSolutionDestroy(solid_solution%next)
+  call ReactionSolidSolnDestroyObject(solid_solution%next)
 
 #if 0
   ! I don't want to destroy recursively here as the memory use may
@@ -216,7 +216,7 @@ recursive subroutine SolidSolutionDestroy(solid_solution)
   deallocate(solid_solution)
   nullify(solid_solution)
 
-end subroutine SolidSolutionDestroy
+end subroutine ReactionSolidSolnDestroyObject
 
 #if 0
 
@@ -235,7 +235,7 @@ subroutine SolidSolutionReactionDestroy(solid_solution)
   type(solid_solution_rxn_type), pointer :: solid_solution
 
   ! recursive
-  call SolidSolutionDestroy(solid_solution%list)
+  call ReactionSolidSolnDestroyObject(solid_solution%list)
 
   deallocate(solid_solution)
   nullify(solid_solution)

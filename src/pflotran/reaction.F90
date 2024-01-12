@@ -983,7 +983,7 @@ subroutine ReactionReadPass2(reaction,input,option)
         call RCLMRxnSkipInput(input,option)
 #ifdef SOLID_SOLUTION
       case('SOLID_SOLUTIONS')
-        call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
+        call ReactionSolidSolnReadSolidSoln(reaction%solid_solution_list, &
                                             input,option)
 #endif
       case('SORPTION')
