@@ -226,12 +226,16 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         xmass(:) = sco2_auxvar_up%xmass(:,iphase)
         uH = sco2_auxvar_up%H(iphase)
         density_kg_ave = sco2_auxvar_up%den_kg(iphase)
+        !MAN: trying upstream perm weighting
+        perm_ave_over_dist = perm_up / (dist_up + dist_dn)
       else
         dn_scale = 1.d0
         mobility = sco2_auxvar_dn%mobility(iphase)
         xmass(:) = sco2_auxvar_dn%xmass(:,iphase)
         uH = sco2_auxvar_dn%H(iphase)
         density_kg_ave = sco2_auxvar_dn%den_kg(iphase)
+        !MAN: trying upstream perm weighting
+        perm_ave_over_dist = perm_dn / (dist_up + dist_dn)
       endif
 
       if (mobility > floweps ) then
@@ -359,13 +363,68 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
     if (iphase == ONE_INTEGER) then
         water_mass_flux = -1.d0 * fmw_comp(1) * &
-                          (co2_mole_flux + salt_mole_flux/fmw_comp(3))
+                          (co2_mole_flux + salt_mole_flux)
     else
         water_mass_flux = -1.d0 * fmw_comp(1) * co2_mole_flux
     endif
 
     co2_mass_flux = co2_mole_flux * fmw_comp(2)
     salt_mass_flux = salt_mole_flux * fmw_comp(3)
+
+    ! ! MAN: an effective multiphase diffusion coefficient approach:
+    ! ! For CO2:
+    ! do iphase = 1 , option%nphase - 1
+    !   stpd_up = (sco2_auxvar_up%effective_diffusion_coeff(co2_id,iphase) + &
+    !              sco2_auxvar_up%dispersivity(co2_id,iphase) * &
+    !              v_darcy(iphase))
+    !   stpd_dn = (sco2_auxvar_dn%effective_diffusion_coeff(co2_id,iphase) + &
+    !              sco2_auxvar_dn%dispersivity(co2_id,iphase) * &
+    !              v_darcy(iphase))
+
+    !   ! Take the harmonic mean / dist: 
+    !   stpd_ave_over_dist = stpd_up*stpd_dn / &
+    !                        (stpd_up*dist_dn + stpd_dn*dist_up)
+
+    !   sigma(iphase) = stpd_ave_over_dist * area
+    ! enddo
+    
+    ! multiphase_grad =(sco2_auxvar_up%xmol(co2_id,option%gas_phase) * den_up - &
+    !               sco2_auxvar_dn%xmol(co2_id,option%gas_phase) * den_dn) / &
+    !               (sco2_auxvar_up%xmol(co2_id,option%liquid_phase) * den_up - &
+    !               sco2_auxvar_dn%xmol(co2_id,option%liquid_phase) * den_dn)
+    ! co2_mole_flux = (sigma(ONE_INTEGER) + &
+    !               sigma(TWO_INTEGER) * multiphase_grad) * &
+    !               (sco2_auxvar_up%xmol(co2_id,option%liquid_phase) * den_up - &
+    !               sco2_auxvar_dn%xmol(co2_id,option%liquid_phase) * den_dn)
+     
+    ! ! For salt:
+    ! do iphase = 1 , option%nphase - 1
+    !   stpd_up = (sco2_auxvar_up%effective_diffusion_coeff(sid,iphase) + &
+    !              sco2_auxvar_up%dispersivity(sid,iphase) * &
+    !              v_darcy(iphase))
+    !   stpd_dn = (sco2_auxvar_dn%effective_diffusion_coeff(sid,iphase) + &
+    !              sco2_auxvar_dn%dispersivity(sid,iphase) * &
+    !              v_darcy(iphase))
+
+    !   ! Take the harmonic mean / dist: 
+    !   stpd_ave_over_dist = stpd_up*stpd_dn / &
+    !                        (stpd_up*dist_dn + stpd_dn*dist_up)
+
+    !   sigma(iphase) = stpd_ave_over_dist * area
+    ! enddo
+    
+    ! multiphase_grad =(sco2_auxvar_up%xmol(sid,option%gas_phase) * den_up - &
+    !               sco2_auxvar_dn%xmol(sid,option%gas_phase) * den_dn) / &
+    !               (sco2_auxvar_up%xmol(sid,option%liquid_phase) * den_up - &
+    !               sco2_auxvar_dn%xmol(sid,option%liquid_phase) * den_dn)
+    ! salt_mole_flux = (sigma(ONE_INTEGER) + &
+    !               sigma(TWO_INTEGER) * multiphase_grad) * &
+    !               (sco2_auxvar_up%xmol(sid,option%liquid_phase) * den_up - &
+    !               sco2_auxvar_dn%xmol(sid,option%liquid_phase) * den_dn)
+
+
+    ! water_mass_flux = -1.d0 * fmw_comp(1) * &
+    !                   (co2_mole_flux + salt_mole_flux)
 
     Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + &
                                      water_mass_flux

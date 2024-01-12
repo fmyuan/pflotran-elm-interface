@@ -949,8 +949,10 @@ subroutine FlowConditionVerify(option, condition)
   nullify(liquid_pressure)
   if (associated(condition%general)) then
     liquid_pressure => condition%general%liquid_pressure
-  else if (associated(condition%hydrate)) then
+  elseif (associated(condition%hydrate)) then
     liquid_pressure => condition%hydrate%liquid_pressure
+  elseif (associated(condition%sco2)) then
+    liquid_pressure => condition%sco2%liquid_pressure
   else
     liquid_pressure => condition%pressure
   endif

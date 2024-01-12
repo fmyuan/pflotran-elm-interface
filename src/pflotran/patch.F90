@@ -4701,7 +4701,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
         do iconn = 1, num_connections
           if (coupler%flow_aux_int_var(ONE_INTEGER,iconn) /= &
-              SCO2_LIQUID_STATE .or. &
+              SCO2_LIQUID_STATE .and. &
               coupler%flow_aux_int_var(ONE_INTEGER,iconn) /=&
               SCO2_TRAPPED_GAS_STATE) then
             select case(coupler%flow_aux_int_var(ONE_INTEGER,iconn))

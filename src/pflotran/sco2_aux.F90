@@ -752,9 +752,10 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         rho_co2 = den_mol * fmw_comp(2)
         call SCO2BrineDensity(sco2_auxvar%temp, sco2_auxvar%pres(lid), &
                               xsl, sco2_auxvar%den_kg(pbid), option)
-        call SCO2DensityCompositeLiquid(sco2_auxvar%temp,sco2_auxvar%den_kg(pbid), &
-                                  sco2_auxvar%xmass(co2_id,lid), &
-                                  rho_liq)
+        call SCO2DensityCompositeLiquid(sco2_auxvar%temp,sco2_auxvar% &
+                                        den_kg(pbid), &
+                                        sco2_auxvar%xmass(co2_id,lid), &
+                                        rho_liq)
         ! Compute what gas saturation would be
         sg_est =  (sco2_auxvar%xmass(co2_id,lid) - xco2l) * &
                    rho_liq / rho_co2
@@ -796,53 +797,17 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         
       endif
     case(SCO2_GAS_STATE)
-      call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
-      !MAN: need to make sure m_salt(2) gets updated in AuxVarCompute
-      !Check if there's any salt
-      if (sco2_auxvar%m_salt(2) > epsilon) then
-        xsl = salt_solubility
-      else
-        xsl = 0.d0
-      endif
-
-      call SCO2ComputeSurfaceTension(sco2_auxvar%temp, &
-                                     xsl, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
-
-      sl_temp = 0.0d0
-      sgt_temp = 0.d0
-
-      call SCO2ComputePcHysteresis(characteristic_curves, &
-                                   sl_temp, sgt_temp, &
-                                   sigma, sco2_auxvar%den_kg(lid), &
-                                   Pc, option)
-      Pc = Pc / beta_gl
-      Pl = sco2_auxvar%pres(gid) - Pc
-      call SCO2BrineSaturationPressure(sco2_auxvar%temp, xsl, &
-                                       Psat)
-      cell_pressure = max(sco2_auxvar%pres(gid),sco2_auxvar%pres(spid))
       Pv = sco2_auxvar%pres(gid) - &
                 sco2_auxvar%pres(co2_pressure_id)
-      call SCO2Equilibrate(sco2_auxvar%temp,cell_pressure, &
-                           Pco2, &
-                           Pv, &
-                           sco2_auxvar%pres(spid), &
-                           sco2_auxvar%pres(rvpid), &
-                           xco2g, xwg, xco2l, xsl, xwl, &
-                           xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-      call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, xsl, &
-                            sco2_auxvar%den_kg(pbid), option)
-      call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
-                                  sco2_auxvar%pres(cpid), &
-                                  sco2_auxvar%den_kg(pbid), xsl, prvap)
+      prvap = sco2_auxvar%pres(rvpid)
 
-      if (pv > prvap) then
+      if (pv > prvap + epsilon_x) then
         ! Aqueous phase appears, transition state. Update primary variables
         ! for salt mass and liquid pressure
         istatechng = PETSC_TRUE
         global_auxvar%istate = SCO2_LIQUID_GAS_STATE
 
-        sl_temp = 1.d-4
+        sl_temp = (pv - prvap) / (prvap)
         sco2_auxvar%m_salt(1) = sco2_auxvar%m_salt(2) / &
                                 (sco2_auxvar%den_kg(lid) * &
                                 sl_temp * &
@@ -973,41 +938,10 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
 
       elseif (sl_temp < epsilon .and. &
               (1.d0 - sco2_auxvar%sat(lid)) > epsilon) then
-        !MAN: turn off this state change
-        !istatechng = PETSC_FALSE
         ! Transition to fully gas-saturated. Update 2 primary variables.
         istatechng = PETSC_TRUE
         global_auxvar%istate = SCO2_GAS_STATE
 
-        call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
-        !MAN: need to make sure m_salt(2) gets updated in AuxVarCompute
-        !Check if there's any salt
-        if (sco2_auxvar%m_salt(2) > epsilon) then
-          xsl = salt_solubility
-        else
-          xsl = 0.d0
-        endif
-        call SCO2ComputeSurfaceTension(sco2_auxvar%temp, xsl, sigma)
-        beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
-        sl_temp = 0.d0
-        sgt_temp = 0.d0
-        call SCO2ComputePcHysteresis(characteristic_curves, &
-                                       sco2_auxvar%sat(lid), &
-                                       sco2_auxvar%sat(tgid), &
-                                       sigma, sco2_auxvar%den_kg(lid), &
-                                       Pc, option)
-        Pc = Pc / beta_gl
-        Pl = sco2_auxvar%pres(gid) - Pc
-        call SCO2BrineSaturationPressure(sco2_auxvar%temp, xsl, &
-                                         Psat)
-        cell_pressure = max(sco2_auxvar%pres(gid), sco2_auxvar%pres(spid))
-        call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, xsl, &
-                              sco2_auxvar%den_kg(pbid),option)
-        call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
-                                   sco2_auxvar%pres(cpid), sco2_auxvar%den_kg(pbid), xsl, &
-                                   Prvap)
-        sco2_auxvar%pres(co2_pressure_id) = sco2_auxvar%pres(gid) - &
-                                            Prvap
       else
         ! No state transition
         istatechng = PETSC_FALSE
@@ -1414,7 +1348,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                   sco2_auxvar%xmass(co2_id,lid), &
                                   sco2_auxvar%den_kg(lid))
       sco2_auxvar%pres(lid) = sco2_auxvar%pres(gid) - sco2_auxvar%pres(cpid) 
-      sco2_auxvar%pres(lid) = max(sco2_auxvar%pres(lid),epsilon)
       call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
                                          x_salt_dissolved, &
                                          sco2_auxvar%pres(spid))
@@ -1698,7 +1631,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   ! Salt precipitate density and saturation
   call SCO2ComputeSaltDensity(sco2_auxvar%temp, cell_pressure, &
                               sco2_auxvar%den_kg(pid))
-  if (global_auxvar%istate == SCO2_GAS_STATE) then
+  if (global_auxvar%istate == SCO2_GAS_STATE .or. &
+      sco2_auxvar%sat(lid) == 0.d0) then
     sco2_auxvar%sat(pid) = sco2_auxvar%m_salt(2) / (sco2_auxvar%den_kg(pid) * &
                            sco2_auxvar%effective_porosity)
     !MAN: not sure why we need this:
