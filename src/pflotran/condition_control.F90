@@ -1023,7 +1023,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         xx_p = UNINITIALIZED_DOUBLE
 
-        initial_condition => cur_patch%initial_condition_list%first
+        initial_condition => patch%initial_condition_list%first
         do
 
           if (.not.associated(initial_condition)) exit
@@ -1116,9 +1116,9 @@ subroutine CondControlAssignFlowInitCond(realization)
               iend = local_id*option%nflowdof
               ibegin = iend-option%nflowdof+1
 
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
 
@@ -1171,18 +1171,18 @@ subroutine CondControlAssignFlowInitCond(realization)
                       sco2%salt_mass%dataset%rarray(1)
                  
               end select
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+              patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
           else
             do iconn=1,initial_condition%connection_set%num_connections
               local_id = initial_condition%connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 iend = local_id*option%nflowdof
                 ibegin = iend-option%nflowdof+1
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               offset = (local_id-1)*option%nflowdof
@@ -1193,7 +1193,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       sco2_dof_to_primary_variable(idof,istate)),iconn)
               enddo
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+              patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif
           initial_condition => initial_condition%next
