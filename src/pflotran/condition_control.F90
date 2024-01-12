@@ -71,7 +71,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
-  type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
   type(flow_hydrate_condition_type), pointer :: hydrate
   type(flow_sco2_condition_type) , pointer :: sco2
@@ -87,16 +86,13 @@ subroutine CondControlAssignFlowInitCond(realization)
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
+  grid => patch%grid
 
   ! to catch uninitialized grid cells.  see VecMin check at bottom.
   call VecSet(field%work_loc,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
   call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-
-    grid => cur_patch%grid
+  ! TODO(geh) fix indentation after 7/1/24
 
     select case(option%iflowmode)
 
@@ -106,7 +102,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         xx_p = UNINITIALIZED_DOUBLE
 
-        initial_condition => cur_patch%initial_condition_list%first
+        initial_condition => patch%initial_condition_list%first
         do
 
           if (.not.associated(initial_condition)) exit
@@ -168,9 +164,9 @@ subroutine CondControlAssignFlowInitCond(realization)
               ghosted_id = grid%nL2G(local_id)
               iend = local_id*option%nflowdof
               ibegin = iend-option%nflowdof+1
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               ! decrement ibegin to give a local offset of 0
@@ -183,18 +179,18 @@ subroutine CondControlAssignFlowInitCond(realization)
                 xx_p(ibegin+WIPPFLO_GAS_SATURATION_DOF) = &
                   general%gas_saturation%dataset%rarray(1)
               endif
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+              patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
           else
             do iconn=1,initial_condition%connection_set%num_connections
               local_id = initial_condition%connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 iend = local_id*option%nflowdof
                 ibegin = iend-option%nflowdof+1
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               offset = (local_id-1)*option%nflowdof
@@ -206,7 +202,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       wf_dof_to_primary_variable(idof)),iconn)
               enddo
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+              patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif
           initial_condition => initial_condition%next
@@ -220,7 +216,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         xx_p = UNINITIALIZED_DOUBLE
 
-        initial_condition => cur_patch%initial_condition_list%first
+        initial_condition => patch%initial_condition_list%first
         do
 
           if (.not.associated(initial_condition)) exit
@@ -389,9 +385,9 @@ subroutine CondControlAssignFlowInitCond(realization)
               ghosted_id = grid%nL2G(local_id)
               iend = local_id*option%nflowdof
               ibegin = iend-option%nflowdof+1
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               ! decrement ibegin to give a local offset of 0
@@ -495,18 +491,18 @@ subroutine CondControlAssignFlowInitCond(realization)
                          general%porosity%dataset%rarray(1)
                   endif
               end select
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+              patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
           else
             do iconn=1,initial_condition%connection_set%num_connections
               local_id = initial_condition%connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 iend = local_id*option%nflowdof
                 ibegin = iend-option%nflowdof+1
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               offset = (local_id-1)*option%nflowdof
@@ -517,7 +513,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       gen_dof_to_primary_variable(idof,istate)),iconn)
               enddo
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+              patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif
           initial_condition => initial_condition%next
@@ -531,7 +527,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         xx_p = UNINITIALIZED_DOUBLE
 
-        initial_condition => cur_patch%initial_condition_list%first
+        initial_condition => patch%initial_condition_list%first
         do
 
           if (.not.associated(initial_condition)) exit
@@ -851,9 +847,9 @@ subroutine CondControlAssignFlowInitCond(realization)
               ghosted_id = grid%nL2G(local_id)
               iend = local_id*option%nflowdof
               ibegin = iend-option%nflowdof+1
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               ! decrement ibegin to give a local offset of 0
@@ -991,18 +987,18 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%ice_saturation%dataset%rarray(1)
               end select
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+              patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
           else
             do iconn=1,initial_condition%connection_set%num_connections
               local_id = initial_condition%connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
-              if (cur_patch%imat(ghosted_id) <= 0) then
+              if (patch%imat(ghosted_id) <= 0) then
                 iend = local_id*option%nflowdof
                 ibegin = iend-option%nflowdof+1
                 xx_p(ibegin:iend) = 0.d0
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+                patch%aux%Global%auxvars(ghosted_id)%istate = 0
                 cycle
               endif
               offset = (local_id-1)*option%nflowdof
@@ -1013,7 +1009,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       hyd_dof_to_primary_variable(idof,istate)),iconn)
               enddo
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+              patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif
           initial_condition => initial_condition%next
@@ -1211,7 +1207,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         xx_p = UNINITIALIZED_DOUBLE
 
-        initial_condition => cur_patch%initial_condition_list%first
+        initial_condition => patch%initial_condition_list%first
         do
 
           if (.not.associated(initial_condition)) exit
@@ -1258,9 +1254,9 @@ subroutine CondControlAssignFlowInitCond(realization)
             ghosted_id = grid%nL2G(local_id)
             iend = local_id*option%nflowdof
             ibegin = iend-option%nflowdof+1
-            if (cur_patch%imat(ghosted_id) <= 0) then
+            if (patch%imat(ghosted_id) <= 0) then
               xx_p(ibegin:iend) = 0.d0
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
+              patch%aux%Global%auxvars(ghosted_id)%istate = 0
               cycle
             endif
             if (associated(initial_condition%flow_aux_real_var)) then
@@ -1279,7 +1275,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                 endif
               enddo
             endif
-            cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+            patch%aux%Global%auxvars(ghosted_id)%istate = &
               initial_condition%flow_condition%iphase
           enddo
           initial_condition => initial_condition%next
@@ -1287,9 +1283,6 @@ subroutine CondControlAssignFlowInitCond(realization)
         call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
     end select
-
-    cur_patch => cur_patch%next
-  enddo
 
   select case(option%iflowmode)
     case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
@@ -1367,7 +1360,6 @@ subroutine CondControlAssignRTTranInitCond(realization)
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
-  type(patch_type), pointer :: cur_patch
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -1397,20 +1389,18 @@ subroutine CondControlAssignRTTranInitCond(realization)
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
+  grid => patch%grid
   reaction => realization%reaction
 
   iphase = 1
   vec1_loc = PETSC_NULL_VEC
   vec2_loc = PETSC_NULL_VEC
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
+  ! TODO(geh) fix indentation after 7/1/24
 
-    grid => cur_patch%grid
-    rt_auxvars => cur_patch%aux%RT%auxvars
-    global_auxvars => cur_patch%aux%Global%auxvars
-    material_auxvars => cur_patch%aux%Material%auxvars
+    rt_auxvars => patch%aux%RT%auxvars
+    global_auxvars => patch%aux%Global%auxvars
+    material_auxvars => patch%aux%Material%auxvars
 
     ! assign initial conditions values to domain
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -1421,7 +1411,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
 
     xx_p = UNINITIALIZED_DOUBLE
 
-    initial_condition => cur_patch%initial_condition_list%first
+    initial_condition => patch%initial_condition_list%first
     do
 
       if (.not.associated(initial_condition)) exit
@@ -1600,7 +1590,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
         ghosted_id = grid%nL2G(local_id)
         iend = local_id*option%ntrandof
         ibegin = iend-option%ntrandof+1
-        if (cur_patch%imat(ghosted_id) <= 0) then
+        if (patch%imat(ghosted_id) <= 0) then
           xx_p(ibegin:iend) = 1.d-200
           cycle
         endif
@@ -1768,9 +1758,6 @@ subroutine CondControlAssignRTTranInitCond(realization)
         call VecRestoreArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     end select
 
-    cur_patch => cur_patch%next
-  enddo
-
   ! check to ensure that minimum concentration is not less than or equal
   ! to zero
   call VecMin(field%tran_xx,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
@@ -1887,7 +1874,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   class(reaction_nw_type), pointer :: reaction_nw
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -1904,6 +1891,8 @@ subroutine CondControlAssignNWTranInitCond(realization)
   discretization => realization%discretization
   field => realization%field
   reaction_nw => realization%reaction_nw
+  patch => realization%patch
+  grid => patch%grid
 
   iphase = 1
   vec1_loc = PETSC_NULL_VEC
@@ -1911,19 +1900,16 @@ subroutine CondControlAssignNWTranInitCond(realization)
 
   !TODO(jenn) Do not allow MPH_MODE with NW Transport.
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
+  ! TODO(geh) fix indentation after 7/1/24
 
-    grid => cur_patch%grid
-    material_auxvars => cur_patch%aux%Material%auxvars
-    global_auxvars => cur_patch%aux%Global%auxvars
-    nwt_auxvars => cur_patch%aux%NWT%auxvars
+    material_auxvars => patch%aux%Material%auxvars
+    global_auxvars => patch%aux%Global%auxvars
+    nwt_auxvars => patch%aux%NWT%auxvars
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     xx_p = UNINITIALIZED_DOUBLE
 
-    initial_condition => cur_patch%initial_condition_list%first
+    initial_condition => patch%initial_condition_list%first
     do
       if (.not.associated(initial_condition)) exit
 
@@ -1940,7 +1926,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
         iend = local_id*option%ntrandof
         ibegin = iend-option%ntrandof+1
 
-        if (cur_patch%imat(ghosted_id) <= 0) then
+        if (patch%imat(ghosted_id) <= 0) then
           xx_p(ibegin:iend) = 1.d-200
           cycle
         endif
@@ -1965,9 +1951,6 @@ subroutine CondControlAssignNWTranInitCond(realization)
     enddo
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-
-    cur_patch => cur_patch%next
-  enddo
 
   ! check to ensure that minimum concentration is not less than or equal
   ! to zero
@@ -2129,7 +2112,6 @@ subroutine CondControlScaleSourceSink(realization)
   type(coupler_type), pointer :: cur_source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(patch_type), pointer :: cur_patch
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id, neighbor_ghosted_id
@@ -2145,10 +2127,8 @@ subroutine CondControlScaleSourceSink(realization)
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
-  material_auxvars => realization%patch%aux%Material%auxvars
-
-  ! GB: grid was uninitialized
   grid => patch%grid
+  material_auxvars => realization%patch%aux%Material%auxvars
 
   select case(option%iflowmode)
     case(TH_MODE,TH_TS_MODE,MPH_MODE,PNF_MODE)
@@ -2157,15 +2137,9 @@ subroutine CondControlScaleSourceSink(realization)
       call PrintErrMsg(option)
   end select
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    ! BIG-TIME warning here.  I assume that all source/sink cells are within
-    ! a single patch - geh
+  ! TODO(geh) fix indentation after 7/1/24
 
-    grid => cur_patch%grid
-
-    cur_source_sink => cur_patch%source_sink_list%first
+    cur_source_sink => patch%source_sink_list%first
     do
       if (.not.associated(cur_source_sink)) exit
 
@@ -2244,8 +2218,6 @@ subroutine CondControlScaleSourceSink(realization)
 
       cur_source_sink => cur_source_sink%next
     enddo
-    cur_patch => cur_patch%next
-  enddo
 
 end subroutine CondControlScaleSourceSink
 
@@ -2287,20 +2259,16 @@ subroutine CondControlReadTransportIC(realization,filename)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
-  type(patch_type), pointer :: cur_patch
   class(reaction_rt_type), pointer :: reaction
 
   option => realization%option
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
+  grid => patch%grid
   reaction => realization%reaction
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-
-    grid => cur_patch%grid
+  ! TODO(geh) fix indentation after 7/1/24
 
       ! assign initial conditions values to domain
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -2318,7 +2286,7 @@ subroutine CondControlReadTransportIC(realization,filename)
                                         dataset_name,option%id>0)
       call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
       do local_id=1, grid%nlmax
-        if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
+        if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
         if (vec_p(local_id) < 1.d-40) then
           print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
             ': Zero free-ion concentration in Initial Condition read from file.'
@@ -2331,9 +2299,6 @@ subroutine CondControlReadTransportIC(realization,filename)
     enddo
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-
-    cur_patch => cur_patch%next
-  enddo
 
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &

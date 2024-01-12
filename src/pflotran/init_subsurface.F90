@@ -67,52 +67,46 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
 
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   option => realization%option
+  patch => realization%patch
+  grid => patch%grid
 
   ! initialize material auxiliary indices.  this does not have to be done
   ! for each patch, just once.
   call MaterialInitAuxIndices(realization%patch%material_property_array,option)
 
   ! create mappinging
-  ! loop over all patches and allocation material id arrays
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    grid => cur_patch%grid
-    if (.not.associated(cur_patch%imat)) then
-      allocate(cur_patch%imat(grid%ngmax))
-      ! initialize to "unset"
-      cur_patch%imat = UNINITIALIZED_INTEGER
-      select case(option%iflowmode)
-        case(NULL_MODE,PNF_MODE)
-        case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
-          allocate(cur_patch%cc_id(grid%ngmax))
-          cur_patch%cc_id = UNINITIALIZED_INTEGER
-        case default
-          allocate(cur_patch%cc_id(grid%ngmax))
-          cur_patch%cc_id = UNINITIALIZED_INTEGER
-          allocate(cur_patch%cct_id(grid%ngmax))
-          cur_patch%cct_id = UNINITIALIZED_INTEGER
-      end select
+  if (.not.associated(patch%imat)) then
+    allocate(patch%imat(grid%ngmax))
+    ! initialize to "unset"
+    patch%imat = UNINITIALIZED_INTEGER
+    select case(option%iflowmode)
+      case(NULL_MODE,PNF_MODE)
+      case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
+        allocate(patch%cc_id(grid%ngmax))
+        patch%cc_id = UNINITIALIZED_INTEGER
+      case default
+        allocate(patch%cc_id(grid%ngmax))
+        patch%cc_id = UNINITIALIZED_INTEGER
+        allocate(patch%cct_id(grid%ngmax))
+        patch%cct_id = UNINITIALIZED_INTEGER
+    end select
+  endif
+
+  patch%aux%Material => MaterialAuxCreate(option)
+  allocate(material_auxvars(grid%ngmax))
+  do ghosted_id = 1, grid%ngmax
+    call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
+    if (option%flow%fracture_on) then
+      call FractureAuxVarInit(material_auxvars(ghosted_id))
     endif
-
-    cur_patch%aux%Material => MaterialAuxCreate(option)
-    allocate(material_auxvars(grid%ngmax))
-    do ghosted_id = 1, grid%ngmax
-      call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
-      if (option%flow%fracture_on) then
-        call FractureAuxVarInit(material_auxvars(ghosted_id))
-      endif
-    enddo
-    cur_patch%aux%Material%num_aux = grid%ngmax
-    cur_patch%aux%Material%auxvars => material_auxvars
-    nullify(material_auxvars)
-
-    cur_patch => cur_patch%next
   enddo
+  patch%aux%Material%num_aux = grid%ngmax
+  patch%aux%Material%auxvars => material_auxvars
+  nullify(material_auxvars)
 
   ! Create Vec that holds compressibility
   if (soil_compressibility_index > 0) then
@@ -155,7 +149,7 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(strata_type), pointer :: strata
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
 
   character(len=MAXSTRINGLENGTH) :: string
   type(material_property_type), pointer :: material_property
@@ -167,105 +161,101 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
 
   nullify(gridded_dataset)
   option => realization%option
+  patch => realization%patch
+  grid => patch%grid
 
-  cur_patch => realization%patch_list%first
+  ! set material ids to uninitialized
+  material_auxvars => patch%aux%Material%auxvars
+  patch%imat = UNINITIALIZED_INTEGER
+  strata => patch%strata_list%first
   do
-    if (.not.associated(cur_patch)) exit
-    ! set material ids to uninitialized
-    material_auxvars => cur_patch%aux%Material%auxvars
-    cur_patch%imat = UNINITIALIZED_INTEGER
-    grid => cur_patch%grid
-    strata => cur_patch%strata_list%first
-    do
-      if (.not.associated(strata)) exit
-      ! if not within time period specified, skip the strata.
-      ! use a one second tolerance on the start time and end time
-      if (StrataWithinTimePeriod(strata,option%time) .and. &
-          (.not. strata%well)) then
-        if (len_trim(strata%dataset_name) > 0) then
-          string = 'STRATA DATASET block'
-          gridded_dataset => &
-            DatasetGriddedHDF5Cast( &
-              DatasetBaseGetPointer(realization%datasets, &
-                                    strata%dataset_name, &
-                                    string,option))
-          string = 'Dataset "' // trim(strata%dataset_name) // &
-            '" referenced in a STRATA block must be'
-          if (.not.associated(gridded_dataset)) then
-            option%io_buffer = trim(string) // ' a gridded dataset.'
-            call PrintErrMsg(option)
-          endif
-          call DatasetGriddedHDF5Load(gridded_dataset,option)
-          if (gridded_dataset%data_dim /= DIM_XY) then
-            option%io_buffer = trim(string) // ' 2D in XY.'
-            call PrintErrMsg(option)
-          endif
+    if (.not.associated(strata)) exit
+    ! if not within time period specified, skip the strata.
+    ! use a one second tolerance on the start time and end time
+    if (StrataWithinTimePeriod(strata,option%time) .and. &
+        (.not. strata%well)) then
+      if (len_trim(strata%dataset_name) > 0) then
+        string = 'STRATA DATASET block'
+        gridded_dataset => &
+          DatasetGriddedHDF5Cast( &
+            DatasetBaseGetPointer(realization%datasets, &
+                                  strata%dataset_name, &
+                                  string,option))
+        string = 'Dataset "' // trim(strata%dataset_name) // &
+          '" referenced in a STRATA block must be'
+        if (.not.associated(gridded_dataset)) then
+          option%io_buffer = trim(string) // ' a gridded dataset.'
+          call PrintErrMsg(option)
         endif
-        ! Read in cell by cell material ids if they exist
-        if (.not.associated(strata%region) .and. &
-            len_trim(strata%dataset_name) == 0 .and. &
-            strata%active) then
-          call SubsurfReadMaterialIDsFromFile(realization, &
-                                              strata%realization_dependent, &
-                                              strata%material_property_filename)
-        ! Otherwise, set based on region
-        else
-          region => strata%region
-          material_property => strata%material_property
-          if (associated(region)) then
-            istart = 1
-            iend = region%num_cells
-          else
-            istart = 1
-            iend = grid%nlmax
-          endif
-          do icell=istart, iend
-            if (associated(region)) then
-              local_id = region%cell_ids(icell)
-            else
-              local_id = icell
-            endif
-            ghosted_id = grid%nL2G(local_id)
-            set_material_id = PETSC_TRUE
-            if (associated(gridded_dataset)) then
-              call DatasetGriddedHDF5InterpolateReal(gridded_dataset, &
-                            grid%x(ghosted_id),grid%y(ghosted_id), &
-                            UNINITIALIZED_DOUBLE,elevation,option)
-              if (strata%dataset_mat_id_direction == &
-                  SET_MATERIAL_IDS_BELOW_SURFACE) then
-                ! sets the material id if the cell center is below elevation
-                if (grid%z(ghosted_id) > elevation) then
-                  set_material_id = PETSC_FALSE
-                endif
-              else ! SET_MATERIAL_IDS_ABOVE_SURFACE
-                ! sets the material id if the cell center is above elevation
-                if (grid%z(ghosted_id) < elevation) then
-                  set_material_id = PETSC_FALSE
-                endif
-              endif
-            endif
-            if (set_material_id) then
-              if (strata%active) then
-                cur_patch%imat(ghosted_id) = material_property%internal_id
-              else
-                ! if not active, set material id to zero
-                cur_patch%imat(ghosted_id) = 0
-              endif
-            endif
-          enddo
-        endif
-        if (associated(gridded_dataset)) then
-          ! do not destroy; just strip as the dataset may be needed later
-          call DatasetGriddedHDF5Strip(gridded_dataset)
-          ! setting data_dim to NULL forces the dataset information to be
-          ! read again on the next use, which is necessary
-          gridded_dataset%data_dim = DIM_NULL
-          nullify(gridded_dataset)
+        call DatasetGriddedHDF5Load(gridded_dataset,option)
+        if (gridded_dataset%data_dim /= DIM_XY) then
+          option%io_buffer = trim(string) // ' 2D in XY.'
+          call PrintErrMsg(option)
         endif
       endif
-      strata => strata%next
-    enddo
-    cur_patch => cur_patch%next
+      ! Read in cell by cell material ids if they exist
+      if (.not.associated(strata%region) .and. &
+          len_trim(strata%dataset_name) == 0 .and. &
+          strata%active) then
+        call SubsurfReadMaterialIDsFromFile(realization, &
+                                            strata%realization_dependent, &
+                                            strata%material_property_filename)
+      ! Otherwise, set based on region
+      else
+        region => strata%region
+        material_property => strata%material_property
+        if (associated(region)) then
+          istart = 1
+          iend = region%num_cells
+        else
+          istart = 1
+          iend = grid%nlmax
+        endif
+        do icell=istart, iend
+          if (associated(region)) then
+            local_id = region%cell_ids(icell)
+          else
+            local_id = icell
+          endif
+          ghosted_id = grid%nL2G(local_id)
+          set_material_id = PETSC_TRUE
+          if (associated(gridded_dataset)) then
+            call DatasetGriddedHDF5InterpolateReal(gridded_dataset, &
+                          grid%x(ghosted_id),grid%y(ghosted_id), &
+                          UNINITIALIZED_DOUBLE,elevation,option)
+            if (strata%dataset_mat_id_direction == &
+                SET_MATERIAL_IDS_BELOW_SURFACE) then
+              ! sets the material id if the cell center is below elevation
+              if (grid%z(ghosted_id) > elevation) then
+                set_material_id = PETSC_FALSE
+              endif
+            else ! SET_MATERIAL_IDS_ABOVE_SURFACE
+              ! sets the material id if the cell center is above elevation
+              if (grid%z(ghosted_id) < elevation) then
+                set_material_id = PETSC_FALSE
+              endif
+            endif
+          endif
+          if (set_material_id) then
+            if (strata%active) then
+              patch%imat(ghosted_id) = material_property%internal_id
+            else
+              ! if not active, set material id to zero
+              patch%imat(ghosted_id) = 0
+            endif
+          endif
+        enddo
+      endif
+      if (associated(gridded_dataset)) then
+        ! do not destroy; just strip as the dataset may be needed later
+        call DatasetGriddedHDF5Strip(gridded_dataset)
+        ! setting data_dim to NULL forces the dataset information to be
+        ! read again on the next use, which is necessary
+        gridded_dataset%data_dim = DIM_NULL
+        nullify(gridded_dataset)
+      endif
+    endif
+    strata => strata%next
   enddo
 
   ! ensure that ghosted values for material ids are up to date
@@ -273,16 +263,10 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
 
   ! set material ids in material auxvar.  this must come after the update of
   ! ghost values.
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    ! set material ids to uninitialized
-    material_auxvars => cur_patch%aux%Material%auxvars
-    grid => cur_patch%grid
-    do ghosted_id = 1, grid%ngmax
-      material_auxvars(ghosted_id)%id = cur_patch%imat(ghosted_id)
-    enddo
-    cur_patch => cur_patch%next
+  ! set material ids to uninitialized
+  material_auxvars => patch%aux%Material%auxvars
+  do ghosted_id = 1, grid%ngmax
+    material_auxvars(ghosted_id)%id = patch%imat(ghosted_id)
   enddo
 
 end subroutine InitSubsurfAssignMatIDsToRegns

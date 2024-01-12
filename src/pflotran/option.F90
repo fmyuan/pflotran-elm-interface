@@ -907,7 +907,7 @@ subroutine PrintWrnMsg2(option,string)
   PetscBool, parameter :: advance_ = PETSC_TRUE
   PetscBool, parameter :: byrank = PETSC_FALSE
 
-  local_string = ' WARNING: ' // trim(string)
+  allocate(local_string,source = ' WARNING: ' // trim(string))
   call PrintMessage(option%print_flags,option%comm,option%fid_out, &
                     local_string,advance_,byrank)
 

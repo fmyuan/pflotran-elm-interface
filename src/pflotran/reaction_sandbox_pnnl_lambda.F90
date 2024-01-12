@@ -97,7 +97,6 @@ subroutine LambdaRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -233,20 +232,20 @@ subroutine LambdaSetup(this,reaction,option)
 
   word = 'O2(aq)'
   this%i_o2 = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
 
   word = 'NH4+'
   this%i_nh4 = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
 
   word = 'BIOMASS'
   this%i_biomass = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionGetPriSpeciesIDFromName(word,reaction,option)
 
   if (len_trim(this%scaling_mineral_name) > 0) then
     this%i_scaling_mineral = &
-      GetKineticMineralIDFromName(this%scaling_mineral_name, &
-                                  reaction%mineral,option)
+      ReactionMnrlGetKinMnrlIDFromName(this%scaling_mineral_name, &
+                                       reaction%mineral,option)
   endif
 
   ! Input file must have carbon species indicated by the word "DONOR"

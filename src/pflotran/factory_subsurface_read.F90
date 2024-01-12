@@ -662,10 +662,6 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
     case(STRUCTURED_GRID,UNSTRUCTURED_GRID)
       patch => PatchCreate()
       patch%grid => discretization%grid
-      if (.not.associated(realization%patch_list)) then
-        realization%patch_list => PatchCreateList()
-      endif
-      call PatchAddToList(patch,realization%patch_list)
       realization%patch => patch
   end select
   call InputPopBlock(input,option)

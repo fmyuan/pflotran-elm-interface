@@ -71,11 +71,7 @@ private
             RealizUpdateUniformVelocity, &
             RealizationRevertFlowParameters, &
             RealizStoreRestartFlowParams, &
-!            RealizationGetVariable, &
-!            RealizGetVariableValueAtCell, &
-!            RealizationSetVariable, &
             RealizationPrintCouplers, &
-            RealizationInitConstraints, &
             RealProcessMatPropAndSatFunc, &
             RealProcessFluidProperties, &
             RealizationUpdatePropertiesTS, &
@@ -93,10 +89,6 @@ private
             RealizationReadGeopSurveyFile, &
             RealizationCheckConsistency, &
             RealizationPrintStateAtCells
-
-  !TODO(intel)
-  ! public from Realization_Base_class
-  !public :: RealizationGetVariable
 
 contains
 
@@ -1339,32 +1331,6 @@ end subroutine RealProcessTranConditions
 
 ! ************************************************************************** !
 
-subroutine RealizationInitConstraints(realization)
-  !
-  ! Initializes constraint concentrations
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/04/08
-  !
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(patch_type), pointer :: cur_patch
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    call PatchInitConstraints(cur_patch,realization%reaction_base, &
-                              realization%option)
-    cur_patch => cur_patch%next
-  enddo
-
-end subroutine RealizationInitConstraints
-
-! ************************************************************************** !
-
 subroutine RealizationPrintCouplers(realization)
   !
   ! Print boundary and initial condition data
@@ -1380,42 +1346,36 @@ subroutine RealizationPrintCouplers(realization)
 
   class(realization_subsurface_type) :: realization
 
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(coupler_type), pointer :: cur_coupler
   type(option_type), pointer :: option
   class(reaction_rt_type), pointer :: reaction
 
   option => realization%option
   reaction => realization%reaction
+  patch => realization%patch
 
   if (.not.OptionPrintToFile(option)) return
 
-  cur_patch => realization%patch_list%first
+  cur_coupler => patch%initial_condition_list%first
   do
-    if (.not.associated(cur_patch)) exit
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
 
-    cur_coupler => cur_patch%initial_condition_list%first
-    do
-      if (.not.associated(cur_coupler)) exit
-      call RealizationPrintCoupler(cur_coupler,reaction,option)
-      cur_coupler => cur_coupler%next
-    enddo
+  cur_coupler => patch%boundary_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
 
-    cur_coupler => cur_patch%boundary_condition_list%first
-    do
-      if (.not.associated(cur_coupler)) exit
-      call RealizationPrintCoupler(cur_coupler,reaction,option)
-      cur_coupler => cur_coupler%next
-    enddo
-
-    cur_coupler => cur_patch%source_sink_list%first
-    do
-      if (.not.associated(cur_coupler)) exit
-      call RealizationPrintCoupler(cur_coupler,reaction,option)
-      cur_coupler => cur_coupler%next
-    enddo
-
-    cur_patch => cur_patch%next
+  cur_coupler => patch%source_sink_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
   enddo
 
 end subroutine RealizationPrintCouplers
@@ -2095,9 +2055,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
         if (associated(porosity0_p)) then
           temp_porosity = porosity0_p(local_id)
         endif
-        call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
-                                          material_auxvars(ghosted_id), &
-                                          temp_porosity,option)
+        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                            material_auxvars(ghosted_id), &
+                                            temp_porosity,option)
       enddo
     enddo
 

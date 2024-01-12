@@ -2506,9 +2506,9 @@ subroutine InvZFlowWriteIterationInfo2(this)
   character(len=:), allocatable :: nl
   character(len=80) :: divider
 
-  nl = new_line('a')
+  allocate(nl,source = new_line('a'))
   write(divider,'(40("=+"))')
-  string = nl // trim(divider)
+  allocate(string,source = nl // trim(divider))
   call this%driver%PrintMsg(string)
   string = nl // ' Iteration ' // &
            StringWrite(this%iteration) // nl

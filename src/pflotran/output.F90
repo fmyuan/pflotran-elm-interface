@@ -1814,7 +1814,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   PetscInt :: istep
 
   type(option_type), pointer :: option
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(coupler_type), pointer :: coupler
   type(debug_type), pointer :: flow_debug
@@ -1828,10 +1828,11 @@ subroutine OutputPrintCouplers(realization_base,istep)
   character(len=MAXWORDLENGTH), allocatable :: auxvar_names(:)
   PetscErrorCode :: ierr
 
-
   option => realization_base%option
   flow_debug => realization_base%debug
   field => realization_base%field
+  patch => realization_base%patch
+  grid => patch%grid
 
   if (len_trim(flow_debug%coupler_string) == 0) then
     option%io_buffer = &
@@ -1881,26 +1882,18 @@ subroutine OutputPrintCouplers(realization_base,istep)
     if (ierr /= 0) exit
 
     do iaux = 1, size(iauxvars)
-      cur_patch => realization_base%patch_list%first
-      do
-        if (.not.associated(cur_patch)) exit
-        grid => cur_patch%grid
-        coupler => CouplerGetPtrFromList(word, &
-                                         cur_patch%boundary_condition_list, &
-                                         option)
-        call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-        if (associated(coupler)) then
-          cur_connection_set => coupler%connection_set
-          do iconn = 1, cur_connection_set%num_connections
-            local_id = cur_connection_set%id_dn(iconn)
-            if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
-            vec_ptr(local_id) = coupler%flow_aux_real_var(iauxvars(iaux),iconn)
-          enddo
-        endif
-        call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-        cur_patch => cur_patch%next
-      enddo
+      coupler => CouplerGetPtrFromList(word,patch%boundary_condition_list, &
+                                       option)
+      call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      if (associated(coupler)) then
+        cur_connection_set => coupler%connection_set
+        do iconn = 1, cur_connection_set%num_connections
+          local_id = cur_connection_set%id_dn(iconn)
+          if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
+          vec_ptr(local_id) = coupler%flow_aux_real_var(iauxvars(iaux),iconn)
+        enddo
+      endif
 
       if (istep > 0) then
         write(string,*) istep
@@ -1960,12 +1953,11 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   PetscInt :: istep
 
   type(option_type), pointer :: option
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(coupler_type), pointer :: coupler
   type(debug_type), pointer :: flow_debug
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
   character(len=MAXWORDLENGTH) :: word
@@ -2086,26 +2078,19 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
     if (ierr /= 0) exit
 
     do iaux = 1, size(iauxvars)
-      cur_patch => realization_base%patch_list%first
-      do
-        if (.not.associated(cur_patch)) exit
-        grid => cur_patch%grid
-        coupler => CouplerGetPtrFromList(word, &
-                                         cur_patch%boundary_condition_list, &
-                                         option)
-        call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-        if (associated(coupler)) then
-          cur_connection_set => coupler%connection_set
-          do iconn = 1, cur_connection_set%num_connections
-            local_id = cur_connection_set%id_dn(iconn)
-            if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
-            vec_ptr(local_id) = coupler%flow_aux_real_var(iauxvars(iaux),iconn)
-          enddo
-        endif
-        call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-        cur_patch => cur_patch%next
-      enddo
+      coupler => CouplerGetPtrFromList(word,patch%boundary_condition_list, &
+                                       option)
+      call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      if (associated(coupler)) then
+        cur_connection_set => coupler%connection_set
+        do iconn = 1, cur_connection_set%num_connections
+          local_id = cur_connection_set%id_dn(iconn)
+          if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
+          vec_ptr(local_id) = coupler%flow_aux_real_var(iauxvars(iaux),iconn)
+        enddo
+      endif
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
       if (istep > 0) then
         write(string,*) istep

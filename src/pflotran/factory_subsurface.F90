@@ -533,7 +533,8 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call RealizationInitAllCouplerAuxVars(realization)
   if (option%ntrandof > 0) then
     call PrintMsg(option,"  Setting up TRAN Realization ")
-    call RealizationInitConstraints(realization)
+    call PatchInitConstraints(realization%patch,realization%reaction_base, &
+                              option)
     call PrintMsg(option,"  Finished setting up TRAN Realization ")
   endif
   call RealizationPrintCouplers(realization)

@@ -65,7 +65,6 @@ subroutine EquilibrateRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -132,7 +131,7 @@ subroutine EquilibrateSetup(this,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 12/07/22
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module
   use Option_module
 
   implicit none
@@ -142,7 +141,7 @@ subroutine EquilibrateSetup(this,reaction,option)
   type(option_type) :: option
 
   this%species_id = &
-    GetPrimarySpeciesIDFromName(this%species_name,reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%species_name,reaction,option)
 
   if (Uninitialized(this%equilibrium_concentration)) then
     option%io_buffer = 'An EQUILIBRIUM_CONCENTRATION must be specified for &
