@@ -1383,6 +1383,7 @@ material.o : \
 material_aux.o : \
   option.o \
   pflotran_constants.o \
+  string.o \
   utility.o \
   variables.o
 material_transform.o : \
@@ -2840,7 +2841,6 @@ reaction_sandbox_clm_cn.o : \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
   string.o \
-  units.o \
   utility.o
 reaction_sandbox_equilibrate.o : \
   global_aux.o \
@@ -2851,8 +2851,7 @@ reaction_sandbox_equilibrate.o : \
   reaction_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
-  string.o \
-  units.o
+  string.o
 reaction_sandbox_example.o : \
   global_aux.o \
   input_aux.o \
@@ -2862,8 +2861,7 @@ reaction_sandbox_example.o : \
   reaction_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
-  string.o \
-  units.o
+  string.o
 reaction_sandbox_flexbiohill.o : \
   global_aux.o \
   input_aux.o \
@@ -2887,8 +2885,7 @@ reaction_sandbox_gas.o : \
   reaction_immobile_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
-  string.o \
-  units.o
+  string.o
 reaction_sandbox_pnnl_cyber.o : \
   global_aux.o \
   input_aux.o \
@@ -2917,7 +2914,6 @@ reaction_sandbox_pnnl_lambda.o : \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
   string.o \
-  units.o \
   utility.o
 reaction_sandbox_radon.o : \
   global_aux.o \
@@ -2929,8 +2925,7 @@ reaction_sandbox_radon.o : \
   reaction_mineral_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
-  string.o \
-  units.o
+  string.o
 reaction_sandbox_simple.o : \
   global_aux.o \
   material_aux.o \
@@ -2950,8 +2945,7 @@ reaction_sandbox_ufd_wp.o : \
   reaction_immobile_aux.o \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
-  string.o \
-  units.o
+  string.o
 reaction_solid_solution.o : \
   input_aux.o \
   option.o \
@@ -3023,7 +3017,8 @@ reactive_transport.o : \
   transport.o \
   transport_constraint_rt.o \
   transport_np.o \
-  utility.o
+  utility.o \
+  variables.o
 reactive_transport_aux.o : \
   matrix_block_aux.o \
   matrix_zeroing.o \

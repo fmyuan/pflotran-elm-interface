@@ -350,8 +350,8 @@ subroutine RTSetup(realization)
     do
       if (.not.associated(cur_generic_parameter)) exit
       rt_parameter%species_dependent_diffusion = PETSC_TRUE
-      i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
-                                      reaction,PETSC_FALSE,option)
+      i = ReactionGetPriSpeciesIDFromName(cur_generic_parameter%name, &
+                                          reaction,PETSC_FALSE,option)
       if (option%transport%use_np) then
         ! Store diffusion coefficients for each species in correspondent
         ! structures.  Notice that diffusion_coefficient(:,iphase) is not
@@ -359,7 +359,7 @@ subroutine RTSetup(realization)
         ! If reused for primary will apply to TDispersion function which
         ! is not ready for electromigration.
         if (Uninitialized(i)) then
-            i = GetSecondarySpeciesIDFromName(cur_generic_parameter%name, &
+            i = ReactionGetSecSpeciesIDFromName(cur_generic_parameter%name, &
                                             reaction,PETSC_FALSE,option)
             if (Uninitialized(i)) then
               option%io_buffer = 'Species "' // &

@@ -56,25 +56,25 @@ module Reaction_Immobile_Aux_module
 
   end type immobile_type
 
-  interface GetImmobileSpeciesIDFromName
-    module procedure GetImmobileSpeciesIDFromName1
-    module procedure GetImmobileSpeciesIDFromName2
+  interface ReactionImGetSpeciesIDFromName
+    module procedure ReactionImGetSpeciesIDFromName1
+    module procedure ReactionImGetSpeciesIDFromName2
   end interface
 
-  public :: ImmobileCreate, &
-            ImmobileSpeciesCreate, &
-            ImmobileConstraintCreate, &
-            ImmobileDecayRxnCreate, &
-            ImmobileGetCount, &
-            ImmobileConstraintDestroy, &
-            GetImmobileSpeciesIDFromName, &
-            ImmobileDestroy
+  public :: ReactionImCreate, &
+            ReactionImSpeciesCreate, &
+            ReactionImConstraintCreate, &
+            ReactionImDecayRxnCreate, &
+            ReactionImGetCount, &
+            ReactionImConstraintDestroy, &
+            ReactionImGetSpeciesIDFromName, &
+            ReactionImDestroy
 
 contains
 
 ! ************************************************************************** !
 
-function ImmobileCreate()
+function ReactionImCreate()
   !
   ! Allocate and initialize immobile object
   !
@@ -83,7 +83,7 @@ function ImmobileCreate()
   !
   implicit none
 
-  type(immobile_type), pointer :: ImmobileCreate
+  type(immobile_type), pointer :: ReactionImCreate
 
   type(immobile_type), pointer :: immobile
 
@@ -99,13 +99,13 @@ function ImmobileCreate()
   nullify(immobile%decayspecid)
   nullify(immobile%decay_rate_constant)
 
-  ImmobileCreate => immobile
+  ReactionImCreate => immobile
 
-end function ImmobileCreate
+end function ReactionImCreate
 
 ! ************************************************************************** !
 
-function ImmobileSpeciesCreate()
+function ReactionImSpeciesCreate()
   !
   ! Allocate and initialize a immobile species object
   !
@@ -114,7 +114,7 @@ function ImmobileSpeciesCreate()
   !
   implicit none
 
-  type(immobile_species_type), pointer :: ImmobileSpeciesCreate
+  type(immobile_species_type), pointer :: ReactionImSpeciesCreate
 
   type(immobile_species_type), pointer :: species
 
@@ -125,13 +125,13 @@ function ImmobileSpeciesCreate()
   species%print_me = PETSC_FALSE
   nullify(species%next)
 
-  ImmobileSpeciesCreate => species
+  ReactionImSpeciesCreate => species
 
-end function ImmobileSpeciesCreate
+end function ReactionImSpeciesCreate
 
 ! ************************************************************************** !
 
-function ImmobileConstraintCreate(immobile,option)
+function ReactionImConstraintCreate(immobile,option)
   !
   ! Creates a immobile constraint object
   !
@@ -144,7 +144,7 @@ function ImmobileConstraintCreate(immobile,option)
 
   type(immobile_type) :: immobile
   type(option_type) :: option
-  type(immobile_constraint_type), pointer :: ImmobileConstraintCreate
+  type(immobile_constraint_type), pointer :: ReactionImConstraintCreate
 
   type(immobile_constraint_type), pointer :: constraint
 
@@ -158,13 +158,13 @@ function ImmobileConstraintCreate(immobile,option)
   allocate(constraint%external_dataset(immobile%nimmobile))
   constraint%external_dataset = PETSC_FALSE
 
-  ImmobileConstraintCreate => constraint
+  ReactionImConstraintCreate => constraint
 
-end function ImmobileConstraintCreate
+end function ReactionImConstraintCreate
 
 ! ************************************************************************** !
 
-function ImmobileDecayRxnCreate()
+function ReactionImDecayRxnCreate()
   !
   ! Allocate and initialize a immobile decay reaction
   !
@@ -173,7 +173,7 @@ function ImmobileDecayRxnCreate()
   !
   implicit none
 
-  type(immobile_decay_rxn_type), pointer :: ImmobileDecayRxnCreate
+  type(immobile_decay_rxn_type), pointer :: ReactionImDecayRxnCreate
 
   type(immobile_decay_rxn_type), pointer :: rxn
 
@@ -185,13 +185,13 @@ function ImmobileDecayRxnCreate()
   rxn%print_me = PETSC_FALSE
   nullify(rxn%next)
 
-  ImmobileDecayRxnCreate => rxn
+  ReactionImDecayRxnCreate => rxn
 
-end function ImmobileDecayRxnCreate
+end function ReactionImDecayRxnCreate
 
 ! ************************************************************************** !
 
-function ImmobileGetCount(immobile)
+function ReactionImGetCount(immobile)
   !
   ! Returns the number of immobile species
   !
@@ -201,24 +201,24 @@ function ImmobileGetCount(immobile)
 
   implicit none
 
-  PetscInt :: ImmobileGetCount
+  PetscInt :: ReactionImGetCount
   type(immobile_type) :: immobile
 
   type(immobile_species_type), pointer :: immobile_species
 
-  ImmobileGetCount = 0
+  ReactionImGetCount = 0
   immobile_species => immobile%list
   do
     if (.not.associated(immobile_species)) exit
-    ImmobileGetCount = ImmobileGetCount + 1
+    ReactionImGetCount = ReactionImGetCount + 1
     immobile_species => immobile_species%next
   enddo
 
-end function ImmobileGetCount
+end function ReactionImGetCount
 
 ! ************************************************************************** !
 
-function GetImmobileSpeciesIDFromName1(name,immobile,option)
+function ReactionImGetSpeciesIDFromName1(name,immobile,option)
   !
   ! Returns the id of named immobile species
   !
@@ -234,16 +234,16 @@ function GetImmobileSpeciesIDFromName1(name,immobile,option)
   type(immobile_type) :: immobile
   type(option_type) :: option
 
-  PetscInt :: GetImmobileSpeciesIDFromName1
+  PetscInt :: ReactionImGetSpeciesIDFromName1
 
-  GetImmobileSpeciesIDFromName1 = &
-    GetImmobileSpeciesIDFromName2(name,immobile,PETSC_TRUE,option)
+  ReactionImGetSpeciesIDFromName1 = &
+    ReactionImGetSpeciesIDFromName2(name,immobile,PETSC_TRUE,option)
 
-end function GetImmobileSpeciesIDFromName1
+end function ReactionImGetSpeciesIDFromName1
 
 ! ************************************************************************** !
 
-function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
+function ReactionImGetSpeciesIDFromName2(name,immobile,return_error,option)
   !
   ! Returns the id of named immobile species
   !
@@ -261,19 +261,19 @@ function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
   PetscBool :: return_error
   type(option_type) :: option
 
-  PetscInt :: GetImmobileSpeciesIDFromName2
+  PetscInt :: ReactionImGetSpeciesIDFromName2
 
   type(immobile_species_type), pointer :: species
   PetscInt :: i
 
-  GetImmobileSpeciesIDFromName2 = UNINITIALIZED_INTEGER
+  ReactionImGetSpeciesIDFromName2 = UNINITIALIZED_INTEGER
 
   ! if the primary species name list exists
   if (associated(immobile%names)) then
     do i = 1, size(immobile%names)
       if (StringCompare(name,immobile%names(i), &
                         MAXWORDLENGTH)) then
-        GetImmobileSpeciesIDFromName2 = i
+        ReactionImGetSpeciesIDFromName2 = i
         exit
       endif
     enddo
@@ -284,20 +284,20 @@ function GetImmobileSpeciesIDFromName2(name,immobile,return_error,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetImmobileSpeciesIDFromName2 = i
+        ReactionImGetSpeciesIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (return_error .and. GetImmobileSpeciesIDFromName2 <= 0) then
+  if (return_error .and. ReactionImGetSpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
-      '" not found among immobile species in GetImmobileSpeciesIDFromName().'
+      '" not found among immobile species in ReactionImGetSpeciesIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetImmobileSpeciesIDFromName2
+end function ReactionImGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 
@@ -345,7 +345,7 @@ end subroutine ImmobileDecayRxnDestroy
 
 ! ************************************************************************** !
 
-subroutine ImmobileConstraintDestroy(constraint)
+subroutine ReactionImConstraintDestroy(constraint)
   !
   ! Destroys a immobile constraint object
   !
@@ -369,11 +369,11 @@ subroutine ImmobileConstraintDestroy(constraint)
   deallocate(constraint)
   nullify(constraint)
 
-end subroutine ImmobileConstraintDestroy
+end subroutine ReactionImConstraintDestroy
 
 ! ************************************************************************** !
 
-subroutine ImmobileDestroy(immobile)
+subroutine ReactionImDestroy(immobile)
   !
   ! Deallocates a immobile object
   !
@@ -412,6 +412,6 @@ subroutine ImmobileDestroy(immobile)
   deallocate(immobile)
   nullify(immobile)
 
-end subroutine ImmobileDestroy
+end subroutine ReactionImDestroy
 
 end module Reaction_Immobile_Aux_module

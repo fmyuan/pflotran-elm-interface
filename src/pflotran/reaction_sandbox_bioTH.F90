@@ -560,8 +560,8 @@ subroutine BioTH_Setup(this,reaction,option)
   ! Date: 10/01/2020
   !
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
   use Option_module
 
   implicit none
@@ -571,10 +571,10 @@ subroutine BioTH_Setup(this,reaction,option)
   type(option_type) :: option
 
   this%species_Vaq_id = &
-    GetPrimarySpeciesIDFromName(this%name_aqueous,reaction,option)
+    ReactionGetPriSpeciesIDFromName(this%name_aqueous,reaction,option)
 
   this%species_Vim_id = &
-    GetImmobileSpeciesIDFromName(this%name_immobile,reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(this%name_immobile,reaction%immobile,option)
 
 end subroutine BioTH_Setup
 

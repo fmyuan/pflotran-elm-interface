@@ -6593,10 +6593,10 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           do local_id = 1, grid%nlmax
             ghosted_id = grid%nL2G(local_id)
             vec_ptr(local_id) = &
-              RMineralSaturationIndex(isubvar, &
-                                      patch%aux%RT%auxvars(ghosted_id), &
-                                      patch%aux%Global%auxvars(ghosted_id), &
-                                      reaction,option)
+              ReactionMnrlSaturationIndex(isubvar, &
+                                    patch%aux%RT%auxvars(ghosted_id), &
+                                    patch%aux%Global%auxvars(ghosted_id), &
+                                    reaction,option)
           enddo
         case(IMMOBILE_SPECIES)
           do local_id=1,grid%nlmax
@@ -7742,10 +7742,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(MINERAL_RATE)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_rate(isubvar)
         case(MINERAL_SATURATION_INDEX)
-          value = RMineralSaturationIndex(isubvar, &
-                                         patch%aux%RT%auxvars(ghosted_id), &
-                                         patch%aux%Global%auxvars(ghosted_id), &
-                                         reaction,option)
+          value = ReactionMnrlSaturationIndex(isubvar, &
+                                    patch%aux%RT%auxvars(ghosted_id), &
+                                    patch%aux%Global%auxvars(ghosted_id), &
+                                    reaction,option)
         case(IMMOBILE_SPECIES)
           value = patch%aux%RT%auxvars(ghosted_id)%immobile(isubvar)
         case(SURFACE_CMPLX)
@@ -7963,12 +7963,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                sec_rt_auxvar) < isubvar) then
         value = UNINITIALIZED_DOUBLE
       else
-        value = RMineralSaturationIndex(isubvar2,&
-                                        patch%aux%SC_RT% &
-                                        sec_transport_vars(local_id)% &
-                                        sec_rt_auxvar(isubvar), &
-                                        patch%aux%Global%auxvars(ghosted_id),&
-                                        reaction,option)
+        value = ReactionMnrlSaturationIndex(isubvar2,&
+                                    patch%aux%SC_RT% &
+                                    sec_transport_vars(local_id)% &
+                                    sec_rt_auxvar(isubvar), &
+                                    patch%aux%Global%auxvars(ghosted_id), &
+                                    reaction,option)
       endif
     case(SALINITY)
       value = patch%aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)

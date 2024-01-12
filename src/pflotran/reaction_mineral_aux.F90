@@ -137,17 +137,17 @@ module Reaction_Mineral_Aux_module
 
   end type mineral_type
 
-  interface GetMineralIDFromName
-    module procedure GetMineralIDFromName1
-    module procedure GetMineralIDFromName2
+  interface ReactionMnrlGetMnrlIDFromName
+    module procedure ReactionMnrlGetMnrlIDFromName1
+    module procedure ReactionMnrlGetMnrlIDFromName2
   end interface
 
   public :: MineralCreate, &
-            GetMineralCount, &
-            GetMineralNames, &
-            GetMineralIDFromName, &
-            GetKineticMineralIDFromName, &
-            GetMineralFromName, &
+            MineralGetCount, &
+            MineralGetNames, &
+            ReactionMnrlGetMnrlIDFromName, &
+            ReactionMnrlGetKinMnrlIDFromName, &
+            ReactionMnrlGetMnrlPtrFromName, &
             TransitionStateTheoryRxnCreate, &
             TransitionStatePrefactorCreate, &
             TSPrefactorSpeciesCreate, &
@@ -320,7 +320,8 @@ function TransitionStatePrefactorCreate()
 
   implicit none
 
-  type(transition_state_prefactor_type), pointer :: TransitionStatePrefactorCreate
+  type(transition_state_prefactor_type), pointer :: &
+    TransitionStatePrefactorCreate
 
   type(transition_state_prefactor_type), pointer :: prefactor
 
@@ -410,7 +411,7 @@ end function MineralConstraintCreate
 
 ! ************************************************************************** !
 
-function GetMineralFromName(name,mineral)
+function ReactionMnrlGetMnrlPtrFromName(name,mineral)
   !
   ! Returns the mineral corresponding to the name
   !
@@ -424,20 +425,21 @@ function GetMineralFromName(name,mineral)
   character(len=MAXWORDLENGTH) :: name
   type(mineral_type) :: mineral
 
-  type(mineral_rxn_type), pointer :: GetMineralFromName
+  type(mineral_rxn_type), pointer :: ReactionMnrlGetMnrlPtrFromName
 
-  GetMineralFromName => mineral%mineral_list
+  ReactionMnrlGetMnrlPtrFromName => mineral%mineral_list
   do
-    if (.not.associated(GetMineralFromName)) exit
-    if (StringCompare(name,GetMineralFromName%name,MAXWORDLENGTH)) return
-    GetMineralFromName => GetMineralFromName%next
+    if (.not.associated(ReactionMnrlGetMnrlPtrFromName)) exit
+    if (StringCompare(name,ReactionMnrlGetMnrlPtrFromName%name, &
+                      MAXWORDLENGTH)) return
+    ReactionMnrlGetMnrlPtrFromName => ReactionMnrlGetMnrlPtrFromName%next
   enddo
 
-end function GetMineralFromName
+end function ReactionMnrlGetMnrlPtrFromName
 
 ! ************************************************************************** !
 
-function GetMineralNames(mineral)
+function MineralGetNames(mineral)
   !
   ! Returns the names of minerals in an array
   !
@@ -447,14 +449,14 @@ function GetMineralNames(mineral)
 
   implicit none
 
-  character(len=MAXWORDLENGTH), pointer :: GetMineralNames(:)
+  character(len=MAXWORDLENGTH), pointer :: MineralGetNames(:)
   type(mineral_type) :: mineral
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(mineral_rxn_type), pointer :: cur_mineral
 
-  count = GetMineralCount(mineral)
+  count = MineralGetCount(mineral)
   allocate(names(count))
 
   count = 1
@@ -466,13 +468,13 @@ function GetMineralNames(mineral)
     cur_mineral => cur_mineral%next
   enddo
 
-  GetMineralNames => names
+  MineralGetNames => names
 
-end function GetMineralNames
+end function MineralGetNames
 
 ! ************************************************************************** !
 
-function GetMineralCount(mineral)
+function MineralGetCount(mineral)
   !
   ! Returns the number of minerals
   !
@@ -482,24 +484,24 @@ function GetMineralCount(mineral)
 
   implicit none
 
-  PetscInt :: GetMineralCount
+  PetscInt :: MineralGetCount
   type(mineral_type) :: mineral
 
   type(mineral_rxn_type), pointer :: cur_mineral
 
-  GetMineralCount = 0
+  MineralGetCount = 0
   cur_mineral => mineral%mineral_list
   do
     if (.not.associated(cur_mineral)) exit
-    GetMineralCount = GetMineralCount + 1
+    MineralGetCount = MineralGetCount + 1
     cur_mineral => cur_mineral%next
   enddo
 
-end function GetMineralCount
+end function MineralGetCount
 
 ! ************************************************************************** !
 
-function GetMineralIDFromName1(name,mineral,option)
+function ReactionMnrlGetMnrlIDFromName1(name,mineral,option)
   !
   ! Returns the id of mineral with the corresponding name
   !
@@ -515,17 +517,17 @@ function GetMineralIDFromName1(name,mineral,option)
   character(len=MAXWORDLENGTH) :: name
   type(option_type) :: option
 
-  PetscInt :: GetMineralIDFromName1
+  PetscInt :: ReactionMnrlGetMnrlIDFromName1
 
-  GetMineralIDFromName1 = &
-    GetMineralIDFromName(name,mineral,PETSC_FALSE,PETSC_TRUE,option)
+  ReactionMnrlGetMnrlIDFromName1 = &
+    ReactionMnrlGetMnrlIDFromName(name,mineral,PETSC_FALSE,PETSC_TRUE,option)
 
-end function GetMineralIDFromName1
+end function ReactionMnrlGetMnrlIDFromName1
 
 ! ************************************************************************** !
 
-function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
-                               option)
+function ReactionMnrlGetMnrlIDFromName2(name,mineral,must_be_kinetic, &
+                                        throw_error,option)
   !
   ! Returns the id of mineral with the corresponding name
   !
@@ -543,11 +545,11 @@ function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
   PetscBool :: throw_error
   type(option_type) :: option
 
-  PetscInt :: GetMineralIDFromName2
+  PetscInt :: ReactionMnrlGetMnrlIDFromName2
   type(mineral_rxn_type), pointer :: cur_mineral
   PetscInt :: ikinmnrl
 
-  GetMineralIDFromName2 = -1
+  ReactionMnrlGetMnrlIDFromName2 = -1
 
   cur_mineral => mineral%mineral_list
   ikinmnrl = 0
@@ -559,26 +561,26 @@ function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
     if (StringCompare(name,cur_mineral%name,MAXWORDLENGTH)) then
       if (must_be_kinetic .and. cur_mineral%itype /= MINERAL_KINETIC) exit
       if (must_be_kinetic) then
-        GetMineralIDFromName2 = ikinmnrl
+        ReactionMnrlGetMnrlIDFromName2 = ikinmnrl
         exit
       endif
-      GetMineralIDFromName2 = cur_mineral%id
+      ReactionMnrlGetMnrlIDFromName2 = cur_mineral%id
       exit
     endif
     cur_mineral => cur_mineral%next
   enddo
 
-  if (throw_error .and. GetMineralIDFromName2 <= 0) then
+  if (throw_error .and. ReactionMnrlGetMnrlIDFromName2 <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
-      '" not found among minerals in GetMineralIDFromName().'
+      '" not found among minerals in ReactionMnrlGetMnrlIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetMineralIDFromName2
+end function ReactionMnrlGetMnrlIDFromName2
 
 ! ************************************************************************** !
 
-function GetKineticMineralIDFromName(name,mineral,option)
+function ReactionMnrlGetKinMnrlIDFromName(name,mineral,option)
   !
   ! Returns the id of kinetic mineral with the
   ! corresponding name
@@ -595,18 +597,19 @@ function GetKineticMineralIDFromName(name,mineral,option)
   type(mineral_type) :: mineral
   type(option_type) :: option
 
-  PetscInt :: GetKineticMineralIDFromName
+  PetscInt :: ReactionMnrlGetKinMnrlIDFromName
 
-  GetKineticMineralIDFromName = &
-    GetMineralIDFromName(name,mineral,PETSC_TRUE,PETSC_FALSE,option)
+  ReactionMnrlGetKinMnrlIDFromName = &
+    ReactionMnrlGetMnrlIDFromName(name,mineral,PETSC_TRUE,PETSC_FALSE,option)
 
-  if (GetKineticMineralIDFromName <= 0) then
+  if (ReactionMnrlGetKinMnrlIDFromName <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
-      '" not found among kinetic minerals in GetKineticMineralIDFromName().'
+      '" not found among kinetic minerals in &
+      &ReactionMnrlGetKinMnrlIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetKineticMineralIDFromName
+end function ReactionMnrlGetKinMnrlIDFromName
 
 ! ************************************************************************** !
 

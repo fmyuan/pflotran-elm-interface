@@ -646,7 +646,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
       case('IMMOBILE')
 
         immobile_constraint => &
-          ImmobileConstraintCreate(reaction%immobile,option)
+          ReactionImConstraintCreate(reaction%immobile,option)
 
         block_string = 'CONSTRAINT, IMMOBILE'
         iimmobile = 0
@@ -735,7 +735,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%immobile_species)) then
-          call ImmobileConstraintDestroy(constraint%immobile_species)
+          call ReactionImConstraintDestroy(constraint%immobile_species)
         endif
         constraint%immobile_species => immobile_constraint
 
@@ -786,7 +786,7 @@ subroutine TranConstraintRTStrip(this)
     call SurfaceComplexConstraintDestroy(this%surface_complexes)
   nullify(this%surface_complexes)
   if (associated(this%immobile_species)) &
-    call ImmobileConstraintDestroy(this%immobile_species)
+    call ReactionImConstraintDestroy(this%immobile_species)
   nullify(this%immobile_species)
 
 end subroutine TranConstraintRTStrip

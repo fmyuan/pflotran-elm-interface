@@ -252,9 +252,9 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         mineral => MineralRxnCreate()
         call InputReadWord(input,option,mineral%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','CHEMISTRY,MINERALS')
-        call MineralReadFromDatabase(mineral, &
-                                   solid_solution_rxn%num_dbase_temperatures, &
-                                   input,option)
+        call ReactionMnrlReadFromDatabase(mineral, &
+                              solid_solution_rxn%num_dbase_temperatures, &
+                              input,option)
         ! assign mineral to stoichiometric solid or end member list
         select case(card)
           case('STOICHIOMETRIC_SOLID')
