@@ -64,19 +64,19 @@ module Reaction_Gas_Aux_module
   end type gas_type
 
 
-  public :: GasCreate, &
-            GasSpeciesCreate, &
-            GasGetNames, &
-            GasGetCount, &
-            GasSpeciesListMergeDuplicates, &
-            GasDestroy, &
-            GasGetIDFromName
+  public :: ReactionGasCreateGasObject, &
+            ReactionGasCreateGasSpecies, &
+            ReactionGasGetGasNames, &
+            ReactionGasGetGasCount, &
+            ReactionGasMergeDupGasSpecies, &
+            ReactionGasDestroyGas, &
+            ReactionGasGetGasIDFromName
 
 contains
 
 ! ************************************************************************** !
 
-function GasCreate()
+function ReactionGasCreateGasObject()
   !
   ! Allocate and initialize gas reaction object
   !
@@ -86,7 +86,7 @@ function GasCreate()
 
   implicit none
 
-  type(gas_type), pointer :: GasCreate
+  type(gas_type), pointer :: ReactionGasCreateGasObject
 
   type(gas_type), pointer :: gas
 
@@ -121,13 +121,13 @@ function GasCreate()
   nullify(gas%paseqlogK)
   nullify(gas%paseqlogKcoef)
 
-  GasCreate => gas
+  ReactionGasCreateGasObject => gas
 
-end function GasCreate
+end function ReactionGasCreateGasObject
 
 ! ************************************************************************** !
 
-function GasSpeciesCreate()
+function ReactionGasCreateGasSpecies()
   !
   ! Allocate and initialize a gas species object
   !
@@ -136,7 +136,7 @@ function GasSpeciesCreate()
   !
   implicit none
 
-  type(gas_species_type), pointer :: GasSpeciesCreate
+  type(gas_species_type), pointer :: ReactionGasCreateGasSpecies
 
   type(gas_species_type), pointer :: gas_species
 
@@ -150,13 +150,13 @@ function GasSpeciesCreate()
   nullify(gas_species%dbaserxn)
   nullify(gas_species%next)
 
-  GasSpeciesCreate => gas_species
+  ReactionGasCreateGasSpecies => gas_species
 
-end function GasSpeciesCreate
+end function ReactionGasCreateGasSpecies
 
 ! ************************************************************************** !
 
-function GasGetNames(gas,gas_itype)
+function ReactionGasGetGasNames(gas,gas_itype)
   !
   ! Returns the names of gases in an array
   !
@@ -169,13 +169,13 @@ function GasGetNames(gas,gas_itype)
   type(gas_type) :: gas
   PetscInt :: gas_itype
 
-  character(len=MAXWORDLENGTH), pointer :: GasGetNames(:)
+  character(len=MAXWORDLENGTH), pointer :: ReactionGasGetGasNames(:)
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(gas_species_type), pointer :: gas_species
 
-  count = GasGetCount(gas,gas_itype)
+  count = ReactionGasGetGasCount(gas,gas_itype)
   allocate(names(count))
 
   count = 1
@@ -191,13 +191,13 @@ function GasGetNames(gas,gas_itype)
     gas_species => gas_species%next
   enddo
 
-  GasGetNames => names
+  ReactionGasGetGasNames => names
 
-end function GasGetNames
+end function ReactionGasGetGasNames
 
 ! ************************************************************************** !
 
-function GasGetCount(gas,gas_itype)
+function ReactionGasGetGasCount(gas,gas_itype)
   !
   ! Returns the number of gas species in list
   !
@@ -209,27 +209,27 @@ function GasGetCount(gas,gas_itype)
   type(gas_type) :: gas
   PetscInt :: gas_itype
 
-  PetscInt :: GasGetCount
+  PetscInt :: ReactionGasGetGasCount
 
   type(gas_species_type), pointer :: gas_species
 
-  GasGetCount = 0
+  ReactionGasGetGasCount = 0
   gas_species => gas%list
   do
     if (.not.associated(gas_species)) exit
     if (gas_species%itype == gas_itype .or. &
         gas_species%itype == ACTIVE_AND_PASSIVE_GAS .or. &
         gas_itype == ACTIVE_AND_PASSIVE_GAS) then
-      GasGetCount = GasGetCount + 1
+      ReactionGasGetGasCount = ReactionGasGetGasCount + 1
     endif
     gas_species => gas_species%next
   enddo
 
-end function GasGetCount
+end function ReactionGasGetGasCount
 
 ! ************************************************************************** !
 
-function GasGetIDFromName(gas,name)
+function ReactionGasGetGasIDFromName(gas,name)
   !
   ! Returns the id of gas with the corresponding name from a specific list
   !
@@ -243,26 +243,26 @@ function GasGetIDFromName(gas,name)
   type(gas_type) :: gas
   character(len=MAXWORDLENGTH) :: name
 
-  PetscInt :: GasGetIDFromName
+  PetscInt :: ReactionGasGetGasIDFromName
   type(gas_species_type), pointer :: gas_species
 
-  GasGetIDFromName = UNINITIALIZED_INTEGER
+  ReactionGasGetGasIDFromName = UNINITIALIZED_INTEGER
 
   gas_species => gas%list
   do
     if (.not.associated(gas_species)) exit
     if (StringCompare(name,gas_species%name,MAXWORDLENGTH)) then
-      GasGetIDFromName = gas_species%id
+      ReactionGasGetGasIDFromName = gas_species%id
       exit
     endif
     gas_species => gas_species%next
   enddo
 
-end function GasGetIDFromName
+end function ReactionGasGetGasIDFromName
 
 ! ************************************************************************** !
 
-subroutine GasSpeciesListMergeDuplicates(gas_species_list)
+subroutine ReactionGasMergeDupGasSpecies(gas_species_list)
   !
   ! Merges duplicate gas species from a list
   !
@@ -302,7 +302,7 @@ subroutine GasSpeciesListMergeDuplicates(gas_species_list)
     cur_species => cur_species%next
   enddo
 
-end subroutine GasSpeciesListMergeDuplicates
+end subroutine ReactionGasMergeDupGasSpecies
 
 ! ************************************************************************** !
 
@@ -351,7 +351,7 @@ end subroutine GasSpeciesDestroy
 
 ! ************************************************************************** !
 
-subroutine GasDestroy(gas)
+subroutine ReactionGasDestroyGas(gas)
   !
   ! Deallocates a gas object
   !
@@ -394,6 +394,6 @@ subroutine GasDestroy(gas)
   deallocate(gas)
   nullify(gas)
 
-end subroutine GasDestroy
+end subroutine ReactionGasDestroyGas
 
 end module Reaction_Gas_Aux_module

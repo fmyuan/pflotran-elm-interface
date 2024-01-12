@@ -598,8 +598,8 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
            (1.d0-liquid_saturation)*porosity*volume*1.d3
       do i = 1, reaction%gas%nactive_gas
         sum_mol_by_gas(i) = sum_mol_by_gas(i) + &
-          ! RGasConcentration returns mol/m^3 gas
-          RGasConcentration(rt_auxvars(ghosted_id)%gas_pp(i), &
+          ! ReactionGasPartialPresToConc returns mol/m^3 gas
+          ReactionGasPartialPresToConc(rt_auxvars(ghosted_id)%gas_pp(i), &
                             global_auxvars(ghosted_id)%temp) * &
           ! m^3 gas
           (1.d0-liquid_saturation) * porosity * volume

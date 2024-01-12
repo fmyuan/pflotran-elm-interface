@@ -109,7 +109,7 @@ subroutine ReactionInit(reaction,input,option)
   option%ntrandof = ReactionGetPriSpeciesCount(reaction)
   option%ntrandof = option%ntrandof + ReactionGetImmobileCount(reaction)
   reaction%ncomp = option%ntrandof
-  if (GasGetCount(reaction%gas,ACTIVE_GAS) > 0) then
+  if (ReactionGasGetGasCount(reaction%gas,ACTIVE_GAS) > 0) then
     option%transport%nphase = 2
   endif
   reaction%nphase = option%transport%nphase
@@ -280,13 +280,15 @@ subroutine ReactionReadPass1(reaction,input,option)
           call PrintErrMsg(option)
         endif
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
-        call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
+        call ReactionGasReadGas(reaction%gas%list,ACTIVE_GAS,string, &
+                                input,option)
       !TODO(geh): remove GAS_SPECIES
       case('GAS_SPECIES')
         call InputKeywordDeprecated('GAS_SPECIES','PASSIVE_GAS_SPECIES',option)
       case('PASSIVE_GAS_SPECIES')
         string = 'CHEMISTRY,PASSIVE_GAS_SPECIES'
-        call RGasRead(reaction%gas%list,PASSIVE_GAS,string,input,option)
+        call ReactionGasReadGas(reaction%gas%list,PASSIVE_GAS,string, &
+                                input,option)
       case('IMMOBILE_SPECIES')
         call ReactionImRead(reaction%immobile,input,option)
       case('IMMOBILE_DECAY_REACTION')
@@ -873,7 +875,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  call GasSpeciesListMergeDuplicates(reaction%gas%list)
+  call ReactionGasMergeDupGasSpecies(reaction%gas%list)
 
   reaction%neqsorb = reaction%neqionxrxn + &
                      reaction%neqdynamickdrxn + &
@@ -907,7 +909,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   if (reaction%neqcplx + reaction%nsorb + reaction%mineral%nmnrl + &
       reaction%ngeneral_rxn + reaction%microbial%nrxn + &
       reaction%nradiodecay_rxn + reaction%immobile%nimmobile > 0 .or. &
-      GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+      ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
       reaction_clm_read .or. &
       reaction_sandbox_read) then
     reaction%use_full_geochemistry = PETSC_TRUE
@@ -2783,7 +2785,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
       QKgas(igas) = exp(lnQKgas(igas))
 
       write(option%fid_out,133) reaction%gas%passive_names(igas),QKgas(igas), &
-        RGasConcentration(QKgas(igas),global_auxvar%temp), &
+        ReactionGasPartialPresToConc(QKgas(igas),global_auxvar%temp), &
         reaction%gas%paseqlogK(igas)
 
     enddo
@@ -4609,9 +4611,9 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
                     reaction,reaction%isotherm%isotherm_rxn,option)
   endif
   if (option%iflowmode == MPH_MODE) then
-    call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
+    call ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
-    call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+    call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
   endif
 
 
@@ -5231,7 +5233,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
         Jac(icomp,1:reaction%naqcomp) = Jac(icomp,1:reaction%naqcomp) + &
           tempreal * &
           reaction%radiodecaystoich(i,irxn) * &
-          ! kg water / L gas - see RTotalGas
+          ! kg water / L gas - see ReactionGasTotalGas
           rt_auxvar%aqueous%dtotal(jcomp,1:reaction%naqcomp, &
                                    option%gas_phase) * &
           L_gas

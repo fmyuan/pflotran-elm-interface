@@ -323,7 +323,7 @@ module Reaction_Aux_module
   public :: ReactionCreate, &
             ReactionCast, &
             SpeciesIndexCreate, &
-            GasSpeciesCreate, &
+            ReactionGasCreateGasSpecies, &
             ReactionGetPriSpeciesCount, &
             ReactionGetPriSpeciesNames, &
             ReactionGetPriSpeciesIDFromName, &
@@ -437,7 +437,7 @@ function ReactionCreate()
   reaction%mineral => ReactionMnrlCreateMineralObject()
   reaction%microbial => MicrobialCreate()
   reaction%immobile => ReactionImCreate()
-  reaction%gas => GasCreate()
+  reaction%gas => ReactionGasCreateGasObject()
   reaction%isotherm => IsothermCreate()
 #ifdef SOLID_SOLUTION
   nullify(reaction%solid_solution_list)
@@ -1943,7 +1943,7 @@ subroutine ReactionDestroy(reaction,option)
   call ReactionMnrlDestoyMineral(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
   call ReactionImDestroy(reaction%immobile)
-  call GasDestroy(reaction%gas)
+  call ReactionGasDestroyGas(reaction%gas)
   call IsothermDestroy(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION
   call SolidSolutionDestroy(reaction%solid_solution_list)

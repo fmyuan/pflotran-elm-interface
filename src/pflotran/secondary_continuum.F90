@@ -914,7 +914,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                        reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+      call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
       total_upd(:,i,2) = rt_auxvar%total(:,2)
       dtotal(:,:,i,2) = rt_auxvar%aqueous%dtotal(:,:,2)
     endif
@@ -1065,7 +1065,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+      call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
     endif
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
@@ -1223,7 +1223,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   rt_auxvar%pri_molal = conc_current_M ! in mol/kg
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   if (reaction%gas%nactive_gas > 0) then
-    call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+    call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
     total_current_M(:,2) = rt_auxvar%total(:,2)
   endif
   total_current_M(:,1) = rt_auxvar%total(:,1)
@@ -1655,7 +1655,8 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars, &
                       reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(sec_transport_vars%sec_rt_auxvar(i),global_auxvar,reaction,option)
+      call ReactionGasTotalGas(sec_transport_vars%sec_rt_auxvar(i), &
+                               global_auxvar,reaction,option)
     endif
   enddo
 
@@ -1860,7 +1861,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
                       reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+      call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
       total_upd(:,i,2) = rt_auxvar%total(:,2)
     endif
     total_upd(:,i,1) = rt_auxvar%total(:,1)
@@ -1924,7 +1925,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%gas%nactive_gas > 0) then
-      call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+      call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
     endif
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
@@ -2178,7 +2179,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
                  sec_rt_auxvar) < mc_layer) then
           vec_p(local_id) = UNINITIALIZED_DOUBLE
-        else   
+        else
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             updated_conc(isubvar,mc_layer)
@@ -2198,7 +2199,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-                 sec_rt_auxvar) < mc_layer) then  
+                 sec_rt_auxvar) < mc_layer) then
           vec_p(local_id) = UNINITIALIZED_DOUBLE
         else
           vec_p(local_id) = &
@@ -2209,9 +2210,9 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-                 sec_rt_auxvar) < mc_layer) then  
+                 sec_rt_auxvar) < mc_layer) then
           vec_p(local_id) = UNINITIALIZED_DOUBLE
-        else  
+        else
           vec_p(local_id) = &
             patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
@@ -2220,7 +2221,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
         if (size(patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-                 sec_rt_auxvar) < mc_layer) then  
+                 sec_rt_auxvar) < mc_layer) then
           vec_p(local_id) = UNINITIALIZED_DOUBLE
         else
           vec_p(local_id) = &
@@ -2285,17 +2286,17 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
       enddo
     case(MINERAL_VOLUME_FRACTION)
       do local_id=1, grid%nlmax
-        if (Initialized(vec_p(local_id))) then   
+        if (Initialized(vec_p(local_id))) then
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
-        endif  
+        endif
       enddo
     case(REACTION_AUXILIARY)
       do local_id=1, grid%nlmax
-        if (Initialized(vec_p(local_id))) then 
+        if (Initialized(vec_p(local_id))) then
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
-        endif 
+        endif
       enddo
     case(PRIMARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
@@ -2306,7 +2307,7 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
       enddo
     case(SECONDARY_ACTIVITY_COEF)
       do local_id=1, grid%nlmax
-        if (Initialized(vec_p(local_id))) then 
+        if (Initialized(vec_p(local_id))) then
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
             sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
         endif

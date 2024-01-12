@@ -3073,7 +3073,7 @@ end subroutine PMWFSetup
     if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
         reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
         reaction%immobile%nimmobile > 0 .or. &
-        GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+        ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
         associated(rxn_sandbox_list)) then
       this%option%io_buffer = 'The UFD_DECAY process model may not be used &
         &with other reactive transport capability within PFLOTRAN. &

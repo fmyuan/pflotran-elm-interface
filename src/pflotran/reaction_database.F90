@@ -1049,7 +1049,8 @@ subroutine BasisInit(reaction,option)
 
   reaction%naqcomp = ReactionGetPriSpeciesCount(reaction)
   reaction%neqcplx = ReactionGetSecSpeciesCount(reaction)
-  reaction%gas%ngas = GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS)
+  reaction%gas%ngas = ReactionGasGetGasCount(reaction%gas, &
+                                             ACTIVE_AND_PASSIVE_GAS)
   reaction%nimcomp = ReactionGetImmobileCount(reaction)
 
   reaction%offset_aqueous = 0
@@ -4149,7 +4150,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   PetscInt :: i
   PetscInt :: spec_id
 
-  ngas = GasGetCount(gas,gas_itype)
+  ngas = ReactionGasGetGasCount(gas,gas_itype)
   if (ngas > 0) then
 
     ! get maximum # of aqueous species in a gas reaction

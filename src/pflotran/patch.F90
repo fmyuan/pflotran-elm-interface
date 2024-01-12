@@ -5376,7 +5376,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
-  use Reaction_Gas_module, only : RGasConcentration
+  use Reaction_Gas_module, only : ReactionGasPartialPresToConc
   use Reaction_Mineral_module
   use Reaction_Redox_module
   use Reaction_module
@@ -6569,7 +6569,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             do local_id=1,grid%nlmax
               ! mol/m^3 gas
               vec_ptr(local_id) = &
-                RGasConcentration(vec_ptr(local_id), &
+                ReactionGasPartialPresToConc(vec_ptr(local_id), &
                                   patch%aux%Global% &
                                     auxvars(grid%nL2G(local_id))%temp)
             enddo
@@ -7000,7 +7000,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use TH_Aux_module
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
-  use Reaction_Gas_module, only : RGasConcentration
+  use Reaction_Gas_module, only : ReactionGasPartialPresToConc
   use Reaction_Mineral_module
   use Reaction_Redox_module
   use Reaction_module
@@ -7731,7 +7731,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = 0.d0
           endif
           if (ivar == GAS_CONCENTRATION) then
-            value = RGasConcentration(value, &
+            value = ReactionGasPartialPresToConc(value, &
                                       patch%aux%Global% &
                                         auxvars(ghosted_id)%temp)
           endif

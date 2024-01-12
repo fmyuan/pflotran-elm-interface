@@ -38,13 +38,13 @@ module Reaction_Sandbox_Gas_class
     procedure, public :: Destroy => GasDestroy
   end type reaction_sandbox_gas_type
 
-  public :: GasCreate
+  public :: ReactionGasCreateGasObject
 
 contains
 
 ! ************************************************************************** !
 
-function GasCreate()
+function ReactionGasCreateGasObject()
   !
   ! Allocates gas reaction object.
   !
@@ -54,26 +54,26 @@ function GasCreate()
 
   implicit none
 
-  class(reaction_sandbox_gas_type), pointer :: GasCreate
+  class(reaction_sandbox_gas_type), pointer :: ReactionGasCreateGasObject
   PetscInt, parameter :: ns = 0
 
-  allocate(GasCreate)
-  GasCreate%nspecies = ns
-  allocate(GasCreate%aq_vec(ns))
-  allocate(GasCreate%im_vec(ns))
-  allocate(GasCreate%gas_vec(ns))
-  GasCreate%aq_vec = -999
-  GasCreate%im_vec = -999
-  GasCreate%gas_vec = -999
-  allocate(GasCreate%k(ns))
-  allocate(GasCreate%Keq(ns))
-  GasCreate%k = 0.0d0
-  GasCreate%Keq = 0.0d0
-  GasCreate%material_id_skip = 0
-  allocate(GasCreate%name_vec(ns))
-  nullify(GasCreate%next)
+  allocate(ReactionGasCreateGasObject)
+  ReactionGasCreateGasObject%nspecies = ns
+  allocate(ReactionGasCreateGasObject%aq_vec(ns))
+  allocate(ReactionGasCreateGasObject%im_vec(ns))
+  allocate(ReactionGasCreateGasObject%gas_vec(ns))
+  ReactionGasCreateGasObject%aq_vec = -999
+  ReactionGasCreateGasObject%im_vec = -999
+  ReactionGasCreateGasObject%gas_vec = -999
+  allocate(ReactionGasCreateGasObject%k(ns))
+  allocate(ReactionGasCreateGasObject%Keq(ns))
+  ReactionGasCreateGasObject%k = 0.0d0
+  ReactionGasCreateGasObject%Keq = 0.0d0
+  ReactionGasCreateGasObject%material_id_skip = 0
+  allocate(ReactionGasCreateGasObject%name_vec(ns))
+  nullify(ReactionGasCreateGasObject%next)
 
-end function GasCreate
+end function ReactionGasCreateGasObject
 
 ! ************************************************************************** !
 
@@ -204,7 +204,7 @@ subroutine GasSetup(this,reaction,option)
     this%im_vec(i) = &
       ReactionImGetSpeciesIDFromName(word,reaction%immobile,option)
     word = trim(this%name_vec(i))//g
-    this%gas_vec(i) = GasGetIDFromName(reaction%gas,word)
+    this%gas_vec(i) = ReactionGasGetGasIDFromName(reaction%gas,word)
   end do
 
 end subroutine GasSetup
