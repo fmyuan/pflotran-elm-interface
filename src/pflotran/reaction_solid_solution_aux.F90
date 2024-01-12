@@ -163,9 +163,9 @@ subroutine StoichiometricSolidDestroy(stoich_solid)
     if (.not.associated(cur_mineral)) exit
     prev_mineral => cur_mineral
     cur_mineral => cur_mineral%next
-    call MineralDestroy(prev_mineral)
+    call ReactionMnrlDestoyMineral(prev_mineral)
   enddo
-  call MineralDestroy(stoich_solid%mineral)
+  call ReactionMnrlDestoyMineral(stoich_solid%mineral)
 
   deallocate(stoich_solid)
   nullify(stoich_solid)

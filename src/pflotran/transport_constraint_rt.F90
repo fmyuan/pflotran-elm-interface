@@ -477,7 +477,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
       case('MNRL','MINERALS')
 
-        mineral_constraint => MineralConstraintCreate(reaction%mineral,option)
+        mineral_constraint => &
+          ReactionMnrlCreateMnrlConstraint(reaction%mineral,option)
 
         block_string = 'CONSTRAINT, MINERALS'
         imnrl = 0
@@ -576,7 +577,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%minerals)) then
-          call MineralConstraintDestroy(constraint%minerals)
+          call ReactionMnrlDestMnrlConstraint(constraint%minerals)
         endif
         constraint%minerals => mineral_constraint
 
@@ -780,7 +781,7 @@ subroutine TranConstraintRTStrip(this)
     call GuessConstraintDestroy(this%free_ion_guess)
   nullify(this%free_ion_guess)
   if (associated(this%minerals)) &
-    call MineralConstraintDestroy(this%minerals)
+    call ReactionMnrlDestMnrlConstraint(this%minerals)
   nullify(this%minerals)
   if (associated(this%surface_complexes)) &
     call SurfaceComplexConstraintDestroy(this%surface_complexes)

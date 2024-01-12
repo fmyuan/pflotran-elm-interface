@@ -336,18 +336,12 @@ module Reaction_Aux_module
             ReactionInterpolateLogK, &
             ReactionInitializeLogK_hpt, &
             ReactionInterpolateLogK_hpt, &
-            TransitionStateTheoryRxnCreate, &
-            TransitionStatePrefactorCreate, &
-            TSPrefactorSpeciesCreate, &
-            TransitionStateTheoryRxnDestroy, &
             AqueousSpeciesCreate, &
             AqueousSpeciesDestroy, &
             AqueousSpeciesConstraintCreate, &
             AqueousSpeciesConstraintDestroy, &
             GuessConstraintCreate, &
             GuessConstraintDestroy, &
-            MineralConstraintCreate, &
-            MineralConstraintDestroy, &
             RadioactiveDecayRxnCreate, &
             RadioactiveDecayRxnDestroy, &
             GeneralRxnCreate, &
@@ -440,7 +434,7 @@ function ReactionCreate()
 
   ! new reaction objects
   reaction%surface_complexation => SurfaceComplexationCreate()
-  reaction%mineral => MineralCreate()
+  reaction%mineral => ReactionMnrlCreateMineralObject()
   reaction%microbial => MicrobialCreate()
   reaction%immobile => ReactionImCreate()
   reaction%gas => GasCreate()
@@ -1946,7 +1940,7 @@ subroutine ReactionDestroy(reaction,option)
   nullify(reaction%dynamic_kd_rxn_list)
 
   call SurfaceComplexationDestroy(reaction%surface_complexation)
-  call MineralDestroy(reaction%mineral)
+  call ReactionMnrlDestoyMineral(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
   call ReactionImDestroy(reaction%immobile)
   call GasDestroy(reaction%gas)
