@@ -6437,7 +6437,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(PH)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
                               patch%aux%Global%auxvars(ghosted_id), &
                               reaction,ph0,option)
             vec_ptr(local_id) = ph0
@@ -6445,7 +6445,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(EH)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                   patch%aux%Global%auxvars(ghosted_id), &
                                   reaction,eh0,pe0,option)
             vec_ptr(local_id) = eh0
@@ -6453,7 +6453,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(PE)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                   patch%aux%Global%auxvars(ghosted_id), &
                                   reaction,eh0,pe0,option)
             vec_ptr(local_id) = pe0
@@ -6461,7 +6461,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(O2)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,lnQKgas,option)
             vec_ptr(local_id) = lnQKgas
@@ -7663,22 +7663,22 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
       select case(ivar)
         case(PH)
-          call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
                             patch%aux%Global%auxvars(ghosted_id), &
                             reaction,ph0,option)
           value = ph0
         case(EH)
-          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                 patch%aux%Global%auxvars(ghosted_id), &
                                 reaction,eh0,pe0,option)
           value = eh0
         case(PE)
-          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                 patch%aux%Global%auxvars(ghosted_id), &
                                 reaction,eh0,pe0,option)
           value = pe0
         case(O2)
-          call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
                                patch%aux%Global%auxvars(ghosted_id), &
                                reaction,lnQKgas,option)
           value = lnQKgas * LN_TO_LOG

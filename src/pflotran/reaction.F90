@@ -1732,7 +1732,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           io2gas = reaction%species_idx%o2_gas_id
           Res(icomp) = 0.d0
           Jac(icomp,:) = 0.d0
-          call RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
+          call ReactionRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
           Res(icomp) = conc(icomp) - pe
           ! dRes_dO2
           do jcomp = 1, reaction%gas%paseqspecid(0,io2gas)
@@ -2279,10 +2279,10 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
     if (associated(reaction%species_idx)) then
       ! output pH, Eh, pe
       if (reaction%species_idx%h_ion_id /= 0) then
-        call RRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
+        call ReactionRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
         write(option%fid_out,203) '              pH: ',ph
         if (reaction%species_idx%o2_gas_id > 0) then
-          call RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe, &
+          call ReactionRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe, &
                               option)
           write(option%fid_out,203) '              pe: ',pe
           write(option%fid_out,203) '              Eh: ',eh

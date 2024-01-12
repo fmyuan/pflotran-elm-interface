@@ -228,7 +228,7 @@ end subroutine ReactionMicrobReadMicrobial
 ! ************************************************************************** !
 
 subroutine ReactionMicrobRate(Res,Jac,compute_derivative,rt_auxvar, &
-                            1 global_auxvar,material_auxvar,reaction,option)
+                              global_auxvar,material_auxvar,reaction,option)
   !
   ! Computes the microbial reaction
   !

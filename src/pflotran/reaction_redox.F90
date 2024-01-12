@@ -14,16 +14,16 @@ module Reaction_Redox_module
 
   private
 
-  public :: RRedoxCalcpH, &
-            RRedoxCalcLogKEh, &
-            RRedoxCalcEhpe, &
-            RRedoxCalcLnFO2
+  public :: ReactionRedoxCalcpH, &
+            ReactionRedoxCalcLogKEh, &
+            ReactionRedoxCalcEhpe, &
+            ReactionRedoxCalcLnFO2
 
 contains
 
 ! ************************************************************************** !
 
-subroutine RRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
+subroutine ReactionRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
 
   ! Calculates pH
 
@@ -50,11 +50,12 @@ subroutine RRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
              rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
   endif
 
-end subroutine RRedoxCalcpH
+end subroutine ReactionRedoxCalcpH
 
 ! ************************************************************************** !
 
-subroutine RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
+subroutine ReactionRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction, &
+                                 eh,pe,option)
 
   ! Calculates pH, Eh and pe given an hydrogen ion and oxygen concentration
 
@@ -77,8 +78,8 @@ subroutine RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
   PetscReal :: ehfac
 
   ! pH
-  call RRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
-  call RRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction,lnQKo2,option)
+  call ReactionRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
+  call ReactionRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction,lnQKo2,option)
   t_kelvin = global_auxvar%temp+273.15d0
   ehfac = IDEAL_GAS_CONSTANT*t_kelvin*LOG_TO_LN/FARADAY
 
@@ -99,18 +100,19 @@ subroutine RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
   ! pe = (-0.5 ln{H2O} + 0.25 lnKeq + 0.25 ln{O2(aq)}) * LN_TO_LOG - ph
 
   ! pe = ((-2 ln{H2O} + lnKeq + ln{O2(aq)}) * LN_TO_LOG - 4 ph) * 0.25d0
-  !   RRedoxCalcLogKEh = ln Keq*LN_TO_LOG
+  !   ReactionRedoxCalcLogKEh = ln Keq*LN_TO_LOG
   !   lnQKo2 = ln{O2(aq)}
 
   eh = ehfac*(-4.d0*ph+(-2.d0*rt_auxvar%ln_act_h2o+lnQKo2)*LN_TO_LOG+ &
-              RRedoxCalcLogKEh(t_kelvin)) * 0.25d0
+              ReactionRedoxCalcLogKEh(t_kelvin)) * 0.25d0
   pe = eh/ehfac
 
-end subroutine RRedoxCalcEhpe
+end subroutine ReactionRedoxCalcEhpe
 
 ! ************************************************************************** !
 
-subroutine RRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction,lnfo2,option)
+subroutine ReactionRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction, &
+                                  lnfo2,option)
 
   ! Calculates the natural log of O2 partial pressure
 
@@ -147,11 +149,11 @@ subroutine RRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction,lnfo2,option)
   enddo
   lnfo2 = lnQKo2
 
-end subroutine RRedoxCalcLnFO2
+end subroutine ReactionRedoxCalcLnFO2
 
 ! ************************************************************************** !
 
-function RRedoxCalcLogKEh(tk)
+function ReactionRedoxCalcLogKEh(tk)
   !
   ! Function logKeh: Maier-Kelly fit to equilibrium constant half-cell
   ! reaction 2 H2O - 4 H+ - 4 e- = O2, to compute Eh and pe.
@@ -161,7 +163,7 @@ function RRedoxCalcLogKEh(tk)
   !
   PetscReal, intent(in) :: tk
 
-  PetscReal :: RRedoxCalcLogKEh
+  PetscReal :: ReactionRedoxCalcLogKEh
 
   PetscReal, parameter :: cm1 = 6.745529048112373d0
   PetscReal, parameter :: c0 = -48.295936593543715d0
@@ -169,8 +171,9 @@ function RRedoxCalcLogKEh(tk)
   PetscReal, parameter :: c2 = 27780.749538022003d0
   PetscReal, parameter :: c3 = 4027.3376948579394d0
 
-  RRedoxCalcLogKEh = cm1 * log(tk) + c0 + c1 * tk + c2 / tk + c3 / (tk * tk)
+  ReactionRedoxCalcLogKEh = cm1 * log(tk) + c0 + c1 * tk + c2 / tk + &
+                            c3 / (tk * tk)
 
-end function RRedoxCalcLogKEh
+end function ReactionRedoxCalcLogKEh
 
 end module Reaction_Redox_module
