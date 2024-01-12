@@ -2578,14 +2578,14 @@ subroutine BasisInit(reaction,option)
     nullify(cur_srfcplx_rxn)
 
     surface_complexation%neqsrfcplx = &
-      SrfCplxGetSrfCplxCountInRxnType(surface_complexation, &
-                                      SRFCMPLX_RXN_EQUILIBRIUM)
+      ReactionSrfCplxNumSrfCplxInRxn(surface_complexation, &
+                                     SRFCMPLX_RXN_EQUILIBRIUM)
     surface_complexation%nkinmrsrfcplx = &
-      SrfCplxGetSrfCplxCountInRxnType(surface_complexation, &
-                                      SRFCMPLX_RXN_MULTIRATE_KINETIC)
+      ReactionSrfCplxNumSrfCplxInRxn(surface_complexation, &
+                                     SRFCMPLX_RXN_MULTIRATE_KINETIC)
     surface_complexation%nkinsrfcplx = &
-      SrfCplxGetSrfCplxCountInRxnType(surface_complexation, &
-                                      SRFCMPLX_RXN_KINETIC)
+      ReactionSrfCplxNumSrfCplxInRxn(surface_complexation, &
+                                     SRFCMPLX_RXN_KINETIC)
 
     ! surface complexation reaction (general members)
     allocate(surface_complexation%srfcplxrxn_to_surf( &
@@ -2630,8 +2630,8 @@ subroutine BasisInit(reaction,option)
       allocate(surface_complexation%srfcplx_to_eqsrfcplx( &
                  surface_complexation%nsrfcplx))
       surface_complexation%srfcplx_to_eqsrfcplx = 0
-      call SrfCplxMapMasterSrfCplxToRxn(surface_complexation, &
-                                        SRFCMPLX_RXN_EQUILIBRIUM)
+      call ReactionSrfCplxMapMastCplxToRxn(surface_complexation, &
+                                           SRFCMPLX_RXN_EQUILIBRIUM)
 #endif
     endif
 

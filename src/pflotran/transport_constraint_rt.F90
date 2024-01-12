@@ -584,7 +584,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
       case('SURFACE_COMPLEXES')
 
         srfcplx_constraint => &
-          SurfaceComplexConstraintCreate(reaction%surface_complexation,option)
+          ReactionSrfCplxCreateConstraint(reaction%surface_complexation,option)
 
         block_string = 'CONSTRAINT, SURFACE_COMPLEXES'
         isrfcplx = 0
@@ -640,7 +640,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%surface_complexes)) then
-          call SurfaceComplexConstraintDestroy(constraint%surface_complexes)
+          call ReactionSrfCplxDestroyConstraint(constraint%surface_complexes)
         endif
         constraint%surface_complexes => srfcplx_constraint
 
@@ -784,7 +784,7 @@ subroutine TranConstraintRTStrip(this)
     call ReactionMnrlDestMnrlConstraint(this%minerals)
   nullify(this%minerals)
   if (associated(this%surface_complexes)) &
-    call SurfaceComplexConstraintDestroy(this%surface_complexes)
+    call ReactionSrfCplxDestroyConstraint(this%surface_complexes)
   nullify(this%surface_complexes)
   if (associated(this%immobile_species)) &
     call ReactionImConstraintDestroy(this%immobile_species)

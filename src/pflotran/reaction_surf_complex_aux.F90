@@ -127,22 +127,22 @@ module Reaction_Surface_Complexation_Aux_module
 
   end type surface_complexation_type
 
-  public :: SurfaceComplexationCreate, &
-            SurfaceComplexationRxnCreate, &
-            SurfaceComplexCreate, &
-            SurfaceComplexConstraintCreate, &
-            SrfCplxGetSrfCplxCountInRxnType, &
-            SrfCplxMapMasterSrfCplxToRxn, &
-            SurfaceComplexationDestroy, &
-            SurfaceComplexationRxnDestroy, &
-            SurfaceComplexDestroy, &
-            SurfaceComplexConstraintDestroy
+  public :: ReactionSrfCplxCreateObject, &
+            ReactionSrfCplxCreateRxn, &
+            ReactionSrfCplxCreateComplex, &
+            ReactionSrfCplxCreateConstraint, &
+            ReactionSrfCplxNumSrfCplxInRxn, &
+            ReactionSrfCplxMapMastCplxToRxn, &
+            ReactionSrfCplxDestroySrfCplx, &
+            ReactionSrfCplxDestroyRxn, &
+            ReactionSrfCplxDestroyObject, &
+            ReactionSrfCplxDestroyConstraint
 
 contains
 
 ! ************************************************************************** !
 
-function SurfaceComplexationCreate()
+function ReactionSrfCplxCreateObject()
   !
   ! Allocate and initialize surface complexation
   ! object
@@ -155,7 +155,7 @@ function SurfaceComplexationCreate()
 
   implicit none
 
-  type(surface_complexation_type), pointer :: SurfaceComplexationCreate
+  type(surface_complexation_type), pointer :: ReactionSrfCplxCreateObject
 
   type(surface_complexation_type), pointer :: surface_complexation
 
@@ -212,13 +212,13 @@ function SurfaceComplexationCreate()
   nullify(surface_complexation%kinmr_rate)
   nullify(surface_complexation%kinmr_frac)
 
-  SurfaceComplexationCreate => surface_complexation
+  ReactionSrfCplxCreateObject => surface_complexation
 
-end function SurfaceComplexationCreate
+end function ReactionSrfCplxCreateObject
 
 ! ************************************************************************** !
 
-function SurfaceComplexationRxnCreate()
+function ReactionSrfCplxCreateRxn()
   !
   ! Allocate and initialize a surface complexation
   ! reaction
@@ -229,7 +229,7 @@ function SurfaceComplexationRxnCreate()
 
   implicit none
 
-  type(surface_complexation_rxn_type), pointer :: SurfaceComplexationRxnCreate
+  type(surface_complexation_rxn_type), pointer :: ReactionSrfCplxCreateRxn
 
   type(surface_complexation_rxn_type), pointer :: srfcplxrxn
 
@@ -251,13 +251,13 @@ function SurfaceComplexationRxnCreate()
   nullify(srfcplxrxn%complex_list)
   nullify(srfcplxrxn%next)
 
-  SurfaceComplexationRxnCreate => srfcplxrxn
+  ReactionSrfCplxCreateRxn => srfcplxrxn
 
-end function SurfaceComplexationRxnCreate
+end function ReactionSrfCplxCreateRxn
 
 ! ************************************************************************** !
 
-function SurfaceComplexCreate()
+function ReactionSrfCplxCreateComplex()
   !
   ! Allocate and initialize a surface complex reaction
   !
@@ -266,7 +266,7 @@ function SurfaceComplexCreate()
   !
   implicit none
 
-  type(surface_complex_type), pointer :: SurfaceComplexCreate
+  type(surface_complex_type), pointer :: ReactionSrfCplxCreateComplex
 
   type(surface_complex_type), pointer :: srfcplx
 
@@ -277,22 +277,22 @@ function SurfaceComplexCreate()
   srfcplx%Z = 0.d0
   srfcplx%free_site_stoich = 0.d0
   srfcplx%forward_rate = 0.d0
-  ! default is UNINITIALIZED_INTEGER in case the only the forward rate is defined.  In that case
-  ! the backward rate will be calculated as a function of the forward rate and
-  ! the equilibrium coefficient (logK).
+  ! default is UNINITIALIZED_INTEGER in case the only the forward rate is
+  ! defined.  In that case the backward rate will be calculated as a
+  ! function of the forward rate and the equilibrium coefficient (logK).
   srfcplx%backward_rate = UNINITIALIZED_DOUBLE
   srfcplx%print_me = PETSC_FALSE
   nullify(srfcplx%ptr)
   nullify(srfcplx%dbaserxn)
   nullify(srfcplx%next)
 
-  SurfaceComplexCreate => srfcplx
+  ReactionSrfCplxCreateComplex => srfcplx
 
-end function SurfaceComplexCreate
+end function ReactionSrfCplxCreateComplex
 
 ! ************************************************************************** !
 
-function SurfaceComplexConstraintCreate(surface_complexation,option)
+function ReactionSrfCplxCreateConstraint(surface_complexation,option)
   !
   ! Creates a surface complex constraint object
   !
@@ -306,7 +306,7 @@ function SurfaceComplexConstraintCreate(surface_complexation,option)
 
   type(surface_complexation_type) :: surface_complexation
   type(option_type) :: option
-  type(srfcplx_constraint_type), pointer :: SurfaceComplexConstraintCreate
+  type(srfcplx_constraint_type), pointer :: ReactionSrfCplxCreateConstraint
 
   type(srfcplx_constraint_type), pointer :: constraint
 
@@ -319,13 +319,13 @@ function SurfaceComplexConstraintCreate(surface_complexation,option)
                            surface_complexation%nkinsrfcplxrxn))
   constraint%basis_free_site_conc = 0.d0
 
-  SurfaceComplexConstraintCreate => constraint
+  ReactionSrfCplxCreateConstraint => constraint
 
-end function SurfaceComplexConstraintCreate
+end function ReactionSrfCplxCreateConstraint
 
 ! ************************************************************************** !
 
-function SrfCplxGetSrfCplxCountInRxnType(surface_complexation,rxn_type)
+function ReactionSrfCplxNumSrfCplxInRxn(surface_complexation,rxn_type)
   !
   ! Deallocates a surface complexation reaction
   !
@@ -341,9 +341,9 @@ function SrfCplxGetSrfCplxCountInRxnType(surface_complexation,rxn_type)
   type(surface_complexation_rxn_type), pointer :: cur_srfcplx_rxn
   type(surface_complex_type), pointer :: cur_srfcplx
 
-  PetscInt :: SrfCplxGetSrfCplxCountInRxnType
+  PetscInt :: ReactionSrfCplxNumSrfCplxInRxn
 
-  SrfCplxGetSrfCplxCountInRxnType = 0
+  ReactionSrfCplxNumSrfCplxInRxn = 0
 
   ! to determine the number of unique equilibrium surface complexes,
   ! we negate the ids of the complexes in the master list as a flag
@@ -366,7 +366,7 @@ function SrfCplxGetSrfCplxCountInRxnType(surface_complexation,rxn_type)
         ! through a ptr member of the derived type
         if (cur_srfcplx%ptr%id < 0) then
           cur_srfcplx%ptr%id = abs(cur_srfcplx%ptr%id)
-          SrfCplxGetSrfCplxCountInRxnType = SrfCplxGetSrfCplxCountInRxnType + 1
+          ReactionSrfCplxNumSrfCplxInRxn = ReactionSrfCplxNumSrfCplxInRxn + 1
         endif
         cur_srfcplx => cur_srfcplx%next
       enddo
@@ -381,11 +381,11 @@ function SrfCplxGetSrfCplxCountInRxnType(surface_complexation,rxn_type)
     cur_srfcplx => cur_srfcplx%next
   enddo
 
-end function SrfCplxGetSrfCplxCountInRxnType
+end function ReactionSrfCplxNumSrfCplxInRxn
 
 ! ************************************************************************** !
 
-subroutine SrfCplxMapMasterSrfCplxToRxn(surface_complexation,rxn_type)
+subroutine ReactionSrfCplxMapMastCplxToRxn(surface_complexation,rxn_type)
   !
   ! Maps surface complexes from the master list
   ! to a compressed rxn list (e.g. for array)
@@ -404,7 +404,7 @@ subroutine SrfCplxMapMasterSrfCplxToRxn(surface_complexation,rxn_type)
   PetscInt, allocatable :: srfcplx_to_rxnsrfcplx(:)
   PetscInt :: isrfcplx, isrfcplx_in_rxn
 
-  isrfcplx = SrfCplxGetSrfCplxCountInRxnType(surface_complexation,rxn_type)
+  isrfcplx = ReactionSrfCplxNumSrfCplxInRxn(surface_complexation,rxn_type)
   allocate(srfcplx_to_rxnsrfcplx(isrfcplx))
 
   ! flag the master list
@@ -468,11 +468,11 @@ subroutine SrfCplxMapMasterSrfCplxToRxn(surface_complexation,rxn_type)
 
   deallocate(srfcplx_to_rxnsrfcplx)
 
-end subroutine SrfCplxMapMasterSrfCplxToRxn
+end subroutine ReactionSrfCplxMapMastCplxToRxn
 
 ! ************************************************************************** !
 
-subroutine SurfaceComplexationRxnDestroy(srfcplxrxn)
+subroutine ReactionSrfCplxDestroyRxn(srfcplxrxn)
   !
   ! Deallocates a surface complexation reaction
   !
@@ -495,7 +495,7 @@ subroutine SurfaceComplexationRxnDestroy(srfcplxrxn)
     if (.not.associated(cur_srfcplx)) exit
     prev_srfcplx => cur_srfcplx
     cur_srfcplx => cur_srfcplx%next
-    call SurfaceComplexDestroy(prev_srfcplx)
+    call ReactionSrfCplxDestroySrfCplx(prev_srfcplx)
     nullify(prev_srfcplx)
   enddo
 
@@ -505,11 +505,11 @@ subroutine SurfaceComplexationRxnDestroy(srfcplxrxn)
   deallocate(srfcplxrxn)
   nullify(srfcplxrxn)
 
-end subroutine SurfaceComplexationRxnDestroy
+end subroutine ReactionSrfCplxDestroyRxn
 
 ! ************************************************************************** !
 
-subroutine SurfaceComplexDestroy(srfcplx)
+subroutine ReactionSrfCplxDestroySrfCplx(srfcplx)
   !
   ! Deallocates a surface complex
   !
@@ -531,11 +531,11 @@ subroutine SurfaceComplexDestroy(srfcplx)
   deallocate(srfcplx)
   nullify(srfcplx)
 
-end subroutine SurfaceComplexDestroy
+end subroutine ReactionSrfCplxDestroySrfCplx
 
 ! ************************************************************************** !
 
-subroutine SurfaceComplexConstraintDestroy(constraint)
+subroutine ReactionSrfCplxDestroyConstraint(constraint)
   !
   ! Destroys a surface complex constraint
   ! object
@@ -558,11 +558,11 @@ subroutine SurfaceComplexConstraintDestroy(constraint)
   deallocate(constraint)
   nullify(constraint)
 
-end subroutine SurfaceComplexConstraintDestroy
+end subroutine ReactionSrfCplxDestroyConstraint
 
 ! ************************************************************************** !
 
-subroutine SurfaceComplexationDestroy(surface_complexation)
+subroutine ReactionSrfCplxDestroyObject(surface_complexation)
   !
   ! Deallocates a reaction object
   !
@@ -587,7 +587,7 @@ subroutine SurfaceComplexationDestroy(surface_complexation)
     if (.not.associated(cur_srfcplxrxn)) exit
     prev_srfcplxrxn => cur_srfcplxrxn
     cur_srfcplxrxn => cur_srfcplxrxn%next
-    call SurfaceComplexationRxnDestroy(prev_srfcplxrxn)
+    call ReactionSrfCplxDestroyRxn(prev_srfcplxrxn)
   enddo
   nullify(surface_complexation%rxn_list)
 
@@ -597,7 +597,7 @@ subroutine SurfaceComplexationDestroy(surface_complexation)
     if (.not.associated(cur_srfcplx)) exit
     prev_srfcplx => cur_srfcplx
     cur_srfcplx => cur_srfcplx%next
-    call SurfaceComplexDestroy(prev_srfcplx)
+    call ReactionSrfCplxDestroySrfCplx(prev_srfcplx)
     nullify(prev_srfcplx)
   enddo
 
@@ -641,6 +641,6 @@ subroutine SurfaceComplexationDestroy(surface_complexation)
   deallocate(surface_complexation)
   nullify(surface_complexation)
 
-end subroutine SurfaceComplexationDestroy
+end subroutine ReactionSrfCplxDestroyObject
 
 end module Reaction_Surface_Complexation_Aux_module

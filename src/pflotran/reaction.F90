@@ -621,7 +621,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('ISOTHERM_REACTIONS')
               call ReactionIsothermReadIsotherm(reaction%isotherm,input,option)
             case('SURFACE_COMPLEXATION_RXN')
-              call SurfaceComplexationRead(reaction,input,option)
+              call ReactionSrfCplxReadSrfCplxRxn(reaction,input,option)
             case('ION_EXCHANGE_RXN')
               error_string = 'CHEMISTRY,ION_EXCHANGE_RXN'
               ionx_rxn => IonExchangeRxnCreate()
@@ -1313,7 +1313,7 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
                                      mineral_constraint,option)
 
   ! surface complexes
-  call SrfCplxProcessConstraint(reaction%surface_complexation, &
+  call ReactionSrfCplxProcessConstraint(reaction%surface_complexation, &
                                 constraint%name, &
                                 srfcplx_constraint,option)
 
@@ -2052,8 +2052,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       endif
     endif
     if (reaction%surface_complexation%nkinmrsrfcplx > 0) then
-      call RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
-                                   reaction,option)
+      call ReactionSrfCplxTotSorbMRAsEQ(rt_auxvar,global_auxvar, &
+                                        material_auxvar,reaction,option)
     endif
   endif
 
@@ -3352,10 +3352,10 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   ! WARNING: below assumes site concentration multiplicative factor
   allocate(rt_auxvar%dtotal_sorb_eq(reaction%naqcomp,reaction%naqcomp))
   !geh: if jumpstarting, we need to zero the sorbed total as
-  !     RTotalSorbEqSurfCplx() will add but not initialize
+  !     ReactionSrfCplxTotalSorbEq() will add but not initialize
   call RZeroSorb(rt_auxvar)
-  call RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
-                            reaction,option)
+  call ReactionSrfCplxTotalSorbEq(rt_auxvar,global_auxvar,material_auxvar, &
+                                  reaction,option)
   option%io_buffer = 'RJumpStartKineticSorption needs to be fixed'
   call PrintErrMsg(option)
 #if 0
@@ -4066,18 +4066,21 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
 
   if (reaction%mineral%nkinmnrl > 0) then
-    call ReactionMnrlKineticRate(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                                 material_auxvar,reaction,option)
+    call ReactionMnrlKineticRate(Res,Jac,derivative,rt_auxvar, &
+                                 global_auxvar,material_auxvar, &
+                                 reaction,option)
   endif
 
   if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0) then
-    call RMultiRateSorption(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                            material_auxvar,reaction,option)
+    call ReactionSrfCplxMultirateRate(Res,Jac,derivative,rt_auxvar, &
+                                      global_auxvar,material_auxvar, &
+                                      reaction,option)
   endif
 
   if (reaction%surface_complexation%nkinsrfcplxrxn > 0) then
-    call RKineticSurfCplx(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                          material_auxvar,reaction,option)
+    call ReactionSrfCplxKineticRate(Res,Jac,derivative,rt_auxvar, &
+                                    global_auxvar,material_auxvar, &
+                                    reaction,option)
   endif
 
   if (reaction%nradiodecay_rxn > 0) then
@@ -4764,8 +4767,8 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   call RZeroSorb(rt_auxvar)
 
   if (reaction%surface_complexation%neqsrfcplxrxn > 0) then
-    call RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
-                              reaction,option)
+    call ReactionSrfCplxTotalSorbEq(rt_auxvar,global_auxvar, &
+                                    material_auxvar,reaction,option)
   endif
 
   if (reaction%neqionxrxn > 0) then
@@ -4778,8 +4781,9 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   endif
 
   if (reaction%isotherm%neqkdrxn > 0) then
-      call ReactionIsothermTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-                        reaction%isotherm,isotherm_rxn,option)
+      call ReactionIsothermTotalSorbKD(rt_auxvar,global_auxvar, &
+                                       material_auxvar,reaction%isotherm, &
+                                       isotherm_rxn,option)
   endif
 
 end subroutine RTotalSorb
@@ -5885,13 +5889,14 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   ! toggled true if any kinetic states are updated in the routines below
   kinetic_state_updated = PETSC_FALSE
 
-  call ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
-                                      reaction,kinetic_state_updated,option)
+  call ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
+                                      material_auxvar,reaction, &
+                                      kinetic_state_updated,option)
 
-  call RSrfCplxMRUpdateKinState(rt_auxvar,reaction, &
-                                kinetic_state_updated,option)
-  call RSrfCplxUpdateKinState(rt_auxvar,reaction, &
-                              kinetic_state_updated,option)
+  call ReactionSrfCplxMRUpdateKinState(rt_auxvar,reaction, &
+                                       kinetic_state_updated,option)
+  call ReactionSrfCplxUpdateKinState(rt_auxvar,reaction, &
+                                     kinetic_state_updated,option)
 
   if (associated(rxn_sandbox_list)) then
     kinetic_state_updated = PETSC_TRUE ! we assume true for all

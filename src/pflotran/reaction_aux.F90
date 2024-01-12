@@ -433,7 +433,7 @@ function ReactionCreate()
   nullify(reaction%gas_diffusion_coefficients)
 
   ! new reaction objects
-  reaction%surface_complexation => SurfaceComplexationCreate()
+  reaction%surface_complexation => ReactionSrfCplxCreateObject()
   reaction%mineral => ReactionMnrlCreateMineralObject()
   reaction%microbial => ReactionMicrobCreateObject()
   reaction%immobile => ReactionImCreate()
@@ -1939,7 +1939,7 @@ subroutine ReactionDestroy(reaction,option)
   enddo
   nullify(reaction%dynamic_kd_rxn_list)
 
-  call SurfaceComplexationDestroy(reaction%surface_complexation)
+  call ReactionSrfCplxDestroyObject(reaction%surface_complexation)
   call ReactionMnrlDestoyMineral(reaction%mineral)
   call ReactionMicrobDestrMicrobObject(reaction%microbial)
   call ReactionImDestroy(reaction%immobile)
