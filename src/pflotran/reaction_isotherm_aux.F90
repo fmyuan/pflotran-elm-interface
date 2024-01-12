@@ -41,23 +41,23 @@ module Reaction_Isotherm_Aux_module
     PetscInt :: neqkdrxn
   end type isotherm_type
 
-  public :: IsothermCreate, &
-            IsothermLinkCreate, &
-            IsothermRxnCreate, &
-            IsothermDestroy
+  public :: ReactionIsothermCreateObject, &
+            ReactionIsothermCreateLink, &
+            ReactionIsothermCreateRxn, &
+            ReactionIsothermDestroyObject
 
 contains
 
 ! ************************************************************************** !
 
-function IsothermCreate()
+function ReactionIsothermCreateObject()
   !
   ! Allocate and initialize isotherm reaction object
   !
 
   implicit none
 
-  type(isotherm_type), pointer :: IsothermCreate
+  type(isotherm_type), pointer :: ReactionIsothermCreateObject
 
   type(isotherm_type), pointer :: isotherm
 
@@ -74,20 +74,20 @@ function IsothermCreate()
   isotherm%ikd_units = UNINITIALIZED_INTEGER
   isotherm%neqkdrxn = 0
 
-  IsothermCreate => isotherm
+  ReactionIsothermCreateObject => isotherm
 
-end function IsothermCreate
+end function ReactionIsothermCreateObject
 
 ! ************************************************************************** !
 
-function IsothermLinkCreate()
+function ReactionIsothermCreateLink()
 
   ! Allocate and initialize an isotherm sorption reaction
   !
   !
   implicit none
 
-  type(isotherm_link_type), pointer :: IsothermLinkCreate
+  type(isotherm_link_type), pointer :: ReactionIsothermCreateLink
 
   type(isotherm_link_type), pointer :: rxn
 
@@ -101,13 +101,13 @@ function IsothermLinkCreate()
   rxn%Freundlich_n = 0.d0
   nullify(rxn%next)
 
-  IsothermLinkCreate => rxn
+  ReactionIsothermCreateLink => rxn
 
-end function IsothermLinkCreate
+end function ReactionIsothermCreateLink
 
 ! ************************************************************************** !
 
-subroutine IsothermRxnCreate(isotherm_rxn, isotherm)
+subroutine ReactionIsothermCreateRxn(isotherm_rxn, isotherm)
 
   implicit none
 
@@ -124,7 +124,7 @@ subroutine IsothermRxnCreate(isotherm_rxn, isotherm)
   allocate(isotherm_rxn%eqisothermfreundlichn(isotherm%neqkdrxn))
   isotherm_rxn%eqisothermfreundlichn = 0.d0
 
-end subroutine IsothermRxnCreate
+end subroutine ReactionIsothermCreateRxn
 
 ! ************************************************************************** !
 
@@ -168,7 +168,7 @@ end subroutine IsothermRxnDestroy
 
 ! ************************************************************************** !
 
-subroutine IsothermDestroy(isotherm,option)
+subroutine ReactionIsothermDestroyObject(isotherm,option)
   !
   ! Deallocates an isotherm object
   !
@@ -180,7 +180,8 @@ subroutine IsothermDestroy(isotherm,option)
 
   type(isotherm_type), pointer :: isotherm
   type(option_type) :: option
-  type(isotherm_link_type), pointer :: isotherm_rxn_link, prev_isotherm_rxn_link
+  type(isotherm_link_type), pointer :: isotherm_rxn_link, &
+                                       prev_isotherm_rxn_link
 
   isotherm_rxn_link => isotherm%isotherm_list
 
@@ -214,6 +215,6 @@ subroutine IsothermDestroy(isotherm,option)
   deallocate(isotherm)
   nullify(isotherm)
 
-end subroutine IsothermDestroy
+end subroutine ReactionIsothermDestroyObject
 
 end module Reaction_Isotherm_Aux_module

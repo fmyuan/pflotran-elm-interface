@@ -438,7 +438,7 @@ function ReactionCreate()
   reaction%microbial => ReactionMicrobCreateObject()
   reaction%immobile => ReactionImCreate()
   reaction%gas => ReactionGasCreateGasObject()
-  reaction%isotherm => IsothermCreate()
+  reaction%isotherm => ReactionIsothermCreateObject()
 #ifdef SOLID_SOLUTION
   nullify(reaction%solid_solution_list)
 #endif
@@ -1944,7 +1944,7 @@ subroutine ReactionDestroy(reaction,option)
   call ReactionMicrobDestrMicrobObject(reaction%microbial)
   call ReactionImDestroy(reaction%immobile)
   call ReactionGasDestroyGas(reaction%gas)
-  call IsothermDestroy(reaction%isotherm,option)
+  call ReactionIsothermDestroyObject(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION
   call SolidSolutionDestroy(reaction%solid_solution_list)
 #endif

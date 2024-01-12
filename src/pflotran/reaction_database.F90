@@ -1363,7 +1363,7 @@ subroutine BasisInit(reaction,option)
   do
     if (.not.associated(cur_sec_aq_spec)) exit
     icount = icount + 1
-    ! destory old reaction
+    ! destroy old reaction
     call DatabaseRxnDestroy(cur_sec_aq_spec%dbaserxn)
     ! allocate new
     cur_sec_aq_spec%dbaserxn => DatabaseRxnCreate()
@@ -1404,7 +1404,7 @@ subroutine BasisInit(reaction,option)
   do
     if (.not.associated(cur_gas_spec)) exit
     icount = icount + 1
-    ! destory old reaction
+    ! destroy old reaction
     call DatabaseRxnDestroy(cur_gas_spec%dbaserxn)
     ! allocate new
     cur_gas_spec%dbaserxn => DatabaseRxnCreate()
@@ -3486,7 +3486,7 @@ subroutine BasisInit(reaction,option)
 
   if (reaction%isotherm%neqkdrxn > 0) then
 
-    call IsothermRxnCreate(reaction%isotherm%isotherm_rxn, &
+    call ReactionIsothermCreateRxn(reaction%isotherm%isotherm_rxn, &
       reaction%isotherm)
     ! allocate arrays
     allocate(reaction%isotherm%eqkdspecid(reaction%isotherm%neqkdrxn))
@@ -3499,7 +3499,7 @@ subroutine BasisInit(reaction,option)
     cur_isotherm_rxn => reaction%isotherm%isotherm_list
 
     if (option%use_sc) then
-      call IsothermRxnCreate(reaction%isotherm%multicontinuum_isotherm_rxn, &
+      call ReactionIsothermCreateRxn(reaction%isotherm%multicontinuum_isotherm_rxn, &
                              reaction%isotherm)
       sec_cont_cur_isotherm_rxn => &
         reaction%isotherm%multicontinuum_isotherm_list

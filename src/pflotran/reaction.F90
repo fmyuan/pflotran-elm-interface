@@ -619,7 +619,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               enddo
               call InputPopBlock(input,option)
             case('ISOTHERM_REACTIONS')
-              call IsothermRead(reaction%isotherm,input,option)
+              call ReactionIsothermReadIsotherm(reaction%isotherm,input,option)
             case('SURFACE_COMPLEXATION_RXN')
               call SurfaceComplexationRead(reaction,input,option)
             case('ION_EXCHANGE_RXN')
@@ -4778,7 +4778,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   endif
 
   if (reaction%isotherm%neqkdrxn > 0) then
-      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
+      call ReactionIsothermTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
                         reaction%isotherm,isotherm_rxn,option)
   endif
 
