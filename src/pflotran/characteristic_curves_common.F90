@@ -100,6 +100,18 @@ module Characteristic_Curves_Common_module
     procedure, public :: Saturation => SFExpFreezingSaturation
   end type sat_func_Exp_Freezing_type
   !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_VG_STOMP_type
+    PetscReal :: alpha 
+    PetscReal :: n
+    ! oven-dried capillary head
+    PetscReal :: h_od 
+  contains
+    procedure, public :: Init => SFVGSTOMPInit
+    procedure, public :: Verify => SFVGSTOMPVerify
+    procedure, public :: CapillaryPressure => SFVGSTOMPCapillaryPressure
+    procedure, public :: Saturation => SFVGSTOMPSaturation
+  end type sat_func_VG_STOMP_type
+  !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Table_type
     class(dataset_ascii_type), pointer :: pc_dataset
   contains
@@ -313,6 +325,7 @@ module Characteristic_Curves_Common_module
             SFmKCreate, &
             SFIGHCC2Create, &
             SFExpFreezingCreate, &
+            SFVGSTOMPCreate, &
             SFTableCreate, &
             ! standard rel. perm. curves:
             RPFDefaultCreate, &
@@ -1351,6 +1364,144 @@ subroutine SFExpFreezingSaturation(this,capillary_pressure, &
   endif
   
 end subroutine SFExpFreezingSaturation
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function SFVGSTOMPCreate()
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type), pointer :: &
+                              SFVGSTOMPCreate
+
+  allocate(SFVGSTOMPCreate)
+  call SFVGSTOMPCreate%Init()
+
+end function SFVGSTOMPCreate
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPInit(this)
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+
+  call SFBaseInit(this)
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%n = UNINITIALIZED_DOUBLE
+
+end subroutine SFVGSTOMPInit
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,VG_STOMP'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%n)) then
+    option%io_buffer = UninitializedMessage('N',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFVGSTOMPVerify
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
+                                   capillary_pressure,dpc_dsatl,option)
+  !
+  ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
+  ! Currently does nothing.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: esl, m, n
+
+  esl = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+
+  if (liquid_saturation > this%Sr) then
+    capillary_pressure = ((1.d0 / esl)**(1.d0/m)-1.d0)**(1.d0/n) / &
+                          this%alpha
+  else
+    capillary_pressure = this%h_od
+  endif
+
+end subroutine SFVGSTOMPCapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
+                               liquid_saturation,dsat_dpres,option)
+  !
+  ! Computes saturation as a function of capillary head:
+  ! sigma * Pc / (rho_l * g)
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/2024
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: m,n
+  PetscReal :: asl
+
+  dsat_dpres = 0.d0
+
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+  ! m = this%m
+  ! n = - 1.d0 / (m - 1.d0)
+
+  asl = (1.d0 / (1.d0 + (this%alpha * capillary_pressure)**n))**m
+  liquid_saturation = asl * (1.d0 - this%Sr) + this%Sr
+
+
+end subroutine SFVGSTOMPSaturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !

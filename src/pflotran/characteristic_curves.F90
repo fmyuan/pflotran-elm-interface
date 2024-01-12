@@ -155,6 +155,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFIGHCC2Create()
           case('EXP_FREEZING')
             this%saturation_function => SFExpFreezingCreate()
+          case('VG_STOMP')
+            this%saturation_function => SFVGSTOMPCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
           case('PCHIP')
@@ -390,7 +392,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   character(len=MAXWORDLENGTH) :: unsat_ext
   PetscBool :: loop_invariant
   PetscInt :: vg_rpf_opt
-  PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg, Sgt_max
+  PetscReal :: alpha, m, n, enpr, Pcmax, Slj, Sr, Srg, Sgt_max
 
   PetscInt :: wipp_krp, wipp_kpc, spline
   PetscReal :: wipp_expon, wipp_pct_alpha, wipp_pct_expon
@@ -918,6 +920,22 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'saturation function exponential freezing',option)
         end select
     !------------------------------------------
+      class is (sat_func_VG_STOMP_type)
+        select case(keyword)
+          case('N')
+            call InputReadDouble(input,option,n)
+            sf%n = n
+            call InputErrorMsg(input,option,'n',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,alpha)
+            sf%alpha = alpha
+            call InputErrorMsg(input,option,'alpha',error_string)
+          case('OVEN_DRIED_CAP_HEAD')
+            call InputReadDouble(input,option,enpr)
+            sf%h_od = enpr
+            call InputErrorMsg(input,option,'oven-dried capillary head', &
+                               error_string)
+        end select
       class is (sat_func_Table_type)
         select case(keyword)
           case('FILE')
