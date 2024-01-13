@@ -280,8 +280,8 @@ subroutine RealizationBaseStrip(this)
   if (associated(this%reaction_base)) then
     select type(r=>this%reaction_base)
       class is(reaction_rt_type)
-        call ReactionAuxDestroyObject(ReactionAuxCast(this%reaction_base), &
-                                      this%option)
+        call ReactionAuxDestroyAux(ReactionAuxCast(this%reaction_base), &
+                                   this%option)
       class is(reaction_nw_type)
         call NWTReactionDestroy(NWTReactionCast(this%reaction_base),this%option)
     end select

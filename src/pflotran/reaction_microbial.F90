@@ -148,7 +148,7 @@ subroutine ReactionMicrobReadMicrobial(microbial,input,option)
         prev_monod => monod
         nullify(monod)
       case('INHIBITION')
-        inhibition => ReactionInhibitionCreate()
+        inhibition => ReactionInhibitionCreateAux()
         call ReactionInhibitionRead(inhibition,input,option, &
                                     trim(microbial_rxn%reaction), &
                                     'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')

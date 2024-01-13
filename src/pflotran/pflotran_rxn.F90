@@ -317,7 +317,7 @@ program pflotran_rxn
   ! FIXME(bja) : causes error freeing memory.
   !call RTAuxVarDestroy(rt_auxvars)
   !call GlobalAuxVarDestroy(global_auxvars)
-  call ReactionDestroy(reaction,option)
+  call ReactionAuxDestroyAux(reaction,option)
   call GlobalAuxVarStrip(global_auxvars)
   deallocate(global_auxvars)
   nullify(global_auxvars)

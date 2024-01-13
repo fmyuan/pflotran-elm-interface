@@ -61,20 +61,20 @@ module Reaction_Immobile_Aux_module
     module procedure ReactionImGetSpeciesIDFromName2
   end interface
 
-  public :: ReactionImCreate, &
+  public :: ReactionImCreateAux, &
             ReactionImSpeciesCreate, &
             ReactionImConstraintCreate, &
             ReactionImDecayRxnCreate, &
             ReactionImGetCount, &
             ReactionImConstraintDestroy, &
             ReactionImGetSpeciesIDFromName, &
-            ReactionImDestroy
+            ReactionImDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionImCreate()
+function ReactionImCreateAux()
   !
   ! Allocate and initialize immobile object
   !
@@ -83,7 +83,7 @@ function ReactionImCreate()
   !
   implicit none
 
-  type(immobile_type), pointer :: ReactionImCreate
+  type(immobile_type), pointer :: ReactionImCreateAux
 
   type(immobile_type), pointer :: immobile
 
@@ -99,9 +99,9 @@ function ReactionImCreate()
   nullify(immobile%decayspecid)
   nullify(immobile%decay_rate_constant)
 
-  ReactionImCreate => immobile
+  ReactionImCreateAux => immobile
 
-end function ReactionImCreate
+end function ReactionImCreateAux
 
 ! ************************************************************************** !
 
@@ -373,7 +373,7 @@ end subroutine ReactionImConstraintDestroy
 
 ! ************************************************************************** !
 
-subroutine ReactionImDestroy(immobile)
+subroutine ReactionImDestroyAux(immobile)
   !
   ! Deallocates a immobile object
   !
@@ -412,6 +412,6 @@ subroutine ReactionImDestroy(immobile)
   deallocate(immobile)
   nullify(immobile)
 
-end subroutine ReactionImDestroy
+end subroutine ReactionImDestroyAux
 
 end module Reaction_Immobile_Aux_module

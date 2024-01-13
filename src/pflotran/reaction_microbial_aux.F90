@@ -72,7 +72,7 @@ module Reaction_Microbial_Aux_module
 
   end type microbial_type
 
-  public :: ReactionMicrobCreateObject, &
+  public :: ReactionMicrobCreateAux, &
             ReactionMicrobCreateRxn, &
             ReactionMicrobCreateMonodTerm, &
             ReactionMicrobCreateBiomass, &
@@ -81,13 +81,13 @@ module Reaction_Microbial_Aux_module
             ReactionMicrobGetBiomassCount, &
             ReactionMicrobDestroyRxn, &
             ReactionMicrobDestroyBiomass, &
-            ReactionMicrobDestrMicrobObject
+            ReactionMicrobDestrMicrobAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionMicrobCreateObject()
+function ReactionMicrobCreateAux()
   !
   ! Allocate and initialize microbial object
   !
@@ -97,7 +97,7 @@ function ReactionMicrobCreateObject()
 
   implicit none
 
-  type(microbial_type), pointer :: ReactionMicrobCreateObject
+  type(microbial_type), pointer :: ReactionMicrobCreateAux
 
   type(microbial_type), pointer :: microbial
 
@@ -124,9 +124,9 @@ function ReactionMicrobCreateObject()
   nullify(microbial%inhibition_C2)
   microbial%concentration_units = UNINITIALIZED_INTEGER
 
-  ReactionMicrobCreateObject => microbial
+  ReactionMicrobCreateAux => microbial
 
-end function ReactionMicrobCreateObject
+end function ReactionMicrobCreateAux
 
 ! ************************************************************************** !
 
@@ -319,7 +319,7 @@ subroutine ReactionMicrobDestroyRxn(microbial)
 
   call ReactionDBDestroyRxn(microbial%dbaserxn)
   call MicrobialMonodDestroy(microbial%monod)
-  call ReactionInhibitionDestroy(microbial%inhibition)
+  call ReactionInhibitionDestroyAux(microbial%inhibition)
   call ReactionMicrobDestroyBiomass(microbial%biomass)
 
   deallocate(microbial)
@@ -373,7 +373,7 @@ end subroutine ReactionMicrobDestroyBiomass
 
 ! ************************************************************************** !
 
-subroutine ReactionMicrobDestrMicrobObject(microbial)
+subroutine ReactionMicrobDestrMicrobAux(microbial)
   !
   ! Deallocates a microbial object
   !
@@ -420,6 +420,6 @@ subroutine ReactionMicrobDestrMicrobObject(microbial)
   deallocate(microbial)
   nullify(microbial)
 
-end subroutine ReactionMicrobDestrMicrobObject
+end subroutine ReactionMicrobDestrMicrobAux
 
 end module Reaction_Microbial_Aux_module

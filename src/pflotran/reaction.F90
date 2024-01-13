@@ -94,7 +94,7 @@ subroutine ReactionInit(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  reaction => ReactionAuxCreateObject()
+  reaction => ReactionAuxCreateAux()
 
   ! must be called prior to the first pass
   call RSandboxInit(option)

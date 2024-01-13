@@ -127,7 +127,7 @@ module Reaction_Surface_Complexation_Aux_module
 
   end type surface_complexation_type
 
-  public :: ReactionSrfCplxCreateObject, &
+  public :: ReactionSrfCplxCreateAux, &
             ReactionSrfCplxCreateRxn, &
             ReactionSrfCplxCreateComplex, &
             ReactionSrfCplxCreateConstraint, &
@@ -135,14 +135,14 @@ module Reaction_Surface_Complexation_Aux_module
             ReactionSrfCplxMapMastCplxToRxn, &
             ReactionSrfCplxDestroySrfCplx, &
             ReactionSrfCplxDestroyRxn, &
-            ReactionSrfCplxDestroyObject, &
+            ReactionSrfCplxDestroyAux, &
             ReactionSrfCplxDestroyConstraint
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionSrfCplxCreateObject()
+function ReactionSrfCplxCreateAux()
   !
   ! Allocate and initialize surface complexation
   ! object
@@ -155,7 +155,7 @@ function ReactionSrfCplxCreateObject()
 
   implicit none
 
-  type(surface_complexation_type), pointer :: ReactionSrfCplxCreateObject
+  type(surface_complexation_type), pointer :: ReactionSrfCplxCreateAux
 
   type(surface_complexation_type), pointer :: surface_complexation
 
@@ -212,9 +212,9 @@ function ReactionSrfCplxCreateObject()
   nullify(surface_complexation%kinmr_rate)
   nullify(surface_complexation%kinmr_frac)
 
-  ReactionSrfCplxCreateObject => surface_complexation
+  ReactionSrfCplxCreateAux => surface_complexation
 
-end function ReactionSrfCplxCreateObject
+end function ReactionSrfCplxCreateAux
 
 ! ************************************************************************** !
 
@@ -562,7 +562,7 @@ end subroutine ReactionSrfCplxDestroyConstraint
 
 ! ************************************************************************** !
 
-subroutine ReactionSrfCplxDestroyObject(surface_complexation)
+subroutine ReactionSrfCplxDestroyAux(surface_complexation)
   !
   ! Deallocates a reaction object
   !
@@ -641,6 +641,6 @@ subroutine ReactionSrfCplxDestroyObject(surface_complexation)
   deallocate(surface_complexation)
   nullify(surface_complexation)
 
-end subroutine ReactionSrfCplxDestroyObject
+end subroutine ReactionSrfCplxDestroyAux
 
 end module Reaction_Surface_Complexation_Aux_module

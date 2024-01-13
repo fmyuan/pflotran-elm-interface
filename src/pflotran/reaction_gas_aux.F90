@@ -64,19 +64,19 @@ module Reaction_Gas_Aux_module
   end type gas_type
 
 
-  public :: ReactionGasCreateGasObject, &
+  public :: ReactionGasCreateAux, &
             ReactionGasCreateGasSpecies, &
             ReactionGasGetGasNames, &
             ReactionGasGetGasCount, &
             ReactionGasMergeDupGasSpecies, &
-            ReactionGasDestroyGas, &
+            ReactionGasDestroyAux, &
             ReactionGasGetGasIDFromName
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionGasCreateGasObject()
+function ReactionGasCreateAux()
   !
   ! Allocate and initialize gas reaction object
   !
@@ -86,7 +86,7 @@ function ReactionGasCreateGasObject()
 
   implicit none
 
-  type(gas_type), pointer :: ReactionGasCreateGasObject
+  type(gas_type), pointer :: ReactionGasCreateAux
 
   type(gas_type), pointer :: gas
 
@@ -121,9 +121,9 @@ function ReactionGasCreateGasObject()
   nullify(gas%paseqlogK)
   nullify(gas%paseqlogKcoef)
 
-  ReactionGasCreateGasObject => gas
+  ReactionGasCreateAux => gas
 
-end function ReactionGasCreateGasObject
+end function ReactionGasCreateAux
 
 ! ************************************************************************** !
 
@@ -292,7 +292,7 @@ subroutine ReactionGasMergeDupGasSpecies(gas_species_list)
           cur_species%itype = ACTIVE_AND_PASSIVE_GAS
         endif
         prev_species%next => cur_species2%next
-        call GasSpeciesDestroy(cur_species2)
+        call ReactionGasDestroyGasSpecies(cur_species2)
         cur_species2 => prev_species%next
       else
         prev_species => cur_species2
@@ -306,7 +306,7 @@ end subroutine ReactionGasMergeDupGasSpecies
 
 ! ************************************************************************** !
 
-recursive subroutine GasSpeciesListDestroy(gas_species)
+recursive subroutine ReactionGasDestroyGasSpeciesList(gas_species)
   !
   ! Deallocates a gas species
   !
@@ -321,16 +321,16 @@ recursive subroutine GasSpeciesListDestroy(gas_species)
   if (.not.associated(gas_species)) return
 
   if (associated(gas_species%next)) then
-    call GasSpeciesListDestroy(gas_species%next)
+    call ReactionGasDestroyGasSpeciesList(gas_species%next)
   endif
 
-  call GasSpeciesDestroy(gas_species)
+  call ReactionGasDestroyGasSpecies(gas_species)
 
-end subroutine GasSpeciesListDestroy
+end subroutine ReactionGasDestroyGasSpeciesList
 
 ! ************************************************************************** !
 
-recursive subroutine GasSpeciesDestroy(gas_species)
+recursive subroutine ReactionGasDestroyGasSpecies(gas_species)
   !
   ! Deallocates a gas species
   !
@@ -347,11 +347,11 @@ recursive subroutine GasSpeciesDestroy(gas_species)
   deallocate(gas_species)
   nullify(gas_species)
 
-end subroutine GasSpeciesDestroy
+end subroutine ReactionGasDestroyGasSpecies
 
 ! ************************************************************************** !
 
-subroutine ReactionGasDestroyGas(gas)
+subroutine ReactionGasDestroyAux(gas)
   !
   ! Deallocates a gas object
   !
@@ -367,7 +367,7 @@ subroutine ReactionGasDestroyGas(gas)
 
   if (.not.associated(gas)) return
 
-  call GasSpeciesListDestroy(gas%list)
+  call ReactionGasDestroyGasSpeciesList(gas%list)
 
   call DeallocateArray(gas%active_names)
   call DeallocateArray(gas%passive_names)
@@ -394,6 +394,6 @@ subroutine ReactionGasDestroyGas(gas)
   deallocate(gas)
   nullify(gas)
 
-end subroutine ReactionGasDestroyGas
+end subroutine ReactionGasDestroyAux
 
 end module Reaction_Gas_Aux_module

@@ -320,7 +320,7 @@ module Reaction_Aux_module
     module procedure ReactionAuxGetSecSpecIDFromName2
   end interface
 
-  public :: ReactionAuxCreateObject, &
+  public :: ReactionAuxCreateAux, &
             ReactionAuxCast, &
             ReactionAuxCreateAqSpeciesIndex, &
             ReactionAuxGetPriSpeciesCount, &
@@ -351,13 +351,13 @@ module Reaction_Aux_module
             ReactionAuxCreateIonExchCation, &
             ReactionAuxInputRecord, &
             ReactionAuxNetworkToStoich, &
-            ReactionAuxDestroyObject
+            ReactionAuxDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionAuxCreateObject()
+function ReactionAuxCreateAux()
   !
   ! Allocate and initialize reaction object
   !
@@ -366,7 +366,7 @@ function ReactionAuxCreateObject()
   !
   implicit none
 
-  class(reaction_rt_type), pointer :: ReactionAuxCreateObject
+  class(reaction_rt_type), pointer :: ReactionAuxCreateAux
 
   class(reaction_rt_type), pointer :: reaction
 
@@ -432,12 +432,12 @@ function ReactionAuxCreateObject()
   nullify(reaction%gas_diffusion_coefficients)
 
   ! new reaction objects
-  reaction%surface_complexation => ReactionSrfCplxCreateObject()
-  reaction%mineral => ReactionMnrlCreateMineralObject()
-  reaction%microbial => ReactionMicrobCreateObject()
-  reaction%immobile => ReactionImCreate()
-  reaction%gas => ReactionGasCreateGasObject()
-  reaction%isotherm => ReactionIsothermCreateObject()
+  reaction%surface_complexation => ReactionSrfCplxCreateAux()
+  reaction%mineral => ReactionMnrlCreateAux()
+  reaction%microbial => ReactionMicrobCreateAux()
+  reaction%immobile => ReactionImCreateAux()
+  reaction%gas => ReactionGasCreateAux()
+  reaction%isotherm => ReactionIsothermCreateAux()
 #ifdef SOLID_SOLUTION
   nullify(reaction%solid_solution_list)
 #endif
@@ -540,9 +540,9 @@ function ReactionAuxCreateObject()
   reaction%nauxiliary = 0
   reaction%mc_flag = 0
 
-  ReactionAuxCreateObject => reaction
+  ReactionAuxCreateAux => reaction
 
-end function ReactionAuxCreateObject
+end function ReactionAuxCreateAux
 
 ! ************************************************************************** !
 
@@ -1862,7 +1862,7 @@ end subroutine ReactionAuxDestroyGuesConstraint
 
 ! ************************************************************************** !
 
-subroutine ReactionAuxDestroyObject(reaction,option)
+subroutine ReactionAuxDestroyAux(reaction,option)
   !
   ! Deallocates a reaction object
   !
@@ -1941,14 +1941,14 @@ subroutine ReactionAuxDestroyObject(reaction,option)
   enddo
   nullify(reaction%dynamic_kd_rxn_list)
 
-  call ReactionSrfCplxDestroyObject(reaction%surface_complexation)
-  call ReactionMnrlDestoyMineral(reaction%mineral)
-  call ReactionMicrobDestrMicrobObject(reaction%microbial)
-  call ReactionImDestroy(reaction%immobile)
-  call ReactionGasDestroyGas(reaction%gas)
-  call ReactionIsothermDestroyObject(reaction%isotherm,option)
+  call ReactionSrfCplxDestroyAux(reaction%surface_complexation)
+  call ReactionMnrlDestroyAux(reaction%mineral)
+  call ReactionMicrobDestrMicrobAux(reaction%microbial)
+  call ReactionImDestroyAux(reaction%immobile)
+  call ReactionGasDestroyAux(reaction%gas)
+  call ReactionIsothermDestroyAux(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION
-  call ReactionSolidSolnDestroyObject(reaction%solid_solution_list)
+  call ReactionSolidSolnDestroyAux(reaction%solid_solution_list)
 #endif
 
   if (associated(reaction%dbase_temperatures)) &
@@ -2026,6 +2026,6 @@ subroutine ReactionAuxDestroyObject(reaction,option)
   deallocate(reaction)
   nullify(reaction)
 
-end subroutine ReactionAuxDestroyObject
+end subroutine ReactionAuxDestroyAux
 
 end module Reaction_Aux_module

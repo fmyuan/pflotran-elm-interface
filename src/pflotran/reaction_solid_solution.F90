@@ -53,7 +53,7 @@ subroutine ReactionSolidSolnReadSolidSoln(solid_solution_list,input, &
     if (InputCheckExit(input,option)) exit
 
     ! name of solid solution
-    solid_solution => ReactionSolidSolnCreateObject()
+    solid_solution => ReactionSolidSolnCreateAux()
     if (associated(prev_solid_solution)) then
       prev_solid_solution%next => solid_solution
       prev_solid_solution => solid_solution
@@ -111,7 +111,7 @@ subroutine ReactionSolidSolnReadSolidSoln(solid_solution_list,input, &
         call InputErrorMsg(input,option,'keyword', &
                            'CHEMISTRY,SOLID_SOLUTIONS,DATABASE FILENAME')
       case default
-        solid_solution => ReactionSolidSolnCreateObject()
+        solid_solution => ReactionSolidSolnCreateAux()
         call InputReadWord(input,option,solid_solution%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','CHEMISTRY,SOLID_SOLUTIONS')
         if (.not.associated(solid_solution_rxn%list)) then

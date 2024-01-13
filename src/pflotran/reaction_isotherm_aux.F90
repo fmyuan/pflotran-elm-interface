@@ -41,23 +41,23 @@ module Reaction_Isotherm_Aux_module
     PetscInt :: neqkdrxn
   end type isotherm_type
 
-  public :: ReactionIsothermCreateObject, &
+  public :: ReactionIsothermCreateAux, &
             ReactionIsothermCreateLink, &
             ReactionIsothermCreateRxn, &
-            ReactionIsothermDestroyObject
+            ReactionIsothermDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionIsothermCreateObject()
+function ReactionIsothermCreateAux()
   !
   ! Allocate and initialize isotherm reaction object
   !
 
   implicit none
 
-  type(isotherm_type), pointer :: ReactionIsothermCreateObject
+  type(isotherm_type), pointer :: ReactionIsothermCreateAux
 
   type(isotherm_type), pointer :: isotherm
 
@@ -74,9 +74,9 @@ function ReactionIsothermCreateObject()
   isotherm%ikd_units = UNINITIALIZED_INTEGER
   isotherm%neqkdrxn = 0
 
-  ReactionIsothermCreateObject => isotherm
+  ReactionIsothermCreateAux => isotherm
 
-end function ReactionIsothermCreateObject
+end function ReactionIsothermCreateAux
 
 ! ************************************************************************** !
 
@@ -168,7 +168,7 @@ end subroutine IsothermRxnDestroy
 
 ! ************************************************************************** !
 
-subroutine ReactionIsothermDestroyObject(isotherm,option)
+subroutine ReactionIsothermDestroyAux(isotherm,option)
   !
   ! Deallocates an isotherm object
   !
@@ -215,6 +215,6 @@ subroutine ReactionIsothermDestroyObject(isotherm,option)
   deallocate(isotherm)
   nullify(isotherm)
 
-end subroutine ReactionIsothermDestroyObject
+end subroutine ReactionIsothermDestroyAux
 
 end module Reaction_Isotherm_Aux_module

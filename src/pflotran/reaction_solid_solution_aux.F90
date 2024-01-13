@@ -39,8 +39,8 @@ module Reaction_Solid_Soln_Aux_module
   end type solid_solution_rxn_type
 #endif
 
-  public :: ReactionSolidSolnCreateObject, &
-            ReactionSolidSolnDestroyObject
+  public :: ReactionSolidSolnCreateAux, &
+            ReactionSolidSolnDestroyAux
 
 contains
 
@@ -48,7 +48,7 @@ contains
 
 ! ************************************************************************** !
 
-function SolidSolutionReactionAuxCreateObject()
+function ReactionSolidSolnCreateRxn()
   !
   ! Allocate and initialize solid solution reaction
   ! object
@@ -59,7 +59,7 @@ function SolidSolutionReactionAuxCreateObject()
 
   implicit none
 
-  type(solid_solution_rxn_type), pointer :: SolidSolutionReactionAuxCreateObject
+  type(solid_solution_rxn_type), pointer :: ReactionSolidSolnCreateRxn
 
   type(solid_solution_rxn_type), pointer :: solid_solution_rxn
 
@@ -72,14 +72,14 @@ function SolidSolutionReactionAuxCreateObject()
 
   solid_solution_rxn%mineral => ReactionMnrleactionCreate()
 
-  SolidSolutionReactionAuxCreateObject => solid_solution_rxn
+  ReactionSolidSolnCreateRxn => solid_solution_rxn
 
-end function SolidSolutionReactionAuxCreateObject
+end function ReactionSolidSolnCreateRxn
 #endif
 
 ! ************************************************************************** !
 
-function ReactionSolidSolnCreateObject()
+function ReactionSolidSolnCreateAux()
   !
   ! Allocate and initialize solid solution object
   !
@@ -89,7 +89,7 @@ function ReactionSolidSolnCreateObject()
 
   implicit none
 
-  type(solid_solution_type), pointer :: ReactionSolidSolnCreateObject
+  type(solid_solution_type), pointer :: ReactionSolidSolnCreateAux
 
   type(solid_solution_type), pointer :: solid_solution
 
@@ -105,9 +105,9 @@ function ReactionSolidSolnCreateObject()
   nullify(solid_solution%stoich_solid_ids)
   nullify(solid_solution%next)
 
-  ReactionSolidSolnCreateObject => solid_solution
+  ReactionSolidSolnCreateAux => solid_solution
 
-end function ReactionSolidSolnCreateObject
+end function ReactionSolidSolnCreateAux
 
 #if 0
 
@@ -163,9 +163,9 @@ subroutine StoichiometricSolidDestroy(stoich_solid)
     if (.not.associated(cur_mineral)) exit
     prev_mineral => cur_mineral
     cur_mineral => cur_mineral%next
-    call ReactionMnrlDestoyMineral(prev_mineral)
+    call ReactionMnrlDestroyAux(prev_mineral)
   enddo
-  call ReactionMnrlDestoyMineral(stoich_solid%mineral)
+  call ReactionMnrlDestroyAux(stoich_solid%mineral)
 
   deallocate(stoich_solid)
   nullify(stoich_solid)
@@ -175,7 +175,7 @@ end subroutine StoichiometricSolidDestroy
 
 ! ************************************************************************** !
 
-recursive subroutine ReactionSolidSolnDestroyObject(solid_solution)
+recursive subroutine ReactionSolidSolnDestroyAux(solid_solution)
   !
   ! Deallocates solid solution object
   !
@@ -195,7 +195,7 @@ recursive subroutine ReactionSolidSolnDestroyObject(solid_solution)
   if (.not.associated(solid_solution)) return
 
   ! recursive
-  call ReactionSolidSolnDestroyObject(solid_solution%next)
+  call ReactionSolidSolnDestroyAux(solid_solution%next)
 
 #if 0
   ! I don't want to destroy recursively here as the memory use may
@@ -216,13 +216,13 @@ recursive subroutine ReactionSolidSolnDestroyObject(solid_solution)
   deallocate(solid_solution)
   nullify(solid_solution)
 
-end subroutine ReactionSolidSolnDestroyObject
+end subroutine ReactionSolidSolnDestroyAux
 
 #if 0
 
 ! ************************************************************************** !
 
-subroutine SolidSolutionReactionDestroy(solid_solution)
+subroutine ReactionSolidSolnDestroyRxn(solid_solution)
   !
   ! Deallocates a solid solution object
   !
@@ -235,12 +235,12 @@ subroutine SolidSolutionReactionDestroy(solid_solution)
   type(solid_solution_rxn_type), pointer :: solid_solution
 
   ! recursive
-  call ReactionSolidSolnDestroyObject(solid_solution%list)
+  call ReactionSolidSolnDestroyAux(solid_solution%list)
 
   deallocate(solid_solution)
   nullify(solid_solution)
 
-end subroutine SolidSolutionReactionDestroy
+end subroutine ReactionSolidSolnDestroyRxn
 #endif
 
 end module Reaction_Solid_Soln_Aux_module

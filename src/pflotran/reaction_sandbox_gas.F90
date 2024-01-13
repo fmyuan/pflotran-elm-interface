@@ -38,13 +38,13 @@ module Reaction_Sandbox_Gas_class
     procedure, public :: Destroy => GasDestroy
   end type reaction_sandbox_gas_type
 
-  public :: ReactionGasCreateGasObject
+  public :: ReactionGasCreateAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionGasCreateGasObject()
+function ReactionGasCreateAux()
   !
   ! Allocates gas reaction object.
   !
@@ -54,26 +54,26 @@ function ReactionGasCreateGasObject()
 
   implicit none
 
-  class(reaction_sandbox_gas_type), pointer :: ReactionGasCreateGasObject
+  class(reaction_sandbox_gas_type), pointer :: ReactionGasCreateAux
   PetscInt, parameter :: ns = 0
 
-  allocate(ReactionGasCreateGasObject)
-  ReactionGasCreateGasObject%nspecies = ns
-  allocate(ReactionGasCreateGasObject%aq_vec(ns))
-  allocate(ReactionGasCreateGasObject%im_vec(ns))
-  allocate(ReactionGasCreateGasObject%gas_vec(ns))
-  ReactionGasCreateGasObject%aq_vec = -999
-  ReactionGasCreateGasObject%im_vec = -999
-  ReactionGasCreateGasObject%gas_vec = -999
-  allocate(ReactionGasCreateGasObject%k(ns))
-  allocate(ReactionGasCreateGasObject%Keq(ns))
-  ReactionGasCreateGasObject%k = 0.0d0
-  ReactionGasCreateGasObject%Keq = 0.0d0
-  ReactionGasCreateGasObject%material_id_skip = 0
-  allocate(ReactionGasCreateGasObject%name_vec(ns))
-  nullify(ReactionGasCreateGasObject%next)
+  allocate(ReactionGasCreateAux)
+  ReactionGasCreateAux%nspecies = ns
+  allocate(ReactionGasCreateAux%aq_vec(ns))
+  allocate(ReactionGasCreateAux%im_vec(ns))
+  allocate(ReactionGasCreateAux%gas_vec(ns))
+  ReactionGasCreateAux%aq_vec = -999
+  ReactionGasCreateAux%im_vec = -999
+  ReactionGasCreateAux%gas_vec = -999
+  allocate(ReactionGasCreateAux%k(ns))
+  allocate(ReactionGasCreateAux%Keq(ns))
+  ReactionGasCreateAux%k = 0.0d0
+  ReactionGasCreateAux%Keq = 0.0d0
+  ReactionGasCreateAux%material_id_skip = 0
+  allocate(ReactionGasCreateAux%name_vec(ns))
+  nullify(ReactionGasCreateAux%next)
 
-end function ReactionGasCreateGasObject
+end function ReactionGasCreateAux
 
 ! ************************************************************************** !
 

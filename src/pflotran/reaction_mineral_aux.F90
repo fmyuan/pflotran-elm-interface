@@ -142,7 +142,7 @@ module Reaction_Mineral_Aux_module
     module procedure ReactionMnrlGetMnrlIDFromName2
   end interface
 
-  public :: ReactionMnrlCreateMineralObject, &
+  public :: ReactionMnrlCreateAux, &
             ReactionMnrlGetMineralCount, &
             ReactionMnrlGetMineralNames, &
             ReactionMnrlGetMnrlIDFromName, &
@@ -156,13 +156,13 @@ module Reaction_Mineral_Aux_module
             ReactionMnrlDestroyMineralRxn, &
             ReactionMnrlCreateMnrlConstraint, &
             ReactionMnrlDestMnrlConstraint, &
-            ReactionMnrlDestoyMineral
+            ReactionMnrlDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionMnrlCreateMineralObject()
+function ReactionMnrlCreateAux()
   !
   ! Allocate and initialize mineral reaction object
   !
@@ -171,7 +171,7 @@ function ReactionMnrlCreateMineralObject()
   !
   implicit none
 
-  type(mineral_type), pointer :: ReactionMnrlCreateMineralObject
+  type(mineral_type), pointer :: ReactionMnrlCreateAux
 
   type(mineral_type), pointer :: mineral
 
@@ -234,9 +234,9 @@ function ReactionMnrlCreateMineralObject()
   nullify(mineral%kinmnrl_surf_area_epsilon)
   nullify(mineral%kinmnrl_vol_frac_epsilon)
 
-  ReactionMnrlCreateMineralObject => mineral
+  ReactionMnrlCreateAux => mineral
 
-end function ReactionMnrlCreateMineralObject
+end function ReactionMnrlCreateAux
 
 ! ************************************************************************** !
 
@@ -615,7 +615,7 @@ end function ReactionMnrlGetKinMnrlIDFromName
 
 subroutine ReactionMnrlDestroyMineralRxn(mineral)
   !
-  ! ReactionMnrlDestoyMineral: Deallocates a mineral rxn object
+  ! ReactionMnrlDestroyAux: Deallocates a mineral rxn object
   !
   ! Author: Glenn Hammond
   ! Date: 05/29/08
@@ -742,7 +742,7 @@ end subroutine ReactionMnrlDestMnrlConstraint
 
 ! ************************************************************************** !
 
-subroutine ReactionMnrlDestoyMineral(mineral)
+subroutine ReactionMnrlDestroyAux(mineral)
   !
   ! Deallocates a mineral object
   !
@@ -818,6 +818,6 @@ subroutine ReactionMnrlDestoyMineral(mineral)
   deallocate(mineral)
   nullify(mineral)
 
-end subroutine ReactionMnrlDestoyMineral
+end subroutine ReactionMnrlDestroyAux
 
 end module Reaction_Mineral_Aux_module
