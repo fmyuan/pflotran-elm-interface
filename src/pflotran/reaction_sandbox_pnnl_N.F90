@@ -219,35 +219,35 @@ subroutine PNNL_NSetup(this,reaction,option)
 
   word = 'O2(aq)'
   this%o2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'NO3-'
   this%no3_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'NO2-'
   this%no2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'NO'
   this%no_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'N2O'
   this%n2o_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'N2'
   this%n2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'H+'
   this%h_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'CH2O'
   this%oc_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'C5H7O2N'
   this%biomass_id = &
     ReactionImGetSpeciesIDFromName(word,reaction%immobile,option) + &
     reaction%offset_immobile
   word = 'CO2(aq)'
   this%co2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
 
   this%stoich_1_no3 = -1.d0*(1.d0/28.d0 + 13.d0/28.d0*F_E_NO3_NO2)
   this%stoich_1_h = -1.d0*(1.d0 - F_E_NO3_NO2)/28.d0

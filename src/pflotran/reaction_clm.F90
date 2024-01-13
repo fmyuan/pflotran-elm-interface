@@ -812,7 +812,7 @@ subroutine CLMDec_Setup(this,reaction,option)
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount) <= 0) then
         species_id_pool_c(icount) = &
-          ReactionGetPriSpeciesIDFromName(cur_pool%name,reaction, &
+          ReactionAuxGetPriSpecIDFromName(cur_pool%name,reaction, &
                                           PETSC_FALSE,option)
         if (species_id_pool_c(icount) <= 0) then
           option%io_buffer = 'CLMDec pool: ' // cur_pool%name // 'is not ' // &
@@ -939,12 +939,12 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'HCO3-'
   this%species_id_co2 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_co2 < 0) then
      word = 'CO2(aq)'
      this%species_id_co2 = &
-       ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+       ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%species_id_co2 <= 0) then
@@ -955,12 +955,12 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'NH4+'
   this%species_id_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_nh4 < 0) then
     word = 'NH3(aq)'
     this%species_id_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%species_id_nh4 < 0) then
@@ -980,7 +980,7 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'NO3-'
   this%species_id_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_no3 < 0) then
     word = 'Nitrate'
@@ -993,11 +993,11 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'N2O(aq)'
   this%species_id_n2o = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'H+'
   this%species_id_proton = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'Bacteria'
   this%species_id_bacteria = &
@@ -3220,12 +3220,12 @@ subroutine PlantNSetup(this,reaction,option)
 
   word = 'NH4+'
   this%ispec_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_nh4 < 0) then
     word = 'NH3(aq)'
     this%ispec_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
@@ -3245,7 +3245,7 @@ subroutine PlantNSetup(this,reaction,option)
 
   word = 'NO3-'
   this%ispec_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
@@ -3818,16 +3818,16 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'H+'
   this%ispec_proton = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'NH3(aq)'
   this%ispec_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_nh4 < 0) then
     word = 'NH4+'
     this%ispec_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
@@ -3841,7 +3841,7 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'NO3-'
   this%ispec_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
@@ -3854,11 +3854,11 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'N2O(aq)'
   this%ispec_n2o = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   if (this%ispec_n2o < 0) then
     word = 'NO2-'
     this%ispec_n2o = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
@@ -4503,7 +4503,7 @@ subroutine DeniSetup(this,reaction,option)
 
   word = 'NO3-'
   this%ispec_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
@@ -4522,7 +4522,7 @@ subroutine DeniSetup(this,reaction,option)
 
   word = 'N2(aq)'
   this%ispec_n2 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_n2 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
@@ -5074,13 +5074,13 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   is_nh4_aqueous = PETSC_TRUE
   word = 'NH4+'
-  ispec_nh4 = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  ispec_nh4 = ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   ires_nh4 = -999
   if (ispec_nh4 < 0) then
     word = 'NH3(aq)'
     ispec_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (ispec_nh4 > 0) ires_nh4 = ispec_nh4
@@ -5102,7 +5102,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif
 
   word = 'NO3-'
-  ispec_no3 = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  ispec_no3 = ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   ires_no3 = -999
   if (ispec_no3 > 0) ires_no3 = ispec_no3

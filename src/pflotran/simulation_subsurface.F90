@@ -353,7 +353,7 @@ subroutine SimSubsurfInputRecord(this)
        this%realization%patch%characteristic_curves_thermal)
 
   ! print chemistry and reactive transport information
-  call ReactionInputRecord(this%realization%reaction)
+  call ReactionAuxInputRecord(this%realization%reaction)
 
   ! print coupler information (ICs, BCs, SSs)
   call PatchCouplerInputRecord(this%realization%patch)

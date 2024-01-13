@@ -353,26 +353,26 @@ subroutine CyberSetup(this,reaction,option)
 
   word = 'NH4+'
   this%nh4_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'O2(aq)'
   this%o2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'NO3-'
   this%no3_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'NO2-'
   this%no2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'N2(aq)'
   this%n2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'CH2O(aq)'
   this%doc_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   if (this%mobile_biomass) then
     word = 'C5H7O2N(aq)'
     this%biomass_id = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   else
     word = 'C5H7O2N(im)'
     this%biomass_id = &
@@ -381,7 +381,7 @@ subroutine CyberSetup(this,reaction,option)
   endif
   word = 'CO2(aq)'
   this%co2_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   if (len_trim(this%carbon_consumption_species) > 0) then
     word = this%carbon_consumption_species
     this%carbon_consumption_species_id = &

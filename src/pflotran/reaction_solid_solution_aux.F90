@@ -48,7 +48,7 @@ contains
 
 ! ************************************************************************** !
 
-function SolidSolutionReactionCreate()
+function SolidSolutionReactionAuxCreateObject()
   !
   ! Allocate and initialize solid solution reaction
   ! object
@@ -59,7 +59,7 @@ function SolidSolutionReactionCreate()
 
   implicit none
 
-  type(solid_solution_rxn_type), pointer :: SolidSolutionReactionCreate
+  type(solid_solution_rxn_type), pointer :: SolidSolutionReactionAuxCreateObject
 
   type(solid_solution_rxn_type), pointer :: solid_solution_rxn
 
@@ -72,9 +72,9 @@ function SolidSolutionReactionCreate()
 
   solid_solution_rxn%mineral => ReactionMnrleactionCreate()
 
-  SolidSolutionReactionCreate => solid_solution_rxn
+  SolidSolutionReactionAuxCreateObject => solid_solution_rxn
 
-end function SolidSolutionReactionCreate
+end function SolidSolutionReactionAuxCreateObject
 #endif
 
 ! ************************************************************************** !

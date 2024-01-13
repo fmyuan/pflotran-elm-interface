@@ -65,16 +65,16 @@ subroutine BioHillSetup(this,reaction,option)
   ! Aqueous species
   word = 'Aaq'
   this%species_Aaq_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Baq'
   this%species_Baq_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Caq'
   this%species_Caq_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Daq'
   this%species_Daq_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
 
   ! Immobile species
   word = 'Xim'

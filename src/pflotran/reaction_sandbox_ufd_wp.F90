@@ -157,7 +157,7 @@ subroutine WastePackageSetup(this,reaction,option)
   type(option_type) :: option
 
   this%aqueous_species_id = &
-    ReactionGetPriSpeciesIDFromName(this%aqueous_species_name, &
+    ReactionAuxGetPriSpecIDFromName(this%aqueous_species_name, &
                                 reaction,option)
   this%immobile_species_id = &
     ReactionImGetSpeciesIDFromName(this%immobile_species_name, &

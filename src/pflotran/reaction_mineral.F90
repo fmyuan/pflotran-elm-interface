@@ -1349,31 +1349,27 @@ subroutine ReactionMnrlUpdateTempDepCoefs(temp,pres,mineral, &
 
   if (.not.use_geothermal_hpt) then
     if (associated(mineral%kinmnrl_logKcoef)) then
-      call ReactionInterpolateLogK(mineral%kinmnrl_logKcoef, &
-                                   mineral%kinmnrl_logK, &
-                                   temp, &
-                                   mineral%nkinmnrl)
+      call ReactionAuxInterpolateLogK(mineral%kinmnrl_logKcoef, &
+                                      mineral%kinmnrl_logK, &
+                                      temp, &
+                                      mineral%nkinmnrl)
     endif
     if (update_mnrl .and. associated(mineral%mnrl_logKcoef)) then
-      call ReactionInterpolateLogK(mineral%mnrl_logKcoef, &
-                                   mineral%mnrl_logK, &
-                                   temp, &
-                                   mineral%nmnrl)
+      call ReactionAuxInterpolateLogK(mineral%mnrl_logKcoef, &
+                                      mineral%mnrl_logK, &
+                                      temp, &
+                                      mineral%nmnrl)
     endif
   else
     if (associated(mineral%kinmnrl_logKcoef)) then
-      call ReactionInterpolateLogK_hpt(mineral%kinmnrl_logKcoef, &
-                                       mineral%kinmnrl_logK, &
-                                       temp, &
-                                       pres, &
-                                       mineral%nkinmnrl)
+      call ReactionAuxInterpolateLogK_hpt(mineral%kinmnrl_logKcoef, &
+                                          mineral%kinmnrl_logK, &
+                                          temp,pres,mineral%nkinmnrl)
     endif
     if (update_mnrl .and. associated(mineral%mnrl_logKcoef)) then
-      call ReactionInterpolateLogK_hpt(mineral%mnrl_logKcoef, &
-                                       mineral%mnrl_logK, &
-                                       temp, &
-                                       pres, &
-                                       mineral%nmnrl)
+      call ReactionAuxInterpolateLogK_hpt(mineral%mnrl_logKcoef, &
+                                          mineral%mnrl_logK, &
+                                          temp,pres,mineral%nmnrl)
     endif
   endif
 

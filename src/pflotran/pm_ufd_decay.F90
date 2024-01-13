@@ -1155,7 +1155,7 @@ subroutine PMUFDDecayInit(this)
     this%isotope_name(isotope%iisotope) = isotope%name
     if (associated(reaction)) then
       this%isotope_to_primary_species(isotope%iisotope) = &
-        ReactionGetPriSpeciesIDFromName(isotope%name,reaction,option)
+        ReactionAuxGetPriSpecIDFromName(isotope%name,reaction,option)
     elseif (associated(reaction_nw)) then
       this%isotope_to_primary_species(isotope%iisotope) = &
         NWTGetSpeciesIDFromName(isotope%name,reaction_nw,option)

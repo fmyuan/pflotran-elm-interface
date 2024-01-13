@@ -2350,7 +2350,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       select case(option%itranmode)
         case(RT_MODE)
           rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
-          reaction => ReactionCast(realization_base%reaction_base)
+          reaction => ReactionAuxCast(realization_base%reaction_base)
       end select
     endif
     if (option%iflowmode == TH_MODE &
@@ -2411,7 +2411,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       if (icell > 1) then
         string = '"dist [m]"'
         write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
-      endif   
+      endif
       call WriteTecplotHeaderForCoordSec(OUTPUT_UNIT,realization_base, &
                                          observation%region, &
                                          observation% &
@@ -2422,7 +2422,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
         if (icell > 1) then
           string = '"dist [m]"'
           write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
-        endif    
+        endif
         call WriteTecplotHeaderForCellSec(OUTPUT_UNIT,realization_base, &
                                           observation%region,icell, &
                                           observation% &
@@ -2440,7 +2440,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
     write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
     write(OUTPUT_UNIT,1009)
 
-   
+
     do sec_id = 1,option%nsec_cells
       do icell = 1,observation%region%num_cells
         local_id = observation%region%cell_ids(icell)
@@ -2450,14 +2450,14 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
         elseif (associated(patch%aux%SC_RT)) then
           dist => rt_sec_tranport_vars(ghosted_id)%sec_continuum%distance
         endif
-      
+
         if (size(dist) < sec_id) then
           write(OUTPUT_UNIT,1000,advance='no') &
               -999.d0
-        else        
+        else
           write(OUTPUT_UNIT,1000,advance='no') dist(sec_id)
         endif
-       
+
         if (observation%print_secondary_data(1)) then
           write(OUTPUT_UNIT,1000,advance='no') &
           RealizGetVariableValueAtCell(realization_base,ghosted_id, &
@@ -2676,7 +2676,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   if (option%ntrandof > 0) then
     select case(option%itranmode)
       case(RT_MODE)
-        reaction => ReactionCast(realization_base%reaction_base)
+        reaction => ReactionAuxCast(realization_base%reaction_base)
         if (print_secondary_data(2)) then
           do j = 1, reaction%naqcomp
             string = 'Free ion ' // trim(reaction%primary_species_names(j))

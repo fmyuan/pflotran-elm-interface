@@ -992,10 +992,12 @@ subroutine PMUFDBSupportedRadCheckRT(this)
   option => this%option
 
   if (associated(this%realization%reaction)) then
-    allocate(pri_names(ReactionGetPriSpeciesCount(this%realization%reaction)))
-    pri_names => ReactionGetPriSpeciesNames(this%realization%reaction)
-    allocate(sec_names(ReactionGetSecSpeciesCount(this%realization%reaction)))
-    sec_names => ReactionGetSecSpeciesNames(this%realization%reaction)
+    allocate(pri_names(ReactionAuxGetPriSpeciesCount( &
+                         this%realization%reaction)))
+    pri_names => ReactionAuxGetPriSpeciesNames(this%realization%reaction)
+    allocate(sec_names(ReactionAuxGetSecSpeciesCount( &
+                         this%realization%reaction)))
+    sec_names => ReactionAuxGetSecSpeciesNames(this%realization%reaction)
   else
     option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
                        &transport.'
@@ -1011,7 +1013,7 @@ subroutine PMUFDBSupportedRadCheckRT(this)
       if (adjustl(trim(rad_name)) == adjustl(trim(pri_names(i)))) then
         found = PETSC_TRUE
         cur_supp_rad%species_id = &
-          ReactionGetPriSpeciesIDFromName(rad_name,this%realization%reaction, &
+          ReactionAuxGetPriSpecIDFromName(rad_name,this%realization%reaction, &
                                           option)
       endif
       if (found) exit
@@ -1021,8 +1023,8 @@ subroutine PMUFDBSupportedRadCheckRT(this)
         if (adjustl(trim(rad_name)) == adjustl(trim(sec_names(i)))) then
           found = PETSC_TRUE
           cur_supp_rad%species_id = &
-            ReactionGetSecSpeciesIDFromName(rad_name, &
-                                            this%realization%reaction,option)
+             ReactionAuxGetSecSpecIDFromName(rad_name, &
+                                             this%realization%reaction,option)
         endif
         if (found) exit
       enddo

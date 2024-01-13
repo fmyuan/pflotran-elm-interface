@@ -54,8 +54,6 @@ module Reaction_module
             ReactionProcessConstraint, &
             ReactionEquilibrateConstraint, &
             ReactionPrintConstraint, &
-            ReactionFitLogKCoef, &
-            ReactionInitializeLogK, &
             ReactionComputeKd, &
             RAccumulationSorb, &
             RAccumulationSorbDerivative, &
@@ -68,8 +66,6 @@ module Reaction_module
             RTAccumulationDerivative, &
             RTPrintAuxVar, &
             RTSetPlotVariables, &
-            ReactionInterpolateLogK_hpt, &
-            ReactionInitializeLogK_hpt, &
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
             RTotalSorb, &
@@ -98,16 +94,16 @@ subroutine ReactionInit(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  reaction => ReactionCreate()
+  reaction => ReactionAuxCreateObject()
 
   ! must be called prior to the first pass
   call RSandboxInit(option)
   call RCLMRxnInit(option)
 
   call ReactionReadPass1(reaction,input,option)
-  reaction%primary_species_names => ReactionGetPriSpeciesNames(reaction)
-  option%ntrandof = ReactionGetPriSpeciesCount(reaction)
-  option%ntrandof = option%ntrandof + ReactionGetImmobileCount(reaction)
+  reaction%primary_species_names => ReactionAuxGetPriSpeciesNames(reaction)
+  option%ntrandof = ReactionAuxGetPriSpeciesCount(reaction)
+  option%ntrandof = option%ntrandof + ReactionAuxGetImmobileCount(reaction)
   reaction%ncomp = option%ntrandof
   if (ReactionGasGetGasCount(reaction%gas,ACTIVE_GAS) > 0) then
     option%transport%nphase = 2
@@ -199,7 +195,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
           reaction%naqcomp = reaction%naqcomp + 1
 
-          species => AqueousSpeciesCreate()
+          species => ReactionAuxCreateAqSpecies()
           call InputReadCard(input,option,species%name)
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,&
                              &PRIMARY_SPECIES')
@@ -223,7 +219,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
           reaction%neqcplx = reaction%neqcplx + 1
 
-          species => AqueousSpeciesCreate()
+          species => ReactionAuxCreateAqSpecies()
           call InputReadCard(input,option,species%name)
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,&
                              &SECONDARY_SPECIES')
@@ -296,7 +292,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('RADIOACTIVE_DECAY_REACTION')
         error_string = 'CHEMISTRY,RADIOACTIVE_DECAY_REACTION'
         reaction%nradiodecay_rxn = reaction%nradiodecay_rxn + 1
-        radioactive_decay_rxn => RadioactiveDecayRxnCreate()
+        radioactive_decay_rxn => ReactionAuxCreateRadioDecayRxn()
         radioactive_decay_rxn%rate_constant = UNINITIALIZED_DOUBLE
         call InputPushBlock(input,option)
         do
@@ -358,7 +354,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('GENERAL_REACTION')
         error_string = 'CHEMISTRY,GENERAL_REACTION'
         reaction%ngeneral_rxn = reaction%ngeneral_rxn + 1
-        general_rxn => GeneralRxnCreate()
+        general_rxn => ReactionAuxCreateGeneralRxn()
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -386,7 +382,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
 
-                species => AqueousSpeciesCreate()
+                species => ReactionAuxCreateAqSpecies()
                 call InputReadCard(input,option,species%name)
                 call InputErrorMsg(input,option,'FORWARD_SPECIES',error_string)
                 if (.not.associated(general_rxn%forward_species_list)) then
@@ -410,7 +406,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
 
-                species => AqueousSpeciesCreate()
+                species => ReactionAuxCreateAqSpecies()
                 call InputReadCard(input,option,species%name)
                 call InputErrorMsg(input,option,'BACKWARD_SPECIES',error_string)
                 if (.not.associated(general_rxn%backward_species_list)) then
@@ -547,7 +543,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
                 reaction%neqdynamickdrxn = reaction%neqdynamickdrxn + 1
 
-                dynamic_kd_rxn => DynamicKDRxnCreate()
+                dynamic_kd_rxn => ReactionAuxCreateDynamicKDRxn()
                 ! first string is species name
                 call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'kd species name',error_string)
@@ -624,7 +620,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               call ReactionSrfCplxReadSrfCplxRxn(reaction,input,option)
             case('ION_EXCHANGE_RXN')
               error_string = 'CHEMISTRY,ION_EXCHANGE_RXN'
-              ionx_rxn => IonExchangeRxnCreate()
+              ionx_rxn => ReactionAuxCreateIonExchangeRxn()
               call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
@@ -652,7 +648,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                       if (InputError(input)) exit
                       if (InputCheckExit(input,option)) exit
 
-                      cation => IonExchangeCationCreate()
+                      cation => ReactionAuxCreateIonExchCation()
                       reaction%neqionxcation = reaction%neqionxcation + 1
                       call InputReadCard(input,option,cation%name)
                       call InputErrorMsg(input,option,'keyword', &
@@ -5936,19 +5932,19 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
     temp = global_auxvar%temp
     pres = 0.d0
     if (associated(reaction%eqcplx_logKcoef)) then
-      call ReactionInterpolateLogK(reaction%eqcplx_logKcoef, &
+      call ReactionAuxInterpolateLogK(reaction%eqcplx_logKcoef, &
                                     reaction%eqcplx_logK, &
                                     temp, &
                                     reaction%neqcplx)
     endif
     if (associated(reaction%gas%acteqlogKcoef)) then
-      call ReactionInterpolateLogK(reaction%gas%acteqlogKcoef, &
+      call ReactionAuxInterpolateLogK(reaction%gas%acteqlogKcoef, &
                                     reaction%gas%acteqlogK, &
                                     temp, &
                                     reaction%gas%nactive_gas)
     endif
     if (associated(reaction%gas%paseqlogKcoef)) then
-      call ReactionInterpolateLogK(reaction%gas%paseqlogKcoef, &
+      call ReactionAuxInterpolateLogK(reaction%gas%paseqlogKcoef, &
                                     reaction%gas%paseqlogK, &
                                     temp, &
                                     reaction%gas%npassive_gas)
@@ -5958,7 +5954,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
                                         update_mnrl, &
                                         option)
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
-      call ReactionInterpolateLogK(reaction%surface_complexation% &
+      call ReactionAuxInterpolateLogK(reaction%surface_complexation% &
                                       srfcplx_logKcoef, &
                                 reaction%surface_complexation%srfcplx_logK, &
                                 temp, &
@@ -5968,30 +5964,23 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
     temp = global_auxvar%temp
     pres = global_auxvar%pres(iphase)
     if (associated(reaction%eqcplx_logKcoef)) then
-      call ReactionInterpolateLogK_hpt(reaction%eqcplx_logKcoef, &
-                                       reaction%eqcplx_logK, &
-                                       temp, &
-                                       pres, &
-                                       reaction%neqcplx)
+      call ReactionAuxInterpolateLogK_hpt(reaction%eqcplx_logKcoef, &
+                                          reaction%eqcplx_logK, &
+                                          temp,pres,reaction%neqcplx)
     endif
     if (associated(reaction%gas%acteqlogKcoef)) then
-      call ReactionInterpolateLogK_hpt(reaction%gas%acteqlogKcoef, &
-                                       reaction%gas%acteqlogK, &
-                                       temp, &
-                                       pres, &
-                                       reaction%gas%npassive_gas)
+      call ReactionAuxInterpolateLogK_hpt(reaction%gas%acteqlogKcoef, &
+                                          reaction%gas%acteqlogK, &
+                                          temp,pres,reaction%gas%npassive_gas)
     endif
     if (associated(reaction%gas%paseqlogKcoef)) then
-      call ReactionInterpolateLogK_hpt(reaction%gas%paseqlogKcoef, &
-                                       reaction%gas%paseqlogK, &
-                                       temp, &
-                                       pres, &
-                                       reaction%gas%npassive_gas)
+      call ReactionAuxInterpolateLogK_hpt(reaction%gas%paseqlogKcoef, &
+                                          reaction%gas%paseqlogK, &
+                                          temp,pres,reaction%gas%npassive_gas)
     endif
     call ReactionMnrlUpdateTempDepCoefs(temp,pres,reaction%mineral, &
                                         reaction%use_geothermal_hpt, &
-                                        update_mnrl, &
-                                        option)
+                                        update_mnrl,option)
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
       option%io_buffer = 'Temperature dependent surface complexation &
         &coefficients not yet function for high pressure/temperature.'

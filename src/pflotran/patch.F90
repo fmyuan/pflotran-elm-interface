@@ -5421,7 +5421,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
-  reaction => ReactionCast(reaction_base)
+  reaction => ReactionAuxCast(reaction_base)
 
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = UNINITIALIZED_DOUBLE
@@ -7044,7 +7044,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
-  reaction => ReactionCast(reaction_base)
+  reaction => ReactionAuxCast(reaction_base)
 
   value = UNINITIALIZED_DOUBLE
 

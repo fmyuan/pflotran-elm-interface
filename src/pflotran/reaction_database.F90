@@ -1048,11 +1048,11 @@ subroutine ReactionDBInitBasis(reaction,option)
     endif
   endif
 
-  reaction%naqcomp = ReactionGetPriSpeciesCount(reaction)
-  reaction%neqcplx = ReactionGetSecSpeciesCount(reaction)
+  reaction%naqcomp = ReactionAuxGetPriSpeciesCount(reaction)
+  reaction%neqcplx = ReactionAuxGetSecSpeciesCount(reaction)
   reaction%gas%ngas = ReactionGasGetGasCount(reaction%gas, &
                                              ACTIVE_AND_PASSIVE_GAS)
-  reaction%nimcomp = ReactionGetImmobileCount(reaction)
+  reaction%nimcomp = ReactionAuxGetImmobileCount(reaction)
 
   reaction%offset_aqueous = 0
   reaction%offset_immobile = reaction%offset_aqueous + reaction%naqcomp
@@ -1676,7 +1676,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   ispec = -1 ! to catch bugs
 
   ! secondary aqueous complexes
-  reaction%neqcplx = ReactionGetSecSpeciesCount(reaction)
+  reaction%neqcplx = ReactionAuxGetSecSpeciesCount(reaction)
 
   if (reaction%neqcplx > 0) then
 
@@ -1776,20 +1776,22 @@ subroutine ReactionDBInitBasis(reaction,option)
                       cur_sec_aq_spec%dbaserxn%logK(itemp_low), &
                       reaction%eqcplx_logK(isec_spec))
         else
-          call ReactionFitLogKCoef(reaction%eqcplx_logKcoef(:,isec_spec), &
-                                   cur_sec_aq_spec%dbaserxn%logK, &
-                                   reaction%secondary_species_names(isec_spec), &
-                                   option,reaction)
-          call ReactionInitializeLogK(reaction%eqcplx_logKcoef(:,isec_spec), &
-                                      cur_sec_aq_spec%dbaserxn%logK, &
-                                      reaction%eqcplx_logK(isec_spec), &
-                                      option,reaction)
+          call ReactionAuxFitLogKCoef(reaction%eqcplx_logKcoef(:,isec_spec), &
+                                cur_sec_aq_spec%dbaserxn%logK, &
+                                reaction%secondary_species_names(isec_spec), &
+                                option,reaction)
+          call ReactionAuxInitializeLogK( &
+                                  reaction%eqcplx_logKcoef(:,isec_spec), &
+                                  cur_sec_aq_spec%dbaserxn%logK, &
+                                  reaction%eqcplx_logK(isec_spec), &
+                                  option,reaction)
         endif
       else
         reaction%eqcplx_logKcoef(:,isec_spec) = cur_sec_aq_spec%dbaserxn%logK
-        call ReactionInitializeLogK_hpt(reaction%eqcplx_logKcoef(:,isec_spec), &
-                                        reaction%eqcplx_logK(isec_spec), &
-                                        option,reaction)
+        call ReactionAuxInitializeLogK_hpt( &
+                                    reaction%eqcplx_logKcoef(:,isec_spec), &
+                                    reaction%eqcplx_logK(isec_spec), &
+                                    option,reaction)
 
       endif
 
@@ -2217,20 +2219,20 @@ subroutine ReactionDBInitBasis(reaction,option)
                            cur_mineral%dbaserxn%logK(itemp_low), &
                            mineral%mnrl_logK(imnrl))
         else
-          call ReactionFitLogKCoef(mineral%mnrl_logKcoef(:,imnrl), &
+          call ReactionAuxFitLogKCoef(mineral%mnrl_logKcoef(:,imnrl), &
                                    cur_mineral%dbaserxn%logK, &
                                    mineral%mineral_names(imnrl), &
                                    option,reaction)
-          call ReactionInitializeLogK(mineral%mnrl_logKcoef(:,imnrl), &
+          call ReactionAuxInitializeLogK(mineral%mnrl_logKcoef(:,imnrl), &
                                       cur_mineral%dbaserxn%logK, &
                                       mineral%mnrl_logK(imnrl), &
                                       option,reaction)
         endif
       else
         mineral%mnrl_logKcoef(:,imnrl) = cur_mineral%dbaserxn%logK
-        call ReactionInitializeLogK_hpt(mineral%mnrl_logKcoef(:,imnrl), &
-                                        mineral%mnrl_logK(imnrl), &
-                                        option,reaction)
+        call ReactionAuxInitializeLogK_hpt(mineral%mnrl_logKcoef(:,imnrl), &
+                                           mineral%mnrl_logK(imnrl), &
+                                           option,reaction)
       endif
 
       ! geh - for now, the user must specify they want each individual
@@ -2254,20 +2256,23 @@ subroutine ReactionDBInitBasis(reaction,option)
                              cur_mineral%dbaserxn%logK(itemp_low), &
                              mineral%kinmnrl_logK(ikinmnrl))
           else
-            call ReactionFitLogKCoef(mineral%kinmnrl_logKcoef(:,ikinmnrl), &
+            call ReactionAuxFitLogKCoef( &
+                                     mineral%kinmnrl_logKcoef(:,ikinmnrl), &
                                      cur_mineral%dbaserxn%logK, &
                                      mineral%kinmnrl_names(ikinmnrl), &
                                      option,reaction)
-            call ReactionInitializeLogK(mineral%kinmnrl_logKcoef(:,ikinmnrl), &
-                                        cur_mineral%dbaserxn%logK, &
-                                        mineral%kinmnrl_logK(ikinmnrl), &
-                                        option,reaction)
+            call ReactionAuxInitializeLogK( &
+                                    mineral%kinmnrl_logKcoef(:,ikinmnrl), &
+                                    cur_mineral%dbaserxn%logK, &
+                                    mineral%kinmnrl_logK(ikinmnrl), &
+                                    option,reaction)
           endif
         else
           mineral%kinmnrl_logKcoef(:,ikinmnrl) = cur_mineral%dbaserxn%logK
-          call ReactionInitializeLogK_hpt(mineral%kinmnrl_logKcoef(:,ikinmnrl), &
-                                          mineral%kinmnrl_logK(ikinmnrl), &
-                                          option,reaction)
+          call ReactionAuxInitializeLogK_hpt( &
+                                    mineral%kinmnrl_logKcoef(:,ikinmnrl), &
+                                    mineral%kinmnrl_logK(ikinmnrl), &
+                                    option,reaction)
         endif
 
         tstrxn => cur_mineral%tstrxn
@@ -2523,24 +2528,24 @@ subroutine ReactionDBInitBasis(reaction,option)
                             cur_srfcplx%dbaserxn%logK(itemp_low), &
                             surface_complexation%srfcplx_logK(isrfcplx))
         else
-          call ReactionFitLogKCoef( &
-                            surface_complexation%srfcplx_logKcoef(:,isrfcplx),&
-                            cur_srfcplx%dbaserxn%logK, &
-                            surface_complexation%srfcplx_names(isrfcplx), &
-                            option,reaction)
-          call ReactionInitializeLogK( &
-                            surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
-                            cur_srfcplx%dbaserxn%logK, &
-                            surface_complexation%srfcplx_logK(isrfcplx), &
-                            option,reaction)
+          call ReactionAuxFitLogKCoef( &
+                          surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
+                          cur_srfcplx%dbaserxn%logK, &
+                          surface_complexation%srfcplx_names(isrfcplx), &
+                          option,reaction)
+          call ReactionAuxInitializeLogK( &
+                          surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
+                          cur_srfcplx%dbaserxn%logK, &
+                          surface_complexation%srfcplx_logK(isrfcplx), &
+                          option,reaction)
         endif
       else
         surface_complexation%srfcplx_logKcoef(:,isrfcplx) = &
           cur_srfcplx%dbaserxn%logK
-        call ReactionInitializeLogK_hpt( &
-                           surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
-                           surface_complexation%srfcplx_logK(isrfcplx), &
-                           option,reaction)
+        call ReactionAuxInitializeLogK_hpt( &
+                          surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
+                          surface_complexation%srfcplx_logK(isrfcplx), &
+                          option,reaction)
       endif
 
       surface_complexation%srfcplx_Z(isrfcplx) = cur_srfcplx%Z
@@ -2711,10 +2716,10 @@ subroutine ReactionDBInitBasis(reaction,option)
                                cur_srfcplx%dbaserxn%logK(itemp_low), &
                                value)
               else
-                call ReactionInitializeLogK_hpt( &
-                           surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
-                           surface_complexation%srfcplx_logK(isrfcplx), &
-                           option,reaction)
+                call ReactionAuxInitializeLogK_hpt( &
+                          surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
+                          surface_complexation%srfcplx_logK(isrfcplx), &
+                          option,reaction)
               endif
               surface_complexation%kinsrfcplx_backward_rate(isrfcplx, &
                 surface_complexation%nkinsrfcplxrxn) = 10.d0**value * &
@@ -3258,7 +3263,7 @@ subroutine ReactionDBInitBasis(reaction,option)
       if (associated(cur_microbial_rxn%biomass)) then
         ! try aqueous
         temp_int = &
-          ReactionGetPriSpeciesIDFromName(cur_microbial_rxn% &
+          ReactionAuxGetPriSpecIDFromName(cur_microbial_rxn% &
                                             biomass%species_name, &
                                           reaction,PETSC_FALSE,option)
         ! temp_int will be UNINITIALIZED_INTEGER if not found
@@ -3329,7 +3334,7 @@ subroutine ReactionDBInitBasis(reaction,option)
         endif
 
         microbial%monod_specid(monod_count) = &
-          ReactionGetPriSpeciesIDFromName(cur_monod%species_name, &
+          ReactionAuxGetPriSpecIDFromName(cur_monod%species_name, &
                                           reaction,option)
         microbial%monod_K(monod_count) = cur_monod%half_saturation_constant
         microbial%monod_Cth(monod_count) = cur_monod%threshold_concentration
@@ -3359,7 +3364,7 @@ subroutine ReactionDBInitBasis(reaction,option)
         endif
 
         microbial%inhibition_specid(inhibition_count) = &
-          ReactionGetPriSpeciesIDFromName(cur_inhibition%species_name, &
+          ReactionAuxGetPriSpecIDFromName(cur_inhibition%species_name, &
                                           reaction,option)
         microbial%inhibition_type(inhibition_count) = &
           cur_inhibition%itype
@@ -3584,7 +3589,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   call ReactionDBPrint(reaction,'Final Basis',option)
 
   ! locate specific species
-  reaction%species_idx => SpeciesIndexCreate()
+  reaction%species_idx => ReactionAuxCreateAqSpeciesIndex()
   do ispec = 1, reaction%naqcomp
     if (reaction%species_idx%h_ion_id == 0) then
       word = 'H+'
@@ -4232,20 +4237,20 @@ subroutine ReactionDBSetupGases(reaction,num_logKs,option,h2o_id, &
                              cur_gas_spec%dbaserxn%logK(itemp_low), &
                              eqlogK(igas_spec))
           else
-            call ReactionFitLogKCoef(eqlogKcoef(:,igas_spec), &
-                                     cur_gas_spec%dbaserxn%logK, &
-                                     gas_names(igas_spec), &
-                                     option,reaction)
-            call ReactionInitializeLogK(eqlogKcoef(:,igas_spec), &
+            call ReactionAuxFitLogKCoef(eqlogKcoef(:,igas_spec), &
                                         cur_gas_spec%dbaserxn%logK, &
-                                        eqlogK(igas_spec), &
+                                        gas_names(igas_spec), &
                                         option,reaction)
+            call ReactionAuxInitializeLogK(eqlogKcoef(:,igas_spec), &
+                                           cur_gas_spec%dbaserxn%logK, &
+                                           eqlogK(igas_spec), &
+                                           option,reaction)
           endif
         else
           eqlogKcoef(:,igas_spec) = cur_gas_spec%dbaserxn%logK
-          call ReactionInitializeLogK_hpt(eqlogKcoef(:,igas_spec), &
-                                          eqlogK(igas_spec), &
-                                          option,reaction)
+          call ReactionAuxInitializeLogK_hpt(eqlogKcoef(:,igas_spec), &
+                                             eqlogK(igas_spec), &
+                                             option,reaction)
         endif
         igas_spec = igas_spec + 1
       endif

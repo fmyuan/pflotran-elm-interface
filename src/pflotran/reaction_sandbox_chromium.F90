@@ -313,19 +313,19 @@ subroutine ChromiumSetup(this,reaction,option)
   type(option_type) :: option
 
   this%D_mobile_id = &
-    ReactionGetPriSpeciesIDFromName(this%name_D_mobile, &
+    ReactionAuxGetPriSpecIDFromName(this%name_D_mobile, &
                                     reaction,option)
 
   this%C_id = &
-    ReactionGetPriSpeciesIDFromName(this%name_C, &
+    ReactionAuxGetPriSpecIDFromName(this%name_C, &
                                     reaction,option)
 
   this%I_id = &
-    ReactionGetPriSpeciesIDFromName(this%name_I, &
+    ReactionAuxGetPriSpecIDFromName(this%name_I, &
                                     reaction,option)
 
   this%X_id = &
-    ReactionGetPriSpeciesIDFromName(this%name_X, &
+    ReactionAuxGetPriSpecIDFromName(this%name_X, &
                                     reaction,option)
 
   this%B_id = &
