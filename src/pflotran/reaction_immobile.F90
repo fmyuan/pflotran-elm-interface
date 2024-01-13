@@ -58,7 +58,7 @@ subroutine ReactionImRead(immobile,input,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    ! this count is required for comparisons prior to BasisInit()
+    ! this count is required for comparisons prior to ReactionDBInitBasis()
     immobile%nimmobile = immobile%nimmobile + 1
     new_immobile_species => ReactionImSpeciesCreate()
     call InputReadCard(input,option,new_immobile_species%name)

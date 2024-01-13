@@ -524,7 +524,7 @@ subroutine ReactionSrfCplxDestroySrfCplx(srfcplx)
   if (.not.associated(srfcplx)) return
 
   if (associated(srfcplx%dbaserxn)) &
-    call DatabaseRxnDestroy(srfcplx%dbaserxn)
+    call ReactionDBDestroyRxn(srfcplx%dbaserxn)
   nullify(srfcplx%dbaserxn)
   nullify(srfcplx%next)
 

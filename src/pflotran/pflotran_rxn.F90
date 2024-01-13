@@ -53,8 +53,8 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
 
   if (associated(reaction)) then
     if (reaction%use_full_geochemistry) then
-       call DatabaseRead(reaction, option)
-       call BasisInit(reaction, option)
+       call ReactionDBReadDatabase(reaction, option)
+       call ReactionDBInitBasis(reaction, option)
     else
       ! NOTE(bja): do we need this for the batch chemistry driver?
 

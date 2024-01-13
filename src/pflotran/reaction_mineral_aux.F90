@@ -626,7 +626,7 @@ subroutine ReactionMnrlDestroyMineralRxn(mineral)
   type(mineral_rxn_type), pointer :: mineral
 
   if (associated(mineral%dbaserxn)) &
-    call DatabaseRxnDestroy(mineral%dbaserxn)
+    call ReactionDBDestroyRxn(mineral%dbaserxn)
   if (associated(mineral%tstrxn)) &
     call ReactionMnrlDestroyTSTRxn(mineral%tstrxn)
 

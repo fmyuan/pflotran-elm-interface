@@ -1582,10 +1582,10 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    cur_rxn => DatabaseRxnPtrCreate()
+    cur_rxn => ReactionDBCreateRxnPtr()
     string = input%buf
     cur_rxn%dbaserxn => &
-      DatabaseRxnCreateFromRxnString(string, &
+      ReactionDBCreateRxnFromString(string, &
                                      reaction%naqcomp, &
                                      reaction%offset_aqueous, &
                                      reaction%primary_species_names, &
@@ -1621,7 +1621,7 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
     cur_rxn => cur_rxn%next
   enddo
 
-  call DatabaseRxnPtrDestroy(rxn_list)
+  call ReactionDBDestroyRxnPtr(rxn_list)
 
 end subroutine ReactionNetworkToStoich
 
@@ -1658,7 +1658,7 @@ subroutine AqueousSpeciesDestroy(species)
 
   type(aq_species_type), pointer :: species
 
-  if (associated(species%dbaserxn)) call DatabaseRxnDestroy(species%dbaserxn)
+  if (associated(species%dbaserxn)) call ReactionDBDestroyRxn(species%dbaserxn)
   deallocate(species)
   nullify(species)
 
@@ -1743,7 +1743,7 @@ subroutine RadioactiveDecayRxnDestroy(rxn)
   if (.not.associated(rxn)) return
 
   if (associated(rxn%dbaserxn)) &
-    call DatabaseRxnDestroy(rxn%dbaserxn)
+    call ReactionDBDestroyRxn(rxn%dbaserxn)
   nullify(rxn%dbaserxn)
   nullify(rxn%next)
 
@@ -1769,7 +1769,7 @@ subroutine GeneralRxnDestroy(rxn)
   if (.not.associated(rxn)) return
 
   if (associated(rxn%dbaserxn)) &
-    call DatabaseRxnDestroy(rxn%dbaserxn)
+    call ReactionDBDestroyRxn(rxn%dbaserxn)
   nullify(rxn%dbaserxn)
   nullify(rxn%next)
 

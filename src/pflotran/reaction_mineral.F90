@@ -463,7 +463,7 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
     mineral%tstrxn => ReactionMnrlCreateTSTRxn()
   endif
   ! read the number of aqueous species in mineral rxn
-  mineral%dbaserxn => DatabaseRxnCreate()
+  mineral%dbaserxn => ReactionDBCreateRxn()
   call InputReadInt(input,option,mineral%dbaserxn%nspec)
   call InputErrorMsg(input,option,'Number of species in mineral reaction', &
                   'DATABASE')

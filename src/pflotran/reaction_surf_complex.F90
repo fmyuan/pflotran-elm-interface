@@ -476,7 +476,7 @@ subroutine ReactionSrfCplxTotalSorbEq(rt_auxvar,global_auxvar, &
     irxn = surface_complexation%eqsrfcplxrxn_to_srfcplxrxn(ieqrxn)
 
     call ReactionSrfCplxTotalSorbEq1(rt_auxvar,global_auxvar, &
-                               material_auxvar,irxn, &
+                               material_auxvar,reaction,option,irxn, &
                                rt_auxvar%srfcplxrxn_free_site_conc(irxn), &
                                rt_auxvar%eqsrfcplx_conc, &
                                rt_auxvar%total_sorb_eq, &

@@ -317,7 +317,7 @@ subroutine ReactionMicrobDestroyRxn(microbial)
 
   type(microbial_rxn_type), pointer :: microbial
 
-  call DatabaseRxnDestroy(microbial%dbaserxn)
+  call ReactionDBDestroyRxn(microbial%dbaserxn)
   call MicrobialMonodDestroy(microbial%monod)
   call ReactionInhibitionDestroy(microbial%inhibition)
   call ReactionMicrobDestroyBiomass(microbial%biomass)

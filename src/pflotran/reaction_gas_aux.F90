@@ -343,7 +343,7 @@ recursive subroutine GasSpeciesDestroy(gas_species)
   type(gas_species_type), pointer :: gas_species
 
   if (associated(gas_species%dbaserxn)) &
-    call DatabaseRxnDestroy(gas_species%dbaserxn)
+    call ReactionDBDestroyRxn(gas_species%dbaserxn)
   deallocate(gas_species)
   nullify(gas_species)
 

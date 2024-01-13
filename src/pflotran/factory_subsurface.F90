@@ -480,8 +480,8 @@ subroutine FactorySubsurfSetupRealization(simulation)
     case(RT_MODE)
       ! read reaction database
       if (realization%reaction%use_full_geochemistry) then
-        call DatabaseRead(realization%reaction,option)
-        call BasisInit(realization%reaction,option)
+        call ReactionDBReadDatabase(realization%reaction,option)
+        call ReactionDBInitBasis(realization%reaction,option)
       else
         ! turn off activity coefficients since the database has not been read
         realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF

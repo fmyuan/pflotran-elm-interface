@@ -23,21 +23,21 @@ module Reaction_Database_Aux_module
     type(database_rxn_ptr_type), pointer :: next
   end type database_rxn_ptr_type
 
-  public :: BasisAlignSpeciesInRxn, &
-            BasisSubSpeciesInGasOrSecRxn, &
-            BasisSubSpeciesinMineralRxn, &
-            DatabaseRxnCreate, &
-            DatabaseRxnPtrCreate, &
-            DatabaseRxnCreateFromRxnString, &
-            DatabaseCheckLegitimateLogKs, &
-            DatabaseRxnDestroy, &
-            DatabaseRxnPtrDestroy
+  public :: ReactionDBAlignSpeciesInRxn, &
+            ReactionDBSubSpecInGasOrSecRxn, &
+            ReactionDBSubSpeciesInMnrlRxn, &
+            ReactionDBCreateRxn, &
+            ReactionDBCreateRxnPtr, &
+            ReactionDBCreateRxnFromString, &
+            ReactionDBCheckLegitLogKs, &
+            ReactionDBDestroyRxn, &
+            ReactionDBDestroyRxnPtr
 
 contains
 
 ! ************************************************************************** !
 
-function DatabaseRxnCreate()
+function ReactionDBCreateRxn()
   !
   ! Allocate and initialize an equilibrium reaction
   !
@@ -47,7 +47,7 @@ function DatabaseRxnCreate()
 
   implicit none
 
-  type(database_rxn_type), pointer :: DatabaseRxnCreate
+  type(database_rxn_type), pointer :: ReactionDBCreateRxn
 
   type(database_rxn_type), pointer :: dbaserxn
 
@@ -58,13 +58,13 @@ function DatabaseRxnCreate()
   nullify(dbaserxn%spec_ids)
   nullify(dbaserxn%logK)
 
-  DatabaseRxnCreate => dbaserxn
+  ReactionDBCreateRxn => dbaserxn
 
-end function DatabaseRxnCreate
+end function ReactionDBCreateRxn
 
 ! ************************************************************************** !
 
-function DatabaseRxnPtrCreate()
+function ReactionDBCreateRxnPtr()
   !
   ! Allocate and initialize a pointer to the database reaction
   !
@@ -74,7 +74,7 @@ function DatabaseRxnPtrCreate()
 
   implicit none
 
-  type(database_rxn_ptr_type), pointer :: DatabaseRxnPtrCreate
+  type(database_rxn_ptr_type), pointer :: ReactionDBCreateRxnPtr
 
   type(database_rxn_ptr_type), pointer :: dbaserxn_ptr
 
@@ -82,13 +82,13 @@ function DatabaseRxnPtrCreate()
   nullify(dbaserxn_ptr%dbaserxn)
   nullify(dbaserxn_ptr%next)
 
-  DatabaseRxnPtrCreate => dbaserxn_ptr
+  ReactionDBCreateRxnPtr => dbaserxn_ptr
 
-end function DatabaseRxnPtrCreate
+end function ReactionDBCreateRxnPtr
 
 ! ************************************************************************** !
 
-function DatabaseRxnCreateFromRxnString(reaction_string, &
+function ReactionDBCreateRxnFromString(reaction_string, &
                                         naqcomp, aq_offset, &
                                         primary_aq_species_names, &
                                         nimcomp, im_offset, &
@@ -118,7 +118,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
   PetscBool :: consider_immobile_species
   type(option_type) :: option
 
-  type(database_rxn_type), pointer :: DatabaseRxnCreateFromRxnString
+  type(database_rxn_type), pointer :: ReactionDBCreateRxnFromString
 
   character(len=MAXSTRINGLENGTH) :: string, string2
   character(len=MAXWORDLENGTH) :: word, word2
@@ -133,7 +133,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
   type(database_rxn_type), pointer :: dbaserxn
 
 
-  dbaserxn => DatabaseRxnCreate()
+  dbaserxn => ReactionDBCreateRxn()
 
   icount = 0
   ! Be sure to copy as words are removed when read.  Need to full string for
@@ -311,16 +311,16 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
     enddo
   enddo
 
-  DatabaseRxnCreateFromRxnString => dbaserxn
+  ReactionDBCreateRxnFromString => dbaserxn
 
-end function DatabaseRxnCreateFromRxnString
+end function ReactionDBCreateRxnFromString
 
 ! ************************************************************************** !
 
-subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
-                                  num_rxn_species,rxn_species_names, &
-                                  rxn_stoich,rxn_species_ids,species_name, &
-                                  option)
+subroutine ReactionDBAlignSpeciesInRxn(num_basis_species,basis_names, &
+                                       num_rxn_species,rxn_species_names, &
+                                       rxn_stoich,rxn_species_ids, &
+                                       species_name,option)
   !
   ! Aligns the ordering of species in reaction with
   ! the current basis
@@ -361,8 +361,8 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
     enddo
     if (.not.found) then
       option%io_buffer = trim(rxn_species_names(i_rxn_species)) // &
-               ' not found in basis (BasisAlignSpeciesInRxn) for species ' // &
-               trim(species_name)
+        ' not found in basis (ReactionDBAlignSpeciesInRxn) for species ' // &
+        trim(species_name)
       call PrintErrMsg(option)
     endif
   enddo
@@ -390,11 +390,11 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
     call PrintErrMsg(option)
   endif
 
-end subroutine BasisAlignSpeciesInRxn
+end subroutine ReactionDBAlignSpeciesInRxn
 
 ! ************************************************************************** !
 
-subroutine BasisSubSpeciesInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
+subroutine ReactionDBSubSpecInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
   !
   ! Swaps out a chemical species in a chemical
   ! reaction, replacing it with the species in a
@@ -487,11 +487,11 @@ subroutine BasisSubSpeciesInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
 
   dbaserxn2%logK = dbaserxn2%logK + scale*dbaserxn1%logK
 
-end subroutine BasisSubSpeciesInGasOrSecRxn
+end subroutine ReactionDBSubSpecInGasOrSecRxn
 
 ! ************************************************************************** !
 
-subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
+subroutine ReactionDBSubSpeciesInMnrlRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
   !
   ! Swaps out a chemical species in a chemical
   ! reaction, replacing it with the species in a
@@ -583,12 +583,12 @@ subroutine BasisSubSpeciesInMineralRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
 
   mnrl_dbaserxn%logK = mnrl_dbaserxn%logK + scale*sec_dbaserxn%logK
 
-end subroutine BasisSubSpeciesInMineralRxn
+end subroutine ReactionDBSubSpeciesInMnrlRxn
 
 ! ************************************************************************** !
 
-function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
-                                      option)
+function ReactionDBCheckLegitLogKs(dbaserxn,species_name,temperatures, &
+                                   option)
   !
   ! Checks whether legitimate log Ks exist for
   ! all database temperatures if running
@@ -607,13 +607,13 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
   PetscReal :: temperatures(:)
   type(option_type) :: option
 
-  PetscBool :: DatabaseCheckLegitimateLogKs
+  PetscBool :: ReactionDBCheckLegitLogKs
 
   PetscInt :: itemp
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  DatabaseCheckLegitimateLogKs = PETSC_TRUE
+  ReactionDBCheckLegitLogKs = PETSC_TRUE
 
   if (.not.associated(dbaserxn)) return
   if (option%use_isothermal .and. &
@@ -624,22 +624,22 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
     if (Equal(dabs(dbaserxn%logK(itemp)),500.d0)) then
       write(word,'(f5.1)') temperatures(itemp)
       string = trim(string) // ' ' // word
-      DatabaseCheckLegitimateLogKs = PETSC_FALSE
+      ReactionDBCheckLegitLogKs = PETSC_FALSE
     endif
   enddo
 
-  if (.not.DatabaseCheckLegitimateLogKs) then
+  if (.not.ReactionDBCheckLegitLogKs) then
     option%io_buffer = ' ERROR: Undefined log Ks for temperatures (' // &
                        trim(adjustl(string)) // ') for species "' // &
                        trim(species_name) // '" in database.'
     call PrintMsg(option)
   endif
 
-end function DatabaseCheckLegitimateLogKs
+end function ReactionDBCheckLegitLogKs
 
 ! ************************************************************************** !
 
-subroutine DatabaseRxnDestroy(dbaserxn)
+subroutine ReactionDBDestroyRxn(dbaserxn)
   !
   ! Deallocates a database reaction
   !
@@ -663,11 +663,11 @@ subroutine DatabaseRxnDestroy(dbaserxn)
   deallocate(dbaserxn)
   nullify(dbaserxn)
 
-end subroutine DatabaseRxnDestroy
+end subroutine ReactionDBDestroyRxn
 
 ! ************************************************************************** !
 
-recursive subroutine DatabaseRxnPtrDestroy(dbaserxn_ptr)
+recursive subroutine ReactionDBDestroyRxnPtr(dbaserxn_ptr)
   !
   ! Deallocates a database reaction pointer
   !
@@ -680,12 +680,12 @@ recursive subroutine DatabaseRxnPtrDestroy(dbaserxn_ptr)
 
   if (.not.associated(dbaserxn_ptr)) return
 
-  call DatabaseRxnPtrDestroy(dbaserxn_ptr%next)
-  call DatabaseRxnDestroy(dbaserxn_ptr%dbaserxn)
+  call ReactionDBDestroyRxnPtr(dbaserxn_ptr%next)
+  call ReactionDBDestroyRxn(dbaserxn_ptr%dbaserxn)
 
   deallocate(dbaserxn_ptr)
   nullify(dbaserxn_ptr)
 
-end subroutine DatabaseRxnPtrDestroy
+end subroutine ReactionDBDestroyRxnPtr
 
 end module Reaction_Database_Aux_module
