@@ -166,7 +166,7 @@ subroutine ExampleSetup(this,reaction,option)
 
 ! 9. Add code to initialize.
   this%species_id = &
-    ReactionGetPriSpeciesIDFromName(this%species_name,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(this%species_name,reaction,option)
 
 end subroutine ExampleSetup
 

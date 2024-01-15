@@ -58,7 +58,7 @@ subroutine ReactionImRead(immobile,input,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    ! this count is required for comparisons prior to BasisInit()
+    ! this count is required for comparisons prior to ReactionDBInitBasis()
     immobile%nimmobile = immobile%nimmobile + 1
     new_immobile_species => ReactionImSpeciesCreate()
     call InputReadCard(input,option,new_immobile_species%name)
@@ -174,7 +174,7 @@ end subroutine ReactionImDecayRxnRead
 ! ************************************************************************** !
 
 subroutine ReactionImProcessConstraint(immobile,constraint_name, &
-                                    constraint,option)
+                                       constraint,option)
   !
   ! Initializes constraints based on immobile
   ! species in system
@@ -242,8 +242,8 @@ end subroutine ReactionImProcessConstraint
 ! ************************************************************************** !
 
 subroutine ReactionImDecay(Res,Jac,compute_derivative,rt_auxvar, &
-                          global_auxvar,material_auxvar,reaction, &
-                          option)
+                           global_auxvar,material_auxvar,reaction, &
+                           option)
   !
   ! Computes decay of biomass species
   !

@@ -1301,7 +1301,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   ! Date: 03/24/2016
   !
   use Input_Aux_module
-  use Reaction_Aux_module, only: ReactionGetPriSpeciesIDFromName
+  use Reaction_Aux_module, only: ReactionAuxGetPriSpecIDFromName
   use Option_module
   use Condition_module, only : ConditionReadValues
   use String_module
@@ -2089,7 +2089,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   ! Date: 03/24/2016
   !
   use Input_Aux_module
-  use Reaction_Aux_module, only: ReactionGetPriSpeciesIDFromName
+  use Reaction_Aux_module, only: ReactionAuxGetPriSpecIDFromName
   use Option_module
   use Condition_module, only : ConditionReadValues
   use Dataset_Ascii_class
@@ -2884,29 +2884,29 @@ subroutine PMWFSetup(this)
       type is(wf_mechanism_fmdm_type)
         species_name = 'O2(aq)'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iO2) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
         species_name = 'CO3--'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
         species_name = 'H2(aq)'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iH2) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
         species_name = 'Fe++'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iFe_2p) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
       type is(wf_mechanism_fmdm_surrogate_type)
         species_name = 'O2(aq)'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iO2) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
         species_name = 'CO3--'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
         species_name = 'H2(aq)'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iH2) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
         species_name = 'Fe++'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iFe_2p) = &
-          ReactionGetPriSpeciesIDFromName(species_name,reaction,option)
+          ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
       type is(wf_mechanism_glass_type)
         if (cur_mechanism%use_pH) then
           if ((associated(this%realization%reaction%species_idx) .and. &
@@ -2926,18 +2926,18 @@ subroutine PMWFSetup(this)
           species_name = 'SiO2(aq)'
           if (associated(this%realization%reaction)) then
             ! search through the species names so that the generic error
-            ! message from ReactionGetPriSpeciesIDFromName is not thrown first
+            ! message from ReactionAuxGetPriSpecIDFromName is not thrown first
             ! when SiO2 is missing
-            allocate(names(ReactionGetPriSpeciesCount( &
+            allocate(names(ReactionAuxGetPriSpeciesCount( &
                              this%realization%reaction)))
-            names => ReactionGetPriSpeciesNames(this%realization%reaction)
+            names => ReactionAuxGetPriSpeciesNames(this%realization%reaction)
             i = 0
             found = PETSC_FALSE
             do while (i < len(names))
               i = i + 1
               if (adjustl(trim(species_name)) == adjustl(trim(names(i)))) then
                 cur_mechanism%SiO2_id = &
-                  ReactionGetPriSpeciesIDFromName(species_name, &
+                  ReactionAuxGetPriSpecIDFromName(species_name, &
                                                   this%realization%reaction, &
                                                   option)
                 found = PETSC_TRUE
@@ -2945,16 +2945,16 @@ subroutine PMWFSetup(this)
               if (found) exit
               if ((.not.found) .and. (i == len(names))) then
                 deallocate(names)
-                allocate(names(ReactionGetSecSpeciesCount( &
+                allocate(names(ReactionAuxGetSecSpeciesCount( &
                                  this%realization%reaction)))
-                names => ReactionGetSecSpeciesNames(this%realization%reaction)
+                names => ReactionAuxGetSecSpeciesNames(this%realization%reaction)
                 i = 0
                 do while (i < len(names))
                   i = i + 1
                   if (adjustl(trim(species_name)) == &
                       adjustl(trim(names(i)))) then
                     cur_mechanism%SiO2_id = &
-                      ReactionGetSecSpeciesIDFromName(species_name, &
+                        ReactionAuxGetSecSpecIDFromName(species_name, &
                                            this%realization%reaction,option)
                     found = PETSC_TRUE
                   endif
@@ -3005,7 +3005,7 @@ subroutine PMWFSetup(this)
           this%realization%reaction_nw,this%option)
       elseif (associated(this%realization%reaction)) then
         cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
-          ReactionGetPriSpeciesIDFromName( &
+          ReactionAuxGetPriSpecIDFromName( &
           cur_waste_form%mechanism%rad_species_list(j)%name, &
           this%realization%reaction,this%option)
       else
@@ -3073,7 +3073,7 @@ end subroutine PMWFSetup
     if (reaction%neqcplx + reaction%nsorb + reaction%ngeneral_rxn + &
         reaction%microbial%nrxn + reaction%nradiodecay_rxn + &
         reaction%immobile%nimmobile > 0 .or. &
-        GasGetCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
+        ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
         associated(rxn_sandbox_list)) then
       this%option%io_buffer = 'The UFD_DECAY process model may not be used &
         &with other reactive transport capability within PFLOTRAN. &

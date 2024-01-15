@@ -571,7 +571,7 @@ subroutine BioTH_Setup(this,reaction,option)
   type(option_type) :: option
 
   this%species_Vaq_id = &
-    ReactionGetPriSpeciesIDFromName(this%name_aqueous,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(this%name_aqueous,reaction,option)
 
   this%species_Vim_id = &
     ReactionImGetSpeciesIDFromName(this%name_immobile,reaction%immobile,option)

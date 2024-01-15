@@ -133,7 +133,7 @@ subroutine RadonSetup(this,reaction,option)
   type(option_type) :: option
 
   this%species_id = &
-    ReactionGetPriSpeciesIDFromName(this%species_name,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(this%species_name,reaction,option)
   this%mineral_id = &
     ReactionMnrlGetMnrlIDFromName(this%mineral_name,reaction%mineral,option)
   if (Uninitialized(this%radon_generation_rate)) then

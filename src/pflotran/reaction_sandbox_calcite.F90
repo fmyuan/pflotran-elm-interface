@@ -133,13 +133,13 @@ subroutine CalciteSetup(this,reaction,option)
   ! Aqueous species
   word = 'H+'
   this%h_ion_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Ca++'
   this%calcium_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'HCO3-'
   this%bicarbonate_id = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Calcite'
   this%mineral_id = &
     ReactionMnrlGetMnrlIDFromName(word,reaction%mineral,option)

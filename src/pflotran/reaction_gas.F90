@@ -15,16 +15,16 @@ module Reaction_Gas_module
   private
 
 
-  public :: RGasRead, &
-            RTotalGas, &
-            RTotalCO2, &
-            RGasConcentration
+  public :: ReactionGasReadGas, &
+            ReactionGasTotalGas, &
+            ReactionGasTotalCO2, &
+            ReactionGasPartialPresToConc
 
 contains
 
 ! ************************************************************************** !
 
-subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
+subroutine ReactionGasReadGas(gas_species_list,gas_type,error_msg,input,option)
   !
   ! Reads immobile species
   !
@@ -64,7 +64,7 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    new_gas_species => GasSpeciesCreate()
+    new_gas_species => ReactionGasCreateGasSpecies()
     call InputReadCard(input,option,new_gas_species%name)
     call InputErrorMsg(input,option,'keyword',error_msg)
     new_gas_species%itype = gas_type
@@ -80,11 +80,11 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine RGasRead
+end subroutine ReactionGasReadGas
 
 ! ************************************************************************** !
 
-subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+subroutine ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
   !
   ! Computes the total component concentrations and derivative with
   ! respect to free-ion
@@ -141,9 +141,11 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     ! units = bars
     rt_auxvar%gas_pp(igas) = exp(lnQK)
     ! unit = mol/L gas
-    ! RGasConcentration units = mol/m^3 gas
+    ! ReactionGasPartialPresToConc units = mol/m^3 gas
     gas_concentration = &
-      RGasConcentration(rt_auxvar%gas_pp(igas),global_auxvar%temp)*1.d-3
+      ReactionGasPartialPresToConc(rt_auxvar%gas_pp(igas), &
+                                   global_auxvar%temp) * &
+      1.d-3
 
     ! add contribution to primary totals
     ! units of total = mol/L gas
@@ -159,7 +161,7 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     do j = 1, ncomp
       jcomp = gas%acteqspecid(j,igas)
       tempreal = gas%acteqstoich(j,igas)* &
-                 RGasConcentration(exp(lnQK-ln_conc(jcomp)), &
+                 ReactionGasPartialPresToConc(exp(lnQK-ln_conc(jcomp)), &
                                        global_auxvar%temp) * &
                  1.d-3
       do i = 1, ncomp
@@ -171,11 +173,11 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
     enddo
   enddo
 
-end subroutine RTotalGas
+end subroutine ReactionGasTotalGas
 
 ! ************************************************************************** !
 
-subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
+subroutine ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   !
   ! Computes the total component concentrations and derivative with
   ! respect to free-ion for CO2 modes; this is legacy cod3
@@ -237,7 +239,8 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
 
       if (abs(reaction%species_idx%co2_gas_id) == iactgas ) then
 
-        if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
+        if (reaction%species_idx%na_ion_id /= 0 .and. &
+            reaction%species_idx%cl_ion_id /= 0) then
           m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
           m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
           call Henry_duan_sun(temperature,pressure*1D-5,muco2, &
@@ -297,11 +300,11 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   ! rt_auxvar%dtotal(:, :,iphase) = rt_auxvar%dtotal(:,:,iphase)!*den_kg_per_L
   endif
 
-end subroutine RTotalCO2
+end subroutine ReactionGasTotalCO2
 
 ! ************************************************************************** !
 
-function RGasConcentration(gas_pp,temperature)
+function ReactionGasPartialPresToConc(gas_pp,temperature)
   !
   ! Calculate the gas concentration [mol/m^3] from partial pressure
   !
@@ -313,13 +316,13 @@ function RGasConcentration(gas_pp,temperature)
   PetscReal :: gas_pp
   PetscReal :: temperature
 
-  PetscReal :: RGasConcentration
+  PetscReal :: ReactionGasPartialPresToConc
 
   ! mol/m^3 = bar * Pa/bar / (Pa-m^3/mol-K * K)
 
-  RGasConcentration = gas_pp * 1.d5 / &
+  ReactionGasPartialPresToConc = gas_pp * 1.d5 / &
                       (IDEAL_GAS_CONSTANT * (temperature+273.15d0))
 
-end function RGasConcentration
+end function ReactionGasPartialPresToConc
 
 end module Reaction_Gas_module
