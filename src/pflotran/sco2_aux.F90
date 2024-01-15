@@ -584,7 +584,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   do idof = 1, option%nflowdof
 
     if (sco2_central_diff_jacobian) then
-      pert(idof) = max(1.d-7 * x(idof),1.d-7)
+      !pert(idof) = max(1.d-7 * x(idof),1.d-7)
 
       x_pert_minus = x
       x_pert_minus(idof) = x(idof) - pert(idof)
@@ -685,6 +685,8 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   co2_pressure_id = option%co2_pressure_id
   vpid = option%vapor_pressure_id
   rvpid = option%reduced_vapor_pressure_id
+
+  if (sco2_auxvar%istatechng) return
 
   !MAN: a lot of these calculations might be redundant
   !     if they're wrapped up in AuxVarCompute
@@ -988,6 +990,8 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
 
     state_change_string = trim(state_change_string) // trim(append)
 
+    if (sco2_restrict_state_chng) sco2_auxvar%istatechng = PETSC_TRUE
+
     select case(global_auxvar%istate)
       case(SCO2_LIQUID_STATE)
 
@@ -1093,6 +1097,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: visc_water, visc_brine, visc_co2
   PetscReal :: sl_temp, pva
   PetscErrorCode :: ierr
+  PetscReal :: aux(1)
 
   ! Unused
   PetscReal :: dpor_dp, drho_dp, drho_dT
@@ -1158,8 +1163,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       !      salt mass fraction
 
       ! Primary Variables
-      sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
-      sco2_auxvar%xmass(co2_id,lid) = x(SCO2_CO2_MASS_FRAC_DOF)
+      sco2_auxvar%pres(lid) = max(min(x(SCO2_LIQUID_PRESSURE_DOF),1.d10), &
+                              0.d0)
+      sco2_auxvar%xmass(co2_id,lid) = min(max(x(SCO2_CO2_MASS_FRAC_DOF),0.d0), &
+                                      1.d0)
       ! sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
 
       ! This is the total salt mass fraction including precipitate phase, 
@@ -1183,8 +1190,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                          x_salt_dissolved, &
                                          sco2_auxvar%pres(spid))
       ! Brine density
-      call SCO2BrineDensity(sco2_auxvar%temp, sco2_auxvar%pres(lid), &
-                            x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      !call SCO2BrineDensity(sco2_auxvar%temp, sco2_auxvar%pres(lid), &
+      !                      x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      aux(1) = x_salt_dissolved
+      call EOSWaterDensityExt(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
+                               aux, sco2_auxvar%den_kg(pbid), &
+                               den_mol,ierr)
       ! Brine vapor pressure
       call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
                                    sco2_auxvar%pres(cpid), &
@@ -1254,11 +1265,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%m_salt(2) = x(SCO2_SALT_MASS_FRAC_DOF)
 
       ! Mass and pressure can't be negative
-      sco2_auxvar%pres(gid) = max(sco2_auxvar%pres(gid),epsilon)
-      sco2_auxvar%pres(co2_pressure_id) = max(sco2_auxvar% &
-                                          pres(co2_pressure_id),epsilon)
-      sco2_auxvar%pres(gid) = max(sco2_auxvar%pres(gid), &
-                              sco2_auxvar%pres(co2_pressure_id))
+      sco2_auxvar%pres(gid) = min(max(sco2_auxvar%pres(gid),101325.d0),1.d10)
+      sco2_auxvar%pres(co2_pressure_id) = min(max(sco2_auxvar% &
+                                          pres(co2_pressure_id),epsilon), &
+                                          sco2_auxvar%pres(gid))
       sco2_auxvar%m_salt(2) = max(sco2_auxvar%m_salt(2), 0.d0)
 
       ! Secondary Variables
@@ -1311,6 +1321,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%sat(pid) = sco2_auxvar%m_salt(2) / &
                              (sco2_auxvar%den_kg(pid) * &
                              material_auxvar%volume)
+      sco2_auxvar%sat(pid) = max(min(sco2_auxvar%sat(pid),1.d0),0.d0)
       sco2_auxvar%sat(lid) = 0.d0
       sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(lid) !- sco2_auxvar%sat(pid)
 
@@ -1341,8 +1352,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmol(wid,gid) = xmolwg
 
       ! Brine density
-      call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
-                            x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      !call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
+      !                      x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      aux(1) = x_salt_dissolved
+      call EOSWaterDensityExt(sco2_auxvar%temp,cell_pressure, &
+                               aux, sco2_auxvar%den_kg(pbid), &
+                               den_mol,ierr)
       ! Liquid phase density (including CO2)
       call SCO2DensityCompositeLiquid(sco2_auxvar%temp,sco2_auxvar%den_kg(pbid), &
                                   sco2_auxvar%xmass(co2_id,lid), &
@@ -1362,7 +1377,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
 
       ! Mass and saturation can't be negative
-      ! sco2_auxvar%pres(lid) = max(sco2_auxvar%pres(lid),0.d0)
+      sco2_auxvar%pres(lid) = min(max(sco2_auxvar%pres(lid),0.d0),1.d10)
       sco2_auxvar%sat(gid) = max(sco2_auxvar%sat(gid),0.d0)
       sco2_auxvar%m_salt(1) = max(sco2_auxvar%m_salt(1), 0.d0)
 
@@ -1381,11 +1396,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                          sco2_auxvar%pres(spid))
       cell_pressure = max(sco2_auxvar%pres(gid),sco2_auxvar%pres(spid))
       ! Brine density
-      call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
-                            x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
-      ! call EOSWaterDensityExt(sco2_auxvar%temp,cell_pressure, &
-      !                         x_salt_dissolved, sco2_auxvar%den_kg(pbid), &
-      !                         den_mol,ierr)
+      !call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
+      !                      x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      aux(1) = x_salt_dissolved
+      call EOSWaterDensityExt(sco2_auxvar%temp,cell_pressure, &
+                              aux, sco2_auxvar%den_kg(pbid), &
+                              den_mol,ierr)
       ! Brine vapor pressure
       call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
                                    sco2_auxvar%pres(cpid), &
@@ -1429,8 +1445,9 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
 
       ! Mass and gas pressure can't be negative
-      ! sco2_auxvar%pres(lid) = max(sco2_auxvar%pres(lid),0.d0)
-      sco2_auxvar%pres(gid) = max(sco2_auxvar%pres(gid),0.d0)
+      ! Liquid pressure can't exceed gas pressure
+      sco2_auxvar%pres(gid) = min(max(sco2_auxvar%pres(gid),101325.d0),1.d10)
+      sco2_auxvar%pres(lid) = min(sco2_auxvar%pres(lid),sco2_auxvar%pres(gid))
       sco2_auxvar%m_salt(1) = max(sco2_auxvar%m_salt(1), 0.d0)
 
       ! Starting guess for Equilibrate
@@ -1450,8 +1467,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                          sco2_auxvar%pres(spid))
       cell_pressure = max(sco2_auxvar%pres(gid),sco2_auxvar%pres(spid))
       ! Brine density
-      call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
-                            x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      !call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
+      !                      x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
+      aux(1) = x_salt_dissolved
+      call EOSWaterDensityExt(sco2_auxvar%temp,cell_pressure, &
+                              aux, sco2_auxvar%den_kg(pbid), &
+                              den_mol,ierr)
       ! Brine vapor pressure
       call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
                                    sco2_auxvar%pres(cpid), &
@@ -1635,15 +1656,19 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%sat(lid) == 0.d0) then
     sco2_auxvar%sat(pid) = sco2_auxvar%m_salt(2) / (sco2_auxvar%den_kg(pid) * &
                            sco2_auxvar%effective_porosity)
+    sco2_auxvar%sat(pid) = max(min(sco2_auxvar%sat(pid),1.d0),0.d0)
     !MAN: not sure why we need this:
     sco2_auxvar%m_salt(1) = sco2_auxvar%m_salt(2) * sco2_auxvar%den_kg(pbid) * &
                             epsilon * sco2_auxvar%effective_porosity
   else
     sco2_auxvar%sat(pid) = max(sco2_auxvar%m_salt(1) - salt_solubility, &
-                           0.d0) * sco2_auxvar%den_kg(pbid) * sco2_auxvar%sat(lid) / &
+                           0.d0) * sco2_auxvar%den_kg(pbid) * &
+                           sco2_auxvar%sat(lid) / &
                            sco2_auxvar%den_kg(pid)
+    sco2_auxvar%sat(pid) = max(min(sco2_auxvar%sat(pid),1.d0),0.d0)
     sco2_auxvar%m_salt(2) = sco2_auxvar%m_salt(1) * sco2_auxvar%den_kg(pbid) * &
-                            sco2_auxvar%sat(lid) * sco2_auxvar%effective_porosity 
+                            sco2_auxvar%sat(lid) * &
+                            sco2_auxvar%effective_porosity 
   endif
 
   ! Permeability and porosity reduction with salt precipitate effects
@@ -3113,7 +3138,7 @@ subroutine SCO2ComputeSatHysteresis(characteristic_curves, Pc, Sl_min, sigma, &
   if (Uninitialized(Sgt_max)) return
 
   ! Check if we're on a scanning path
-  if (Sl > Sl_min) then
+  if (Sl > Sl_min .and. Sgt_max > 0.d0) then
     ! Hysteresis adjustment: Update Sl and Sgt
     Sgt_max_bar = Sgt_max / (1.d0 - Srl)
     Sl_min_bar = (Sl_min - Srl) / (1.d0 - Srl)

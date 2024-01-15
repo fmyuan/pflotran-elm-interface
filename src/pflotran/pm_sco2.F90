@@ -9,6 +9,8 @@ module PM_SCO2_class
 
   private
 
+  PetscBool :: sco2_maverick_mode = PETSC_FALSE
+
   PetscInt, parameter :: ABS_UPDATE_INDEX = 1
   PetscInt, parameter :: REL_UPDATE_INDEX = 2
   PetscInt, parameter :: RESIDUAL_INDEX = 3
@@ -135,10 +137,10 @@ subroutine PMSCO2SetFlowMode(pm,option)
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
   PetscReal, parameter :: xmass_rel_inf_tol = 1.d-3
 
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-7 !1.d-7 !kg_water/sec
-  PetscReal, parameter :: co2_mass_abs_inf_tol = 1.d-7 !1.d-7 !kg_co2/sec
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_water/sec
+  PetscReal, parameter :: co2_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_co2/sec
   ! PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7 !MW
-  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-7 !1.d-7 !kg_salt/sec
+  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_salt/sec
 
   !With Energy
   ! PetscReal, parameter :: residual_abs_inf_tol(MAX_DOF) = &
@@ -148,7 +150,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
   PetscReal, parameter :: residual_abs_inf_tol(MAX_DOF) = &
                              (/w_mass_abs_inf_tol, co2_mass_abs_inf_tol, &
                                s_mass_abs_inf_tol/)
-  PetscReal, parameter :: residual_scaled_inf_tol(MAX_DOF) = 1.d-6
+  PetscReal, parameter :: residual_scaled_inf_tol(MAX_DOF) = 1.d-5
 
   ! With Energy
   ! PetscReal, parameter :: abs_update_inf_tol(MAX_DOF,MAX_STATE) = &
@@ -391,6 +393,18 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+    case('MAVERICK_MODE')
+      ! Shoots from the hip.
+      sco2_maverick_mode = PETSC_TRUE
+      this%residual_abs_inf_tol(:) = 1.d0
+      !this%abs_update_inf_tol(:,:) = 1.d8
+      ! Let liquid pressure do whatever it wants.
+      !this%abs_update_inf_tol(1,1) = 1.d8
+      !this%abs_update_inf_tol(1,3) = 1.d8
+      this%abs_update_inf_tol(2,4) = 1.d8
+      ! Let gas pressure do whatever it wants.
+      !this%abs_update_inf_tol(1,2) = 1.d8
+      !this%abs_update_inf_tol(1,4) = 1.d8
     case('MAX_NEWTON_ITERATIONS')
       call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                   'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
@@ -718,9 +732,13 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
     endif
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
-    governed_dt = umin_scale * dt
+    if (sco2_maverick_mode) then
+      governed_dt = 10.d0 * dt
+    else
+      governed_dt = umin_scale * dt
+    endif
     dtt = min(time_step_max_growth_factor*dt,governed_dt)
-    dt = min(dtt,tfac(ifac)*dt,dt_max)
+    dt = min(dtt,dt_max)
     dt = max(dt,dt_min)
 
     ! Inform user that time step is being limited by a state variable.
@@ -747,9 +765,9 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
         value = this%max_salt_mass_change
         governor_value = this%salt_mass_change_governor
       else
-        string = 'Unknown'
-        value = -999.d0
-        governor_value = -999.d0
+        string = 'Newton Iterations'
+        value = num_newton_iterations
+        governor_value = iacceleration + 0.d0
       endif
       string = ' Dt limited by ' // trim(string) // ': Val=' // &
         trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
@@ -1159,11 +1177,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         converged_absolute = PETSC_TRUE
         converged_scaled = PETSC_TRUE
         ! infinity norms on residual
-        R = dabs(r_p(ival))
+        R = dabs(r_p(ival)) 
         A = dabs(accum2_p(ival))
-!         R_A = R/A
 
-        !TOUGH3 way:
         if (A > 1.d0) then
           R_A = R/A
         else
