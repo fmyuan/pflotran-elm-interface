@@ -155,17 +155,18 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
   PetscReal :: xmass(option%nflowspec)
   PetscReal :: tot_mass_flux, component_mass_flux, co2_mass_flux, &
-               co2_mole_flux, salt_mass_flux, salt_mole_flux, &
-               water_mass_flux
-  PetscReal :: delta_xmol, den_dn, den_up, density_ave
+               salt_mass_flux, water_mass_flux
+  PetscReal :: delta_xmass, den_dn, den_up, density_ave
   ! PetscReal :: sat_dn, sat_up
   PetscReal :: stpd_ave_over_dist, stpd_up, stpd_dn 
+  PetscReal :: al, alp
   ! PetscReal :: dheat_flux_ddelta_temp
-  PetscReal :: dsalt_mole_flux_ddeltaX, &
-               dtot_mole_flux_ddeltaX 
+  PetscReal :: dsalt_mass_flux_ddeltaX, &
+               dtot_mass_flux_ddeltaX 
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
   PetscReal :: tempreal
+  PetscReal, parameter :: epsilon = 1.d-20
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -243,26 +244,6 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         !                    dP[Pa]]
         v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
                           delta_pressure
-        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-        q = v_darcy(iphase) * area
-        ! mass_flux[kg phase/sec] = q[m^3 phase/sec] *
-        !                             density_ave[kg phase/m^3 phase]
-        tot_mass_flux = q * density_kg_ave
-        ! comp_mass_flux[kg comp/sec] = tot_mass_flux[kg phase/sec] *
-        !                                 xmass[kg comp/kg phase]
-        do icomp = 1 , option%nflowspec
-          component_mass_flux = tot_mass_flux * xmass(icomp)
-          if (icomp == 3) then
-            ! Salt is component 3, equation 4
-            Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
-                                            component_mass_flux
-          else
-            Res(icomp) = Res(icomp) + component_mass_flux
-          endif
-        enddo
-        ! Energy flux
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-        !                                   tot_mass_flux * uH
       endif
     endif
 
@@ -275,8 +256,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
     if (sco2_harmonic_diff_density) then
         density_ave = 1.d0
-        den_up = sco2_auxvar_up%den(iphase)
-        den_dn = sco2_auxvar_dn%den(iphase)
+        den_up = sco2_auxvar_up%den_kg(iphase)
+        den_dn = sco2_auxvar_dn%den_kg(iphase)
     else
       den_up = 1.d0
       den_dn = 1.d0
@@ -285,8 +266,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       density_ave = SCO2AverageDensity(iphase, &
                                         global_auxvar_up%istate, &
                                         global_auxvar_dn%istate, &
-                                        sco2_auxvar_up%den, &
-                                        sco2_auxvar_dn%den)
+                                        sco2_auxvar_up%den_kg, &
+                                        sco2_auxvar_dn%den_kg)
     endif
 
     if (iphase == LIQUID_PHASE) then
@@ -303,13 +284,13 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       stpd_ave_over_dist = stpd_up*stpd_dn / &
                            (stpd_up*dist_dn + stpd_dn*dist_up)
 
-      ! units = mole/sec
-      dtot_mole_flux_ddeltaX = stpd_ave_over_dist * area
+      ! units = kg/sec
+      dtot_mass_flux_ddeltaX = stpd_ave_over_dist * area
 
-      delta_xmol = sco2_auxvar_up%xmol(co2_id,iphase) * den_up - &
-                   sco2_auxvar_dn%xmol(co2_id,iphase) * den_dn
+      delta_xmass = sco2_auxvar_up%xmass(co2_id,iphase) * den_up - &
+                   sco2_auxvar_dn%xmass(co2_id,iphase) * den_dn
 
-      co2_mole_flux = dtot_mole_flux_ddeltaX * delta_xmol
+      co2_mass_flux = dtot_mass_flux_ddeltaX * delta_xmass
     else
       ! Vapor Flux in the gas phase
       ! Include diffusion and longitudinal dispersion
@@ -325,12 +306,12 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
                            (stpd_up*dist_dn + stpd_dn*dist_up)
 
       ! units = mole/sec
-      dtot_mole_flux_ddeltaX = stpd_ave_over_dist * area
+      dtot_mass_flux_ddeltaX = stpd_ave_over_dist * area
 
-      delta_xmol = sco2_auxvar_up%xmol(wid,iphase) * den_up - &
-                   sco2_auxvar_dn%xmol(wid,iphase) * den_dn
+      delta_xmass = sco2_auxvar_up%xmass(wid,iphase) * den_up - &
+                   sco2_auxvar_dn%xmass(wid,iphase) * den_dn
 
-      co2_mole_flux = -dtot_mole_flux_ddeltaX * delta_xmol
+      co2_mass_flux = -dtot_mass_flux_ddeltaX * delta_xmass
     endif
 
 
@@ -352,25 +333,58 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       stpd_ave_over_dist = 0.d0
     endif
 
+    ! Patankar salt transport for advective fluxes
+    al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+        (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
+        0.d0)
+    alp = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+        (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
+        0.d0)
+
     ! units = mole/sec
-    dsalt_mole_flux_ddeltaX = stpd_ave_over_dist * area
+    dsalt_mass_flux_ddeltaX = stpd_ave_over_dist * area
 
-    delta_xmol = sco2_auxvar_up%xmol(sid,iphase)* den_up - &
-                 sco2_auxvar_dn%xmol(sid,iphase)* den_dn
+    delta_xmass = sco2_auxvar_up%xmass(sid,iphase)* den_up - &
+                 sco2_auxvar_dn%xmass(sid,iphase)* den_dn
 
-    salt_mole_flux = dsalt_mole_flux_ddeltaX * delta_xmol
+    salt_mass_flux = dsalt_mass_flux_ddeltaX * delta_xmass
 
 
     if (iphase == ONE_INTEGER) then
         water_mass_flux = -1.d0 * fmw_comp(1) * &
-                          (co2_mole_flux + salt_mole_flux)
+                (co2_mass_flux / fmw_comp(2) + salt_mass_flux / fmw_comp(3))
     else
-        water_mass_flux = -1.d0 * fmw_comp(1) * co2_mole_flux
+        water_mass_flux = -1.d0 * fmw_comp(1) / fmw_comp(2) * co2_mass_flux
     endif
 
-    co2_mass_flux = co2_mole_flux * fmw_comp(2)
-    salt_mass_flux = salt_mole_flux * fmw_comp(3)
+    ! Advective Contributions
+    if (dabs(v_darcy(iphase)) > 0.d0) then
+      Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + & 
+                v_darcy(iphase) * area * density_kg_ave * xmass(wid)
+      Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + & 
+                v_darcy(iphase) * area * density_kg_ave * xmass(co2_id)
+      Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + & 
+                v_darcy(iphase) * area * density_kg_ave * xmass(sid)
+    ! Patankar salt transport
+    ! Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + & 
+    !             alp * sco2_auxvar_up%xmass(sid,iphase) * &
+    !             sco2_auxvar_up%den_kg(iphase) + &
+    !             al * sco2_auxvar_dn%xmass(sid,iphase) * &
+    !             sco2_auxvar_dn%den_kg(iphase)
 
+    endif
+    ! Diffusive Contributions
+    Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + &
+                                     water_mass_flux
+    Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &
+                                   co2_mass_flux
+    Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
+                                    salt_mass_flux
+   
+    ! Energy flux
+    ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+    !                                   tot_mass_flux * uH
+  enddo
     ! ! MAN: an effective multiphase diffusion coefficient approach:
     ! ! For CO2:
     ! do iphase = 1 , option%nphase - 1
@@ -426,14 +440,6 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     ! water_mass_flux = -1.d0 * fmw_comp(1) * &
     !                   (co2_mole_flux + salt_mole_flux)
 
-    Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + &
-                                     water_mass_flux
-    Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &
-                                   co2_mass_flux
-    Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
-                                    salt_mass_flux
-
-  enddo 
 
   ! Conduction
   ! MAN: Need to extend the thermal conductivity functionality to include
@@ -537,18 +543,20 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   PetscReal :: boundary_pressure
   PetscReal :: xmass(option%nflowspec)
   PetscReal :: tot_mass_flux, component_mass_flux
-  PetscReal :: co2_mass_flux, co2_mole_flux, salt_mass_flux, salt_mole_flux
+  PetscReal :: co2_mass_flux, salt_mass_flux
+  PetscReal :: al, alp
   PetscReal :: sat_dn
   PetscReal :: dn_scale
   PetscBool :: upwind
-  PetscReal :: delta_xmol, den_dn, density_ave
+  PetscReal :: delta_xmass, den_dn, density_ave
   ! PetscReal :: dheat_flux_ddelta_temp, dkeff_dn_dsatldn, &
   !              dkeff_dn_dtdn
-  PetscReal :: dsalt_mole_flux_ddeltax, &
-               dtot_mole_flux_ddeltax, dv_darcy_ddelta_pressure
+  PetscReal :: dsalt_mass_flux_ddeltax, &
+               dtot_mass_flux_ddeltax, dv_darcy_ddelta_pressure
   PetscReal :: stpd_ave_over_dist, stpd_dn
   PetscReal :: water_mass_flux
   PetscInt :: idof
+  PetscReal, parameter :: epsilon = 1.d-20
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -696,120 +704,111 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
 
     end select
 
-    if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
-      if (mobility > floweps ) then
-        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-        q = v_darcy(iphase) * area
-        ! mass_flux[kg phase/sec] = q[m^3 phase/sec] *
-        !                             density_ave[kg phase/m^3 phase]
-        tot_mass_flux = q * density_kg_ave
-        ! comp_mass_flux[kg comp/sec] = tot_mass_flux[kg phase/sec] *
-        !                                 xmass[kg comp/kg phase]
-        do icomp = 1 , option%nflowspec
-          component_mass_flux = tot_mass_flux * xmass(icomp)
-          if (icomp == 3) then
-            ! Salt is component 3, equation 4
-            Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
-                                            component_mass_flux
-          else
-            Res(icomp) = Res(icomp) + component_mass_flux
-          endif
-        enddo
-        ! Energy flux
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-        !                                   tot_mass_flux * uH
-      endif
-    endif
-
-
     ! Diffusion
 
-    ! Compute molar fluxes
+    ! Compute mass fluxes
     ! MAN: make sure mole-based quantities are up to date
-
-    ! Harmonic diffusion coefficient
-
     sat_dn = sco2_auxvar_dn%sat(iphase)
     if ((sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC)) then
-      if (sco2_harmonic_diff_density) then
-          density_ave = 1.d0
-          den_dn = sco2_auxvar_dn%den(iphase)
-      else
-        den_dn = 1.d0
-        ! use upstream weighting when iphase is not equal, otherwise
-        ! arithmetic with 50/50 weighting
-        density_ave = SCO2AverageDensity(iphase, &
-                                         global_auxvar_up%istate, &
-                                         global_auxvar_dn%istate, &
-                                         sco2_auxvar_up%den, &
-                                         sco2_auxvar_dn%den)
-      endif
-
       if (iphase == LIQUID_PHASE) then
-        ! CO2 Mole Flux
+        ! CO2 Mass Flux
         ! Include diffusion and longitudinal dispersion
         stpd_dn = (sco2_auxvar_dn%effective_diffusion_coeff(co2_id,iphase) + &
                    sco2_auxvar_dn%dispersivity(co2_id,iphase) * &
-                   v_darcy(iphase)) * den_dn
+                   v_darcy(iphase))
 
-        ! units = [mol/m^2/s bulk] 
+        ! units = [m/s] 
         stpd_ave_over_dist = stpd_dn / dist(0)
 
-        ! units = mole/sec
-        dtot_mole_flux_ddeltaX = stpd_ave_over_dist * area
+        ! units = [m^3/s]
+        dtot_mass_flux_ddeltaX = stpd_ave_over_dist * area
 
-        delta_xmol = sco2_auxvar_up%xmol(co2_id,iphase) - &
-                     sco2_auxvar_dn%xmol(co2_id,iphase)
+        ! units = [kg/kg] * [kg/m^3]
+        delta_xmass = sco2_auxvar_up%xmass(co2_id,iphase) *  &
+                      sco2_auxvar_up%den_kg(iphase) - &
+                      sco2_auxvar_dn%xmass(co2_id,iphase) * &
+                      sco2_auxvar_dn%den_kg(iphase)
 
-        co2_mole_flux = dtot_mole_flux_ddeltaX * delta_xmol
+        ! units = [kg/sec]
+        co2_mass_flux = dtot_mass_flux_ddeltaX * delta_xmass
       else
-        ! CO2 Mole Flux
+        ! CO2 Mass Flux
         ! Include diffusion and longitudinal dispersion
         stpd_dn = (sco2_auxvar_dn%effective_diffusion_coeff(wid,iphase) + &
                    sco2_auxvar_dn%dispersivity(wid,iphase) * &
-                   v_darcy(iphase)) * den_dn
+                   v_darcy(iphase))
 
-        ! units = [mol/m^2/s bulk] 
+        ! units = [m/s] 
         stpd_ave_over_dist = stpd_dn / dist(0)
 
-        ! units = mole/sec
-        dtot_mole_flux_ddeltaX = stpd_ave_over_dist * area
+        ! units = [m^3/sec]
+        dtot_mass_flux_ddeltaX = stpd_ave_over_dist * area
 
-        delta_xmol = sco2_auxvar_up%xmol(wid,iphase) - &
-                     sco2_auxvar_dn%xmol(wid,iphase)
+        delta_xmass = sco2_auxvar_up%xmass(wid,iphase) * &
+                      sco2_auxvar_up%den_kg(iphase) - &
+                      sco2_auxvar_dn%xmol(wid,iphase) * &
+                      sco2_auxvar_dn%den_kg(iphase)
 
-        co2_mole_flux = -dtot_mole_flux_ddeltaX * delta_xmol
+        co2_mass_flux = -dtot_mass_flux_ddeltaX * delta_xmass
       endif
 
 
-      ! Salt Mole Flux
+      ! Salt Mass Flux
       ! Include diffusion and longitudinal dispersion
       stpd_dn = (sco2_auxvar_dn%effective_diffusion_coeff(sid,iphase) + &
                  sco2_auxvar_dn%dispersivity(sid,iphase) * &
-                 v_darcy(iphase)) * den_dn
+                 v_darcy(iphase))
 
-      ! units = [mol/m^2/s bulk] 
+      ! units = [m/s] 
       stpd_ave_over_dist = stpd_dn / dist(0)
 
-      ! units = mole/sec
-      dsalt_mole_flux_ddeltaX = stpd_ave_over_dist * area
+      ! Patankar salt transport for advective fluxes
+      al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+        (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
+        0.d0)
+      alp = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+        (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
+        0.d0)
 
-      delta_xmol = sco2_auxvar_up%xmol(sid,iphase) - &
-                   sco2_auxvar_dn%xmol(sid,iphase)
+      ! units = [m^3/sec]
+      dsalt_mass_flux_ddeltaX = stpd_ave_over_dist * area
 
-      salt_mole_flux = dsalt_mole_flux_ddeltaX * delta_xmol
+      ! units = [kg/kg] * [kg/m^3]
+      delta_xmass = sco2_auxvar_up%xmass(sid,iphase) * &
+                    sco2_auxvar_up%den_kg(iphase) - &
+                    sco2_auxvar_dn%xmass(sid,iphase) * &
+                    sco2_auxvar_dn%den_kg(iphase)
+
+      ! units = [kg/sec]
+      salt_mass_flux = dsalt_mass_flux_ddeltaX * delta_xmass
 
 
       if (iphase == LIQUID_PHASE) then
           water_mass_flux = -1.d0 * fmw_comp(1) * &
-                            (co2_mole_flux + salt_mole_flux/fmw_comp(3))
+                      (co2_mass_flux/fmw_comp(2) + salt_mass_flux/fmw_comp(3))
       else
-          water_mass_flux = -1.d0 * fmw_comp(1) * co2_mole_flux
+          water_mass_flux = -1.d0 * fmw_comp(1) / fmw_comp(2) * co2_mass_flux
       endif
 
-      co2_mass_flux = co2_mole_flux * fmw_comp(2)
-      salt_mass_flux = salt_mole_flux * fmw_comp(3)
+    endif
 
+    ! Advective Contributions
+    if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
+      Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + & 
+                v_darcy(iphase) * area * density_kg_ave * xmass(wid)
+      Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + & 
+                v_darcy(iphase) * area * density_kg_ave * xmass(co2_id)
+      Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + & 
+                v_darcy(iphase) * area * density_kg_ave * xmass(sid)
+    ! Patankar salt transport
+    ! Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + & 
+    !             alp * sco2_auxvar_up%xmass(sid,iphase) * &
+    !             sco2_auxvar_up%den_kg(iphase) + &
+    !             al * sco2_auxvar_dn%xmass(sid,iphase) * &
+    !             sco2_auxvar_dn%den_kg(iphase)
+    endif
+
+    if ((sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC)) then
       Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + &
                                        water_mass_flux
       Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &

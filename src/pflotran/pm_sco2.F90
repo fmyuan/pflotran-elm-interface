@@ -396,7 +396,7 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
     case('MAVERICK_MODE')
       ! Shoots from the hip.
       sco2_maverick_mode = PETSC_TRUE
-      this%residual_abs_inf_tol(:) = 1.d0
+      ! this%residual_abs_inf_tol(:) = 1.d0
       !this%abs_update_inf_tol(:,:) = 1.d8
       ! Let liquid pressure do whatever it wants.
       !this%abs_update_inf_tol(1,1) = 1.d8
@@ -567,7 +567,7 @@ subroutine PMSCO2InitializeSolver(this)
 
   ! MAN: Do we need dtol?
   this%solver%newton_dtol = 1.d9
-  this%solver%newton_max_iterations = 8
+  this%solver%newton_max_iterations = 16
 
 end subroutine PMSCO2InitializeSolver
 
@@ -716,7 +716,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
   call PrintMsg(this%option,'PMSCO2%UpdateTimestep()')
 #endif
 
-  if (update_dt .and. iacceleration /= 0) then
+  if ((update_dt .and. iacceleration /= 0)) then
     fac = 0.5d0
     if (num_newton_iterations >= iacceleration) then
       fac = 0.33d0
@@ -733,13 +733,16 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
     if (sco2_maverick_mode) then
-      governed_dt = 10.d0 * dt
+      dtt = time_step_max_growth_factor*dt
+      dt = min(dtt,dt_max)
+      dt = max(dt,dt_min)
     else
       governed_dt = umin_scale * dt
+      dtt = min(time_step_max_growth_factor*dt,governed_dt)
+      dt = min(dtt,tfac(ifac)*dt,dt_max)
+      dt = max(dt,dt_min)
     endif
-    dtt = min(time_step_max_growth_factor*dt,governed_dt)
-    dt = min(dtt,dt_max)
-    dt = max(dt,dt_min)
+    
 
     ! Inform user that time step is being limited by a state variable.
     if (Equal(dt,governed_dt)) then
