@@ -6262,7 +6262,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
-  use Reaction_Gas_module, only : RGasConcentration
+  use Reaction_Gas_module, only : ReactionGasPartialPresToConc
   use Reaction_Mineral_module
   use Reaction_Redox_module
   use Reaction_module
@@ -6308,7 +6308,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
-  reaction => ReactionCast(reaction_base)
+  reaction => ReactionAuxCast(reaction_base)
 
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = UNINITIALIZED_DOUBLE
@@ -7558,7 +7558,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(PH)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
                               patch%aux%Global%auxvars(ghosted_id), &
                               reaction,ph0,option)
             vec_ptr(local_id) = ph0
@@ -7566,7 +7566,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(EH)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                   patch%aux%Global%auxvars(ghosted_id), &
                                   reaction,eh0,pe0,option)
             vec_ptr(local_id) = eh0
@@ -7574,7 +7574,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(PE)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                   patch%aux%Global%auxvars(ghosted_id), &
                                   reaction,eh0,pe0,option)
             vec_ptr(local_id) = pe0
@@ -7582,7 +7582,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         case(O2)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+            call ReactionRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,lnQKgas,option)
             vec_ptr(local_id) = lnQKgas
@@ -7690,9 +7690,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             do local_id=1,grid%nlmax
               ! mol/m^3 gas
               vec_ptr(local_id) = &
-                RGasConcentration(vec_ptr(local_id), &
-                                  patch%aux%Global% &
-                                    auxvars(grid%nL2G(local_id))%temp)
+                ReactionGasPartialPresToConc(vec_ptr(local_id), &
+                          patch%aux%Global%auxvars(grid%nL2G(local_id))%temp)
             enddo
           endif
         case(MINERAL_VOLUME_FRACTION)
@@ -8133,7 +8132,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use TH_Aux_module
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
-  use Reaction_Gas_module, only : RGasConcentration
+  use Reaction_Gas_module, only : ReactionGasPartialPresToConc
   use Reaction_Mineral_module
   use Reaction_Redox_module
   use Reaction_module
@@ -8179,7 +8178,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
-  reaction => ReactionCast(reaction_base)
+  reaction => ReactionAuxCast(reaction_base)
 
   value = UNINITIALIZED_DOUBLE
 
@@ -8935,22 +8934,22 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
       select case(ivar)
         case(PH)
-          call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
                             patch%aux%Global%auxvars(ghosted_id), &
                             reaction,ph0,option)
           value = ph0
         case(EH)
-          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                 patch%aux%Global%auxvars(ghosted_id), &
                                 reaction,eh0,pe0,option)
           value = eh0
         case(PE)
-          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
                                 patch%aux%Global%auxvars(ghosted_id), &
                                 reaction,eh0,pe0,option)
           value = pe0
         case(O2)
-          call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+          call ReactionRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
                                patch%aux%Global%auxvars(ghosted_id), &
                                reaction,lnQKgas,option)
           value = lnQKgas * LN_TO_LOG
@@ -9002,9 +9001,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = 0.d0
           endif
           if (ivar == GAS_CONCENTRATION) then
-            value = RGasConcentration(value, &
-                                      patch%aux%Global% &
-                                        auxvars(ghosted_id)%temp)
+            value = ReactionGasPartialPresToConc(value, &
+                               patch%aux%Global%auxvars(ghosted_id)%temp)
           endif
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)

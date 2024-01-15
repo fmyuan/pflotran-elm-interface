@@ -58,7 +58,7 @@ subroutine ReactionMnrlRead(mineral,input,option)
 
     mineral%nmnrl = mineral%nmnrl + 1
 
-    cur_mineral => MineralRxnCreate()
+    cur_mineral => ReactionMnrlCreateMineralRxn()
     call InputReadCard(input,option,cur_mineral%name)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,MINERALS')
     if (.not.associated(mineral%mineral_list)) then
@@ -137,7 +137,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
       if (StringCompare(cur_mineral%name,name,MAXWORDLENGTH)) then
         found = PETSC_TRUE
         cur_mineral%itype = MINERAL_KINETIC
-        tstrxn => TransitionStateTheoryRxnCreate()
+        tstrxn => ReactionMnrlCreateTSTRxn()
         ! initialize to UNINITIALIZED_INTEGER to ensure that it is set
         tstrxn%rate = UNINITIALIZED_DOUBLE
         call InputPushBlock(input,option)
@@ -235,7 +235,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
               call InputErrorMsg(input,option,word,error_string)
             case('PREFACTOR')
               error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR'
-              prefactor => TransitionStatePrefactorCreate()
+              prefactor => ReactionMnrlCreateTSTPrefactor()
               ! Initialize to UNINITIALIZED_DOUBLE to check later whether
               ! they were set
               prefactor%rate = UNINITIALIZED_DOUBLE
@@ -280,7 +280,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   case('PREFACTOR_SPECIES')
                     error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,&
                                    &SPECIES'
-                    prefactor_species => TSPrefactorSpeciesCreate()
+                    prefactor_species => ReactionMnrlCreateTSTPrefSpec()
                     call InputReadCard(input,option,prefactor_species%name, &
                                        PETSC_TRUE)
                     call InputErrorMsg(input,option,'name',error_string)
@@ -460,10 +460,10 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
   mineral%molar_volume = mineral%molar_volume*1.d-6
   ! create mineral reaction
   if (.not.associated(mineral%tstrxn)) then
-    mineral%tstrxn => TransitionStateTheoryRxnCreate()
+    mineral%tstrxn => ReactionMnrlCreateTSTRxn()
   endif
   ! read the number of aqueous species in mineral rxn
-  mineral%dbaserxn => DatabaseRxnCreate()
+  mineral%dbaserxn => ReactionDBCreateRxn()
   call InputReadInt(input,option,mineral%dbaserxn%nspec)
   call InputErrorMsg(input,option,'Number of species in mineral reaction', &
                   'DATABASE')
@@ -1349,31 +1349,27 @@ subroutine ReactionMnrlUpdateTempDepCoefs(temp,pres,mineral, &
 
   if (.not.use_geothermal_hpt) then
     if (associated(mineral%kinmnrl_logKcoef)) then
-      call ReactionInterpolateLogK(mineral%kinmnrl_logKcoef, &
-                                   mineral%kinmnrl_logK, &
-                                   temp, &
-                                   mineral%nkinmnrl)
+      call ReactionAuxInterpolateLogK(mineral%kinmnrl_logKcoef, &
+                                      mineral%kinmnrl_logK, &
+                                      temp, &
+                                      mineral%nkinmnrl)
     endif
     if (update_mnrl .and. associated(mineral%mnrl_logKcoef)) then
-      call ReactionInterpolateLogK(mineral%mnrl_logKcoef, &
-                                   mineral%mnrl_logK, &
-                                   temp, &
-                                   mineral%nmnrl)
+      call ReactionAuxInterpolateLogK(mineral%mnrl_logKcoef, &
+                                      mineral%mnrl_logK, &
+                                      temp, &
+                                      mineral%nmnrl)
     endif
   else
     if (associated(mineral%kinmnrl_logKcoef)) then
-      call ReactionInterpolateLogK_hpt(mineral%kinmnrl_logKcoef, &
-                                       mineral%kinmnrl_logK, &
-                                       temp, &
-                                       pres, &
-                                       mineral%nkinmnrl)
+      call ReactionAuxInterpolateLogK_hpt(mineral%kinmnrl_logKcoef, &
+                                          mineral%kinmnrl_logK, &
+                                          temp,pres,mineral%nkinmnrl)
     endif
     if (update_mnrl .and. associated(mineral%mnrl_logKcoef)) then
-      call ReactionInterpolateLogK_hpt(mineral%mnrl_logKcoef, &
-                                       mineral%mnrl_logK, &
-                                       temp, &
-                                       pres, &
-                                       mineral%nmnrl)
+      call ReactionAuxInterpolateLogK_hpt(mineral%mnrl_logKcoef, &
+                                          mineral%mnrl_logK, &
+                                          temp,pres,mineral%nmnrl)
     endif
   endif
 

@@ -175,7 +175,7 @@ end subroutine DownregRead
 
 ! ************************************************************************** !
 
-subroutine DownregSetup(this,grid,material_auxvars,option)
+subroutine DownregSetup(this,grid,region_list,material_auxvars,option)
   !
   ! Sets up the mass rate src/sink
   !
@@ -185,15 +185,17 @@ subroutine DownregSetup(this,grid,material_auxvars,option)
   use Option_module
   use Grid_module
   use Material_Aux_module, only: material_auxvar_type
+  use Region_module
 
   implicit none
 
   class(srcsink_sandbox_downreg_type) :: this
   type(grid_type) :: grid
+  type(region_list_type) :: region_list
   type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
-  call SSSandboxBaseSetup(this,grid,material_auxvars,option)
+  call SSSandboxBaseSetup(this,grid,region_list,material_auxvars,option)
 
 end subroutine DownregSetup
 

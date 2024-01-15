@@ -33,17 +33,17 @@ module Reaction_Inhibition_Aux_module
     module procedure ReactionInhibitionSmoothstep2
   end interface
 
-  public :: ReactionInhibitionCreate, &
+  public :: ReactionInhibitionCreateAux, &
             ReactionInhibitionMonod, &
             ReactionInhibitionThreshold, &
             ReactionInhibitionSmoothstep, &
-            ReactionInhibitionDestroy
+            ReactionInhibitionDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionInhibitionCreate()
+function ReactionInhibitionCreateAux()
   !
   ! Allocate and initialize a inhibition object
   !
@@ -53,7 +53,7 @@ function ReactionInhibitionCreate()
 
   implicit none
 
-  type(inhibition_type), pointer :: ReactionInhibitionCreate
+  type(inhibition_type), pointer :: ReactionInhibitionCreateAux
 
   type(inhibition_type), pointer :: inhibition
 
@@ -65,9 +65,9 @@ function ReactionInhibitionCreate()
   inhibition%inhibition_constant2 = UNINITIALIZED_DOUBLE
   nullify(inhibition%next)
 
-  ReactionInhibitionCreate => inhibition
+  ReactionInhibitionCreateAux => inhibition
 
-end function ReactionInhibitionCreate
+end function ReactionInhibitionCreateAux
 
 ! ************************************************************************** !
 
@@ -235,7 +235,7 @@ end subroutine ReactionInhibitionSmoothstep2
 
 ! ************************************************************************** !
 
-recursive subroutine ReactionInhibitionDestroy(inhibition)
+recursive subroutine ReactionInhibitionDestroyAux(inhibition)
   !
   ! Deallocates a inhibition object
   !
@@ -249,11 +249,11 @@ recursive subroutine ReactionInhibitionDestroy(inhibition)
 
   if (.not. associated(inhibition)) return
 
-  call ReactionInhibitionDestroy(inhibition%next)
+  call ReactionInhibitionDestroyAux(inhibition%next)
 
   deallocate(inhibition)
   nullify(inhibition)
 
-end subroutine ReactionInhibitionDestroy
+end subroutine ReactionInhibitionDestroyAux
 
 end module Reaction_Inhibition_Aux_module

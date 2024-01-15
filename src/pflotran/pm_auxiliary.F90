@@ -314,7 +314,7 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
       ! set up species names
       do i =1, this%salinity%nspecies
         this%salinity%ispecies(i) = &
-          ReactionGetPriSpeciesIDFromName(this%salinity%species_names(i), &
+          ReactionAuxGetPriSpecIDFromName(this%salinity%species_names(i), &
                                           this%realization%patch%reaction, &
                                           this%option)
         if (Uninitialized(this%salinity%molecular_weights(i))) then

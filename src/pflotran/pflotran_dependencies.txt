@@ -3426,6 +3426,7 @@ srcsink_sandbox.o : \
   option.o \
   output_aux.o \
   pflotran_constants.o \
+  region.o \
   srcsink_sandbox_base.o \
   srcsink_sandbox_downreg.o \
   srcsink_sandbox_mass_rate.o \
@@ -3442,6 +3443,7 @@ srcsink_sandbox_base.o : \
   material_aux.o \
   option.o \
   pflotran_constants.o \
+  region.o \
   utility.o
 srcsink_sandbox_downreg.o : \
   condition.o \
@@ -3454,6 +3456,7 @@ srcsink_sandbox_downreg.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  region.o \
   srcsink_sandbox_base.o \
   string.o \
   time_storage.o \
@@ -3466,6 +3469,7 @@ srcsink_sandbox_mass_rate.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  region.o \
   srcsink_sandbox_base.o \
   string.o \
   units.o \
@@ -3477,6 +3481,7 @@ srcsink_sandbox_pressure.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  region.o \
   srcsink_sandbox_base.o \
   string.o \
   units.o \
@@ -3489,6 +3494,7 @@ srcsink_sandbox_wipp_gas.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  region.o \
   srcsink_sandbox_base.o \
   string.o \
   units.o
@@ -3499,6 +3505,7 @@ srcsink_sandbox_wipp_well.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  region.o \
   srcsink_sandbox_base.o \
   string.o \
   units.o

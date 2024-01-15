@@ -15,17 +15,17 @@ module CLM_Rxn_Base_class
   type, abstract, public :: clm_rxn_base_type
     class(clm_rxn_base_type), pointer :: next
   contains
-    procedure, public :: ReadInput => BaseRead
-    procedure, public :: Setup => BaseSetup
-    procedure, public :: Evaluate => BaseReact
-    procedure, public :: Destroy => BaseDestroy
+    procedure, public :: ReadInput => ReactionCLMBaseRead
+    procedure, public :: Setup => ReactionCLMBaseSetup
+    procedure, public :: Evaluate => ReactionCLMBaseReact
+    procedure, public :: Destroy => ReactionCLMBaseDestroy
   end type clm_rxn_base_type
 
 contains
 
 ! ************************************************************************** !
 
-  subroutine BaseSetup(this,reaction,option)
+  subroutine ReactionCLMBaseSetup(this,reaction,option)
 
     use Option_module
     use Reaction_Aux_module
@@ -36,11 +36,11 @@ contains
     class(reaction_rt_type) :: reaction
     type(option_type) :: option
 
-  end subroutine BaseSetup
+  end subroutine ReactionCLMBaseSetup
 
 ! ************************************************************************** !
 
-  subroutine BaseRead(this,input,option)
+  subroutine ReactionCLMBaseRead(this,input,option)
 
     use Option_module
     use Input_Aux_module
@@ -51,11 +51,12 @@ contains
     type(input_type), pointer :: input
     type(option_type) :: option
 
-  end subroutine BaseRead
+  end subroutine ReactionCLMBaseRead
 
 ! ************************************************************************** !
 
-  subroutine BaseReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+  subroutine ReactionCLMBaseReact(this,Residual,Jacobian,compute_derivative, &
+                       rt_auxvar, &
                        global_auxvar,material_auxvar,reaction,option, &
                        RateDemand_nh4,RateSupply_nh4, &
                        JacobianDemand_nh4,JacobianSupply_nh4, &
@@ -90,17 +91,17 @@ contains
     type(global_auxvar_type) :: global_auxvar
     type(material_auxvar_type) :: material_auxvar
 
-  end subroutine
+  end subroutine ReactionCLMBaseReact
 
 ! ************************************************************************** !
 
-  subroutine BaseDestroy(this)
+  subroutine ReactionCLMBaseDestroy(this)
 
     implicit none
 
     class(clm_rxn_base_type) :: this
 
-  end subroutine BaseDestroy
+  end subroutine ReactionCLMBaseDestroy
 
 end module CLM_Rxn_Base_class
 
@@ -113,11 +114,11 @@ module CLM_Rxn_Common_module
 
   private
 
-  public :: CalNLimitFunc
+  public :: ReactionCLMCalNLimitFunc
 
 contains
 
-subroutine CalNLimitFunc(c_n, ac_n, &
+subroutine ReactionCLMCalNLimitFunc(c_n, ac_n, &
                          residual, half_saturation, &
                          cutoff_0, cutoff_1, f_n, d_n)
 
@@ -158,7 +159,7 @@ subroutine CalNLimitFunc(c_n, ac_n, &
 
   endif
 
-end subroutine CalNLimitFunc
+end subroutine ReactionCLMCalNLimitFunc
 
 end module CLM_Rxn_Common_module
 
@@ -169,17 +170,17 @@ module CLM_Rxn_Decomp_class
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
 
-! ------------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 ! Description
-! extended from reaction_sandbox_clmdec to implement demand based down regulation
-! for use in CLM_Rxn t6g 10/06/2014
+! extended from reaction_sandbox_clmdec to implement demand based down
+! regulation for use in CLM_Rxn t6g 10/06/2014
 
 ! following is a description for clm_dec
 ! to be used to implement CLM-CN, and CLM-Microbe decomposition reactions
 ! extended from clm_rxn_clm_cn
 ! 1) pools can be either immobile or aqueous species (e.g., DOM, acetate-, )
-! 2) separate N into NH3 (or NH4+) and NO3-; Must have NH3 or NH4+, NO3- is used
-!    if it is specified in the input file
+! 2) separate N into NH3 (or NH4+) and NO3-; Must have NH3 or NH4+, NO3- is
+!    used if it is specified in the input file
 ! 3) include flexibilities to have multiple downstream pools, and variable
 !    respiration fraction as in CLM-Microbe;
 ! 4) add residual concentrations for upstream pools, NH3, and NO3- to
@@ -222,8 +223,8 @@ module CLM_Rxn_Decomp_class
     PetscReal :: half_saturation_nh4
     PetscReal :: half_saturation_no3
     PetscReal :: inhibition_nh4_no3
-    PetscReal :: n2o_frac_mineralization     ! fraction of n2o from net N mineralization
-
+    PetscReal :: n2o_frac_mineralization     ! fraction of n2o from net N
+                                             ! mineralization
     PetscReal :: residual_cpool
     PetscReal :: residual_nh4
     PetscReal :: residual_no3
@@ -240,7 +241,7 @@ module CLM_Rxn_Decomp_class
     PetscReal :: nc_fungi
     PetscReal :: fraction_bacteria
 
-    PetscInt :: npool                        ! litter or variable CN ration pools
+    PetscInt :: npool               ! litter or variable CN ration pools
     PetscReal, pointer :: pool_nc_ratio(:)   ! NC ratio in mole  npool
 
     PetscInt :: nrxn
@@ -252,11 +253,16 @@ module CLM_Rxn_Decomp_class
     PetscReal, pointer :: upstream_nc(:)             ! nrxn
     PetscBool, pointer :: upstream_is_aqueous(:)     ! nrxn
 
-    PetscInt,  pointer :: n_downstream_pools(:)      ! maximum # of downstream pools
-    PetscInt,  pointer :: downstream_id(:,:)         ! nrxn by maximum # of downstream pools
-    PetscBool, pointer :: downstream_is_aqueous(:,:) ! nrxn by maximum # of downstream pools
-    PetscReal, pointer :: downstream_stoich(:,:)     ! nrxn by maximum # of downstream pools
-    PetscReal, pointer :: downstream_nc(:,:)         ! nrxn by maximum # of downstream pools
+    PetscInt,  pointer :: n_downstream_pools(:)      ! maximum # of downstream
+                                                     !   pools
+    PetscInt,  pointer :: downstream_id(:,:)         ! nrxn by maximum # of
+                                                     !   downstream pools
+    PetscBool, pointer :: downstream_is_aqueous(:,:) ! nrxn by maximum # of
+                                                     !   downstream pools
+    PetscReal, pointer :: downstream_stoich(:,:)     ! nrxn by maximum # of
+                                                     !   downstream pools
+    PetscReal, pointer :: downstream_nc(:,:)         ! nrxn by maximum # of
+                                                     !   downstream pools
     PetscReal, pointer :: mineral_c_stoich(:)        ! nrxn
     PetscReal, pointer :: mineral_n_stoich(:)        ! nrxn
 
@@ -281,10 +287,10 @@ module CLM_Rxn_Decomp_class
     type(pool_type), pointer :: pools
     type(clmdec_reaction_type), pointer :: reactions
   contains
-    procedure, public :: ReadInput => CLMDec_Read
-    procedure, public :: Setup => CLMDec_Setup
-    procedure, public :: Evaluate => CLMDec_React
-    procedure, public :: Destroy => CLMDec_Destroy
+    procedure, public :: ReadInput => ReaReactionCLMDecRead
+    procedure, public :: Setup => ReaReactionCLMDecSetup
+    procedure, public :: Evaluate => ReactionCLMDecReact
+    procedure, public :: Destroy => ReactionCLMDecDestroy
   end type clm_rxn_clmdec_type
 
   type :: pool_type
@@ -301,92 +307,92 @@ module CLM_Rxn_Decomp_class
     type(clmdec_reaction_type), pointer :: next
   end type clmdec_reaction_type
 
-  public :: CLMDec_Create
+  public :: ReactionCLMDecCreate
 
 contains
 
 ! **************************************************************************** !
 
-function CLMDec_Create()
+function ReactionCLMDecCreate()
   ! Allocates CLMDec reaction sandbox object.
 
   implicit none
 
-  type(clm_rxn_clmdec_type), pointer :: CLMDec_Create
+  type(clm_rxn_clmdec_type), pointer :: ReactionCLMDecCreate
 
-  allocate(CLMDec_Create)
+  allocate(ReactionCLMDecCreate)
 
-  CLMDec_Create%Q10 = 1.5d0
-  CLMDec_Create%litter_decomp_type=LITTER_DECOMP_CLMCN
-  CLMDec_Create%half_saturation_nh4 =  1.0d-6
-  CLMDec_Create%half_saturation_no3 =  1.0d-6
-  CLMDec_Create%inhibition_nh4_no3 = -1.0d-15
-  CLMDec_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
+  ReactionCLMDecCreate%Q10 = 1.5d0
+  ReactionCLMDecCreate%litter_decomp_type=LITTER_DECOMP_CLMCN
+  ReactionCLMDecCreate%half_saturation_nh4 =  1.0d-6
+  ReactionCLMDecCreate%half_saturation_no3 =  1.0d-6
+  ReactionCLMDecCreate%inhibition_nh4_no3 = -1.0d-15
+  ReactionCLMDecCreate%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
 
-  CLMDec_Create%residual_cpool = 1.0d-20
-  CLMDec_Create%residual_nh4 = 1.0d-10
-  CLMDec_Create%residual_no3 = 1.0d-10
+  ReactionCLMDecCreate%residual_cpool = 1.0d-20
+  ReactionCLMDecCreate%residual_nh4 = 1.0d-10
+  ReactionCLMDecCreate%residual_no3 = 1.0d-10
 
-  CLMDec_Create%cutoff_no3_0 = -1.0d-9
-  CLMDec_Create%cutoff_no3_1 = 1.0d-7
-  CLMDec_Create%cutoff_nh4_0 = -1.0d-9
-  CLMDec_Create%cutoff_nh4_1 = 1.0d-7
+  ReactionCLMDecCreate%cutoff_no3_0 = -1.0d-9
+  ReactionCLMDecCreate%cutoff_no3_1 = 1.0d-7
+  ReactionCLMDecCreate%cutoff_nh4_0 = -1.0d-9
+  ReactionCLMDecCreate%cutoff_nh4_1 = 1.0d-7
 
-  CLMDec_Create%net_n_min_rate_smooth_0 = 0.0d0
-  CLMDec_Create%net_n_min_rate_smooth_1 = 1.0d-20
+  ReactionCLMDecCreate%net_n_min_rate_smooth_0 = 0.0d0
+  ReactionCLMDecCreate%net_n_min_rate_smooth_1 = 1.0d-20
 
-  CLMDec_Create%nc_bacteria = 0.17150d0
+  ReactionCLMDecCreate%nc_bacteria = 0.17150d0
 
   ! CN_ratio_fungi = 17.4924d0     !15.0d0 ! or 10.0
-  CLMDec_Create%nc_fungi = 0.05717d0
+  ReactionCLMDecCreate%nc_fungi = 0.05717d0
 
-  CLMDec_Create%fraction_bacteria = 0.340927d0
+  ReactionCLMDecCreate%fraction_bacteria = 0.340927d0
 
-  CLMDec_Create%npool = 0
+  ReactionCLMDecCreate%npool = 0
 
-  nullify(CLMDec_Create%pool_nc_ratio)
+  nullify(ReactionCLMDecCreate%pool_nc_ratio)
 
-  CLMDec_Create%nrxn = 0
-  nullify(CLMDec_Create%rate_constant)
-  nullify(CLMDec_Create%is_litter_decomp)
-  nullify(CLMDec_Create%upstream_c_id)
-  nullify(CLMDec_Create%upstream_n_id)
-  nullify(CLMDec_Create%upstream_nc)
-  nullify(CLMDec_Create%upstream_is_aqueous)
+  ReactionCLMDecCreate%nrxn = 0
+  nullify(ReactionCLMDecCreate%rate_constant)
+  nullify(ReactionCLMDecCreate%is_litter_decomp)
+  nullify(ReactionCLMDecCreate%upstream_c_id)
+  nullify(ReactionCLMDecCreate%upstream_n_id)
+  nullify(ReactionCLMDecCreate%upstream_nc)
+  nullify(ReactionCLMDecCreate%upstream_is_aqueous)
 
-  nullify(CLMDec_Create%n_downstream_pools)
-  nullify(CLMDec_Create%downstream_id)
-  nullify(CLMDec_Create%downstream_is_aqueous)
-  nullify(CLMDec_Create%downstream_stoich)
-  nullify(CLMDec_Create%mineral_c_stoich)
-  nullify(CLMDec_Create%mineral_n_stoich)
+  nullify(ReactionCLMDecCreate%n_downstream_pools)
+  nullify(ReactionCLMDecCreate%downstream_id)
+  nullify(ReactionCLMDecCreate%downstream_is_aqueous)
+  nullify(ReactionCLMDecCreate%downstream_stoich)
+  nullify(ReactionCLMDecCreate%mineral_c_stoich)
+  nullify(ReactionCLMDecCreate%mineral_n_stoich)
 
-  CLMDec_Create%species_id_co2 = 0
-  CLMDec_Create%species_id_nh4 = 0
-  CLMDec_Create%species_id_no3 = 0
-  CLMDec_Create%species_id_n2o = 0
-  CLMDec_Create%species_id_dom = 0
-  CLMDec_Create%species_id_proton = 0
-  CLMDec_Create%species_id_bacteria = 0
-  CLMDec_Create%species_id_fungi = 0
-  CLMDec_Create%species_id_hrimm = 0
-  CLMDec_Create%species_id_nmin = 0
-  CLMDec_Create%species_id_nimm = 0
-  CLMDec_Create%species_id_ngasmin = 0
+  ReactionCLMDecCreate%species_id_co2 = 0
+  ReactionCLMDecCreate%species_id_nh4 = 0
+  ReactionCLMDecCreate%species_id_no3 = 0
+  ReactionCLMDecCreate%species_id_n2o = 0
+  ReactionCLMDecCreate%species_id_dom = 0
+  ReactionCLMDecCreate%species_id_proton = 0
+  ReactionCLMDecCreate%species_id_bacteria = 0
+  ReactionCLMDecCreate%species_id_fungi = 0
+  ReactionCLMDecCreate%species_id_hrimm = 0
+  ReactionCLMDecCreate%species_id_nmin = 0
+  ReactionCLMDecCreate%species_id_nimm = 0
+  ReactionCLMDecCreate%species_id_ngasmin = 0
 
-  CLMDec_Create%is_NH4_aqueous = PETSC_TRUE
-  CLMDec_Create%is_NO3_aqueous = PETSC_TRUE
-  CLMDec_Create%bdebugoutput = PETSC_FALSE
+  ReactionCLMDecCreate%is_NH4_aqueous = PETSC_TRUE
+  ReactionCLMDecCreate%is_NO3_aqueous = PETSC_TRUE
+  ReactionCLMDecCreate%bdebugoutput = PETSC_FALSE
 
-  nullify(CLMDec_Create%next)
-  nullify(CLMDec_Create%pools)
-  nullify(CLMDec_Create%reactions)
+  nullify(ReactionCLMDecCreate%next)
+  nullify(ReactionCLMDecCreate%pools)
+  nullify(ReactionCLMDecCreate%reactions)
 
-end function CLMDec_Create
+end function ReactionCLMDecCreate
 
 ! **************************************************************************** !
 
-subroutine CLMDec_Read(this,input,option)
+subroutine ReaReactionCLMDecRead(this,input,option)
   !
   ! Reads input deck for reaction sandbox parameters
   !
@@ -469,9 +475,9 @@ subroutine CLMDec_Read(this,input,option)
         call InputErrorMsg(input,option,'cutoff_nh4_1', &
           'CHEMISTRY,CLM_RXN,CLMDec')
         if (this%cutoff_nh4_0 > this%cutoff_nh4_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,' // &
-            'NH4+ down regulation cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,&
+            &NH4+ down regulation cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
       case('CUTOFF_NO3')
@@ -482,9 +488,9 @@ subroutine CLMDec_Read(this,input,option)
         call InputErrorMsg(input,option,'cutoff_no3_1', &
           'CHEMISTRY,CLM_RXN,CLMDec,')
         if (this%cutoff_no3_0 > this%cutoff_no3_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec' // &
-            'NO3- down regulation cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec&
+            &NO3- down regulation cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
 
@@ -496,8 +502,8 @@ subroutine CLMDec_Read(this,input,option)
         call InputErrorMsg(input,option,'net_n_min_rate_smooth_1', &
           'CHEMISTRY,CLM_RXN,CLMDec')
         if (this%net_n_min_rate_smooth_0 > this%net_n_min_rate_smooth_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,' // &
-            'Net N mineralization smooth 0 concentration > 1 concentration.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,&
+            &Net N mineralization smooth 0 concentration > 1 concentration.'
           call PrintErrMsg(option)
         endif
 
@@ -594,8 +600,8 @@ subroutine CLMDec_Read(this,input,option)
                 'CHEMISTRY,CLM_RXN,CLMDec')
               call InputReadDouble(input,option,new_pool_rxn%stoich)
               call InputErrorMsg(input,option,'Downstream pool stoich', &
-                'CHEMISTRY,CLM_RXN,CLMDec' // &
-                'TEMPERATURE RESPONSE FUNCTION')
+                'CHEMISTRY,CLM_RXN,CLMDec,&
+                &TEMPERATURE RESPONSE FUNCTION')
 
               if (associated(new_reaction%downstream_pools)) then
                 prev_pool_rxn%next => new_pool_rxn
@@ -632,9 +638,9 @@ subroutine CLMDec_Read(this,input,option)
 
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
-          option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT may ' // &
-            'be included in a CLMDec reaction definition, but not both. ' // &
-            'See reaction with upstream pool "' // &
+          option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT may &
+            &be included in a CLMDec reaction definition, but not both. &
+            &See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
           call PrintErrMsg(option)
         else if (turnover_time > 0.d0) then
@@ -656,11 +662,11 @@ subroutine CLMDec_Read(this,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine CLMDec_Read
+end subroutine ReaReactionCLMDecRead
 
 ! **************************************************************************** !
 
-subroutine CLMDec_Setup(this,reaction,option)
+subroutine ReaReactionCLMDecSetup(this,reaction,option)
   !
   ! Sets up CLMDec reaction after it has been read from input
   !
@@ -801,9 +807,9 @@ subroutine CLMDec_Setup(this,reaction,option)
         ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
                                        PETSC_FALSE,option)
       if (species_id_pool_c(icount)<=0 .or. species_id_pool_n(icount)<=0) then
-        option%io_buffer = 'For CLMDec pools with no CN ratio defined, ' // &
-          'the user must define two immobile species with the same root ' // &
-          'name as the pool with "C" or "N" appended, respectively.'
+        option%io_buffer = 'For CLMDec pools with no CN ratio defined, &
+          &the user must define two immobile species with the same root &
+          &name as the pool with "C" or "N" appended, respectively.'
         call PrintErrMsg(option)
       endif
     else ! only one species (e.g. SOMX)
@@ -812,11 +818,12 @@ subroutine CLMDec_Setup(this,reaction,option)
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount) <= 0) then
         species_id_pool_c(icount) = &
-          ReactionGetPriSpeciesIDFromName(cur_pool%name,reaction, &
+          ReactionAuxGetPriSpecIDFromName(cur_pool%name,reaction, &
                                           PETSC_FALSE,option)
         if (species_id_pool_c(icount) <= 0) then
-          option%io_buffer = 'CLMDec pool: ' // cur_pool%name // 'is not ' // &
-            'specified either in the IMMOBILE_SPECIES or PRIMARY_SPECIES!'
+          option%io_buffer = 'CLMDec pool: ' // trim(cur_pool%name) // &
+            ' is not specified either in the IMMOBILE_SPECIES or &
+            &PRIMARY_SPECIES!'
           call PrintErrMsg(option)
         else
           pool_is_aqueous(icount) = PETSC_TRUE
@@ -886,9 +893,9 @@ subroutine CLMDec_Setup(this,reaction,option)
           this%downstream_is_aqueous(icount, jcount) = pool_is_aqueous(ipool)
 
           if (this%downstream_nc(icount,jcount) < 0.d0) then
-            option%io_buffer = 'For CLMDec reactions, downstream pools ' // &
-              'must have a constant C:N ratio (i.e. C and N are not ' // &
-              'tracked individually).  Therefore, pool "' // &
+            option%io_buffer = 'For CLMDec reactions, downstream pools &
+              &must have a constant C:N ratio (i.e. C and N are not &
+              &tracked individually).  Therefore, pool "' // &
               trim(cur_pool%name) // &
              '" may not be used as a downstream pool.'
             call PrintErrMsg(option)
@@ -939,28 +946,28 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'HCO3-'
   this%species_id_co2 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_co2 < 0) then
      word = 'CO2(aq)'
      this%species_id_co2 = &
-       ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+       ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%species_id_co2 <= 0) then
-    option%io_buffer = 'Neither HCO3- nor CO2(aq) is specified in the ' // &
-      'input file for CLMDec!'
+    option%io_buffer = 'Neither HCO3- nor CO2(aq) is specified in the &
+      &input file for CLMDec!'
     call PrintErrMsg(option)
   endif
 
   word = 'NH4+'
   this%species_id_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_nh4 < 0) then
     word = 'NH3(aq)'
     this%species_id_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%species_id_nh4 < 0) then
@@ -973,14 +980,14 @@ subroutine CLMDec_Setup(this,reaction,option)
   endif
 
   if (this%species_id_nh4 <= 0) then
-    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
-      'file for CLMDec!'
+    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input &
+      &file for CLMDec!'
     call PrintErrMsg(option)
   endif
 
   word = 'NO3-'
   this%species_id_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%species_id_no3 < 0) then
     word = 'Nitrate'
@@ -993,16 +1000,15 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   word = 'N2O(aq)'
   this%species_id_n2o = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'H+'
   this%species_id_proton = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'Bacteria'
   this%species_id_bacteria = &
-    ReactionImGetSpeciesIDFromName(word,reaction%immobile, &
-                                                          PETSC_FALSE,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
   word = 'Fungi'
   this%species_id_fungi = &
@@ -1030,10 +1036,11 @@ subroutine CLMDec_Setup(this,reaction,option)
       ((1.0d0/this%nc_bacteria) ** 0.6d0 + (1.0d0/this%nc_fungi) ** 0.6d0)
   endif
 
-end subroutine CLMDec_Setup
+end subroutine ReaReactionCLMDecSetup
 
 ! ************************************************************************** !
-subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+subroutine ReactionCLMDecReact(this,Residual,Jacobian,compute_derivative, &
+                        rt_auxvar, &
                         global_auxvar,material_auxvar,reaction,option, &
                         RateDemand_nh4,RateSupply_nh4, &
                         JacobianDemand_nh4,JacobianSupply_nh4, &
@@ -1047,7 +1054,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module, only : material_auxvar_type
-  use CLM_Rxn_Common_module, only: CalNLimitFunc
+  use CLM_Rxn_Common_module, only: ReactionCLMCalNLimitFunc
 
   implicit none
 
@@ -1097,7 +1104,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: c_uc, c_un         ! upstream c pool, n pool concentration
   PetscReal :: ac_uc, ac_un       ! activity coefficient, if aqueous
 
-  PetscInt :: ispec_uc, ispec_un, ispec_d   ! species id for upstream C, N, and downstream
+  PetscInt :: ispec_uc, ispec_un, ispec_d   ! species id for upstream C, N, and
+                                            !   downstream
   PetscInt :: ires_uc, ires_un, ires_d      ! id used for residual and Jacobian
   PetscInt :: ires_co2, ires_nh4, ires_n2o, ires_no3
   PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_ngasmin
@@ -1109,7 +1117,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: drate_nh4_duc   ! d Rate / d upstream c
   PetscReal :: drate_nh4_dnh4  ! d Rate / d nh4 ammonia limitation
 
-  PetscReal :: Rdu_duc, Rdn_duc, Rdc_duc, Rdb_duc, Rdf_duc  ! u = Lit1N/Lit1C, c, b, f for CLM-Microbe
+  ! u = Lit1N/Lit1C, c, b, f for CLM-Microbe
+  PetscReal :: Rdu_duc, Rdn_duc, Rdc_duc, Rdb_duc, Rdf_duc
   PetscReal :: Rdu_dun, Rdn_dun, Rdc_dun, Rdb_dun, Rdf_dun
   PetscReal :: Rno3du_duc, Rno3dn_duc, Rno3dc_duc, Rno3db_duc, Rno3df_duc
   PetscReal :: Rno3du_dun, Rno3dn_dun, Rno3dc_dun, Rno3db_dun, Rno3df_dun
@@ -1125,7 +1134,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: f_t    ! temperature response function
   PetscReal :: f_w    ! moisture response function
 
-  ! save mineral N fraction and decomposition rate for net N mineralization and N2O calculation
+  ! save mineral N fraction and decomposition rate for net N mineralization
+  ! and N2O calculation
   PetscReal :: net_n_mineralization_rate
   PetscReal :: dnet_n_mineralization_rate_dnh4
   PetscReal :: dnet_n_mineralization_rate_dno3
@@ -1152,7 +1162,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ires_nh4 = this%species_id_nh4 + reaction%offset_immobile
   endif
 
-  call CalNLimitFunc(c_nh4, ac_nh4, this%residual_nh4, &
+  call ReactionCLMCalNLimitFunc(c_nh4, ac_nh4, this%residual_nh4, &
     this%half_saturation_nh4, this%cutoff_nh4_0, this%cutoff_nh4_1, &
     f_nh4, d_nh4)
 
@@ -1170,7 +1180,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ires_no3 = this%species_id_no3 + reaction%offset_immobile
     endif
 
-    call CalNLimitFunc(c_no3, ac_no3, this%residual_no3, &
+    call ReactionCLMCalNLimitFunc(c_no3, ac_no3, this%residual_no3, &
       this%half_saturation_no3, this%cutoff_no3_0, this%cutoff_no3_1, &
       f_no3, d_no3)
 
@@ -1281,7 +1291,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ires_uc = reaction%offset_immobile + ispec_uc
     endif
 
-    ! for litter decomposition reactions, stoich needs to be calculated on the fly
+    ! for litter decomposition reactions, stoich needs to be calculated on
+    ! the fly
     if (this%is_litter_decomp(irxn)) then
 
       ispec_un = this%upstream_n_id(irxn)
@@ -1306,8 +1317,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         enddo
 
         if (stoich_c < 0.0d0) then
-          option%io_buffer = 'CLMDec litter decomposition reaction has' // &
-                             'negative respiration fraction!'
+          option%io_buffer = 'CLMDec litter decomposition reaction has &
+            &negative respiration fraction!'
           call PrintErrMsgNoStopByRank(option)
           option%ierror = 1
           return
@@ -1338,8 +1349,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         this%mineral_c_stoich(irxn) = resp_frac
 
         if (this%n_downstream_pools(irxn) .ne. 2) then
-          option%io_buffer = 'CLM_Microbe litter decomposition reaction ' // &
-                              'more than 2 (bacteria and fungi pools)!'
+          option%io_buffer = 'CLM_Microbe litter decomposition reaction &
+                              &more than 2 (bacteria and fungi pools)!'
           call PrintErrMsg(option)
         endif
 
@@ -1348,8 +1359,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             this%downstream_stoich(irxn, i) = this%fraction_bacteria * &
               (1.0d0  - resp_frac)
           else
-            this%downstream_stoich(irxn, i) = (1.0d0 - this%fraction_bacteria) &
-                                            * (1.0d0  - resp_frac)
+            this%downstream_stoich(irxn, i) = &
+              (1.0d0 - this%fraction_bacteria) * (1.0d0  - resp_frac)
           endif
         enddo
 
@@ -1409,12 +1420,14 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     Residual(ires_nh4) = Residual(ires_nh4) - &
                          this%mineral_n_stoich(irxn) * rate_nh4
 
-    if (this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
+    if (this%species_id_nimm > 0 .and. &
+        this%mineral_n_stoich(irxn) < 0.0d0) then
       Residual(ires_nimm) = Residual(ires_nimm) + &
                             this%mineral_n_stoich(irxn) * rate_nh4
     endif
 
-    if (this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
+    if (this%species_id_nmin > 0 .and. &
+        this%mineral_n_stoich(irxn) > 0.0d0) then
        Residual(ires_nmin) = Residual(ires_nmin) - &
                              this%mineral_n_stoich(irxn) * rate_nh4
     endif
@@ -1575,7 +1588,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
       ! upstream n
       if (this%is_litter_decomp(irxn)) then
-        Residual(ires_un) = Residual(ires_un) + this%upstream_nc(irxn) *rate_no3
+        Residual(ires_un) = Residual(ires_un) + this%upstream_nc(irxn) * &
+                                                rate_no3
       endif
 
       ! downstream pools
@@ -1737,7 +1751,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
         if (this%is_litter_decomp(irxn) .and. &
            this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
-           Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - Rdc_duc
+           Jacobian(ires_hrimm,ires_uc) = &
+             Jacobian(ires_hrimm,ires_uc) - Rdc_duc
         endif
       endif
 
@@ -1816,8 +1831,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           elseif (ispec_d == this%species_id_fungi) then
             Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc) - Rdf_duc
           else
-            option%io_buffer = 'Downstream pool for CLM-Microbe should be' // &
-                               'either bacteria or fungi!'
+            option%io_buffer = 'Downstream pool for CLM-Microbe should be &
+                               &either bacteria or fungi!'
             call PrintErrMsg(option)
           endif
         endif
@@ -1846,7 +1861,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           Jacobian(ires_co2,ires_un) = Jacobian(ires_co2,ires_un) - Rdc_dun
 
           if (this%species_id_hrimm > 0) then
-            Jacobian(ires_hrimm,ires_un) = Jacobian(ires_hrimm,ires_un) -Rdc_dun
+            Jacobian(ires_hrimm,ires_un) = &
+              Jacobian(ires_hrimm,ires_un) -Rdc_dun
           endif
 
           ! bacteria dRbacteria/dNu = Rdb/dNu
@@ -2002,8 +2018,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
               JacobianSupply_nh4(ires_d,ires_uc) = &
                 JacobianSupply_nh4(ires_d,ires_uc) - Rdf_duc
             else
-              option%io_buffer ='Downstream pool for CLM-Microbe should be' // &
-                               'either bacteria or fungi!'
+              option%io_buffer ='Downstream pool for CLM-Microbe should be &
+                               &either bacteria or fungi!'
               call PrintErrMsg(option)
             endif
           endif
@@ -2140,8 +2156,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
               JacobianDemand_nh4(ires_d,ires_uc) = &
                 JacobianDemand_nh4(ires_d,ires_uc) - Rdf_duc
             else
-              option%io_buffer ='Downstream pool for CLM-Microbe should be' // &
-                               'either bacteria or fungi!'
+              option%io_buffer = 'Downstream pool for CLM-Microbe should be &
+                                 &either bacteria or fungi!'
               call PrintErrMsg(option)
             endif
           endif
@@ -2236,7 +2252,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       endif
 
 
-      if (this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
+      if (this%species_id_no3 > 0 .and. &
+          this%mineral_n_stoich(irxn) < 0.d0) then
 
         if (this%is_litter_decomp(irxn)) then
           if (this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
@@ -2286,7 +2303,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             Rno3du_dun = drate_no3_duc
 
             if (resp_frac < CUE_max) then
-              ! Rdc/dLit1N = R/Lit1C*CN_ratio_microbe = dR/dLit1C*CN_ratio_microbe
+              ! Rdc/dLit1N = R/Lit1C*CN_ratio_microbe =
+              !   dR/dLit1C*CN_ratio_microbe
               Rno3dc_dun = drate_no3_duc * CN_ratio_microbe
             else
               Rno3dc_dun = 0.0d0
@@ -2383,8 +2401,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             elseif (ispec_d == this%species_id_fungi) then
               Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc) - Rno3df_duc
             else
-              option%io_buffer = 'Downstream pool for CLM-Microbe should ' // &
-                                 'be either bacteria or fungi!'
+              option%io_buffer = 'Downstream pool for CLM-Microbe should &
+                                 &be either bacteria or fungi!'
             call PrintErrMsg(option)
             endif
           endif
@@ -2403,7 +2421,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           endif
 
           if (this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
-            Jacobian(ires_co2,ires_un) = Jacobian(ires_co2,ires_un) - Rno3dc_dun
+            Jacobian(ires_co2,ires_un) = &
+              Jacobian(ires_co2,ires_un) - Rno3dc_dun
 
             if (this%species_id_hrimm > 0) then
               Jacobian(ires_hrimm,ires_un) = Jacobian(ires_hrimm,ires_un) &
@@ -2601,8 +2620,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
               JacobianDemand_no3(ires_d,ires_uc) = &
                 JacobianDemand_no3(ires_d,ires_uc) - Rno3df_duc
             else
-              option%io_buffer = 'Downstream pool for CLM-Microbe should ' // &
-                                 'be either bacteria or fungi!'
+              option%io_buffer = 'Downstream pool for CLM-Microbe should &
+                                 &be either bacteria or fungi!'
             call PrintErrMsg(option)
             endif
           endif
@@ -2773,7 +2792,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         f_rate_n2o = 0.0d0
         df_rate_n2o = 0.0d0
       elseif (net_n_mineralization_rate >= this%net_n_min_rate_smooth_1 .or. &
-        this%net_n_min_rate_smooth_1-this%net_n_min_rate_smooth_1 > 1.d-20) then
+              this%net_n_min_rate_smooth_1 - &
+                this%net_n_min_rate_smooth_1 > 1.d-20) then
         f_rate_n2o = 1.0d0
         df_rate_n2o = 0.0d0
       else
@@ -2811,10 +2831,12 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         drate_n2o_dnh4 = drate_n2o_dnh4 * f_rate_n2o + rate_n2o * df_rate_n2o &
                        * dnet_n_mineralization_rate_dnh4
 
-        Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4)+drate_n2o_dnh4
+        Jacobian(ires_nh4,ires_nh4) = &
+          Jacobian(ires_nh4,ires_nh4)+drate_n2o_dnh4
         Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) &
                                     - 0.5d0 * drate_n2o_dnh4
-        if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+        if (this%species_id_ngasmin > 0 .and. &
+            (.not.this%bskipn2ojacobian)) then
            Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) &
                                            - 0.5d0 * drate_n2o_dnh4
         endif
@@ -2823,7 +2845,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           JacobianDemand_nh4(ires_nh4,ires_nh4) + drate_n2o_dnh4
         JacobianDemand_nh4(ires_n2o,ires_nh4) = &
           JacobianDemand_nh4(ires_n2o,ires_nh4) - 0.5d0 * drate_n2o_dnh4
-        if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+        if (this%species_id_ngasmin > 0 .and. &
+            (.not.this%bskipn2ojacobian)) then
            JacobianDemand_nh4(ires_ngasmin,ires_nh4) = &
              JacobianDemand_nh4(ires_ngasmin,ires_nh4) - 0.5d0 * drate_n2o_dnh4
         endif
@@ -2831,39 +2854,44 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if (this%species_id_no3 > 0) then
           drate_n2o_dno3 = temp_real * dnet_n_mineralization_rate_dno3 * f_nh4
 
-          drate_n2o_dno3 = drate_n2o_dno3 *f_rate_n2o + rate_n2o * df_rate_n2o &
-                  * dnet_n_mineralization_rate_dno3
+          drate_n2o_dno3 = drate_n2o_dno3 *f_rate_n2o + &
+                           rate_n2o * df_rate_n2o * &
+                             dnet_n_mineralization_rate_dno3
 
           Jacobian(ires_n2o,ires_no3) = Jacobian(ires_n2o,ires_no3) &
                                       - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
-             Jacobian(ires_ngasmin,ires_no3) = Jacobian(ires_ngasmin,ires_no3) &
-                                             - 0.5d0 * drate_n2o_dno3
+          if (this%species_id_ngasmin > 0 .and. &
+              (.not.this%bskipn2ojacobian)) then
+             Jacobian(ires_ngasmin,ires_no3) = &
+               Jacobian(ires_ngasmin,ires_no3) - 0.5d0 * drate_n2o_dno3
           endif
 
           Jacobian(ires_n2o,ires_no3) = Jacobian(ires_n2o,ires_no3) &
                                       - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
-             Jacobian(ires_ngasmin,ires_no3) = Jacobian(ires_ngasmin,ires_no3) &
-                                             - 0.5d0 * drate_n2o_dno3
+          if (this%species_id_ngasmin > 0 .and. &
+              (.not.this%bskipn2ojacobian)) then
+             Jacobian(ires_ngasmin,ires_no3) = &
+               Jacobian(ires_ngasmin,ires_no3) - 0.5d0 * drate_n2o_dno3
           endif
 
           JacobianDemand_nh4(ires_n2o,ires_no3) = &
             JacobianDemand_nh4(ires_n2o,ires_no3) - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+          if (this%species_id_ngasmin > 0 .and. &
+              (.not.this%bskipn2ojacobian)) then
              JacobianDemand_nh4(ires_ngasmin,ires_no3) = &
-               JacobianDemand_nh4(ires_ngasmin,ires_no3) - 0.5d0 *drate_n2o_dno3
+               JacobianDemand_nh4(ires_ngasmin,ires_no3) - 0.5d0*drate_n2o_dno3
           endif
 
           JacobianDemand_nh4(ires_n2o,ires_no3) = &
             JacobianDemand_nh4(ires_n2o,ires_no3) - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+          if (this%species_id_ngasmin > 0 .and. &
+              (.not.this%bskipn2ojacobian)) then
              JacobianDemand_nh4(ires_ngasmin,ires_no3) = &
-               JacobianDemand_nh4(ires_ngasmin,ires_no3) - 0.5d0 *drate_n2o_dno3
+               JacobianDemand_nh4(ires_ngasmin,ires_no3) - 0.5d0*drate_n2o_dno3
           endif
         endif
 
@@ -2876,7 +2904,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             ires_uc = reaction%offset_immobile + ispec_uc
           endif
 
-          drate_n2o_duc = temp_real * dnet_n_mineralization_rate_duc(irxn)*f_nh4
+          drate_n2o_duc = temp_real * dnet_n_mineralization_rate_duc(irxn) * &
+                          f_nh4
 
           drate_n2o_duc = drate_n2o_duc * f_rate_n2o + rate_n2o * df_rate_n2o &
                         * dnet_n_mineralization_rate_duc(irxn)
@@ -2886,7 +2915,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           JacobianDemand_nh4(ires_n2o,ires_uc) = &
             JacobianDemand_nh4(ires_n2o,ires_uc) - 0.5d0 * drate_n2o_duc
-          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+          if (this%species_id_ngasmin > 0 .and. &
+              (.not.this%bskipn2ojacobian)) then
             Jacobian(ires_ngasmin,ires_uc) = Jacobian(ires_ngasmin,ires_uc) &
                                            - 0.5d0 * drate_n2o_duc
             JacobianDemand_nh4(ires_ngasmin,ires_uc) = &
@@ -2904,14 +2934,14 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   endif
 
-end subroutine CLMDec_React
+end subroutine ReactionCLMDecReact
 
 ! **************************************************************************** !
 !
 ! CLMDecDestroy: Destroys allocatable or pointer objects created in this module
 !
 ! **************************************************************************** !
-subroutine CLMDec_Destroy(this)
+subroutine ReactionCLMDecDestroy(this)
 
   use Utility_module, only : DeallocateArray
 
@@ -2964,7 +2994,7 @@ subroutine CLMDec_Destroy(this)
   call DeallocateArray(this%mineral_c_stoich)
   call DeallocateArray(this%mineral_n_stoich)
 
-end subroutine CLMDec_Destroy
+end subroutine ReactionCLMDecDestroy
 
 end module CLM_Rxn_Decomp_class
 
@@ -2976,10 +3006,10 @@ module CLM_Rxn_PlantN_class
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
 
-! ------------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 ! Description
-! extended from reaction_sandbox_plantn to implement demand based down regulation
-! for use in CLM_Rxn t6g 10/06/2014
+! extended from reaction_sandbox_plantn to implement demand based down
+! regulation for use in CLM_Rxn t6g 10/06/2014
 ! add NH4+ and NO3- deposition rates as supply
 
 ! to handle plant N uptake with
@@ -3031,68 +3061,68 @@ module CLM_Rxn_PlantN_class
     PetscBool :: bskippno3jacobian
 
   contains
-    procedure, public :: ReadInput => PlantNRead
-    procedure, public :: Setup => PlantNSetup
-    procedure, public :: Evaluate => PlantNReact
-    procedure, public :: Destroy => PlantNDestroy
+    procedure, public :: ReadInput => ReactionCLMPlantNRead
+    procedure, public :: Setup => ReactionCLMPlantNSetup
+    procedure, public :: Evaluate => ReactionCLMPlantNReact
+    procedure, public :: Destroy => ReactionCLMPlantNDestroy
   end type clm_rxn_plantn_type
 
-  public :: PlantNCreate
+  public :: ReactionCLMPlantNCreate
 
 contains
 
 ! **************************************************************************** !
 !
-! PlantNCreate: Allocates plantn reaction sandbox object.
+! ReactionCLMPlantNCreate: Allocates plantn reaction sandbox object.
 !
 ! **************************************************************************** !
-function PlantNCreate()
+function ReactionCLMPlantNCreate()
 
   implicit none
 
-  class(clm_rxn_plantn_type), pointer :: PlantNCreate
+  class(clm_rxn_plantn_type), pointer :: ReactionCLMPlantNCreate
 
-  allocate(PlantNCreate)
-  PlantNCreate%rate_plantntake = 1.d-10
-  PlantNCreate%rate_plantntake_nh4 = 1.d-10
-  PlantNCreate%rate_plantntake_no3 = 1.d-10
-  PlantNCreate%rate_deposition_nh4 = 1.0d-11
-  PlantNCreate%rate_deposition_no3 = 1.0d-11
-  PlantNCreate%half_saturation_nh4 =  1.d-6
-  PlantNCreate%half_saturation_no3 =  1.d-6
-  PlantNCreate%inhibition_nh4_no3  = -1.d-15
-  PlantNCreate%residual_nh4  = 1.d-10
-  PlantNCreate%residual_no3  = 1.d-10
-  PlantNCreate%cutoff_no3_0 = -1.0d-9
-  PlantNCreate%cutoff_no3_1 = 1.0d-7
-  PlantNCreate%cutoff_nh4_0 = -1.0d-9
-  PlantNCreate%cutoff_nh4_1 = 1.0d-7
-  PlantNCreate%ispec_nh4 = -1
-  PlantNCreate%ispec_no3 = -1
-  PlantNCreate%ispec_plantn = -1
-  PlantNCreate%ispec_nh4in = -1
-  PlantNCreate%ispec_no3in = -1
-  PlantNCreate%ispec_plantndemand = -1
+  allocate(ReactionCLMPlantNCreate)
+  ReactionCLMPlantNCreate%rate_plantntake = 1.d-10
+  ReactionCLMPlantNCreate%rate_plantntake_nh4 = 1.d-10
+  ReactionCLMPlantNCreate%rate_plantntake_no3 = 1.d-10
+  ReactionCLMPlantNCreate%rate_deposition_nh4 = 1.0d-11
+  ReactionCLMPlantNCreate%rate_deposition_no3 = 1.0d-11
+  ReactionCLMPlantNCreate%half_saturation_nh4 =  1.d-6
+  ReactionCLMPlantNCreate%half_saturation_no3 =  1.d-6
+  ReactionCLMPlantNCreate%inhibition_nh4_no3  = -1.d-15
+  ReactionCLMPlantNCreate%residual_nh4  = 1.d-10
+  ReactionCLMPlantNCreate%residual_no3  = 1.d-10
+  ReactionCLMPlantNCreate%cutoff_no3_0 = -1.0d-9
+  ReactionCLMPlantNCreate%cutoff_no3_1 = 1.0d-7
+  ReactionCLMPlantNCreate%cutoff_nh4_0 = -1.0d-9
+  ReactionCLMPlantNCreate%cutoff_nh4_1 = 1.0d-7
+  ReactionCLMPlantNCreate%ispec_nh4 = -1
+  ReactionCLMPlantNCreate%ispec_no3 = -1
+  ReactionCLMPlantNCreate%ispec_plantn = -1
+  ReactionCLMPlantNCreate%ispec_nh4in = -1
+  ReactionCLMPlantNCreate%ispec_no3in = -1
+  ReactionCLMPlantNCreate%ispec_plantndemand = -1
 
-  PlantNCreate%bdebugoutput = PETSC_FALSE
-  PlantNCreate%enable_clm_n_in = PETSC_TRUE
-  PlantNCreate%bfixed_clm_n_in = PETSC_FALSE
-  PlantNCreate%disable_plantntake = PETSC_FALSE
+  ReactionCLMPlantNCreate%bdebugoutput = PETSC_FALSE
+  ReactionCLMPlantNCreate%enable_clm_n_in = PETSC_TRUE
+  ReactionCLMPlantNCreate%bfixed_clm_n_in = PETSC_FALSE
+  ReactionCLMPlantNCreate%disable_plantntake = PETSC_FALSE
 
-  PlantNCreate%is_NH4_aqueous = PETSC_TRUE
-  PlantNCreate%is_NO3_aqueous = PETSC_TRUE
-  PlantNCreate%bskippno3jacobian = PETSC_FALSE
+  ReactionCLMPlantNCreate%is_NH4_aqueous = PETSC_TRUE
+  ReactionCLMPlantNCreate%is_NO3_aqueous = PETSC_TRUE
+  ReactionCLMPlantNCreate%bskippno3jacobian = PETSC_FALSE
 
-  nullify(PlantNCreate%next)
+  nullify(ReactionCLMPlantNCreate%next)
 
-end function PlantNCreate
+end function ReactionCLMPlantNCreate
 
 ! **************************************************************************** !
 !
-! PlantNRead: Reads input deck for plantn reaction parameters
+! ReactionCLMPlantNRead: Reads input deck for plantn reaction parameters
 !
 ! **************************************************************************** !
-subroutine PlantNRead(this,input,option)
+subroutine ReactionCLMPlantNRead(this,input,option)
 
   use Option_module
   use String_module
@@ -3162,9 +3192,9 @@ subroutine PlantNRead(this,input,option)
         call InputErrorMsg(input,option,'cutoff_nh4_1', &
           'CHEMISTRY,CLM_RXN,PLANTN')
         if (this%cutoff_nh4_0 > this%cutoff_nh4_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,' // &
-            'NH4+ cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN, &
+            &NH4+ cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
       case('CUTOFF_NO3')
@@ -3175,9 +3205,9 @@ subroutine PlantNRead(this,input,option)
         call InputErrorMsg(input,option,'cutoff_no3_1', &
           'CHEMISTRY,CLM_RXN,PLANTN')
         if (this%cutoff_no3_0 > this%cutoff_no3_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,' // &
-            'NO3- down regulation cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN, &
+            &NO3- down regulation cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
       case('DEBUG_OUTPUT')
@@ -3197,14 +3227,14 @@ subroutine PlantNRead(this,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine PlantNRead
+end subroutine ReactionCLMPlantNRead
 
 ! **************************************************************************** !
 !
-! PlantNSetup: Sets up the plantn reaction with parameters
+! ReactionCLMPlantNSetup: Sets up the plantn reaction with parameters
 !
 ! **************************************************************************** !
-subroutine PlantNSetup(this,reaction,option)
+subroutine ReactionCLMPlantNSetup(this,reaction,option)
 
   use Reaction_Aux_module
   use Option_module
@@ -3220,12 +3250,12 @@ subroutine PlantNSetup(this,reaction,option)
 
   word = 'NH4+'
   this%ispec_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_nh4 < 0) then
     word = 'NH3(aq)'
     this%ispec_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
@@ -3238,14 +3268,14 @@ subroutine PlantNSetup(this,reaction,option)
   endif
 
   if (this%ispec_nh4 < 0) then
-    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
-      'file for PlantN sandbox!'
+    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input &
+      &file for PlantN sandbox!'
     call PrintErrMsg(option)
   endif
 
   word = 'NO3-'
   this%ispec_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
@@ -3277,14 +3307,15 @@ subroutine PlantNSetup(this,reaction,option)
   this%ispec_plantndemand = &
     ReactionImGetSpeciesIDFromName(word,reaction%immobile, PETSC_FALSE,option)
 
-end subroutine PlantNSetup
+end subroutine ReactionCLMPlantNSetup
 
 ! **************************************************************************** !
 !
-! PlantNReact: Evaluates reaction storing residual and/or Jacobian
+! ReactionCLMPlantNReact: Evaluates reaction storing residual and/or Jacobian
 !
 ! **************************************************************************** !
-subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+subroutine ReactionCLMPlantNReact(this,Residual,Jacobian,compute_derivative, &
+                       rt_auxvar, &
                        global_auxvar,material_auxvar,reaction,option, &
                        RateDemand_nh4,RateSupply_nh4, &
                        JacobianDemand_nh4,JacobianSupply_nh4, &
@@ -3296,7 +3327,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module
   use Reaction_Immobile_Aux_module
   use Material_Aux_module, only : material_auxvar_type
-  use CLM_Rxn_Common_module, only: CalNLimitFunc
+  use CLM_Rxn_Common_module, only: ReactionCLMCalNLimitFunc
 
   implicit none
 
@@ -3379,7 +3410,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ires_nh4 = this%ispec_nh4 + reaction%offset_immobile
     endif
 
-    call CalNLimitFunc(c_nh4, ac_nh4, this%residual_nh4, &
+    call ReactionCLMCalNLimitFunc(c_nh4, ac_nh4, this%residual_nh4, &
       this%half_saturation_nh4, this%cutoff_nh4_0, this%cutoff_nh4_1, &
       f_nh4, d_nh4)
   endif
@@ -3401,7 +3432,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ires_no3 = this%ispec_no3 + reaction%offset_immobile
     endif
 
-    call CalNLimitFunc(c_no3, ac_no3, this%residual_no3, &
+    call ReactionCLMCalNLimitFunc(c_no3, ac_no3, this%residual_no3, &
       this%half_saturation_no3, this%cutoff_no3_0, this%cutoff_no3_1, &
       f_no3, d_no3)
 
@@ -3451,7 +3482,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
     if (compute_derivative) then
-      Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_nh4_dnh4
+      Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + &
+                                    drate_nh4_dnh4
 
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) &
                                      - drate_nh4_dnh4
@@ -3498,7 +3530,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
     if (compute_derivative) then
-      Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_no3_dno3
+      Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + &
+                                    drate_no3_dno3
 
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) &
                                      - drate_no3_dno3
@@ -3508,7 +3541,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                                       - drate_no3_dno3
       endif
 
-      Jacobian(ires_no3,ires_nh4) = Jacobian(ires_no3,ires_nh4) + drate_no3_dnh4
+      Jacobian(ires_no3,ires_nh4) = Jacobian(ires_no3,ires_nh4) + &
+                                    drate_no3_dnh4
 
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) &
                                      - drate_no3_dnh4
@@ -3548,27 +3582,28 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
   endif
 
-end subroutine PlantNReact
+end subroutine ReactionCLMPlantNReact
 
-! **************************************************************************** !
+! *************************************************************************** !
 !
-! PlantNDestroy: Destroys allocatable or pointer objects created in this module
+! ReactionCLMPlantNDestroy: Destroys allocatable or pointer objects created in
+!                           this module
 !
-! **************************************************************************** !
-subroutine PlantNDestroy(this)
+! *************************************************************************** !
+subroutine ReactionCLMPlantNDestroy(this)
 
   implicit none
 
   class(clm_rxn_plantn_type) :: this
 
-end subroutine PlantNDestroy
+end subroutine ReactionCLMPlantNDestroy
 
 end module CLM_Rxn_PlantN_class
 
 
 module CLM_Rxn_Nitr_class
 
-! ------------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 ! Description
 ! nitrification function following Dickinson et al. 2002
 !   NH4+ -> NO3-
@@ -3584,7 +3619,7 @@ module CLM_Rxn_Nitr_class
 !   1 - exp(-x) = x + ... (remove high order terms)
 !   simplify to first order rate, add PARTON if not
 ! by t6g 2/13/2015
-! ------------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -3622,7 +3657,8 @@ module CLM_Rxn_Nitr_class
     PetscReal :: c_nh4_ugg_1    ! N2O production from nitr (Parton et al. 1996)
     PetscBool :: disable_mrf    ! for testing purpose
     PetscBool :: bdebugoutput
-    ! to use 1/(0.25 + 1/NH4+) rather than the simple Monod substrate limiting function
+    ! to use 1/(0.25 + 1/NH4+) rather than the simple Monod substrate limiting
+    ! function
     PetscBool :: bDickinson
     ! to use (1 - exp(-0.0104e6mN rhob/theta  NH4+) rather than first order
     PetscBool :: bParton
@@ -3631,60 +3667,62 @@ module CLM_Rxn_Nitr_class
     PetscBool :: bskipnitrjacobian
 
   contains
-    procedure, public :: ReadInput => NitrRead
-    procedure, public :: Setup => NitrSetup
-    procedure, public :: Evaluate => NitrReact
-    procedure, public :: Destroy => NitrDestroy
+    procedure, public :: ReadInput => ReactionCLMNitrRead
+    procedure, public :: Setup => ReactionCLMNitrSetup
+    procedure, public :: Evaluate => ReactionCLMNitrReact
+    procedure, public :: Destroy => ReactionCLMNitrDestroy
   end type clm_rxn_nitr_type
 
-  public :: NitrCreate
+  public :: ReactionCLMNitrCreate
 
 contains
 
 ! ************************************************************************** !
 !
-! NitrCreate: Allocates nitr reaction object.
+! ReactionCLMNitrCreate: Allocates nitr reaction object.
 !
 ! ************************************************************************** !
-function NitrCreate()
+function ReactionCLMNitrCreate()
 
   implicit none
 
-  class(clm_rxn_nitr_type), pointer :: NitrCreate
+  class(clm_rxn_nitr_type), pointer :: ReactionCLMNitrCreate
 
-  allocate(NitrCreate)
-  NitrCreate%ispec_proton = 0
-  NitrCreate%ispec_nh4 = 0
-  NitrCreate%ispec_nh4sorb = 0
-  NitrCreate%ispec_no3 = 0
-  NitrCreate%ispec_ngasnit = 0
-  NitrCreate%k_nitr_max = 1.d-6
-  NitrCreate%k_nitr_n2o = 3.5d-8
-  NitrCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
-  NitrCreate%Q10 = 1.5d0
-  NitrCreate%residual_conc = 1.0d-10
-  NitrCreate%half_saturation = -1.0d-6
-  NitrCreate%cutoff_nh4_0 =-1.0d-20
-  NitrCreate%cutoff_nh4_1 = 1.0d-20
-  NitrCreate%c_nh4_ugg_0 = 2.9d0
-  NitrCreate%c_nh4_ugg_1 = 3.0d0   ! N2O production from nitr (Parton et al. 1996)
-  NitrCreate%disable_mrf = PETSC_FALSE
-  NitrCreate%bdebugoutput = PETSC_FALSE
-  NitrCreate%bDickinson = PETSC_FALSE
-  NitrCreate%bParton = PETSC_FALSE
-  NitrCreate%is_NH4_aqueous = PETSC_TRUE
-  NitrCreate%is_NO3_aqueous = PETSC_TRUE
-  NitrCreate%bskipnitrjacobian = PETSC_FALSE
-  nullify(NitrCreate%next)
+  allocate(ReactionCLMNitrCreate)
+  ReactionCLMNitrCreate%ispec_proton = 0
+  ReactionCLMNitrCreate%ispec_nh4 = 0
+  ReactionCLMNitrCreate%ispec_nh4sorb = 0
+  ReactionCLMNitrCreate%ispec_no3 = 0
+  ReactionCLMNitrCreate%ispec_ngasnit = 0
+  ReactionCLMNitrCreate%k_nitr_max = 1.d-6
+  ReactionCLMNitrCreate%k_nitr_n2o = 3.5d-8
+  ReactionCLMNitrCreate%temperature_response_function = &
+    TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  ReactionCLMNitrCreate%Q10 = 1.5d0
+  ReactionCLMNitrCreate%residual_conc = 1.0d-10
+  ReactionCLMNitrCreate%half_saturation = -1.0d-6
+  ReactionCLMNitrCreate%cutoff_nh4_0 =-1.0d-20
+  ReactionCLMNitrCreate%cutoff_nh4_1 = 1.0d-20
+  ReactionCLMNitrCreate%c_nh4_ugg_0 = 2.9d0
+  ! N2O production from nitr (Parton et al. 1996)
+  ReactionCLMNitrCreate%c_nh4_ugg_1 = 3.0d0
+  ReactionCLMNitrCreate%disable_mrf = PETSC_FALSE
+  ReactionCLMNitrCreate%bdebugoutput = PETSC_FALSE
+  ReactionCLMNitrCreate%bDickinson = PETSC_FALSE
+  ReactionCLMNitrCreate%bParton = PETSC_FALSE
+  ReactionCLMNitrCreate%is_NH4_aqueous = PETSC_TRUE
+  ReactionCLMNitrCreate%is_NO3_aqueous = PETSC_TRUE
+  ReactionCLMNitrCreate%bskipnitrjacobian = PETSC_FALSE
+  nullify(ReactionCLMNitrCreate%next)
 
-end function NitrCreate
+end function ReactionCLMNitrCreate
 
 ! ************************************************************************** !
 !
-! NitrRead: Reads input deck for nitr reaction parameters (if any)
+! ReactionCLMNitrRead: Reads input deck for nitr reaction parameters (if any)
 !
 ! ************************************************************************** !
-subroutine NitrRead(this,input,option)
+subroutine ReactionCLMNitrRead(this,input,option)
 
   use Option_module
   use String_module
@@ -3732,7 +3770,8 @@ subroutine NitrRead(this,input,option)
                 TEMPERATURE_RESPONSE_FUNCTION_Q10
               call InputReadDouble(input,option,this%Q10)
               call InputErrorMsg(input,option,'Q10', &
-                'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
+                'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE &
+                &RESPONSE FUNCTION')
             case default
               call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE &
@@ -3765,9 +3804,9 @@ subroutine NitrRead(this,input,option)
         call InputErrorMsg(input,option,'cutoff_nh4_1', &
           'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION')
         if (this%cutoff_nh4_0 > this%cutoff_nh4_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,' // &
-            'NH4+ cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION, &
+            &NH4+ cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
       case('SMOOTH_NH4_2_N2O')
@@ -3794,15 +3833,15 @@ subroutine NitrRead(this,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine NitrRead
+end subroutine ReactionCLMNitrRead
 
 ! ************************************************************************** !
 !
-! NitrSetup: Sets up the nitr reaction either with parameters either
-!                read from the input deck or hardwired.
+! ReactionCLMNitrSetup: Sets up the nitr reaction either with parameters
+!                       either read from the input deck or hardwired.
 !
 ! ************************************************************************** !
-subroutine NitrSetup(this,reaction,option)
+subroutine ReactionCLMNitrSetup(this,reaction,option)
 
   use Reaction_Aux_module
   use Option_module
@@ -3818,16 +3857,16 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'H+'
   this%ispec_proton = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   word = 'NH3(aq)'
   this%ispec_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_nh4 < 0) then
     word = 'NH4+'
     this%ispec_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
@@ -3841,7 +3880,7 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'NO3-'
   this%ispec_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
@@ -3854,28 +3893,28 @@ subroutine NitrSetup(this,reaction,option)
 
   word = 'N2O(aq)'
   this%ispec_n2o = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   if (this%ispec_n2o < 0) then
     word = 'NO2-'
     this%ispec_n2o = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (this%ispec_nh4 < 0) then
-     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
-       'NH3(aq), NH4+, or Ammonium is not specified in the input file.'
+     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: &
+       &NH3(aq), NH4+, or Ammonium is not specified in the input file.'
      call PrintErrMsg(option)
   endif
 
   if (this%ispec_no3 < 0) then
-     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
-                        ' NO3- is not specified in the input file.'
+     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: &
+                        &NO3- is not specified in the input file.'
      call PrintErrMsg(option)
   endif
 
 !  if (this%ispec_n2o < 0) then
-!     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
-!                        ' N2O(aq) is not specified in the input file.'
+!     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: &
+!                        &N2O(aq) is not specified in the input file.'
 !     call PrintErrMsg(option)
 !  endif
 
@@ -3883,15 +3922,16 @@ subroutine NitrSetup(this,reaction,option)
   this%ispec_ngasnit = &
     ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
-end subroutine NitrSetup
+end subroutine ReactionCLMNitrSetup
 
 ! ************************************************************************** !
 !
-! NitrReact: Evaluates reaction storing residual and/or Jacobian
+! ReactionCLMNitrReact: Evaluates reaction storing residual and/or Jacobian
 !
 ! ************************************************************************** !
-subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
-                     rt_auxvar,global_auxvar,material_auxvar,reaction,option, &
+subroutine ReactionCLMNitrReact(this,Residual,Jacobian,compute_derivative, &
+                     rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                     option, &
                      RateDemand_nh4,RateSupply_nh4, &
                      JacobianDemand_nh4,JacobianSupply_nh4, &
                      RateDemand_no3,RateSupply_no3, &
@@ -3900,7 +3940,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module, only : material_auxvar_type
-  use CLM_Rxn_Common_module, only: CalNLimitFunc
+  use CLM_Rxn_Common_module, only: ReactionCLMCalNLimitFunc
   implicit none
 
   class(clm_rxn_nitr_type) :: this
@@ -3989,10 +4029,12 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
     ires_nh4 = this%ispec_nh4 + reaction%offset_immobile
   endif
 
-  call CalNLimitFunc(c_nh4, ac_nh4, this%residual_conc, this%half_saturation, &
-                     this%cutoff_nh4_0, this%cutoff_nh4_1, f_nh4, d_nh4)
+  call ReactionCLMCalNLimitFunc(c_nh4, ac_nh4, this%residual_conc, &
+                                this%half_saturation, this%cutoff_nh4_0, &
+                                this%cutoff_nh4_1, f_nh4, d_nh4)
 
-  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
+  ! original absorption-reactions in PF used
+  if (associated(rt_auxvar%total_sorb_eq)) then
      s_nh4 = rt_auxvar%total_sorb_eq(this%ispec_nh4)
   else
      s_nh4 = 1.d-20
@@ -4004,7 +4046,8 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   if (this%ispec_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
 
-    if (tc < 0.0d0) f_t = 0.0d0   ! to be consistent in CLM  CNNDynamicsMod.F90 line 839
+    ! to be consistent in CLM  CNNDynamicsMod.F90 line 839
+    if (tc < 0.0d0) f_t = 0.0d0
 
     if (this%disable_mrf) then
       f_w = 1.0d0
@@ -4021,11 +4064,12 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
     if (this%bDickinson) then
       ! to make is consistent with clm CNNDynamicsMod.F90 line 832
       if (this%is_NH4_aqueous) then
-        unitconv = N_molecular_weight * h2osoi * 1000.0d0  ! from mol/L to g/m^3
+        unitconv = N_molecular_weight * h2osoi * 1000.0d0  ! mol/L to g/m^3
       else
-        unitconv = N_molecular_weight ! from mol/m^3 to g/m^3
+        unitconv = N_molecular_weight ! mol/m^3 to g/m^3
       endif
-      rate_nitri = temp_real * c_nh4 * c_nh4 / (0.25d0 * c_nh4 + 1.0d0/unitconv)
+      rate_nitri = temp_real * c_nh4 * c_nh4 / &
+                   (0.25d0 * c_nh4 + 1.0d0/unitconv)
     else
       rate_nitri = temp_real * c_nh4
     endif
@@ -4063,7 +4107,8 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
       JacobianDemand_nh4(ires_no3,ires_nh4) = &
         JacobianDemand_nh4(ires_no3,ires_nh4) - drate_nitri
 
-      Jacobian_nh4_to_no3(ires_nh4) = Jacobian_nh4_to_no3(ires_nh4) + drate_nitri
+      Jacobian_nh4_to_no3(ires_nh4) = &
+        Jacobian_nh4_to_no3(ires_nh4) + drate_nitri
     endif
   endif
 
@@ -4181,8 +4226,8 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
            0.5d0 * drate_n2o
 
          if (this%ispec_ngasnit > 0 .and. (.not.this%bskipnitrjacobian)) then
-           Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4) - &
-             0.5d0 * drate_n2o
+           Jacobian(ires_ngasnit,ires_nh4) = &
+             Jacobian(ires_ngasnit,ires_nh4) - 0.5d0 * drate_n2o
          endif
 
          JacobianDemand_nh4(ires_nh4,ires_nh4) = &
@@ -4274,28 +4319,28 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
      endif
   endif
 
-end subroutine NitrReact
+end subroutine ReactionCLMNitrReact
 
 ! ************************************************************************** !
 !
-! NitrDestroy: Destroys allocatable or pointer objects created in this
-!                  module
+! ReactionCLMNitrDestroy: Destroys allocatable or pointer objects created in
+!                         this module
 !
 ! ************************************************************************** !
-subroutine NitrDestroy(this)
+subroutine ReactionCLMNitrDestroy(this)
 
   implicit none
 
   class(clm_rxn_nitr_type) :: this
 
-end subroutine NitrDestroy
+end subroutine ReactionCLMNitrDestroy
 
 end module CLM_Rxn_Nitr_class
 
 
 module CLM_Rxn_Deni_class
 
-! ------------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 ! Description
 ! denitrification function following Dickinson et al. 2002
 ! NO3-   -> 0.5 N2
@@ -4304,7 +4349,7 @@ module CLM_Rxn_Deni_class
 ! ftheta = [(s - smin)/(1 - smin)]^b  smin = 0.6
 ! kmax   = 2.5e-5
 ! by t6g 10/06/2014
-! ------------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
@@ -4339,53 +4384,54 @@ module CLM_Rxn_Deni_class
     PetscBool :: bskipdenijacobian
 
   contains
-    procedure, public :: ReadInput => DeniRead
-    procedure, public :: Setup => DeniSetup
-    procedure, public :: Evaluate => DeniReact
-    procedure, public :: Destroy => DeniDestroy
+    procedure, public :: ReadInput => ReactionCLMDeniRead
+    procedure, public :: Setup => ReactionCLMDeniSetup
+    procedure, public :: Evaluate => ReactionCLMDeniReact
+    procedure, public :: Destroy => ReactionCLMDeniDestroy
   end type clm_rxn_deni_type
 
-  public :: DeniCreate
+  public :: ReactionCLMDeniCreate
 
 contains
 
 ! ************************************************************************** !
 !
-! DeniCreate: Allocates deni reaction object.
+! ReactionCLMDeniCreate: Allocates deni reaction object.
 !
 ! ************************************************************************** !
-function DeniCreate()
+function ReactionCLMDeniCreate()
 
   implicit none
 
-  class(clm_rxn_deni_type), pointer :: DeniCreate
+  class(clm_rxn_deni_type), pointer :: ReactionCLMDeniCreate
 
-  allocate(DeniCreate)
-  DeniCreate%ispec_no3 = 0
-  DeniCreate%ispec_n2 = 0
-  DeniCreate%ispec_ngasdeni = 0
-  DeniCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
-  DeniCreate%Q10 = 1.5d0
-  DeniCreate%k_deni_max = 2.5d-6  ! deni rate
-  DeniCreate%half_saturation =  -1.0d-6
-  DeniCreate%cutoff_no3_0 =-1.0d-20
-  DeniCreate%cutoff_no3_1 = 1.0d-20
-  DeniCreate%residual_conc = 1.0d-10
-  DeniCreate%bdebugoutput = PETSC_FALSE
-  DeniCreate%is_NH4_aqueous = PETSC_TRUE
-  DeniCreate%is_NO3_aqueous = PETSC_TRUE
-  DeniCreate%bskipdenijacobian = PETSC_FALSE
+  allocate(ReactionCLMDeniCreate)
+  ReactionCLMDeniCreate%ispec_no3 = 0
+  ReactionCLMDeniCreate%ispec_n2 = 0
+  ReactionCLMDeniCreate%ispec_ngasdeni = 0
+  ReactionCLMDeniCreate%temperature_response_function = &
+    TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  ReactionCLMDeniCreate%Q10 = 1.5d0
+  ReactionCLMDeniCreate%k_deni_max = 2.5d-6  ! deni rate
+  ReactionCLMDeniCreate%half_saturation =  -1.0d-6
+  ReactionCLMDeniCreate%cutoff_no3_0 =-1.0d-20
+  ReactionCLMDeniCreate%cutoff_no3_1 = 1.0d-20
+  ReactionCLMDeniCreate%residual_conc = 1.0d-10
+  ReactionCLMDeniCreate%bdebugoutput = PETSC_FALSE
+  ReactionCLMDeniCreate%is_NH4_aqueous = PETSC_TRUE
+  ReactionCLMDeniCreate%is_NO3_aqueous = PETSC_TRUE
+  ReactionCLMDeniCreate%bskipdenijacobian = PETSC_FALSE
 
-  nullify(DeniCreate%next)
+  nullify(ReactionCLMDeniCreate%next)
 
-end function DeniCreate
+end function ReactionCLMDeniCreate
 
 ! ************************************************************************** !
 !
-! DeniRead: Reads input deck for deni reaction parameters (if any)
+! ReactionCLMDeniRead: Reads input deck for deni reaction parameters (if any)
 !
 ! ************************************************************************** !
-subroutine DeniRead(this,input,option)
+subroutine ReactionCLMDeniRead(this,input,option)
 
   use Option_module
   use String_module
@@ -4463,9 +4509,9 @@ subroutine DeniRead(this,input,option)
         call InputErrorMsg(input,option,'cutoff_no3_1', &
           'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION')
         if (this%cutoff_no3_0 > this%cutoff_no3_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION,' // &
-            'NO3- cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION, &
+            &NO3- cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
       case('DEBUG_OUTPUT')
@@ -4479,15 +4525,15 @@ subroutine DeniRead(this,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine DeniRead
+end subroutine ReactionCLMDeniRead
 
 ! ************************************************************************** !
 !
-! DeniSetup: Sets up the deni reaction either with parameters either
-!                read from the input deck or hardwired.
+! ReactionCLMDeniSetup: Sets up the deni reaction either with parameters
+!                       either read from the input deck or hardwired.
 !
 ! ************************************************************************** !
-subroutine DeniSetup(this,reaction,option)
+subroutine ReactionCLMDeniSetup(this,reaction,option)
 
   use Reaction_Aux_module
   use Option_module
@@ -4503,7 +4549,7 @@ subroutine DeniSetup(this,reaction,option)
 
   word = 'NO3-'
   this%ispec_no3 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_no3 < 0) then
     word = 'Nitrate'
@@ -4515,18 +4561,18 @@ subroutine DeniSetup(this,reaction,option)
   endif
 
   if (this%ispec_no3 < 0) then
-     option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
-                        ' NO3- or nitrate is not specified in the input file.'
+     option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: &
+                        &NO3- or nitrate is not specified in the input file.'
      call PrintErrMsg(option)
   endif
 
   word = 'N2(aq)'
   this%ispec_n2 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   if (this%ispec_n2 < 0) then
-     option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
-                        ' N2(aq) is not specified in the input file.'
+     option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: &
+                        &N2(aq) is not specified in the input file.'
      call PrintErrMsg(option)
   endif
 
@@ -4534,11 +4580,12 @@ subroutine DeniSetup(this,reaction,option)
   this%ispec_ngasdeni = &
     ReactionImGetSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
 
-end subroutine DeniSetup
+end subroutine ReactionCLMDeniSetup
 
 ! ************************************************************************** !
-subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
-                     rt_auxvar,global_auxvar,material_auxvar,reaction,option, &
+subroutine ReactionCLMDeniReact(this,Residual,Jacobian,compute_derivative, &
+                     rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                     option, &
                      RateDemand_nh4,RateSupply_nh4, &
                      JacobianDemand_nh4,JacobianSupply_nh4, &
                      RateDemand_no3,RateSupply_no3, &
@@ -4548,7 +4595,7 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module, only : material_auxvar_type
-  use CLM_Rxn_Common_module, only: CalNLimitFunc
+  use CLM_Rxn_Common_module, only: ReactionCLMCalNLimitFunc
 
   implicit none
 
@@ -4632,8 +4679,9 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
     ires_no3 = this%ispec_no3 + reaction%offset_immobile
   endif
 
-  call CalNLimitFunc(c_no3, ac_no3, this%residual_conc, this%half_saturation, &
-                     this%cutoff_no3_0, this%cutoff_no3_1, f_no3, d_no3)
+  call ReactionCLMCalNLimitFunc(c_no3, ac_no3, this%residual_conc, &
+                                this%half_saturation, this%cutoff_no3_0, &
+                                this%cutoff_no3_1, f_no3, d_no3)
 
   ! add first order rate
   d_no3 = (c_no3 - this%residual_conc) * ac_no3 * d_no3 + ac_no3 * f_no3
@@ -4696,21 +4744,21 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
     endif
   endif
 
-end subroutine DeniReact
+end subroutine ReactionCLMDeniReact
 
 ! ************************************************************************** !
 !
-! DeniDestroy: Destroys allocatable or pointer objects created in this
-!                  module
+! ReactionCLMDeniDestroy: Destroys allocatable or pointer objects created
+!                         in this module
 !
 ! ************************************************************************** !
-subroutine DeniDestroy(this)
+subroutine ReactionCLMDeniDestroy(this)
 
   implicit none
 
   class(clm_rxn_deni_type) :: this
 
-end subroutine DeniDestroy
+end subroutine ReactionCLMDeniDestroy
 
 end module CLM_Rxn_Deni_class
 
@@ -4720,7 +4768,7 @@ module CLM_Rxn_module
   use petscsys
 
   ! extended from reaction_sandbox to implement demand based down regulation
-  ! in RCLMRxn t6g 10/06/2014
+  ! in ReactionCLMRxn t6g 10/06/2014
 
   use CLM_Rxn_Base_class
   use CLM_Rxn_Decomp_class
@@ -4747,28 +4795,28 @@ module CLM_Rxn_module
   PetscReal :: cutoff_no3_0
   PetscReal :: cutoff_no3_1
 
-  interface RCLMRxnRead
-    module procedure RCLMRxnRead1
-    module procedure RCLMRxnRead2
+  interface ReactionCLMRxnRead
+    module procedure ReactionCLMRxnRead1
+    module procedure ReactionCLMRxnRead2
   end interface
 
-  interface RCLMRxnDestroy
-    module procedure RCLMRxnDestroy1
-    module procedure RCLMRxnDestroy2
+  interface ReactionCLMRxnDestroy
+    module procedure ReactionCLMRxnDestroy1
+    module procedure ReactionCLMRxnDestroy2
   end interface
 
-  public :: RCLMRxnInit, &
-            RCLMRxnRead, &
-            RCLMRxnSkipInput, &
-            RCLMRxnSetup, &
-            RCLMRxn, &
-            RCLMRxnDestroy
+  public :: ReactionCLMRxnInit, &
+            ReactionCLMRxnRead, &
+            ReactionCLMRxnSkipInput, &
+            ReactionCLMRxnSetup, &
+            ReactionCLMRxn, &
+            ReactionCLMRxnDestroy
 
 contains
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnInit(option)
+subroutine ReactionCLMRxnInit(option)
   !
   ! Initializes the clmrxn list
   !
@@ -4777,7 +4825,7 @@ subroutine RCLMRxnInit(option)
   type(option_type) :: option
 
   if (associated(clmrxn_list)) then
-    call RCLMRxnDestroy()
+    call ReactionCLMRxnDestroy()
   endif
   nullify(clmrxn_list)
   bdownreg = PETSC_FALSE
@@ -4792,11 +4840,11 @@ subroutine RCLMRxnInit(option)
   cutoff_no3_0 = -1.0d-15
   cutoff_no3_1 =  1.0d-15
 
-end subroutine RCLMRxnInit
+end subroutine ReactionCLMRxnInit
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnSetup(reaction,option)
+subroutine ReactionCLMRxnSetup(reaction,option)
   !
   ! Calls all the initialization routines for all reactions in
   ! the clmrxn list
@@ -4821,11 +4869,11 @@ subroutine RCLMRxnSetup(reaction,option)
   enddo
 
 
-end subroutine RCLMRxnSetup
+end subroutine ReactionCLMRxnSetup
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnRead1(input,option)
+subroutine ReactionCLMRxnRead1(input,option)
   !
   ! Reads input deck for reaction clmrxn parameters
   !
@@ -4840,15 +4888,15 @@ subroutine RCLMRxnRead1(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  call RCLMRxnRead(clmrxn_list,input,option)
+  call ReactionCLMRxnRead(clmrxn_list,input,option)
 
-end subroutine RCLMRxnRead1
+end subroutine ReactionCLMRxnRead1
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
+subroutine ReactionCLMRxnRead2(local_clmrxn_list,input,option)
   !
-  ! RCLMRxnRead: Reads input deck for reaction clmrxn parameters
+  ! ReactionCLMRxnRead: Reads input deck for reaction clmrxn parameters
   !
   use Option_module
   use String_module
@@ -4877,13 +4925,13 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
 
     select case(trim(word))
       case('DECOMPOSITION')
-        new_clmrxn => CLMDec_Create()
+        new_clmrxn => ReactionCLMDecCreate()
       case('DENITRIFICATION')
-        new_clmrxn => DeniCreate()
+        new_clmrxn => ReactionCLMDeniCreate()
       case('NITRIFICATION')
-        new_clmrxn => NitrCreate()
+        new_clmrxn => ReactionCLMNitrCreate()
       case('PLANTNTAKE')
-        new_clmrxn => PlantNCreate()
+        new_clmrxn => ReactionCLMPlantNCreate()
       case('ENABLE_DOWNREGULATION')
         bdownreg = PETSC_TRUE
       case('DEBUG_OUTPUT')
@@ -4905,9 +4953,9 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         call InputReadDouble(input,option,cutoff_nh4_1)
         call InputErrorMsg(input,option,'cutoff_nh4_1','CHEMISTRY,CLM_RXN')
         if (cutoff_nh4_0 > cutoff_nh4_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
-            'NH4+ cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN, &
+            &NH4+ cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
       case('CUTOFF_NO3')
@@ -4916,9 +4964,9 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         call InputReadDouble(input,option,cutoff_no3_1)
         call InputErrorMsg(input,option,'cutoff_no3_1','CHEMISTRY,CLM_RXN')
         if (cutoff_no3_0 > cutoff_no3_1) then
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
-            'NO3- down regulation cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,&
+            &NO3- down regulation cut off concentration > concentration &
+            &where down regulation function = 1.'
           call PrintErrMsg(option)
         endif
 
@@ -4941,11 +4989,11 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine RCLMRxnRead2
+end subroutine ReactionCLMRxnRead2
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnSkipInput(input,option)
+subroutine ReactionCLMRxnSkipInput(input,option)
   !
   ! Intelligently skips over CLM_RXN block
   !
@@ -4963,14 +5011,14 @@ subroutine RCLMRxnSkipInput(input,option)
   class(clm_rxn_base_type), pointer :: dummy_list
 
   nullify(dummy_list)
-  call RCLMRxnRead(dummy_list,input,option)
-  call RCLMRxnDestroy(dummy_list)
+  call ReactionCLMRxnRead(dummy_list,input,option)
+  call ReactionCLMRxnDestroy(dummy_list)
 
-end subroutine RCLMRxnSkipInput
+end subroutine ReactionCLMRxnSkipInput
 
 ! ************************************************************************** !
 
-subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
+subroutine ReactionCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
                     global_auxvar,material_auxvar,reaction,option)
   !
   ! Evaluates reaction storing residual and/or Jacobian
@@ -5074,13 +5122,13 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   is_nh4_aqueous = PETSC_TRUE
   word = 'NH4+'
-  ispec_nh4 = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  ispec_nh4 = ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   ires_nh4 = -999
   if (ispec_nh4 < 0) then
     word = 'NH3(aq)'
     ispec_nh4 = &
-      ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+      ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
   endif
 
   if (ispec_nh4 > 0) ires_nh4 = ispec_nh4
@@ -5102,7 +5150,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif
 
   word = 'NO3-'
-  ispec_no3 = ReactionGetPriSpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+  ispec_no3 = ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE,option)
 
   ires_no3 = -999
   if (ispec_no3 > 0) ires_no3 = ispec_no3
@@ -5224,7 +5272,8 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
         do i = 1, reaction%ncomp
           do j = 1, reaction%ncomp
-            Jacobian(i,j) = Jacobian(i,j) + RateDemand_nh4(i) *ddownscale_nh4(j)
+            Jacobian(i,j) = Jacobian(i,j) + RateDemand_nh4(i) * &
+                                            ddownscale_nh4(j)
           enddo
         enddo
 
@@ -5407,24 +5456,24 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
   endif
 
-end subroutine RCLMRxn
+end subroutine ReactionCLMRxn
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnDestroy1()
+subroutine ReactionCLMRxnDestroy1()
   !
   ! Destroys master clmrxn list
   !
 
   implicit none
 
-  call RCLMRxnDestroy(clmrxn_list)
+  call ReactionCLMRxnDestroy(clmrxn_list)
 
-end subroutine RCLMRxnDestroy1
+end subroutine ReactionCLMRxnDestroy1
 
 ! ************************************************************************** !
 
-subroutine RCLMRxnDestroy2(local_clmrxn_list)
+subroutine ReactionCLMRxnDestroy2(local_clmrxn_list)
   !
   ! Destroys arbitrary clmrxn list
   !
@@ -5445,7 +5494,7 @@ subroutine RCLMRxnDestroy2(local_clmrxn_list)
     cur_clmrxn => prev_clmrxn
   enddo
 
-end subroutine RCLMRxnDestroy2
+end subroutine ReactionCLMRxnDestroy2
 
 end module CLM_Rxn_module
 

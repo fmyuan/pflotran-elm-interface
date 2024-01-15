@@ -863,7 +863,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Survey_module
 
 #ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
+  use Reaction_Solid_Solution_module, only : ReactionSolidSolnReadSolidSoln
 #endif
 
   implicit none

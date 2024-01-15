@@ -355,7 +355,7 @@ subroutine SimSubsurfInputRecord(this)
        this%realization%patch%characteristic_curves_thermal)
 
   ! print chemistry and reactive transport information
-  call ReactionInputRecord(this%realization%reaction)
+  call ReactionAuxInputRecord(this%realization%reaction)
 
   ! print coupler information (ICs, BCs, SSs)
   call PatchCouplerInputRecord(this%realization%patch)
@@ -838,7 +838,7 @@ subroutine SimSubsurfFinalizeRun(this)
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
   use Klinkenberg_module, only : KlinkenbergDestroy
-  use CLM_Rxn_module, only : RCLMRxnDestroy
+  use CLM_Rxn_module, only : ReactionCLMRxnDestroy
   use Output_EKG_module
 
   implicit none
@@ -887,7 +887,7 @@ subroutine SimSubsurfFinalizeRun(this)
     tran_timestepper => this%tran_process_model_coupler%timestepper
     if (this%option%itranmode == RT_MODE) then
       call RSandboxDestroy()
-      call RCLMRxnDestroy()
+      call ReactionCLMRxnDestroy()
     endif
   endif
 

@@ -350,7 +350,7 @@ subroutine RTSetup(realization)
     do
       if (.not.associated(cur_generic_parameter)) exit
       rt_parameter%species_dependent_diffusion = PETSC_TRUE
-      i = ReactionGetPriSpeciesIDFromName(cur_generic_parameter%name, &
+      i = ReactionAuxGetPriSpecIDFromName(cur_generic_parameter%name, &
                                           reaction,PETSC_FALSE,option)
       if (option%transport%use_np) then
         ! Store diffusion coefficients for each species in correspondent
@@ -359,8 +359,8 @@ subroutine RTSetup(realization)
         ! If reused for primary will apply to TDispersion function which
         ! is not ready for electromigration.
         if (Uninitialized(i)) then
-            i = ReactionGetSecSpeciesIDFromName(cur_generic_parameter%name, &
-                                            reaction,PETSC_FALSE,option)
+            i =  ReactionAuxGetSecSpecIDFromName(cur_generic_parameter%name, &
+                                                 reaction,PETSC_FALSE,option)
             if (Uninitialized(i)) then
               option%io_buffer = 'Species "' // &
                 trim(cur_generic_parameter%name) // &
@@ -598,8 +598,8 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
            (1.d0-liquid_saturation)*porosity*volume*1.d3
       do i = 1, reaction%gas%nactive_gas
         sum_mol_by_gas(i) = sum_mol_by_gas(i) + &
-          ! RGasConcentration returns mol/m^3 gas
-          RGasConcentration(rt_auxvars(ghosted_id)%gas_pp(i), &
+          ! ReactionGasPartialPresToConc returns mol/m^3 gas
+          ReactionGasPartialPresToConc(rt_auxvars(ghosted_id)%gas_pp(i), &
                             global_auxvars(ghosted_id)%temp) * &
           ! m^3 gas
           (1.d0-liquid_saturation) * porosity * volume

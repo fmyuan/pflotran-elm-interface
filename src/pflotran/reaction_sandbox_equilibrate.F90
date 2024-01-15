@@ -141,7 +141,7 @@ subroutine EquilibrateSetup(this,reaction,option)
   type(option_type) :: option
 
   this%species_id = &
-    ReactionGetPriSpeciesIDFromName(this%species_name,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(this%species_name,reaction,option)
 
   if (Uninitialized(this%equilibrium_concentration)) then
     option%io_buffer = 'An EQUILIBRIUM_CONCENTRATION must be specified for &

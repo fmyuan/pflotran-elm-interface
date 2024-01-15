@@ -61,20 +61,20 @@ module Reaction_Immobile_Aux_module
     module procedure ReactionImGetSpeciesIDFromName2
   end interface
 
-  public :: ReactionImCreate, &
+  public :: ReactionImCreateAux, &
             ReactionImSpeciesCreate, &
             ReactionImConstraintCreate, &
             ReactionImDecayRxnCreate, &
             ReactionImGetCount, &
             ReactionImConstraintDestroy, &
             ReactionImGetSpeciesIDFromName, &
-            ReactionImDestroy
+            ReactionImDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionImCreate()
+function ReactionImCreateAux()
   !
   ! Allocate and initialize immobile object
   !
@@ -83,7 +83,7 @@ function ReactionImCreate()
   !
   implicit none
 
-  type(immobile_type), pointer :: ReactionImCreate
+  type(immobile_type), pointer :: ReactionImCreateAux
 
   type(immobile_type), pointer :: immobile
 
@@ -99,9 +99,9 @@ function ReactionImCreate()
   nullify(immobile%decayspecid)
   nullify(immobile%decay_rate_constant)
 
-  ReactionImCreate => immobile
+  ReactionImCreateAux => immobile
 
-end function ReactionImCreate
+end function ReactionImCreateAux
 
 ! ************************************************************************** !
 
@@ -301,7 +301,7 @@ end function ReactionImGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 
-subroutine ImmobileSpeciesDestroy(species)
+subroutine ReactionImDestroyImmobileSpecies(species)
   !
   ! Deallocates a immobile species
   !
@@ -318,11 +318,11 @@ subroutine ImmobileSpeciesDestroy(species)
   deallocate(species)
   nullify(species)
 
-end subroutine ImmobileSpeciesDestroy
+end subroutine ReactionImDestroyImmobileSpecies
 
 ! ************************************************************************** !
 
-recursive subroutine ImmobileDecayRxnDestroy(rxn)
+recursive subroutine ReactionImDestroyDecayRxn(rxn)
   !
   ! Deallocates a general reaction
   !
@@ -336,12 +336,12 @@ recursive subroutine ImmobileDecayRxnDestroy(rxn)
 
   if (.not.associated(rxn)) return
 
-  call ImmobileDecayRxnDestroy(rxn%next)
+  call ReactionImDestroyDecayRxn(rxn%next)
   nullify(rxn%next)
   deallocate(rxn)
   nullify(rxn)
 
-end subroutine ImmobileDecayRxnDestroy
+end subroutine ReactionImDestroyDecayRxn
 
 ! ************************************************************************** !
 
@@ -373,7 +373,7 @@ end subroutine ReactionImConstraintDestroy
 
 ! ************************************************************************** !
 
-subroutine ReactionImDestroy(immobile)
+subroutine ReactionImDestroyAux(immobile)
   !
   ! Deallocates a immobile object
   !
@@ -398,20 +398,20 @@ subroutine ReactionImDestroy(immobile)
     if (.not.associated(cur_immobile_species)) exit
     prev_immobile_species => cur_immobile_species
     cur_immobile_species => cur_immobile_species%next
-    call ImmobileSpeciesDestroy(prev_immobile_species)
+    call ReactionImDestroyImmobileSpecies(prev_immobile_species)
   enddo
   nullify(immobile%list)
 
   call DeallocateArray(immobile%names)
   call DeallocateArray(immobile%print_me)
 
-  call ImmobileDecayRxnDestroy(immobile%decay_rxn_list)
+  call ReactionImDestroyDecayRxn(immobile%decay_rxn_list)
   call DeallocateArray(immobile%decayspecid)
   call DeallocateArray(immobile%decay_rate_constant)
 
   deallocate(immobile)
   nullify(immobile)
 
-end subroutine ReactionImDestroy
+end subroutine ReactionImDestroyAux
 
 end module Reaction_Immobile_Aux_module

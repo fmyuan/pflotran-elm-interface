@@ -58,7 +58,7 @@ subroutine OutputVTK(realization_base)
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
-  reaction => ReactionCast(realization_base%reaction_base)
+  reaction => ReactionAuxCast(realization_base%reaction_base)
   output_option => realization_base%output_option
 
   ! open file

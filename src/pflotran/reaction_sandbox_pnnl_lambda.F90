@@ -207,8 +207,8 @@ subroutine LambdaSetup(this,reaction,option)
   PetscReal, pointer :: stoich(:,:)
   PetscInt, pointer :: species_ids(:,:)
 
-  call ReactionNetworkToStoich(reaction,this%reaction_network_filename, &
-                               species_ids,stoich,option)
+  call ReactionAuxNetworkToStoich(reaction,this%reaction_network_filename, &
+                                  species_ids,stoich,option)
 
   ! Determines the number of rxns and species in the problem
   ! and allocates arrays
@@ -232,15 +232,15 @@ subroutine LambdaSetup(this,reaction,option)
 
   word = 'O2(aq)'
   this%i_o2 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
 
   word = 'NH4+'
   this%i_nh4 = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
 
   word = 'BIOMASS'
   this%i_biomass = &
-    ReactionGetPriSpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
 
   if (len_trim(this%scaling_mineral_name) > 0) then
     this%i_scaling_mineral = &
