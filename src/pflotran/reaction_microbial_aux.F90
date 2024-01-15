@@ -318,7 +318,7 @@ subroutine ReactionMicrobDestroyRxn(microbial)
   type(microbial_rxn_type), pointer :: microbial
 
   call ReactionDBDestroyRxn(microbial%dbaserxn)
-  call MicrobialMonodDestroy(microbial%monod)
+  call ReactionMicrobDestroyMonod(microbial%monod)
   call ReactionInhibitionDestroyAux(microbial%inhibition)
   call ReactionMicrobDestroyBiomass(microbial%biomass)
 
@@ -329,7 +329,7 @@ end subroutine ReactionMicrobDestroyRxn
 
 ! ************************************************************************** !
 
-recursive subroutine MicrobialMonodDestroy(monod)
+recursive subroutine ReactionMicrobDestroyMonod(monod)
   !
   ! Deallocates a microbial monod object
   !
@@ -343,12 +343,12 @@ recursive subroutine MicrobialMonodDestroy(monod)
 
   if (.not.associated(monod)) return
 
-  call MicrobialMonodDestroy(monod%next)
+  call ReactionMicrobDestroyMonod(monod%next)
 
   deallocate(monod)
   nullify(monod)
 
-end subroutine MicrobialMonodDestroy
+end subroutine ReactionMicrobDestroyMonod
 
 ! ************************************************************************** !
 

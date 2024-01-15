@@ -155,10 +155,12 @@ subroutine ReactionIsothermReadIsotherm(isotherm,input,option)
       endif
     endif
 
-    call IsothermConvertKDUnits(isotherm_rxn%Kd,kd_units,ikd_units,option)
+    call ReactionIsothermConvertKDUnits(isotherm_rxn%Kd,kd_units, &
+                                        ikd_units,option)
     if (associated(sec_cont_isotherm_rxn)) then
-      call IsothermConvertKDUnits(sec_cont_isotherm_rxn%Kd,multi_kd_units, &
-                                  imulti_kd_units,option)
+      call ReactionIsothermConvertKDUnits(sec_cont_isotherm_rxn%Kd, &
+                                          multi_kd_units, &
+                                          imulti_kd_units,option)
       if (ikd_units /= imulti_kd_units) then
         if (len_trim(kd_units) == 0) kd_units = 'default'
         if (len_trim(multi_kd_units) == 0) multi_kd_units = 'default'
@@ -217,7 +219,7 @@ subroutine ReactionIsothermReadIsotherm(isotherm,input,option)
 end subroutine ReactionIsothermReadIsotherm
 
 ! ************************************************************************** !
-subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
+subroutine ReactionIsothermConvertKDUnits(kd,kd_units,ikd_units,option)
 
   ! Converts units of isotherm reaction
 
@@ -257,7 +259,7 @@ subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
     endif
   endif
 
-end subroutine IsothermConvertKDUnits
+end subroutine ReactionIsothermConvertKDUnits
 
 ! ************************************************************************** !
 subroutine ReactionIsothermTotalSorbKD(rt_auxvar,global_auxvar, &

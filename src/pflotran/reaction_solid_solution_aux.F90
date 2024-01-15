@@ -113,7 +113,7 @@ end function ReactionSolidSolnCreateAux
 
 ! ************************************************************************** !
 
-function StoichiometricSolidCreate()
+function ReactionSolidSolnCreateStoiSolid()
   !
   ! Allocate and initialize stoichiometric solid
   ! object
@@ -124,7 +124,7 @@ function StoichiometricSolidCreate()
 
   implicit none
 
-  type(stoichiometric_solid_type), pointer :: StoichiometricSolidCreate
+  type(stoichiometric_solid_type), pointer :: ReactionSolidSolnCreateStoiSolid
 
   type(stoichiometric_solid_type), pointer :: stoich_solid
 
@@ -134,13 +134,13 @@ function StoichiometricSolidCreate()
   nullify(stoich_solid%end_members) ! nullify the list for now
   nullify(stoich_solid%next)
 
-  StoichiometricSolidCreate => stoich_solid
+  ReactionSolidSolnCreateStoiSolid => stoich_solid
 
-end function StoichiometricSolidCreate
+end function ReactionSolidSolnCreateStoiSolid
 
 ! ************************************************************************** !
 
-subroutine StoichiometricSolidDestroy(stoich_solid)
+subroutine ReactionSolidSolnDestStoichSolid(stoich_solid)
   !
   ! Deallocates solid solution object
   !
@@ -170,7 +170,7 @@ subroutine StoichiometricSolidDestroy(stoich_solid)
   deallocate(stoich_solid)
   nullify(stoich_solid)
 
-end subroutine StoichiometricSolidDestroy
+end subroutine ReactionSolidSolnDestStoichSolid
 #endif
 
 ! ************************************************************************** !
@@ -205,7 +205,7 @@ recursive subroutine ReactionSolidSolnDestroyAux(solid_solution)
     if (.not.associated(cur_stoich_solid)) exit
     prev_stoich_solid => cur_stoich_solid
     cur_stoich_solid => cur_stoich_solid%next
-    call StoichiometricSolidDestroy(prev_stoich_solid)
+    call ReactionSolidSolnDestStoichSolid(prev_stoich_solid)
   enddo
 #endif
   deallocate(solid_solution%stoich_solid_names)

@@ -301,7 +301,7 @@ end function ReactionImGetSpeciesIDFromName2
 
 ! ************************************************************************** !
 
-subroutine ImmobileSpeciesDestroy(species)
+subroutine ReactionImDestroyImmobileSpecies(species)
   !
   ! Deallocates a immobile species
   !
@@ -318,11 +318,11 @@ subroutine ImmobileSpeciesDestroy(species)
   deallocate(species)
   nullify(species)
 
-end subroutine ImmobileSpeciesDestroy
+end subroutine ReactionImDestroyImmobileSpecies
 
 ! ************************************************************************** !
 
-recursive subroutine ImmobileDecayRxnDestroy(rxn)
+recursive subroutine ReactionImDestroyDecayRxn(rxn)
   !
   ! Deallocates a general reaction
   !
@@ -336,12 +336,12 @@ recursive subroutine ImmobileDecayRxnDestroy(rxn)
 
   if (.not.associated(rxn)) return
 
-  call ImmobileDecayRxnDestroy(rxn%next)
+  call ReactionImDestroyDecayRxn(rxn%next)
   nullify(rxn%next)
   deallocate(rxn)
   nullify(rxn)
 
-end subroutine ImmobileDecayRxnDestroy
+end subroutine ReactionImDestroyDecayRxn
 
 ! ************************************************************************** !
 
@@ -398,14 +398,14 @@ subroutine ReactionImDestroyAux(immobile)
     if (.not.associated(cur_immobile_species)) exit
     prev_immobile_species => cur_immobile_species
     cur_immobile_species => cur_immobile_species%next
-    call ImmobileSpeciesDestroy(prev_immobile_species)
+    call ReactionImDestroyImmobileSpecies(prev_immobile_species)
   enddo
   nullify(immobile%list)
 
   call DeallocateArray(immobile%names)
   call DeallocateArray(immobile%print_me)
 
-  call ImmobileDecayRxnDestroy(immobile%decay_rxn_list)
+  call ReactionImDestroyDecayRxn(immobile%decay_rxn_list)
   call DeallocateArray(immobile%decayspecid)
   call DeallocateArray(immobile%decay_rate_constant)
 

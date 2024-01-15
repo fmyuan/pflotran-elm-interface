@@ -128,7 +128,7 @@ end subroutine ReactionIsothermCreateRxn
 
 ! ************************************************************************** !
 
-subroutine IsothermRxnLinkDestroy(link)
+subroutine ReactionIsothermDestroyRxnLink(link)
   !
   ! Deallocates an isotherm reaction
   !
@@ -141,11 +141,11 @@ subroutine IsothermRxnLinkDestroy(link)
   deallocate(link)
   nullify(link)
 
-end subroutine IsothermRxnLinkDestroy
+end subroutine ReactionIsothermDestroyRxnLink
 
 ! ************************************************************************** !
 
-subroutine IsothermRxnDestroy(isotherm_rxn)
+subroutine ReactionIsothermDestroyRxn(isotherm_rxn)
   !
   ! Deallocates an isotherm reaction
   !
@@ -164,7 +164,7 @@ subroutine IsothermRxnDestroy(isotherm_rxn)
   deallocate(isotherm_rxn)
   nullify(isotherm_rxn)
 
-end subroutine IsothermRxnDestroy
+end subroutine ReactionIsothermDestroyRxn
 
 ! ************************************************************************** !
 
@@ -189,7 +189,7 @@ subroutine ReactionIsothermDestroyAux(isotherm,option)
     if (.not.associated(isotherm_rxn_link)) exit
     prev_isotherm_rxn_link => isotherm_rxn_link
     isotherm_rxn_link => isotherm_rxn_link%next
-    call IsothermRxnLinkDestroy(prev_isotherm_rxn_link)
+    call ReactionIsothermDestroyRxnLink(prev_isotherm_rxn_link)
   enddo
   nullify(isotherm%isotherm_list)
 
@@ -200,13 +200,13 @@ subroutine ReactionIsothermDestroyAux(isotherm,option)
       if (.not.associated(isotherm_rxn_link)) exit
       prev_isotherm_rxn_link => isotherm_rxn_link
       isotherm_rxn_link => isotherm_rxn_link%next
-      call IsothermRxnLinkDestroy(prev_isotherm_rxn_link)
+      call ReactionIsothermDestroyRxnLink(prev_isotherm_rxn_link)
     enddo
     nullify(isotherm%multicontinuum_isotherm_list)
   endif
 
-  call IsothermRxnDestroy(isotherm%isotherm_rxn)
-  call IsothermRxnDestroy(isotherm%multicontinuum_isotherm_rxn)
+  call ReactionIsothermDestroyRxn(isotherm%isotherm_rxn)
+  call ReactionIsothermDestroyRxn(isotherm%multicontinuum_isotherm_rxn)
 
   call DeallocateArray(isotherm%eqisothermtype)
   call DeallocateArray(isotherm%eqkdspecid)

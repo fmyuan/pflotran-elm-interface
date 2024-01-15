@@ -134,7 +134,7 @@ end subroutine ReactionSolidSolnReadSolidSoln
 subroutine ReactionSolidSolnLinkNamesToIDs(solid_solution_list, &
                                            mineral_reaction,option)
   !
-  ! SolidSolutionReadFromDatabase: Reads solid solution from the database
+  ! ReactionSolidSolnReadFromDatabas: Reads solid solution from the database
   !
   ! Author: Glenn Hammond
   ! Date: 08/20/12
@@ -175,7 +175,7 @@ end subroutine ReactionSolidSolnLinkNamesToIDs
 
 ! ************************************************************************** !
 
-subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
+subroutine ReactionSolidSolnReadFromDatabas(solid_solution_rxn,option)
   !
   ! Reads solid solution from the database
   !
@@ -213,7 +213,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   call InputPushBlock(input,option)
   do ! loop over every entry in the database
     call InputReadPflotranString(input,option)
-    call InputReadStringErrorMsg(input,option,'SolidSolutionReadFromDatabase')
+    call InputReadStringErrorMsg(input,option,'ReactionSolidSolnReadFromDatabas')
 
     call InputReadWord(input,option,card,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,SOLID_SOLUTIONS')
@@ -280,7 +280,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         end select
         nullify(mineral)
       case('TEMPERATURES')
-        string = 'Temperatures in SolidSolutionReadFromDatabase'
+        string = 'Temperatures in ReactionSolidSolnReadFromDatabas'
         call UtilityReadRealArray(solid_solution_rxn%dbase_temperatures, &
                                   ZERO_INTEGER,string,input,option)
         solid_solution_rxn%num_dbase_temperatures = &
@@ -292,7 +292,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SolidSolutionReadFromDatabase
+end subroutine ReactionSolidSolnReadFromDatabas
 #endif
 
 end module Reaction_Solid_Solution_module

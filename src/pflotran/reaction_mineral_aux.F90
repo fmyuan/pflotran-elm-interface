@@ -652,7 +652,7 @@ recursive subroutine ReactionMnrlDestroyTSTRxn(tstrxn)
   if (.not.associated(tstrxn)) return
 
   call ReactionMnrlDestroyTSTRxn(tstrxn%next)
-  call TransitionStatePrefactorDestroy(tstrxn%prefactor)
+  call ReactionMnrlDestroyTSTPrefactor(tstrxn%prefactor)
 
   deallocate(tstrxn)
   nullify(tstrxn)
@@ -661,7 +661,7 @@ end subroutine ReactionMnrlDestroyTSTRxn
 
 ! ************************************************************************** !
 
-recursive subroutine TransitionStatePrefactorDestroy(prefactor)
+recursive subroutine ReactionMnrlDestroyTSTPrefactor(prefactor)
   !
   ! Deallocates a transition state prefactor
   !
@@ -675,17 +675,17 @@ recursive subroutine TransitionStatePrefactorDestroy(prefactor)
 
   if (.not.associated(prefactor)) return
 
-  call TransitionStatePrefactorDestroy(prefactor%next)
-  call TSPrefactorSpeciesDestroy(prefactor%species)
+  call ReactionMnrlDestroyTSTPrefactor(prefactor%next)
+  call ReactionMnrlDestroyTSTPrefSpec(prefactor%species)
 
   deallocate(prefactor)
   nullify(prefactor)
 
-end subroutine TransitionStatePrefactorDestroy
+end subroutine ReactionMnrlDestroyTSTPrefactor
 
 ! ************************************************************************** !
 
-recursive subroutine TSPrefactorSpeciesDestroy(species)
+recursive subroutine ReactionMnrlDestroyTSTPrefSpec(species)
   !
   ! Deallocates a transition state prefactor
   !
@@ -699,12 +699,12 @@ recursive subroutine TSPrefactorSpeciesDestroy(species)
 
   if (.not.associated(species)) return
 
-  call TSPrefactorSpeciesDestroy(species%next)
+  call ReactionMnrlDestroyTSTPrefSpec(species%next)
 
   deallocate(species)
   nullify(species)
 
-end subroutine TSPrefactorSpeciesDestroy
+end subroutine ReactionMnrlDestroyTSTPrefSpec
 
 ! ************************************************************************** !
 

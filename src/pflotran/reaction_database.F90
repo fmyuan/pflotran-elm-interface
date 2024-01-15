@@ -3709,7 +3709,7 @@ subroutine ReactionDBInitBasis(reaction,option)
 
   ! sandbox reactions
   call RSandboxSetup(reaction,option)
-  call RCLMRxnSetup(reaction,option)
+  call ReactionCLMRxnSetup(reaction,option)
 
 90 format(80('-'))
 100 format(/,2x,i4,2x,a)

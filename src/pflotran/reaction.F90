@@ -86,7 +86,7 @@ subroutine ReactionInit(reaction,input,option)
 
   use Option_module
   use Input_Aux_module
-  use CLM_Rxn_module, only : RCLMRxnInit
+  use CLM_Rxn_module, only : ReactionCLMRxnInit
 
   implicit none
 
@@ -98,7 +98,7 @@ subroutine ReactionInit(reaction,input,option)
 
   ! must be called prior to the first pass
   call RSandboxInit(option)
-  call RCLMRxnInit(option)
+  call ReactionCLMRxnInit(option)
 
   call ReactionReadPass1(reaction,input,option)
   reaction%primary_species_names => ReactionAuxGetPriSpeciesNames(reaction)
@@ -129,7 +129,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   use Variables_module, only : PRIMARY_MOLALITY, PRIMARY_MOLARITY, &
                                TOTAL_MOLALITY, TOTAL_MOLARITY, &
                                SECONDARY_MOLALITY, SECONDARY_MOLARITY
-  use CLM_Rxn_module, only : RCLMRxnRead
+  use CLM_Rxn_module, only : ReactionCLMRxnRead
   use Generic_module
 
   implicit none
@@ -455,7 +455,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         call RSandboxRead(input,option)
         reaction_sandbox_read = PETSC_TRUE
       case('CLM_REACTION')
-        call RCLMRxnRead(input,option)
+        call ReactionCLMRxnRead(input,option)
         reaction_clm_read = PETSC_TRUE
       case('MICROBIAL_REACTION')
         call ReactionMicrobReadMicrobial(reaction%microbial,input,option)
@@ -976,7 +976,7 @@ subroutine ReactionReadPass2(reaction,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
       case('CLM_REACTION')
-        call RCLMRxnSkipInput(input,option)
+        call ReactionCLMRxnSkipInput(input,option)
 #ifdef SOLID_SOLUTION
       case('SOLID_SOLUTIONS')
         call ReactionSolidSolnReadSolidSoln(reaction%solid_solution_list, &
@@ -4046,7 +4046,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   !
 
   use Option_module
-  use CLM_Rxn_module, only : RCLMRxn, clmrxn_list
+  use CLM_Rxn_module, only : ReactionCLMRxn, clmrxn_list
 
   implicit none
 
@@ -4106,8 +4106,8 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
 
   ! add new reactions here and in RReactionDerivative
   if (associated(clmrxn_list)) then
-    call RCLMRxn(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                  material_auxvar,reaction,option)
+    call ReactionCLMRxn(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+                        material_auxvar,reaction,option)
   endif
 
 end subroutine RReaction
