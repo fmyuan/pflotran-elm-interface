@@ -14,6 +14,7 @@ module SrcSink_Sandbox_Base_class
     PetscInt, pointer :: local_cell_ids(:)
     PetscInt, pointer :: natural_cell_ids(:)
     type(point3d_type) :: coordinate
+    character(len=MAXWORDLENGTH) :: region_name
     PetscReal, pointer :: instantaneous_mass_rate(:)
     PetscReal, pointer :: cumulative_mass(:)
     class(srcsink_sandbox_base_type), pointer :: next
@@ -41,6 +42,7 @@ subroutine SSSandboxBaseInit(this)
 
   class(srcsink_sandbox_base_type) :: this
 
+  this%region_name = ''
   this%coordinate%x = UNINITIALIZED_DOUBLE
   this%coordinate%y = UNINITIALIZED_DOUBLE
   this%coordinate%z = UNINITIALIZED_DOUBLE
@@ -54,19 +56,22 @@ end subroutine SSSandboxBaseInit
 
 ! ************************************************************************** !
 
-subroutine SSSandboxBaseSetup(this,grid,material_auxvars,option)
+subroutine SSSandboxBaseSetup(this,grid,region_list,material_auxvars,option)
 
   use Option_module
   use Grid_module
   use Material_Aux_module, only: material_auxvar_type
+  use Region_module
 
   implicit none
 
   class(srcsink_sandbox_base_type) :: this
   type(grid_type) :: grid
+  type(region_list_type) :: region_list
   type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
+  type(region_type), pointer :: region
   PetscInt :: local_id, natural_id
   PetscInt, allocatable :: local_cell_ids(:)
   PetscInt :: icell, num_local, num_global
@@ -81,6 +86,18 @@ subroutine SSSandboxBaseSetup(this,grid,material_auxvars,option)
     allocate(local_cell_ids(num_local))
     local_cell_ids(num_local) = local_id
     num_global = 1
+  else if (len_trim(this%region_name) > 0) then
+    region => RegionGetPtrFromList(this%region_name,region_list)
+    if (.not.associated(region)) then
+      option%io_buffer = 'Region "' // trim(this%region_name) // &
+                '" in source/sink sandbox not found in region list'
+      call PrintErrMsg(option)
+    endif
+    num_local = region%num_cells
+    if (region%num_cells > 0) then
+      allocate(this%local_cell_ids(region%num_cells))
+      this%local_cell_ids(:) = region%cell_ids(:)
+    endif
   else if (associated(this%natural_cell_ids)) then
     allocate(local_cell_ids(size(this%natural_cell_ids)))
     local_cell_ids = UNINITIALIZED_INTEGER
@@ -105,11 +122,11 @@ subroutine SSSandboxBaseSetup(this,grid,material_auxvars,option)
       &domain through either a CELL_ID or COORDINATE.'
     call PrintErrMsg(option)
   endif
-  if (num_local > 0) then
+  if (num_local > 0 .and. len_trim(this%region_name) == 0) then
     allocate(this%local_cell_ids(num_local))
     this%local_cell_ids = local_cell_ids(1:num_local)
   endif
-  deallocate(local_cell_ids)
+  if (allocated(local_cell_ids)) deallocate(local_cell_ids)
 
   ! check to ensure that each cell is mapped once
   call MPI_Allreduce(num_local,icell,ONE_INTEGER_MPI,MPIU_INTEGER, &
@@ -118,7 +135,7 @@ subroutine SSSandboxBaseSetup(this,grid,material_auxvars,option)
   if (icell == 0) then
     option%io_buffer = 'No grid cells mapped in SSSandboxBaseSetup.'
     call PrintErrMsg(option)
-  else if (icell > num_global) then
+  else if (icell > num_global .and. num_global > 0) then
     option%io_buffer = 'More grid cells than those listed were mapped &
                        &in SSSandboxBaseSetup.'
     call PrintErrMsg(option)
@@ -185,6 +202,9 @@ subroutine SSSandboxBaseSelectCase(this,input,option,keyword,found)
                             input,option)
     case('CELL_ID')
       call InputKeywordDeprecated('CELL_ID','CELL_IDS',option)
+    case('REGION')
+      call InputReadWord(input,option,this%region_name,PETSC_TRUE)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
   end select
