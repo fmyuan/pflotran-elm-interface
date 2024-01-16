@@ -21,6 +21,7 @@ module PM_Parameter_class
     type(parameter_type), pointer :: parameter
   contains
     procedure, public :: Setup => PMParameterSetup
+    procedure, public :: SetRealization => PMParameterSetRealization
     procedure, public :: InitializeRun => PMParameterInitializeRun
     procedure, public :: FinalizeRun => PMParameterFinalizeRun
     procedure, public :: Destroy => PMParameterDestroy
@@ -175,6 +176,27 @@ subroutine PMParameterRead(this,input)
   call InputPopBlock(input,option)
 
 end subroutine PMParameterRead
+
+! ************************************************************************** !
+
+subroutine PMParameterSetRealization(this,realization)
+  !
+  ! Sets the realization pointer
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/15/23
+
+  use Realization_Subsurface_class
+
+  implicit none
+
+  class(pm_parameter_type) :: this
+  class(realization_subsurface_type), pointer :: realization
+
+  this%realization => realization
+  this%realization_base => realization
+
+end subroutine PMParameterSetRealization
 
 ! ************************************************************************** !
 
