@@ -239,6 +239,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Base_class
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
+  use PM_Parameter_class
 
   use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
@@ -326,6 +327,9 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
       case('WELL_MODEL')
         call FactorySubsurfReadWellPM(input,option,new_pm)
+      case('PARAMETER')
+        new_pm => PMParameterCreate()
+        call PMParameterRead(input,option,PMParameterCast(new_pm))
       case default
         call InputKeywordUnrecognized(input,word, &
                'SIMULATION,PROCESS_MODELS',option)

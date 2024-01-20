@@ -184,7 +184,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_well_type), pointer :: pm_well
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
-  class(pm_base_type), pointer :: cur_pm, prev_pm, cur_pm2
+  class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
 
   option => simulation%option
 
@@ -200,6 +200,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   cur_pm => simulation%process_model_list
   do
     if (.not.associated(cur_pm)) exit
+    next_pm => cur_pm%next
     select type(cur_pm)
       class is(pm_subsurface_flow_type)
         pm_flow => cur_pm
@@ -238,12 +239,10 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
         call PrintErrMsg(option)
     end select
 
-    prev_pm => cur_pm
-    cur_pm => cur_pm%next
-
     ! we must destroy the linkage between pms so that they are in independent
     ! lists among pmcs
-    nullify(prev_pm%next)
+    nullify(cur_pm%next)
+    cur_pm => next_pm
 
   enddo
 
@@ -292,11 +291,13 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_well_type), pointer :: pm_well
   class(pm_material_transform_type), pointer :: pm_material_transform
-  class(pm_parameter_type), pointer :: pm_parameter_list, cur_pm_parameter
+  class(pm_parameter_type), pointer :: pm_parameter_list
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
   class(realization_subsurface_type), pointer :: realization
+  class(pm_parameter_type), pointer :: cur_pm_parameter
+  class(pm_base_type), pointer :: next_pm
 
   realization => simulation%realization
   option => realization%option
@@ -363,11 +364,15 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     end select
   endif
 
+  call PMParameterSortPMs(pm_parameter_list)
   cur_pm_parameter => pm_parameter_list
   do
     if (.not.associated(cur_pm_parameter)) exit
+    ! ordering can be altered within FactSubLinkAddPMCParameter
+    next_pm => cur_pm_parameter%next
+    nullify(cur_pm_parameter%next)
     call FactSubLinkAddPMCParameter(simulation,cur_pm_parameter)
-    cur_pm_parameter => PMParameterCast(cur_pm_parameter%next)
+    cur_pm_parameter => PMParameterCast(next_pm)
   enddo
 
   call InputDestroy(input)
@@ -1193,6 +1198,7 @@ subroutine FactSubLinkAddPMCParameter(simulation,pm_parameter)
 ! Author: Glenn Hammond
 ! Date: 11/23/22
 !
+  use Option_module
   use PMC_General_class
   use PMC_Base_class
   use PM_Parameter_class
@@ -1201,25 +1207,38 @@ subroutine FactSubLinkAddPMCParameter(simulation,pm_parameter)
   implicit none
 
   class(simulation_subsurface_type) :: simulation
-
   class(pm_parameter_type), pointer :: pm_parameter
-!  class(pmc_general_type), pointer :: pmc_general
-!  class(pmc_base_type), pointer :: pmc_dummy
-!  character(len=MAXSTRINGLENGTH) :: string
 
-!   pm_aux%realization => simulation%realization
-!   pm_aux%option => simulation%option
+  type(option_type), pointer :: option
+  class(pmc_general_type), pointer :: pmc_general
+  class(pmc_base_type), pointer :: pmc_dummy
 
-! ! use select case to determine where to insert the pm
+  option => simulation%option
+  pm_parameter%realization => simulation%realization
+  pm_parameter%option => option
 
-!   pmc_general => PMCGeneralCreate('',pm_aux%CastToBase())
-!   pmc_general%evaluate_at_end_of_simulation = PETSC_FALSE
-!   ! place the material process model as %peer for the top pmc
-!   call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_PEER, &
-!          simulation%process_model_coupler_list%CastToBase(), &
-!          pmc_dummy,PM_APPEND)
-!   nullify(pm_aux)
-!   nullify(pmc_general)
+  pmc_general => PMCGeneralCreate(pm_parameter%name, &
+                                  pm_parameter%CastToBase())
+  ! use select case to determine where to insert the pm
+  select case(pm_parameter%when_to_update)
+    case(UPDATE_AFTER_FLOW)
+      if (.not.associated(simulation%flow_process_model_coupler)) then
+        option%io_buffer = 'Placing a parameter process model after flow &
+          &only supported when a flow processs model is employed.'
+        call PrintErrMsg(option)
+      endif
+      ! insert at first child of flow
+      pmc_dummy => simulation%flow_process_model_coupler%child
+      simulation%flow_process_model_coupler%child => pmc_general
+      pmc_general%peer => pmc_dummy
+    case(UPDATE_AFTER_LAST_PM)
+      ! the last process model executed in a time step will be a
+      ! child to the master and the last peer among children
+      call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_CHILD, &
+             simulation%process_model_coupler_list%CastToBase(), &
+             pmc_dummy,PM_APPEND)
+  end select
+  nullify(pmc_general)
 
 end subroutine FactSubLinkAddPMCParameter
 
