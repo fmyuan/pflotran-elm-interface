@@ -8825,17 +8825,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                       patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
                         den(option%liquid_phase)
             endif
-          case(LIQUID_MOLE_FRACTION,LIQUID_MASS_FRACTION)
+          case(LIQUID_MOLE_FRACTION)
             value = patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
                       xmol(isubvar,option%liquid_phase)
-            if (ivar == LIQUID_MASS_FRACTION) then
-              tempint = isubvar
-              tempint2 = tempint+1
-              if (tempint2 > 2) tempint2 = 1
-              value = value*general_fmw(tempint) / &
-                      (value*general_fmw(tempint) + &
-                       (1.d0-value)*general_fmw(tempint2))
-            endif
+          case(LIQUID_MASS_FRACTION)
+            value = patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      xmass(isubvar,option%liquid_phase)
           case(LIQUID_MOBILITY)
             value = patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%liquid_phase)
@@ -8863,17 +8858,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                       patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
                         den(option%gas_phase)
             endif
-          case(GAS_MOLE_FRACTION,GAS_MASS_FRACTION)
+          case(GAS_MOLE_FRACTION)
             value = patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
                       xmol(isubvar,option%gas_phase)
-            if (ivar == GAS_MASS_FRACTION) then
-              tempint = isubvar
-              tempint2 = tempint+1
-              if (tempint2 > 2) tempint2 = 1
-              value = value*general_fmw(tempint) / &
-                      (value*general_fmw(tempint) + &
-                       (1.d0-value)*general_fmw(tempint2))
-            endif
+          case(GAS_MASS_FRACTION)
+            value = patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      xmass(isubvar,option%gas_phase)
           case(GAS_MOBILITY)
             value = patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)

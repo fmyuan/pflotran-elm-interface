@@ -103,11 +103,10 @@ module Characteristic_Curves_Common_module
   type, public, extends(sat_func_base_type) :: sat_func_VG_STOMP_type
     PetscReal :: alpha 
     PetscReal :: n
-    ! oven-dried capillary head
-    PetscReal :: h_od 
   contains
     procedure, public :: Init => SFVGSTOMPInit
     procedure, public :: Verify => SFVGSTOMPVerify
+    procedure, public :: GetAlpha_ => SFVGSTOMPGetAlpha
     procedure, public :: CapillaryPressure => SFVGSTOMPCapillaryPressure
     procedure, public :: Saturation => SFVGSTOMPSaturation
   end type sat_func_VG_STOMP_type
@@ -315,6 +314,14 @@ module Characteristic_Curves_Common_module
                                   RPFTableGasRelPerm
   end type rpf_Table_gas_type
 
+  type, public, extends(rel_perm_func_base_type) :: rpf_Modified_Corey_gas_type
+    PetscReal :: a
+    contains
+    procedure, public :: Init => RPFModifiedCoreyGasInit
+    procedure, public :: Verify => RPFModifiedCoreyGasVerify
+    procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
+    procedure, public :: RelPermTrappedGas => RPFModifiedCoreyGasRelPermWTGas
+  end type rpf_Modified_Corey_gas_type
 
   public :: &! standard char. curves:
             SFDefaultCreate, &
@@ -350,7 +357,8 @@ module Characteristic_Curves_Common_module
             RPFModBrooksCoreyLiqCreate, &
             RPFModBrooksCoreyGasCreate, &
             RPFTableLiqCreate, &
-            RPFTableGasCreate
+            RPFTableGasCreate, &
+            RPFModifiedCoreyGasCreate
 
 contains
 
@@ -1431,6 +1439,20 @@ end subroutine SFVGSTOMPVerify
 
 ! ************************************************************************** !
 
+function SFVGSTOMPGetAlpha(this)
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+
+  PetscReal :: SFVGSTOMPGetAlpha
+
+  SFVGSTOMPGetAlpha = this%alpha
+
+end function SFVGSTOMPGetAlpha
+
+! ************************************************************************** !
+
 subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
                                    capillary_pressure,dpc_dsatl,option)
   !
@@ -1460,7 +1482,7 @@ subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
     capillary_pressure = ((1.d0 / esl)**(1.d0/m)-1.d0)**(1.d0/n) / &
                           this%alpha
   else
-    capillary_pressure = this%h_od
+    capillary_pressure = this%pcmax
   endif
 
 end subroutine SFVGSTOMPCapillaryPressure
@@ -4937,5 +4959,134 @@ subroutine RPFmKGasRelPerm(this,liquid_saturation, &
 
 end subroutine RPFmKGasRelPerm
 
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPFModifiedCoreyGasCreate()
+
+  ! Creates the Modified Corey gas relative permeability function object
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type), pointer :: RPFModifiedCoreyGasCreate
+
+  allocate(RPFModifiedCoreyGasCreate)
+  call RPFModifiedCoreyGasCreate%Init()
+
+end function RPFModifiedCoreyGasCreate
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasInit(this)
+
+  ! Initializes the Modified Corey gas relative permeability function
+  ! object
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+
+  call RPFBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_FALSE
+  this%a = 1.d0
+
+end subroutine RPFModifiedCoreyGasInit
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,Modified_Corey_GAS'
+  endif
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPFModifiedCoreyGasVerify
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
+                                      relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0) 
+  Sla = Se
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+end subroutine 
+
+subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
+                 trapped_gas_sat, relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid and trapped gas saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(in) :: trapped_gas_sat
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+  PetscReal :: Sgte
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0) 
+  Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
+  Sla = Se + Sgte
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+
+end subroutine RPFModifiedCoreyGasRelPermWTGas
+
+! ************************************************************************** !
+! ************************************************************************** !
 
 end module Characteristic_Curves_Common_module

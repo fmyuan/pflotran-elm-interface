@@ -324,13 +324,15 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
               add_pre_check = PETSC_TRUE
           endif
         class is(pm_general_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
         class is(pm_hydrate_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
         class is(pm_zflow_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
+        class is(pm_sco2_type)
+          add_pre_check = PETSC_TRUE
         class is(pm_th_type)
           if (Initialized(pm%pressure_dampening_factor) .or. &
               Initialized(pm%pressure_change_limit) .or. &

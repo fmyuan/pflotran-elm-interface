@@ -316,6 +316,9 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('PCHIP_LIQ')
             rel_perm_function_ptr => RPFPCHIPCreate()
             phase_keyword = 'LIQUID'
+          case('MODIFIED_COREY_GAS')
+            rel_perm_function_ptr => RPFModifiedCoreyGasCreate()
+            phase_keyword = 'GAS'
           case default
             call InputKeywordUnrecognized(input,word,'PERMEABILITY_FUNCTION', &
                                           option)
@@ -459,6 +462,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       error_string = trim(error_string) // 'LOOKUP_TABLE'
     class is (sf_pchip_type)
       error_string = trim(error_string) // 'PCHIP'
+    class is (sat_func_VG_STOMP_type)
+      error_string = trim(error_string) // 'VG_STOMP'
   end select
 
   call InputPushBlock(input,option)
@@ -932,7 +937,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputErrorMsg(input,option,'alpha',error_string)
           case('OVEN_DRIED_CAP_HEAD')
             call InputReadDouble(input,option,enpr)
-            sf%h_od = enpr
+            sf%Pcmax = enpr
             call InputErrorMsg(input,option,'oven-dried capillary head', &
                                error_string)
         end select
@@ -1205,6 +1210,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'CONSTANT'
     class is(rpf_pchip_type)
       error_string = trim(error_string) // 'PCHIP'
+    class is(rpf_Modified_Corey_gas_type)
+      error_string = trim(error_string) // 'MODIFIED_COREY_GAS'
   end select
 
   call InputPushBlock(input,option)
@@ -1835,6 +1842,17 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
                                                 error_string,option)
         end select
         spline = rpf_dataset%time_storage%max_time_index
+    !------------------------------------------
+      class is (rpf_Modified_Corey_gas_type)
+        select case(keyword)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,Srg)
+            rpf%Srg = Srg
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case('A')
+            call InputReadDouble(input,option,rpf%a)
+            call InputErrorMsg(input,option,'A',error_string)
+        end select
     !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
