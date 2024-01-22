@@ -248,7 +248,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         !perm_ave_over_dist = perm_dn / (dist_up + dist_dn)
       endif
 
-      !mobility = kr / visc_mean
+      mobility = kr / visc_mean
 
       if (mobility > floweps .and. dabs(delta_pressure) > 0.d0 ) then
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -699,7 +699,8 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           density_kg_ave = sco2_auxvar_dn%den_kg(iphase)
         endif
 
-        !mobility = kr / visc_mean
+        mobility = kr / visc_mean
+
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
