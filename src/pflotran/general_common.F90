@@ -4092,7 +4092,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
           if (soluble_matrix) then
             xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
           else
-            xx ss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
           endif
         endif
       case(LGP_STATE)
