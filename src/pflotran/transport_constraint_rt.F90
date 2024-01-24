@@ -748,7 +748,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  if (.not.associated(constraint%aqueous_species)) then
+  if (.not.associated(constraint%aqueous_species) .and. &
+      reaction%naqcomp > 0) then
     option%io_buffer = 'A CONCENTRATION block is missing in constraint "' // &
       trim(constraint%name) // '".'
     call PrintErrMsg(option)
