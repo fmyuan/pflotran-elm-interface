@@ -1327,7 +1327,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
   PetscInt :: lid, gid, co2_id, vpid
-  PetscReal :: R, A, R_A, res_scaled, residual, accumulation, update
+  !PetscReal :: R, A, R_A
+  PetscReal :: res_scaled, residual, accumulation, update
   PetscReal :: Psat, Pv, Prvap, Pco2
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
                xmolsl, xmolwl, x_salt_dissolved

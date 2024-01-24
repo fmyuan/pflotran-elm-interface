@@ -646,8 +646,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
 
   PetscReal :: Pc_entry, cell_pressure, sg_min
   PetscReal :: sl_temp, sgt_temp, sg_est, Slr, Sgt
-  PetscReal :: Pc, Pl, Pv, Prvap, Pco2, Psat, Pg
-  PetscReal :: rho_liq, rho_co2
+  PetscReal :: Pc, Pv, Prvap, Pco2, Psat, Pg
   PetscReal :: beta_gl, sgt_max
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
                xmolsl, xmolwl
@@ -1049,14 +1048,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: den_mol, den_steam_kg
   PetscReal :: den_steam
   PetscReal :: salt_solubility, x_salt_dissolved
-  PetscReal :: x_co2
   PetscReal :: beta_gl
   PetscReal :: sigma
   PetscReal :: dkrl_dsatl, dkrg_dsatl
   PetscReal :: visc_water, visc_brine, visc_co2
   PetscReal :: sl_temp, pva
   PetscErrorCode :: ierr
-  PetscReal :: aux(1)
 
   ! Unused
   PetscReal :: dpor_dp, drho_dp, drho_dT
