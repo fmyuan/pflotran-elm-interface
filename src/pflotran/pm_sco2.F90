@@ -9,7 +9,9 @@ module PM_SCO2_class
 
   private
 
-  PetscBool :: sco2_maverick_mode = PETSC_FALSE
+  PetscBool :: sco2_use_governors = PETSC_FALSE
+  PetscBool :: sco2_check_updates = PETSC_FALSE
+  PetscBool :: sco2_stomp_convergence = PETSC_TRUE
 
   PetscInt, parameter :: ABS_UPDATE_INDEX = 1
   PetscInt, parameter :: REL_UPDATE_INDEX = 2
@@ -393,18 +395,12 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('MAVERICK_MODE')
-      ! Shoots from the hip.
-      sco2_maverick_mode = PETSC_TRUE
-      !this%residual_abs_inf_tol(:) = 1.d0
-      !this%abs_update_inf_tol(:,:) = 1.d8
-      ! Let liquid pressure do whatever it wants.
-      !this%abs_update_inf_tol(1,1) = 1.d8
-      !this%abs_update_inf_tol(1,3) = 1.d8
-      this%abs_update_inf_tol(2,4) = 1.d8
-      ! Let gas pressure do whatever it wants.
-      !this%abs_update_inf_tol(1,2) = 1.d8
-      !this%abs_update_inf_tol(1,4) = 1.d8
+    case('USE_GOVERNORS')
+      sco2_use_governors = PETSC_TRUE
+    case('CHECK_SOLUTION_UPDATES')
+      sco2_check_updates = PETSC_TRUE
+    case('USE_FULL_CONVERGENCE_CRITERIA')
+      sco2_stomp_convergence = PETSC_FALSE
     case('MAX_NEWTON_ITERATIONS')
       call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                   'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
@@ -732,16 +728,16 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
     endif
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
-    if (sco2_maverick_mode) then
+    if (.not. sco2_use_governors) then
       dtt = time_step_max_growth_factor*dt
       dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
-     else
+    else
       governed_dt = umin_scale * dt
       dtt = min(time_step_max_growth_factor*dt,governed_dt)
       dt = min(dtt,tfac(ifac)*dt,dt_max)
       dt = max(dt,dt_min)
-     endif
+    endif
     dt = min(dtt,dt_max)
     dt = max(dt,dt_min)
 
@@ -1225,51 +1221,51 @@ subroutine PMSCO2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   converged_rel_update_cell = ZERO_INTEGER
   converged_abs_update_real = 0.d0
   converged_rel_update_real = 0.d0
-  
-  do local_id = 1, grid%nlmax
-    offset = (local_id-1)*option%nflowdof
-    ghosted_id = grid%nL2G(local_id)
-    natural_id = grid%nG2A(ghosted_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    istate = global_auxvars(ghosted_id)%istate
+ 
+  if (sco2_check_updates) then 
+    do local_id = 1, grid%nlmax
+      offset = (local_id-1)*option%nflowdof
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      istate = global_auxvars(ghosted_id)%istate
 
-    do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof
 
-      ival = offset+idof
+        ival = offset+idof
 
-      ! infinity norms on update
-      converged_absolute = PETSC_TRUE
-      converged_relative = PETSC_TRUE
-      dX_abs = dabs(dX_p(ival))
-      if (X0_p(ival) > 0.d0) then
-        dX_X0 = dabs(dX_abs/(X0_p(ival)))
-      else
-        dX_X0 = dabs(dX_abs/1.d-40)
-      endif
+        ! infinity norms on update
+        converged_absolute = PETSC_TRUE
+        converged_relative = PETSC_TRUE
+        dX_abs = dabs(dX_p(ival))
+        if (X0_p(ival) > 0.d0) then
+          dX_X0 = dabs(dX_abs/(X0_p(ival)))
+        else
+          dX_X0 = dabs(dX_abs/1.d-40)
+        endif
 
-      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-        converged_absolute = PETSC_FALSE
-      endif
-      if (converged_abs_update_real(idof,istate) < dX_abs) then
-        converged_abs_update_real(idof,istate) = dX_abs
-        converged_abs_update_cell(idof,istate) = natural_id
-      endif
-      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-        converged_relative = PETSC_FALSE
-      endif
-      if (converged_rel_update_real(idof,istate) < dX_X0) then
-        converged_rel_update_real(idof,istate) = dX_X0
-        converged_rel_update_cell(idof,istate) = natural_id
-      endif
+        if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
+          converged_absolute = PETSC_FALSE
+        endif
+        if (converged_abs_update_real(idof,istate) < dX_abs) then
+          converged_abs_update_real(idof,istate) = dX_abs
+          converged_abs_update_cell(idof,istate) = natural_id
+        endif
+        if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+          converged_relative = PETSC_FALSE
+        endif
+        if (converged_rel_update_real(idof,istate) < dX_X0) then
+          converged_rel_update_real(idof,istate) = dX_X0
+          converged_rel_update_cell(idof,istate) = natural_id
+        endif
 
-      ! only enter this condition if both are not converged
-      ! MAN: turn this check off for now
-      !if (.not.(converged_absolute .or. converged_relative)) then
-      !  converged_abs_update_flag(idof,istate) = PETSC_FALSE
-      !  converged_rel_update_flag(idof,istate) = PETSC_FALSE
-      !endif
+        if (.not.(converged_absolute .or. converged_relative)) then
+          converged_abs_update_flag(idof,istate) = PETSC_FALSE
+          converged_rel_update_flag(idof,istate) = PETSC_FALSE
+        endif
+      enddo
     enddo
-  enddo
+  endif
 
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
@@ -1327,7 +1323,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
   PetscInt :: lid, gid, co2_id, vpid
-  !PetscReal :: R, A, R_A
+  PetscReal :: R, A, R_A
   PetscReal :: res_scaled, residual, accumulation, update
   PetscReal :: Psat, Pv, Prvap, Pco2
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
@@ -1421,240 +1417,277 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     converged_scaled_residual_flag = PETSC_TRUE
     converged_scaled_residual_real = 0.d0
     converged_scaled_residual_cell = ZERO_INTEGER
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%nflowdof
-      ghosted_id = grid%nL2G(local_id)
-      natural_id = grid%nG2A(ghosted_id)
-      sco2_auxvar = sco2_auxvars(ZERO_INTEGER,ghosted_id)
 
-      if (patch%imat(ghosted_id) <= 0) cycle
-      istate = global_auxvars(ghosted_id)%istate
-      do idof = 1, option%nflowdof
-        res_scaled = 0.d0
-        ival = offset+idof
-        !converged_absolute = PETSC_TRUE
-        converged_absolute = PETSC_FALSE
-        converged_scaled = PETSC_TRUE
+    if (sco2_stomp_convergence) then
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        natural_id = grid%nG2A(ghosted_id)
 
-        residual = r_p(ival)
-        accumulation = accum2_p(ival)
-        update = dX_p(ival)
+        sco2_auxvar = sco2_auxvars(ZERO_INTEGER,ghosted_id)
 
-        ! STOMP convergence criteria
-        select case (istate)
-          case(SCO2_LIQUID_STATE)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        istate = global_auxvars(ghosted_id)%istate
+        do idof = 1, option%nflowdof
+          res_scaled = 0.d0
+          ival = offset+idof
+          !converged_absolute = PETSC_TRUE
+          converged_absolute = PETSC_FALSE
+          converged_scaled = PETSC_TRUE
 
-            if (idof == ONE_INTEGER) then
-         !---      Water mass equation  ---
+          residual = r_p(ival)
+          accumulation = accum2_p(ival)
+          update = dX_p(ival)
 
-            res_scaled = min(dabs(update) / (dabs(sco2_auxvar%pres(lid))), &
-                        dabs(residual/(accumulation + epsilon)))
-            ! find max value regardless of convergence
-            if (converged_scaled_residual_real(idof,istate) < res_scaled) then
-             converged_scaled_residual_real(idof,istate) = res_scaled
-             converged_scaled_residual_cell(idof,istate) = natural_id
-            endif
+          ! STOMP convergence criteria
+          select case (istate)
+            case(SCO2_LIQUID_STATE)
 
-            elseif (idof == TWO_INTEGER) then
+              if (idof == ONE_INTEGER) then
+              !---      Water mass equation  ---
 
-         !---      CO2 mass equation, ignore residual for small aqueous-CO2
-            call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
-            xsl = min(sco2_auxvar%m_salt(1),xsl)
-            call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat) 
-            Pv = sco2_auxvar%pres(vpid)
-            Prvap = Psat
-            x_salt_dissolved = xsl
-            call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
-                           Pco2, Pv, Psat, Prvap, &
-                           xco2g, xwg, xco2l, xsl, xwl, &
-                           xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-            x_salt_dissolved = x_salt_dissolved + (xsl - x_salt_dissolved) * &
-                         (sco2_auxvar%xmass(co2_id,lid) / xco2l)
-            if (sco2_auxvar%xmass(co2_id,lid) > (1.d-6 * xco2l)) then
-              Hc = SCO2Henry(sco2_auxvar%temp,x_salt_dissolved)
-              res_scaled = min(dabs(update) / max(sco2_auxvar%pres(gid)/Hc, &
-                           SCO2_REFERENCE_PRESSURE/Hc), &
-                           dabs(residual / (accumulation + epsilon)))
-              ! find max value regardless of convergence
-              if (converged_scaled_residual_real(idof,istate) < res_scaled) then
-               converged_scaled_residual_real(idof,istate) = res_scaled
-               converged_scaled_residual_cell(idof,istate) = natural_id
-              endif
-            endif
-
-            elseif (idof == THREE_INTEGER) then
-        !---      Salt mass equation  ---
-              call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
-              res_scaled = min(dabs(update)/xsl, &
-                           dabs(residual / (accumulation + epsilon)))
-              res_scaled = 1.d-1 * res_scaled
-
-              ! find max value regardless of convergence
-              if (converged_scaled_residual_real(idof,istate) < res_scaled) then
-               converged_scaled_residual_real(idof,istate) = res_scaled
-               converged_scaled_residual_cell(idof,istate) = natural_id
-              endif
-
-            endif
-          case(SCO2_GAS_STATE)
-
-            if (idof == ONE_INTEGER) then
-      !---      Water mass equation  ---
-            call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
-            if (sco2_auxvar%m_salt(2) <= 0.d0) xsl = 0.d0
-            call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat)
-
-            res_scaled = min(dabs(update) / Psat, &
-                         dabs(residual / (accumulation + epsilon)))
-
-            ! find max value regardless of convergence
-            if (converged_scaled_residual_real(idof,istate) < res_scaled) then
-             converged_scaled_residual_real(idof,istate) = res_scaled
-             converged_scaled_residual_cell(idof,istate) = natural_id
-            endif
-
-            elseif (idof == TWO_INTEGER) then
-      !---      Gas mass equation  ---
-            res_scaled = min(dabs(update)/dabs(sco2_auxvar%pres(gid)), &
-                           dabs(residual / (accumulation + epsilon)))
-
-             ! find max value regardless of convergence
-            if (converged_scaled_residual_real(idof,istate) < res_scaled) then
-             converged_scaled_residual_real(idof,istate) = res_scaled
-             converged_scaled_residual_cell(idof,istate) = natural_id
-            endif
-
-            elseif (idof == THREE_INTEGER) then
-   !---      Salt mass equation, isobrine option  ---
-
-            call SCO2ComputeSaltDensity(sco2_auxvar%temp, &
-                                  sco2_auxvar%pres(gid), &
-                                  den_salt)
-            res_scaled = min(dabs(update) / den_salt, &
-                         dabs(residual / (accumulation + epsilon)))
-            endif
-  
-          case(SCO2_TRAPPED_GAS_STATE)
-! !---      Water mass equation  ---
-! !
-!             ACP = PORD(2,N)*(RHOL(2,N)*SL(2,N)*XLW(2,N) +
-!             &      RHOG(2,N)*SG(2,N)*XGW(2,N))*DTI*VOL(N)
-!                  RSDX = MIN( ABS(BLU(MPL))/(ABS(PL(2,N))+PATM),
-!             &      ABS(RSDL(IEQW,N)/(ACP+SMALL)) )
-!                  IF( RSDX.GT.RSD(IEQW) ) THEN
-!                    RSD(IEQW) = RSDX
-!                    NSD(IEQW) = N
-!                  ENDIF
-!        !
-!        !---      CO2 mass equation  ---
-!        !
-!                  IF( SG(2,N).GT.1.D-5 ) THEN
-!                    ACP = PORD(2,N)*(RHOG(2,N)*SG(2,N)*XGA(2,N) +
-!             &        RHOL(2,N)*SL(2,N)*XLA(2,N))*DTI*VOL(N)
-!                    RSDX = MIN( ABS(BLU(MPG)/1.D+1),
-!             &        ABS(RSDL(IEQA,N)/(ACP+SMALL)) )
-!                    IF( RSDX.GT.RSD(IEQA) ) THEN
-!                      RSD(IEQA) = RSDX
-!                      NSD(IEQA) = N
-!                    ENDIF
-!                  ENDIF
-!        !
-!        !---      Salt mass equation  ---
-!        !
-!                  IF( ISLC(32).EQ.0 ) THEN
-!                    ACP = TMS(2,N)*DTI*VOL(N)
-!                    CALL SOL_LS( T(2,N),XLSMX )
-!                    RSDX = MIN( (ABS(BLU(MPS))/XLSMX),
-!             &        ABS(RSDL(IEQS,N)/(ACP+SMALL)) )
-!                    RSDX = RSDX*1.D-1
-!                    IF( RSDX.GT.RSD(IEQS) ) THEN
-!                      RSD(IEQS) = RSDX
-!                      NSD(IEQS) = N
-!                    ENDIF
-!                  ENDIF
-           case(SCO2_LIQUID_GAS_STATE)
-
-             if (idof == ONE_INTEGER) then
-
-           !---      Water mass equation  ---
-
-               res_scaled = min(dabs(update) / dabs(sco2_auxvar%pres(lid)), &
-                           dabs(residual / (accumulation + epsilon)))
-
-              ! find max value regardless of convergence
-              if (converged_scaled_residual_real(idof,istate) < res_scaled) then
-               converged_scaled_residual_real(idof,istate) = res_scaled
-               converged_scaled_residual_cell(idof,istate) = natural_id
-              endif
-
-             elseif (idof == TWO_INTEGER) then
-             !---      CO2 mass equation  ---
-               if (sco2_auxvar%sat(gid) > 1.d-3) then
-                 res_scaled = min(dabs(update)/dabs(sco2_auxvar%pres(gid)), &
-                              dabs(residual / (accumulation + epsilon)))
-
-                 if (converged_scaled_residual_real(idof,istate) < &
-                     res_scaled) then
-                   converged_scaled_residual_real(idof,istate) = res_scaled
-                   converged_scaled_residual_cell(idof,istate) = natural_id
-                 endif
-
-               endif
-             elseif (idof == THREE_INTEGER) then
-            !---      Salt mass equation  ---
-               call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
-               res_scaled = min(dabs(update) / xsl, &
-                            dabs(residual / (accumulation + epsilon)))
-               res_scaled = 1.d-1 * res_scaled
-               if (converged_scaled_residual_real(idof,istate) < &
-                     res_scaled) then
+                res_scaled = min(dabs(update) / (dabs(sco2_auxvar%pres(lid))), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
                  converged_scaled_residual_real(idof,istate) = res_scaled
                  converged_scaled_residual_cell(idof,istate) = natural_id
-               endif
-            endif
-        end select
+                endif
 
-        if (res_scaled > this%residual_scaled_inf_tol(idof)) then
-          converged_scaled = PETSC_FALSE
-        endif
+              elseif (idof == TWO_INTEGER) then
 
-        
-        ! ! infinity norms on residual
-        ! R = dabs(r_p(ival)) 
-        ! A = dabs(accum2_p(ival))
+              !---      CO2 mass equation, ignore residual for small aqueous-CO2
+                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                xsl = min(sco2_auxvar%m_salt(1),xsl)
+                call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat) 
+                Pv = sco2_auxvar%pres(vpid)
+                Prvap = Psat
+                x_salt_dissolved = xsl
+                call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
+                                     Pco2, Pv, Psat, Prvap, &
+                                     xco2g, xwg, xco2l, xsl, xwl, &
+                                     xmolco2g, xmolwg, xmolco2l, xmolsl, &
+                                     xmolwl, option)
+                x_salt_dissolved = x_salt_dissolved + &
+                                   (xsl - x_salt_dissolved) * &
+                                   (sco2_auxvar%xmass(co2_id,lid) / xco2l)
+                if (sco2_auxvar%xmass(co2_id,lid) > (1.d-6 * xco2l)) then
+                  Hc = SCO2Henry(sco2_auxvar%temp,x_salt_dissolved)
+                  res_scaled = min(dabs(update) / &
+                               max(sco2_auxvar%pres(gid)/Hc, &
+                               SCO2_REFERENCE_PRESSURE/Hc), &
+                               dabs(residual / (accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                   converged_scaled_residual_real(idof,istate) = res_scaled
+                   converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+                endif
 
-        ! if (A > 1.d0) then
-        !   R_A = R/A
-        ! else
-        !   R_A = R
-        ! endif
+              elseif (idof == THREE_INTEGER) then
 
-        ! if (R > this%residual_abs_inf_tol(idof)) then
-        !   converged_absolute = PETSC_FALSE
-        ! endif
+              !---      Salt mass equation  ---
+                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                res_scaled = min(dabs(update)/xsl, &
+                             dabs(residual / (accumulation + epsilon)))
+                res_scaled = 1.d-1 * res_scaled
 
-        ! ! find max value regardless of convergence
-        ! if (converged_abs_residual_real(idof,istate) < R) then
-        !   converged_abs_residual_real(idof,istate) = R
-        !   converged_abs_residual_cell(idof,istate) = natural_id
-        ! endif
-        ! if (A > A_zero) then
-        !   if (R_A > this%residual_scaled_inf_tol(idof)) then
-        !     converged_scaled = PETSC_FALSE
-        !   endif
-        !   ! find max value regardless of convergence
-        !   if (converged_scaled_residual_real(idof,istate) < R_A) then
-        !     converged_scaled_residual_real(idof,istate) = R_A
-        !     converged_scaled_residual_cell(idof,istate) = natural_id
-        !   endif
-        ! endif
-        ! ! only enter this condition if both are not converged
-        if (.not.(converged_absolute .or. converged_scaled)) then
+              ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(SCO2_GAS_STATE)
+
+              if (idof == ONE_INTEGER) then
+              !---      Water mass equation  ---
+                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                if (sco2_auxvar%m_salt(2) <= 0.d0) xsl = 0.d0
+                call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat)
+
+                res_scaled = min(dabs(update) / Psat, &
+                             dabs(residual / (accumulation + epsilon)))
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+
+              elseif (idof == TWO_INTEGER) then
+              !---      Gas mass equation  ---
+                res_scaled = min(dabs(update)/dabs(sco2_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+
+              elseif (idof == THREE_INTEGER) then
+              !---      Salt mass equation, isobrine option  ---
+
+                call SCO2ComputeSaltDensity(sco2_auxvar%temp, &
+                                            sco2_auxvar%pres(gid), &
+                                            den_salt)
+                res_scaled = min(dabs(update) / den_salt, &
+                             dabs(residual / (accumulation + epsilon)))
+              endif
+  
+            case(SCO2_TRAPPED_GAS_STATE)
+              if (idof == ONE_INTEGER) then
+              !---      Water mass equation  ---
+
+                res_scaled = min(dabs(update)/dabs(sco2_auxvar%pres(lid)), &
+                           dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                    converged_scaled_residual_real(idof,istate) = res_scaled
+                    converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+
+              elseif (idof == TWO_INTEGER) then
+
+              !---      CO2 mass equation  ---
+                if (sco2_auxvar%sat(gid) > 1.d-5) then
+                  res_scaled = min(dabs(update/1.d1), &
+                               dabs(residual / (accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                      converged_scaled_residual_real(idof,istate) = res_scaled
+                      converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+
+                endif
+
+              elseif (idof == THREE_INTEGER) then
+              !---      Salt mass equation  ---
+                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                res_scaled = min(dabs(update) / xsl, &
+                             dabs(residual / (accumulation + epsilon)))
+                res_scaled = 1.d-1 * res_scaled
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+
+              endif
+
+            case(SCO2_LIQUID_GAS_STATE)
+
+              if (idof == ONE_INTEGER) then
+
+              !---      Water mass equation  ---
+                res_scaled = min(dabs(update) / dabs(sco2_auxvar%pres(lid)), &
+                             dabs(residual / (accumulation + epsilon)))
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+
+              elseif (idof == TWO_INTEGER) then
+              !---      CO2 mass equation  ---
+                if (sco2_auxvar%sat(gid) > 1.d-3) then
+                  res_scaled = min(dabs(update)/dabs(sco2_auxvar%pres(gid)), &
+                               dabs(residual / (accumulation + epsilon)))
+
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                    converged_scaled_residual_real(idof,istate) = res_scaled
+                    converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+
+                endif
+              elseif (idof == THREE_INTEGER) then
+              !---      Salt mass equation  ---
+                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                res_scaled = min(dabs(update) / xsl, &
+                             dabs(residual / (accumulation + epsilon)))
+                res_scaled = 1.d-1 * res_scaled
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+          end select
+
+          if (res_scaled > this%residual_scaled_inf_tol(idof)) then
+            converged_scaled = PETSC_FALSE
+          endif
+
+          if (.not.(converged_absolute .or. converged_scaled)) then
            converged_abs_residual_flag(idof,istate) = PETSC_FALSE
            converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
-         endif
+          endif
+        enddo
       enddo
-    enddo
+    else
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        natural_id = grid%nG2A(ghosted_id)
+
+        sco2_auxvar = sco2_auxvars(ZERO_INTEGER,ghosted_id)
+
+        if (patch%imat(ghosted_id) <= 0) cycle
+        istate = global_auxvars(ghosted_id)%istate
+        do idof = 1, option%nflowdof
+          res_scaled = 0.d0
+          ival = offset+idof
+          converged_absolute = PETSC_TRUE
+          converged_scaled = PETSC_TRUE
+
+        ! ! infinity norms on residual
+         R = dabs(r_p(ival)) 
+         A = dabs(accum2_p(ival))
+
+         if (A > 1.d0) then
+           R_A = R/A
+         else
+           R_A = R
+         endif
+
+         if (R > this%residual_abs_inf_tol(idof)) then
+           converged_absolute = PETSC_FALSE
+         endif
+
+         ! find max value regardless of convergence
+         if (converged_abs_residual_real(idof,istate) < R) then
+           converged_abs_residual_real(idof,istate) = R
+           converged_abs_residual_cell(idof,istate) = natural_id
+         endif
+         if (A > A_zero) then
+           if (R_A > this%residual_scaled_inf_tol(idof)) then
+             converged_scaled = PETSC_FALSE
+           endif
+           ! find max value regardless of convergence
+           if (converged_scaled_residual_real(idof,istate) < R_A) then
+             converged_scaled_residual_real(idof,istate) = R_A
+             converged_scaled_residual_cell(idof,istate) = natural_id
+           endif
+         endif
+         ! only enter this condition if both are not converged
+          if (.not.(converged_absolute .or. converged_scaled)) then
+           converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+           converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+          endif
+        enddo
+      enddo
+    endif
     call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
                                 ierr);CHKERRQ(ierr)
