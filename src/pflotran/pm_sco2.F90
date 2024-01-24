@@ -879,6 +879,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
 
+  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -887,7 +888,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   type(sco2_auxvar_type) :: sco2_auxvar
   class(characteristic_curves_type), pointer :: characteristic_curves
-  PetscReal, pointer :: X_p(:),dX_p(:)
+  PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
   PetscInt :: liq_pressure_index, gas_pressure_index, co2_frac_index, &
               gas_sat_index, co2_pressure_index, salt_index
   PetscInt :: local_id, ghosted_id, offset
@@ -897,20 +898,23 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
-  !return
-
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
-
+  field => this%realization%field
   grid => this%realization%patch%grid
   patch => this%realization%patch
   option => this%realization%option
   sco2_auxvars => this%realization%patch%aux%SCO2%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
 
+  call VecCopy(dX,field%flow_dxx,ierr);CHKERRQ(ierr)
+
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
+
   lid = option%liquid_phase
 
   dX_p = -1.d0 * dX_p
+  dX_p2 = -1.d0 * dX_p2
 
   changed = PETSC_TRUE
 
@@ -938,6 +942,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if (X_p(co2_frac_index) / epsilon < epsilon .and. &
               dX_p(co2_frac_index) / epsilon < epsilon ) then
             dX_p(co2_frac_index) = 0.d0
+            dX_p2(co2_frac_index) = 0.d0
           endif
           if ((X_p(co2_frac_index) + dX_p(co2_frac_index)) < 0.d0) &
              dX_p(co2_frac_index) = - X_p(co2_frac_index)
@@ -951,7 +956,10 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
           ! Zero negative corrections without salt present
           if (X_p(salt_index) / epsilon < epsilon .and. &
-             dX_p(salt_index) / epsilon < epsilon) dX_p(salt_index) = 0.d0
+             dX_p(salt_index) / epsilon < epsilon) then
+            dX_p(salt_index) = 0.d0
+            dX_p2(salt_index) = 0.d0
+          endif
           if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
              dX_p(salt_index) = - X_p(salt_index)
 
@@ -972,6 +980,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if (X_p(co2_pressure_index) / epsilon < epsilon .and. &
               dX_p(co2_pressure_index) / epsilon < epsilon) then
             dX_p(co2_pressure_index) = 0.d0
+            dX_p2(co2_pressure_index) = 0.d0
           endif
           call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
           xsl = min(X_p(salt_index),xsl)
@@ -990,6 +999,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
             if (X_p(salt_index)/epsilon < epsilon .and. &
                 dX_p(salt_index)/epsilon < epsilon ) then
               dX_p(salt_index) = 0.d0
+              dX_p2(salt_index) = 0.d0
             endif
             if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
               dX_p(salt_index) = - X_p(salt_index)
@@ -1032,7 +1042,10 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
           ! Zero negative corrections without salt present
           if (X_p(salt_index) / epsilon < epsilon .and. &
-             dX_p(salt_index) / epsilon < epsilon) dX_p(salt_index) = 0.d0
+             dX_p(salt_index) / epsilon < epsilon) then
+            dX_p(salt_index) = 0.d0
+            dX_p2(salt_index) = 0.d0
+          endif
           if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
              dX_p(salt_index) = - X_p(salt_index)
 
@@ -1094,7 +1107,10 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
           ! Zero negative corrections without salt present
           if (X_p(salt_index) / epsilon < epsilon .and. &
-             dX_p(salt_index) / epsilon < epsilon) dX_p(salt_index) = 0.d0
+             dX_p(salt_index) / epsilon < epsilon) then
+            dX_p(salt_index) = 0.d0
+            dX_p2(salt_index) = 0.d0
+          endif
           if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
              dX_p(salt_index) = - X_p(salt_index)
 
@@ -1131,6 +1147,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
 
 end subroutine PMSCO2CheckUpdatePre
 
@@ -1396,8 +1413,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-    call VecWAXPY(field%flow_dxx,-1.d0,field%flow_yy,field%flow_xx, &
-                  ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
     converged_abs_residual_flag = PETSC_TRUE
     converged_abs_residual_real = 0.d0
@@ -1414,6 +1429,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       if (patch%imat(ghosted_id) <= 0) cycle
       istate = global_auxvars(ghosted_id)%istate
       do idof = 1, option%nflowdof
+        res_scaled = 0.d0
         ival = offset+idof
         !converged_absolute = PETSC_TRUE
         converged_absolute = PETSC_FALSE

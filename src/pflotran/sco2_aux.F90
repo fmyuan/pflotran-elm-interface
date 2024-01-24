@@ -99,15 +99,9 @@ module SCO2_Aux_module
   PetscInt, parameter, public :: SCO2_SALT_INDEX = 14
   PetscInt, parameter, public :: SCO2_MAX_INDEX = 16
 
-  ! MAN: original way
   
-  ! MAN: Alternate: DOF 2 in Liquid-Gas State:
-  ! PetscInt, parameter, public :: SCO2_LIQUID_PRESSURE_DOF = 2
-
-  ! Temperature is always DOF 3
-  ! PetscInt, parameter, public :: SCO2_TEMPERATURE_DOF = 3
-  ! Salt Mass is always DOF 4
-  ! PetscInt, parameter, public :: SCO2_SALT_MASS_FRAC_DOF = 4
+  ! Temperature is always DOF 4
+  ! PetscInt, parameter, public :: SCO2_TEMPERATURE_DOF = 4
 
   ! Indexing the equations/residuals
   PetscInt, parameter, public :: SCO2_WATER_EQUATION_INDEX = 1
@@ -517,12 +511,12 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
       dpg = -1.d0 * dpl
   end select
 
-  dpg = dpg + sign(min_perturbation,dpg)
-  dpl = dpl + sign(min_perturbation,dpl)
-  dpco2 = dpco2 + sign(min_perturbation,dpco2)
-  dsg = dsg + sign(min_perturbation,dsg)
-  dxs = dxs + sign(min_perturbation,dxs)
-  dxco2 = dxco2 + sign(min_perturbation,dxco2)
+  dpg = dpg 
+  dpl = dpl
+  dpco2 = dpco2
+  dsg = dsg 
+  dxs = dxs 
+  dxco2 = dxco2
 
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)
@@ -1136,6 +1130,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       ! neglecting the mass of dissolved CO2.
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
 
+      sco2_auxvar%pres(cpid) = 0.d0
       ! Starting guess for Equilibrate
       sco2_auxvar%xmass(sid,lid) = sco2_auxvar%m_salt(1)
       ! Secondary Variables
@@ -1165,12 +1160,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                             TWO_INTEGER,sco2_auxvar%den_kg(pwid), &
                             den_steam_kg,option)
       pva = max(sco2_auxvar%pres(lid) - sco2_auxvar%pres(rvpid), 0.d0)             
-      ! Save CO2 concentration before equilibrating
-      x_co2 = sco2_auxvar%xmass(co2_id,lid)
-      ! MAN: not sure if updating the dissolved mass fraction here conflicts 
-      !      with the dissolved mass fraction used up above. Also need to
-      !      double check how changing the primary variable (CO2 mass fraction)
-      !      ends up working out.
       xsl = x_salt_dissolved
       call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
                            sco2_auxvar%pres(co2_pressure_id), &
@@ -1180,10 +1169,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            xco2g, xwg, xco2l, xsl, xwl, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
       
-      ! Update the dissolved salt mass fraction. Scale any change in salt
-      ! mass during equilibration by change in dissolved CO2 mass. Just applies
-      ! to saturated system without trapped gas.
-      ! MAN: not sure I completely understand this.
       sco2_auxvar%xmass(sid,lid) = x_salt_dissolved + &
                               (xsl-x_salt_dissolved) * &
                               (sco2_auxvar%xmass(co2_id,lid) / xco2l)
@@ -1489,7 +1474,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
   ! Update Porosity
   ! MAN: need to update the porosity compressibility model.
-  if (option%iflag /= SCO2_UPDATE_FOR_BOUNDARY) then
+  !if (option%iflag /= SCO2_UPDATE_FOR_BOUNDARY) then
     dpor_dp = 0.d0
     sco2_auxvar%effective_porosity = material_auxvar%porosity_base
     ! creep_closure, fracture, and soil_compressibility are mutually exclusive
@@ -1503,7 +1488,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
     if (option%iflag /= SCO2_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = sco2_auxvar%effective_porosity
     endif
-  endif
+  !endif
 
   ! Gas phase density
   call EOSGasDensity(sco2_auxvar%temp,pva, &
@@ -1562,7 +1547,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%liq_rel_perm_function% &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(lid), &
                                 dkrl_dsatl,option)
-  sco2_auxvar%kr(lid) = min(max(sco2_auxvar%kr(lid),1.d-24),1.d0)
+  !sco2_auxvar%kr(lid) = min(max(sco2_auxvar%kr(lid),1.d-24),1.d0)
   call characteristic_curves%gas_rel_perm_function% &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(gid), &
                                 dkrg_dsatl,option)
@@ -1706,13 +1691,13 @@ subroutine SCO2VaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap)
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal :: T_k, mw_mix
 
-  T_k = T + 237.15 ! K
+  T_k = T + 273.15d0 ! K
   mw_mix = x_salt*fmw_comp(3) + (1.d0-x_salt)*fmw_comp(1)
 
   if (Pc > epsilon) then
     ! P_vap = P_sat * exp(- fmw_comp(1) * (Pc**1.25d0) / &
     !          (rho_kg * IDEAL_GAS_CONSTANT * 1.d3 * T_k))
-    P_vap = P_sat * exp(-1.d0 *fmw_comp(1) * Pc / &
+    P_vap = P_sat * exp(-1.d0 *fmw_comp(1) * (Pc ** 1.25d0) / &
             (rho_kg * IDEAL_GAS_CONSTANT * 1.d3 * T_k))
   else
     P_vap = P_sat
@@ -2990,8 +2975,6 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
                           (theta ** 2) * (1.d0 - f +  f/(omega**2)) / &
                           (1.d0 - f + f * (theta / (theta + omega - 1.d0)) ** 2)
 
-      sco2_auxvar%effective_permeability = max(sco2_auxvar%effective_permeability, &
-                                              1.d-5)
   end select
 
 end subroutine SCO2ScalePermPhi

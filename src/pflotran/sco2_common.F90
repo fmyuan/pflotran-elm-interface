@@ -71,6 +71,8 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
     enddo
   enddo
 
+  ! Salt precipitate is calculated as fraction of total porosity, 
+  ! so it needs to be added separately.
   Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
                               sco2_auxvar%m_salt(TWO_INTEGER) * &
                               volume_over_dt
@@ -368,16 +370,16 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       stpd_ave_over_dist = 0.d0
     endif                 
     
-    al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
-           (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
-           0.d0)
-    alp = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
-            (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
-            0.d0)
+    al = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+         (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
+          0.d0)
+    alp = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+         (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
+          0.d0)
                               
-    salt_mass_flux = (alp * sco2_auxvar_up%xmass(sid,iphase) * &
+    salt_mass_flux = (al * sco2_auxvar_up%xmass(sid,iphase) * &
                           sco2_auxvar_up%den_kg(iphase) - &
-                          al * sco2_auxvar_dn%xmass(sid,iphase) * &
+                          alp * sco2_auxvar_dn%xmass(sid,iphase) * &
                           sco2_auxvar_dn%den_kg(iphase)) * area
 
     ! Diffusive component of salt flux
@@ -843,7 +845,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
     else
       stpd_ave_over_dist = 0.d0
     endif                 
-    
+   
     al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
            (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
            0.d0)
@@ -855,7 +857,6 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
                           sco2_auxvar_up%den_kg(iphase) - &
                           al * sco2_auxvar_dn%xmass(sid,iphase) * &
                           sco2_auxvar_dn%den_kg(iphase)) * area
-
     ! Diffusive component of salt flux
     ! units = kg/sec
     dsalt_mass_flux_ddeltaX = stpd_ave_over_dist * area
