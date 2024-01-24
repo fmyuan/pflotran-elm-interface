@@ -12,7 +12,7 @@ module PFLOTRAN_Constants_module
   private
 
   PetscBool, parameter :: PFLOTRAN_RELEASE = PETSC_FALSE
-  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 4
+  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 5
   PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
   PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = 0 ! (alpha < -1; beta = -1)
 
