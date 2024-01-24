@@ -728,14 +728,14 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
     endif
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
-    if (.not. sco2_use_governors) then
-      dtt = time_step_max_growth_factor*dt
-      dt = min(dtt,dt_max)
-      dt = max(dt,dt_min)
-    else
+    if (sco2_use_governors) then
       governed_dt = umin_scale * dt
       dtt = min(time_step_max_growth_factor*dt,governed_dt)
       dt = min(dtt,tfac(ifac)*dt,dt_max)
+      dt = max(dt,dt_min)
+    else
+      dtt = time_step_max_growth_factor*dt
+      dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
     endif
     dt = min(dtt,dt_max)
