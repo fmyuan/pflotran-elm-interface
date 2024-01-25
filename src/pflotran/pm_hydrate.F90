@@ -314,15 +314,14 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         call StringToUpper(word)
         select case(word)
           case('AIR')
-            hydrate_gas_air = PETSC_TRUE
-            hydrate_gas_methane = PETSC_FALSE
+            hydrate_former = HYDRATE_FORMER_NULL
             hydrate_fmw_comp(2) = FMWAIR
-          case('METHANE')
-            hydrate_gas_methane = PETSC_TRUE
+          case('METHANE','CH4')
+            hydrate_former = HYDRATE_FORMER_CH4
             hydrate_fmw_comp(2) = FMWCH4
-          case('CH4')
-            hydrate_gas_methane = PETSC_TRUE
-            hydrate_fmw_comp(2) = FMWCH4
+          case('CO2')
+            hydrate_former = HYDRATE_FORMER_CO2
+            hydrate_fmw_comp(2) = FMWCO2
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_GAS',option)
