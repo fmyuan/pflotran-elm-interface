@@ -100,6 +100,7 @@ module Output_Aux_module
 
   type, public :: output_variable_type
     character(len=MAXWORDLENGTH) :: name   ! string that appears in hdf5 file
+    character(len=MAXWORDLENGTH) :: subname
     character(len=MAXWORDLENGTH) :: units
     ! jmf: change to snapshot_plot_only?
     PetscBool :: plot_only
@@ -493,6 +494,7 @@ subroutine OutputVariableInit(output_variable)
   type(output_variable_type) :: output_variable
 
   output_variable%name = ''
+  output_variable%subname = ''
   output_variable%units = ''
   output_variable%plot_only = PETSC_FALSE
   output_variable%iformat = 0
@@ -1249,7 +1251,8 @@ subroutine OutputWriteVariableListToHeader(fid,variable_list,cell_string, &
   PetscInt :: variable_count
 
   type(output_variable_type), pointer :: cur_variable
-  character(len=MAXWORDLENGTH) :: variable_name, units
+  character(len=MAXSTRINGLENGTH) :: variable_name
+  character(len=MAXWORDLENGTH) :: units
 
   variable_count = 0
   cur_variable => variable_list%first
@@ -1260,6 +1263,9 @@ subroutine OutputWriteVariableListToHeader(fid,variable_list,cell_string, &
       cycle
     endif
     variable_name = cur_variable%name
+    if (len_trim(cur_variable%subname) > 0) then
+      variable_name = trim(variable_name) // '_' // cur_variable%subname
+    endif
     units = cur_variable%units
     call OutputWriteToHeader(fid,variable_name,units,cell_string,icolumn)
     variable_count = variable_count + 1

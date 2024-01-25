@@ -197,6 +197,7 @@ module Variables_module
   PetscInt, parameter, public :: VERTICAL_PERM_ANISOTROPY_RATIO = 158
   PetscInt, parameter, public :: TORTUOSITY_Y                   = 159
   PetscInt, parameter, public :: TORTUOSITY_Z                   = 160
+  PetscInt, parameter, public :: PARAMETER                      = 161
 
   PetscInt, parameter, public :: CO2_PRESSURE = 161
   PetscInt, parameter, public :: LIQUID_SALT_MASS_FRAC = 162

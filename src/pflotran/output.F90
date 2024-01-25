@@ -1000,7 +1000,15 @@ subroutine OutputVariableRead(input,option,output_variable_list)
             exit
           endif
         enddo
-! IMPORANT
+      case('PARAMETER')
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
+        call InputReadWord(input,option,output_variable%subname,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PARAMETER NAME','VARIABLES,PARAMETER')
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+! IMPORTANT
 ! Developers: Before you add a new case statement, does the new
 ! have non-default values (see OutputVariableInit). If no, do
 ! not add a new case statement as "case default" will work.
