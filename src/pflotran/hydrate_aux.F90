@@ -37,9 +37,12 @@ module Hydrate_Aux_module
   !Salinity
   PetscReal, public :: hydrate_xmol_nacl = 0.d0
 
+  PetscInt, parameter, public :: HYDRATE_FORMER_NULL = ZERO_INTEGER
+  PetscInt, parameter, public :: HYDRATE_FORMER_CH4 = ONE_INTEGER
+  PetscInt, parameter, public :: HYDRATE_FORMER_CO2 = TWO_INTEGER
+
   !Boolean for the gas used
-  PetscBool, public :: hydrate_gas_air = PETSC_FALSE
-  PetscBool, public :: hydrate_gas_methane = PETSC_TRUE
+  PetscInt, public :: hydrate_former = HYDRATE_FORMER_CH4
 
   PetscBool, public :: hyd_chk_max_dpl_liq_state_only = PETSC_FALSE
   PetscBool, public :: hydrate_high_temp_ts_cut = PETSC_FALSE
@@ -1787,7 +1790,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   select case(global_auxvar%istate)
     case(L_STATE)
       if (hyd_auxvar%sat(iid) == 0.d0) then !Not frozen
-        if (hydrate_gas_methane) then
+        if (hydrate_former /= HYDRATE_FORMER_NULL) then
           if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
               hyd_auxvar%pres(lid) > 0.d0 .and. & !No suction
               K_H_tilde_hyd*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
@@ -1823,7 +1826,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           endif
         endif
       else !Frozen
-        if (hydrate_gas_methane) then
+        if (hydrate_former /= HYDRATE_FORMER_NULL) then
           if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
               hyd_auxvar%pres(lid) > 0.d0 .and. & !No suction
               K_H_tilde_hyd*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
@@ -1874,8 +1877,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       if (hyd_auxvar%pres(vpid) >= hyd_auxvar%pres(spid)* &
          (1.d0-window_epsilon)) then
 
-        if (hyd_auxvar%pres(apid) < PE_hyd .or. hydrate_gas_air) then
-        !if (hyd_auxvar%pres(gid) < PE_hyd .or. hydrate_gas_air) then
+        if (hyd_auxvar%pres(apid) < PE_hyd .or. &
+            hydrate_former == HYDRATE_FORMER_NULL) then
+        !if (hyd_auxvar%pres(gid) < PE_hyd .or. &
+        !    hydrate_former = HYDRATE_FORMER_NULL) then
 
           if (hyd_auxvar%temp >= Tf_ice) then
             istatechng = PETSC_TRUE
@@ -1887,7 +1892,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             gas_epsilon = hydrate_phase_chng_epsilon
           endif
 
-        elseif (hydrate_gas_methane) then
+        elseif (hydrate_former /= HYDRATE_FORMER_NULL) then
 
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
@@ -1931,7 +1936,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
 
     case(GA_STATE)
-      if (hydrate_gas_air) then
+      if (hydrate_former == HYDRATE_FORMER_NULL) then
         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(gid) <= 0.d0) then
@@ -2071,9 +2076,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
     case(GI_STATE)
       if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(apid) < PE_hyd &
-          .and. hydrate_gas_methane) then
+          .and. hydrate_former /= HYDRATE_FORMER_NULL) then
       !if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(gid) < PE_hyd &
-      !    .and. hydrate_gas_methane) then
+      !    .and. hydrate_former /= HYDRATE_FORMER_NULL) then
         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(gid) > 0.d0) then
@@ -2085,7 +2090,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           !global_auxvar%istate = I_STATE
         endif
 
-      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_gas_air) then
+      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_former == &
+              HYDRATE_FORMER_NULL) then
 
         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -2096,18 +2102,21 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_FALSE
         endif
 
-      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_gas_methane) then
+      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_former /= &
+              HYDRATE_FORMER_NULL) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGI_STATE
 
-      elseif ((hyd_auxvar%pres(apid) < PE_hyd .and. hydrate_gas_methane) &
-              .or. (hydrate_gas_air)) then
-      !elseif ((hyd_auxvar%pres(gid) < PE_hyd .and. hydrate_gas_methane) &
-      !        .or. (hydrate_gas_air)) then
+      elseif ((hyd_auxvar%pres(apid) < PE_hyd .and. hydrate_former /= &
+               HYDRATE_FORMER_NULL) &
+              .or. (hydrate_former == HYDRATE_FORMER_NULL)) then
+      !elseif ((hyd_auxvar%pres(gid) < PE_hyd .and. hydrate_former /= &
+      !        HYDRATE_FORMER_NULL) &
+      !        .or. (hydrate_former == HYDRATE_FORMER_NULL)) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = GAI_STATE
 
-      elseif (hydrate_gas_methane) then
+      elseif (hydrate_former /= HYDRATE_FORMER_NULL) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGAI_STATE
       endif
@@ -2120,16 +2129,19 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
        !  if (hyd_auxvar%pres(apid) < PE_hyd) then
        if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
            K_H_tilde_hyd*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
-           pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_methane) then
+           pres(lid)*(1.d0-window_epsilon) .and. hydrate_former /= &
+           HYDRATE_FORMER_NULL) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = HAI_STATE
        elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
                K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
-               pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_methane) then
+               pres(lid)*(1.d0-window_epsilon) .and. hydrate_former /= &
+               HYDRATE_FORMER_NULL) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = GAI_STATE
        elseif (K_H_tilde*hyd_auxvar%xmol(acid,lid) >= hyd_auxvar% &
-               pres(lid)*(1.d0-window_epsilon) .and. hydrate_gas_air) then
+               pres(lid)*(1.d0-window_epsilon) .and. hydrate_former == &
+               HYDRATE_FORMER_NULL) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = GAI_STATE
        else
@@ -2251,7 +2263,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
     case(GAI_STATE)
       !MAN: state transition doesn't naturally enter this state anymore.
       !     May be useful for initialization.
-      if (hydrate_gas_methane) then
+      if (hydrate_former /= HYDRATE_FORMER_NULL) then
         if (hyd_auxvar%pres(apid) < PE_hyd) then !Gas phase is stable
         !if (hyd_auxvar%pres(gid) < PE_hyd) then !Gas phase is stable
           if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0 &
@@ -3768,12 +3780,12 @@ end subroutine HydrateCompositeThermalCond
 
 subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
                      option)
-
-  !This subroutine calculates the 3-phase equilibrium pressure of methane
-  !hydrate in pure water, from polynomial fit (Moridis, 2003)
   !
-  !Author: Michael Nole
-  !Date: 01/22/19
+  ! This subroutine calculates the 3-phase equilibrium pressure of methane
+  ! hydrate in pure water, from polynomial fit (Moridis, 2003)
+  !
+  ! Author: Michael Nole
+  ! Date: 01/22/19
   !
 
   use Characteristic_Curves_module
@@ -3805,69 +3817,83 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
 
   Tf_ice = dTf
 
-  if (T < Tf_ice) then
-    select case(hydrate_phase_boundary)
-      case(1)
-        !Kamath, 1984
-        PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
-        if (hydrate_adjust_ghsz_solubility) then
-          dP = PE - exp(1.4717d1-1.88679d3/T_temp)*1.d-3
-          dP = dP * 1.d6
-        endif
-      case(2)
-        !Moridis, 2003
-        PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
-             - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * &
-             T_temp**3 - 1.03669656828834d-7 * T_temp**4 + &
-             1.09882180475307d-10 * T_temp**5)
-        if (hydrate_adjust_ghsz_solubility) then
-          dP = PE - exp(-43.8921173434628 + 0.776302133739303 * (T_temp-dTf) &
-             - 7.27291427030502d-3 * (T_temp-dTf)**2 + 3.85413985900724d-5 * &
-             T_temp**3 - 1.03669656828834d-7 * (T_temp-dTf)**4 + &
-             1.09882180475307d-10 * (T_temp-dTf)**5)
-          dP = dP * 1.d6
-        endif
-      case(3)
-        !Moridis, 2003 simple
-        PE = exp(0.0334940999*T_temp - 8.1938174346)
-        if (hydrate_adjust_ghsz_solubility) then
-          dP = PE - exp(0.0334940999*(T_temp-dTf) - 8.1938174346)
-          dP = dP * 1.d6
-        endif
-    end select
-  else
-    select case(hydrate_phase_boundary)
-      case(1)
-        !Kamath, 1984
-        PE = exp(3.898d1-8.533d3/T_temp)*1.d-3
-        if (hydrate_adjust_ghsz_solubility) then
-          dP = PE - exp(3.898d1 - 8.533d3/(T_temp - dTf))* 1.d-3
-          dP = dP * 1.d6
-        endif
-      case(2)
-        !Moridis, 2003
-        PE = exp(-1.9413850446456d5 + 3.31018213397926d3 * T_temp &
-             - 22.5540264493806* T_temp**2 + 0.0767559117787059 * T_temp**3 &
-             - 1.30465829788791d-4 * T_temp**4 + 8.86065316687571d-8 * &
-             T_temp**5)
-        if (hydrate_adjust_ghsz_solubility) then
-          dP = PE - exp(-1.9413850446456d5 + 3.31018213397926d3 * &
-               (T_temp-dTf) - 22.5540264493806*(T_temp-dTf)**2 + &
-               0.0767559117787059 * (T_temp-dTf)**3 - &
-               1.30465829788791d-4 * (T_temp-dTf)**4 + 8.86065316687571d-8 * &
-               (T_temp-dTf)**5)
-          dP = dP * 1.d6
-        endif
-      case(3)
-        !Moridis, 2003 simple
-        PE = exp(0.1100383278*T_temp - 29.1133440975)
-        if (hydrate_adjust_ghsz_solubility) then
-          dP = PE - exp(0.1100383278*(T_temp-dTf) - 29.1133440975)
-          dP = dP * 1.d6
-        endif
-    end select
-
-  endif
+  select case(hydrate_former)
+    case(HYDRATE_FORMER_NULL)
+      ! Hydrate does not form
+      PE = 1.d20
+    case(HYDRATE_FORMER_CH4)
+      if (T < Tf_ice) then
+        select case(hydrate_phase_boundary)
+          case(1)
+            !Kamath, 1984
+            PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
+            if (hydrate_adjust_ghsz_solubility) then
+              dP = PE - exp(1.4717d1-1.88679d3/T_temp)*1.d-3
+              dP = dP * 1.d6
+            endif
+          case(2)
+            !Moridis, 2003
+            PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
+                 - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * &
+                 T_temp**3 - 1.03669656828834d-7 * T_temp**4 + &
+                 1.09882180475307d-10 * T_temp**5)
+            if (hydrate_adjust_ghsz_solubility) then
+              dP = PE - exp(-43.8921173434628 + 0.776302133739303 * &
+                   (T_temp-dTf) - 7.27291427030502d-3 * (T_temp-dTf)**2 + &
+                   3.85413985900724d-5 * T_temp**3 - 1.03669656828834d-7 * &
+                   (T_temp-dTf)**4 + 1.09882180475307d-10 * (T_temp-dTf)**5)
+              dP = dP * 1.d6
+            endif
+          case(3)
+            !Moridis, 2003 simple
+            PE = exp(0.0334940999*T_temp - 8.1938174346)
+            if (hydrate_adjust_ghsz_solubility) then
+              dP = PE - exp(0.0334940999*(T_temp-dTf) - 8.1938174346)
+              dP = dP * 1.d6
+            endif
+        end select
+      else
+        select case(hydrate_phase_boundary)
+          case(1)
+            !Kamath, 1984
+            PE = exp(3.898d1-8.533d3/T_temp)*1.d-3
+            if (hydrate_adjust_ghsz_solubility) then
+              dP = PE - exp(3.898d1 - 8.533d3/(T_temp - dTf))* 1.d-3
+              dP = dP * 1.d6
+            endif
+          case(2)
+            !Moridis, 2003
+            PE = exp(-1.9413850446456d5 + 3.31018213397926d3 * T_temp &
+                 - 22.5540264493806* T_temp**2 + 0.0767559117787059 * &
+                 T_temp**3 - 1.30465829788791d-4 * T_temp**4 + &
+                 8.86065316687571d-8 * T_temp**5)
+            if (hydrate_adjust_ghsz_solubility) then
+              dP = PE - exp(-1.9413850446456d5 + 3.31018213397926d3 * &
+                   (T_temp-dTf) - 22.5540264493806*(T_temp-dTf)**2 + &
+                   0.0767559117787059 * (T_temp-dTf)**3 - &
+                   1.30465829788791d-4 * (T_temp-dTf)**4 + &
+                   8.86065316687571d-8 * (T_temp-dTf)**5)
+              dP = dP * 1.d6
+            endif
+          case(3)
+            !Moridis, 2003 simple
+            PE = exp(0.1100383278*T_temp - 29.1133440975)
+            if (hydrate_adjust_ghsz_solubility) then
+              dP = PE - exp(0.1100383278*(T_temp-dTf) - 29.1133440975)
+              dP = dP * 1.d6
+            endif
+        end select
+      endif
+    case(HYDRATE_FORMER_CO2)
+      !Sloan compilation fit (Clathrate Hydrates of Natural Gases)
+      if (T < TQD) then
+        PE = 1.1046 + 0.04449 * (T_temp - 273.15) + 0.000629 * &
+             (T_temp - 273.15) ** 2
+      else
+        PE = 1.2241 + 0.13700 * (T_temp - 273.15) ** 2 - 0.0015018 * (T_temp - &
+              273.15) ** 3 + 0.0001733 * (T_temp - 273.15) ** 4
+     endif
+  end select
 
   PE = PE * 1.d6
 
