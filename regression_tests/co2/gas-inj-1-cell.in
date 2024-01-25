@@ -1,0 +1,201 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE SCO2
+      OPTIONS
+        TEMPERATURE 20.d0  
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+
+NUMERICAL_METHODS flow
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    NUMERICAL_JACOBIAN
+    MINIMUM_NEWTON_ITERATIONS 2
+  END
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  END
+
+  TIMESTEPPER FLOW
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.15
+  END
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED CARTESIAN
+  NXYZ 1 1 1 
+  DXYZ
+    1@10.d0
+    10.d0
+    10.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 2.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  CO2_DATABASE co2_sw-20C-5MPa-small.dat
+  HENRYS_CONSTANT DEFAULT
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.12
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2650.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0 
+  THERMAL_CONDUCTIVITY_WET 2.18d0
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+  SOIL_COMPRESSIBILITY 4.5d-10
+  SOIL_REFERENCE_PRESSURE 1.d7
+END
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VG_STOMP
+    N 1.84162
+    OVEN_DRIED_CAP_HEAD 102108.2d0
+    ALPHA 5.d-1
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    MAX_TRAPPED_GAS_SAT 0.d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 0.457
+    LIQUID_RESIDUAL_SATURATION 0.3
+  /
+  PERMEABILITY_FUNCTION MODIFIED_COREY_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.3
+    GAS_RESIDUAL_SATURATION 0.05
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 8.64000E+07 s
+  INITIAL_TIMESTEP_SIZE 1.d-3 s
+  MAXIMUM_TIMESTEP_SIZE 8.64000E+07 s
+END
+
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d1 1.d1 1.d1
+  /
+END
+
+REGION well
+  COORDINATE 5.d0 5.d0 5.d0
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0  0.d0  0.d0 
+    10.d0  10.d0  10.d0 
+  /
+END
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0 
+  SALT_MASS_FRACTION 1.5d-1
+END
+
+FLOW_CONDITION boundary
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0 
+  SALT_MASS_FRACTION 2.2d-1
+END
+
+
+FLOW_CONDITION injection
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 0.d0 12.5d0 0.d0 kg/s kg/s kg/s
+END
+
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+SOURCE_SINK well
+  FLOW_CONDITION injection
+  REGION well
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION boundary
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== convergence criteria  ============================
+END_SUBSURFACE

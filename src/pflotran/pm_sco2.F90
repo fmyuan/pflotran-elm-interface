@@ -922,11 +922,17 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       sco2_auxvar = sco2_auxvars(ZERO_INTEGER,ghosted_id)
       characteristic_curves => patch%characteristic_curves_array( &
                                patch%cc_id(ghosted_id))%ptr
+      liq_pressure_index = offset + ONE_INTEGER
+      gas_pressure_index = offset + TWO_INTEGER
+      co2_pressure_index = offset + TWO_INTEGER
+      co2_frac_index = offset + TWO_INTEGER
+      gas_sat_index = offset + TWO_INTEGER
+      salt_index = offset + THREE_INTEGER
+
       select case(global_auxvars(ghosted_id)%istate)
 
         case(SCO2_LIQUID_STATE)
           ! Limit pressure change
-          liq_pressure_index = offset + ONE_INTEGER
           dP = 1.d6
           dX_p(liq_pressure_index) = sign( min(dabs(dP), &
           dabs(dX_p(liq_pressure_index))),dX_p(liq_pressure_index) )
@@ -934,7 +940,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
             dX_p(liq_pressure_index) = 5.d8 - X_p(liq_pressure_index)
 
           ! Zero negative corrections for zero aqueous CO2
-          co2_frac_index = offset + TWO_INTEGER
           if (X_p(co2_frac_index) / epsilon < epsilon .and. &
               dX_p(co2_frac_index) / epsilon < epsilon ) then
             dX_p(co2_frac_index) = 0.d0
@@ -944,7 +949,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
              dX_p(co2_frac_index) = - X_p(co2_frac_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
-          salt_index = offset + THREE_INTEGER
           call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
           if (X_p(salt_index) < xsl ) THEN
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
@@ -959,11 +963,14 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
              dX_p(salt_index) = - X_p(salt_index)
 
-        case(SCO2_GAS_STATE)
-          gas_pressure_index = offset + ONE_INTEGER
-          co2_pressure_index = offset + TWO_INTEGER
-          salt_index = offset + THREE_INTEGER
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Liquid pressure is out of bounds for &
+              &SCO2 mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
 
+
+        case(SCO2_GAS_STATE)
           ! Limit changes in gas pressure  ---
 
           dP = 2.5d-1*max(X_p(gas_pressure_index),1.d6)
@@ -1007,10 +1014,20 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < Pvb) &
             dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+             &mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
+
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
+            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+             &mode: less than (or equal to) 0 Pa.'
+            call PrintErrMsg(option)
+          endif
+
+
         case(SCO2_TRAPPED_GAS_STATE)
-          liq_pressure_index = offset + ONE_INTEGER
-          gas_sat_index = offset + TWO_INTEGER
-          salt_index = offset + THREE_INTEGER
           ! Limit changes in pressure  ---
 
           dP = 2.5d-1*max(X_p(liq_pressure_index),1.d6)
@@ -1030,7 +1047,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               dX_p(gas_sat_index) = - X_p(gas_sat_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
-          salt_index = offset + THREE_INTEGER
           call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
           if (X_p(salt_index) < xsl ) THEN
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
@@ -1045,11 +1061,13 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
              dX_p(salt_index) = - X_p(salt_index)
 
-        case(SCO2_LIQUID_GAS_STATE)
-          liq_pressure_index = offset + ONE_INTEGER
-          gas_pressure_index = offset + TWO_INTEGER
-          salt_index = offset + THREE_INTEGER
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Liquid pressure is out of bounds for &
+               &SCO2 mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
 
+        case(SCO2_LIQUID_GAS_STATE)
           Pc_entry = 0.d0
           !select type(sf => characteristic_curves%saturation_function)
           !  class is (sat_func_vg_type)
@@ -1122,15 +1140,34 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+             &mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
+
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
+            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+             &mode: less than (or equal to) 0 Pa.'
+            call PrintErrMsg(option)
+          endif
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Liquid pressure is out of bounds for &
+              SCO2 mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
       end select
 
-      ! Throw an error or cut timestep
-      !if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) > 8.d8 .or. &
-      !    (X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < 0.d0)
-      !if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) > 8.d8)
-      !if (sco2_auxvar%temp + 273.15 > H2O_CRITICAL_TEMPERATURE .or. &
-      !    sco2_auxvar%temp < 0.d0 )
-
+      if (sco2_auxvar%temp + 273.15 >= H2O_CRITICAL_TEMPERATURE) then
+        option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
+         &greater than (or equal to) the critical temperature of water.'
+        call PrintErrMsg(option)
+      endif
+      if (sco2_auxvar%temp <= 0.d0 ) then
+        option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
+         &less than (or equal to) the freezing temperature of water.'
+        call PrintErrMsg(option)
+      endif
     enddo
 
     if (this%damping_factor > 0.d0) then
