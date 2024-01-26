@@ -881,9 +881,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
               ! for computing the accumulation term
               aux(1) = global_auxvar%m_nacl(1)
             endif
+          else
+            call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
           endif
-        else
-          call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
         endif
         if (associated(gen_auxvar%d)) then
           call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
@@ -1014,11 +1014,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                   ! for computing the accumulation term
                   aux(1) = global_auxvar%m_nacl(1)
                endif
+            else
+               call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
             endif
-          else
-             call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
           endif
-
           if (associated(gen_auxvar%d)) then
              call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux,&
                   gen_auxvar%pres(spid), &
@@ -1212,9 +1211,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
             ! the accumulation term
             aux(1) = global_auxvar%m_nacl(1)
          endif
+      else
+         call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
       endif
-    else
-       call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
     endif
     if (associated(gen_auxvar%d)) then
       call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,aux, &
@@ -1478,9 +1477,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
             ! the accumulation term
             aux(1) = global_auxvar%m_nacl(1)
           endif
+        else
+           call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
         endif
-      else
-         call EOSWaterComputeSalinity(gen_auxvar%temp,aux(1))
       endif
       if (associated(gen_auxvar%d)) then
         call EOSWaterViscosityExt(gen_auxvar%temp,cell_pressure, &
