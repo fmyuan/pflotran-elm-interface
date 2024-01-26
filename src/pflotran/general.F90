@@ -1125,7 +1125,11 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
 
       if (global_auxvars_ss(sum_connection)%istate /= &
           global_auxvars(ghosted_id)%istate) then
-        global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
+        if (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+          global_auxvars_ss(sum_connection)%istate = LGP_STATE
+        else
+          global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
+        endif
       endif
 
       option%iflag = GENERAL_UPDATE_FOR_SS

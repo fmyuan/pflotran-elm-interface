@@ -4181,7 +4181,9 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
           endif
         endif
     end select
-    !global_auxvar_ss%istate = global_auxvar%istate
+    if (soluble_matrix) then
+      global_auxvar_ss%istate = global_auxvar%istate
+    endif
   endif
 
   option%iflag = GENERAL_UPDATE_FOR_SS
