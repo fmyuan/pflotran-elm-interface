@@ -168,9 +168,9 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use PM_ZFlow_class
+  use PM_SCO2_class
   use ZFlow_Aux_module
   use PM_PNF_class
-  use General_Aux_module
 
   implicit none
 
@@ -266,6 +266,8 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
+    class is (pm_sco2_type)
+      call PMSCO2SetFlowMode(pm_flow,option)
     class default
       option%io_buffer = ''
       call PrintErrMsg(option)
@@ -300,7 +302,6 @@ subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
   use Option_module
   use PM_Base_class
   use PM_ERT_class
-  !use General_Aux_module
 
   implicit none
 

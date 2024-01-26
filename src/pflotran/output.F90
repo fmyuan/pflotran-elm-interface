@@ -837,7 +837,8 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                 option)
         call OutputVariableAddToList(output_variable_list,name, &
                                      category,units,id,subvar)
-        if (option%iflowmode == G_MODE .and. option%nflowdof == 4) then
+        if ((option%iflowmode == G_MODE .and. option%nflowdof == 4) .or. &
+             option%iflowmode == SCO2_MODE) then
           word = 'WSL'
           call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                   option)
@@ -1807,6 +1808,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
+  use SCO2_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -1861,6 +1863,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'gas_saturation'
+    case(SCO2_MODE)
+      allocate(iauxvars(2),auxvar_names(2))
+      iauxvars(1) = SCO2_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      ! iauxvars(2) = SCO2_TEMPERATURE_DOF
+      ! auxvar_names(2) = 'temperature'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
@@ -1936,6 +1944,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
+  use SCO2_Aux_module
   use String_module
   use Discretization_module
   use Output_Common_module
@@ -2012,6 +2021,12 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'gas_saturation'
+    case(SCO2_MODE)
+      allocate(iauxvars(2),auxvar_names(2))
+      iauxvars(1) = SCO2_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      ! iauxvars(2) = SCO2_TEMPERATURE_DOF
+      ! auxvar_names(2) = 'temperature'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'

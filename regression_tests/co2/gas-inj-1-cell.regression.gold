@@ -1,0 +1,108 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   1.1998101562099E+07
+      Min:   1.1998101562099E+07
+     Mean:   1.1998101562099E+07
+        1:   1.1998101562099E+07
+-- PRESSURE: Gas Pressure --
+      Max:   2.5979109088771E+07
+      Min:   2.5979109088771E+07
+     Mean:   2.5979109088771E+07
+        1:   2.5979109088771E+07
+-- PRESSURE: CO2 Partial Pressure --
+      Max:   2.5978661389000E+07
+      Min:   2.5978661389000E+07
+     Mean:   2.5978661389000E+07
+        1:   2.5978661389000E+07
+-- PRESSURE: Vapor Pressure --
+      Max:   4.4769977160168E+02
+      Min:   4.4769977160168E+02
+     Mean:   4.4769977160168E+02
+        1:   4.4769977160168E+02
+-- SATURATION: Liquid Saturation --
+      Max:   3.9651428651609E-03
+      Min:   3.9651428651609E-03
+     Mean:   3.9651428651609E-03
+        1:   3.9651428651609E-03
+-- SATURATION: Gas Saturation --
+      Max:   9.9603485713484E-01
+      Min:   9.9603485713484E-01
+     Mean:   9.9603485713484E-01
+        1:   9.9603485713484E-01
+-- SATURATION: Salt Precipitate Saturation --
+      Max:   1.5972603723866E-01
+      Min:   1.5972603723866E-01
+     Mean:   1.5972603723866E-01
+        1:   1.5972603723866E-01
+-- SATURATION: Trapped Gas Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- GENERIC: Liquid Density --
+      Max:   1.2139841186089E+03
+      Min:   1.2139841186089E+03
+     Mean:   1.2139841186089E+03
+        1:   1.2139841186089E+03
+-- GENERIC: Gas Density --
+      Max:   9.6756240327684E+02
+      Min:   9.6756240327684E+02
+     Mean:   9.6756240327684E+02
+        1:   9.6756240327684E+02
+-- GENERIC: X_g^l --
+      Max:   8.1377997875284E-03
+      Min:   8.1377997875284E-03
+     Mean:   8.1377997875284E-03
+        1:   8.1377997875284E-03
+-- GENERIC: X_l^l --
+      Max:   8.9309069166768E-01
+      Min:   8.9309069166768E-01
+     Mean:   8.9309069166768E-01
+        1:   8.9309069166768E-01
+-- GENERIC: X_s^l --
+      Max:   9.8771508544791E-02
+      Min:   9.8771508544791E-02
+     Mean:   9.8771508544791E-02
+        1:   9.8771508544791E-02
+-- GENERIC: X_g^g --
+      Max:   9.9998276693130E-01
+      Min:   9.9998276693130E-01
+     Mean:   9.9998276693130E-01
+        1:   9.9998276693130E-01
+-- GENERIC: X_l^g --
+      Max:   1.7233068696498E-05
+      Min:   1.7233068696498E-05
+     Mean:   1.7233068696498E-05
+        1:   1.7233068696498E-05
+-- GENERIC: Temperature --
+      Max:   2.0000000000000E+01
+      Min:   2.0000000000000E+01
+     Mean:   2.0000000000000E+01
+        1:   2.0000000000000E+01
+-- GENERIC: Liquid Energy --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- GENERIC: Gas Energy --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- DISCRETE: Thermodynamic State --
+      Max:         4
+      Min:         4
+     Mean:   4.0000000000000E+00
+        1:         4
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Flow --
+   Time (seconds):   1.0022745899960E-01
+   Time Steps:          167
+   Newton Iterations:          457
+   Linear Solver Iterations:          457
+   Time Step Cuts:            0
+   Solution 2-Norm:   2.8615879335535E+07
+   Residual 2-Norm:   1.3651302507096E-11

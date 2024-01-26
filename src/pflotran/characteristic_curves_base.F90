@@ -24,6 +24,7 @@ module Characteristic_Curves_Base_module
     type(polynomial_type), pointer :: pres_poly
     PetscReal :: Sr
     PetscReal :: pcmax
+    PetscReal :: Sgt_max ! max trapped gas saturation
     PetscBool :: analytical_derivative_available
     PetscBool :: calc_int_tension
     PetscBool :: calc_vapor_pressure
@@ -59,6 +60,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: Test => RPFBaseTest
     procedure, public :: SetupPolynomials => RPFBaseSetupPolynomials
     procedure, public :: RelativePermeability => RPFBaseRelPerm
+    procedure, public :: RelPermTrapped => RPFBaseRelPermTrapped
     procedure, public :: EffectiveSaturation => &
                            RPFBaseLiqEffectiveSaturation
     procedure, public :: EffectiveGasSaturation => &
@@ -80,6 +82,7 @@ module Characteristic_Curves_Base_module
             RPFBaseVerify, &
             RPFBaseTest, &
             RPFBaseRelPerm, &
+            RPFBaseRelPermTrapped, &
             SaturationFunctionDestroy, &
             PermeabilityFunctionDestroy
 
@@ -114,6 +117,7 @@ subroutine SFBaseInit(this)
   nullify(this%pres_poly)
   this%Sr = UNINITIALIZED_DOUBLE
   this%pcmax = DEFAULT_PCMAX
+  this%Sgt_max = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   this%calc_int_tension = PETSC_FALSE
   this%calc_vapor_pressure = PETSC_FALSE
@@ -479,6 +483,27 @@ subroutine RPFBaseRelPerm(this,liquid_saturation,relative_permeability, &
   call PrintErrMsg(option)
 
 end subroutine RPFBaseRelPerm
+
+! ************************************************************************** !
+
+subroutine RPFBaseRelPermTrapped(this,liquid_saturation, &
+                trapped_gas_sat,relative_permeability,dkr_sat,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(in) :: trapped_gas_sat
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  option%io_buffer = 'RPFBaseRelPermTrapped must be extended.'
+  call PrintErrMsg(option)
+
+end subroutine RPFBaseRelPermTrapped
 
 ! ************************************************************************** !
 
