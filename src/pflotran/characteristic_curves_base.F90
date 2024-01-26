@@ -60,7 +60,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: Test => RPFBaseTest
     procedure, public :: SetupPolynomials => RPFBaseSetupPolynomials
     procedure, public :: RelativePermeability => RPFBaseRelPerm
-    procedure, public :: RelPermTrappedGas => RPFBaseRelPermTrappedGas
+    procedure, public :: RelPermTrapped => RPFBaseRelPermTrapped
     procedure, public :: EffectiveSaturation => &
                            RPFBaseLiqEffectiveSaturation
     procedure, public :: EffectiveGasSaturation => &
@@ -82,7 +82,7 @@ module Characteristic_Curves_Base_module
             RPFBaseVerify, &
             RPFBaseTest, &
             RPFBaseRelPerm, &
-            RPFBaseRelPermTrappedGas, &
+            RPFBaseRelPermTrapped, &
             SaturationFunctionDestroy, &
             PermeabilityFunctionDestroy
 
@@ -486,7 +486,7 @@ end subroutine RPFBaseRelPerm
 
 ! ************************************************************************** !
 
-subroutine RPFBaseRelPermTrappedGas(this,liquid_saturation, &
+subroutine RPFBaseRelPermTrapped(this,liquid_saturation, &
                 trapped_gas_sat,relative_permeability,dkr_sat,option)
 
   use Option_module
@@ -500,10 +500,10 @@ subroutine RPFBaseRelPermTrappedGas(this,liquid_saturation, &
   PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
 
-  option%io_buffer = 'RPFBaseRelPermTrappedGas must be extended.'
+  option%io_buffer = 'RPFBaseRelPermTrapped must be extended.'
   call PrintErrMsg(option)
 
-end subroutine RPFBaseRelPermTrappedGas
+end subroutine RPFBaseRelPermTrapped
 
 ! ************************************************************************** !
 

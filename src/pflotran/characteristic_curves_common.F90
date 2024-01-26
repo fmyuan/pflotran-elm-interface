@@ -320,7 +320,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Init => RPFModifiedCoreyGasInit
     procedure, public :: Verify => RPFModifiedCoreyGasVerify
     procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
-    procedure, public :: RelPermTrappedGas => RPFModifiedCoreyGasRelPermWTGas
+    procedure, public :: RelPermTrapped => RPFModifiedCoreyGasRelPermWTGas
   end type rpf_Modified_Corey_gas_type
 
   public :: &! standard char. curves:
