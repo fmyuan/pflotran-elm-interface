@@ -1925,7 +1925,6 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   ! Author: Glenn Hammond
   ! Date: 09/14/11
   !
-
   use Option_module
   use Input_Aux_module
   use String_module
@@ -2528,7 +2527,6 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   ! Author: Michael Nole
   ! Date: 12/13/23
   !
-
   use Option_module
   use Input_Aux_module
   use String_module
@@ -3037,7 +3035,6 @@ end subroutine FlowConditionSCO2Read
 ! ************************************************************************** !
 
 subroutine FlowConditionHydrateRead(condition,input,option)
-
   !
   ! Reads a condition from the input file for
   ! hydrate mode
@@ -3045,7 +3042,6 @@ subroutine FlowConditionHydrateRead(condition,input,option)
   ! Author: Michael Nole
   ! Date: 07/22/19
   !
-
   use Option_module
   use Input_Aux_module
   use String_module
@@ -3647,7 +3643,6 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
   ! Author: Paolo Orsini
   ! Date: 01/17/19
   !
-
   use Option_module
   use Input_Aux_module
   use String_module
@@ -3728,7 +3723,6 @@ subroutine TranConditionRead(condition,constraint_list, &
   ! Author: Glenn Hammond
   ! Date: 10/14/08
   !
-
   use Option_module
   use Input_Aux_module
   use String_module
@@ -3978,7 +3972,6 @@ subroutine GeopConditionRead(condition,input,option)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
   !
-
   use Option_module
   use Input_Aux_module
   use String_module
@@ -4050,7 +4043,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   ! Author: Glenn Hammond
   ! Date: 10/31/07
   !
-
   use Input_Aux_module
   use String_module
   use Option_module
@@ -4238,7 +4230,6 @@ subroutine FlowConditionPrint(condition,option)
   ! Author: Glenn Hammond
   ! Date: 12/04/08
   !
-
   use Option_module
   use Dataset_module
 
@@ -4286,7 +4277,6 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
   ! Author: Glenn Hammond
   ! Date: 12/04/08
   !
-
   use Option_module
   use Dataset_module
 
@@ -4326,7 +4316,6 @@ function GetSubConditionType(subcon_itype)
   ! Author: Gautam Bisht
   ! Date: 10/16/13
   !
-
   implicit none
 
   PetscInt :: subcon_itype
@@ -4493,7 +4482,6 @@ subroutine FlowConditionInitList(list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   !
-
   implicit none
 
   type(condition_list_type) :: list
@@ -4514,7 +4502,6 @@ subroutine FlowConditionAddToList(new_condition,list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   !
-
   implicit none
 
   type(flow_condition_type), pointer :: new_condition
@@ -4538,7 +4525,6 @@ function FlowConditionGetPtrFromList(condition_name,condition_list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   !
-
   use String_module
 
   implicit none
@@ -4576,7 +4562,6 @@ subroutine TranConditionInitList(list)
   ! Author: Glenn Hammond
   ! Date: 10/13/08
   !
-
   implicit none
 
   type(tran_condition_list_type) :: list
@@ -4597,7 +4582,6 @@ subroutine TranConditionAddToList(new_condition,list)
   ! Author: Glenn Hammond
   ! Date: 10/13/08
   !
-
   implicit none
 
   type(tran_condition_type), pointer :: new_condition
@@ -4621,7 +4605,6 @@ function TranConditionGetPtrFromList(condition_name,condition_list)
   ! Author: Glenn Hammond
   ! Date: 10/13/08
   !
-
   use String_module
 
   implicit none
@@ -4659,7 +4642,6 @@ subroutine GeopConditionInitList(list)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
   !
-
   implicit none
 
   type(geop_condition_list_type) :: list
@@ -4680,7 +4662,6 @@ subroutine GeopConditionAddToList(new_condition,list)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
   !
-
   implicit none
 
   type(geop_condition_type), pointer :: new_condition
@@ -4704,7 +4685,6 @@ function GeopConditionGetPtrFromList(condition_name,condition_list)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
   !
-
   use String_module
 
   implicit none
@@ -4871,7 +4851,6 @@ function FlowConditionIsTransient(condition)
   ! Author: Glenn Hammond
   ! Date: 01/12/11
   !
-
   use Dataset_module
 
   implicit none
@@ -4904,12 +4883,11 @@ end function FlowConditionIsTransient
 
 function FlowConditionGeneralIsTransient(condition)
   !
-  ! Returns PETSC_TRUE
+  ! Returns PETSC_TRUE if transient
   !
   ! Author: Glenn Hammond
   ! Date: 01/12/11
   !
-
   use Dataset_module
 
   implicit none
@@ -4947,7 +4925,6 @@ function FlowConditionHydrateIsTransient(condition)
   ! Author: Michael Nole
   ! Date: 11/04/20
   !
-
   use Dataset_module
 
   implicit none
@@ -4987,7 +4964,6 @@ function FlowConditionSCO2IsTransient(condition)
   ! Author: Michael Nole
   ! Date: 12/13/23
   !
-
   use Dataset_module
 
   implicit none
@@ -5026,7 +5002,6 @@ function FlowSubConditionIsTransient(sub_condition)
   ! Author: Glenn Hammond
   ! Date: 10/26/11
   !
-
   use Dataset_module
 
   implicit none
@@ -5295,7 +5270,6 @@ subroutine FlowConditionDestroyList(condition_list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   !
-
   implicit none
 
   type(condition_list_type), pointer :: condition_list
@@ -5332,7 +5306,6 @@ subroutine FlowConditionDestroy(condition)
   ! Author: Glenn Hammond
   ! Date: 10/23/07
   !
-
   use Dataset_module
   use Dataset_Ascii_class
   use Utility_module
@@ -5392,7 +5365,6 @@ subroutine FlowGeneralConditionDestroy(general_condition)
   ! Author: Glenn Hammond
   ! Date: 05/26/11
   !
-
   use Option_module
 
   implicit none
@@ -5429,7 +5401,6 @@ subroutine FlowHydrateConditionDestroy(hydrate_condition)
   ! Author: Michael Nole
   ! Date: 12/13/23
   !
-
   use Option_module
 
   implicit none
@@ -5466,7 +5437,6 @@ subroutine FlowSCO2ConditionDestroy(sco2_condition)
   ! Author: Michael Nole
   ! Date: 12/15/23
   !
-
   use Option_module
 
   implicit none
@@ -5501,7 +5471,6 @@ subroutine FlowSubConditionDestroy(sub_condition)
   ! Author: Glenn Hammond
   ! Date: 02/04/08
   !
-
   use Dataset_module
   use Dataset_Ascii_class
 
@@ -5534,7 +5503,6 @@ subroutine TranConditionDestroyList(condition_list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   !
-
   implicit none
 
   type(tran_condition_list_type), pointer :: condition_list
@@ -5596,7 +5564,6 @@ subroutine GeopConditionDestroyList(condition_list)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
   !
-
   implicit none
 
   type(geop_condition_list_type), pointer :: condition_list
@@ -5633,7 +5600,6 @@ subroutine GeopConditionDestroy(condition)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
   !
-
   implicit none
 
   type(geop_condition_type), pointer :: condition

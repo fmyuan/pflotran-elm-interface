@@ -3472,7 +3472,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     if (general_salt) then
       dtot_mole_flux_ddeltaS = density_ave * stpd_ave_over_dist * &
                                general_parameter% &
-                               diffusion_coefficient(PRECIPITATE_PHASE) * &
+                                 diffusion_coefficient(PRECIPITATE_PHASE) * &
                                area
     endif
 

@@ -171,7 +171,6 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
   use PM_SCO2_class
   use ZFlow_Aux_module
   use PM_PNF_class
-  ! use General_Aux_module
 
   implicit none
 

@@ -43,15 +43,15 @@ mode_aux_obj = \
 	${common_src}auxiliary.o \
 	${common_src}general_aux.o \
 	${common_src}hydrate_aux.o \
-	${common_src}wipp_flow_aux.o \
-	${common_src}mphase_aux.o \
+	${common_src}inlinesurface_aux.o \
 	${common_src}kdtree.o \
+	${common_src}mphase_aux.o \
 	${common_src}pnf_aux.o \
 	${common_src}richards_aux.o \
+	${common_src}sco2_aux.o \
 	${common_src}th_aux.o \
-	${common_src}zflow_aux.o \
-	${common_src}inlinesurface_aux.o \
-	${common_src}sco2_aux.o
+	${common_src}wipp_flow_aux.o \
+	${common_src}zflow_aux.o
 
 mode_process_model_obj = \
 	${common_src}pm_auxiliary.o \
@@ -60,34 +60,33 @@ mode_process_model_obj = \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
 	${common_src}pm_inversion.o \
-	${common_src}pm_wipp_flow.o \
+	${common_src}pm_material_transform.o \
 	${common_src}pm_mphase.o \
 	${common_src}pm_nwt.o \
-	${common_src}pm_richards.o \
-	${common_src}pm_richards_ts.o \
 	${common_src}pm_osrt.o \
 	${common_src}pm_pnf.o \
+	${common_src}pm_richards.o \
+	${common_src}pm_richards_ts.o \
 	${common_src}pm_rt.o \
+	${common_src}pm_sco2.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_th.o \
 	${common_src}pm_th_ts.o \
+	${common_src}pm_ufd_biosphere.o \
 	${common_src}pm_ufd_decay.o \
 	${common_src}pm_waste_form.o \
 	${common_src}pm_well.o \
+	${common_src}pm_wipp_flow.o \
 	${common_src}pm_wipp_srcsink.o \
-	${common_src}pm_ufd_biosphere.o \
-	${common_src}pm_zflow.o \
-	${common_src}pm_material_transform.o \
-	${common_src}pm_sco2.o \
+	${common_src}pm_zflow.o
 
 mode_obj = \
 	${common_src}general.o \
 	${common_src}general_common.o \
-	${common_src}wipp_flow.o \
+	${common_src}global.o \
 	${common_src}hydrate.o \
 	${common_src}hydrate_common.o \
-	${common_src}wipp_flow_common.o \
-	${common_src}global.o \
+	${common_src}inlinesurface.o \
 	${common_src}mphase.o \
 	${common_src}nw_transport.o \
 	${common_src}nw_transport_equilibrium.o \
@@ -95,12 +94,13 @@ mode_obj = \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
-	${common_src}th.o \
-	${common_src}zflow.o \
-	${common_src}zflow_common.o \
-	${common_src}inlinesurface.o \
 	${common_src}sco2.o \
-	${common_src}sco2_common.o
+	${common_src}sco2_common.o \
+	${common_src}th.o \
+	${common_src}wipp_flow.o \
+	${common_src}wipp_flow_common.o \
+	${common_src}zflow.o \
+	${common_src}zflow_common.o
 
 # DO NOT place any object files that depend on the discretization within
 # util_obj
@@ -184,12 +184,12 @@ relations_obj = \
 	${common_src}characteristic_curves.o \
 	${common_src}characteristic_curves_base.o \
 	${common_src}characteristic_curves_common.o \
-	${common_src}characteristic_curves_wipp.o \
-	${common_src}characteristic_curves_thermal.o \
-	${common_src}material_transform.o \
 	${common_src}characteristic_curves_loop_invariant.o \
 	${common_src}characteristic_curves_spline.o \
+	${common_src}characteristic_curves_thermal.o \
+	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_wipp_invariant.o \
+	${common_src}material_transform.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \
@@ -197,13 +197,13 @@ properties_obj = \
 	${common_src}material.o
 
 dataset_obj = \
+	${common_src}dataset.o \
 	${common_src}dataset_ascii.o \
 	${common_src}dataset_base.o \
 	${common_src}dataset_common_hdf5.o \
 	${common_src}dataset_global_hdf5.o \
-	${common_src}dataset_map_hdf5.o \
-	${common_src}dataset.o \
 	${common_src}dataset_gridded_hdf5.o \
+	${common_src}dataset_map_hdf5.o \
 	${common_src}time_storage.o
 
 srcsink_obj = \
@@ -216,13 +216,13 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
-    ${common_src}output_obs_h5.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
 	${common_src}output_common.o \
 	${common_src}output_ekg.o \
 	${common_src}output_hdf5.o \
+	${common_src}output_obs_h5.o \
 	${common_src}output_observation.o \
 	${common_src}output_tecplot.o \
 	${common_src}output_vtk.o
@@ -236,9 +236,9 @@ misc_obj = \
 	${common_src}convergence.o \
 	${common_src}coupler.o \
 	${common_src}data_mediator.o \
+	${common_src}data_mediator_base.o \
 	${common_src}data_mediator_dataset.o \
 	${common_src}data_mediator_vec.o \
-	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
 	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
@@ -280,6 +280,7 @@ misc_obj = \
 	${common_src}secondary_continuum_np.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
+	${common_src}simulation_geomechanics.o \
 	${common_src}simulation_inverse.o \
 	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
@@ -289,6 +290,7 @@ misc_obj = \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_KSP.o \
 	${common_src}timestepper_SNES.o \
+	${common_src}timestepper_steady.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
 	${common_src}transport_np.o \
@@ -320,9 +322,7 @@ geomech_obj = \
 	${common_src}output_geomechanics.o \
 	${common_src}pm_geomechanics_force.o \
 	${common_src}pmc_geomechanics.o \
-	${common_src}simulation_geomechanics.o \
-	${common_src}shape_function.o \
-	${common_src}timestepper_steady.o
+	${common_src}shape_function.o
 
 geophysics_obj = \
 	${common_src}ert.o \

@@ -615,7 +615,6 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
-  ! use General_module
   use Reaction_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module

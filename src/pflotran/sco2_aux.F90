@@ -65,7 +65,7 @@ module SCO2_Aux_module
 
   PetscInt, parameter, public :: PREV_TS = 1
   PetscInt, parameter, public :: PREV_IT = 2
-  
+
   ! Indexing the primary variables
   ! Gas Pressure is always DOF 1
   PetscInt, parameter, public :: SCO2_GAS_PRESSURE_DOF = 1
@@ -99,7 +99,7 @@ module SCO2_Aux_module
   PetscInt, parameter, public :: SCO2_SALT_INDEX = 14
   PetscInt, parameter, public :: SCO2_MAX_INDEX = 16
 
-  
+
   ! Temperature is always DOF 4
   ! PetscInt, parameter, public :: SCO2_TEMPERATURE_DOF = 4
 
@@ -200,7 +200,7 @@ module SCO2_Aux_module
             SCO2Henry, &
             SCO2ComputeSaltDensity, &
             SCO2Equilibrate
-            
+
 
 contains
 
@@ -211,7 +211,7 @@ function SCO2AuxCreate(option)
   ! Allocate and initialize auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 11/22/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -227,7 +227,7 @@ function SCO2AuxCreate(option)
 
 
   allocate(dof_to_primary_variable(option%nflowdof,SCO2_MAX_STATE))
-  
+
   dof_to_primary_variable(1:option%nflowdof,1:SCO2_MAX_STATE) = &
                ! Liquid State
       reshape([SCO2_LIQUID_PRESSURE_DOF, SCO2_CO2_MASS_FRAC_DOF, & !L
@@ -242,7 +242,7 @@ function SCO2AuxCreate(option)
                SCO2_LIQUID_PRESSURE_DOF, SCO2_TWO_PHASE_GAS_PRES_DOF, & !LG
                SCO2_SALT_MASS_FRAC_DOF],&
                shape(dof_to_primary_variable))
-  !With energy             
+  !With energy
   ! dof_to_primary_variable(1:option%nflowdof,1:SCO2_MAX_STATE) = &
   !              ! Liquid State
   !     reshape([SCO2_LIQUID_PRESSURE_DOF, SCO2_CO2_MASS_FRAC_DOF, & !L
@@ -276,7 +276,7 @@ function SCO2AuxCreate(option)
   aux%sco2_parameter%diffusion_coefficient(:,LIQUID_PHASE) = &
                                                    UNINITIALIZED_DOUBLE
   aux%sco2_parameter%diffusion_coefficient(:,GAS_PHASE) = 2.13d-05
-  
+
   aux%sco2_parameter%newton_inf_scaled_res_tol = 1.d-50
   aux%sco2_parameter%check_post_converged = PETSC_FALSE
 
@@ -291,7 +291,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
   ! Initialize auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 11/22/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -324,7 +324,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
   allocate(auxvar%xmass(option%nflowspec,option%nphase))
   auxvar%xmass = 0.d0
   allocate(auxvar%xmol(option%nflowspec,option%nphase))
-  auxvar%xmol = 0.d0  
+  auxvar%xmol = 0.d0
   allocate(auxvar%effective_diffusion_coeff(option%nflowspec,option%nphase))
   auxvar%effective_diffusion_coeff = 0.d0
   allocate(auxvar%dispersivity(option%nflowspec,option%nphase))
@@ -341,7 +341,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
   auxvar%visc = 0.d0
   allocate(auxvar%tortuosity(option%nphase))
   auxvar%tortuosity = 1.d0
-  
+
 
 end subroutine SCO2AuxVarInit
 
@@ -352,7 +352,7 @@ subroutine SCO2AuxVarCopy(auxvar,auxvar2,option)
   ! Copies an auxiliary variable
   !
   ! Author: Michael Nole
-  ! Date: 11/22/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -396,7 +396,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   ! Computes perturbations in the primary variables for SCO2 mode
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -434,7 +434,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   PetscInt :: wid, co2_id, co2_pressure_id, sid, pgid
   ! Other ID's
   PetscInt :: cpid, vpid, rvpid
-  
+
   lid = option%liquid_phase
   gid = option%gas_phase
   pid = option%precipitate_phase
@@ -452,7 +452,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   co2_pressure_id = option%co2_pressure_id
   vpid = option%vapor_pressure_id
   rvpid = option%reduced_vapor_pressure_id
-        
+
   call SCO2ComputeSaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
   dxs = 1.0d-5 * xsl
   !MAN: need to make sure total salt mass is updated in AuxVarCompute
@@ -471,7 +471,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     case(SCO2_LIQUID_STATE)
       dpl = max(1.d-1, 1.d-7 * sco2_auxvar(ZERO_INTEGER)%pres(lid))
       cell_pressure = sco2_auxvar(ZERO_INTEGER)%pres(lid)
-      ! cell_pressure = min(cell_pressure, 1.d8)          
+      ! cell_pressure = min(cell_pressure, 1.d8)
       call SCO2BrineSaturationPressure(sco2_auxvar(ZERO_INTEGER)%temp, xsl, &
                                        Psat)
       Prvap = Psat
@@ -511,11 +511,11 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
       dpg = -1.d0 * dpl
   end select
 
-  dpg = dpg 
+  dpg = dpg
   dpl = dpl
   dpco2 = dpco2
-  dsg = dsg 
-  dxs = dxs 
+  dsg = dsg
+  dxs = dxs
   dxco2 = dxco2
 
   select case(global_auxvar%istate)
@@ -534,7 +534,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     case(SCO2_GAS_STATE)
 
       x(SCO2_GAS_PRESSURE_DOF) = sco2_auxvar(ZERO_INTEGER)%pres(gid)
-      x(SCO2_CO2_PRESSURE_DOF) = sco2_auxvar(ZERO_INTEGER)%pres(co2_pressure_id) 
+      x(SCO2_CO2_PRESSURE_DOF) = sco2_auxvar(ZERO_INTEGER)%pres(co2_pressure_id)
       ! x(SCO2_TEMPERATURE_DOF) = sco2_auxvar(ZERO_INTEGER)%temp
       x(SCO2_SALT_MASS_FRAC_DOF) = sco2_auxvar(ZERO_INTEGER)%m_salt(2)
 
@@ -616,7 +616,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   ! Computes state transitions and swaps primary variables for SCO2 mode
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -630,7 +630,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
 
   implicit none
 
-  
+
   type(sco2_auxvar_type) :: sco2_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
@@ -650,7 +650,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   PetscReal :: beta_gl, sgt_max
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
                xmolsl, xmolwl
-  PetscReal :: salt_solubility, sigma 
+  PetscReal :: salt_solubility, sigma
   PetscReal :: den_mol, den_co2, den_brine, den_liq
   PetscReal :: drho_dP, drho_dT
   PetscErrorCode :: ierr
@@ -725,7 +725,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)
       cell_pressure = max(sco2_auxvar%pres(lid),sco2_auxvar%pres(vpid))
-      ! cell_pressure = min(cell_pressure, 1.d8)          
+      ! cell_pressure = min(cell_pressure, 1.d8)
       call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
                            Pco2,Pv, &
                            sco2_auxvar%pres(spid), &
@@ -734,7 +734,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
       ! Check if dissolved CO2 exceeds solubility
       if (sco2_auxvar%xmass(co2_id,lid) > xco2l * (1.d0 + &
-          state_change_threshold)) then 
+          state_change_threshold)) then
         ! Compute what gas saturation would be
         call EOSGasDensity(sco2_auxvar%temp,Pco2, &
                      den_mol,drho_dT,drho_dP,ierr)
@@ -750,7 +750,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         if (sg_est < sg_min) then
           ! No state change
           istatechng = PETSC_FALSE
-          ! MAN: STOMP updates current gas pressure here. This would 
+          ! MAN: STOMP updates current gas pressure here. This would
           !      just get overwritten in AuxVarCompute
           sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid) + &
                   Pc_entry / beta_gl - eps_sl
@@ -763,7 +763,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                                        sco2_auxvar%sat(tgid), &
                                        beta_gl, Pc, option)
           Pc = min(Pc,Pc_entry / beta_gl + 1.d5)
-          
+
           ! State has changed, so update state and one primary variable
           sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid) + Pc
           istatechng = PETSC_TRUE
@@ -776,7 +776,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
              (Pc_entry / beta_gl) - eps_sl
         ! No state change
         istatechng = PETSC_FALSE
-        
+
       endif
     case(SCO2_GAS_STATE)
       Pv = sco2_auxvar%pres(gid) - &
@@ -821,7 +821,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         sl_temp = 0.d0
       endif
       cell_pressure = sco2_auxvar%pres(lid)
-      ! cell_pressure = min(cell_pressure, 1.d8)          
+      ! cell_pressure = min(cell_pressure, 1.d8)
 
       call SCO2BrineSaturationPressure(sco2_auxvar%temp, xsl, &
                                        Psat)
@@ -868,12 +868,12 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
       if (dabs(1.d0 - sl_temp) < epsilon) then
 
         if (sgt_max > epsilon .and. sgt_temp > epsilon) then
-          ! Fully liquid saturated, with trapped gas, update 1 
+          ! Fully liquid saturated, with trapped gas, update 1
           ! primary variable
 
           istatechng = PETSC_TRUE
           global_auxvar%istate = SCO2_TRAPPED_GAS_STATE
-          
+
           sl_temp = sl_temp - sgt_temp
           sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(lid)
 
@@ -883,7 +883,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
           global_auxvar%istate = SCO2_LIQUID_STATE
 
           cell_pressure = sco2_auxvar%pres(lid)
-          ! cell_pressure = min(cell_pressure, 1.d8)          
+          ! cell_pressure = min(cell_pressure, 1.d8)
           call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl, &
                                            Psat)
           call SCO2Equilibrate(sco2_auxvar%temp,cell_pressure, &
@@ -918,7 +918,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         state_change_string = 'Liquid --> '
       case(SCO2_GAS_STATE)
         state_change_string = 'Gas --> '
-      case(SCO2_TRAPPED_GAS_STATE) 
+      case(SCO2_TRAPPED_GAS_STATE)
         state_change_string = 'Trapped Gas --> '
       case(SCO2_LIQUID_GAS_STATE)
         state_change_string = 'Liquid & Mobile Gas -->'
@@ -929,7 +929,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         state_change_string = trim(state_change_string) // ' Liquid'
       case(SCO2_GAS_STATE)
         state_change_string = trim(state_change_string) // ' Gas'
-      case(SCO2_TRAPPED_GAS_STATE) 
+      case(SCO2_TRAPPED_GAS_STATE)
         state_change_string = trim(state_change_string) // ' Trapped Gas'
       case(SCO2_LIQUID_GAS_STATE)
         state_change_string = trim(state_change_string) // &
@@ -961,7 +961,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
       case(SCO2_GAS_STATE)
 
         x(SCO2_GAS_PRESSURE_DOF) = sco2_auxvar%pres(gid)
-        x(SCO2_CO2_PRESSURE_DOF) = sco2_auxvar%pres(co2_pressure_id) 
+        x(SCO2_CO2_PRESSURE_DOF) = sco2_auxvar%pres(co2_pressure_id)
         ! x(SCO2_TEMPERATURE_DOF) = sco2_auxvar%temp
         x(SCO2_SALT_MASS_FRAC_DOF) = sco2_auxvar%m_salt(2)
 
@@ -992,7 +992,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
     call SCO2AuxVarCompute(x, sco2_auxvar, global_auxvar, material_auxvar, &
                            characteristic_curves, sco2_parameter, natural_id, &
                            option)
-    
+
     state_change_string = 'State Transition: ' // trim(state_change_string)
     if (sco2_print_state_transition) then
       call PrintMsgByRank(option,state_change_string)
@@ -1012,7 +1012,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   ! Computes auxiliary variables for each grid cell
   !
   ! Author: Michael Nole
-  ! Date: 11/22/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -1033,7 +1033,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: natural_id
   type(option_type) :: option
   PetscReal :: x(option%nflowdof)
-  
+
   ! Phase ID's
   PetscInt :: lid, gid, pid, pwid, pgid, pbid
   ! Component ID's
@@ -1106,12 +1106,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
   select case(global_auxvar%istate)
   ! Potential primary variables need to be given values here:
-  ! liquid pressure, gas pressure, CO2 partial pressure, 
+  ! liquid pressure, gas pressure, CO2 partial pressure,
   ! dissolved CO2 mass fraction, temperature, total NaCl brine mass fraction.
     case(SCO2_LIQUID_STATE)
 
       ! State: Saturated system without trapped gas
-      ! Primary Variables: 
+      ! Primary Variables:
       !               Liquid Pressure, Aqueous CO2 mass fraction,
       !               Temperature, total NaCl brine fraction (kg NaCl/kg brine)
 
@@ -1123,7 +1123,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmass(co2_id,lid) = x(SCO2_CO2_MASS_FRAC_DOF)
       ! sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
 
-      ! This is the total salt mass fraction including precipitate phase, 
+      ! This is the total salt mass fraction including precipitate phase,
       ! neglecting the mass of dissolved CO2.
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
 
@@ -1131,7 +1131,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       ! Starting guess for Equilibrate
       sco2_auxvar%xmass(sid,lid) = sco2_auxvar%m_salt(1)
       ! Secondary Variables
-      
+
       ! kg NaCl/kg liquid
       call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
       ! Dissolved salt mass fraction
@@ -1156,7 +1156,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       call SCO2WaterDensity(sco2_auxvar%temp,sco2_auxvar%pres(rvpid), &
                             TWO_INTEGER,sco2_auxvar%den_kg(pwid), &
                             den_steam_kg,option)
-      pva = max(sco2_auxvar%pres(lid) - sco2_auxvar%pres(rvpid), 0.d0)             
+      pva = max(sco2_auxvar%pres(lid) - sco2_auxvar%pres(rvpid), 0.d0)
       xsl = x_salt_dissolved
       call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
                            sco2_auxvar%pres(co2_pressure_id), &
@@ -1165,7 +1165,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            sco2_auxvar%pres(rvpid), &
                            xco2g, xwg, xco2l, xsl, xwl, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-      
+
       sco2_auxvar%xmass(sid,lid) = x_salt_dissolved + &
                               (xsl-x_salt_dissolved) * &
                               (sco2_auxvar%xmass(co2_id,lid) / xco2l)
@@ -1193,7 +1193,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
     case (SCO2_GAS_STATE)
       ! Fully unsaturated system with or without trapped gas.
-      ! Primary Variables: 
+      ! Primary Variables:
       !               Gas Pressure, CO2 Partial Pressure,
       !               Temperature, total NaCl mass
 
@@ -1217,16 +1217,16 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                      x_salt_dissolved, sigma)
       ! MAN: check the reference surface tension
       !MAN: sco2_auxvar%sat(tgid) should be small?
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma 
+      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
       call SCO2ComputePcHysteresis(characteristic_curves, &
                                    sco2_auxvar%sat(lid), &
                                    sco2_auxvar%sat(tgid), &
                                    beta_gl,sco2_auxvar%pres(cpid), option)
       sco2_auxvar%pres(cpid) = sco2_auxvar%pres(cpid) / beta_gl
 
-      
+
       cell_pressure = max(sco2_auxvar%pres(gid),sco2_auxvar%pres(spid))
-      ! cell_pressure = min(cell_pressure, 1.d8)          
+      ! cell_pressure = min(cell_pressure, 1.d8)
 
       sco2_auxvar%pres(rvpid) = max(sco2_auxvar%pres(gid) - &
                                sco2_auxvar%pres(co2_pressure_id), 0.d0)
@@ -1247,10 +1247,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            sco2_auxvar%pres(rvpid), &
                            xco2g, xwg, xco2l, xsl, xwl, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-      
+
       call SCO2ComputeSaltDensity(sco2_auxvar%temp, cell_pressure, &
                                   sco2_auxvar%den_kg(pid))
-      
+
       sco2_auxvar%sat(pid) = sco2_auxvar%m_salt(2) / &
                              (sco2_auxvar%den_kg(pid) * &
                              material_auxvar%volume)
@@ -1275,8 +1275,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmass(wid,lid) = xwl
       sco2_auxvar%xmass(sid,lid) = xsl
       sco2_auxvar%xmass(co2_id,gid) = xco2g
-      sco2_auxvar%xmass(wid,gid) = xwg     
-      
+      sco2_auxvar%xmass(wid,gid) = xwg
+
       ! Update mole fractions
       sco2_auxvar%xmol(co2_id,lid) = xmolco2l
       sco2_auxvar%xmol(wid,lid) = xmolwl
@@ -1295,13 +1295,13 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       call SCO2DensityCompositeLiquid(sco2_auxvar%temp,sco2_auxvar%den_kg(pbid), &
                                   sco2_auxvar%xmass(co2_id,lid), &
                                   sco2_auxvar%den_kg(lid))
-      sco2_auxvar%pres(lid) = sco2_auxvar%pres(gid) - sco2_auxvar%pres(cpid) 
+      sco2_auxvar%pres(lid) = sco2_auxvar%pres(gid) - sco2_auxvar%pres(cpid)
       call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
                                          x_salt_dissolved, &
                                          sco2_auxvar%pres(spid))
     case (SCO2_TRAPPED_GAS_STATE)
       ! Fully liquid saturated system with trapped gas
-      ! Primary Variables: 
+      ! Primary Variables:
       !               Liquid Pressure, Trapped Gas Saturation,
       !               Temperature, total NaCl brine fraction (kg NaCl/kg brine)
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
@@ -1314,7 +1314,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
       ! Secondary Variables
       ! Trapped gas is disconnected
-      sco2_auxvar%pres(cpid) = 0.d0 
+      sco2_auxvar%pres(cpid) = 0.d0
       ! kg NaCl/kg liquid
       call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
       ! Dissolved salt mass fraction
@@ -1366,7 +1366,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
     case (SCO2_LIQUID_GAS_STATE)
       ! State: Unsaturated, with or without trapped gas
-      ! Primary Variables: 
+      ! Primary Variables:
       !               Liquid Pressure, Gas Pressure,
       !               Temperature, total NaCl brine fraction (kg NaCl/kg brine)
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
@@ -1376,7 +1376,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
       ! Starting guess for Equilibrate
       sco2_auxvar%xmass(sid,lid) = sco2_auxvar%m_salt(1)
-      
+
       ! Secondary Variables
 
       sco2_auxvar%pres(cpid) = max(sco2_auxvar%pres(gid) - &
@@ -1390,7 +1390,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                          x_salt_dissolved, &
                                          sco2_auxvar%pres(spid))
       cell_pressure = max(sco2_auxvar%pres(gid),sco2_auxvar%pres(spid))
-      ! cell_pressure = min(cell_pressure, 1.d8)          
+      ! cell_pressure = min(cell_pressure, 1.d8)
       ! Brine density
       call SCO2BrineDensity(sco2_auxvar%temp, cell_pressure, &
                            x_salt_dissolved, sco2_auxvar%den_kg(pbid), option)
@@ -1408,7 +1408,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       xsl = x_salt_dissolved
       call SCO2WaterDensity(sco2_auxvar%temp,sco2_auxvar%pres(rvpid), &
                             TWO_INTEGER,sco2_auxvar%den_kg(pwid), &
-                            den_steam_kg,option)                             
+                            den_steam_kg,option)
       pva = max(sco2_auxvar%pres(gid) - sco2_auxvar%pres(rvpid), 0.d0)
       sco2_auxvar%pres(vpid) = sco2_auxvar%pres(rvpid)
       call SCO2Equilibrate(sco2_auxvar%temp,cell_pressure, &
@@ -1418,7 +1418,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            sco2_auxvar%pres(rvpid), &
                            xco2g, xwg, xco2l, xsl, xwl, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-      
+
       ! Update mass fractions
       sco2_auxvar%xmass(co2_id,lid) = xco2l
       sco2_auxvar%xmass(wid,lid) = xwl
@@ -1463,11 +1463,11 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
   cell_pressure = max(sco2_auxvar%pres(lid),sco2_auxvar%pres(gid), &
                       sco2_auxvar%pres(spid))
-  ! cell_pressure = min(cell_pressure, 1.d8)          
+  ! cell_pressure = min(cell_pressure, 1.d8)
   sco2_auxvar%xmass(co2_id,gid) = xco2g
   sco2_auxvar%xmass(wid,gid) = 1.d0 - xco2g
   sco2_auxvar%xmol(co2_id,gid) = xmolco2g
-  sco2_auxvar%xmol(wid,gid) = 1.d0 - xmolco2g 
+  sco2_auxvar%xmol(wid,gid) = 1.d0 - xmolco2g
 
   ! Update Porosity
   ! MAN: need to update the porosity compressibility model.
@@ -1502,7 +1502,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                         visc_co2)
   call SCO2ViscosityGas(visc_water,visc_co2,sco2_auxvar%xmol(wid,gid), &
                         sco2_auxvar%xmol(co2_id,gid),sco2_auxvar%visc(gid))
-  
+
   ! Liquid phase density (including CO2)
   call SCO2DensityCompositeLiquid(sco2_auxvar%temp,sco2_auxvar%den_kg(pbid), &
                                   sco2_auxvar%xmass(co2_id,lid), &
@@ -1518,7 +1518,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   call SCO2ViscosityLiquid(sco2_auxvar%xmass(co2_id,lid), visc_brine, &
                            visc_co2, sco2_auxvar%visc(lid))
 
-  ! CO2-water surface tension 
+  ! CO2-water surface tension
   ! MAN: doesn't do anything here right now
   call SCO2ComputeSurfaceTension(sco2_auxvar%temp,sco2_auxvar%xmass(sid,lid), &
                                  sigma)
@@ -1539,7 +1539,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   !sco2_auxvar%sat(gid) = (1.d0 - sl_temp) + sco2_auxvar%sat(tgid)
   ! Compute relative permeabilities
   ! MAN: Check if surface tension needs to be incorported into rel perm.
-  ! MAN: Need to check that trapped gas presence is treated properly in 
+  ! MAN: Need to check that trapped gas presence is treated properly in
   !      rel perm calcs
   call characteristic_curves%liq_rel_perm_function% &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(lid), &
@@ -1554,7 +1554,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
           sco2_auxvar%xmol(co2_id,lid) * fmw_comp(2) + &
           sco2_auxvar%xmol(sid,lid) * fmw_comp(3)
   sco2_auxvar%den(lid) = sco2_auxvar%den_kg(lid) / mw_mix
-  
+
   ! Convert to molar density: gas
   mw_mix = sco2_auxvar%xmol(wid,gid) * fmw_comp(1) + &
           sco2_auxvar%xmol(co2_id,gid) * fmw_comp(2) + &
@@ -1594,7 +1594,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            sco2_auxvar%den_kg(pid)
     sco2_auxvar%m_salt(2) = sco2_auxvar%m_salt(1) * sco2_auxvar%den_kg(pbid) * &
                             sco2_auxvar%sat(lid) * &
-                            sco2_auxvar%effective_porosity 
+                            sco2_auxvar%effective_porosity
   endif
 
   ! Permeability and porosity reduction with salt precipitate effects
@@ -1643,11 +1643,11 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   !   sco2_auxvar%den(stid) = 0.d0
   !   sco2_auxvar%H(stid) = 0.d0
   ! endif
-  ! ! J/kmol -> MJ/kg 
-  ! sco2_auxvar%H(stid) = sco2_auxvar%H(stid) / fmw_comp(wid) * 1.d-6                                  
+  ! ! J/kmol -> MJ/kg
+  ! sco2_auxvar%H(stid) = sco2_auxvar%H(stid) / fmw_comp(wid) * 1.d-6
   ! sco2_auxvar%U(stid) = sco2_auxvar%H(stid) - &
   !                       sco2_auxvar%pres(vpid) / den_steam_kg
-  
+
   ! ! Gas phase enthalpy
   ! sco2_auxvar%H(gid) = sco2_auxvar%xmass(wid,gid) * sco2_auxvar%H(stid) + &
   !                      sco2_auxvar%xmass(co2_id,gid) * sco2_auxvar%H(pgid)
@@ -1673,7 +1673,7 @@ subroutine SCO2VaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap)
   ! Computes the reduced vapor pressure of water following the Kelvin equation.
   !
   ! Author: Michael Nole
-  ! Date: 11/30/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -1709,11 +1709,11 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
                            xco2g, xwg, xco2l, xsl, xwl, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
   !
-  ! Computes equilibrium partitioning between CO2 and water following 
+  ! Computes equilibrium partitioning between CO2 and water following
   ! Spycher and Pruess, 2010
   !
   ! Author: Michael Nole
-  ! Date: 11/29/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -1840,7 +1840,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
   xmolsl = xmolsl / (xmolsl + xmolwl)
   apc = (1.d0 + (xmol_na + xmol_cl)/xmolwl)*exp(2.d0*cl_param*xmol_na + &
          nacl_param*xmol_cl*xmol_na)
-  
+
   ! Simplified solution, up to 275 C
   if (sco2_spycher_simple) then
     ! Temperature in C
@@ -1865,7 +1865,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
 
     xmolwg = xmolwg * p_vap / p_sat
     xmolco2g = 1.d0 - xmolwg
-    
+
 
   elseif (T_k < T_bound(1)) then !Low temperature regime
     a = cac(1) + cac(2)*T_k
@@ -1873,7 +1873,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
 
     ! RKS EOS coefficients
     ! MAN: should compute gas density elsewhere and using Gas EOS routines?
-    coeff_a = 1.d0 
+    coeff_a = 1.d0
     coeff_b = -1.d0 * IDEAL_GAS_CONSTANT * 1.d1 * T_k / P_bar
     coeff_c = -1.d0 * ((IDEAL_GAS_CONSTANT * 1.d1 * T_k * b / P_bar) - &
                         (a / (P_bar * sqrt(T_k))) + b**2)
@@ -1962,7 +1962,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
     xmolco2g = 1.d0 - xmolwg
 
   elseif (T_k > T_bound(2)) then ! High temperature regime
-    ! Iterative solution 
+    ! Iterative solution
     ! MAN: not yet implemented
 
     option%io_buffer = 'System temperature entered the high temperature &
@@ -2008,18 +2008,18 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
   !      compute intermediate variables.
   xsl = xmolsl * fmw_comp(3) / fmw_liq
 
-  
+
 end subroutine SCO2Equilibrate
 
 ! ************************************************************************** !
 
 subroutine CubicRootsNickalls(a,b,c,d,r1,r2,r3)
   !
-  ! Computes roots of a cubic polynomial following Nickalls, 1993, 
+  ! Computes roots of a cubic polynomial following Nickalls, 1993,
   ! A new approach to solving the cubic Cardans solution
   !
   ! Author: Michael Nole
-  ! Date: 11/30/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2056,7 +2056,7 @@ subroutine CubicRootsNickalls(a,b,c,d,r1,r2,r3)
     r3 = xn + sign(dabs(r1)**(1.d0/3.d0),r1) + sign(dabs(r2)**(1.d0/3.d0),r2)
     r1 = r3
     r2 = r3
-    
+
   elseif ((yn2-h2) < -epsilon) then
 
     theta = acos(yn/h)/3.d0
@@ -2075,7 +2075,7 @@ subroutine CubicRootsNickalls(a,b,c,d,r1,r2,r3)
       r3 = xn - 2.d0*del
 
     else
-      
+
       r1 = xn
       r2 = r1
       r3 = r2
@@ -2093,7 +2093,7 @@ subroutine SCO2ComputeSaltDensity(T,P,rho_s)
   ! Computes NaCl density following Battistelli et al., 1997
   !
   ! Author: Michael Nole
-  ! Date: 11/30/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2114,7 +2114,7 @@ subroutine SCO2ComputeSurfaceTension(T,x_nacl,surface_tension)
   ! and salt concentration following Abramzon and Gaukhberg, 1993.
   !
   ! Author: Michael Nole
-  ! Date: 12/01/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2144,7 +2144,7 @@ subroutine SCO2WaterSaturationPressure(T,P_sat)
   ! Computes pure water saturation pressure following Meyer et al., 1993
   !
   ! Author: Michael Nole
-  ! Date: 12/03/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2163,7 +2163,7 @@ subroutine SCO2WaterSaturationPressure(T,P_sat)
 
   T_r = (T + 273.15) / T_c
   T_rx = 1.d0 - T_r
-  
+
   P_sat = 0.d0
   do i = 1,5
     P_sat = P_sat + k(i) * (T_rx ** i)
@@ -2181,7 +2181,7 @@ subroutine SCO2BrineSaturationPressure(T, x_salt, P_sat)
   ! Computes brine saturation pressure following Haas, 1976
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2226,7 +2226,7 @@ subroutine SCO2WaterSubregion(T,P,isubr)
   ! Computes subregion of water EOS following Meyer et al., 1993
   !
   ! Author: Michael Nole
-  ! Date: 12/03/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2239,7 +2239,7 @@ subroutine SCO2WaterSubregion(T,P,isubr)
                                         1.931380707d1]
   PetscReal, parameter :: tol = 1.d-2
   PetscReal, parameter :: T_c = 647.096d0
-  PetscReal, parameter :: P_c = 22.064d6 
+  PetscReal, parameter :: P_c = 22.064d6
 
   PetscReal :: T_k, P_sat, T_r
 
@@ -2285,7 +2285,7 @@ subroutine SCO2WaterDensity(T,P,isubr,rho_l,rho_v,option)
   ! Computes pure water density following Meyer et al., 1993
   !
   ! Author: Michael Nole
-  ! Date: 12/03/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -2328,7 +2328,7 @@ subroutine SCO2WaterDensity(T,P,isubr,rho_l,rho_v,option)
   PetscReal, parameter :: s_b(5) = &
                           [7.633333333d-1, 4.006073948d-1, 8.636081627d-2, &
                           -8.532322921d-1, 3.460208861d-1]
-  PetscReal, parameter :: L_coeff(3) = & 
+  PetscReal, parameter :: L_coeff(3) = &
                           [1.574373327d1, -3.417061978d1, 1.931380707d1]
   PetscReal, parameter :: s_l = 4.260321148d0
   PetscInt, parameter :: i_n(8) = [2, 3, 2, 2, 3, 2, 2, 2]
@@ -2450,7 +2450,7 @@ subroutine SCO2BrineDensity(T, P, x_s, rho_b, option)
   ! Computes brine density following Phillips et al., 1983
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -2508,7 +2508,7 @@ subroutine SCO2DensityCompositeLiquid(T,rho_b,x_co2, rho_l)
   ! CO2 concentration, Alendal and Drange, 2001
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2543,7 +2543,7 @@ subroutine SCO2ViscosityWater(T, P, rho_w, visc, option)
   ! Computes viscosity of pure water following Meyer et al., 1993
   !
   ! Author: Michael Nole
-  ! Date: 12/03/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -2623,7 +2623,7 @@ subroutine SCO2ViscosityCO2(T, rho_co2, visc)
   ! Computes viscosity of CO2 following Fenghour et al., 1998
   !
   ! Author: Michael Nole
-  ! Date: 12/03/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2656,7 +2656,7 @@ subroutine SCO2ViscosityCO2(T, rho_co2, visc)
   visc_ex = s_b(1) * rho_co2 + s_b(2) * (rho_co2 ** 2) + &
            s_b(3) * (rho_co2 ** 6) / (T_r ** 3) + &
            s_b(4) * (rho_co2 ** 8) + s_b(5) * (rho_co2 **8) / T_r
-           
+
   visc = (visc_0 + visc_ex) * 1.d-6
 
 end subroutine SCO2ViscosityCO2
@@ -2668,7 +2668,7 @@ subroutine SCO2ViscosityGas(visc_w, visc_co2, xwg, xco2g, visc)
   ! Computes gas phase viscosity following Reid et al., 1987
   !
   ! Author: Michael Nole
-  ! Date: 12/03/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2700,7 +2700,7 @@ subroutine SCO2ViscosityBrine(T, x_salt, visc_w, visc_b)
   ! Computes brine viscosity following Phillips et al., 1981
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2729,7 +2729,7 @@ subroutine SCO2ViscosityLiquid(x_co2, visc_b, visc_co2, visc_l)
   ! Computes composite liquid phase viscosity, Kimagai and Yokoyama, 1999
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2754,7 +2754,7 @@ function SCO2EnthalpyCompositeLiquid(T, x_salt, x_co2, h_brine, h_co2)
   ! Computes composite liquid phase enthalpy, Battistelli et al., 1997
   !
   ! Author: Michael Nole
-  ! Date: 12/08/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2791,7 +2791,7 @@ function SCO2Henry(T, x_salt)
   ! Eq. 29
   !
   ! Author: Michael Nole
-  ! Date: 12/08/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2807,7 +2807,7 @@ function SCO2Henry(T, x_salt)
   PetscInt :: i
   PetscReal :: skb
   PetscReal :: Hc
-                                    
+
   Hc = 0.d0
   do i = 0,5
     Hc = Hc + c_b(i+1) * (T ** i)
@@ -2820,7 +2820,7 @@ function SCO2Henry(T, x_salt)
 
   SCO2Henry = Hc * &
               (1.d1 ** (1.d3 * x_salt / (fmw_comp(3) * (1.d0 - x_salt)) * skb))
-  
+
 
 end function SCO2Henry
 
@@ -2831,7 +2831,7 @@ subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,option)
   ! Computes CO2-Water diffusion coefficient, Cadogan et al., 2014
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -2922,7 +2922,7 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
   ! saturations (Verma and Pruess, 1998)
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   use Global_Aux_module
@@ -2983,7 +2983,7 @@ subroutine SCO2Tortuosity(s_l, s_g, phi, tao_l, tao_g)
   ! Computes tortuosity of the rock to gas and liquid phases
   !
   ! Author: Michael Nole
-  ! Date: 12/04/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -3020,7 +3020,7 @@ subroutine SCO2ComputeSatHysteresis(characteristic_curves, Pc, Sl_min, &
   ! I believe this only works for monontonic Pc functions.
   !
   ! Author: Michael Nole
-  ! Date: 12/07/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -3059,7 +3059,7 @@ subroutine SCO2ComputeSatHysteresis(characteristic_curves, Pc, Sl_min, &
       call characteristic_curves%saturation_function% &
                     Saturation(Pc,Sl,dsat_dpres,option)
   end select
-  
+
   if (Uninitialized(Sgt_max)) return
 
   ! Check if we're on a scanning path
@@ -3093,7 +3093,7 @@ subroutine SCO2ComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
   ! I believe this only works for monontonic Pc functions.
   !
   ! Author: Michael Nole
-  ! Date: 12/07/23
+  ! Date: 01/26/24
   !
 
 use Option_module
@@ -3123,7 +3123,7 @@ select type(sf => characteristic_curves%saturation_function)
       ! Pc is the capillary head
       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
     class default
-      
+
 end select
 
 
@@ -3136,7 +3136,7 @@ subroutine SCO2ComputeEffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
   ! Compute effective diffusion coefficients
   !
   ! Author: Michael Nole
-  ! Date: 12/08/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -3163,7 +3163,7 @@ subroutine SCO2ComputeEffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
     case(ONE_INTEGER)
 
       ! Salt effective_diffusion_coeff in liquid
-      T_scaled = (sco2_auxvar%temp + 273.15d0) / SALT_REFERENCE_TEMPERATURE 
+      T_scaled = (sco2_auxvar%temp + 273.15d0) / SALT_REFERENCE_TEMPERATURE
       sco2_auxvar%effective_diffusion_coeff(sid,lid) = &
                  sco2_parameter%diffusion_coefficient(sid,lid) * T_scaled * &
                 (LIQUID_REFERENCE_VISCOSITY / sco2_auxvar%visc(lid)) * &
@@ -3179,7 +3179,7 @@ subroutine SCO2ComputeEffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
                  sco2_auxvar%tortuosity(lid) * &
                  sco2_auxvar%sat(lid) * sco2_auxvar%effective_porosity * &
                  sco2_parameter%diffusion_coefficient(sid,lid)
-                 
+
 
   end select
 
@@ -3222,7 +3222,7 @@ subroutine SCO2SaltEnthalpy(T,H)
   T_k = T + 273.15d0
 
   H = -1.24858d-4
-  
+
   do i = 1,5
     H = H + c_a(i) * (T_k ** i) / i
   enddo
@@ -3239,7 +3239,7 @@ subroutine SCO2ComputeSaltSolubility(T, x_salt)
   ! Computes solubility of NaCl in water. McKibbin and McNabb, 1993.
   !
   ! Author: Michael Nole
-  ! Date: 12/17/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -3261,7 +3261,7 @@ subroutine SCO2OutputAuxVars1(sco2_auxvar,global_auxvar,material_auxvar, &
   ! Prints out the contents of an auxvar to a file
   !
   ! Author: Michael Nole
-  ! Date: 12/15/23
+  ! Date: 01/26/24
   !
 
   use Global_Aux_module
@@ -3425,7 +3425,7 @@ subroutine SCO2OutputAuxVars2(sco2_auxvars,global_auxvars,option)
   ! Prints out the contents of an auxvar to a file
   !
   ! Author: Glenn Hammond
-  ! Date: 02/18/13
+  ! Date: 01/26/24
   !
 
   use Global_Aux_module
@@ -3523,11 +3523,11 @@ subroutine SCO2AuxDestroy(aux)
   ! Deallocates an SCO2 auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
 
   type(sco2_type), pointer :: aux
@@ -3557,7 +3557,7 @@ subroutine SCO2AuxVarSingleDestroy(auxvar)
   ! Deallocates an SCO2 mode auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -3579,7 +3579,7 @@ subroutine SCO2AuxVarArray1Destroy(auxvars)
   ! Deallocates an SCO2 mode auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -3605,7 +3605,7 @@ subroutine SCO2AuxVarArray2Destroy(auxvars)
   ! Deallocates an SCO2 mode auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -3633,7 +3633,7 @@ subroutine SCO2AuxVarStrip(auxvar)
   ! Deallocates an SCO2 auxiliary object
   !
   ! Author: Michael Nole
-  ! Date: 12/05/23
+  ! Date: 01/26/24
   !
   use Utility_module, only : DeallocateArray
 

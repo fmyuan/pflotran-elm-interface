@@ -32,7 +32,7 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
   ! term for the residual
   !
   ! Author: Michael Nole
-  ! Date: 12/08/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -60,7 +60,7 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
   do iphase = 1, option%nphase - 1
     ! Res[kg comp/sec] =      sat[m^3 phase/m^3 void] *
     !                         den_kg[kg phase/m^3 phase] *
-    !                         xmass[kg comp/kg phase] * 
+    !                         xmass[kg comp/kg phase] *
     !                         por[m^3 void/m^3 bulk] *
     !                         vol/dt[m^3 bulk/sec]
     do icomp = 1, option%nflowspec - 1
@@ -71,7 +71,7 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
     enddo
   enddo
 
-  ! Salt precipitate is calculated as fraction of total porosity, 
+  ! Salt precipitate is calculated as fraction of total porosity,
   ! so it needs to be added separately.
   Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
                               sco2_auxvar%m_salt(TWO_INTEGER) * &
@@ -80,7 +80,7 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
   ! do iphase = 1, option%nphase
   !   ! Res[MJ/s] =    sat[m^3 phase/m^3 void] *
   !   !                    den_kg[kg phase/m^3 phase] * U[MJ/kg phase] *
-  !   !                    por[m^3 void/m^3 bulk] * 
+  !   !                    por[m^3 void/m^3 bulk] *
   !   !                    vol/dt[m^3 bulk/sec]
   !   Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
   !                                     sco2_auxvar%sat(iphase) * &
@@ -113,7 +113,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   ! Computes the internal flux terms for the residual
   !
   ! Author: Michael Nole
-  ! Date: 07/23/19
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -122,7 +122,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   use Fracture_module
   use Upwind_Direction_module
   use Characteristic_Curves_Thermal_module
-                  
+
   implicit none
 
   type(sco2_auxvar_type) :: sco2_auxvar_up, sco2_auxvar_dn
@@ -161,10 +161,10 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   PetscReal :: delta_xmass, delta_xmol, den_dn, den_up, density_ave
   PetscReal :: den_kg_up, den_kg_dn, density_kg_ave
   ! PetscReal :: sat_dn, sat_up
-  PetscReal :: stpd_ave_over_dist, stpd_up, stpd_dn 
+  PetscReal :: stpd_ave_over_dist, stpd_up, stpd_dn
   PetscReal :: al, alp
   ! PetscReal :: dheat_flux_ddelta_temp
-  PetscReal :: dtot_mole_flux_ddeltaX 
+  PetscReal :: dtot_mole_flux_ddeltaX
   PetscReal :: dsalt_mass_flux_ddeltaX
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
@@ -198,7 +198,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   v_darcy = 0.d0
 
   do iphase = 1 , option%nphase - 1 ! No advection or diffusion through salt phase
-  
+
     if (sco2_auxvar_up%sat(iphase) == 0.d0 .and. &
         sco2_auxvar_dn%sat(iphase) == 0.d0) cycle
 
@@ -223,7 +223,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       delta_pressure = sco2_auxvar_up%pres(iphase) - &
                        sco2_auxvar_dn%pres(iphase) + &
                        gravity_term
-    
+
       up_scale = 0.d0
       dn_scale = 0.d0
       upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
@@ -265,7 +265,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         !                                 xmass[kg comp/kg phase]
 
         do icomp = 1 , option%nflowspec - 1 !Handle salt separately
-          
+
           component_mass_flux = tot_mass_flux * xmass(icomp)
           Res(icomp) = Res(icomp) + component_mass_flux
 
@@ -317,7 +317,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
                  sco2_auxvar_dn%dispersivity(co2_id,iphase) * &
                  v_darcy(iphase))
 
-      ! units = [kg/m^2/s bulk] 
+      ! units = [kg/m^2/s bulk]
       stpd_ave_over_dist = stpd_up*stpd_dn / &
                            (stpd_up*dist_dn + stpd_dn*dist_up)
 
@@ -338,7 +338,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
                  sco2_auxvar_dn%dispersivity(wid,iphase) * &
                  v_darcy(iphase))
 
-      ! units = [kg/m^2/s bulk] 
+      ! units = [kg/m^2/s bulk]
       stpd_ave_over_dist = stpd_up*stpd_dn / &
                            (stpd_up*dist_dn + stpd_dn*dist_up)
 
@@ -367,15 +367,15 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
                            (stpd_up*dist_dn + stpd_dn*dist_up)
     else
       stpd_ave_over_dist = 0.d0
-    endif                 
-    
+    endif
+
     al = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
           0.d0)
     alp = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
           0.d0)
-                              
+
     salt_mass_flux = (al * sco2_auxvar_up%xmass(sid,iphase) * &
                           sco2_auxvar_up%den_kg(iphase) - &
                           alp * sco2_auxvar_dn%xmass(sid,iphase) * &
@@ -407,7 +407,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &
                                    co2_mass_flux
     Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
-                                    salt_mass_flux 
+                                    salt_mass_flux
 
     ! ! MAN: an effective multiphase diffusion coefficient approach:
     ! ! For CO2:
@@ -419,13 +419,13 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     !              sco2_auxvar_dn%dispersivity(co2_id,iphase) * &
     !              v_darcy(iphase))
 
-    !   ! Take the harmonic mean / dist: 
+    !   ! Take the harmonic mean / dist:
     !   stpd_ave_over_dist = stpd_up*stpd_dn / &
     !                        (stpd_up*dist_dn + stpd_dn*dist_up)
 
     !   sigma(iphase) = stpd_ave_over_dist * area
     ! enddo
-    
+
     ! multiphase_grad =(sco2_auxvar_up%xmol(co2_id,option%gas_phase) * den_up - &
     !               sco2_auxvar_dn%xmol(co2_id,option%gas_phase) * den_dn) / &
     !               (sco2_auxvar_up%xmol(co2_id,option%liquid_phase) * den_up - &
@@ -434,7 +434,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     !               sigma(TWO_INTEGER) * multiphase_grad) * &
     !               (sco2_auxvar_up%xmol(co2_id,option%liquid_phase) * den_up - &
     !               sco2_auxvar_dn%xmol(co2_id,option%liquid_phase) * den_dn)
-     
+
     ! ! For salt:
     ! do iphase = 1 , option%nphase - 1
     !   stpd_up = (sco2_auxvar_up%effective_diffusion_coeff(sid,iphase) + &
@@ -444,13 +444,13 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     !              sco2_auxvar_dn%dispersivity(sid,iphase) * &
     !              v_darcy(iphase))
 
-    !   ! Take the harmonic mean / dist: 
+    !   ! Take the harmonic mean / dist:
     !   stpd_ave_over_dist = stpd_up*stpd_dn / &
     !                        (stpd_up*dist_dn + stpd_dn*dist_up)
 
     !   sigma(iphase) = stpd_ave_over_dist * area
     ! enddo
-    
+
     ! multiphase_grad =(sco2_auxvar_up%xmol(sid,option%gas_phase) * den_up - &
     !               sco2_auxvar_dn%xmol(sid,option%gas_phase) * den_dn) / &
     !               (sco2_auxvar_up%xmol(sid,option%liquid_phase) * den_up - &
@@ -464,7 +464,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     ! water_mass_flux = -1.d0 * fmw_comp(1) * &
     !                   (co2_mole_flux + salt_mole_flux)
 
-  enddo 
+  enddo
 
   ! Conduction
   ! MAN: Need to extend the thermal conductivity functionality to include
@@ -522,7 +522,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   !
   ! Computes boundary flux terms for the residual.
   ! Author: Michael Nole
-  ! Date: 12/11/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -642,13 +642,13 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
         endif
 
-        if (iphase == LIQUID_PHASE .and. & 
+        if (iphase == LIQUID_PHASE .and. &
             global_auxvar_up%istate == SCO2_GAS_STATE) then
           boundary_pressure = sco2_auxvar_up%pres(option%gas_phase)
         else
           ! MAN: check if Pc is needed in the boundary auxvar
           boundary_pressure = sco2_auxvar_up%pres(iphase)
-          
+
         endif
 
         density_kg_ave = SCO2AverageDensity(iphase, &
@@ -677,7 +677,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
             delta_pressure = 0.d0
           endif
         endif
-    
+
         dn_scale = 0.d0
         upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
                                  PETSC_FALSE, &
@@ -685,7 +685,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
                                  liq_upwind_flip_count_by_res, &
                                  liq_upwind_flip_count_by_jac)
         if (upwind) then
-          mobility = sco2_auxvar_up%mobility(iphase) 
+          mobility = sco2_auxvar_up%mobility(iphase)
           kr = sco2_auxvar_up%kr(iphase)
           xmass(:) = sco2_auxvar_up%xmass(:,iphase)
           uH = sco2_auxvar_up%H(iphase)
@@ -792,7 +792,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
                  v_darcy(iphase))
 
       ! Harmonic mean for diffusivity
-      ! units = [kg/m^2/s bulk] 
+      ! units = [kg/m^2/s bulk]
       stpd_ave_over_dist = stpd_up*stpd_dn / &
                            (5.d-1 * (stpd_up*dist_dn + stpd_dn*dist_up))
 
@@ -813,7 +813,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
                  sco2_auxvar_dn%dispersivity(wid,iphase) * &
                  v_darcy(iphase))
 
-      ! units = [kg/m^2/s bulk] 
+      ! units = [kg/m^2/s bulk]
       stpd_ave_over_dist = stpd_up*stpd_dn / &
                            (5.d-1 * (stpd_up*dist_dn + stpd_dn*dist_up))
 
@@ -842,15 +842,15 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
                            (5.d-1 * (stpd_up*dist_dn + stpd_dn*dist_up))
     else
       stpd_ave_over_dist = 0.d0
-    endif                 
-   
+    endif
+
     al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
            (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
            0.d0)
     alp = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
             (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
             0.d0)
-                              
+
     salt_mass_flux = (alp * sco2_auxvar_up%xmass(sid,iphase) * &
                           sco2_auxvar_up%den_kg(iphase) - &
                           al * sco2_auxvar_dn%xmass(sid,iphase) * &
@@ -888,8 +888,8 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   ! heat_flux = 0.d0
   ! select case(ibndtype(SCO2_ENERGY_EQUATION_INDEX))
   ! case(DIRICHLET_BC)
-  !   ! MAN: Need better thermal conductivity calculations, but right now 
-  !   !      taking roughly a weighted average of salt conductivity and 
+  !   ! MAN: Need better thermal conductivity calculations, but right now
+  !   !      taking roughly a weighted average of salt conductivity and
   !   !      pore/rock conductivity, assuming kgas ~ 0.
   !   sat_dn = sco2_auxvar_dn%sat(lid)
 
@@ -942,7 +942,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   ! Computes source/sink terms for the residual
   !
   ! Author: Michael Nole
-  ! Date: 12/11/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -1004,7 +1004,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar%m_salt(1)
     end select
     global_auxvar_ss%istate = global_auxvar%istate
-  else 
+  else
     !Injection: use primary variables from user-supplied conditions
     xxss(SCO2_WATER_EQUATION_INDEX) = maxval(sco2_auxvar_ss%pres(option% &
                                              liquid_phase:option%gas_phase))
@@ -1113,7 +1113,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG * &
                                       scale
   end select
-  
+
   ! If there's a heater
   ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + qsrc(4)
 
@@ -1128,7 +1128,7 @@ subroutine SCO2AccumDerivative(sco2_auxvar,global_auxvar,material_auxvar, &
   ! term for the Jacobian
   !
   ! Author: Michael Nole
-  ! Date: 12/12/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -1204,7 +1204,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
   ! for the Jacobian
   !
   ! Author: Michael Nole
-  ! Date: 07/23/19
+  ! Date: 01/26/24
   !
   use Option_module
   use Material_Aux_module
@@ -1368,7 +1368,7 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   ! for the Jacobian
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -1478,7 +1478,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
   ! Computes the source/sink terms for the residual
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Option_module
@@ -1537,7 +1537,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
                         material_auxvar,characteristic_curves, &
                         sco2_parameter, natural_id, scale, res_pert_plus, &
                         PETSC_FALSE)
-                        
+
       call SCO2AuxVarCopy(sco2_auxvar_ss(ZERO_INTEGER), &
                              sco2_auxvar_ss(ONE_INTEGER), option)
       call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
@@ -1579,7 +1579,7 @@ function SCO2AverageDensity(iphase,istate_up,istate_dn,density_up,density_dn)
   ! Averages density, using opposite cell density if phase non-existent
   !
   ! Author: Michael Nole
-  ! Date: 12/08/23
+  ! Date: 01/26/24
   !
 
   implicit none

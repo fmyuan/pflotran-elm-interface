@@ -1382,8 +1382,7 @@ function SFVGSTOMPCreate()
 
   implicit none
 
-  class(sat_func_VG_STOMP_type), pointer :: &
-                              SFVGSTOMPCreate
+  class(sat_func_VG_STOMP_type), pointer :: SFVGSTOMPCreate
 
   allocate(SFVGSTOMPCreate)
   call SFVGSTOMPCreate%Init()
@@ -1454,7 +1453,7 @@ end function SFVGSTOMPGetAlpha
 ! ************************************************************************** !
 
 subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                      capillary_pressure,dpc_dsatl,option)
   !
   ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
   ! Currently does nothing.
@@ -1521,7 +1520,6 @@ subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
 
   asl = (1.d0 / (1.d0 + (this%alpha * capillary_pressure)**n))**m
   liquid_saturation = asl * (1.d0 - this%Sr) + this%Sr
-
 
 end subroutine SFVGSTOMPSaturation
 
@@ -5031,7 +5029,6 @@ subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
   ! Author: Michael Nole
   ! Date: 01/18/24
   !
-
   use Option_module
 
   implicit none
@@ -5051,6 +5048,8 @@ subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
 
   relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
 end subroutine 
+
+! ************************************************************************** !
 
 subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
                  trapped_gas_sat, relative_permeability,dkr_sat,option)

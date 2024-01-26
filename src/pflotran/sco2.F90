@@ -30,7 +30,7 @@ subroutine SCO2Setup(realization)
   ! Creates arrays for auxiliary variables
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -199,7 +199,7 @@ subroutine SCO2Setup(realization)
   cur_fluid_property => realization%fluid_properties
   do
     if (.not.associated(cur_fluid_property)) exit
-    if (cur_fluid_property%phase_id == LIQUID_PHASE) then 
+    if (cur_fluid_property%phase_id == LIQUID_PHASE) then
       patch%aux%SCO2%sco2_parameter% &
       diffusion_coefficient(co2_id,lid) = &
         cur_fluid_property%diffusion_coefficient
@@ -252,7 +252,7 @@ subroutine SCO2InitializeTimestep(realization)
   ! Update data in module prior to time step
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -283,7 +283,7 @@ subroutine SCO2UpdateSolution(realization)
   ! step
   !
   ! Author: Michael Nole
-  ! Date: 12/07/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -335,7 +335,7 @@ subroutine SCO2UpdateSolution(realization)
       else
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%sg_trapped = 0.d0
       endif
-    
+
     endif
 
   enddo
@@ -353,7 +353,7 @@ subroutine SCO2TimeCut(realization)
   ! Resets arrays for time step cut
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
   use Realization_Subsurface_class
   use Option_module
@@ -398,7 +398,7 @@ subroutine SCO2ComputeMassBalance(realization,mass_balance,mass_trapped)
   ! Initializes mass balance
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -480,7 +480,7 @@ subroutine SCO2ZeroMassBalanceDelta(realization)
   ! Zeros mass balance delta array
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -521,7 +521,7 @@ subroutine SCO2UpdateMassBalance(realization)
   ! Updates mass balance
   !
   ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -573,7 +573,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
   ! Updates the SCO2 mode auxiliary variables.
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -742,7 +742,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
 
       ! set this based on data given
       global_auxvars_bc(sum_connection)%istate = istate
-      
+
       ! SCO2_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = SCO2_UPDATE_FOR_BOUNDARY
       call SCO2AuxVarCompute(xxbc,sco2_auxvars_bc(sum_connection), &
@@ -888,7 +888,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
       endif
 
       ! MAN: can we infer the state instead, or does this matter?
-      !      This may get weird with trapped gas state, need to 
+      !      This may get weird with trapped gas state, need to
       !      check the min liq sat applied to flow conditions...
       if (dabs(qsrc(wid)) > 0.d0 .and. &
           dabs(qsrc(co2_id)) > 0.d0) then
@@ -936,7 +936,7 @@ subroutine SCO2UpdateFixedAccum(realization)
   ! Updates the fixed portion of the accumulation term
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -999,7 +999,7 @@ subroutine SCO2UpdateFixedAccum(realization)
                            patch%characteristic_curves_array( &
                            patch%cc_id(ghosted_id))%ptr, &
                            sco2_parameter, natural_id, option)
-    
+
     call SCO2Accumulation(sco2_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
@@ -1020,7 +1020,7 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   ! Computes the residual
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -1409,7 +1409,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   ! Computes the Jacobian
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -1770,7 +1770,7 @@ subroutine SCO2SetPlotVariables(realization,list)
   ! Adds variables to be printed to list
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -1907,7 +1907,7 @@ subroutine SCO2MapBCAuxVarsToGlobal(realization)
   ! Maps variables in SCO2 auxvar to global equivalent.
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -1963,7 +1963,7 @@ subroutine SCO2Destroy(realization)
   ! Deallocates variables associated with SCO2
   !
   ! Author: Michael Nole
-  ! Date: 12/13/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class

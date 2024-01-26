@@ -79,7 +79,7 @@ function PMSCO2Create()
   ! Creates SCO2 mode process models
   !
   ! Author: Michael Nole
-  ! Date: 11/20/2023
+  ! Date: 01/26/24
   !
 
   use Upwind_Direction_module
@@ -115,9 +115,9 @@ subroutine PMSCO2SetFlowMode(pm,option)
   ! Sets the flow mode to SCO2 mode
   !
   ! Author: Michael Nole
-  ! Date: 11/17/2023
+  ! Date: 01/26/24
   !
-  
+
   use Option_module
   use Variables_module, only: LIQUID_PRESSURE, GAS_PRESSURE, CO2_PRESSURE, &
                               LIQUID_MASS_FRACTION, LIQUID_SALT_MASS_FRAC, &
@@ -185,7 +185,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
   !                                  temp_rel_inf_tol,xmass_rel_inf_tol],&
   !                                  shape(rel_update_inf_tol)) * &
   !                                  1.d0
-  
+
   !Without Energy
   PetscReal, parameter :: abs_update_inf_tol(MAX_DOF,MAX_STATE) = &
                           ! Liquid State: Pl, Xw_co2, T, X_salt
@@ -235,7 +235,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
   ! Extras: individual component properties, trapped gas phase
   option%pure_water_phase = 5
   option%pure_brine_phase = 6
-  
+
   option%trapped_gas_phase = 4
 
   ! Water balance, CO2 balance, Salt balance
@@ -249,8 +249,8 @@ subroutine PMSCO2SetFlowMode(pm,option)
   option%air_id = 2
   option%salt_id = 3
   ! option%eid = 3
-  
-  
+
+
 
   allocate(pm%max_change_ivar(7))
   ! MAN: need to check this
@@ -279,7 +279,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
   ! Read simulation options for SCO2 mode
   !
   ! Author: Michael Nole
-  ! Date: 11/21/2023
+  ! Date: 01/26/24
   !
   use SCO2_module
   use SCO2_Aux_module
@@ -359,7 +359,7 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
   ! Newton solver convergence
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   use Input_Aux_module
   use String_module
@@ -408,7 +408,7 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
 
     ! All Residual
     case('CENTRAL_DIFFERENCE_JACOBIAN')
-      sco2_central_diff_jacobian = PETSC_TRUE 
+      sco2_central_diff_jacobian = PETSC_TRUE
     case('RESIDUAL_INF_TOL')
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -551,7 +551,7 @@ end subroutine PMSCO2ReadNewtonSelectCase
 subroutine PMSCO2InitializeSolver(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   use Solver_module
 
@@ -574,7 +574,7 @@ recursive subroutine PMSCO2InitializeRun(this)
   ! Initializes the time stepping
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   use Realization_Base_class
 
@@ -610,7 +610,7 @@ subroutine PMSCO2InitializeTimestep(this)
   ! the base routine must be extended.
   !
   ! Author: Michael Nole
-  ! Date: 12/18/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2InitializeTimestep
@@ -640,7 +640,7 @@ end subroutine PMSCO2InitializeTimestep
 subroutine PMSCO2PreSolve(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   implicit none
 
@@ -657,7 +657,7 @@ subroutine PMSCO2PostSolve(this)
   ! MAN: Do we need this?
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   implicit none
 
@@ -673,7 +673,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
                                 time_step_max_growth_factor)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use Realization_Base_class, only : RealizationGetVariable
@@ -807,7 +807,7 @@ end subroutine PMSCO2UpdateTimestep
 subroutine PMSCO2Residual(this,snes,xx,r,ierr)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2Residual
@@ -830,7 +830,7 @@ end subroutine PMSCO2Residual
 subroutine PMSCO2Jacobian(this,snes,xx,A,B,ierr)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2Jacobian
@@ -852,7 +852,7 @@ end subroutine PMSCO2Jacobian
 subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use Realization_Subsurface_class
@@ -1087,7 +1087,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                      dabs(dX_p(liq_pressure_index))), &
                                      dX_p(liq_pressure_index))
           dX_p(gas_pressure_index) = sign(min(dabs(dP), &
-                                     dabs(dX_p(gas_pressure_index))), & 
+                                     dabs(dX_p(gas_pressure_index))), &
                                      dX_p(gas_pressure_index))
           ! Relax pressure updates when transitioning to unsaturated
           ! conditions
@@ -1107,7 +1107,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                          LIQUID_REFERENCE_DENSITY * gravity
             class default
           end select
-          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) < & 
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) < &
             ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
              Pc_max)) &
             dX_p(liq_pressure_index) = ((X_p(gas_pressure_index) + &
@@ -1129,7 +1129,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
              dX_p(salt_index) = - X_p(salt_index)
 
           !Maintain the gas pressure above or at the water vapor
-          !pressure  
+          !pressure
           xsl = min(X_p(salt_index),xsl)
           call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
                                          xsl,Psb)
@@ -1190,7 +1190,7 @@ subroutine PMSCO2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                  X1_changed,ierr)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
   use SCO2_Aux_module
   use Global_Aux_module
@@ -1258,8 +1258,8 @@ subroutine PMSCO2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   converged_rel_update_cell = ZERO_INTEGER
   converged_abs_update_real = 0.d0
   converged_rel_update_real = 0.d0
- 
-  if (sco2_check_updates) then 
+
+  if (sco2_check_updates) then
     do local_id = 1, grid%nlmax
       offset = (local_id-1)*option%nflowdof
       ghosted_id = grid%nL2G(local_id)
@@ -1322,7 +1322,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                   reason,ierr)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
   use Convergence_module
   use SCO2_Aux_module
@@ -1497,7 +1497,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               !---      CO2 mass equation, ignore residual for small aqueous-CO2
                 call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
                 xsl = min(sco2_auxvar%m_salt(1),xsl)
-                call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat) 
+                call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat)
                 Pv = sco2_auxvar%pres(vpid)
                 Prvap = Psat
                 x_salt_dissolved = xsl
@@ -1577,7 +1577,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 res_scaled = min(dabs(update) / den_salt, &
                              dabs(residual / (accumulation + epsilon)))
               endif
-  
+
             case(SCO2_TRAPPED_GAS_STATE)
               if (idof == ONE_INTEGER) then
               !---      Water mass equation  ---
@@ -1689,7 +1689,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           converged_scaled = PETSC_TRUE
 
         ! ! infinity norms on residual
-         R = dabs(r_p(ival)) 
+         R = dabs(r_p(ival))
          A = dabs(accum2_p(ival))
 
          if (A > 1.d0) then
@@ -1886,7 +1886,7 @@ end subroutine PMSCO2CheckConvergence
 subroutine PMSCO2TimeCut(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2TimeCut
@@ -1905,7 +1905,7 @@ end subroutine PMSCO2TimeCut
 subroutine PMSCO2UpdateSolution(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2UpdateSolution, &
@@ -1926,7 +1926,7 @@ end subroutine PMSCO2UpdateSolution
 subroutine PMSCO2UpdateAuxVars(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   use SCO2_module, only : SCO2UpdateAuxVars
 
   implicit none
@@ -1942,7 +1942,7 @@ end subroutine PMSCO2UpdateAuxVars
 subroutine PMSCO2MaxChange(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use Realization_Base_class
@@ -2012,7 +2012,7 @@ subroutine PMSCO2MaxChange(this)
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
-  
+
   call MPI_Allreduce(max_change_local,max_change_global,max_change_index, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);&
                       CHKERRQ(ierr)
@@ -2059,7 +2059,7 @@ end subroutine PMSCO2MaxChange
 subroutine PMSCO2ComputeMassBalance(this,mass_balance_array)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2ComputeMassBalance
@@ -2079,7 +2079,7 @@ end subroutine PMSCO2ComputeMassBalance
 subroutine PMSCO2InputRecord(this)
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   implicit none
@@ -2095,7 +2095,7 @@ subroutine PMSCO2CheckpointBinary(this,viewer)
   ! Checkpoints data associated with SCO2 PM
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   use Checkpoint_module
   use Global_module
@@ -2118,7 +2118,7 @@ subroutine PMSCO2RestartBinary(this,viewer)
   ! Restarts data associated with SCO2 PM
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
 
   use Checkpoint_module
   use Global_module
@@ -2141,7 +2141,7 @@ subroutine PMSCO2Destroy(this)
   ! Destroys SCO2 process model
   !
   ! Author: Michael Nole
-  ! Date: 11/21/23
+  ! Date: 01/26/24
   !
 
   use SCO2_module, only : SCO2Destroy

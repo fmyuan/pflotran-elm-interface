@@ -502,6 +502,7 @@ subroutine RPFBaseRelPermTrappedGas(this,liquid_saturation, &
 
   option%io_buffer = 'RPFBaseRelPermTrappedGas must be extended.'
   call PrintErrMsg(option)
+
 end subroutine RPFBaseRelPermTrappedGas
 
 ! ************************************************************************** !
