@@ -94,6 +94,10 @@ subroutine ReactionInit(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  if (associated(reaction)) then 
+    option%io_buffer = 'More than one CHEMISTRY block exists in the input file.'
+    call PrintErrMsg(option)
+  endif
   reaction => ReactionAuxCreateAux()
 
   ! must be called prior to the first pass
