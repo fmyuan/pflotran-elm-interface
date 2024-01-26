@@ -1029,10 +1029,12 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
            dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
            changed = PETSC_TRUE
           endif
-          smol_index = offset + GENERAL_LIQUID_STATE_S_MOLE_DOF !salt mole fraction
-          if (X_p(smol_index) - dX_p(smol_index) < 0.d0) then
-            dX_p(smol_index) = X_p(smol_index)
-            changed = PETSC_TRUE
+          if (general_salt) then
+            smol_index = offset + GENERAL_LIQUID_STATE_S_MOLE_DOF !salt mole fraction
+            if (X_p(smol_index) - dX_p(smol_index) < 0.d0) then
+              dX_p(smol_index) = X_p(smol_index)
+              changed = PETSC_TRUE
+            endif
           endif
         case(GAS_STATE)
          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
