@@ -167,6 +167,7 @@ module Output_Aux_module
             OutputVariableAppendDefaults, &
             OpenAndWriteInputRecord, &
             OutputOptionDestroy, &
+            OutputVariableGetName, &
             OutputVariableListDestroy, &
             OutputH5Create, &
             OutputH5Destroy
@@ -467,6 +468,7 @@ function OutputVariableCreate3(output_variable)
 
   new_output_variable => OutputVariableCreate()
   new_output_variable%name = output_variable%name
+  new_output_variable%subname = output_variable%subname
   new_output_variable%units = output_variable%units
   new_output_variable%plot_only = output_variable%plot_only
   new_output_variable%iformat = output_variable%iformat
@@ -1224,6 +1226,15 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Waxman-Smits Clay Conductivity'
       category = OUTPUT_GENERIC
       id = WAXMAN_SMITS_CLAY_CONDUCTIVITY
+    case ('PARAMETER')
+      units = '?'
+      name = 'Parameter'
+      category = OUTPUT_GENERIC
+      id = NAMED_PARAMETER
+    case default
+      option%io_buffer = 'Unknown keyword "' // trim(word) // &
+        '" in OutputVariableToID.'
+      call PrintErrMsg(option)
   end select
 
 end subroutine OutputVariableToID
@@ -1262,10 +1273,7 @@ subroutine OutputWriteVariableListToHeader(fid,variable_list,cell_string, &
       cur_variable => cur_variable%next
       cycle
     endif
-    variable_name = cur_variable%name
-    if (len_trim(cur_variable%subname) > 0) then
-      variable_name = trim(variable_name) // '_' // cur_variable%subname
-    endif
+    variable_name = OutputVariableGetName(cur_variable)
     units = cur_variable%units
     call OutputWriteToHeader(fid,variable_name,units,cell_string,icolumn)
     variable_count = variable_count + 1
@@ -1472,6 +1480,26 @@ subroutine OpenAndWriteInputRecord(option)
   endif
 
 end subroutine OpenAndWriteInputRecord
+
+! ************************************************************************** !
+
+function OutputVariableGetName(output_variable)
+  !
+  ! Returns the concatenated name of the variables
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  implicit none
+
+  type(output_variable_type) :: output_variable
+
+  character(len=:), allocatable :: OutputVariableGetName
+
+  OutputVariableGetName = trim(trim(output_variable%name) // ' ' // &
+                               output_variable%subname)
+
+end function OutputVariableGetName
 
 ! ************************************************************************** !
 

@@ -16,7 +16,8 @@ module Init_Subsurface_module
             SubsurfAssignVolsToMatAuxVars, &
             SubsurfSandboxesSetup, &
             InitSubsurfaceSetupZeroArrays, &
-            SubsurfReadDatasetToVecWithMask
+            SubsurfReadDatasetToVecWithMask, &
+            InitSubsurfProcessOutputVars
 
 contains
 
@@ -1503,5 +1504,34 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
   endif
 
 end subroutine InitSubsurfaceCreateZeroArray
+
+! ************************************************************************** !
+
+subroutine InitSubsurfProcessOutputVars(realization)
+  !
+  ! Maps PARAMETER output variables with named parameters to the actual
+  ! parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  use Realization_Subsurface_class
+  use Output_Aux_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  type(output_variable_list_type), pointer :: output_variable_list
+
+  output_variable_list => realization%output_option%output_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+  output_variable_list => realization%output_option%output_snap_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+  output_variable_list => realization%output_option%output_obs_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+  output_variable_list => realization%output_option%aveg_output_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+
+end subroutine InitSubsurfProcessOutputVars
 
 end module Init_Subsurface_module

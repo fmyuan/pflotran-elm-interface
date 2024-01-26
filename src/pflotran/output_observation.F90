@@ -1930,7 +1930,8 @@ subroutine ObservationAggregateLinkToVar(aggregate_var,output_var_list, &
       option%io_buffer = 'Variable requested for aggregate metric ' //&
                          'does not match any output variables.'
       call PrintErrMsg(option)
-    elseif (StringCompareIgnoreCase(cur_variable%name,var_name)) then
+    elseif (StringCompareIgnoreCase(OutputVariableGetName(cur_variable), &
+                                    var_name)) then
       aggregate_var => cur_variable
       exit
     endif

@@ -8104,6 +8104,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               patch%aux%wippflo%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%well%Qg
           enddo
       end select
+    case(NAMED_PARAMETER)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%Global%auxvars(grid%nL2G(local_id))%parameters(isubvar)
+      enddo
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -9285,6 +9290,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = &
             patch%aux%wippflo%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg
       end select
+    case(NAMED_PARAMETER)
+      value = patch%aux%Global%auxvars(ghosted_id)%parameters(isubvar)
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -10177,6 +10184,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           call PrintErrMsg(option,'Setting of WELL_GAS_Q at grid &
                            &cell not yet supported.')
       end select
+    case(NAMED_PARAMETER)
+      do local_id=1,grid%nlmax
+        patch%aux%Global%auxvars(grid%nL2G(local_id))%parameters(isubvar) = &
+          vec_ptr(local_id)
+      enddo
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchSetVariable'')') ivar
