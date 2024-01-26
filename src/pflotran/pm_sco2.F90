@@ -1153,7 +1153,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
           if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
             option%io_buffer = 'Error: Liquid pressure is out of bounds for &
-              SCO2 mode: greater than (or equal to) 500 MPa.'
+              &SCO2 mode: greater than (or equal to) 500 MPa.'
             call PrintErrMsg(option)
           endif
       end select
