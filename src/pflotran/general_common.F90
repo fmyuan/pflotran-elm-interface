@@ -4181,7 +4181,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
           endif
         endif
     end select
-    global_auxvar_ss%istate = global_auxvar%istate
+    !global_auxvar_ss%istate = global_auxvar%istate
   endif
 
   option%iflag = GENERAL_UPDATE_FOR_SS

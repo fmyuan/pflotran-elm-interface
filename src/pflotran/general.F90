@@ -1108,7 +1108,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           global_auxvars_ss(sum_connection)%istate = LP_STATE
         endif
       elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
-        global_auxvars_ss(sum_connection)%istate = GAS_STATE
+        if (general_salt .and. .not. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+          global_auxvars_ss(sum_connection)%istate = GAS_STATE
+        elseif (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+          global_auxvars_ss(sum_connection)%istate = GP_STATE
+        else
+          global_auxvars_ss(sum_connection)%istate = GAS_STATE
+        endif
       else
         if (general_salt .and. .not. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
           global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
