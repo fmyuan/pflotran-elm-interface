@@ -94,6 +94,12 @@
      Mean:   0.0000000000000E+00
         1:  -0.0000000000000E+00
         2:  -0.0000000000000E+00
+-- CONCENTRATION: Carbon_Consumption --
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
+        2:   1.0000000000000E-20
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -101,7 +107,7 @@
         1:         1
         2:         1
 -- SOLUTION: Transport --
-   Time (seconds):   2.2230610700035E-01
+   Time (seconds):   4.1095130998201E-02
    Time Steps:           65
    Newton Iterations:          199
    Linear Solver Iterations:          199

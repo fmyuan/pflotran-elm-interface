@@ -103,6 +103,9 @@ CONSTRAINT initial
   MINERALS
     A(s) 1.d0 1.d0
   /
+  IMMOBILE
+    Carbon_Consumption 1.d-20
+  /
 END
 
 CONSTRAINT initial2
@@ -122,6 +125,9 @@ CONSTRAINT initial2
   /
   MINERALS
     A(s) 0.5d0 1.d0
+  /
+  IMMOBILE
+    Carbon_Consumption 1.d-20
   /
 END
 
@@ -173,12 +179,14 @@ CHEMISTRY
     C31-DONOR
     C22-DONOR
   /
-          
   SECONDARY_SPECIES
     OH-
     CO3--
     CO2(aq)
     NH3(aq)
+  /
+  IMMOBILE_SPECIES
+    Carbon_Consumption
   /
   DECOUPLED_EQUILIBRIUM_REACTIONS
     HS-
