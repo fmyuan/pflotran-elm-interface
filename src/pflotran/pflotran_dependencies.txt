@@ -399,6 +399,7 @@ factory_forward.o : \
   pm_auxiliary.o \
   pm_base.o \
   pm_geomechanics_force.o \
+  pm_parameter.o \
   pmc_base.o \
   print.o \
   realization_subsurface.o \
@@ -500,6 +501,7 @@ factory_subsurface.o : \
   pm_inversion.o \
   pm_material_transform.o \
   pm_mphase.o \
+  pm_parameter.o \
   pm_pnf.o \
   pm_richards.o \
   pm_richards_ts.o \
@@ -543,6 +545,7 @@ factory_subsurface_linkage.o : \
   pm_inversion.o \
   pm_material_transform.o \
   pm_nwt.o \
+  pm_parameter.o \
   pm_pnf.o \
   pm_richards_ts.o \
   pm_rt.o \
@@ -1146,6 +1149,7 @@ init_subsurface.o : \
   material_aux.o \
   matrix_zeroing.o \
   option.o \
+  output_aux.o \
   patch.o \
   pflotran_constants.o \
   realization_subsurface.o \
@@ -1186,6 +1190,7 @@ init_subsurface_flow.o : \
   pnf.o \
   realization_subsurface.o \
   richards.o \
+  sco2.o \
   simulation_subsurface.o \
   th.o \
   wipp_flow.o \
@@ -1551,7 +1556,6 @@ output.o : \
   hydrate_aux.o \
   input_aux.o \
   logging.o \
-  material_aux.o \
   option.o \
   output_aux.o \
   output_common.o \
@@ -2061,13 +2065,11 @@ pm_osrt.o : \
   realization_subsurface.o
 pm_parameter.o : \
   communicator_base.o \
-  condition.o \
-  coupler.o \
   input_aux.o \
   option.o \
+  parameter.o \
   pflotran_constants.o \
   pm_base.o \
-  reaction_aux.o \
   realization_subsurface.o \
   string.o
 pm_pnf.o : \
@@ -2161,6 +2163,8 @@ pm_rt.o : \
   utility.o \
   variables.o
 pm_sco2.o : \
+  characteristic_curves.o \
+  characteristic_curves_common.o \
   checkpoint.o \
   convergence.o \
   field.o \
@@ -2168,6 +2172,7 @@ pm_sco2.o : \
   global_aux.o \
   grid.o \
   input_aux.o \
+  material.o \
   option.o \
   patch.o \
   pflotran_constants.o \
@@ -2470,6 +2475,7 @@ pmc_general.o : \
   pm_auxiliary.o \
   pm_base.o \
   pm_inversion.o \
+  pm_parameter.o \
   pmc_base.o \
   timestepper_base.o
 pmc_geomechanics.o : \
@@ -2971,6 +2977,7 @@ reaction_sandbox_pnnl_lambda.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  reaction_immobile_aux.o \
   reaction_inhibition_aux.o \
   reaction_mineral_aux.o \
   reaction_sandbox_base.o \
@@ -3144,6 +3151,7 @@ realization_subsurface.o : \
   nw_transport_aux.o \
   option.o \
   output_aux.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   reaction.o \
