@@ -336,7 +336,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: u(this%n_rxn)
   PetscReal :: mu_max
 
-  PetscInt :: icomp, irxn, i_carbon, icarbon_consumption
+  PetscInt :: icomp, irxn, i_carbon
 
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3 ! m^3 -> L
