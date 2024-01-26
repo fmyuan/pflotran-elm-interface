@@ -154,6 +154,12 @@ module Hydrate_Aux_module
   PetscReal, parameter :: ICE_DENSITY = 50.86d0 !mol/L
   PetscReal, parameter :: L_ICE = 6033.54 !J/mol
 
+  PetscReal, parameter :: CO2_REFERENCE_SURFACE_TENSION = 0.072d0 ! N/m
+  PetscReal, parameter :: SALT_REFERENCE_TEMPERATURE = 293.15d0
+  PetscReal, parameter :: LIQUID_REFERENCE_VISCOSITY = 1.01764892595942d-3
+  PetscReal, parameter, public :: LIQUID_REFERENCE_DENSITY = 998.32142721500441
+  PetscReal, parameter, public :: HYD_REFERENCE_PRESSURE = 101325.d0
+
 
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
 

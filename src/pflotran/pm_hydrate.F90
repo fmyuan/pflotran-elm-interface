@@ -1105,6 +1105,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Patch_module
   use Hydrate_Aux_module
   use Global_Aux_module
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
 
   implicit none
 
@@ -1115,306 +1117,534 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
 
+  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  PetscInt :: local_id, ghosted_id
+  type(hydrate_auxvar_type) :: hyd_auxvar
+  class(characteristic_curves_type), pointer :: characteristic_curves
+  PetscInt :: local_id, ghosted_id, lid, gid, hid, iid, apid
   PetscInt :: offset
-  PetscInt :: pgas_index, xmol_index, pw_index
-  PetscInt :: saturation_index
-  PetscReal :: temp_real
+  PetscInt :: liq_pressure_index, gas_pressure_index, air_pressure_index, &
+              air_frac_index, temp_index, liq_sat_index, gas_sat_index, &
+              hyd_sat_index, ice_sat_index
+  PetscReal :: Pc_entry, dP
 
   PetscReal, parameter :: ALMOST_ZERO = 1.d-10
   PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
+  PetscReal, parameter :: eps_sat = 1.d-14
+  PetscReal, parameter :: epsilon = 1.d-14
+  PetscReal, parameter :: gravity = EARTH_GRAVITY
 
-  PetscReal, pointer :: X_p(:),dX_p(:)
+  PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
 
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
-
+  field => this%realization%field
   grid => this%realization%patch%grid
   patch => this%realization%patch
   option => this%realization%option
   hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
 
-!  changed = PETSC_TRUE
-if (PETSC_FALSE) then
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    offset = (local_id-1)*option%nflowdof
-    select case(global_auxvars(ghosted_id)%istate)
-      case(L_STATE)
-        ! Truncate liquid pressure > 0
-        pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
-        if (X_p(pw_index) - dX_p(pw_index) <= 0.d0) then
-          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        ! Truncate xmol > 0
-        xmol_index = offset + HYDRATE_L_STATE_X_MOLE_DOF
-        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-          dX_p(xmol_index) = X_p(xmol_index)
-          changed = PETSC_TRUE
-        endif
-      case(G_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(H_STATE)
-      case(I_STATE)
-      case(GA_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sg <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HG_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        ! Truncate 0 <= Sg <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HA_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        ! Truncate 0 <= Sh <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HI_STATE)
-      case(GI_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        ! Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(AI_STATE)
-        ! Truncate liquid pressure > 0
-        pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
-        if (X_p(pw_index) - dX_p(pw_index) <= 0.d0) then
-          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        ! Truncate xmol > 0
-        xmol_index = offset + HYDRATE_GAS_SATURATION_DOF
-        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-          dX_p(xmol_index) = X_p(xmol_index)
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HGA_STATE)
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sh <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HAI_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HGI_STATE)
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sh <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(GAI_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HGAI_STATE)
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sg <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-    end select
-  enddo
-endif
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  hid = option%hydrate_phase
+  iid = option%ice_phase
+  apid = option%air_pressure_id
+
+  call VecCopy(dX,field%flow_dxx,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
+
+  dX_p = -1.d0 * dX_p
+  dX_p2 = -1.d0 * dX_p2
+
+  changed = PETSC_TRUE
+
+  if (this%check_post_convergence) then
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      offset = (local_id-1)*option%nflowdof
+      hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
+      characteristic_curves => patch%characteristic_curves_array( &
+                               patch%cc_id(ghosted_id))%ptr
+
+      ! Compute surface tension
+      ! Compute entry pressure
+      Pc_entry = 0.d0
+      select type(sf => characteristic_curves%saturation_function)
+        class is (sat_func_vg_type)
+          Pc_entry = (1.d0 / characteristic_curves% &
+                      saturation_function%GetAlpha_())
+        !class is (sat_func_VG_STOMP_type)
+        !  Pc_entry = characteristic_curves% &
+        !             saturation_function%GetAlpha_() * &
+        !             LIQUID_REFERENCE_DENSITY * gravity
+        class default
+      end select
+
+      select case(global_auxvars(ghosted_id)%istate)
+        case(L_STATE)
+          liq_pressure_index = offset + ONE_INTEGER
+          air_frac_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid pressure
+          dP = 5.d-2 * hyd_auxvar%pres(gid)
+          dX_p(liq_pressure_index) = sign( min(dabs(dP), &
+          dabs(dX_p(liq_pressure_index))),dX_p(liq_pressure_index))
+
+          ! Zero negative corrections for zero aqueous CH4 or CO2
+          if (X_p(air_frac_index) / epsilon < epsilon .and. &
+              dX_p(air_frac_index) / epsilon < epsilon ) then
+            dX_p(air_frac_index) = 0.d0
+            dX_p2(air_frac_index) = 0.d0
+          endif
+          if ((X_p(air_frac_index) + dX_p(air_frac_index)) < 0.d0) &
+             dX_p(air_frac_index) = - X_p(air_frac_index)
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(G_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          air_pressure_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in gas partial pressure
+          if ((hyd_auxvar%pres(apid) / epsilon < epsilon) .and. &
+              (dX_p(air_pressure_index)/epsilon < epsilon)) then
+            dX_p(air_pressure_index) = 0.d0
+          endif
+          dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4) 
+          dX_p(air_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(air_pressure_index))), &
+                                     dX_p(air_pressure_index))
+          if (hyd_auxvar%pres(apid) + dX_p(air_pressure_index) < 1.d-6) &
+             dX_p(air_pressure_index) = - hyd_auxvar%pres(apid)
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(H_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(I_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(GA_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+          ! Relax pressure updates when transitioning to unsaturated
+          ! conditions
+          if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
+             (hyd_auxvar%pres(lid)) < Pc_entry ) then
+            dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
+          endif
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(HG_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(HA_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+          ! Relax pressure updates when transitioning to unsaturated
+          ! conditions
+          if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
+             (hyd_auxvar%pres(lid)) < Pc_entry ) then
+            dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
+          endif
+
+          !Limit changes in hydrate saturation
+          dP = 1.d-1
+          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+                                dX_p(hyd_sat_index))
+          if(hyd_auxvar%sat(lid) < eps_sat) dX_p(hyd_sat_index) = &
+                                            min(dX_p(hyd_sat_index),0.d0)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(HI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in hydrate saturation
+          dP = 1.d-1
+          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+                                dX_p(hyd_sat_index))
+          if(hyd_auxvar%sat(iid) < eps_sat) dX_p(hyd_sat_index) = &
+                                            min(dX_p(hyd_sat_index),0.d0)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(GI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          ice_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in ice saturation
+          if(hyd_auxvar%sat(gid) < eps_sat) dX_p(ice_sat_index) = &
+                                            min(dX_p(ice_sat_index),0.d0)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(AI_STATE)
+          liq_pressure_index = offset + ONE_INTEGER
+          air_frac_index = offset + TWO_INTEGER
+          liq_sat_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid pressure
+          dP = 5.d-2 * hyd_auxvar%pres(gid)
+          dX_p(liq_pressure_index) = sign( min(dabs(dP), &
+          dabs(dX_p(liq_pressure_index))),dX_p(liq_pressure_index))
+
+          ! Zero negative corrections for zero aqueous CH4 or CO2
+          if (X_p(air_frac_index) / epsilon < epsilon .and. &
+              dX_p(air_frac_index) / epsilon < epsilon ) then
+            dX_p(air_frac_index) = 0.d0
+            dX_p2(air_frac_index) = 0.d0
+          endif
+          if ((X_p(air_frac_index) + dX_p(air_frac_index)) < 0.d0) &
+             dX_p(air_frac_index) = - X_p(air_frac_index)
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+        case(HGA_STATE)
+          liq_sat_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+          !Limit changes in hydrate saturation
+          if(X_p(liq_sat_index) + dX_p(liq_sat_index) < eps_sat) &
+             dX_p(hyd_sat_index) = min(dX_p(hyd_sat_index),0.d0)
+
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(HAI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          liq_sat_index = offset + TWO_INTEGER
+          ice_sat_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+
+          !Limit changes in ice saturation
+          dP = 1.d-1
+          dX_p(ice_sat_index) = sign(min(dabs(dP),dabs(dX_p(ice_sat_index))), &
+                                dX_p(ice_sat_index))
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+        case(HGI_STATE)
+          ice_sat_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in ice saturation
+          dP = 1.d-1
+          dX_p(ice_sat_index) = sign(min(dabs(dP),dabs(dX_p(ice_sat_index))), &
+                                dX_p(ice_sat_index))
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+          !Limit changes in hydrate saturation
+          dP = 1.d-1
+          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+                                dX_p(hyd_sat_index))
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(GAI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+        case(HGAI_STATE)
+          liq_sat_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          ice_sat_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+          !Limit changes in ice saturation
+          dP = 1.d-1
+          dX_p(ice_sat_index) = sign(min(dabs(dP),dabs(dX_p(ice_sat_index))), &
+                                dX_p(ice_sat_index))
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+      end select
+    enddo
+  endif
 
   if (this%damping_factor > 0.d0) then
     dX_p = dX_p*this%damping_factor
     changed = PETSC_TRUE
   endif
 
+  dX_p = -1.d0 * dX_p
+
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
 
 end subroutine PMHydrateCheckUpdatePre
 
