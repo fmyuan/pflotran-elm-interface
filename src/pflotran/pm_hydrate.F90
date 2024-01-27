@@ -629,6 +629,14 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+      case('USE_GOVERNORS')
+        hydrate_use_governors = PETSC_TRUE
+      case('CHECK_SOLUTION_UPDATES')
+        hydrate_check_updates = PETSC_TRUE
+      case('USE_FULL_CONVERGENCE_CRITERIA')
+        hydrate_full_convergence = PETSC_TRUE
+      case('NO_UPDATE_TRUNCATION')
+        hydrate_truncate_updates = PETSC_FALSE
       case('CENTRAL_DIFFERENCE_JACOBIAN')
         hydrate_central_diff_jacobian = PETSC_TRUE
       case('HYDRATE_UPDATE_INF_TOL')
@@ -982,10 +990,16 @@ subroutine PMHydrateUpdateTimestep(this,update_dt, &
     endif
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
-    governed_dt = umin_scale * dt
-    dtt = min(time_step_max_growth_factor*dt,governed_dt)
-    dt = min(dtt,tfac(ifac)*dt,dt_max)
-    dt = max(dt,dt_min)
+    if (hydrate_use_governors) then
+      governed_dt = umin_scale * dt
+      dtt = min(time_step_max_growth_factor*dt,governed_dt)
+      dt = min(dtt,tfac(ifac)*dt,dt_max)
+      dt = max(dt,dt_min)
+    else
+      dtt = time_step_max_growth_factor*dt
+      dt = min(dtt,dt_max)
+      dt = max(dt,dt_min)
+    endif
 
     ! Inform user that time step is being limited by a state variable.
     if (Equal(dt,governed_dt)) then
@@ -1163,7 +1177,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   changed = PETSC_TRUE
 
-  if (this%check_post_convergence) then
+  if (this%check_post_convergence .and. hydrate_truncate_updates) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -1795,6 +1809,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   use Patch_module
   use Option_module
   use String_module
+  use EOS_Gas_module
 
   implicit none
 
@@ -1812,11 +1827,17 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  type(hydrate_auxvar_type) :: hyd_auxvar
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
+  PetscReal, pointer :: dX_p(:)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
+  PetscInt :: gid, lid, acid, wid, eid, hid, iid, spid, apid
   PetscReal :: R, A, R_A
+  PetscReal :: res_scaled, residual, accumulation, update
+  PetscReal :: Hc
   PetscReal, parameter :: A_zero = 1.d-15
   PetscBool :: converged_abs_residual_flag(3,15)
   PetscReal :: converged_abs_residual_real(3,15)
@@ -1832,7 +1853,8 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscBool :: rho_flag
-
+  PetscReal, parameter :: T_ref = 273.15d0
+  PetscReal, parameter :: epsilon = 1.d-14
 
   character(len=14), parameter :: state_string(15) = &
     ['Liquid State  ','Gas State     ','Hydrate State ','Ice State     ', &
@@ -1864,6 +1886,15 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
+  hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
+
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  hid = option%hydrate_phase
+  iid = option%ice_phase
+
+  apid = option%air_pressure_id
+  spid = option%saturation_pressure_id
 
   call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
@@ -1877,63 +1908,564 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
     converged_abs_residual_flag = PETSC_TRUE
     converged_abs_residual_real = 0.d0
     converged_abs_residual_cell = ZERO_INTEGER
     converged_scaled_residual_flag = PETSC_TRUE
     converged_scaled_residual_real = 0.d0
     converged_scaled_residual_cell = ZERO_INTEGER
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%nflowdof
-      ghosted_id = grid%nL2G(local_id)
-      natural_id = grid%nG2A(ghosted_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      istate = global_auxvars(ghosted_id)%istate
-      do idof = 1, option%nflowdof
-        ival = offset+idof
-        converged_absolute = PETSC_TRUE
-        converged_scaled = PETSC_TRUE
-        ! infinity norms on residual
-        R = dabs(r_p(ival))
-        A = dabs(accum2_p(ival))
-!         R_A = R/A
 
-        !TOUGH3 way:
-        if (A > 1.d0) then
-          R_A = R/A
-        else
-          R_A = R
-        endif
+    if (hydrate_full_convergence) then
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        natural_id = grid%nG2A(ghosted_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        istate = global_auxvars(ghosted_id)%istate
+        do idof = 1, option%nflowdof
+          ival = offset+idof
+          converged_absolute = PETSC_TRUE
+          converged_scaled = PETSC_TRUE
+          ! infinity norms on residual
+          R = dabs(r_p(ival))
+          A = dabs(accum2_p(ival))
 
-        if (R > this%residual_abs_inf_tol(idof)) then
+          if (A > 1.d0) then
+            R_A = R/A
+          else
+            R_A = R
+          endif
+
+          if (R > this%residual_abs_inf_tol(idof)) then
+            converged_absolute = PETSC_FALSE
+          endif
+
+          ! find max value regardless of convergence
+          if (converged_abs_residual_real(idof,istate) < R) then
+            converged_abs_residual_real(idof,istate) = R
+            converged_abs_residual_cell(idof,istate) = natural_id
+          endif
+          if (A > A_zero) then
+            if (R_A > this%residual_scaled_inf_tol(idof)) then
+              converged_scaled = PETSC_FALSE
+            endif
+            ! find max value regardless of convergence
+            if (converged_scaled_residual_real(idof,istate) < R_A) then
+              converged_scaled_residual_real(idof,istate) = R_A
+              converged_scaled_residual_cell(idof,istate) = natural_id
+            endif
+          endif
+          ! only enter this condition if both are not converged
+          if (.not.(converged_absolute .or. converged_scaled)) then
+            converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+            converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+          endif
+        enddo
+      enddo
+
+    else
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        natural_id = grid%nG2A(ghosted_id)
+
+        hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
+
+        if (patch%imat(ghosted_id) <= 0) cycle
+        istate = global_auxvars(ghosted_id)%istate
+        do idof = 1, option%nflowdof
+          res_scaled = 0.d0
+          ival = offset+idof
           converged_absolute = PETSC_FALSE
-        endif
+          converged_scaled = PETSC_TRUE
 
-        ! find max value regardless of convergence
-        if (converged_abs_residual_real(idof,istate) < R) then
-          converged_abs_residual_real(idof,istate) = R
-          converged_abs_residual_cell(idof,istate) = natural_id
-        endif
-        if (A > A_zero) then
-          if (R_A > this%residual_scaled_inf_tol(idof)) then
+          residual = r_p(ival)
+          accumulation = accum2_p(ival)
+          update = dX_p(ival)
+
+          select case (istate)
+            case(L_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/ (dabs(hyd_auxvar%pres(lid))), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                if (hyd_auxvar%xmol(acid,lid) > 1.d-10) then
+                  call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid), &
+                                   Hc,ierr)
+                  res_scaled = min(dabs(update) / &
+                               max(hyd_auxvar%pres(gid)/Hc, &
+                               HYD_REFERENCE_PRESSURE/Hc), &
+                               dabs(residual / (accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                   converged_scaled_residual_real(idof,istate) = res_scaled
+                   converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(G_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(apid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(H_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(I_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(GA_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HG_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HA_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(GI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(AI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(lid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                if (hyd_auxvar%xmol(acid,lid) > 1.d-10) then
+                  call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid), &
+                                   Hc,ierr)
+                  res_scaled = min(dabs(update) / &
+                               max(hyd_auxvar%pres(gid)/Hc, &
+                               HYD_REFERENCE_PRESSURE/Hc), &
+                               dabs(residual / (accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                   converged_scaled_residual_real(idof,istate) = res_scaled
+                   converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = residual/(dabs(accumulation + epsilon))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HGA_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HAI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = residual/(dabs(accumulation + epsilon))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HGI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(GAI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HGAI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = residual/(dabs(accumulation + epsilon))
+              endif
+          end select
+
+          if (res_scaled > this%residual_scaled_inf_tol(idof)) then
             converged_scaled = PETSC_FALSE
           endif
-          ! find max value regardless of convergence
-          if (converged_scaled_residual_real(idof,istate) < R_A) then
-            converged_scaled_residual_real(idof,istate) = R_A
-            converged_scaled_residual_cell(idof,istate) = natural_id
+
+          if (.not.(converged_absolute .or. converged_scaled)) then
+           converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+           converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
           endif
-        endif
-        ! only enter this condition if both are not converged
-        if (.not.(converged_absolute .or. converged_scaled)) then
-          converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-          converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
-        endif
+        enddo
       enddo
-    enddo
+    endif
+
     call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
                                 ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
 
     this%converged_flag(:,:,RESIDUAL_INDEX) = converged_abs_residual_flag(:,:)
     this%converged_real(:,:,RESIDUAL_INDEX) = converged_abs_residual_real(:,:)
