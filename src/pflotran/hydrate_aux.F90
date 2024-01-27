@@ -10,6 +10,10 @@ module Hydrate_Aux_module
 
   private
 
+  PetscBool, public :: hydrate_full_convergence = PETSC_FALSE
+  PetscBool, public :: hydrate_use_governors = PETSC_FALSE
+  PetscBool, public :: hydrate_check_updates = PETSC_FALSE
+  PetscBool, public :: hydrate_truncate_updates = PETSC_TRUE
   PetscBool, public :: hydrate_print_state_transition = PETSC_TRUE
   PetscBool, public :: hydrate_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: hydrate_immiscible = PETSC_FALSE
@@ -4153,8 +4157,8 @@ subroutine EOSHydrateEnthalpy(T,H)
 
   !Enthalpy of gas hydrate as f(Temperature) (Handa, 1998)
   !
-  !Author: Michael Nole
-  !Date: 01/22/19
+  !Author: Michael Nole, David Fukuyama
+  !Date: 01/22/19 
   !
   implicit none
 
@@ -4162,6 +4166,7 @@ subroutine EOSHydrateEnthalpy(T,H)
   PetscReal, intent(out) :: H
 
   PetscReal, parameter :: Hh0 = -54734.d0 ! J/mol
+  PetscReal, parameter :: Hh0_c = -66800.d0  !J/mol
   PetscReal :: Cph, T_temp
 
   T_temp = T !TQD in C
@@ -4176,10 +4181,19 @@ subroutine EOSHydrateEnthalpy(T,H)
 
   !H = H / (Nhyd+1.d0)
 
-  !Constant Cp
-  Cph = 1620.d0*(MW_H2O*Nhyd + MW_CH4)/1.d3
-  H = Cph * (T-TQD) + Hh0 / (Nhyd + 1.d0)
-  H = H / 1.d3
+  select case(hydrate_former)
+    case(HYDRATE_FORMER_CH4)
+      !Constant Cp
+      Cph = 1620.d0*(FMWH2O*Nhyd + FMWCH4)/1.d3
+      H = Cph * (T-TQD) + Hh0 / (Nhyd + 1.d0)
+      H = H / 1.d3
+    case(HYDRATE_FORMER_CO2)
+      Cph = 1620.d0*(FMWH2O*Nhyd + FMWCO2)/1.d3
+      H = Cph * (T-TQD) + Hh0_c / (Nhyd + 1.d0)
+      H = H / 1.d3
+    case default
+      H = 0.d0
+  end select
 
 end subroutine EOSHydrateEnthalpy
 
