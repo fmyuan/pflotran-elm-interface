@@ -100,6 +100,7 @@ module Output_Aux_module
 
   type, public :: output_variable_type
     character(len=MAXWORDLENGTH) :: name   ! string that appears in hdf5 file
+    character(len=MAXWORDLENGTH) :: subname
     character(len=MAXWORDLENGTH) :: units
     ! jmf: change to snapshot_plot_only?
     PetscBool :: plot_only
@@ -166,6 +167,7 @@ module Output_Aux_module
             OutputVariableAppendDefaults, &
             OpenAndWriteInputRecord, &
             OutputOptionDestroy, &
+            OutputVariableGetName, &
             OutputVariableListDestroy, &
             OutputH5Create, &
             OutputH5Destroy
@@ -466,6 +468,7 @@ function OutputVariableCreate3(output_variable)
 
   new_output_variable => OutputVariableCreate()
   new_output_variable%name = output_variable%name
+  new_output_variable%subname = output_variable%subname
   new_output_variable%units = output_variable%units
   new_output_variable%plot_only = output_variable%plot_only
   new_output_variable%iformat = output_variable%iformat
@@ -493,6 +496,7 @@ subroutine OutputVariableInit(output_variable)
   type(output_variable_type) :: output_variable
 
   output_variable%name = ''
+  output_variable%subname = ''
   output_variable%units = ''
   output_variable%plot_only = PETSC_FALSE
   output_variable%iformat = 0
@@ -1222,6 +1226,15 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Waxman-Smits Clay Conductivity'
       category = OUTPUT_GENERIC
       id = WAXMAN_SMITS_CLAY_CONDUCTIVITY
+    case ('PARAMETER')
+      units = '?'
+      name = 'Parameter'
+      category = OUTPUT_GENERIC
+      id = NAMED_PARAMETER
+    case default
+      option%io_buffer = 'Unknown keyword "' // trim(word) // &
+        '" in OutputVariableToID.'
+      call PrintErrMsg(option)
   end select
 
 end subroutine OutputVariableToID
@@ -1249,7 +1262,8 @@ subroutine OutputWriteVariableListToHeader(fid,variable_list,cell_string, &
   PetscInt :: variable_count
 
   type(output_variable_type), pointer :: cur_variable
-  character(len=MAXWORDLENGTH) :: variable_name, units
+  character(len=MAXSTRINGLENGTH) :: variable_name
+  character(len=MAXWORDLENGTH) :: units
 
   variable_count = 0
   cur_variable => variable_list%first
@@ -1259,7 +1273,7 @@ subroutine OutputWriteVariableListToHeader(fid,variable_list,cell_string, &
       cur_variable => cur_variable%next
       cycle
     endif
-    variable_name = cur_variable%name
+    variable_name = OutputVariableGetName(cur_variable)
     units = cur_variable%units
     call OutputWriteToHeader(fid,variable_name,units,cell_string,icolumn)
     variable_count = variable_count + 1
@@ -1466,6 +1480,26 @@ subroutine OpenAndWriteInputRecord(option)
   endif
 
 end subroutine OpenAndWriteInputRecord
+
+! ************************************************************************** !
+
+function OutputVariableGetName(output_variable)
+  !
+  ! Returns the concatenated name of the variables
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  implicit none
+
+  type(output_variable_type) :: output_variable
+
+  character(len=:), allocatable :: OutputVariableGetName
+
+  OutputVariableGetName = trim(trim(output_variable%name) // ' ' // &
+                               output_variable%subname)
+
+end function OutputVariableGetName
 
 ! ************************************************************************** !
 

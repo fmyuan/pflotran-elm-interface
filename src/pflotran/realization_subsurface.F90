@@ -26,7 +26,7 @@ module Realization_Subsurface_class
 
   implicit none
 
-private
+  private
 
   type, public, extends(realization_base_type) :: realization_subsurface_type
 
@@ -88,7 +88,8 @@ private
             RealizationLimitDTByCFL, &
             RealizationReadGeopSurveyFile, &
             RealizationCheckConsistency, &
-            RealizationPrintStateAtCells
+            RealizationPrintStateAtCells, &
+            RealizationProcessOutputVarList
 
 contains
 
@@ -2954,6 +2955,131 @@ contains
   end function IntegersDiffer
 
 end subroutine RealizationCheckConsistency
+
+! ************************************************************************** !
+
+subroutine RealizationProcessOutputVarList(output_variable_list,realization)
+  !
+  ! Checks to ensure that output variables exist, maps PARAMETER output
+  ! variables with named parameters to the actual parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  use Material_Aux_module, only : soil_compressibility_index, &
+                                  soil_reference_pressure_index, &
+                                  electrical_conductivity_index, &
+                                  archie_cementation_exp_index, &
+                                  archie_saturation_exp_index, &
+                                  archie_tortuosity_index, &
+                                  surf_elec_conduct_index, &
+                                  ws_clay_conduct_index
+  use Option_module
+  use Output_Aux_module
+  use Parameter_module
+  use String_module
+  use Variables_module
+
+  implicit none
+
+  type(output_variable_list_type), pointer :: output_variable_list
+  class(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(parameter_type), pointer :: cur_parameter
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(output_variable_type), pointer :: cur_variable
+  PetscBool :: error_flag
+  PetscInt :: error_count
+
+  if (.not.associated(output_variable_list)) return
+
+  option => realization%option
+
+  cur_variable => output_variable_list%first
+  error_count =  0
+  do
+    if (.not.associated(cur_variable)) exit
+    error_flag = PETSC_FALSE
+    error_string = ''
+    select case(cur_variable%ivar)
+      case(SOIL_COMPRESSIBILITY)
+        if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
+      case(SOIL_REFERENCE_PRESSURE)
+        if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
+      case(ELECTRICAL_CONDUCTIVITY)
+        if (electrical_conductivity_index == 0 .and. &
+            (option%iflowmode == NULL_MODE .and. &
+             option%itranmode == NULL_MODE)) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY &
+            &(for ERT alone)'
+        endif
+      case(ARCHIE_CEMENTATION_EXPONENT)
+        if (archie_cementation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_SATURATION_EXPONENT)
+        if (archie_saturation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_TORTUOSITY_CONSTANT)
+        if (archie_tortuosity_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+        if (surf_elec_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+        if (ws_clay_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      ! ADD_SOIL_PROPERTY_INDEX_HERE
+      case(NAMED_PARAMETER)
+        cur_parameter => realization%parameter_list
+        do
+          if (.not.associated(cur_parameter)) exit
+          if (Stringcompare(cur_parameter%name,cur_variable%subname)) then
+            cur_variable%isubvar = cur_parameter%id
+            exit
+          endif
+          cur_parameter => cur_parameter%next
+        enddo
+        if (Uninitialized(cur_variable%isubvar)) then
+          error_flag = PETSC_TRUE
+          error_string = '- does not match a PARAMETER name'
+        endif
+    end select
+    if (error_flag) then
+      error_count = error_count + 1
+      if (error_count == 1) then
+        if (OptionPrintToScreen(option)) then
+          print *
+          print *, 'The following OUTPUT VARIABLES are undefined in this &
+            &simulation:'
+          print *
+        endif
+      endif
+      if (OptionPrintToScreen(option)) then
+        print *, '  ' // OutputVariableGetName(cur_variable) // &
+                 trim(error_string)
+      endif
+    endif
+    cur_variable => cur_variable%next
+  enddo
+  if (error_count > 0) then
+    option%io_buffer = 'Simulation was stopped due to undefined output &
+                       &variables.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RealizationProcessOutputVarList
 
 ! ************************************************************************** !
 

@@ -13,9 +13,10 @@ util_obj = \
 	${common_src}option.o \
 	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
-	${common_src}option_inversion.o \
-	${common_src}option_transport.o \
 	${common_src}option_geophysics.o \
+	${common_src}option_inversion.o \
+	${common_src}option_parameter.o \
+	${common_src}option_transport.o \
 	${common_src}output_aux.o \
 	${common_src}petsc_utility.o \
 	${common_src}pflotran_constants.o \
@@ -64,6 +65,7 @@ mode_process_model_obj = \
 	${common_src}pm_mphase.o \
 	${common_src}pm_nwt.o \
 	${common_src}pm_osrt.o \
+	${common_src}pm_parameter.o \
 	${common_src}pm_pnf.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
@@ -115,6 +117,7 @@ shared_mode_aux_obj = \
 	${common_src}lookup_table.o \
 	${common_src}material_aux.o \
 	${common_src}nw_transport_aux.o \
+	${common_src}parameter.o \
 	${common_src}reactive_transport_aux.o
 
 # DO NOT place any object files that depend on the discretization within

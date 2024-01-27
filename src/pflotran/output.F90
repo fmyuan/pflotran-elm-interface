@@ -35,8 +35,6 @@ module Output_module
             OutputVariableRead, &
             OutputFileRead, &
             OutputInputRecord, &
-            OutputEnsureVariablesExist, &
-            OutputListEnsureVariablesExist, &
             OutputFindNaNOrInfInVec
 
 contains
@@ -1000,7 +998,15 @@ subroutine OutputVariableRead(input,option,output_variable_list)
             exit
           endif
         enddo
-! IMPORANT
+      case('PARAMETER')
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
+        call InputReadWord(input,option,output_variable%subname,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PARAMETER NAME','VARIABLES,PARAMETER')
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+! IMPORTANT
 ! Developers: Before you add a new case statement, does the new
 ! have non-default values (see OutputVariableInit). If no, do
 ! not add a new case statement as "case default" will work.
@@ -1362,13 +1368,13 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   if (associated(output_option%output_snap_variable_list%first)) then
     write(id,'(a29)',advance='no') 'variable list: '
     cur_variable => output_option%output_snap_variable_list%first
-    write(id,'(a)') trim(cur_variable%name) // ' [' // &
+    write(id,'(a)') OutputVariableGetName(cur_variable) // ' [' // &
                     trim(cur_variable%units) // ']'
     cur_variable => cur_variable%next
     do
       if (.not.associated(cur_variable)) exit
       write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') trim(cur_variable%name) // ' [' // &
+      write(id,'(a)') OutputVariableGetName(cur_variable) // ' [' // &
            trim(cur_variable%units) // ']'
       cur_variable => cur_variable%next
     enddo
@@ -1422,12 +1428,12 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   if (associated(output_option%output_obs_variable_list%first)) then
     write(id,'(a29)',advance='no') 'variable list: '
     cur_variable => output_option%output_obs_variable_list%first
-    write(id,'(a)') trim(cur_variable%name)
+    write(id,'(a)') OutputVariableGetName(cur_variable)
     cur_variable => cur_variable%next
     do
       if (.not.associated(cur_variable)) exit
       write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') trim(cur_variable%name) // ' [' // &
+      write(id,'(a)') OutputVariableGetName(cur_variable) // ' [' // &
            trim(cur_variable%units) // ']'
       cur_variable => cur_variable%next
     enddo
@@ -2468,136 +2474,6 @@ subroutine OutputAvegVars(realization_base)
   endif
 
 end subroutine OutputAvegVars
-
-! ************************************************************************** !
-
-subroutine OutputEnsureVariablesExist(output_option,option)
-  !
-  ! Loop over output variables to ensure that they exist in the simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/02/17
-  !
-  use Option_module
-
-  implicit none
-
-  type(output_option_type) :: output_option
-  type(option_type) :: option
-
-  call OutputListEnsureVariablesExist(output_option%output_variable_list, &
-                                      option)
-  call OutputListEnsureVariablesExist(output_option%output_snap_variable_list, &
-                                      option)
-  call OutputListEnsureVariablesExist(output_option%output_obs_variable_list, &
-                                      option)
-  call OutputListEnsureVariablesExist(output_option%aveg_output_variable_list, &
-                                      option)
-
-end subroutine OutputEnsureVariablesExist
-
-! ************************************************************************** !
-
-subroutine OutputListEnsureVariablesExist(output_variable_list,option)
-  !
-  ! Loop over output variables to ensure that they exist in the simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/02/17
-  !
-  use Option_module
-  use Material_Aux_module, only : soil_compressibility_index, &
-                                  soil_reference_pressure_index, &
-                                  electrical_conductivity_index, &
-                                  archie_cementation_exp_index, &
-                                  archie_saturation_exp_index, &
-                                  archie_tortuosity_index, &
-                                  surf_elec_conduct_index, &
-                                  ws_clay_conduct_index
-
-  use Variables_module
-
-  implicit none
-
-  type(output_variable_list_type), pointer :: output_variable_list
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: error_string
-  type(output_variable_type), pointer :: cur_variable
-  PetscBool :: error_flag
-  PetscInt :: error_count
-
-  if (.not.associated(output_variable_list)) return
-
-  cur_variable => output_variable_list%first
-  error_count =  0
-  do
-    if (.not.associated(cur_variable)) exit
-    error_flag = PETSC_FALSE
-    error_string = ''
-    select case(cur_variable%ivar)
-      case(SOIL_COMPRESSIBILITY)
-        if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
-      case(SOIL_REFERENCE_PRESSURE)
-        if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
-      case(ELECTRICAL_CONDUCTIVITY)
-        if (electrical_conductivity_index == 0 .and. &
-            (option%iflowmode == NULL_MODE .and. &
-             option%itranmode == NULL_MODE)) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY &
-            &(for ERT alone)'
-        endif
-      case(ARCHIE_CEMENTATION_EXPONENT)
-        if (archie_cementation_exp_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(ARCHIE_SATURATION_EXPONENT)
-        if (archie_saturation_exp_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(ARCHIE_TORTUOSITY_CONSTANT)
-        if (archie_tortuosity_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-        if (surf_elec_conduct_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-        if (ws_clay_conduct_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      ! ADD_SOIL_PROPERTY_INDEX_HERE
-    end select
-    if (error_flag) then
-      error_count = error_count + 1
-      if (error_count == 1) then
-        if (OptionPrintToScreen(option)) then
-          print *
-          print *, 'The following OUTPUT VARIABLES are undefined in this &
-            &simulation:'
-          print *
-        endif
-      endif
-      if (OptionPrintToScreen(option)) then
-        print *, '  ' // trim(cur_variable%name) // trim(error_string)
-      endif
-    endif
-    cur_variable => cur_variable%next
-  enddo
-  if (error_count > 0) then
-    option%io_buffer = 'Simulation was stopped due to undefined output &
-                       &variables.'
-    call PrintErrMsg(option)
-  endif
-
-end subroutine OutputListEnsureVariablesExist
 
 ! ************************************************************************** !
 

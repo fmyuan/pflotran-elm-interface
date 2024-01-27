@@ -95,7 +95,7 @@ subroutine OutputVTK(realization_base)
     call OutputGetVariableArray(realization_base,global_vec,cur_variable)
     call DiscretizationGlobalToNatural(discretization,global_vec, &
                                         natural_vec,ONEDOF)
-    word=trim(cur_variable%name)
+    word = OutputVariableGetName(cur_variable)
     call StringSwapChar(word," ","_")
     if (cur_variable%iformat == 0) then
       call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base, &

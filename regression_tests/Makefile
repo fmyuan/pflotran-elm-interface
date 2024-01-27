@@ -84,6 +84,7 @@ STANDARD_CFG = \
 	default/numerical/numerical.cfg \
 	default/output/compare/compare.cfg \
 	default/output/output.cfg \
+	default/parameter/parameter.cfg \
 	default/restart/restart.cfg \
 	default/restart/skip/skip.cfg \
 	default/reaction_sandbox/reaction_sandbox.cfg \

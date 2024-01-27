@@ -10,6 +10,18 @@ SIMULATION
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
     /
+    PARAMETER test3
+      PARAMETER_NAME test
+      WHEN_TO_UPDATE AFTER_LAST_PM
+    /
+    PARAMETER test2
+      PARAMETER_NAME test
+      WHEN_TO_UPDATE AFTER_LAST_PM
+    /
+    PARAMETER test1
+      PARAMETER_NAME test
+      WHEN_TO_UPDATE AFTER_FLOW
+    /
   /
   CHECKPOINT
     TIMES d 50.d0 60.d0
@@ -18,6 +30,12 @@ SIMULATION
 END
 
 SUBSURFACE
+
+#=========================== parameters =======================================
+PARAMETER
+  NAME test
+  VALUE 86.d0
+END
 
 #=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW

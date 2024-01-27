@@ -31,6 +31,7 @@ module Global_Aux_module
     PetscReal, pointer :: dphi(:,:) !geh: why here?
 !geh    PetscReal :: scco2_eq_logK ! SC CO2
     PetscReal, pointer :: darcy_vel(:)
+    PetscReal, pointer :: parameters(:)
 
   end type global_auxvar_type
 
@@ -127,6 +128,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   nullify(auxvar%mass_balance_delta)
   nullify(auxvar%dphi)
   nullify(auxvar%darcy_vel)
+  nullify(auxvar%parameters)
 
   nphase = max(option%nphase,option%transport%nphase)
 
@@ -231,6 +233,11 @@ subroutine GlobalAuxVarInit(auxvar,option)
     auxvar%mass_balance_delta = 0.d0
   endif
 
+  if (option%parameter%num_parameters > 0) then
+    allocate(auxvar%parameters(option%parameter%num_parameters))
+    auxvar%parameters = 0.d0
+  endif
+
 end subroutine GlobalAuxVarInit
 
 ! ************************************************************************** !
@@ -300,6 +307,10 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
       associated(auxvar2%mass_balance)) then
     auxvar2%mass_balance = auxvar%mass_balance
     auxvar2%mass_balance_delta = auxvar%mass_balance_delta
+  endif
+
+  if (associated(auxvar2%parameters)) then
+    auxvar2%parameters = auxvar%parameters
   endif
 
 end subroutine GlobalAuxVarCopy
@@ -390,6 +401,8 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%mass_balance)
   call DeallocateArray(auxvar%mass_balance_delta)
 
+  call DeallocateArray(auxvar%parameters)
+
 end subroutine GlobalAuxVarStrip
 
 ! ************************************************************************** !
@@ -401,6 +414,7 @@ subroutine GlobalAuxDestroy(aux)
   ! Author: Glenn Hammond
   ! Date: 02/14/08
   !
+  use Utility_module
 
   implicit none
 

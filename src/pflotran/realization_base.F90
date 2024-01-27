@@ -3,20 +3,19 @@ module Realization_Base_class
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Patch_module
-
-  use Discretization_module
-  use Option_module
-  use Input_Aux_module
-  use Debug_module
-  use Output_Aux_module
-  use Field_module
-  use Reaction_Base_module
-  use Data_Mediator_Base_class
   use Communicator_Base_class
-  use Waypoint_module
-
+  use Data_Mediator_Base_class
+  use Discretization_module
+  use Debug_module
+  use Field_module
+  use Input_Aux_module
+  use Option_module
+  use Output_Aux_module
+  use Parameter_module
+  use Patch_module
   use PFLOTRAN_Constants_module
+  use Reaction_Base_module
+  use Waypoint_module
 
   implicit none
 
@@ -35,6 +34,7 @@ module Realization_Base_class
     type(output_option_type), pointer :: output_option
     class(data_mediator_base_type), pointer :: flow_data_mediator_list
     class(data_mediator_base_type), pointer :: tran_data_mediator_list
+    type(parameter_type), pointer :: parameter_list
 
     class(reaction_base_type), pointer :: reaction_base
 
@@ -82,6 +82,7 @@ subroutine RealizationBaseInit(realization_base,option)
   nullify(realization_base%patch)
   nullify(realization_base%flow_data_mediator_list)
   nullify(realization_base%tran_data_mediator_list)
+  nullify(realization_base%parameter_list)
 
 end subroutine RealizationBaseInit
 
@@ -274,6 +275,7 @@ subroutine RealizationBaseStrip(this)
 
   call DataMediatorDestroy(this%flow_data_mediator_list)
   call DataMediatorDestroy(this%tran_data_mediator_list)
+  call ParameterDestroy(this%parameter_list)
 
   ! Intel does not accept r=>this%reaction_base as it says it is not a
   ! pointer; therefore, have to cast below

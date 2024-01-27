@@ -840,6 +840,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Utility_module
   use Checkpoint_module
   use Simulation_Subsurface_class
+  use Parameter_module
   use PMC_Base_class
   use PMC_Subsurface_class
   use PMC_Geophysics_class
@@ -926,6 +927,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input
   type(survey_type), pointer :: survey
+  type(parameter_type), pointer :: parameter
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -2407,6 +2409,14 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
       case ('WELLBORE_MODEL')
         call PMWellReadPass2(input,option)
+
+!....................
+      case ('PARAMETER')
+        parameter => ParameterCreate()
+        call InputReadWord(input,option,parameter%name,PETSC_FALSE)
+        call ParameterRead(parameter,input,option)
+        call ParameterAddToList(parameter,realization%parameter_list)
+        nullify(parameter)
 
 !....................
       case ('END_SUBSURFACE')
