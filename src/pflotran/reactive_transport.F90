@@ -3631,7 +3631,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
     call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
   endif
 
-  if (update_bcs) then
+  if (update_bcs .and. reaction%naqcomp > 0) then
 
     call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
 

@@ -1271,12 +1271,18 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
     enddo
   enddo
 
-  ! place ordered constraint parameters back in original arrays
-  aq_species_constraint%constraint_type = constraint_type
-  aq_species_constraint%constraint_aux_string = constraint_aux_string
-  aq_species_constraint%constraint_spec_id = constraint_id
-  aq_species_constraint%constraint_conc = constraint_conc
-  aq_species_constraint%external_dataset = external_dataset
+  if (associated(aq_species_constraint)) then
+    ! place ordered constraint parameters back in original arrays
+    aq_species_constraint%constraint_type = constraint_type
+    aq_species_constraint%constraint_aux_string = constraint_aux_string
+    aq_species_constraint%constraint_spec_id = constraint_id
+    aq_species_constraint%constraint_conc = constraint_conc
+    aq_species_constraint%external_dataset = external_dataset
+  endif
+
+  ! microbial immobile
+  call ReactionImProcessConstraint(reaction%immobile,constraint%name, &
+                                   immobile_constraint,option)
 
   if (.not.reaction%use_full_geochemistry) return
 
@@ -1316,10 +1322,6 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   call ReactionSrfCplxProcessConstraint(reaction%surface_complexation, &
                                 constraint%name, &
                                 srfcplx_constraint,option)
-
-  ! microbial immobile
-  call ReactionImProcessConstraint(reaction%immobile,constraint%name, &
-                                   immobile_constraint,option)
 
 end subroutine ReactionProcessConstraint
 
@@ -1414,6 +1416,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                yco2,pco2,sat_pressure,lngamco2
   PetscInt :: iflag, ierror
   PetscErrorCode :: ierr
+
+  if (.not.associated(constraint%aqueous_species)) return
 
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
@@ -4608,7 +4612,10 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  rt_auxvar%total = 0.d0
+  if (reaction%naqcomp > 0) then
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  endif
   if (reaction%neqsorb > 0) then
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,reaction%isotherm%isotherm_rxn,option)
@@ -4618,8 +4625,6 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
   endif
-
-
 
 end subroutine RTotal
 
@@ -4653,8 +4658,6 @@ subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal
   PetscReal :: den_kg_per_L, xmass
-
-  rt_auxvar%total = 0.d0 !debugging
 
   xmass = 1.d0
   if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(iphase)
