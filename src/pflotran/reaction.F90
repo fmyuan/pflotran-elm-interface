@@ -852,6 +852,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
       case('USE_FULL_GEOCHEMISTRY')
         reaction%use_full_geochemistry = PETSC_TRUE
+        reaction%read_reaction_database = PETSC_TRUE
       case('LOGGING_VERBOSITY')
         call InputReadInt(input,option,reaction%logging_verbosity)
         call InputErrorMsg(input,option,'logging verbosity','CHEMISTRY')
@@ -913,6 +914,13 @@ subroutine ReactionReadPass1(reaction,input,option)
       reaction_clm_read .or. &
       reaction_sandbox_read) then
     reaction%use_full_geochemistry = PETSC_TRUE
+  endif
+  if (reaction%neqcplx + reaction%mineral%nmnrl + &
+      reaction%neqionxrxn + reaction%surface_complexation%neqsrfcplxrxn + &
+      reaction%surface_complexation%nkinmrsrfcplxrxn + &
+      reaction%surface_complexation%nkinsrfcplxrxn + &
+      ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0) then
+    reaction%read_reaction_database = PETSC_TRUE
   endif
 
   ! ensure that update porosity is ON if update of tortuosity, permeability or
@@ -1284,7 +1292,7 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   call ReactionImProcessConstraint(reaction%immobile,constraint%name, &
                                    immobile_constraint,option)
 
-  if (.not.reaction%use_full_geochemistry) return
+  if (.not.reaction%read_reaction_database) return
 
   ! free ion guess
   if (associated(free_ion_guess_constraint)) then
@@ -2203,7 +2211,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
                           global_auxvar%sat(iphase)*1000.d0
 
 ! compute mole and mass fractions of H2O
-  if (reaction%use_full_geochemistry) then
+  if (reaction%read_reaction_database) then
     sum_molality = 0.d0
     do icomp = 1, reaction%naqcomp
       if (icomp /= reaction%species_idx%h2o_aq_id) then
@@ -2235,7 +2243,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
   molal_to_molar = global_auxvar%den_kg(iphase)/1000.d0
   molar_to_molal = 1.d0/molal_to_molar
 
-  if (.not.reaction%use_full_geochemistry) then
+  if (.not.reaction%read_reaction_database) then
     100 format(/,'  species       molality')
     write(option%fid_out,100)
     101 format(2x,a12,es12.4)

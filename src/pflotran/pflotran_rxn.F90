@@ -23,6 +23,7 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
+  use Reaction_Setup_module
   use Option_module
   use Input_Aux_module
   use String_module
@@ -53,8 +54,11 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
 
   if (associated(reaction)) then
     if (reaction%use_full_geochemistry) then
-       call ReactionDBReadDatabase(reaction, option)
-       call ReactionDBInitBasis(reaction, option)
+      call ReactionDBReadDatabase(reaction, option)
+      call ReactionDBInitBasis(reaction, option)
+      call ReactionSetupKinetics(reaction, option)
+      call ReactionSetupSpecificSpecies(reaction, option)
+      call ReactionSetupSpeciesSummary(reaction, option)
     else
       ! NOTE(bja): do we need this for the batch chemistry driver?
 

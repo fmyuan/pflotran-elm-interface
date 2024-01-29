@@ -158,6 +158,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_radon.o \
 	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
+	${common_src}reaction_setup.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \

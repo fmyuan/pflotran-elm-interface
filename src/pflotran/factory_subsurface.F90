@@ -457,6 +457,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Init_Common_module
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reaction_Database_module
+  use Reaction_Setup_module
   use EOS_module
   use Dataset_module
   use Patch_module
@@ -486,16 +487,17 @@ subroutine FactorySubsurfSetupRealization(simulation)
   select case(option%itranmode)
     case(RT_MODE)
       ! read reaction database
-      if (realization%reaction%use_full_geochemistry) then
+      if (realization%reaction%read_reaction_database) then
         call ReactionDBReadDatabase(realization%reaction,option)
         call ReactionDBInitBasis(realization%reaction,option)
       else
         ! turn off activity coefficients since the database has not been read
         realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-        !TODO(jenn) Should I turn on print here too?
-        allocate(realization%reaction%primary_species_print(option%ntrandof))
-        realization%reaction%primary_species_print = PETSC_TRUE
+        call ReactionSetupPrimaryPrint(realization%reaction,option)
       endif
+      call ReactionSetupKinetics(realization%reaction,option)
+      call ReactionSetupSpecificSpecies(realization%reaction,option)
+      call ReactionSetupSpeciesSummary(realization%reaction,option)
 
       ! SK 09/30/13, Added to check if Mphase is called with OS
       if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &

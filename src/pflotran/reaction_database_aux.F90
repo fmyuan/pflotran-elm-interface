@@ -394,7 +394,7 @@ end subroutine ReactionDBAlignSpeciesInRxn
 
 ! ************************************************************************** !
 
-subroutine ReactionDBSubSpecInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
+subroutine ReactionDBSubSpecInGasOrSecRxn(name1,dbaserxn1,dbaserxn2)
   !
   ! Swaps out a chemical species in a chemical
   ! reaction, replacing it with the species in a
@@ -411,11 +411,11 @@ subroutine ReactionDBSubSpecInGasOrSecRxn(name1,dbaserxn1,dbaserxn2,scale)
   character(len=MAXWORDLENGTH) :: name1
   type(database_rxn_type) :: dbaserxn1
   type(database_rxn_type) :: dbaserxn2
-  PetscReal :: scale
 
   PetscInt :: i, j, tempcount, prevcount
   character(len=MAXWORDLENGTH) :: tempnames(20)
   PetscReal :: tempstoich(20)
+  PetscReal :: scale
   PetscBool :: found
 
   tempnames = ''
@@ -491,7 +491,7 @@ end subroutine ReactionDBSubSpecInGasOrSecRxn
 
 ! ************************************************************************** !
 
-subroutine ReactionDBSubSpeciesInMnrlRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
+subroutine ReactionDBSubSpeciesInMnrlRxn(name,sec_dbaserxn,mnrl_dbaserxn)
   !
   ! Swaps out a chemical species in a chemical
   ! reaction, replacing it with the species in a
@@ -507,11 +507,11 @@ subroutine ReactionDBSubSpeciesInMnrlRxn(name,sec_dbaserxn,mnrl_dbaserxn,scale)
   character(len=MAXWORDLENGTH) :: name
   type(database_rxn_type) :: sec_dbaserxn
   type(database_rxn_type) :: mnrl_dbaserxn
-  PetscReal :: scale
 
   PetscInt :: i, j, tempcount, prevcount
   character(len=MAXWORDLENGTH) :: tempnames(20)
   PetscReal :: tempstoich(20)
+  PetscReal :: scale
   PetscBool :: found
 
   tempnames = ''
