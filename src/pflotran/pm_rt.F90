@@ -1680,10 +1680,7 @@ subroutine PMRTRestartBinary(this,viewer)
 
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-  if (realization%reaction%use_full_geochemistry) then
-                                     ! cells     bcs        act coefs.
-    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
-  endif
+  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   ! do not update kinetics.
   call PMRTUpdateSolution2(this,PETSC_FALSE)
 
@@ -2206,11 +2203,8 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
   endif
-
-  if (realization%reaction%use_full_geochemistry) then
-                                     ! cells     bcs        act coefs.
-    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
-  endif
+                                   ! cells     bcs        act coefs.
+  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   ! do not update kinetics.
   call PMRTUpdateSolution2(this,PETSC_FALSE)
 
