@@ -93,6 +93,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   grid => patch%grid
 
   material_property_array => realization%patch%material_property_array
+  material_auxvars => realization%patch%aux%Material%auxvars
   
   ! to catch uninitialized grid cells.  see VecMin check at bottom.
   call VecSet(field%work_loc,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
