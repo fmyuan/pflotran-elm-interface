@@ -1017,12 +1017,6 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       category = OUTPUT_GENERIC
       id = PERMEABILITY
     case ('PERMEABILITY_X')
-    case('THERMAL_CONDUCTIVITY')
-      units = 'W/m-K'
-      name = 'Thermal Conductivity'
-      category = OUTPUT_GENERIC
-      id = THERMAL_CONDUCTIVITY
-    case ('PERMEABILITY','PERMEABILITY_X')
       units = 'm^2'
       name = 'Permeability X'
       category = OUTPUT_GENERIC
@@ -1092,6 +1086,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Gas Relative Permeability'
       category = OUTPUT_GENERIC
       id = GAS_RELATIVE_PERMEABILITY
+    case('THERMAL_CONDUCTIVITY')
+      units = 'W/m-K'
+      name = 'Thermal Conductivity'
+      category = OUTPUT_GENERIC
+      id = THERMAL_CONDUCTIVITY
     case ('SOIL_COMPRESSIBILITY')
       units = ''
       name = 'Compressibility'

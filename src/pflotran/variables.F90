@@ -203,6 +203,6 @@ module Variables_module
   PetscInt, parameter, public :: LIQUID_SALT_MASS_FRAC = 163
   PetscInt, parameter, public :: TRAPPED_GAS_SATURATION = 164
 
-  PetscInt, parameter, public :: THERMAL_CONDUCTIVITY = 159
+  PetscInt, parameter, public :: THERMAL_CONDUCTIVITY = 165
 
 end module Variables_module
