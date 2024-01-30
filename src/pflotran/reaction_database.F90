@@ -113,7 +113,10 @@ subroutine ReactionDBReadDatabase(reaction,option)
   enddo
 
   if (len_trim(reaction%database_filename) < 2) then
-    option%io_buffer = 'Database filename not included in input deck.'
+    option%io_buffer = 'A reaction database is required due to the &
+      &reactions specified within the CHEMISTRY block, but a &
+      &DATABASE filename has not been included within the CHEMISTRY &
+      &block in the input deck.'
     call PrintErrMsg(option)
   endif
   input => InputCreate(IUNIT_TEMP,reaction%database_filename,option)
