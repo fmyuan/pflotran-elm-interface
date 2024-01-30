@@ -3113,10 +3113,10 @@ subroutine SCO2ComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
   call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
                                                             dpc_dsatl,option)
   select type(sf => characteristic_curves%saturation_function)
-      class is (sat_func_VG_STOMP_type)
-        ! Pc is the capillary head
-        Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
-      class default
+    class is (sat_func_VG_STOMP_type)
+      ! Pc is the capillary head
+      Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
+    class default
   end select
 
 
