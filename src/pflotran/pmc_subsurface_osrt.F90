@@ -205,6 +205,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: tempint
   PetscReal :: tconv
   PetscReal :: tempreal
+  PetscInt :: int_array(2)
   PetscReal :: guess(this%realization%reaction%ncomp)
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -378,9 +379,12 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
 
-    call MPI_Allreduce(MPI_IN_PLACE,rstep_error,ONE_INTEGER_MPI,MPI_INTEGER, &
-                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    int_array = [rstep_error,sum_newton_iterations]
+    call MPI_Allreduce(MPI_IN_PLACE,int_array,TWO_INTEGER_MPI,MPI_INTEGER, &
+                       MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
+    rstep_error = int_array(1)
+    sum_newton_iterations = int_array(2)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_reaction_time = &
       process_model%cumulative_reaction_time + log_end_time - log_start_time

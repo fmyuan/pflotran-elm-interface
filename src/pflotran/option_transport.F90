@@ -31,6 +31,7 @@ module Option_Transport_module
     PetscBool :: use_np ! nernst-planck diffusion.
     PetscBool :: sc_fixed_water_density
     PetscBool :: anisotropic_tortuosity
+    PetscBool :: conservative_transport_only
 
     PetscInt :: nphase
 
@@ -118,6 +119,7 @@ subroutine OptionTransportInitRealization(option)
   option%reactive_transport_coupling = GLOBAL_IMPLICIT
   option%nw_transport_coupling = GLOBAL_IMPLICIT
   option%numerical_derivatives = PETSC_FALSE
+  option%conservative_transport_only = PETSC_TRUE
 
   option%jumpstart_kinetic_sorption = PETSC_FALSE
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE

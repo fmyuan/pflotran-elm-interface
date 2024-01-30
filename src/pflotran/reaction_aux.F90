@@ -121,7 +121,6 @@ module Reaction_Aux_module
 
   type, public, extends(reaction_base_type) :: reaction_rt_type
     character(len=MAXSTRINGLENGTH) :: database_filename
-    PetscBool :: use_full_geochemistry
     PetscBool :: read_reaction_database
     PetscReal :: truncated_concentration
     PetscBool :: check_update
@@ -395,7 +394,6 @@ function ReactionAuxCreateAux()
   reaction%print_act_coefs = PETSC_FALSE
   reaction%truncated_concentration = UNINITIALIZED_DOUBLE
   reaction%check_update = PETSC_TRUE
-  reaction%use_full_geochemistry = PETSC_FALSE
   reaction%read_reaction_database = PETSC_FALSE
   reaction%use_activity_h2o = PETSC_FALSE
   reaction%calculate_tracer_age = PETSC_FALSE
