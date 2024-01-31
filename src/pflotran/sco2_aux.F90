@@ -11,13 +11,13 @@ module SCO2_Aux_module
 
   ! Physical Properties
   ! MAN: change FMWNACL and density to generic salt?
-  PetscReal, parameter, public :: fmw_comp(3) = [FMWH2O,FMWCO2,FMWNACL]
+  PetscReal, parameter, public :: fmw_comp(3) = [18.015d0,44.01d0,58.4428d0]
   PetscReal, parameter, public :: SALT_DENSITY_KG = 2.170D3 !kg/m^3
   ! PetscReal, parameter, public :: SALT_THERMAL_CONDUCTIVITY = 6.d0 !W/m-K
   PetscReal, parameter :: CO2_REFERENCE_SURFACE_TENSION = 0.072d0 ! N/m
   PetscReal, parameter :: SALT_REFERENCE_TEMPERATURE = 293.15d0
   PetscReal, parameter :: LIQUID_REFERENCE_VISCOSITY = 1.01764892595942d-3
-  PetscReal, parameter, public :: LIQUID_REFERENCE_DENSITY = 998.32142721500441
+  PetscReal, parameter, public :: LIQUID_REFERENCE_DENSITY=998.32142721500441d0
   PetscReal, parameter, public :: SCO2_REFERENCE_PRESSURE = 101325.d0
 
   ! Solution Control
@@ -1115,9 +1115,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       !               Liquid Pressure, Aqueous CO2 mass fraction,
       !               Temperature, total NaCl brine fraction (kg NaCl/kg brine)
 
-      ! MAN: I wonder if this way runs into issues with lagging dissolved
-      !      salt mass fraction
-
       ! Primary Variables
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
       sco2_auxvar%xmass(co2_id,lid) = x(SCO2_CO2_MASS_FRAC_DOF)
@@ -1496,7 +1493,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                             sco2_auxvar%xmass(wid,gid) * &
                             den_steam_kg
   ! Gas phase viscosity
-  call SCO2ViscosityWater(sco2_auxvar%temp,sco2_auxvar%pres(vpid), &
+  call SCO2ViscosityWater(sco2_auxvar%temp,sco2_auxvar%pres(rvpid), &
                           den_steam_kg,visc_water,option)
   call SCO2ViscosityCO2(sco2_auxvar%temp,sco2_auxvar%den_kg(co2_pressure_id), &
                         visc_co2)
@@ -1515,7 +1512,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                           sco2_auxvar%den_kg(pwid),visc_water,option)
   call SCO2ViscosityBrine(sco2_auxvar%temp, sco2_auxvar%xmass(sid,lid), &
                           visc_water, visc_brine)
-  call SCO2ViscosityLiquid(sco2_auxvar%xmass(co2_id,lid), visc_brine, &
+  call SCO2ViscosityLiquid(sco2_auxvar%xmol(co2_id,lid), visc_brine, &
                            visc_co2, sco2_auxvar%visc(lid))
 
   ! CO2-water surface tension
@@ -1544,7 +1541,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%liq_rel_perm_function% &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(lid), &
                                 dkrl_dsatl,option)
-  !sco2_auxvar%kr(lid) = min(max(sco2_auxvar%kr(lid),1.d-24),1.d0)
+  sco2_auxvar%kr(lid) = min(max(sco2_auxvar%kr(lid),1.d-24),1.d0)
   call characteristic_curves%gas_rel_perm_function% &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(gid), &
                                 dkrg_dsatl,option)
@@ -1863,7 +1860,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
     xmolsl = (1.d0 - xmolco2l)*xmolsl
     xmolwl = 1.d0 - xmolco2l - xmolsl
 
-    xmolwg = xmolwg * p_vap / p_sat
+    xmolwg = xmolwg * p_vap_brine / p_sat
     xmolco2g = 1.d0 - xmolwg
 
 
@@ -1872,7 +1869,6 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
     b = cbc
 
     ! RKS EOS coefficients
-    ! MAN: should compute gas density elsewhere and using Gas EOS routines?
     coeff_a = 1.d0
     coeff_b = -1.d0 * IDEAL_GAS_CONSTANT * 1.d1 * T_k / P_bar
     coeff_c = -1.d0 * ((IDEAL_GAS_CONSTANT * 1.d1 * T_k * b / P_bar) - &
@@ -1958,7 +1954,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
     xmolwl = 1.d0 - xmolco2l - xmolsl
 
     ! Vapor pressure lowering
-    xmolwg = xmolwg * p_vap / p_sat
+    xmolwg = xmolwg * p_vap_brine / p_sat
     xmolco2g = 1.d0 - xmolwg
 
   elseif (T_k > T_bound(2)) then ! High temperature regime
@@ -2004,8 +2000,6 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
   ! Liquid Phase
   xwl = xmolwl * fmw_comp(1) / fmw_liq
   xco2l = xmolco2l * fmw_comp(2) / fmw_liq
-  ! MAN: This might cause problems since mass frac was used previously to
-  !      compute intermediate variables.
   xsl = xmolsl * fmw_comp(3) / fmw_liq
 
 
@@ -3038,7 +3032,7 @@ subroutine SCO2ComputeSatHysteresis(characteristic_curves, Pc, Sl_min, &
   PetscReal, intent(inout) :: Sgt
   type(option_type) :: option
 
-  PetscReal, parameter :: gravity = EARTH_GRAVITY
+  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
 
   PetscReal :: dsat_dpres
   PetscReal :: R
@@ -3096,35 +3090,34 @@ subroutine SCO2ComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
   ! Date: 01/26/24
   !
 
-use Option_module
-use Characteristic_Curves_module
-use Characteristic_Curves_Common_module
+  use Option_module
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
 
-implicit none
+  implicit none
 
-class(characteristic_curves_type), intent(in) :: characteristic_curves
-PetscReal, intent(in) :: Sl
-PetscReal, intent(in) :: Sgt
-PetscReal, intent(in) :: beta_gl
-PetscReal, intent(out) :: Pc
-type(option_type) :: option
+  class(characteristic_curves_type), intent(in) :: characteristic_curves
+  PetscReal, intent(in) :: Sl
+  PetscReal, intent(in) :: Sgt
+  PetscReal, intent(in) :: beta_gl
+  PetscReal, intent(out) :: Pc
+  type(option_type) :: option
 
-PetscReal, parameter :: gravity = EARTH_GRAVITY
-PetscReal :: dpc_dsatl
-PetscReal :: Sl_eff
+  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
+  PetscReal :: dpc_dsatl
+  PetscReal :: Sl_eff
 
-! Add trapped gas to the liquid saturation before sending into the Pc function
-Sl_eff = Sl + Sgt
+  ! Add trapped gas to the liquid saturation before sending into the Pc function
+  Sl_eff = Sl + Sgt
 
-call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
+  call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
                                                             dpc_dsatl,option)
-select type(sf => characteristic_curves%saturation_function)
+  select type(sf => characteristic_curves%saturation_function)
     class is (sat_func_VG_STOMP_type)
       ! Pc is the capillary head
       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
     class default
-
-end select
+  end select
 
 
 end subroutine SCO2ComputePcHysteresis

@@ -738,8 +738,6 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
       dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
     endif
-    dt = min(dtt,dt_max)
-    dt = max(dt,dt_min)
 
     ! Inform user that time step is being limited by a state variable.
     if (Equal(dt,governed_dt)) then
@@ -1417,7 +1415,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
      dof_string = &
      reshape(['Liquid Pressure  ','CO2 Fraction     ', &
               'Salt Mass Frac   ', &
-              'Gas Pressure     ','CO2 Partial Pres ', &
+	      'Gas Pressure     ','CO2 Partial Pres ', &
               'Salt Mass Frac   ', &
               'Gas Pressure     ','Gas Saturation   ', &
               'Salt Mass Frac   ', &
