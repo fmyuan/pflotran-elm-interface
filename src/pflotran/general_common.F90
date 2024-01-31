@@ -4470,14 +4470,17 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                    gen_auxvar_ss%den(salt_comp_id)*scale
         dden_bool = 1.d0
     end select
-    if (general_min_porosity_flag) then
-      if (gen_auxvar_ss%effective_porosity <= general_min_porosity) then
-        qsrc_mol = 0.d0
-      endif
-    endif
     ss_flow_vol_flux(salt_comp_id) = qsrc_mol / &
                                     gen_auxvar_ss%den(salt_comp_id)
-    Res(salt_comp_id) = qsrc_mol
+    if (general_min_porosity_flag) then
+      if (gen_auxvar_ss%effective_porosity <= general_min_porosity*1.d2) then
+        Res(salt_comp_id) = 0.d0
+      else
+        Res(salt_comp_id) = qsrc_mol
+      endif
+    else
+      Res(salt_comp_id) = qsrc_mol
+    endif
     ! No analytical derivative for the salt phase
     if (analytical_derivatives) then
       option%io_buffer = 'Analytical derivatives not implemented in general mode with 4 dof.'
