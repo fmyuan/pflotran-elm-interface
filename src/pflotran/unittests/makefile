@@ -46,6 +46,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/option_flow.o \
 	$(EXE_DIR)/option_transport.o \
 	$(EXE_DIR)/option_geophysics.o \
+	$(EXE_DIR)/option_parameter.o \
 	$(EXE_DIR)/pflotran_constants.o \
 	$(EXE_DIR)/print.o \
 	$(EXE_DIR)/saturation_function.o \
@@ -64,6 +65,14 @@ endif
 ifdef gnu_code_coverage
   FFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov
+endif
+
+ifdef catch_warnings_as_errors
+  FFLAGS += -Werror=all -Wno-unused-dummy-argument
+endif
+
+ifdef gnu_runtime_checks
+  FFLAGS += -fcheck=all
 endif
 
 all : test
