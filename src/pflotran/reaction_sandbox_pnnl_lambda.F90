@@ -324,8 +324,9 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscInt, parameter :: iphase = 1
   PetscReal :: L_water
   PetscReal :: molality_to_molarity
-  PetscReal :: vh_L, sumkin, Biomass_mod
+  PetscReal :: vh_L, sumkin
   PetscReal :: nh4_inhibition, tempreal
+  PetscReal :: cc_inhibition
   PetscReal :: C_reactant_inhibit
 
   PetscReal :: Reactant_inhibition(this%n_species)
@@ -401,8 +402,8 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   ! Reactions are modulated by biomass concentration
   ! Biomass is moduluated by a carrying capacity (CC)
-  Biomass_mod = C_aq(this%i_biomass) * (1 - C_aq(this%i_biomass) / this%cc)
-  Biomass_mod = max(Biomass_mod, 0.d0)
+  cc_inhibition = C_aq(this%i_biomass) * (1 - C_aq(this%i_biomass) / this%cc)
+  cc_inhibition = max(cc_inhibition, 0.d0)
 
   Rate = 0.d0
 
@@ -416,12 +417,9 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
         endif
       endif
     enddo
-    if (C_aq(this%i_biomass) > this%cc) then
-      R(irxn) = 0
-    endif
     Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
   enddo
-  Rate(:) = Rate(:) * Biomass_mod * L_water
+  Rate(:) = Rate(:) * cc_inhibition * L_water
   Rate(this%i_biomass) = Rate(this%i_biomass) - &
                          this%k_deg * C_aq(this%i_biomass) * L_water
 
