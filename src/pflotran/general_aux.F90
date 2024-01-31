@@ -2575,8 +2575,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%perm_base = (material_auxvar%permeability(1)/&
          material_auxvar%porosity**(permeability_func_porosity_exp))
     else
-      material_auxvar%permeability(:) = gen_auxvar%perm_base * &
-        material_auxvar%porosity ** permeability_func_porosity_exp
+      material_auxvar%permeability(:) = min(1.d-20,gen_auxvar%perm_base * &
+        material_auxvar%porosity ** permeability_func_porosity_exp)
     endif
   endif
   if (global_auxvar%istate == LIQUID_STATE .or. &
