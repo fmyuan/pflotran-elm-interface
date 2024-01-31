@@ -406,20 +406,21 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   cc_inhibition = max(cc_inhibition, 0.d0)
 
   Rate = 0.d0
-
-  do irxn = 1, this%n_rxn
-    do icomp = 1, this%n_species
-      if (this%stoich(icomp,irxn) < 0.d0) then
-        if (icomp == this%i_nh4) then
-          R(irxn) = R(irxn) * nh4_inhibition
-        else
-          R(irxn) = R(irxn) * Reactant_inhibition(icomp)
+  if (cc_inhibition > 0.d0) then
+    do irxn = 1, this%n_rxn
+      do icomp = 1, this%n_species
+        if (this%stoich(icomp,irxn) < 0.d0) then
+          if (icomp == this%i_nh4) then
+            R(irxn) = R(irxn) * nh4_inhibition
+          else
+            R(irxn) = R(irxn) * Reactant_inhibition(icomp)
+          endif
         endif
-      endif
+      enddo
+      Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
     enddo
-    Rate(:) = Rate(:) + this%stoich(:,irxn) * R(irxn)
-  enddo
-  Rate(:) = Rate(:) * cc_inhibition * L_water
+    Rate(:) = Rate(:) * cc_inhibition * L_water
+  endif
   Rate(this%i_biomass) = Rate(this%i_biomass) - &
                          this%k_deg * C_aq(this%i_biomass) * L_water
 
