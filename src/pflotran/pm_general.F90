@@ -451,6 +451,16 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         general_min_porosity = tempreal
         general_min_porosity_flag = PETSC_TRUE
+      case('SALT_SOURCE_MIN_POROSITY')
+         call InputReadDouble(input,option,tempreal)
+         call InputErrorMsg(input,option,keyword,error_string)
+         general_salt_src_flag = PETSC_TRUE
+         general_min_por_srcsink = tempreal
+      case('SALT_SOURCE_MAX_PRESSURE')
+         call InputReadDouble(input,option,tempreal)
+         call InputErrorMsg(input,option,keyword,error_string)
+         general_salt_src_flag = PETSC_TRUE
+         general_max_pres_srcsink = tempreal
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select

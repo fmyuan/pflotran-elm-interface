@@ -19,6 +19,9 @@ module General_Aux_module
   PetscReal, public :: general_min_liq_sat = UNINITIALIZED_DOUBLE
   PetscReal, public :: general_min_porosity = 1.d-12
   PetscBool, public :: general_min_porosity_flag = PETSC_FALSE
+  PetscReal, public :: general_min_por_srcsink = 1.d-6
+  PetscBool, public :: general_salt_src_flag = PETSC_FALSE
+  PetscReal, public :: general_max_pres_srcsink = 1.d15
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscBool, public :: general_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: general_prevent_gp_phase = PETSC_FALSE
@@ -2575,7 +2578,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%perm_base = (material_auxvar%permeability(1)/&
          material_auxvar%porosity**(permeability_func_porosity_exp))
     else
-      material_auxvar%permeability(:) = max(1.d-20,gen_auxvar%perm_base * &
+      material_auxvar%permeability(:) = max(1.d-22,gen_auxvar%perm_base * &
         material_auxvar%porosity ** permeability_func_porosity_exp)
     endif
   endif

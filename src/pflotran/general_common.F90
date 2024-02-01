@@ -4472,8 +4472,10 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     end select
     ss_flow_vol_flux(salt_comp_id) = qsrc_mol / &
                                     gen_auxvar_ss%den(salt_comp_id)
-    if (general_min_porosity_flag) then
-      if (gen_auxvar_ss%effective_porosity <= general_min_porosity*1.d2) then
+    if (general_salt_src_flag) then
+      if (gen_auxvar_ss%effective_porosity <= general_min_por_srcsink) then
+        Res(salt_comp_id) = 0.d0
+      elseif (maxval(gen_auxvar_ss%pres(:)) > general_max_pres_srcsink) then
         Res(salt_comp_id) = 0.d0
       else
         Res(salt_comp_id) = qsrc_mol
