@@ -30,6 +30,7 @@ subroutine ReactionSetupKinetics(reaction,option)
   !
   use CLM_Rxn_module
   use Option_module
+  use Reaction_Equation_module
   use Reaction_Immobile_Aux_module
   use Reaction_Inhibition_Aux_module
   use Reaction_Isotherm_Aux_module
@@ -57,7 +58,7 @@ subroutine ReactionSetupKinetics(reaction,option)
   type(general_rxn_type), pointer :: cur_general_rxn
   type(monod_type), pointer :: cur_monod
   type(inhibition_type), pointer :: cur_inhibition
-  type(database_rxn_type), pointer :: dbaserxn
+  type(reaction_equation_type), pointer :: reaction_equation
 
   PetscInt :: i, irxn, icomp
   PetscInt :: icplx, ipri_spec
@@ -102,15 +103,15 @@ subroutine ReactionSetupKinetics(reaction,option)
     cur_radiodecay_rxn => reaction%radioactive_decay_rxn_list
     do
       if (.not.associated(cur_radiodecay_rxn)) exit
-      cur_radiodecay_rxn%dbaserxn => &
-        ReactionDBCreateRxnFromString(cur_radiodecay_rxn%reaction, &
-                                      reaction%naqcomp, &
-                                      reaction%offset_aqueous, &
-                                      reaction%primary_species_names, &
-                                      reaction%nimcomp, &
-                                      reaction%offset_immobile, &
-                                      reaction%immobile%names, &
-                                      PETSC_FALSE,option)
+      cur_radiodecay_rxn%reaction_equation => &
+        ReactionEquationCreateFromString(cur_radiodecay_rxn%reaction, &
+                                         reaction%naqcomp, &
+                                         reaction%offset_aqueous, &
+                                         reaction%primary_species_names, &
+                                         reaction%nimcomp, &
+                                         reaction%offset_immobile, &
+                                         reaction%immobile%names, &
+                                         PETSC_FALSE,option)
       cur_radiodecay_rxn => cur_radiodecay_rxn%next
     enddo
     nullify(cur_radiodecay_rxn)
@@ -125,12 +126,12 @@ subroutine ReactionSetupKinetics(reaction,option)
       forward_count = 0
 
       ! max species in reaction
-      species_count = cur_radiodecay_rxn%dbaserxn%nspec
+      species_count = cur_radiodecay_rxn%reaction_equation%nspec
 
       ! sum forward and reverse species
-      dbaserxn => cur_radiodecay_rxn%dbaserxn
-      do i = 1, dbaserxn%nspec
-        if (dbaserxn%stoich(i) < 0.d0) then
+      reaction_equation => cur_radiodecay_rxn%reaction_equation
+      do i = 1, reaction_equation%nspec
+        if (reaction_equation%stoich(i) < 0.d0) then
           forward_count = forward_count + 1
         endif
       enddo
@@ -167,20 +168,20 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_radiodecay_rxn)) exit
 
-      dbaserxn => cur_radiodecay_rxn%dbaserxn
+      reaction_equation => cur_radiodecay_rxn%reaction_equation
 
       irxn = irxn + 1
 
       forward_count = 0
       backward_count = 0
-      do i = 1, dbaserxn%nspec
-        reaction%radiodecayspecid(i,irxn) = dbaserxn%spec_ids(i)
-        reaction%radiodecaystoich(i,irxn) = dbaserxn%stoich(i)
-        if (dbaserxn%stoich(i) < 0.d0) then
-          reaction%radiodecayforwardspecid(irxn) = dbaserxn%spec_ids(i)
+      do i = 1, reaction_equation%nspec
+        reaction%radiodecayspecid(i,irxn) = reaction_equation%specid(i)
+        reaction%radiodecaystoich(i,irxn) = reaction_equation%stoich(i)
+        if (reaction_equation%stoich(i) < 0.d0) then
+          reaction%radiodecayforwardspecid(irxn) = reaction_equation%specid(i)
         endif
       enddo
-      reaction%radiodecayspecid(0,irxn) = dbaserxn%nspec
+      reaction%radiodecayspecid(0,irxn) = reaction_equation%nspec
       reaction%radiodecay_kf(irxn) = cur_radiodecay_rxn%rate_constant
 
       cur_radiodecay_rxn => cur_radiodecay_rxn%next
@@ -197,15 +198,15 @@ subroutine ReactionSetupKinetics(reaction,option)
     cur_general_rxn => reaction%general_rxn_list
     do
       if (.not.associated(cur_general_rxn)) exit
-      cur_general_rxn%dbaserxn => &
-        ReactionDBCreateRxnFromString(cur_general_rxn%reaction, &
-                                      reaction%naqcomp, &
-                                      reaction%offset_aqueous, &
-                                      reaction%primary_species_names, &
-                                      reaction%nimcomp, &
-                                      reaction%offset_immobile, &
-                                      reaction%immobile%names, &
-                                      PETSC_FALSE,option)
+      cur_general_rxn%reaction_equation => &
+        ReactionEquationCreateFromString(cur_general_rxn%reaction, &
+                                         reaction%naqcomp, &
+                                         reaction%offset_aqueous, &
+                                         reaction%primary_species_names, &
+                                         reaction%nimcomp, &
+                                         reaction%offset_immobile, &
+                                         reaction%immobile%names, &
+                                         PETSC_FALSE,option)
       cur_general_rxn => cur_general_rxn%next
     enddo
     nullify(cur_general_rxn)
@@ -224,14 +225,14 @@ subroutine ReactionSetupKinetics(reaction,option)
       backward_count = 0
 
       ! max species in reaction
-      species_count = cur_general_rxn%dbaserxn%nspec
+      species_count = cur_general_rxn%reaction_equation%nspec
 
       ! sum forward and reverse species
-      dbaserxn => cur_general_rxn%dbaserxn
-      do i = 1, dbaserxn%nspec
-        if (dbaserxn%stoich(i) < 0.d0) then
+      reaction_equation => cur_general_rxn%reaction_equation
+      do i = 1, reaction_equation%nspec
+        if (reaction_equation%stoich(i) < 0.d0) then
           forward_count = forward_count + 1
-        else if (dbaserxn%stoich(i) > 0.d0) then
+        else if (reaction_equation%stoich(i) > 0.d0) then
           backward_count = backward_count + 1
         endif
       enddo
@@ -278,31 +279,31 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_general_rxn)) exit
 
-      dbaserxn => cur_general_rxn%dbaserxn
+      reaction_equation => cur_general_rxn%reaction_equation
 
       irxn = irxn + 1
 
       forward_count = 0
       backward_count = 0
-      do i = 1, dbaserxn%nspec
-        reaction%generalspecid(i,irxn) = dbaserxn%spec_ids(i)
-        reaction%generalstoich(i,irxn) = dbaserxn%stoich(i)
-        if (dbaserxn%stoich(i) < 0.d0) then
+      do i = 1, reaction_equation%nspec
+        reaction%generalspecid(i,irxn) = reaction_equation%specid(i)
+        reaction%generalstoich(i,irxn) = reaction_equation%stoich(i)
+        if (reaction_equation%stoich(i) < 0.d0) then
           forward_count = forward_count + 1
           reaction%generalforwardspecid(forward_count,irxn) = &
-            dbaserxn%spec_ids(i)
+            reaction_equation%specid(i)
           ! ensure that forward stoich is positive for rate expression
           reaction%generalforwardstoich(forward_count,irxn) = &
-            dabs(dbaserxn%stoich(i))
-        else if (dbaserxn%stoich(i) > 0.d0) then
+            dabs(reaction_equation%stoich(i))
+        else if (reaction_equation%stoich(i) > 0.d0) then
           backward_count = backward_count + 1
           reaction%generalbackwardspecid(backward_count,irxn) = &
-            dbaserxn%spec_ids(i)
+            reaction_equation%specid(i)
           reaction%generalbackwardstoich(backward_count,irxn) = &
-            dbaserxn%stoich(i)
+            reaction_equation%stoich(i)
         endif
       enddo
-      reaction%generalspecid(0,irxn) = dbaserxn%nspec
+      reaction%generalspecid(0,irxn) = reaction_equation%nspec
       reaction%generalforwardspecid(0,irxn) = forward_count
       reaction%generalbackwardspecid(0,irxn) = backward_count
 
@@ -328,19 +329,19 @@ subroutine ReactionSetupKinetics(reaction,option)
     cur_microbial_rxn => microbial%microbial_rxn_list
     do
       if (.not.associated(cur_microbial_rxn)) exit
-      cur_microbial_rxn%dbaserxn => &
-        ReactionDBCreateRxnFromString(cur_microbial_rxn%reaction, &
-                                      reaction%naqcomp, &
-                                      reaction%offset_aqueous, &
-                                      reaction%primary_species_names, &
-                                      reaction%nimcomp, &
-                                      reaction%offset_immobile, &
-                                      reaction%immobile%names, &
-                                      PETSC_TRUE,option)
+      cur_microbial_rxn%reaction_equation => &
+        ReactionEquationCreateFromString(cur_microbial_rxn%reaction, &
+                                         reaction%naqcomp, &
+                                         reaction%offset_aqueous, &
+                                         reaction%primary_species_names, &
+                                         reaction%nimcomp, &
+                                         reaction%offset_immobile, &
+                                         reaction%immobile%names, &
+                                         PETSC_TRUE,option)
       if (cur_microbial_rxn%activation_energy > 0.d0) then
         activation_energy_count = activation_energy_count + 1
       endif
-      temp_int = cur_microbial_rxn%dbaserxn%nspec
+      temp_int = cur_microbial_rxn%reaction_equation%nspec
       if (temp_int > max_species_count) max_species_count = temp_int
       temp_int = ReactionMicrobGetMonodCount(cur_microbial_rxn)
       monod_count = monod_count + temp_int
@@ -414,7 +415,7 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_microbial_rxn)) exit
 
-      dbaserxn => cur_microbial_rxn%dbaserxn
+      reaction_equation => cur_microbial_rxn%reaction_equation
 
       irxn = irxn + 1
 
@@ -423,10 +424,10 @@ subroutine ReactionSetupKinetics(reaction,option)
         microbial%activation_energy(irxn) = cur_microbial_rxn%activation_energy
       endif
 
-      microbial%specid(0,irxn) = dbaserxn%nspec
-      do i = 1, dbaserxn%nspec
-        microbial%specid(i,irxn) = dbaserxn%spec_ids(i)
-        microbial%stoich(i,irxn) = dbaserxn%stoich(i)
+      microbial%specid(0,irxn) = reaction_equation%nspec
+      do i = 1, reaction_equation%nspec
+        microbial%specid(i,irxn) = reaction_equation%specid(i)
+        microbial%stoich(i,irxn) = reaction_equation%stoich(i)
       enddo
 
       if (associated(cur_microbial_rxn%biomass)) then
@@ -456,7 +457,7 @@ subroutine ReactionSetupKinetics(reaction,option)
         ! check for biomass species in microbial reaction
         temp_int = &
           StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
-                                dbaserxn%spec_name)
+                                reaction_equation%spec_name)
         if (temp_int /= 0) then
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
@@ -487,7 +488,7 @@ subroutine ReactionSetupKinetics(reaction,option)
 
         ! ensure that monod species exists in reaction expression
         temp_int = StringFindEntryInList(cur_monod%species_name, &
-                                         dbaserxn%spec_name)
+                                         reaction_equation%spec_name)
         if (temp_int == 0) then
           option%io_buffer = 'Monod species "' // &
             trim(cur_monod%species_name) // ' not found in microbial reaction.'
@@ -495,7 +496,7 @@ subroutine ReactionSetupKinetics(reaction,option)
         endif
         ! if species stoichiometry is > 0., it is a product and cannot be
         ! used in a monod expression.
-        if (dbaserxn%stoich(temp_int) > 0.d0) then
+        if (reaction_equation%stoich(temp_int) > 0.d0) then
           option%io_buffer = 'Monod species "' // &
             trim(cur_monod%species_name) // ' must be a reactant and not ' // &
             'a product in microbial reaction.'
@@ -524,7 +525,7 @@ subroutine ReactionSetupKinetics(reaction,option)
         ! Check whether inhibition species exists in reaction expression
         ! If no, print warning.
         temp_int = StringFindEntryInList(cur_inhibition%species_name, &
-                                         dbaserxn%spec_name)
+                                         reaction_equation%spec_name)
         if (temp_int == 0) then
           option%io_buffer = 'Inhibition species "' // &
             trim(cur_inhibition%species_name) // &

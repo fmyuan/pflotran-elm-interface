@@ -2660,6 +2660,7 @@ reaction_aux.o : \
   pflotran_constants.o \
   reaction_base.o \
   reaction_database_aux.o \
+  reaction_equation.o \
   reaction_gas_aux.o \
   reaction_immobile_aux.o \
   reaction_isotherm_aux.o \
@@ -2704,6 +2705,12 @@ reaction_database.o : \
   string.o \
   utility.o
 reaction_database_aux.o : \
+  option.o \
+  pflotran_constants.o \
+  reaction_equation.o \
+  string.o \
+  utility.o
+reaction_equation.o : \
   input_aux.o \
   option.o \
   pflotran_constants.o \
@@ -2785,7 +2792,7 @@ reaction_microbial.o : \
   utility.o
 reaction_microbial_aux.o : \
   pflotran_constants.o \
-  reaction_database_aux.o \
+  reaction_equation.o \
   reaction_inhibition_aux.o \
   utility.o
 reaction_mineral.o : \
@@ -3022,6 +3029,7 @@ reaction_setup.o : \
   reaction_aux.o \
   reaction_clm.o \
   reaction_database_aux.o \
+  reaction_equation.o \
   reaction_immobile_aux.o \
   reaction_inhibition_aux.o \
   reaction_isotherm_aux.o \

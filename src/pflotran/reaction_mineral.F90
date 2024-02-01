@@ -463,23 +463,17 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
     mineral%tstrxn => ReactionMnrlCreateTSTRxn()
   endif
   ! read the number of aqueous species in mineral rxn
-  mineral%dbaserxn => ReactionDBCreateRxn()
-  call InputReadInt(input,option,mineral%dbaserxn%nspec)
+  call InputReadInt(input,option,itemp)
   call InputErrorMsg(input,option,'Number of species in mineral reaction', &
                   'DATABASE')
-  ! allocate arrays for rxn
-  allocate(mineral%dbaserxn%spec_name(mineral%dbaserxn%nspec))
-  mineral%dbaserxn%spec_name = ''
-  allocate(mineral%dbaserxn%stoich(mineral%dbaserxn%nspec))
-  mineral%dbaserxn%stoich = 0.d0
-  allocate(mineral%dbaserxn%logK(num_dbase_temperatures))
-  mineral%dbaserxn%logK = 0.d0
+  mineral%dbaserxn => ReactionDBCreateRxn(itemp,num_dbase_temperatures)
   ! read in species and stoichiometries
-  do ispec = 1, mineral%dbaserxn%nspec
-    call InputReadDouble(input,option,mineral%dbaserxn%stoich(ispec))
+  do ispec = 1, mineral%dbaserxn%reaction_equation%nspec
+    call InputReadDouble(input,option,mineral%dbaserxn% &
+                           reaction_equation%stoich(ispec))
     call InputErrorMsg(input,option,'MINERAL species stoichiometry','DATABASE')
     call InputReadQuotedWord(input,option,mineral%dbaserxn% &
-                              spec_name(ispec),PETSC_TRUE)
+                               reaction_equation%spec_name(ispec),PETSC_TRUE)
     call InputErrorMsg(input,option,'MINERAL species name','DATABASE')
   enddo
   !note: logKs read are pK so that K is in the denominator (i.e. Q/K)
