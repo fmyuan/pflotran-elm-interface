@@ -3373,99 +3373,52 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
            endif
         endif
       else !insoluble matrix
-      
+        Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
+        if (Sp_new < 0.d0 .and. gen_auxvar%pres(vpid) <= &
+            gen_auxvar%pres(spid)*(1.d0-window_epsilon)) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = LG_STATE
+          if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+             write(state_change_string,'(''LP -> LG Phase at Cell '',i8)') &
+                  natural_id
+          else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+             write(state_change_string, &
+                  '(''LP -> LG Phase at Cell (due to perturbation) '',i8)') &
+                  natural_id
+          else
+             write(state_change_string,'(''LP -> LG Phase at Boundary Face '', &
+                  & i8)') natural_id
+          endif
+        elseif (Sp_new < 0.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = LIQUID_STATE
+          if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+             write(state_change_string,'(''LP -> Liquid Phase at Cell '',i8)') &
+                  natural_id
+          else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+             write(state_change_string, &
+                  '(''LP -> Liquid Phase at Cell (due to perturbation) '',i8)') &
+                  natural_id
+          else
+             write(state_change_string,'(''LP -> Liquid Phase at Boundary Face '', &
+                  & i8)') natural_id
+          endif
+        elseif (Sp_new > 1.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = P_STATE
+          if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+             write(state_change_string,'(''LP -> Precipitate Phase at Cell '',i8)') &
+                  natural_id
+          else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+             write(state_change_string, &
+                  '(''LP -> Precipitate Phase at Cell (due to perturbation) '',i8)') &
+                  natural_id
+          else
+             write(state_change_string,'(''LP -> Precipitate Phase at Boundary Face '', &
+                  & i8)') natural_id
+          endif
+        endif      
       endif
-      ! if (.not. soluble_matrix) then
-      !   Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
-      !   if (Sp_new < 0.d0 .and. gen_auxvar%pres(vpid) <= &
-      !       gen_auxvar%pres(spid)*(1.d0-window_epsilon)) then
-      !     istatechng = PETSC_TRUE
-      !     global_auxvar%istate = LG_STATE
-      !     if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      !        write(state_change_string,'(''LP -> LG Phase at Cell '',i8)') &
-      !             natural_id
-      !     else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-      !        write(state_change_string, &
-      !             '(''LP -> LG Phase at Cell (due to perturbation) '',i8)') &
-      !             natural_id
-      !     else
-      !        write(state_change_string,'(''LP -> LG Phase at Boundary Face '', &
-      !             & i8)') natural_id
-      !     endif
-      !   elseif (Sp_new < 0.d0) then
-      !     istatechng = PETSC_TRUE
-      !     global_auxvar%istate = LIQUID_STATE
-      !     if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      !        write(state_change_string,'(''LP -> Liquid Phase at Cell '',i8)') &
-      !             natural_id
-      !     else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-      !        write(state_change_string, &
-      !             '(''LP -> Liquid Phase at Cell (due to perturbation) '',i8)') &
-      !             natural_id
-      !     else
-      !        write(state_change_string,'(''LP -> Liquid Phase at Boundary Face '', &
-      !             & i8)') natural_id
-      !     endif
-      !   elseif (Sp_new > 1.d0) then
-      !     istatechng = PETSC_TRUE
-      !     global_auxvar%istate = P_STATE
-      !     if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      !        write(state_change_string,'(''LP -> Precipitate Phase at Cell '',i8)') &
-      !             natural_id
-      !     else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-      !        write(state_change_string, &
-      !             '(''LP -> Precipitate Phase at Cell (due to perturbation) '',i8)') &
-      !             natural_id
-      !     else
-      !        write(state_change_string,'(''LP -> Precipitate Phase at Boundary Face '', &
-      !             & i8)') natural_id
-      !     endif
-      !   endif
-      ! elseif (soluble_matrix) then
-      !   if (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
-      !       window_epsilon) .and. (gen_auxvar%xmol(sid,lid) < &
-      !       NaClSolubility*(1.d0-window_epsilon))) then
-
-      !       global_auxvar%istate = LGP_STATE
-      !       liq_epsilon = general_phase_chng_epsilon
-      !       istatechng = PETSC_TRUE
-
-      !      if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      !        write(state_change_string,'(''Liquid -> 2 Phase at Cell '',i8)') &
-      !             natural_id
-      !      else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-      !        write(state_change_string, &
-      !           '(''Liquid -> 2 Phase at Cell (due to perturbation) '',i8)') &
-      !           natural_id
-      !      else
-      !        write(state_change_string,'(''Liquid -> 2 Phase at Boundary Face '', &
-      !                                 & i8)') natural_id
-      !      endif
-      !   elseif (gen_auxvar%pres(vpid) <= gen_auxvar%pres(spid)*(1.d0- &
-      !           window_epsilon) .and. gen_auxvar%xmol(sid,lid) >= &
-      !           NaClSolubility*(1.d0-window_epsilon) .and. .not. soluble_matrix) then
-      !     global_auxvar%istate = LGP_STATE
-      !     liq_epsilon = general_phase_chng_epsilon
-      !     istatechng = PETSC_TRUE
-      !   elseif (gen_auxvar%xmol(sid,lid) >= NaClSolubility*(1.d0-&
-      !           window_epsilon) .and. gen_auxvar%pres(vpid)>&
-      !           gen_auxvar%pres(spid)*1.d0-window_epsilon .and. .not. soluble_matrix) then
-      !     global_auxvar%istate = LP_STATE
-      !     liq_epsilon = general_phase_chng_epsilon
-      !     istatechng = PETSC_TRUE
-      !     if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      !        write(state_change_string,'(''Liquid -> Liquid-Precipitate at Cell '',i8)') &
-      !             natural_id
-      !     elseif (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-      !        write(state_change_string, &
-      !             '(''Liquid -> LP Phase at Cell (due to perturbation) '',i8)') &
-      !             natural_id
-      !     else
-      !        write(state_change_string,'(''Liquid -> LP Phase at Boundary Face '', &
-      !             & i8)') natural_id
-      !     endif
-      !   endif
-      ! endif
     case(GP_STATE)
       if (soluble_matrix) then
         if (gen_auxvar%pres(vpid) >= gen_auxvar%pres(spid)* &
@@ -3567,118 +3520,53 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
                                       & i8)') natural_id
           endif
         endif
+      else !insoluble
+        Sg_new = x(GENERAL_GAS_SATURATION_DOF)
+        Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
+        if (Sg_new < 0.d0 .and. Sp_new > 0.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = LP_STATE
+          if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+             write(state_change_string,'(''LGP -> LP Phase at Cell '',i8)') &
+                  natural_id
+          else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+             write(state_change_string, &
+                  '(''LGP -> LP Phase at Cell (due to perturbation) '',i8)') &
+                  natural_id
+          else
+             write(state_change_string,'(''LGP -> LP Phase at Boundary Face '', &
+                  & i8)') natural_id
+          endif
+        elseif (Sg_new > 0.d0 .and. Sp_new < 0.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = LG_STATE
+          if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+             write(state_change_string,'(''LGP -> LG Phase at Cell '',i8)') &
+                  natural_id
+          else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+             write(state_change_string, &
+                  '(''LGP -> LG Phase at Cell (due to perturbation) '',i8)') &
+                  natural_id
+          else
+             write(state_change_string,'(''LGP -> LG Phase at Boundary Face '', &
+                  & i8)') natural_id
+          endif
+        elseif (Sg_new < 0.d0 .and. Sp_new < 0.d0) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = LIQUID_STATE
+          if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+             write(state_change_string,'(''LGP -> Liquid Phase at Cell '',i8)') &
+                  natural_id
+          else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
+             write(state_change_string, &
+                  '(''LGP -> Liquid Phase at Cell (due to perturbation) '',i8)') &
+                  natural_id
+          else
+             write(state_change_string,'(''LGP -> Liquid Phase at Boundary Face '', &
+                  & i8)') natural_id
+          endif
+        endif
       endif
-!       if (.not. soluble_matrix) then
-!         Sg_new = x(GENERAL_GAS_SATURATION_DOF)
-!         Sp_new = x(GENERAL_PRECIPITATE_SAT_DOF)
-!         if (Sg_new < 0.d0 .and. Sp_new > 0.d0) then
-!           istatechng = PETSC_TRUE
-!           global_auxvar%istate = LP_STATE
-!           if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-!              write(state_change_string,'(''LGP -> LP Phase at Cell '',i8)') &
-!                   natural_id
-!           else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-!              write(state_change_string, &
-!                   '(''LGP -> LP Phase at Cell (due to perturbation) '',i8)') &
-!                   natural_id
-!           else
-!              write(state_change_string,'(''LGP -> LP Phase at Boundary Face '', &
-!                   & i8)') natural_id
-!           endif
-!         elseif (Sg_new > 0.d0 .and. Sp_new < 0.d0) then
-!           istatechng = PETSC_TRUE
-!           global_auxvar%istate = LG_STATE
-!           if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-!              write(state_change_string,'(''LGP -> LG Phase at Cell '',i8)') &
-!                   natural_id
-!           else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-!              write(state_change_string, &
-!                   '(''LGP -> LG Phase at Cell (due to perturbation) '',i8)') &
-!                   natural_id
-!           else
-!              write(state_change_string,'(''LGP -> LG Phase at Boundary Face '', &
-!                   & i8)') natural_id
-!           endif
-!         elseif (Sg_new < 0.d0 .and. Sp_new < 0.d0) then
-!           istatechng = PETSC_TRUE
-!           global_auxvar%istate = LIQUID_STATE
-!           if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-!              write(state_change_string,'(''LGP -> Liquid Phase at Cell '',i8)') &
-!                   natural_id
-!           else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-!              write(state_change_string, &
-!                   '(''LGP -> Liquid Phase at Cell (due to perturbation) '',i8)') &
-!                   natural_id
-!           else
-!              write(state_change_string,'(''LGP -> Liquid Phase at Boundary Face '', &
-!                   & i8)') natural_id
-!           endif
-!         endif
-!       elseif (soluble_matrix) then
-!         Sg_new = x(GENERAL_GAS_SATURATION_DOF)
-!         if (Sg_new < 0.d0) then
-
-!           global_auxvar%istate = LP_STATE
-!           two_phase_epsilon = general_phase_chng_epsilon
-!           istatechng = PETSC_TRUE
-
-! #ifdef DEBUG_GENERAL_INFO
-!           call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
-!                                    natural_id,'Before Update',option)
-! #endif
-!           if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-!             write(state_change_string,'(''LGP Phase -> LP at Cell '',i8)') &
-!               natural_id
-!           else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-!             write(state_change_string, &
-!               '(''2 Phase -> Liquid at Cell (due to perturbation) '',i8)') &
-!               natural_id
-!           else
-!             write(state_change_string,'(''LGP Phase -> LP at Boundary Face '', &
-!                                       & i8)') natural_id
-!           endif
-
-!         elseif (Sg_new > 1.d0 ) then
-
-!           global_auxvar%istate = GP_STATE
-!           two_phase_epsilon = general_phase_chng_epsilon
-!           istatechng = PETSC_TRUE
-
-! #ifdef DEBUG_GENERAL_INFO
-!           call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
-!                                    natural_id,'Before Update',option)
-! #endif
-!           if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-!             write(state_change_string,'(''LGP Phase -> GP at Cell '',i8)') &
-!               natural_id
-!           else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-!             write(state_change_string, &
-!               '(''LGP Phase -> GP at Cell (due to perturbation) '',i8)') &
-!               natural_id
-!           else
-!             write(state_change_string,'(''LGP Phase -> GP at Boundary Face '', &
-!                                       & i8)') natural_id
-!           endif
-!         elseif (gen_auxvar%effective_porosity < 0.d0) then
-!           global_auxvar%istate = P_STATE
-!           istatechng = PETSC_TRUE
-! #ifdef DEBUG_GENERAL_INFO
-!           call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
-!                natural_id,'Before Update',option)
-! #endif
-!           if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-!              write(state_change_string,'(''LGP Phase -> P at Cell '',i8)') &
-!                   natural_id
-!           else if (option%iflag == GENERAL_UPDATE_FOR_DERIVATIVE) then
-!              write(state_change_string, &
-!                   '(''LGP Phase -> P at Cell (due to perturbation) '',i8)') &
-!                   natural_id
-!           else
-!              write(state_change_string,'(''LGP Phase -> P at Boundary Face '', &
-!                   & i8)') natural_id
-!           endif
-!         endif
-!       endif
   end select
 
   !Update the primary variables
