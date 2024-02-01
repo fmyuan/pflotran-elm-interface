@@ -133,6 +133,7 @@ module General_Aux_module
   PetscBool, public :: general_soluble_matrix = PETSC_FALSE
   PetscBool, public :: general_update_permeability = PETSC_FALSE
   PetscReal, public :: permeability_func_porosity_exp = 1.d0
+  PetscReal, public :: general_min_permeability = 1.d-25
   PetscInt, public :: solubility_function = 1
 
   type, public :: general_auxvar_type
@@ -2578,7 +2579,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%perm_base = (material_auxvar%permeability(1)/&
          material_auxvar%porosity**(permeability_func_porosity_exp))
     else
-      material_auxvar%permeability(:) = max(1.d-22,gen_auxvar%perm_base * &
+      material_auxvar%permeability(:) = max(general_min_permeability,gen_auxvar%perm_base * &
         material_auxvar%porosity ** permeability_func_porosity_exp)
     endif
   endif
