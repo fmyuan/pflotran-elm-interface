@@ -1663,8 +1663,7 @@ subroutine ReactionAuxDestroyAqSpecies(species)
 
   type(aq_species_type), pointer :: species
 
-  if (associated(species%dbaserxn)) &
-    call ReactionDBDestroyRxn(species%dbaserxn)
+  call ReactionDBDestroyRxn(species%dbaserxn)
   deallocate(species)
   nullify(species)
 

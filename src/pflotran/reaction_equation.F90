@@ -148,7 +148,6 @@ function ReactionEquationCreateFromString(reaction_string,option)
   PetscErrorCode :: ierr
   type(reaction_equation_type), pointer :: reaction_equation
 
-
   reaction_equation => ReactionEquationCreate()
 
   icount = 0

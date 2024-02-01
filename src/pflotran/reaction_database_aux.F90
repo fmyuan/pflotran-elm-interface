@@ -175,7 +175,7 @@ subroutine ReactionDBAlignSpeciesInRxn(num_basis_species,basis_names, &
   ! zero everthing out
   reaction_equation%spec_name = ''
   reaction_equation%stoich = 0.d0
-  reaction_equation%specid(1:num_species) = 0
+  reaction_equation%specid = 0
 
   ! fill in
   i_rxn_species = 0

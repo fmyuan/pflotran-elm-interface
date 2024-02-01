@@ -1172,9 +1172,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       icount = icount + 1
       logKvector(:,icount) = cur_pri_aq_spec%dbaserxn%logK
       i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                            cur_pri_aq_spec%name, &
-                            cur_pri_aq_spec%name, &
-                            pri_names,sec_names,gas_names)
+                                 cur_pri_aq_spec%name, &
+                                 cur_pri_aq_spec%name, &
+                                 pri_names,sec_names,gas_names)
       if (i < 0) then
         option%io_buffer = 'Primary species ' // &
                  trim(cur_pri_aq_spec%name) // &
@@ -1184,10 +1184,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       pri_matrix(icount,i) = -1.d0
       do ispec=1,cur_pri_aq_spec%dbaserxn%reaction_equation%nspec
         i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                               cur_pri_aq_spec%name, &
-                               cur_pri_aq_spec%dbaserxn% &
-                                 reaction_equation%spec_name(ispec), &
-                               pri_names,sec_names,gas_names)
+                                   cur_pri_aq_spec%name, &
+                                   cur_pri_aq_spec%dbaserxn% &
+                                     reaction_equation%spec_name(ispec), &
+                                   pri_names,sec_names,gas_names)
         if (i > 0) then
           pri_matrix(icount,i) = &
             cur_pri_aq_spec%dbaserxn%reaction_equation%stoich(ispec)
@@ -1207,9 +1207,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       icount = icount + 1
       logKvector(:,icount) = cur_sec_aq_spec%dbaserxn%logK
       i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                            cur_sec_aq_spec%name, &
-                            cur_sec_aq_spec%name, &
-                            pri_names,sec_names,gas_names)
+                                 cur_sec_aq_spec%name, &
+                                 cur_sec_aq_spec%name, &
+                                 pri_names,sec_names,gas_names)
       if (i > 0) then
         option%io_buffer = 'Secondary aqueous species ' // &
                  trim(cur_sec_aq_spec%name) // &
@@ -1219,10 +1219,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       sec_matrix(icount,-i) = -1.d0
       do ispec=1,cur_sec_aq_spec%dbaserxn%reaction_equation%nspec
         i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                              cur_sec_aq_spec%name, &
-                              cur_sec_aq_spec%dbaserxn% &
-                                reaction_equation%spec_name(ispec), &
-                              pri_names,sec_names,gas_names)
+                                   cur_sec_aq_spec%name, &
+                                   cur_sec_aq_spec%dbaserxn% &
+                                     reaction_equation%spec_name(ispec), &
+                                   pri_names,sec_names,gas_names)
         if (i > 0) then
           pri_matrix(icount,i) = &
             cur_sec_aq_spec%dbaserxn%reaction_equation%stoich(ispec)
@@ -1242,9 +1242,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       icount = icount + 1
       logKvector(:,icount) = cur_gas_spec%dbaserxn%logK
       i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                            cur_gas_spec%name, &
-                            cur_gas_spec%name, &
-                            pri_names,sec_names,gas_names)
+                                 cur_gas_spec%name, &
+                                 cur_gas_spec%name, &
+                                 pri_names,sec_names,gas_names)
       if (i > 0) then
         option%io_buffer = 'Gas species ' // &
                  trim(cur_gas_spec%name) // &
@@ -1254,10 +1254,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       sec_matrix(icount,-i) = -1.d0
       do ispec=1,cur_gas_spec%dbaserxn%reaction_equation%nspec
         i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                              cur_gas_spec%name, &
-                              cur_gas_spec%dbaserxn% &
-                                reaction_equation%spec_name(ispec), &
-                              pri_names,sec_names,gas_names)
+                                   cur_gas_spec%name, &
+                                   cur_gas_spec%dbaserxn% &
+                                     reaction_equation%spec_name(ispec), &
+                                   pri_names,sec_names,gas_names)
         if (i > 0) then
           pri_matrix(icount,i) = &
             cur_gas_spec%dbaserxn%reaction_equation%stoich(ispec)
@@ -1483,7 +1483,7 @@ subroutine ReactionDBInitBasis(reaction,option)
           if (ispec > cur_mineral%dbaserxn%reaction_equation%nspec) exit
           if (StringCompare(cur_sec_aq_spec%name,cur_mineral%dbaserxn% &
                               reaction_equation%spec_name(ispec), &
-                              MAXWORDLENGTH)) then
+                            MAXWORDLENGTH)) then
             call ReactionDBSubSpecInRxn(cur_sec_aq_spec%name, &
                                         cur_sec_aq_spec%dbaserxn, &
                                         cur_mineral%dbaserxn)
@@ -1541,6 +1541,15 @@ subroutine ReactionDBInitBasis(reaction,option)
   cur_srfcplx => surface_complexation%complex_list
   do
     if (.not.associated(cur_srfcplx)) exit
+#if 0
+    if (.not.associated(cur_srfcplx%dbaserxn%spec_ids)) then
+      allocate(cur_srfcplx%dbaserxn%spec_ids(cur_srfcplx%dbaserxn%nspec))
+      cur_srfcplx%dbaserxn%spec_ids = 0
+    endif
+    call ReactionDBAlignSpeciesInRxn(ncomp_h2o,new_basis_names, &
+                                     cur_srfcplx%dbaserxn%reaction_equation, &
+                                     cur_srfcplx%name,option)
+#endif
     call ReactionDBAlignSpeciesInRxn(ncomp_h2o,new_basis_names, &
                                      cur_srfcplx%dbaserxn%reaction_equation, &
                                      cur_srfcplx%name,option)
@@ -1695,10 +1704,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
           call Interpolate(temp_high,temp_low, &
-                      option%flow%reference_temperature, &
-                      cur_sec_aq_spec%dbaserxn%logK(itemp_high), &
-                      cur_sec_aq_spec%dbaserxn%logK(itemp_low), &
-                      reaction%eqcplx_logK(isec_spec))
+                           option%flow%reference_temperature, &
+                           cur_sec_aq_spec%dbaserxn%logK(itemp_high), &
+                           cur_sec_aq_spec%dbaserxn%logK(itemp_low), &
+                           reaction%eqcplx_logK(isec_spec))
         else
           call ReactionAuxFitLogKCoef(reaction%eqcplx_logKcoef(:,isec_spec), &
                                 cur_sec_aq_spec%dbaserxn%logK, &
@@ -2226,13 +2235,13 @@ subroutine ReactionDBInitBasis(reaction,option)
                            mineral%mnrl_logK(imnrl))
         else
           call ReactionAuxFitLogKCoef(mineral%mnrl_logKcoef(:,imnrl), &
-                                   cur_mineral%dbaserxn%logK, &
-                                   mineral%mineral_names(imnrl), &
-                                   option,reaction)
-          call ReactionAuxInitializeLogK(mineral%mnrl_logKcoef(:,imnrl), &
                                       cur_mineral%dbaserxn%logK, &
-                                      mineral%mnrl_logK(imnrl), &
+                                      mineral%mineral_names(imnrl), &
                                       option,reaction)
+          call ReactionAuxInitializeLogK(mineral%mnrl_logKcoef(:,imnrl), &
+                                         cur_mineral%dbaserxn%logK, &
+                                         mineral%mnrl_logK(imnrl), &
+                                         option,reaction)
         endif
       else
         mineral%mnrl_logKcoef(:,imnrl) = cur_mineral%dbaserxn%logK
@@ -2540,10 +2549,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
           call Interpolate(temp_high,temp_low, &
-                            option%flow%reference_temperature, &
-                            cur_srfcplx%dbaserxn%logK(itemp_high), &
-                            cur_srfcplx%dbaserxn%logK(itemp_low), &
-                            surface_complexation%srfcplx_logK(isrfcplx))
+                           option%flow%reference_temperature, &
+                           cur_srfcplx%dbaserxn%logK(itemp_high), &
+                           cur_srfcplx%dbaserxn%logK(itemp_low), &
+                           surface_complexation%srfcplx_logK(isrfcplx))
         else
           call ReactionAuxFitLogKCoef( &
                           surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
@@ -2907,8 +2916,8 @@ subroutine ReactionDBInitBasis(reaction,option)
         found = PETSC_FALSE
         do i = 1, reaction%naqcomp
           if (StringCompare(cur_cation%name, &
-                              reaction%primary_species_names(i), &
-                              MAXWORDLENGTH)) then
+                            reaction%primary_species_names(i), &
+                            MAXWORDLENGTH)) then
             reaction%eqionx_rxn_cationid(ication,irxn) = i
             found = PETSC_TRUE
           endif
@@ -2987,23 +2996,20 @@ function ReactionDBGetIDInBasis(reaction,option,ncomp_h2o,reaction_name, &
 
   ReactionDBGetIDInBasis = 0
   do i=1,ncomp_h2o
-    if (StringCompare(species_name, &
-                        pri_names(i),MAXWORDLENGTH)) then
+    if (StringCompare(species_name,pri_names(i),MAXWORDLENGTH)) then
       ReactionDBGetIDInBasis = i
       return
     endif
   enddo
   ! secondary aqueous and gas species denoted by negative id
   do i=1,reaction%neqcplx
-    if (StringCompare(species_name, &
-                        sec_names(i),MAXWORDLENGTH)) then
+    if (StringCompare(species_name,sec_names(i),MAXWORDLENGTH)) then
       ReactionDBGetIDInBasis = -i
       return
     endif
   enddo
   do i=1,reaction%gas%ngas
-    if (StringCompare(species_name, &
-                      gas_names(i),MAXWORDLENGTH)) then
+    if (StringCompare(species_name,gas_names(i),MAXWORDLENGTH)) then
       ReactionDBGetIDInBasis = -(reaction%neqcplx+i)
       return
     endif
