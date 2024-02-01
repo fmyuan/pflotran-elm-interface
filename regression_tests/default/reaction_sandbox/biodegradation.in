@@ -72,7 +72,6 @@ CHEMISTRY
     SPECIES_NAME Xim
     RATE_CONSTANT 1.d-6
   /
-  DATABASE ../../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

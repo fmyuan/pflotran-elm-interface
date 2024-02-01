@@ -23,6 +23,7 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
+  use Reaction_Setup_module
   use Option_module
   use Input_Aux_module
   use String_module
@@ -52,17 +53,16 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
   endif
 
   if (associated(reaction)) then
-    if (reaction%use_full_geochemistry) then
-       call ReactionDBReadDatabase(reaction, option)
-       call ReactionDBInitBasis(reaction, option)
+    if (reaction%read_reaction_database) then
+      call ReactionDBReadDatabase(reaction, option)
+      call ReactionDBInitBasis(reaction, option)
     else
-      ! NOTE(bja): do we need this for the batch chemistry driver?
-
-      ! turn off activity coefficients since the database has not been read
       reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-      allocate(reaction%primary_species_print(option%ntrandof))
-      reaction%primary_species_print = PETSC_TRUE
+      call ReactionSetupPrimaryPrint(reaction,option)
     endif
+    call ReactionSetupKinetics(reaction, option)
+    call ReactionSetupSpecificSpecies(reaction, option)
+    call ReactionSetupSpeciesSummary(reaction, option)
   endif
 
 end subroutine BatchChemInitializeReactions

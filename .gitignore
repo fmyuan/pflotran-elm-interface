@@ -24,6 +24,8 @@ src/.DS_Store
 src/pflotran/*.o
 src/pflotran/*.MOD
 src/pflotran/pflotran
+src/pflotran/libpflotranchem.a
+src/pflotran/pflotran_rxn
 src/pflotran/pflotran_provenance.F90
 src/pflotran/pflotran_xcode/build
 src/pflotran/pflotran.xcodeproj/*.pbxuser

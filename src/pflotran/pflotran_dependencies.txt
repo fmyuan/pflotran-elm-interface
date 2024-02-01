@@ -520,6 +520,7 @@ factory_subsurface.o : \
   pmc_subsurface.o \
   reaction_aux.o \
   reaction_database.o \
+  reaction_setup.o \
   reactive_transport.o \
   realization_base.o \
   realization_common.o \
@@ -1834,6 +1835,7 @@ pflotran_rxn.o : \
   reaction.o \
   reaction_aux.o \
   reaction_database.o \
+  reaction_setup.o \
   reactive_transport_aux.o \
   string.o \
   transport_constraint.o \
@@ -2687,7 +2689,6 @@ reaction_database.o : \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
-  reaction_clm.o \
   reaction_database_aux.o \
   reaction_gas_aux.o \
   reaction_immobile.o \
@@ -2698,7 +2699,6 @@ reaction_database.o : \
   reaction_microbial_aux.o \
   reaction_mineral.o \
   reaction_mineral_aux.o \
-  reaction_sandbox.o \
   reaction_solid_solution.o \
   reaction_surf_complex_aux.o \
   string.o \
@@ -3015,6 +3015,22 @@ reaction_sandbox_ufd_wp.o : \
   reaction_sandbox_base.o \
   reactive_transport_aux.o \
   string.o
+reaction_setup.o : \
+  option.o \
+  pflotran_constants.o \
+  reaction.o \
+  reaction_aux.o \
+  reaction_clm.o \
+  reaction_database_aux.o \
+  reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
+  reaction_isotherm_aux.o \
+  reaction_microbial_aux.o \
+  reaction_mineral_aux.o \
+  reaction_sandbox.o \
+  reaction_surf_complex_aux.o \
+  string.o \
+  utility.o
 reaction_solid_solution.o : \
   input_aux.o \
   option.o \

@@ -15,6 +15,7 @@ CHEMISTRY
     Tracer
   /
   OUTPUT
+    ALL
     TOTAL
   /
 END
