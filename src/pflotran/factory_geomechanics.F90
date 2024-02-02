@@ -671,6 +671,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
             option%geomech_subsurf_coupling = GEOMECH_ONE_WAY_COUPLED
           case ('TWO_WAY_COUPLED')
             option%geomech_subsurf_coupling = GEOMECH_TWO_WAY_COUPLED
+          case ('COUPLE_ERT')
+            option%geomech_subsurf_coupling = GEOMECH_ERT_COUPLING
           case default
             call InputKeywordUnrecognized(input,word, &
                    'GEOMECHANICS_SUBSURFACE_COUPLING',option)
