@@ -335,6 +335,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
   use Grid_module
   use Discretization_module
   use Geomechanics_Subsurface_Properties_module
+  use Parameter_module
 
   implicit none
 
@@ -355,6 +356,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
   PetscReal :: por_new
   PetscReal :: perm_new
   PetscInt :: i
+  PetscInt :: parameter_index
   Vec :: geomech_vec
   Vec :: subsurf_vec
 
@@ -475,10 +477,12 @@ subroutine PMCGeomechanicsSetAuxData(this)
           call VecGetArrayF90(pmc%subsurf_realization%field%work, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           do local_id = 1, grid%nlmax
-            do i = 1, SIX_INTEGER
-              local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
+            vec_ptr(local_id) = 0.d0
+            do i = 1, 3
+              vec_ptr(local_id) = vec_ptr(local_id) + &
+                              dabs(stress_p((local_id - 1)*SIX_INTEGER + i))
             enddo
-            vec_ptr(local_id) = local_stress(i) ! needs to be updated
+            vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
           call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
@@ -488,9 +492,12 @@ subroutine PMCGeomechanicsSetAuxData(this)
                  pmc%subsurf_realization%field%work_loc,ONEDOF)
           call VecGetArrayF90(pmc%subsurf_realization%field%work_loc, &
                               vec_ptr,ierr);CHKERRQ(ierr)
+          parameter_index = ParameterGetIDFromName('geomechanics_stress', &
+                                             pmc%subsurf_realization%option)
           do ghosted_id = 1, grid%ngmax
             pmc%subsurf_realization%patch%aux% &
-              Global%auxvars(ghosted_id)%parameters(1) = vec_ptr(ghosted_id)
+              Global%auxvars(ghosted_id)%parameters(parameter_index) = &
+                vec_ptr(ghosted_id)
           enddo
           call VecRestoreArrayF90(pmc%subsurf_realization%field%work_loc, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
@@ -498,10 +505,12 @@ subroutine PMCGeomechanicsSetAuxData(this)
           call VecGetArrayF90(pmc%subsurf_realization%field%work, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           do local_id = 1, grid%nlmax
-            do i = 1, SIX_INTEGER
-              local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
+            vec_ptr(local_id) = 0.d0
+            do i = 1, 3
+              vec_ptr(local_id) = vec_ptr(local_id) + &
+                              dabs(strain_p((local_id - 1)*SIX_INTEGER + i))
             enddo
-            vec_ptr(local_id) = local_strain(i) ! needs to be updated
+            vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
           call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
@@ -511,9 +520,12 @@ subroutine PMCGeomechanicsSetAuxData(this)
                  pmc%subsurf_realization%field%work_loc,ONEDOF)
           call VecGetArrayF90(pmc%subsurf_realization%field%work_loc, &
                               vec_ptr,ierr);CHKERRQ(ierr)
+          parameter_index = ParameterGetIDFromName('geomechanics_strain', &
+                                             pmc%subsurf_realization%option)
           do ghosted_id = 1, grid%ngmax
             pmc%subsurf_realization%patch%aux% &
-              Global%auxvars(ghosted_id)%parameters(2) = vec_ptr(ghosted_id)
+              Global%auxvars(ghosted_id)%parameters(parameter_index) = &
+                vec_ptr(ghosted_id)
           enddo
           call VecRestoreArrayF90(pmc%subsurf_realization%field%work_loc, &
                                   vec_ptr,ierr);CHKERRQ(ierr)

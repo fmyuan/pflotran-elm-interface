@@ -18,7 +18,8 @@ module Parameter_module
 
   public :: ParameterCreate, ParameterDestroy, &
             ParameterRead, ParameterAddToList, &
-            ParameterSetup, ParameterGetIDFromName
+            ParameterSetup, ParameterGetIDFromName, &
+            ParameterQualityCheck
 
 contains
 
@@ -179,6 +180,41 @@ subroutine ParameterSetup(parameter_list,option)
   enddo
 
 end subroutine ParameterSetup
+
+! ************************************************************************** !
+
+subroutine ParameterQualityCheck(parameter_list,option)
+  !
+  ! Initializes the parameter module
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/0523
+
+  use Option_module
+  use String_module
+
+  type(parameter_type), pointer :: parameter_list
+  type(option_type) :: option
+
+  type(parameter_type), pointer :: cur_parameter
+  PetscInt :: iparameter
+
+  iparameter = 0
+  cur_parameter => parameter_list
+  do
+    if (.not.associated(cur_parameter)) exit
+    iparameter = iparameter + 1
+    cur_parameter => cur_parameter%next
+  enddo
+  if (iparameter /= option%parameter%num_parameters) then
+    option%io_buffer = &
+      StringWrite(iparameter-option%parameter%num_parameters) // &
+      ' parameters were added to the parameter list after it was "setup". &
+      &Please send your input deck to pflotran-dev@googlegroups.com'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine ParameterQualityCheck
 
 ! ************************************************************************** !
 
