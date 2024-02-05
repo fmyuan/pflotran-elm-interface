@@ -4,15 +4,16 @@ module Carbon_Sandbox_Base_class
   use petscsys
 
   use PFLOTRAN_Constants_module
+  use Reaction_Equation_module
 
   implicit none
 
   private
 
   type, public :: carbon_sandbox_base_type
-    PetscInt, pointer :: specid(:)
-    PetscReal, pointer :: stoich(:)
     PetscReal :: rate_constant
+    type(reaction_equation_type), pointer :: reaction_equation
+    character(len=MAXSTRINGLENGTH) :: reaction_string
     procedure(CarbonEvaluate), pointer :: Evaluate => null()
     class(carbon_sandbox_base_type), pointer :: next
   contains
@@ -62,15 +63,71 @@ function CarbonBaseCreate()
   class(carbon_sandbox_base_type), pointer :: this
 
   allocate(this)
-  nullify(this%specid)
-  nullify(this%stoich)
   this%rate_constant = UNINITIALIZED_DOUBLE
+  nullify(this%reaction_equation)
+  this%reaction_string = ''
   this%Evaluate => null()
   nullify(this%next)
 
   CarbonBaseCreate => this
 
 end function CarbonBaseCreate
+
+! ************************************************************************** !
+
+subroutine CarbonBaseReadInput(this,input,option)
+  !
+  ! Reads parameters from input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/02/24
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  class(carbon_sandbox_base_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: err_string
+
+  err_string = 'CHEMISTRY,CARBON_SANDBOX,BASE'
+
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',err_string)
+
+    call StringToUpper(keyword)
+    select case(trim(keyword))
+      case('RATE_CONSTANT')
+        call InputReadDouble(input,option,this%rate_constant)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('REACTION')
+        this%reaction_string = trim(input%buf)
+      case default
+        call InputKeywordUnrecognized(input,keyword,err_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+  if (Uninitialized(this%rate_constant)) then
+    option%io_buffer = 'Uninitialized RATE_CONSTANT in ' // trim(err_string)
+    call PrintErrMsg(option)
+  endif
+  if (len_trim(this%reaction_string) <= 1) then
+    option%io_buffer = 'A REACTION is undefined in ' // &
+      trim(err_string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine CarbonBaseReadInput
 
 ! ************************************************************************** !
 
@@ -88,25 +145,18 @@ subroutine CarbonBaseSetup(this,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
+  this%Evaluate => CarbonBaseEvaluate
+  this%reaction_equation => &
+      ReactionEquationCreateFromString(this%reaction_string, &
+                                       reaction%naqcomp, &
+                                       reaction%offset_aqueous, &
+                                       reaction%primary_species_names, &
+                                       reaction%nimcomp, &
+                                       reaction%offset_immobile, &
+                                       reaction%immobile%names, &
+                                       PETSC_FALSE,option)
+
 end subroutine CarbonBaseSetup
-
-! ************************************************************************** !
-
-subroutine CarbonBaseReadInput(this,input,option)
-  !
-  ! Reads parameters from input deck
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/02/24
-  !
-  use Option_module
-  use Input_Aux_module
-
-  class(carbon_sandbox_base_type) :: this
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-end subroutine CarbonBaseReadInput
 
 ! ************************************************************************** !
 
@@ -123,20 +173,22 @@ subroutine CarbonBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Material_Aux_module
   use Option_module
   use Reaction_Aux_module
-  use Reactive_Transport_Aux_module
   use Reaction_Inhibition_Aux_module
+  use Reactive_Transport_Aux_module
 
   class(carbon_sandbox_base_type) :: this
   class(reaction_rt_type) :: reaction
   ! the following arrays must be declared after reaction
-  PetscReal :: Residual(reaction%ncomp)
-  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+  PetscReal :: Residual(:)
+  PetscReal :: Jacobian(:,:)
   PetscBool :: compute_derivative
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
+  PetscInt, pointer :: specid(:)
+  PetscReal, pointer :: stoich(:)
   PetscReal :: effective_rate
   PetscReal :: mol_spec(reaction%ncomp)
   PetscReal :: ln_mol_spec(reaction%ncomp)
@@ -145,7 +197,9 @@ subroutine CarbonBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dummy
   PetscInt :: i, icomp, ncomp
 
-  ncomp = this%specid(0)
+  ncomp = this%reaction_equation%nspec
+  specid => this%reaction_equation%specid
+  stoich => this%reaction_equation%stoich
 
   liter_water = material_auxvar%volume* &
                 material_auxvar%porosity* &
@@ -160,20 +214,21 @@ subroutine CarbonBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   enddo
   ln_mol_spec = log(mol_spec)
 
-  effective_rate = this%rate_constant
+  effective_rate = log(this%rate_constant)
   inhibition = 0.d0
   do i = 1, ncomp
-    if (this%stoich(i) > 0.d0) cycle
-    icomp = this%specid(i)
-    effective_rate = effective_rate + this%stoich(i) * ln_mol_spec(icomp)
+    if (stoich(i) > 0.d0) cycle
+    icomp = specid(i)
+    ! subtract due to negative stoichiometry
+    effective_rate = effective_rate - stoich(i) * ln_mol_spec(icomp)
     conc = mol_spec(icomp) / liter_water
     call ReactionInhibitionSmoothStep(conc,1.d-20,inhibition_factor,dummy)
     inhibition = inhibition + log(inhibition_factor)
   enddo
   effective_rate = exp(effective_rate+inhibition)
   do i = 1, ncomp
-    icomp = this%specid(i)
-    Residual(icomp) = Residual(icomp) - this%stoich(i)*effective_rate
+    icomp = specid(i)
+    Residual(icomp) = Residual(icomp) - stoich(i)*effective_rate
   enddo
 
 end subroutine CarbonBaseEvaluate

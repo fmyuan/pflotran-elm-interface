@@ -54,35 +54,6 @@ end subroutine CarbonSandboxInit
 
 ! ************************************************************************** !
 
-subroutine CarbonSandboxSetup(reaction,option)
-  !
-  ! Configures the reactions and associated data structures in entire list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/02/24
-  !
-  use Option_module
-  use Reaction_Aux_module, only : reaction_rt_type
-
-  implicit none
-
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-
-  class(carbon_sandbox_base_type), pointer :: cur_sandbox
-
-  ! sandbox reactions
-  cur_sandbox => carbon_sandbox_list
-  do
-    if (.not.associated(cur_sandbox)) exit
-    call cur_sandbox%Setup(reaction,option)
-    cur_sandbox => cur_sandbox%next
-  enddo
-
-end subroutine CarbonSandboxSetup
-
-! ************************************************************************** !
-
 subroutine CarbonSandboxRead1(input,option)
   !
   ! Reads input deck for reaction sandbox parameters
@@ -125,7 +96,10 @@ subroutine CarbonSandboxRead2(local_sandbox_list,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: err_string
   class(carbon_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
+
+  err_string = 'CHEMISTRY,CARBON_SANDBOX'
 
   nullify(new_sandbox)
   call InputPushBlock(input,option)
@@ -135,15 +109,14 @@ subroutine CarbonSandboxRead2(local_sandbox_list,input,option)
     if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'keyword','CHEMISTRY,REACTION_SANDBOX')
+    call InputErrorMsg(input,option,'keyword',err_string)
     call StringToUpper(word)
 
     select case(trim(word))
-      case('ABC')
+      case('FIRST_ORDER')
         new_sandbox => CarbonBaseCreate()
       case default
-        call InputKeywordUnrecognized(input,word, &
-                                      'CHEMISTRY,REACTION_SANDBOX',option)
+        call InputKeywordUnrecognized(input,word,err_string,option)
     end select
 
     call new_sandbox%ReadInput(input,option)
@@ -189,6 +162,35 @@ subroutine CarbonSandboxSkipInput(input,option)
   call CarbonSandboxDestroy(dummy_list)
 
 end subroutine CarbonSandboxSkipInput
+
+! ************************************************************************** !
+
+subroutine CarbonSandboxSetup(reaction,option)
+  !
+  ! Configures the reactions and associated data structures in entire list
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/02/24
+  !
+  use Option_module
+  use Reaction_Aux_module, only : reaction_rt_type
+
+  implicit none
+
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  class(carbon_sandbox_base_type), pointer :: cur_sandbox
+
+  ! sandbox reactions
+  cur_sandbox => carbon_sandbox_list
+  do
+    if (.not.associated(cur_sandbox)) exit
+    call cur_sandbox%Setup(reaction,option)
+    cur_sandbox => cur_sandbox%next
+  enddo
+
+end subroutine CarbonSandboxSetup
 
 ! ************************************************************************** !
 

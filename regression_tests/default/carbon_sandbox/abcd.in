@@ -1,0 +1,146 @@
+#Description: 0D microbial degradation problem with biomass
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    A 1.d-4  T
+    B 1.d-3  T
+    C 1.d-7  T
+    D 1.d-20 T
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    A
+    B
+    C
+    D
+  /
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    ALL
+    TOTAL
+  /
+  CARBON_SANDBOX
+    FIRST_ORDER
+      REACTION A -> B
+      RATE_CONSTANT 1.d-7
+    /
+    FIRST_ORDER
+      REACTION B -> C
+      RATE_CONSTANT 1.1d-7
+    /
+    FIRST_ORDER
+      REACTION C -> D
+      RATE_CONSTANT 0.9d-7
+    /
+  /
+
+END
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 y            ! A(aq) at 50m midpoint
+  INITIAL_TIMESTEP_SIZE 1. s
+  MAXIMUM_TIMESTEP_SIZE 0.1 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION pt
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
