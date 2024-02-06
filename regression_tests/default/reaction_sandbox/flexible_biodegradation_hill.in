@@ -62,7 +62,6 @@ CHEMISTRY
       HILL_EXPONENT 1.2d0
     /
   /
-  DATABASE ../../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

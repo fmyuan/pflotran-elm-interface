@@ -166,8 +166,8 @@ subroutine RegressionSetup(regression,realization)
   if (.not.associated(regression)) return
 
   call RegressionCreateMapping(regression,realization)
-  call OutputListEnsureVariablesExist(regression%variable_list, &
-                                      realization%option)
+  call RealizationProcessOutputVarList(regression%variable_list, &
+                                       realization)
 
 end subroutine RegressionSetup
 
@@ -561,7 +561,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
     if (OptionIsIORank(option)) then
       string = OutputVariableToCategoryString(cur_variable%icategory)
       write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
-        trim(string), trim(cur_variable%name)
+        trim(string), OutputVariableGetName(cur_variable)
 
       ! max, min, mean
       if (cur_variable%iformat == 0) then

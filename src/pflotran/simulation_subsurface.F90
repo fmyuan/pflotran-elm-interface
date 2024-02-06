@@ -164,7 +164,7 @@ subroutine SimSubsurfInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 02/15/21
   !
-
+  use Init_Subsurface_module
   use Logging_module
   use Option_module
   use Option_Checkpoint_module
@@ -220,7 +220,7 @@ subroutine SimSubsurfInitializeRun(this)
 
   ! the user may request output of variable that do not exist for the
   ! the requested process models; this routine should catch such issues.
-  call OutputEnsureVariablesExist(this%output_option,this%option)
+  call InitSubsurfProcessOutputVars(this%realization)
   call SimSubsurfForbiddenCombinations(this)
 
   if (this%option%restart_flag) then
@@ -325,6 +325,8 @@ subroutine SimSubsurfInputRecord(this)
       write(id,'(a)') 'thermo-hydro'
     case(TH_TS_MODE)
       write(id,'(a)') 'thermo-hydro_ts'
+    case(SCO2_MODE)
+      write(id,'(a)') 'SCO2'
   end select
 
   ! print time information

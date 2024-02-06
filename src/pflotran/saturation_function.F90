@@ -23,6 +23,7 @@ module Saturation_Function_module
     PetscReal :: lambda
     PetscReal :: alpha
     PetscReal :: pcwmax
+    PetscReal :: Sgt_max
     PetscReal :: betac
     PetscReal :: power
     PetscInt :: hysteresis_id
@@ -33,9 +34,9 @@ module Saturation_Function_module
     PetscReal :: pres_spline_low
     PetscReal :: pres_spline_high
     PetscReal :: pres_spline_coefficients(4)
-    PetscReal :: ani_A       ! parameters for anisotropic relative permeability model
-    PetscReal :: ani_B       ! parameters for anisotropic relative permeability model
-    PetscReal :: ani_C       ! parameters for anisotropic relative permeability model
+    PetscReal :: ani_A  ! parameters for anisotropic relative permeability model
+    PetscReal :: ani_B  ! parameters for anisotropic relative permeability model
+    PetscReal :: ani_C  ! parameters for anisotropic relative permeability model
 
     type(saturation_function_type), pointer :: next
   end type saturation_function_type
@@ -123,6 +124,7 @@ function SaturationFunctionCreate(option)
   saturation_function%lambda = 0.d0
   saturation_function%alpha = 0.d0
   saturation_function%pcwmax = 1.d9
+  saturation_function%Sgt_max = 0.d0
   saturation_function%betac = 0.d0
   saturation_function%power = 0.d0
   saturation_function%hysteresis_id = 0
@@ -167,9 +169,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   PetscReal :: tempreal
 
   select case(option%iflowmode)
-    case(G_MODE,H_MODE,WF_MODE)
+    case(G_MODE,H_MODE,WF_MODE,SCO2_MODE)
       option%io_buffer = 'SATURATION_FUNCTION card is no longer ' // &
-        'supported for GENERAL mode.  Please use CHARACTERISTIC_' // &
+        'supported for multiphase modes.  Please use CHARACTERISTIC_' // &
         'CURVES card defined on the PFLOTRAN wiki.'
       call PrintErrMsg(option)
   end select
@@ -231,7 +233,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,saturation_function%Sr(iphase))
             word = trim(keyword) // ' residual saturation'
             call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
-          case(G_MODE,H_MODE)
+          case(G_MODE,H_MODE,SCO2_MODE)
             iphase = 0
             string = input%buf
             call InputReadDouble(input,option,tempreal)
@@ -278,6 +280,10 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       case('MAX_CAPILLARY_PRESSURE')
         call InputReadDouble(input,option,saturation_function%pcwmax)
         call InputErrorMsg(input,option,'maximum capillary pressure','SATURATION_FUNCTION')
+      case('MAX_TRAPPED_GAS_SAT')
+        call InputReadDouble(input,option,saturation_function%Sgt_max)
+        call InputErrorMsg(input,option,'maximum trapped gas saturation', &
+                           'SATURATION_FUNCTION')
       case('BETAC')
         call InputReadDouble(input,option,saturation_function%betac)
         call InputErrorMsg(input,option,'betac','SATURATION_FUNCTION')

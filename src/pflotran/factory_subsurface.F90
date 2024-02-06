@@ -63,6 +63,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use PM_Auxiliary_class
   use PM_Well_class
   use PM_Material_Transform_class
+  use PM_Parameter_class
   use Factory_Subsurface_Linkage_module
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
@@ -82,6 +83,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_well_type), pointer :: pm_well
   class(pm_material_transform_type), pointer :: pm_material_transform
+  class(pm_parameter_type), pointer :: pm_parameter_list
   class(realization_subsurface_type), pointer :: realization
 
   option => simulation%option
@@ -94,6 +96,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_geop)
   nullify(pm_auxiliary)
   nullify(pm_well)
+  nullify(pm_parameter_list)
 
   ! process command line arguments specific to subsurface
   call FactSubInitCommandLineSettings(option)
@@ -102,7 +105,8 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                        pm_waste_form,pm_ufd_decay, &
                                        pm_ufd_biosphere,pm_geop, &
                                        pm_auxiliary,pm_well, &
-                                       pm_material_transform)
+                                       pm_material_transform, &
+                                       pm_parameter_list)
 
   call FactorySubsurfaceSetFlowMode(pm_flow,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
@@ -113,10 +117,10 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
 
   ! Setup linkages between PMCs
   call FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
-                                       pm_waste_form,pm_ufd_decay, &
-                                       pm_ufd_biosphere,pm_geop, &
-                                       pm_auxiliary,pm_well, &
-                                       pm_material_transform)
+                                   pm_waste_form,pm_ufd_decay, &
+                                   pm_ufd_biosphere,pm_geop,pm_auxiliary, &
+                                   pm_well,pm_material_transform, &
+                                   pm_parameter_list)
 
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call FactorySubsurfaceInitSimulation(simulation)
@@ -168,9 +172,9 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use PM_ZFlow_class
+  use PM_SCO2_class
   use ZFlow_Aux_module
   use PM_PNF_class
-  use General_Aux_module
 
   implicit none
 
@@ -266,6 +270,8 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
+    class is (pm_sco2_type)
+      call PMSCO2SetFlowMode(pm_flow,option)
     class default
       option%io_buffer = ''
       call PrintErrMsg(option)
@@ -300,7 +306,6 @@ subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
   use Option_module
   use PM_Base_class
   use PM_ERT_class
-  !use General_Aux_module
 
   implicit none
 
@@ -452,9 +457,11 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Init_Common_module
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reaction_Database_module
+  use Reaction_Setup_module
   use EOS_module
   use Dataset_module
   use Patch_module
+  use Parameter_module
   use EOS_module !to be removed as already present above
 
   implicit none
@@ -476,19 +483,21 @@ subroutine FactorySubsurfSetupRealization(simulation)
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
 
+  call ParameterSetup(realization%parameter_list,option)
   select case(option%itranmode)
     case(RT_MODE)
       ! read reaction database
-      if (realization%reaction%use_full_geochemistry) then
+      if (realization%reaction%read_reaction_database) then
         call ReactionDBReadDatabase(realization%reaction,option)
         call ReactionDBInitBasis(realization%reaction,option)
       else
         ! turn off activity coefficients since the database has not been read
         realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-        !TODO(jenn) Should I turn on print here too?
-        allocate(realization%reaction%primary_species_print(option%ntrandof))
-        realization%reaction%primary_species_print = PETSC_TRUE
+        call ReactionSetupPrimaryPrint(realization%reaction,option)
       endif
+      call ReactionSetupKinetics(realization%reaction,option)
+      call ReactionSetupSpecificSpecies(realization%reaction,option)
+      call ReactionSetupSpeciesSummary(realization%reaction,option)
 
       ! SK 09/30/13, Added to check if Mphase is called with OS
       if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
@@ -505,9 +514,11 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
-  call InitCommonReadRegionFiles(realization%patch,realization%region_list,realization%option)
+  call InitCommonReadRegionFiles(realization%patch,realization%region_list, &
+                                 realization%option)
   ! clip regions and set up boundary connectivity, distance
-  call RealizationLocalizeRegions(realization%patch,realization%region_list,realization%option)
+  call RealizationLocalizeRegions(realization%patch,realization%region_list, &
+                                  realization%option)
   call RealizationPassPtrsToPatches(realization)
   call RealizationProcessDatasets(realization)
   if (realization%output_option%mass_balance_region_flag) then

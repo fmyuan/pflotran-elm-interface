@@ -58,6 +58,7 @@ endif
 STANDARD_CFG = \
 	ascem/batch/batch.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
+	co2/sco2.cfg \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/batch/batch.cfg \
@@ -83,6 +84,7 @@ STANDARD_CFG = \
 	default/numerical/numerical.cfg \
 	default/output/compare/compare.cfg \
 	default/output/output.cfg \
+	default/parameter/parameter.cfg \
 	default/restart/restart.cfg \
 	default/restart/skip/skip.cfg \
 	default/reaction_sandbox/reaction_sandbox.cfg \

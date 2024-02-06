@@ -77,6 +77,8 @@ module Reaction_Sandbox_Cyber_class
     PetscReal :: inhibit_by_reactants
     PetscInt :: inhibit_func
     PetscReal :: inhibit_func_constant
+    character(len=MAXWORDLENGTH) :: k3_rate_constant_parameter_name
+    PetscInt :: k3_rate_constant_parameter_id
     PetscInt, pointer :: nrow(:)
     PetscInt, pointer :: ncol(:)
     PetscInt, pointer :: irow(:,:)
@@ -159,6 +161,8 @@ function CyberCreate()
   CyberCreate%inhibit_by_reactants = UNINITIALIZED_DOUBLE
   CyberCreate%inhibit_func = INHIBIT_FUNC_ARCTAN2
   CyberCreate%inhibit_func_constant = UNINITIALIZED_DOUBLE
+  CyberCreate%k3_rate_constant_parameter_name = ''
+  CyberCreate%k3_rate_constant_parameter_id = UNINITIALIZED_INTEGER
   nullify(CyberCreate%nrow)
   nullify(CyberCreate%ncol)
   nullify(CyberCreate%irow)
@@ -206,61 +210,65 @@ subroutine CyberRead(this,input,option)
     select case(trim(word))
       case('F1')
         call InputReadDouble(input,option,this%f1)
-        call InputErrorMsg(input,option,'f1',error_string)
+        call InputErrorMsg(input,option,word,error_string)
       case('F2')
         call InputReadDouble(input,option,this%f2)
-        call InputErrorMsg(input,option,'f2',error_string)
+        call InputErrorMsg(input,option,word,error_string)
       case('F3')
         call InputReadDouble(input,option,this%f3)
-        call InputErrorMsg(input,option,'f3',error_string)
+        call InputErrorMsg(input,option,word,error_string)
       case('K1','K_NO3-')
         call InputReadDouble(input,option,this%k1)
-        call InputErrorMsg(input,option,'k1',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%k1,'1/sec|mol/mol-sec', &
                                       trim(error_string)//',k1',option)
       case('K2','K_NO2-')
         call InputReadDouble(input,option,this%k2)
-        call InputErrorMsg(input,option,'k2',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%k2,'1/sec|mol/mol-sec', &
                                       trim(error_string)//',k2',option)
       case('K3','K_O2(aq)')
         call InputReadDouble(input,option,this%k3)
-        call InputErrorMsg(input,option,'k3',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%k3,'1/sec|mol/mol-sec', &
                                       trim(error_string)//',k3',option)
+      case('K3_PARAMETER','K_O2(aq)_PARAMETER')
+        call InputReadWord(input,option,this%k3_rate_constant_parameter_name, &
+                           PETSC_TRUE)
+        call InputErrorMsg(input,option,word,error_string)
       case('KA1','KA_NO3-')
         call InputReadDouble(input,option,this%Ka1)
-        call InputErrorMsg(input,option,'Ka1',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%Ka1,'M', &
                                       trim(error_string)//',Ka1',option)
       case('KA2','KA_NO2-')
         call InputReadDouble(input,option,this%Ka2)
-        call InputErrorMsg(input,option,'Ka2',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%Ka2,'M', &
                                       trim(error_string)//',Ka2',option)
       case('KA3','KA_O2(aq)')
         call InputReadDouble(input,option,this%Ka3)
-        call InputErrorMsg(input,option,'Ka3',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%Ka3,'M', &
                                       trim(error_string)//',Ka3',option)
       case('KD1','KD_NO3-')
         call InputReadDouble(input,option,this%Kd1)
-        call InputErrorMsg(input,option,'Kd1',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%Kd1,'M', &
                                       trim(error_string)//',Kd1',option)
       case('KD2','KD_NO2-')
         call InputReadDouble(input,option,this%Kd2)
-        call InputErrorMsg(input,option,'Kd2',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%Kd2,'M', &
                                       trim(error_string)//',Kd2',option)
       case('KD3','KD_O2(aq)')
         call InputReadDouble(input,option,this%Kd3)
-        call InputErrorMsg(input,option,'Kd3',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%Kd3,'M', &
                                       trim(error_string)//',Kd3',option)
       case('KDEG')
         call InputReadDouble(input,option,this%k_deg)
-        call InputErrorMsg(input,option,'kdeg',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%k_deg,'1/sec', &
                                       trim(error_string)//',kdeg',option)
 !      case('F_ACT')
@@ -268,31 +276,29 @@ subroutine CyberRead(this,input,option)
 !        call InputErrorMsg(input,option,'f_act',error_string)
       case('ACTIVATION_ENERGY')
         call InputReadDouble(input,option,this%activation_energy)
-        call InputErrorMsg(input,option,'activation energy',error_string)
+        call InputErrorMsg(input,option,word,error_string)
         call InputReadAndConvertUnits(input,this%activation_energy,'J/mol', &
                               trim(error_string)//',activation energy',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,this%reference_temperature)
-        call InputErrorMsg(input,option,'reference temperature [C]', &
-                           error_string)
+        call InputErrorMsg(input,option,word,error_string)
         this%reference_temperature = this%reference_temperature + 273.15d0
       case('CARBON_CONSUMPTION_SPECIES')
         call InputReadWord(input,option, &
                            this%carbon_consumption_species,PETSC_TRUE)
-        call InputErrorMsg(input,option,'carbon consumption species', &
-                           error_string)
+        call InputErrorMsg(input,option,word,error_string)
       case('STORE_CONSUMPTION_PRODUCTION')
         this%store_cumulative_mass = PETSC_TRUE
       case('MOBILE_BIOMASS')
         this%mobile_biomass = PETSC_TRUE
       case('INHIBIT_BY_REACTANTS')
         call InputReadDouble(input,option,this%inhibit_by_reactants)
-        call InputErrorMsg(input,option,'reactant inhibition concentration', &
+        call InputErrorMsg(input,option,word, &
                            trim(error_string)//','//trim(word))
       case('INHIBITION_FUNCTION')
         error_string = trim(error_string)//','//trim(word)
         call InputReadWord(input,option,word2,PETSC_TRUE)
-        call InputErrorMsg(input,option,'reactant inhibition function', &
+        call InputErrorMsg(input,option,word, &
                            trim(error_string))
         call StringToUpper(word2)
         error_string = trim(error_string)//','//trim(word2)
@@ -302,8 +308,7 @@ subroutine CyberRead(this,input,option)
           case('ARCTAN2')
             this%inhibit_func = INHIBIT_FUNC_ARCTAN2
             call InputReadDouble(input,option,this%inhibit_func_constant)
-            call InputErrorMsg(input,option,'scaling factor (f)', &
-                               trim(error_string))
+            call InputErrorMsg(input,option,word,trim(error_string))
           case('SMOOTHSTEP')
             this%inhibit_func = INHIBIT_FUNC_SMOOTHSTEP
             call InputReadDouble(input,option,this%inhibit_func_constant)
@@ -339,6 +344,7 @@ subroutine CyberSetup(this,reaction,option)
   use Reaction_Immobile_Aux_module
   use Reaction_Mineral_Aux_module
   use Option_module
+  use Parameter_module
 
   implicit none
 
@@ -518,6 +524,12 @@ subroutine CyberSetup(this,reaction,option)
   this%icol(4,irxn) = this%o2_id
   endif
 
+  ! set up spatially variable rate constant for O2
+  if (len_trim(this%k3_rate_constant_parameter_name) > 0) then
+    this%k3_rate_constant_parameter_id = &
+      ParameterGetIDFromName(this%k3_rate_constant_parameter_name,option)
+  endif
+
 end subroutine CyberSetup
 
 ! ************************************************************************** !
@@ -622,6 +634,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: r3o2monod, r3o2monod_denom
   PetscReal :: r1kin, r2kin, r3kin
   PetscReal :: sumkin, sumkinsq
+  PetscReal :: k3
   PetscReal :: u1, u2, u3
   PetscReal :: dr1kin_ddoc, dr1kin_dno3
   PetscReal :: dr2kin_ddoc, dr2kin_dno2
@@ -767,7 +780,10 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   dnh4_inhibition_dnh4 = dnh4_inhibition_dnh4 * &
                           rt_auxvar%pri_act_coef(this%nh4_id) * &
                           molality_to_molarity
-
+  k3 = this%k3
+  if (Initialized(this%k3_rate_constant_parameter_id)) then
+    k3 = global_auxvar%parameters(this%k3_rate_constant_parameter_id)
+  endif
   k1_scaled = this%k1 * temperature_scaling_factor
   k2_scaled = this%k2 * temperature_scaling_factor
   k3_scaled = this%k3 * temperature_scaling_factor

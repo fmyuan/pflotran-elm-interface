@@ -37,7 +37,6 @@ CHEMISTRY
         OH- 5.27d-9
     END
 
-
     ACTIVITY_COEFFICIENTS TIMESTEP
     DATABASE ../../../database/rasouli.dat
     LOG_FORMULATION

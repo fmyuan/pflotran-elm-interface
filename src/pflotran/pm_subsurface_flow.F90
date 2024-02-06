@@ -29,10 +29,12 @@ module PM_Subsurface_Flow_class
     PetscReal :: max_temperature_change
     PetscReal :: max_saturation_change
     PetscReal :: max_xmol_change
+    PetscReal :: max_salt_mass_change
     PetscReal :: pressure_change_governor
     PetscReal :: temperature_change_governor
     PetscReal :: saturation_change_governor
     PetscReal :: xmol_change_governor
+    PetscReal :: salt_mass_change_governor
     PetscReal :: cfl_governor
     ! these limit (truncate) the maximum change in a Newton iteration
     ! truncation occurs within PMXXXCheckUpdatePre
@@ -121,10 +123,12 @@ subroutine PMSubsurfaceFlowInit(this)
   this%max_temperature_change = 0.d0
   this%max_saturation_change = 0.d0
   this%max_xmol_change = 0.d0
+  this%max_salt_mass_change = 0.d0
   this%pressure_change_governor = 5.d5
   this%temperature_change_governor = 5.d0
   this%saturation_change_governor = 0.5d0
   this%xmol_change_governor = 1.d0
+  this%salt_mass_change_governor = 1.d1
   this%cfl_governor = UNINITIALIZED_DOUBLE
   this%pressure_dampening_factor = UNINITIALIZED_DOUBLE
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
@@ -237,6 +241,10 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
 
     case('SATURATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%saturation_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('SALT_MASS_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%salt_mass_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
     case('CFL_GOVERNOR')

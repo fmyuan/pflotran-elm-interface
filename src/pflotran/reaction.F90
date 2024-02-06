@@ -94,6 +94,10 @@ subroutine ReactionInit(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  if (associated(reaction)) then
+    option%io_buffer = 'More than one CHEMISTRY block exists in the input file.'
+    call PrintErrMsg(option)
+  endif
   reaction => ReactionAuxCreateAux()
 
   ! must be called prior to the first pass
@@ -847,7 +851,9 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputReadDouble(input,option,reaction%minimum_porosity)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
       case('USE_FULL_GEOCHEMISTRY')
-        reaction%use_full_geochemistry = PETSC_TRUE
+        call InputKeywordDeprecated(word,'FORCE_READ_REACTION_DATABASE',option)
+      case('FORCE_READ_OF_REACTION_DATABASE')
+        reaction%read_reaction_database = PETSC_TRUE
       case('LOGGING_VERBOSITY')
         call InputReadInt(input,option,reaction%logging_verbosity)
         call InputErrorMsg(input,option,'logging verbosity','CHEMISTRY')
@@ -908,7 +914,14 @@ subroutine ReactionReadPass1(reaction,input,option)
       ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
       reaction_clm_read .or. &
       reaction_sandbox_read) then
-    reaction%use_full_geochemistry = PETSC_TRUE
+    option%transport%conservative_transport_only = PETSC_FALSE
+  endif
+  if (reaction%neqcplx + reaction%mineral%nmnrl + &
+      reaction%neqionxrxn + reaction%surface_complexation%neqsrfcplxrxn + &
+      reaction%surface_complexation%nkinmrsrfcplxrxn + &
+      reaction%surface_complexation%nkinsrfcplxrxn + &
+      ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0) then
+    reaction%read_reaction_database = PETSC_TRUE
   endif
 
   ! ensure that update porosity is ON if update of tortuosity, permeability or
@@ -1267,14 +1280,20 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
     enddo
   enddo
 
-  ! place ordered constraint parameters back in original arrays
-  aq_species_constraint%constraint_type = constraint_type
-  aq_species_constraint%constraint_aux_string = constraint_aux_string
-  aq_species_constraint%constraint_spec_id = constraint_id
-  aq_species_constraint%constraint_conc = constraint_conc
-  aq_species_constraint%external_dataset = external_dataset
+  if (associated(aq_species_constraint)) then
+    ! place ordered constraint parameters back in original arrays
+    aq_species_constraint%constraint_type = constraint_type
+    aq_species_constraint%constraint_aux_string = constraint_aux_string
+    aq_species_constraint%constraint_spec_id = constraint_id
+    aq_species_constraint%constraint_conc = constraint_conc
+    aq_species_constraint%external_dataset = external_dataset
+  endif
 
-  if (.not.reaction%use_full_geochemistry) return
+  ! microbial immobile
+  call ReactionImProcessConstraint(reaction%immobile,constraint%name, &
+                                   immobile_constraint,option)
+
+  if (.not.reaction%read_reaction_database) return
 
   ! free ion guess
   if (associated(free_ion_guess_constraint)) then
@@ -1312,10 +1331,6 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   call ReactionSrfCplxProcessConstraint(reaction%surface_complexation, &
                                 constraint%name, &
                                 srfcplx_constraint,option)
-
-  ! microbial immobile
-  call ReactionImProcessConstraint(reaction%immobile,constraint%name, &
-                                   immobile_constraint,option)
 
 end subroutine ReactionProcessConstraint
 
@@ -1411,6 +1426,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscInt :: iflag, ierror
   PetscErrorCode :: ierr
 
+  if (.not.associated(constraint%aqueous_species)) return
+
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
 
@@ -1465,7 +1482,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     enddo
   endif
 
-  if (.not.reaction%use_full_geochemistry) then
+  if (option%transport%conservative_transport_only) then
     ! if constraint concentratoins are molalities, need to convert to molarity
     ! when reaction%initialize_with_molality is true, regardless of whether
     ! free or total component.
@@ -2195,7 +2212,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
                           global_auxvar%sat(iphase)*1000.d0
 
 ! compute mole and mass fractions of H2O
-  if (reaction%use_full_geochemistry) then
+  if (reaction%read_reaction_database) then
     sum_molality = 0.d0
     do icomp = 1, reaction%naqcomp
       if (icomp /= reaction%species_idx%h2o_aq_id) then
@@ -2227,7 +2244,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
   molal_to_molar = global_auxvar%den_kg(iphase)/1000.d0
   molar_to_molal = 1.d0/molal_to_molar
 
-  if (.not.reaction%use_full_geochemistry) then
+  if (.not.reaction%read_reaction_database) then
     100 format(/,'  species       molality')
     write(option%fid_out,100)
     101 format(2x,a12,es12.4)
@@ -3163,15 +3180,14 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%gas%print_concentration = PETSC_TRUE
       case('AGE')
         reaction%print_age = PETSC_TRUE
-        reaction%use_full_geochemistry = PETSC_TRUE
       case('AUXILIARY')
         reaction%print_auxiliary = PETSC_TRUE
       case('PRINT_VERBOSE_CONSTRAINTS')
         reaction%print_verbose_constraints = PETSC_TRUE
       case('PRINT_TOTAL_MASS_KG')
-        if (.not.reaction%use_full_geochemistry) then
-          option%io_buffer = 'USE_FULL_GEOCHEMISTRY MUST BE SPECIFIED &
-                              &WHEN USING PRINT_TOTAL_MASS_KG'
+        if (.not.reaction%read_reaction_database) then
+          option%io_buffer = 'FORCE_READ_REACTION_DATABASE must be specified &
+                              &when using PRINT_TOTAL_MASS_KG'
           call PrintErrMsg(option)
         endif
           reaction%print_total_mass_kg = PETSC_TRUE
@@ -3596,8 +3612,12 @@ subroutine RStep(guess,rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: initial_small_value(reaction%ncomp)
   PetscBool :: kinetic_state_updated
 
+  num_kinetic_state_updates = 0
+  num_sub_steps = 0
+  num_iterations = 0
+
   ! skip chemistry if species nonreacting
-  if (.not.reaction%use_full_geochemistry) then
+  if (option%transport%conservative_transport_only) then
     rt_auxvar%pri_molal(:) = rt_auxvar%total(:,1) / &
                              global_auxvar%den_kg(1)*1.d3
     return
@@ -3637,9 +3657,6 @@ subroutine RStep(guess,rt_auxvar,global_auxvar,material_auxvar, &
 
   target_time = option%tran_dt
   cumulative_time = 0.d0
-  num_kinetic_state_updates = 0
-  num_sub_steps = 0
-  num_iterations = 0
   num_constant_timesteps_after_cut = 0
   num_cuts = 0
   ierror = 0
@@ -4604,7 +4621,10 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  rt_auxvar%total = 0.d0
+  if (reaction%naqcomp > 0) then
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  endif
   if (reaction%neqsorb > 0) then
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,reaction%isotherm%isotherm_rxn,option)
@@ -4614,8 +4634,6 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
   endif
-
-
 
 end subroutine RTotal
 
@@ -4649,8 +4667,6 @@ subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: lnQK, tempreal
   PetscReal :: den_kg_per_L, xmass
-
-  rt_auxvar%total = 0.d0 !debugging
 
   xmass = 1.d0
   if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(iphase)

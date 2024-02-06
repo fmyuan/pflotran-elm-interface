@@ -10,6 +10,7 @@ module Option_module
   use Option_Transport_module
   use Option_Geophysics_module
   use Option_Inversion_module
+  use Option_Parameter_module
   use Print_module
 
   implicit none
@@ -24,6 +25,7 @@ module Option_module
     type(geophysics_option_type), pointer :: geophysics
     type(checkpoint_option_type), pointer :: checkpoint
     type(inversion_option_type), pointer :: inversion
+    type(parameter_option_type), pointer :: parameter
     type(comm_type), pointer :: comm
     class(driver_type), pointer :: driver
 
@@ -57,7 +59,9 @@ module Option_module
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
     PetscInt :: precipitate_phase
-    PetscInt :: phase_map(MAX_PHASE)
+    PetscInt :: pure_water_phase ! for storing pure water properties
+    PetscInt :: pure_brine_phase ! for storing pure brine properties
+    PetscInt :: trapped_gas_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
@@ -74,11 +78,14 @@ module Option_module
     PetscBool :: sec_vars_update
 
     PetscInt :: air_pressure_id
+    PetscInt :: co2_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
+    PetscInt :: reduced_vapor_pressure_id
     PetscInt :: saturation_pressure_id
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
+    PetscInt :: co2_id ! index of co2 component dof
     PetscInt :: energy_id  ! index of energy dof
     PetscInt :: salt_id ! index of salt dof
 
@@ -268,6 +275,7 @@ function OptionCreate1()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  option%parameter => OptionParameterCreate()
   nullify(option%checkpoint)
   nullify(option%inversion)
   nullify(option%driver)
@@ -489,8 +497,6 @@ subroutine OptionInitRealization(option)
   option%igeopmode = NULL_MODE
   option%ngeopdof = 0
 
-  option%phase_map = UNINITIALIZED_INTEGER
-
   option%nphase = 0
 
   option%liquid_phase  = UNINITIALIZED_INTEGER
@@ -498,14 +504,19 @@ subroutine OptionInitRealization(option)
   option%hydrate_phase = UNINITIALIZED_INTEGER
   option%ice_phase = UNINITIALIZED_INTEGER
   option%precipitate_phase = UNINITIALIZED_INTEGER
+  option%pure_water_phase = UNINITIALIZED_INTEGER
+  option%pure_brine_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
+  option%co2_pressure_id = 0
   option%capillary_pressure_id = 0
   option%vapor_pressure_id = 0
+  option%reduced_vapor_pressure_id = 0
   option%saturation_pressure_id = 0
 
   option%water_id = 0
   option%air_id = 0
+  option%co2_id = 0
   option%energy_id = 0
   option%salt_id = 0
 
@@ -1415,6 +1426,7 @@ subroutine OptionDestroy(option)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
   call OptionCheckpointDestroy(option%checkpoint)
+  call OptionParameterDestroy(option%parameter)
   nullify(option%comm)
   nullify(option%inversion)
   ! never destroy the driver as it was created elsewhere

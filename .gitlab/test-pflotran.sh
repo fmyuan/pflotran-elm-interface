@@ -22,9 +22,14 @@ fi
 
 # Run unit tests
 UTEST_LOG='utest.log'
-make gnu_code_coverage=1 utest 2>&1 | tee $UTEST_LOG
+make gnu_code_coverage=1 gnu_runtime_checks=1 catch_warnings_as_errors=1 \
+  utest 2>&1 | tee $UTEST_LOG
+# catch failed tests
 if [ $(grep -c " FAILURES!!!\|failed" "$UTEST_LOG") -ne 0 ]; then
   echo "\n----- Unit tests failed -----\n" >&2
+  UNIT_EXIT_CODE=1
+elif [ $(grep -c " Error 1\|Error: \|undefined reference" "$UTEST_LOG") -ne 0 ]; then
+  echo "\n----- Unit test code failed to compile -----\n" >&2
   UNIT_EXIT_CODE=1
 elif [ $(grep -c " OK" "$UTEST_LOG") -ne 0 ]; then
   echo "\n----- Unit tests succeeded -----\n" >&2

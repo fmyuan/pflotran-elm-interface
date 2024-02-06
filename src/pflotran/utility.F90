@@ -2799,6 +2799,7 @@ subroutine ThrowRuntimeError(error_name,option)
   PetscReal, allocatable, target :: array(:)
   PetscReal, pointer :: array2(:)
 
+  nullify(array2)
   select case(trim(error_name))
     case('array_bounds')
       call PrintMsg(option,'Checking array bounds errors:')

@@ -465,7 +465,7 @@ function DatasetGetClass(dataset)
     class is (dataset_map_hdf5_type)
       DatasetGetClass = 'dataset_map_hdf5_type'
     class is (dataset_common_hdf5_type)
-      DatasetGetClass = 'dataset_hdf5_type'
+      DatasetGetClass = 'dataset_common_hdf5_type'
     class is (dataset_base_type)
       DatasetGetClass = 'dataset_base_type'
     class default

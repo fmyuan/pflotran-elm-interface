@@ -45,8 +45,8 @@ subroutine FactorySubsurfReadFlowPM(input,option,pm)
   use PM_TH_TS_class
   use PM_ZFlow_class
   use PM_PNF_class
+  use PM_SCO2_class
   use Init_Common_module
-  use General_module
 
   implicit none
 
@@ -106,6 +106,8 @@ subroutine FactorySubsurfReadFlowPM(input,option,pm)
             pm => PMZFlowCreate()
           case ('PORE_FLOW')
             pm => PMPNFCreate()
+          case ('STOMP-CO2','SCO2')
+            pm => PMSCO2Create()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -613,7 +615,6 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
-  use General_module
   use Reaction_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
@@ -839,6 +840,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Utility_module
   use Checkpoint_module
   use Simulation_Subsurface_class
+  use Parameter_module
   use PMC_Base_class
   use PMC_Subsurface_class
   use PMC_Geophysics_class
@@ -848,6 +850,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use PM_NWT_class
   use PM_Well_class
   use PM_Hydrate_class
+  use PM_SCO2_class
   use PM_Base_class
   use Print_module
   use Timestepper_Base_class
@@ -924,6 +927,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input
   type(survey_type), pointer :: survey
+  type(parameter_type), pointer :: parameter
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -1115,6 +1119,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
             call FlowConditionGeneralRead(flow_condition,input,option)
           case(H_MODE)
             call FlowConditionHydrateRead(flow_condition,input,option)
+          case(SCO2_MODE)
+            call FlowConditionSCO2Read(flow_condition,input,option)
           case default
             call FlowConditionRead(flow_condition,input,option)
         end select
@@ -2405,6 +2411,14 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call PMWellReadPass2(input,option)
 
 !....................
+      case ('PARAMETER')
+        parameter => ParameterCreate()
+        call InputReadWord(input,option,parameter%name,PETSC_FALSE)
+        call ParameterRead(parameter,input,option)
+        call ParameterAddToList(parameter,realization%parameter_list)
+        nullify(parameter)
+
+!....................
       case ('END_SUBSURFACE')
         exit
 
@@ -2421,7 +2435,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
       case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE, &
-           H_MODE)
+           H_MODE,SCO2_MODE)
         if (option%flow%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'
