@@ -4,7 +4,7 @@ module Reaction_Microbial_Aux_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use Reaction_Database_Aux_module
+  use Reaction_Equation_module
   use Reaction_Inhibition_Aux_module
 
   implicit none
@@ -25,7 +25,7 @@ module Reaction_Microbial_Aux_module
     PetscReal :: rate_constant
     PetscReal :: activation_energy
     PetscBool :: print_me
-    type(database_rxn_type), pointer :: dbaserxn
+    type(reaction_equation_type), pointer :: reaction_equation
     type(monod_type), pointer :: monod
     type(inhibition_type), pointer :: inhibition
     type(microbial_biomass_type), pointer :: biomass
@@ -151,7 +151,7 @@ function ReactionMicrobCreateRxn()
   microbial_rxn%activation_energy = 0.d0
   microbial_rxn%print_me = PETSC_FALSE
   nullify(microbial_rxn%biomass)
-  nullify(microbial_rxn%dbaserxn)
+  nullify(microbial_rxn%reaction_equation)
   nullify(microbial_rxn%monod)
   nullify(microbial_rxn%inhibition)
   nullify(microbial_rxn%next)
@@ -317,7 +317,7 @@ subroutine ReactionMicrobDestroyRxn(microbial)
 
   type(microbial_rxn_type), pointer :: microbial
 
-  call ReactionDBDestroyRxn(microbial%dbaserxn)
+  call ReactionEquationDestroy(microbial%reaction_equation)
   call ReactionMicrobDestroyMonod(microbial%monod)
   call ReactionInhibitionDestroyAux(microbial%inhibition)
   call ReactionMicrobDestroyBiomass(microbial%biomass)

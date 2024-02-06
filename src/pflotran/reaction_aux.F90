@@ -7,6 +7,7 @@ module Reaction_Aux_module
   use Generic_module
   use Reaction_Base_module
   use Reaction_Database_Aux_module
+  use Reaction_Equation_module
   use Reaction_Gas_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Isotherm_Aux_module
@@ -86,7 +87,7 @@ module Reaction_Aux_module
     PetscReal :: rate_constant
     PetscReal :: half_life
     PetscBool :: print_me
-    type(database_rxn_type), pointer :: dbaserxn
+    type(reaction_equation_type), pointer :: reaction_equation
     type(radioactive_decay_rxn_type), pointer :: next
   end type radioactive_decay_rxn_type
 
@@ -96,7 +97,7 @@ module Reaction_Aux_module
     PetscReal :: forward_rate
     PetscReal :: backward_rate
     PetscBool :: print_me
-    type(database_rxn_type), pointer :: dbaserxn
+    type(reaction_equation_type), pointer :: reaction_equation
     type(general_rxn_type), pointer :: next
   end type general_rxn_type
 
@@ -706,7 +707,7 @@ function ReactionAuxCreateRadioDecayRxn()
   rxn%rate_constant = 0.d0
   rxn%half_life = 0.d0
   rxn%print_me = PETSC_FALSE
-  nullify(rxn%dbaserxn)
+  nullify(rxn%reaction_equation)
   nullify(rxn%next)
 
   ReactionAuxCreateRadioDecayRxn => rxn
@@ -734,7 +735,7 @@ function ReactionAuxCreateGeneralRxn()
   rxn%forward_rate = 0.d0
   rxn%backward_rate = 0.d0
   rxn%print_me = PETSC_FALSE
-  nullify(rxn%dbaserxn)
+  nullify(rxn%reaction_equation)
   nullify(rxn%next)
 
   ReactionAuxCreateGeneralRxn => rxn
@@ -1560,7 +1561,7 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
 
   use Input_Aux_module
   use Option_module
-  use Reaction_Database_Aux_module
+  use Reaction_Equation_module
 
   implicit none
 
@@ -1573,7 +1574,7 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: irxn, nrxn
-  type(database_rxn_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
+  type(reaction_equation_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
 
   input => InputCreate(IUNIT_TEMP,filename,option)
   input%ierr = 0
@@ -1584,17 +1585,17 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    cur_rxn => ReactionDBCreateRxnPtr()
+    cur_rxn => ReactionEquationCreateRxnPtr()
     string = input%buf
-    cur_rxn%dbaserxn => &
-      ReactionDBCreateRxnFromString(string, &
-                                     reaction%naqcomp, &
-                                     reaction%offset_aqueous, &
-                                     reaction%primary_species_names, &
-                                     reaction%nimcomp, &
-                                     reaction%offset_immobile, &
-                                     reaction%immobile%names, &
-                                     PETSC_FALSE,option)
+    cur_rxn%reaction_equation => &
+      ReactionEquationCreateFromString(string, &
+                                       reaction%naqcomp, &
+                                       reaction%offset_aqueous, &
+                                       reaction%primary_species_names, &
+                                       reaction%nimcomp, &
+                                       reaction%offset_immobile, &
+                                       reaction%immobile%names, &
+                                       PETSC_FALSE,option)
     if (.not.associated(rxn_list)) then
       rxn_list => cur_rxn
     else
@@ -1616,14 +1617,13 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
   do
     if (.not.associated(cur_rxn)) exit
     irxn = irxn + 1
-    spec_ids(0,irxn) = cur_rxn%dbaserxn%nspec
-    spec_ids(1:cur_rxn%dbaserxn%nspec,irxn) = &
-      cur_rxn%dbaserxn%spec_ids(:)
-    stoich(1:cur_rxn%dbaserxn%nspec,irxn) = cur_rxn%dbaserxn%stoich(:)
+    spec_ids(0,irxn) = cur_rxn%reaction_equation%nspec
+    spec_ids(1:spec_ids(0,irxn),irxn) = cur_rxn%reaction_equation%specid(:)
+    stoich(1:spec_ids(0,irxn),irxn) = cur_rxn%reaction_equation%stoich(:)
     cur_rxn => cur_rxn%next
   enddo
 
-  call ReactionDBDestroyRxnPtr(rxn_list)
+  call ReactionEquationDestroyRxnPtr(rxn_list)
 
 end subroutine ReactionAuxNetworkToStoich
 
@@ -1660,7 +1660,8 @@ subroutine ReactionAuxDestroyAqSpecies(species)
 
   type(aq_species_type), pointer :: species
 
-  if (associated(species%dbaserxn)) call ReactionDBDestroyRxn(species%dbaserxn)
+  if (associated(species%dbaserxn)) &
+    call ReactionDBDestroyRxn(species%dbaserxn)
   deallocate(species)
   nullify(species)
 
@@ -1744,9 +1745,7 @@ subroutine ReactionAuxDestroyRadioDecayRxn(rxn)
 
   if (.not.associated(rxn)) return
 
-  if (associated(rxn%dbaserxn)) &
-    call ReactionDBDestroyRxn(rxn%dbaserxn)
-  nullify(rxn%dbaserxn)
+  call ReactionEquationDestroy(rxn%reaction_equation)
   nullify(rxn%next)
 
   deallocate(rxn)
@@ -1770,9 +1769,7 @@ subroutine ReactionAuxDestroyGeneralRxn(rxn)
 
   if (.not.associated(rxn)) return
 
-  if (associated(rxn%dbaserxn)) &
-    call ReactionDBDestroyRxn(rxn%dbaserxn)
-  nullify(rxn%dbaserxn)
+  call ReactionEquationDestroy(rxn%reaction_equation)
   nullify(rxn%next)
 
   deallocate(rxn)
