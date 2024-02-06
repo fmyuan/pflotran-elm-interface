@@ -228,23 +228,31 @@ subroutine PMHydrateSetFlowMode(option)
   type(option_type) :: option
 
   option%iflowmode = H_MODE
-  option%nphase = 4
+  option%nphase = 5
   option%liquid_phase = 1  ! liquid_pressure
   option%gas_phase = 2     ! gas_pressure
   option%hydrate_phase = 3
   option%ice_phase = 4
+  option%precipitate_phase = 5
+  option%trapped_gas_phase = 6
 
   option%air_pressure_id = 3
   option%capillary_pressure_id = 4
   option%vapor_pressure_id = 5
   option%saturation_pressure_id = 6
+  option%reduced_vapor_pressure_id = 7
+  
+  option%pure_water_phase = 5
+  option%pure_brine_phase = 6
+  
 
   option%water_id = 1
   option%air_id = 2
   option%energy_id = 3
+  option%salt_id = 3 ! Salt component
 
   option%nflowdof = 3
-  option%nflowspec = 2
+  option%nflowspec = 3
   option%use_isothermal = PETSC_FALSE
 
 end subroutine PMHydrateSetFlowMode
@@ -1199,7 +1207,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
         !             LIQUID_REFERENCE_DENSITY * gravity
         class default
       end select
-
+      Pc_entry = 0.d0
+      
       select case(global_auxvars(ghosted_id)%istate)
         case(L_STATE)
           liq_pressure_index = offset + ONE_INTEGER

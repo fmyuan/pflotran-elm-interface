@@ -1057,6 +1057,7 @@ hydrate.o : \
   variables.o
 hydrate_aux.o : \
   characteristic_curves.o \
+  characteristic_curves_common.o \
   eos_gas.o \
   eos_water.o \
   global_aux.o \
@@ -1912,8 +1913,11 @@ pm_geomechanics_force.o : \
   pflotran_constants.o \
   pm_base.o
 pm_hydrate.o : \
+  characteristic_curves.o \
+  characteristic_curves_common.o \
   checkpoint.o \
   convergence.o \
+  eos_gas.o \
   field.o \
   fluid.o \
   global.o \
