@@ -145,9 +145,7 @@ subroutine HydrateSetup(realization)
   allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, 2 * ndof
-      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id), &
-                         (hydrate_analytical_derivatives .and. idof==0), &
-                          option)
+      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id),option)
     enddo
   enddo
   patch%aux%Hydrate%auxvars => hyd_auxvars
@@ -159,7 +157,7 @@ subroutine HydrateSetup(realization)
   if (sum_connection > 0) then
     allocate(hyd_auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
-      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),PETSC_FALSE,option)
+      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),option)
     enddo
     patch%aux%Hydrate%auxvars_bc => hyd_auxvars_bc
   endif
@@ -171,7 +169,7 @@ subroutine HydrateSetup(realization)
   if (sum_connection > 0) then
     allocate(hyd_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
-      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),PETSC_FALSE,option)
+      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),option)
     enddo
     patch%aux%Hydrate%auxvars_ss => hyd_auxvars_ss
   endif
