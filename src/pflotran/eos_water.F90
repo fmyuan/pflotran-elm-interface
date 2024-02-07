@@ -1818,7 +1818,7 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
     call EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
                                     dwp,dwt)
   end if
-
+  
 end subroutine EOSWaterDensityIF97
 
 subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
@@ -2033,13 +2033,13 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
   end if
 
   dw = 1.d0 / (nu * R * T_temp / P * 1.0D+3)
-
+  dwmol = dw/FMWH2O
+  
   if (calculate_derivatives) then
     stop 'IF97 region 3 water density derivative not implemented yet'
   else
     dwp = UNINITIALIZED_DOUBLE
     dwt = UNINITIALIZED_DOUBLE
-    dwmol = UNINITIALIZED_DOUBLE
   endif
 
 end subroutine EOSWaterDensityIF97Region3
