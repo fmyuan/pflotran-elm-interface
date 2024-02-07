@@ -12,7 +12,7 @@ module PFLOTRAN_Constants_module
   private
 
   PetscBool, parameter :: PFLOTRAN_RELEASE = PETSC_FALSE
-  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 4
+  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 5
   PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
   PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = 0 ! (alpha < -1; beta = -1)
 
@@ -79,6 +79,8 @@ module PFLOTRAN_Constants_module
 #else
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.064d6 ! Pa
 #endif
+
+  PetscReal, parameter, public :: CO2_CRITICAL_TEMPERATURE = 304.1282d0 !K
 
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
@@ -169,6 +171,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: H_MODE = 8
   PetscInt, parameter, public :: ZFLOW_MODE = 9
   PetscInt, parameter, public :: PNF_MODE = 10
+  PetscInt, parameter, public :: SCO2_MODE = 11
 
   ! transport modes
   PetscInt, parameter, public :: RT_MODE = 1

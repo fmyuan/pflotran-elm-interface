@@ -261,7 +261,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
       case('CONC','CONCENTRATIONS')
 
         aq_species_constraint => &
-          AqueousSpeciesConstraintCreate(reaction,option)
+          ReactionAuxCreateSpecConstraint(reaction,option)
 
         block_string = 'CONSTRAINT, CONCENTRATIONS'
         icomp = 0
@@ -405,12 +405,13 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%aqueous_species)) &
-          call AqueousSpeciesConstraintDestroy(constraint%aqueous_species)
+          call ReactionAuxDestroySpecConstraint(constraint%aqueous_species)
         constraint%aqueous_species => aq_species_constraint
 
       case('FREE_ION_GUESS')
 
-        free_ion_guess_constraint => GuessConstraintCreate(reaction,option)
+        free_ion_guess_constraint => &
+          ReactionAuxCreateGuessConstraint(reaction,option)
 
         block_string = 'CONSTRAINT, FREE_ION_GUESS'
         icomp = 0
@@ -471,13 +472,14 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%free_ion_guess)) &
-          call GuessConstraintDestroy(constraint%free_ion_guess)
+          call ReactionAuxDestroyGuesConstraint(constraint%free_ion_guess)
         constraint%free_ion_guess => free_ion_guess_constraint
         nullify(free_ion_guess_constraint)
 
       case('MNRL','MINERALS')
 
-        mineral_constraint => MineralConstraintCreate(reaction%mineral,option)
+        mineral_constraint => &
+          ReactionMnrlCreateMnrlConstraint(reaction%mineral,option)
 
         block_string = 'CONSTRAINT, MINERALS'
         imnrl = 0
@@ -576,14 +578,14 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%minerals)) then
-          call MineralConstraintDestroy(constraint%minerals)
+          call ReactionMnrlDestMnrlConstraint(constraint%minerals)
         endif
         constraint%minerals => mineral_constraint
 
       case('SURFACE_COMPLEXES')
 
         srfcplx_constraint => &
-          SurfaceComplexConstraintCreate(reaction%surface_complexation,option)
+          ReactionSrfCplxCreateConstraint(reaction%surface_complexation,option)
 
         block_string = 'CONSTRAINT, SURFACE_COMPLEXES'
         isrfcplx = 0
@@ -639,14 +641,14 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%surface_complexes)) then
-          call SurfaceComplexConstraintDestroy(constraint%surface_complexes)
+          call ReactionSrfCplxDestroyConstraint(constraint%surface_complexes)
         endif
         constraint%surface_complexes => srfcplx_constraint
 
       case('IMMOBILE')
 
         immobile_constraint => &
-          ImmobileConstraintCreate(reaction%immobile,option)
+          ReactionImConstraintCreate(reaction%immobile,option)
 
         block_string = 'CONSTRAINT, IMMOBILE'
         iimmobile = 0
@@ -735,7 +737,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         enddo
 
         if (associated(constraint%immobile_species)) then
-          call ImmobileConstraintDestroy(constraint%immobile_species)
+          call ReactionImConstraintDestroy(constraint%immobile_species)
         endif
         constraint%immobile_species => immobile_constraint
 
@@ -746,7 +748,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  if (.not.associated(constraint%aqueous_species)) then
+  if (.not.associated(constraint%aqueous_species) .and. &
+      reaction%naqcomp > 0) then
     option%io_buffer = 'A CONCENTRATION block is missing in constraint "' // &
       trim(constraint%name) // '".'
     call PrintErrMsg(option)
@@ -774,19 +777,19 @@ subroutine TranConstraintRTStrip(this)
   call TranConstraintBaseStrip(this)
 
   if (associated(this%aqueous_species)) &
-    call AqueousSpeciesConstraintDestroy(this%aqueous_species)
+    call ReactionAuxDestroySpecConstraint(this%aqueous_species)
   nullify(this%aqueous_species)
   if (associated(this%free_ion_guess)) &
-    call GuessConstraintDestroy(this%free_ion_guess)
+    call ReactionAuxDestroyGuesConstraint(this%free_ion_guess)
   nullify(this%free_ion_guess)
   if (associated(this%minerals)) &
-    call MineralConstraintDestroy(this%minerals)
+    call ReactionMnrlDestMnrlConstraint(this%minerals)
   nullify(this%minerals)
   if (associated(this%surface_complexes)) &
-    call SurfaceComplexConstraintDestroy(this%surface_complexes)
+    call ReactionSrfCplxDestroyConstraint(this%surface_complexes)
   nullify(this%surface_complexes)
   if (associated(this%immobile_species)) &
-    call ImmobileConstraintDestroy(this%immobile_species)
+    call ReactionImConstraintDestroy(this%immobile_species)
   nullify(this%immobile_species)
 
 end subroutine TranConstraintRTStrip

@@ -50,8 +50,8 @@ subroutine BioHillSetup(this,reaction,option)
   !
   ! Sets up the biodegradation reaction with hardwired parameters
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
   use Option_module
 
   implicit none
@@ -65,21 +65,21 @@ subroutine BioHillSetup(this,reaction,option)
   ! Aqueous species
   word = 'Aaq'
   this%species_Aaq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Baq'
   this%species_Baq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Caq'
   this%species_Caq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Daq'
   this%species_Daq_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
 
   ! Immobile species
   word = 'Xim'
   this%species_Xim_id = &
-    GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
+    ReactionImGetSpeciesIDFromName(word,reaction%immobile,option)
 
 end subroutine BioHillSetup
 

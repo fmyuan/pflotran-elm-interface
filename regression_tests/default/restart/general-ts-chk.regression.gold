@@ -1,24 +1,24 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   2.0948153718152E+05
-      Min:   1.4486513879461E+05
-     Mean:   1.8502547003341E+05
-        1:   2.0948153718152E+05
-        3:   1.9195133786635E+05
-        5:   1.4486513879461E+05
+      Max:   2.1110589334968E+05
+      Min:   1.4608589678760E+05
+     Mean:   1.8609610404117E+05
+        1:   2.1110589334968E+05
+        3:   1.9149229334966E+05
+        5:   1.4608589678760E+05
 -- SATURATION: Gas Saturation --
-      Max:   7.3941446762210E-01
+      Max:   7.3589684854448E-01
       Min:   0.0000000000000E+00
-     Mean:   2.5123326964593E-01
+     Mean:   2.8836177342982E-01
         1:   0.0000000000000E+00
-        3:   5.6803702566862E-03
-        5:   7.3941446762210E-01
+        3:   2.1608454010800E-01
+        5:   7.3589684854448E-01
 -- GENERIC: Temperature --
-      Max:   2.5231964342343E+01
-      Min:   2.5058856187161E+01
-     Mean:   2.5171098799517E+01
-        1:   2.5185219457612E+01
-        3:   2.5231964342343E+01
-        5:   2.5058856187161E+01
+      Max:   2.5001062088669E+01
+      Min:   2.5000342866498E+01
+     Mean:   2.5000856359050E+01
+        1:   2.5001004122952E+01
+        3:   2.5001062088669E+01
+        5:   2.5000342866498E+01
 -- DISCRETE: Thermodynamic State --
       Max:         3
       Min:         1
@@ -40,7 +40,7 @@
         1:   5.0000000000000E-01
         3:   5.0000000000000E-01
         5:   5.0000000000000E-01
--- GENERIC: Permeability X --
+-- GENERIC: Permeability --
       Max:   1.0000000000000E-13
       Min:   1.0000000000000E-13
      Mean:   1.0000000000000E-13
@@ -48,12 +48,12 @@
         3:   1.0000000000000E-13
         5:   1.0000000000000E-13
 -- CONCENTRATION: Free Tracer --
-      Max:   1.6768134590299E-10
-      Min:   4.0497627458544E-12
-     Mean:   1.0512576256714E-10
-        1:   1.0003322133289E-10
-        3:   4.0497627458544E-12
-        5:   1.2088323475705E-10
+      Max:   9.9999999997360E-11
+      Min:   9.9997663625411E-11
+     Mean:   9.9998597809573E-11
+        1:   9.9999999997360E-11
+        3:   9.9997663625411E-11
+        5:   9.9997664770884E-11
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -62,16 +62,18 @@
         3:         1
         5:         1
 -- SOLUTION: Flow --
-   Time Steps:           17
-   Newton Iterations:           21
-   Linear Solver Iterations:           21
-   Time Step Cuts:            0
-   Solution 2-Norm:   4.4838140959831E+05
-   Residual 2-Norm:   3.8935714775416E-05
+   Time (seconds):   2.7970378999989E-02
+   Time Steps:           28
+   Newton Iterations:          116
+   Linear Solver Iterations:          116
+   Time Step Cuts:            1
+   Solution 2-Norm:   4.5290270780012E+05
+   Residual 2-Norm:   1.2152801548383E-15
 -- SOLUTION: Transport --
-   Time Steps:           17
-   Newton Iterations:           17
-   Linear Solver Iterations:           17
+   Time (seconds):   6.2470359999907E-03
+   Time Steps:           28
+   Newton Iterations:           29
+   Linear Solver Iterations:           29
    Time Step Cuts:            0
-   Solution 2-Norm:   2.6539941315517E-10
-   Residual 2-Norm:   1.3805065841368E-30
+   Solution 2-Norm:   2.2360366237149E-10
+   Residual 2-Norm:   6.5051136722932E-30

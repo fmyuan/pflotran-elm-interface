@@ -1,0 +1,60 @@
+#Description: 3D Geophysics Electrical Resistivity Tomography problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_GEOPHYSICS geophysics
+      MODE ERT
+      OPTIONS
+        COMPUTE_JACOBIAN
+        SURVEY_TIMES h 2.7778d-4 6.d0 12.d0 24.d0 # 2.778d-4 ~= 1 second
+        OUTPUT_ALL_SURVEYS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE ert_flow.txt
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 3
+  CELL_IDS
+    93
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+    ELECTRICAL_CONDUCTIVITY
+    SURFACE_ELECTRICAL_CONDUCTIVITY
+    ELECTRICAL_POTENTIAL 2
+    ELECTRICAL_JACOBIAN 1
+  /
+END
+
+#=========================== datasets ========================================= 
+DATASET sec_dataset
+  HDF5_DATASET_NAME surface_electrical_conductivity
+  FILENAME sec_dataset.h5
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  ARCHIE_CEMENTATION_EXPONENT 1.9d0
+  ARCHIE_SATURATION_EXPONENT 2.d0
+  ARCHIE_TORTUOSITY_CONSTANT 1.d0
+  SURFACE_ELECTRICAL_CONDUCTIVITY DATASET sec_dataset
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+END_SUBSURFACE

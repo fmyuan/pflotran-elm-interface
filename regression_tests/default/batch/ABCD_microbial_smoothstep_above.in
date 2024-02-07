@@ -1,0 +1,50 @@
+#Description: 0D microbial degradation problem with biomass
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+EXTERNAL_FILE ABCD_microbial_base.txt
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  EXTERNAL_FILE ABCD_microbial_base_chem.txt
+
+# modifications begin here
+  MICROBIAL_REACTION
+    CONCENTRATION_UNITS ACTIVITY
+    REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
+    RATE_CONSTANT 1.d-4
+    MONOD 
+      SPECIES_NAME A(aq) 
+      HALF_SATURATION_CONSTANT 1.d-5        ! A is the donor
+      THRESHOLD_CONCENTRATION 1.d-20
+    /
+    MONOD
+      SPECIES_NAME B(aq) 
+      HALF_SATURATION_CONSTANT 1.d-4        ! B is the acceptor
+      THRESHOLD_CONCENTRATION 1.d-11
+    /
+    INHIBITION
+      SPECIES_NAME C(aq)
+      TYPE SMOOTHSTEP
+      SMOOTHSTEP_INTERVAL 2.d0
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 1.d-5 
+    /
+    BIOMASS
+      SPECIES_NAME D(im)
+      YIELD 0.01d0
+    /
+  /
+# modifications end here
+
+END
+
+END_SUBSURFACE

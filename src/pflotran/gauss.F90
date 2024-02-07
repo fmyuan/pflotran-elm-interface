@@ -13,8 +13,8 @@ module Gauss_module
 
   type, public :: gauss_type
     PetscInt :: dim                 ! dimension
-    PetscInt :: EleType             ! Element type
-    PetscInt :: NGPTS               ! Number of gauss points
+    PetscInt :: element_type        ! Element type
+    PetscInt :: num_gauss_pts       ! Number of gauss points
     PetscReal, pointer :: r(:,:)    ! location of points
     PetscReal, pointer :: w(:)      ! weights
   end type gauss_type
@@ -36,8 +36,8 @@ subroutine GaussInitialize(gauss)
   type(gauss_type) :: gauss
 
   gauss%dim = 0
-  gauss%EleType = 0
-  gauss%NGPTS = 0
+  gauss%element_type = 0
+  gauss%num_gauss_pts = 0
   nullify(gauss%r)
   nullify(gauss%w)
 
@@ -61,11 +61,11 @@ subroutine GaussCalculatePoints(gauss)
 
   select case(gauss%dim)
     case(ONE_DIM_GRID)
-      call Gauss1D(gauss%EleType,gauss%NGPTS,r,w)
+      call Gauss1D(gauss%element_type,gauss%num_gauss_pts,r,w)
     case(TWO_DIM_GRID)
-      call Gauss2D(gauss%EleType,gauss%NGPTS,r,w)
+      call Gauss2D(gauss%element_type,gauss%num_gauss_pts,r,w)
     case(THREE_DIM_GRID)
-      call Gauss3D(gauss%EleType,gauss%NGPTS,r,w)
+      call Gauss3D(gauss%element_type,gauss%num_gauss_pts,r,w)
     case default
       print *, 'Error: Invalid dimension for Gauss point calculation'
       stop
@@ -84,7 +84,7 @@ end subroutine GaussCalculatePoints
 
 ! ************************************************************************** !
 
-subroutine Gauss1D(EleType,NGPTS,r,w)
+subroutine Gauss1D(element_type,num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for 1D elements
   !
@@ -92,20 +92,20 @@ subroutine Gauss1D(EleType,NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: EleType
-  PetscInt :: NGPTS
+  PetscInt :: element_type
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  allocate(r(NGPTS,1))
-  allocate(w(NGPTS))
+  allocate(r(num_gauss_pts,1))
+  allocate(w(num_gauss_pts))
 
-  if (EleType /= LINE_TYPE) then
+  if (element_type /= LINE_TYPE) then
     print *, 'Error: in Element type. Only L2 ' // &
              '(line type) can be used for 1D Gauss quadrature.'
   endif
 
-  select case(NGPTS)
+  select case(num_gauss_pts)
     case(1)
 
     !------------------------------
@@ -269,7 +269,7 @@ subroutine Gauss1D(EleType,NGPTS,r,w)
       w(9) =  0.081274388361574
 
    case default
-     print *, 'Error in NGPTS for 1D Gauss quadrature'
+     print *, 'Error in num_gauss_pts for 1D Gauss quadrature'
      stop
    end select
 
@@ -277,7 +277,7 @@ end subroutine Gauss1D
 
 ! ************************************************************************** !
 
-subroutine Gauss2D(EleType,NGPTS,r,w)
+subroutine Gauss2D(element_type,num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for 2D elements
   !
@@ -285,16 +285,16 @@ subroutine Gauss2D(EleType,NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: EleType
-  PetscInt :: NGPTS
+  PetscInt :: element_type
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  select case(EleType)
+  select case(element_type)
     case(QUAD_TYPE)
-      call GaussSquare(NGPTS,r,w)
+      call GaussSquare(num_gauss_pts,r,w)
     case(TRI_TYPE)
-      call GaussTriangle(NGPTS,r,w)
+      call GaussTriangle(num_gauss_pts,r,w)
     case default
       print *, 'Error: Only T3 and Q4 elements available for 2D.'
       stop
@@ -304,7 +304,7 @@ end subroutine Gauss2D
 
 ! ************************************************************************** !
 
-subroutine GaussSquare(NGPTS,r,w)
+subroutine GaussSquare(num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for Q4 element
   !
@@ -312,26 +312,26 @@ subroutine GaussSquare(NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: NGPTS
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
   PetscReal, pointer :: l(:,:)
   PetscReal, pointer :: m(:)
   PetscInt :: counter,i,j
 
-  allocate(r(NGPTS*NGPTS,2))
-  allocate(w(NGPTS*NGPTS))
-  allocate(l(NGPTS,1))
-  allocate(m(NGPTS))
+  allocate(r(num_gauss_pts*num_gauss_pts,2))
+  allocate(w(num_gauss_pts*num_gauss_pts))
+  allocate(l(num_gauss_pts,1))
+  allocate(m(num_gauss_pts))
 
   ! 1D Gauss points are stored in l vector and weights are stored in m vector
 
-  call Gauss1D(LINE_TYPE,NGPTS,l,m)
+  call Gauss1D(LINE_TYPE,num_gauss_pts,l,m)
 
   ! Generate the Q4 Gauss points and weights using for loops
   counter = 1
-  do i = 1, NGPTS
-    do j = 1, NGPTS
+  do i = 1, num_gauss_pts
+    do j = 1, num_gauss_pts
       r(counter,1) = l(i,1)
       r(counter,2) = l(j,1)
       w(counter) = m(i)*m(j)
@@ -346,7 +346,7 @@ end subroutine GaussSquare
 
 ! ************************************************************************** !
 
-subroutine GaussTriangle(NGPTS,r,w)
+subroutine GaussTriangle(num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for T3 elements
   !
@@ -354,14 +354,14 @@ subroutine GaussTriangle(NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: NGPTS
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  allocate(r(NGPTS,2))
-  allocate(w(NGPTS))
+  allocate(r(num_gauss_pts,2))
+  allocate(w(num_gauss_pts))
 
-  select case(NGPTS)
+  select case(num_gauss_pts)
     case(1)
 
     !------------------------------
@@ -514,7 +514,7 @@ subroutine GaussTriangle(NGPTS,r,w)
                 +0.077113760890257/)
 
    case default
-     print *, 'Invalid NGPTS for T3 Gauss quadrature'
+     print *, 'Invalid num_gauss_pts for T3 Gauss quadrature'
      stop
    end select
 
@@ -523,7 +523,7 @@ end subroutine GaussTriangle
 
 ! ************************************************************************** !
 
-subroutine GaussTetrahedra(NGPTS,r,w)
+subroutine GaussTetrahedra(num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for tetrahedra elements
   !
@@ -531,16 +531,16 @@ subroutine GaussTetrahedra(NGPTS,r,w)
   ! Date: 7/11/2013
   !
 
-  PetscInt :: NGPTS
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
   PetscReal :: p1,p2,p3,p4,p5,p6,p7
   PetscReal :: q1,q2,q3,q4
 
-  allocate(r(NGPTS,3))
-  allocate(w(NGPTS))
+  allocate(r(num_gauss_pts,3))
+  allocate(w(num_gauss_pts))
 
-  select case(NGPTS)
+  select case(num_gauss_pts)
     case(1)
 
     !------------------------------
@@ -648,7 +648,7 @@ subroutine GaussTetrahedra(NGPTS,r,w)
       w = (/q1,q2,q2,q2, q2,q3,q3,q3,q3,q4,q4,q4,q4,q4,q4/)
 
     case default
-     print *, 'Invalid NGPTS for Tetrahedra Gauss quadrature'
+     print *, 'Invalid num_gauss_pts for Tetrahedra Gauss quadrature'
      stop
    end select
 
@@ -657,7 +657,7 @@ end subroutine GaussTetrahedra
 
 ! ************************************************************************** !
 
-subroutine GaussPyramid(NGPTS,r,w)
+subroutine GaussPyramid(num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for tetrahedra elements
   ! Reference:
@@ -666,14 +666,14 @@ subroutine GaussPyramid(NGPTS,r,w)
   ! Author: Satish Karra, LANL
   ! Date: 7/11/2013
   !
-  PetscInt :: NGPTS
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  allocate(r(NGPTS,3))
-  allocate(w(NGPTS))
+  allocate(r(num_gauss_pts,3))
+  allocate(w(num_gauss_pts))
 
-  select case(NGPTS)
+  select case(num_gauss_pts)
     case(1)
 
     !------------------------------
@@ -723,7 +723,7 @@ subroutine GaussPyramid(NGPTS,r,w)
             0.10000000000000000000/)
 
      case default
-     print *, 'Invalid NGPTS for Tetrahedra Gauss quadrature'
+     print *, 'Invalid num_gauss_pts for Tetrahedra Gauss quadrature'
      stop
    end select
 
@@ -732,7 +732,7 @@ end subroutine GaussPyramid
 
 ! ************************************************************************** !
 
-subroutine Gauss3D(EleType,NGPTS,r,w)
+subroutine Gauss3D(element_type,num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for 3D element
   !
@@ -740,20 +740,20 @@ subroutine Gauss3D(EleType,NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: EleType
-  PetscInt :: NGPTS
+  PetscInt :: element_type
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  select case(EleType)
+  select case(element_type)
     case(HEX_TYPE)
-      call GaussBrick(NGPTS,r,w)
+      call GaussBrick(num_gauss_pts,r,w)
     case(WEDGE_TYPE)
-      call GaussWedge(NGPTS,r,w)
+      call GaussWedge(num_gauss_pts,r,w)
     case(TET_TYPE)
-      call GaussTetrahedra(NGPTS,r,w)
+      call GaussTetrahedra(num_gauss_pts,r,w)
     case(PYR_TYPE)
-      call GaussPyramid(NGPTS,r,w)
+      call GaussPyramid(num_gauss_pts,r,w)
     case default
       print *, 'Error: Only B8, W6, P5 and TET4 elements available for 3D.'
       stop
@@ -763,7 +763,7 @@ end subroutine Gauss3D
 
 ! ************************************************************************** !
 
-subroutine GaussBrick(NGPTS,r,w)
+subroutine GaussBrick(num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for B8 element
   !
@@ -771,24 +771,24 @@ subroutine GaussBrick(NGPTS,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: NGPTS
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
   PetscReal, pointer :: l(:,:)
   PetscReal, pointer :: m(:)
   PetscInt :: counter, i, j, k
 
-  allocate(r(NGPTS*NGPTS*NGPTS,3))
-  allocate(w(NGPTS*NGPTS*NGPTS))
+  allocate(r(num_gauss_pts*num_gauss_pts*num_gauss_pts,3))
+  allocate(w(num_gauss_pts*num_gauss_pts*num_gauss_pts))
 
-  call Gauss1D(LINE_TYPE,NGPTS,l,m)
+  call Gauss1D(LINE_TYPE,num_gauss_pts,l,m)
 
   ! Generate the B8 Gauss points and weights using for loops
 
   counter = 1
-  do i = 1, NGPTS
-    do j = 1, NGPTS
-      do k = 1, NGPTS
+  do i = 1, num_gauss_pts
+    do j = 1, num_gauss_pts
+      do k = 1, num_gauss_pts
         r(counter,1) = l(i,1)
         r(counter,2) = l(j,1)
         r(counter,3) = l(k,1)
@@ -805,7 +805,7 @@ end subroutine GaussBrick
 
 ! ************************************************************************** !
 
-subroutine GaussWedge(NGPTS,r,w)
+subroutine GaussWedge(num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for wedge element
   !
@@ -813,26 +813,26 @@ subroutine GaussWedge(NGPTS,r,w)
   ! Date: 7/10//2013
   !
 
-  PetscInt :: NGPTS
+  PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
   PetscReal, pointer :: rT3(:,:),rL2(:,:)
   PetscReal, pointer :: wT3(:),wL2(:)
   PetscInt :: i, j
 
-  allocate(r(NGPTS*NGPTS,3))
-  allocate(w(NGPTS*NGPTS))
+  allocate(r(num_gauss_pts*num_gauss_pts,3))
+  allocate(w(num_gauss_pts*num_gauss_pts))
 
-  call Gauss1D(LINE_TYPE,NGPTS,rL2,wL2)
-  call Gauss2D(TRI_TYPE,NGPTS,rT3,wT3)
+  call Gauss1D(LINE_TYPE,num_gauss_pts,rL2,wL2)
+  call Gauss2D(TRI_TYPE,num_gauss_pts,rT3,wT3)
 
   ! Generate the wedge Gauss points and weights using for loops
-  do i = 1, NGPTS
-    do j = 1, NGPTS
-      r((i-1)*NGPTS+j,1) = rT3(i,1)
-      r((i-1)*NGPTS+j,2) = rT3(i,2)
-      r((i-1)*NGPTS+j,3) = rL2(j,1)
-      w((i-1)*NGPTS+j) = wT3(i)*wL2(j)
+  do i = 1, num_gauss_pts
+    do j = 1, num_gauss_pts
+      r((i-1)*num_gauss_pts+j,1) = rT3(i,1)
+      r((i-1)*num_gauss_pts+j,2) = rT3(i,2)
+      r((i-1)*num_gauss_pts+j,3) = rL2(j,1)
+      w((i-1)*num_gauss_pts+j) = wT3(i)*wL2(j)
     enddo
   enddo
 

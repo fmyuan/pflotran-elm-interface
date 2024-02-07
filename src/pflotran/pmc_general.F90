@@ -89,6 +89,7 @@ recursive subroutine PMCGeneralRunToTime(this,sync_time,stop_flag)
   use Option_module
   use PM_Auxiliary_class
   use PM_Inversion_class
+  use PM_Parameter_class
   use Timestepper_Base_class
 
   implicit none
@@ -123,6 +124,8 @@ recursive subroutine PMCGeneralRunToTime(this,sync_time,stop_flag)
         call pm_%Evaluate(sync_time,ierr)
       class is(pm_inversion_type)
         call pm_%Evaluate(sync_time,ierr)
+      class is(pm_parameter_type)
+        call pm_%Update(sync_time,ierr)
       class default
         this%option%io_buffer = 'PMC General not configured for PM ' // &
           trim(pm_%name) // '.'

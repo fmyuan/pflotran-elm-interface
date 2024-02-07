@@ -280,11 +280,11 @@ END
 
 !=========================== material properties ==============================
 
-EXTERNAL_FILE mat_props.txt
+EXTERNAL_FILE ../mat_props.txt
 
 !=========================== saturation functions =============================
 
-EXTERNAL_FILE c_curves.txt
+EXTERNAL_FILE ../c_curves.txt
 
 !=========================== output options ===================================
 

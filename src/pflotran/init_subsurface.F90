@@ -16,7 +16,8 @@ module Init_Subsurface_module
             SubsurfAssignVolsToMatAuxVars, &
             SubsurfSandboxesSetup, &
             InitSubsurfaceSetupZeroArrays, &
-            SubsurfReadDatasetToVecWithMask
+            SubsurfReadDatasetToVecWithMask, &
+            InitSubsurfProcessOutputVars
 
 contains
 
@@ -67,52 +68,46 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
 
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   option => realization%option
+  patch => realization%patch
+  grid => patch%grid
 
   ! initialize material auxiliary indices.  this does not have to be done
   ! for each patch, just once.
   call MaterialInitAuxIndices(realization%patch%material_property_array,option)
 
   ! create mappinging
-  ! loop over all patches and allocation material id arrays
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    grid => cur_patch%grid
-    if (.not.associated(cur_patch%imat)) then
-      allocate(cur_patch%imat(grid%ngmax))
-      ! initialize to "unset"
-      cur_patch%imat = UNINITIALIZED_INTEGER
-      select case(option%iflowmode)
-        case(NULL_MODE,PNF_MODE)
-        case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
-          allocate(cur_patch%cc_id(grid%ngmax))
-          cur_patch%cc_id = UNINITIALIZED_INTEGER
-        case default
-          allocate(cur_patch%cc_id(grid%ngmax))
-          cur_patch%cc_id = UNINITIALIZED_INTEGER
-          allocate(cur_patch%cct_id(grid%ngmax))
-          cur_patch%cct_id = UNINITIALIZED_INTEGER
-      end select
+  if (.not.associated(patch%imat)) then
+    allocate(patch%imat(grid%ngmax))
+    ! initialize to "unset"
+    patch%imat = UNINITIALIZED_INTEGER
+    select case(option%iflowmode)
+      case(NULL_MODE,PNF_MODE)
+      case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
+        allocate(patch%cc_id(grid%ngmax))
+        patch%cc_id = UNINITIALIZED_INTEGER
+      case default
+        allocate(patch%cc_id(grid%ngmax))
+        patch%cc_id = UNINITIALIZED_INTEGER
+        allocate(patch%cct_id(grid%ngmax))
+        patch%cct_id = UNINITIALIZED_INTEGER
+    end select
+  endif
+
+  patch%aux%Material => MaterialAuxCreate(option)
+  allocate(material_auxvars(grid%ngmax))
+  do ghosted_id = 1, grid%ngmax
+    call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
+    if (option%flow%fracture_on) then
+      call FractureAuxVarInit(material_auxvars(ghosted_id))
     endif
-
-    cur_patch%aux%Material => MaterialAuxCreate(option)
-    allocate(material_auxvars(grid%ngmax))
-    do ghosted_id = 1, grid%ngmax
-      call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
-      if (option%flow%fracture_on) then
-        call FractureAuxVarInit(material_auxvars(ghosted_id))
-      endif
-    enddo
-    cur_patch%aux%Material%num_aux = grid%ngmax
-    cur_patch%aux%Material%auxvars => material_auxvars
-    nullify(material_auxvars)
-
-    cur_patch => cur_patch%next
   enddo
+  patch%aux%Material%num_aux = grid%ngmax
+  patch%aux%Material%auxvars => material_auxvars
+  nullify(material_auxvars)
 
   ! Create Vec that holds compressibility
   if (soil_compressibility_index > 0) then
@@ -155,7 +150,7 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(strata_type), pointer :: strata
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
 
   character(len=MAXSTRINGLENGTH) :: string
   type(material_property_type), pointer :: material_property
@@ -167,105 +162,101 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
 
   nullify(gridded_dataset)
   option => realization%option
+  patch => realization%patch
+  grid => patch%grid
 
-  cur_patch => realization%patch_list%first
+  ! set material ids to uninitialized
+  material_auxvars => patch%aux%Material%auxvars
+  patch%imat = UNINITIALIZED_INTEGER
+  strata => patch%strata_list%first
   do
-    if (.not.associated(cur_patch)) exit
-    ! set material ids to uninitialized
-    material_auxvars => cur_patch%aux%Material%auxvars
-    cur_patch%imat = UNINITIALIZED_INTEGER
-    grid => cur_patch%grid
-    strata => cur_patch%strata_list%first
-    do
-      if (.not.associated(strata)) exit
-      ! if not within time period specified, skip the strata.
-      ! use a one second tolerance on the start time and end time
-      if (StrataWithinTimePeriod(strata,option%time) .and. &
-          (.not. strata%well)) then
-        if (len_trim(strata%dataset_name) > 0) then
-          string = 'STRATA DATASET block'
-          gridded_dataset => &
-            DatasetGriddedHDF5Cast( &
-              DatasetBaseGetPointer(realization%datasets, &
-                                    strata%dataset_name, &
-                                    string,option))
-          string = 'Dataset "' // trim(strata%dataset_name) // &
-            '" referenced in a STRATA block must be'
-          if (.not.associated(gridded_dataset)) then
-            option%io_buffer = trim(string) // ' a gridded dataset.'
-            call PrintErrMsg(option)
-          endif
-          call DatasetGriddedHDF5Load(gridded_dataset,option)
-          if (gridded_dataset%data_dim /= DIM_XY) then
-            option%io_buffer = trim(string) // ' 2D in XY.'
-            call PrintErrMsg(option)
-          endif
+    if (.not.associated(strata)) exit
+    ! if not within time period specified, skip the strata.
+    ! use a one second tolerance on the start time and end time
+    if (StrataWithinTimePeriod(strata,option%time) .and. &
+        (.not. strata%well)) then
+      if (len_trim(strata%dataset_name) > 0) then
+        string = 'STRATA DATASET block'
+        gridded_dataset => &
+          DatasetGriddedHDF5Cast( &
+            DatasetBaseGetPointer(realization%datasets, &
+                                  strata%dataset_name, &
+                                  string,option))
+        string = 'Dataset "' // trim(strata%dataset_name) // &
+          '" referenced in a STRATA block must be'
+        if (.not.associated(gridded_dataset)) then
+          option%io_buffer = trim(string) // ' a gridded dataset.'
+          call PrintErrMsg(option)
         endif
-        ! Read in cell by cell material ids if they exist
-        if (.not.associated(strata%region) .and. &
-            len_trim(strata%dataset_name) == 0 .and. &
-            strata%active) then
-          call SubsurfReadMaterialIDsFromFile(realization, &
-                                              strata%realization_dependent, &
-                                              strata%material_property_filename)
-        ! Otherwise, set based on region
-        else
-          region => strata%region
-          material_property => strata%material_property
-          if (associated(region)) then
-            istart = 1
-            iend = region%num_cells
-          else
-            istart = 1
-            iend = grid%nlmax
-          endif
-          do icell=istart, iend
-            if (associated(region)) then
-              local_id = region%cell_ids(icell)
-            else
-              local_id = icell
-            endif
-            ghosted_id = grid%nL2G(local_id)
-            set_material_id = PETSC_TRUE
-            if (associated(gridded_dataset)) then
-              call DatasetGriddedHDF5InterpolateReal(gridded_dataset, &
-                            grid%x(ghosted_id),grid%y(ghosted_id), &
-                            UNINITIALIZED_DOUBLE,elevation,option)
-              if (strata%dataset_mat_id_direction == &
-                  SET_MATERIAL_IDS_BELOW_SURFACE) then
-                ! sets the material id if the cell center is below elevation
-                if (grid%z(ghosted_id) > elevation) then
-                  set_material_id = PETSC_FALSE
-                endif
-              else ! SET_MATERIAL_IDS_ABOVE_SURFACE
-                ! sets the material id if the cell center is above elevation
-                if (grid%z(ghosted_id) < elevation) then
-                  set_material_id = PETSC_FALSE
-                endif
-              endif
-            endif
-            if (set_material_id) then
-              if (strata%active) then
-                cur_patch%imat(ghosted_id) = material_property%internal_id
-              else
-                ! if not active, set material id to zero
-                cur_patch%imat(ghosted_id) = 0
-              endif
-            endif
-          enddo
-        endif
-        if (associated(gridded_dataset)) then
-          ! do not destroy; just strip as the dataset may be needed later
-          call DatasetGriddedHDF5Strip(gridded_dataset)
-          ! setting data_dim to NULL forces the dataset information to be
-          ! read again on the next use, which is necessary
-          gridded_dataset%data_dim = DIM_NULL
-          nullify(gridded_dataset)
+        call DatasetGriddedHDF5Load(gridded_dataset,option)
+        if (gridded_dataset%data_dim /= DIM_XY) then
+          option%io_buffer = trim(string) // ' 2D in XY.'
+          call PrintErrMsg(option)
         endif
       endif
-      strata => strata%next
-    enddo
-    cur_patch => cur_patch%next
+      ! Read in cell by cell material ids if they exist
+      if (.not.associated(strata%region) .and. &
+          len_trim(strata%dataset_name) == 0 .and. &
+          strata%active) then
+        call SubsurfReadMaterialIDsFromFile(realization, &
+                                            strata%realization_dependent, &
+                                            strata%material_property_filename)
+      ! Otherwise, set based on region
+      else
+        region => strata%region
+        material_property => strata%material_property
+        if (associated(region)) then
+          istart = 1
+          iend = region%num_cells
+        else
+          istart = 1
+          iend = grid%nlmax
+        endif
+        do icell=istart, iend
+          if (associated(region)) then
+            local_id = region%cell_ids(icell)
+          else
+            local_id = icell
+          endif
+          ghosted_id = grid%nL2G(local_id)
+          set_material_id = PETSC_TRUE
+          if (associated(gridded_dataset)) then
+            call DatasetGriddedHDF5InterpolateReal(gridded_dataset, &
+                          grid%x(ghosted_id),grid%y(ghosted_id), &
+                          UNINITIALIZED_DOUBLE,elevation,option)
+            if (strata%dataset_mat_id_direction == &
+                SET_MATERIAL_IDS_BELOW_SURFACE) then
+              ! sets the material id if the cell center is below elevation
+              if (grid%z(ghosted_id) > elevation) then
+                set_material_id = PETSC_FALSE
+              endif
+            else ! SET_MATERIAL_IDS_ABOVE_SURFACE
+              ! sets the material id if the cell center is above elevation
+              if (grid%z(ghosted_id) < elevation) then
+                set_material_id = PETSC_FALSE
+              endif
+            endif
+          endif
+          if (set_material_id) then
+            if (strata%active) then
+              patch%imat(ghosted_id) = material_property%internal_id
+            else
+              ! if not active, set material id to zero
+              patch%imat(ghosted_id) = 0
+            endif
+          endif
+        enddo
+      endif
+      if (associated(gridded_dataset)) then
+        ! do not destroy; just strip as the dataset may be needed later
+        call DatasetGriddedHDF5Strip(gridded_dataset)
+        ! setting data_dim to NULL forces the dataset information to be
+        ! read again on the next use, which is necessary
+        gridded_dataset%data_dim = DIM_NULL
+        nullify(gridded_dataset)
+      endif
+    endif
+    strata => strata%next
   enddo
 
   ! ensure that ghosted values for material ids are up to date
@@ -273,16 +264,10 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
 
   ! set material ids in material auxvar.  this must come after the update of
   ! ghost values.
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    ! set material ids to uninitialized
-    material_auxvars => cur_patch%aux%Material%auxvars
-    grid => cur_patch%grid
-    do ghosted_id = 1, grid%ngmax
-      material_auxvars(ghosted_id)%id = cur_patch%imat(ghosted_id)
-    enddo
-    cur_patch => cur_patch%next
+  ! set material ids to uninitialized
+  material_auxvars => patch%aux%Material%auxvars
+  do ghosted_id = 1, grid%ngmax
+    material_auxvars(ghosted_id)%id = patch%imat(ghosted_id)
   enddo
 
 end subroutine InitSubsurfAssignMatIDsToRegns
@@ -313,7 +298,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, ELECTRICAL_CONDUCTIVITY, &
-                               HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS
+                               SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS, &
+                               TORTUOSITY_Y,TORTUOSITY_Z
 
   use HDF5_module
   use Utility_module, only : DeallocateArray
@@ -332,6 +319,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: perm_yz_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: compress_p(:)
+  PetscReal, pointer :: tort_yy_p(:)
+  PetscReal, pointer :: tort_zz_p(:)
 
   character(len=MAXSTRINGLENGTH) :: string
   type(material_property_type), pointer :: material_property
@@ -343,13 +332,22 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id, material_id, i
+  Vec :: tort_yy
+  Vec :: tort_zz
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  PetscViewer :: viewer
+#endif
 
   option => realization%option
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
   grid => patch%grid
+
+  tort_yy = PETSC_NULL_VEC
+  tort_zz = PETSC_NULL_VEC
 
   ! set cell by cell material properties
   ! create null material property for inactive cells
@@ -369,8 +367,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   endif
   call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
+  if (option%transport%anisotropic_tortuosity) then
+    call VecDuplicate(field%tortuosity0,tort_yy,ierr);CHKERRQ(ierr)
+    call VecDuplicate(field%tortuosity0,tort_zz,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(tort_yy,tort_yy_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(tort_zz,tort_zz_p,ierr);CHKERRQ(ierr)
+  endif
   call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
-
 
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
@@ -469,7 +472,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
       endif
     endif
     por0_p(local_id) = material_property%porosity
-    tor0_p(local_id) = material_property%tortuosity
+    if (option%transport%anisotropic_tortuosity) then
+      tor0_p(local_id) = material_property%tortuosity_anisotropic(1)
+      tort_yy_p(local_id) = material_property%tortuosity_anisotropic(2)
+      tort_zz_p(local_id) = material_property%tortuosity_anisotropic(3)
+    else
+      tor0_p(local_id) = material_property%tortuosity
+    endif
     if (associated(material_auxvars)) then
       call MaterialAssignPropertyToAux(material_auxvars(ghosted_id), &
                                        material_property,option)
@@ -494,6 +503,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   call VecRestoreArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
+  if (option%transport%anisotropic_tortuosity) then
+    call VecRestoreArrayF90(tort_yy,tort_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(tort_zz,tort_zz_p,ierr);CHKERRQ(ierr)
+  endif
 
   ! read in any user-defined property fields
   do material_id = 1, size(patch%material_property_array)
@@ -543,6 +556,14 @@ subroutine InitSubsurfAssignMatProperties(realization)
         call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
                                              material_property%internal_id, &
                                              ELECTRICAL_CONDUCTIVITY)
+      endif
+      if (associated(material_property%surf_elec_cond_dataset)) then
+        call SubsurfReadDatasetToVecWithMask(realization, &
+               material_property%surf_elec_cond_dataset, &
+               material_property%internal_id,PETSC_FALSE,field%work)
+        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
+                                             material_property%internal_id, &
+                                             SURFACE_ELECTRICAL_CONDUCTIVITY)
       endif
       if (associated(material_property%multicontinuum)) then
         if (associated(material_property%multicontinuum%epsilon_dataset)) then
@@ -630,6 +651,18 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                     field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                TORTUOSITY,ZERO_INTEGER)
+  if (option%transport%anisotropic_tortuosity) then
+    call DiscretizationGlobalToLocal(discretization,tort_yy, &
+                                     field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 TORTUOSITY_Y,ZERO_INTEGER)
+    call DiscretizationGlobalToLocal(discretization,tort_zz, &
+                                     field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 TORTUOSITY_Z,ZERO_INTEGER)
+    call VecDestroy(tort_yy,ierr);CHKERRQ(ierr)
+    call VecDestroy(tort_zz,ierr);CHKERRQ(ierr)
+  endif
 
   ! copy rock properties to neighboring ghost cells
   do i = 1, max_material_index
@@ -664,7 +697,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
          vec_p(ghosted_id)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
-    
+
     call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax
       vec_p(local_id) = &
@@ -693,9 +726,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
       material_auxvars(ghosted_id)%secondary_prop%ncells = &
          int(vec_p(ghosted_id))
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr) 
+    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   endif
- 
+
   if (option%geomech_on) then
     call VecCopy(field%porosity0,field%porosity_geomech_store, &
                  ierr);CHKERRQ(ierr)
@@ -1199,8 +1232,10 @@ subroutine SubsurfSandboxesSetup(realization)
 
   class(realization_subsurface_type) :: realization
 
-  call SSSandboxSetup(realization%patch%grid,realization%option, &
-                      realization%output_option)
+  call SSSandboxSetup(realization%patch%grid, &
+                      realization%patch%region_list, &
+                      realization%patch%aux%Material%auxvars, &
+                      realization%option,realization%output_option)
 
 end subroutine SubsurfSandboxesSetup
 
@@ -1264,6 +1299,8 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         matrix_zeroing => patch%aux%Hydrate%matrix_zeroing
       case(WF_MODE)
         matrix_zeroing => patch%aux%WIPPFlo%matrix_zeroing
+      case(SCO2_MODE)
+        matrix_zeroing => patch%aux%SCO2%matrix_zeroing
     end select
     call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
                                        inactive_cells_exist,option)
@@ -1292,6 +1329,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(WF_MODE)
         patch%aux%WIPPFlo%matrix_zeroing => matrix_zeroing
         patch%aux%WIPPFlo%inactive_cells_exist = inactive_cells_exist
+      case(SCO2_MODE)
+        patch%aux%SCO2%matrix_zeroing => matrix_zeroing
+        patch%aux%SCO2%inactive_cells_exist = inactive_cells_exist
     end select
     deallocate(dof_is_active)
   endif
@@ -1464,5 +1504,34 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
   endif
 
 end subroutine InitSubsurfaceCreateZeroArray
+
+! ************************************************************************** !
+
+subroutine InitSubsurfProcessOutputVars(realization)
+  !
+  ! Maps PARAMETER output variables with named parameters to the actual
+  ! parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  use Realization_Subsurface_class
+  use Output_Aux_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  type(output_variable_list_type), pointer :: output_variable_list
+
+  output_variable_list => realization%output_option%output_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+  output_variable_list => realization%output_option%output_snap_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+  output_variable_list => realization%output_option%output_obs_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+  output_variable_list => realization%output_option%aveg_output_variable_list
+  call RealizationProcessOutputVarList(output_variable_list,realization)
+
+end subroutine InitSubsurfProcessOutputVars
 
 end module Init_Subsurface_module

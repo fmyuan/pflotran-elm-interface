@@ -460,6 +460,7 @@ subroutine WaypointListRemoveExtraWaypnts(waypoint_list,option)
   enddo
 
   if (associated(waypoint)) then
+    waypoint_list%last => waypoint
     prev_waypoint => waypoint
     waypoint => waypoint%next
     nullify(prev_waypoint%next)

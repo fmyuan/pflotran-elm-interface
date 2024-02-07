@@ -3,9 +3,9 @@ module Reaction_Microbial_Aux_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Reaction_Database_Aux_module
-
   use PFLOTRAN_Constants_module
+  use Reaction_Equation_module
+  use Reaction_Inhibition_Aux_module
 
   implicit none
 
@@ -14,12 +14,6 @@ module Reaction_Microbial_Aux_module
   PetscInt, parameter, public :: MICROBIAL_MOLALITY = 1
   PetscInt, parameter, public :: MICROBIAL_ACTIVITY = 2
   PetscInt, parameter, public :: MICROBIAL_MOLARITY = 3
-
-  PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
-  PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2
-  PetscInt, parameter, public :: INHIBITION_MONOD = 3
-  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 4
-  PetscInt, parameter, public :: INHIBITION_SMOOTHSTEP = 5
 
   PetscInt, parameter, public :: MAX_NUM_INHIBITION_TERMS = 10
   PetscInt, parameter, public :: MAX_NUM_MONOD_TERMS = 10
@@ -31,7 +25,7 @@ module Reaction_Microbial_Aux_module
     PetscReal :: rate_constant
     PetscReal :: activation_energy
     PetscBool :: print_me
-    type(database_rxn_type), pointer :: dbaserxn
+    type(reaction_equation_type), pointer :: reaction_equation
     type(monod_type), pointer :: monod
     type(inhibition_type), pointer :: inhibition
     type(microbial_biomass_type), pointer :: biomass
@@ -45,15 +39,6 @@ module Reaction_Microbial_Aux_module
     PetscReal :: threshold_concentration
     type(monod_type), pointer :: next
   end type monod_type
-
-  type, public :: inhibition_type
-    PetscInt :: id
-    PetscInt :: itype
-    character(len=MAXWORDLENGTH) :: species_name
-    PetscReal :: inhibition_constant
-    PetscReal :: inhibition_constant2
-    type(inhibition_type), pointer :: next
-  end type inhibition_type
 
   type, public :: microbial_biomass_type
     PetscInt :: id
@@ -87,23 +72,22 @@ module Reaction_Microbial_Aux_module
 
   end type microbial_type
 
-  public :: MicrobialCreate, &
-            MicrobialRxnCreate, &
-            MicrobialMonodCreate, &
-            MicrobialInhibitionCreate, &
-            MicrobialBiomassCreate, &
-            MicrobialGetMonodCount, &
-            MicrobialGetInhibitionCount, &
-            MicrobialGetBiomassCount, &
-            MicrobialRxnDestroy, &
-            MicrobialBiomassDestroy, &
-            MicrobialDestroy
+  public :: ReactionMicrobCreateAux, &
+            ReactionMicrobCreateRxn, &
+            ReactionMicrobCreateMonodTerm, &
+            ReactionMicrobCreateBiomass, &
+            ReactionMicrobGetMonodCount, &
+            ReactionMicrobGetInhibtionCount, &
+            ReactionMicrobGetBiomassCount, &
+            ReactionMicrobDestroyRxn, &
+            ReactionMicrobDestroyBiomass, &
+            ReactionMicrobDestrMicrobAux
 
 contains
 
 ! ************************************************************************** !
 
-function MicrobialCreate()
+function ReactionMicrobCreateAux()
   !
   ! Allocate and initialize microbial object
   !
@@ -113,7 +97,7 @@ function MicrobialCreate()
 
   implicit none
 
-  type(microbial_type), pointer :: MicrobialCreate
+  type(microbial_type), pointer :: ReactionMicrobCreateAux
 
   type(microbial_type), pointer :: microbial
 
@@ -140,13 +124,13 @@ function MicrobialCreate()
   nullify(microbial%inhibition_C2)
   microbial%concentration_units = UNINITIALIZED_INTEGER
 
-  MicrobialCreate => microbial
+  ReactionMicrobCreateAux => microbial
 
-end function MicrobialCreate
+end function ReactionMicrobCreateAux
 
 ! ************************************************************************** !
 
-function MicrobialRxnCreate()
+function ReactionMicrobCreateRxn()
   !
   ! Allocate and initialize a microbial object
   !
@@ -155,7 +139,7 @@ function MicrobialRxnCreate()
   !
   implicit none
 
-  type(microbial_rxn_type), pointer :: MicrobialRxnCreate
+  type(microbial_rxn_type), pointer :: ReactionMicrobCreateRxn
 
   type(microbial_rxn_type), pointer :: microbial_rxn
 
@@ -167,18 +151,18 @@ function MicrobialRxnCreate()
   microbial_rxn%activation_energy = 0.d0
   microbial_rxn%print_me = PETSC_FALSE
   nullify(microbial_rxn%biomass)
-  nullify(microbial_rxn%dbaserxn)
+  nullify(microbial_rxn%reaction_equation)
   nullify(microbial_rxn%monod)
   nullify(microbial_rxn%inhibition)
   nullify(microbial_rxn%next)
 
-  MicrobialRxnCreate => microbial_rxn
+  ReactionMicrobCreateRxn => microbial_rxn
 
-end function MicrobialRxnCreate
+end function ReactionMicrobCreateRxn
 
 ! ************************************************************************** !
 
-function MicrobialMonodCreate()
+function ReactionMicrobCreateMonodTerm()
   !
   ! Allocate and initialize a microbial monod object
   !
@@ -188,7 +172,7 @@ function MicrobialMonodCreate()
 
   implicit none
 
-  type(monod_type), pointer :: MicrobialMonodCreate
+  type(monod_type), pointer :: ReactionMicrobCreateMonodTerm
 
   type(monod_type), pointer :: monod
 
@@ -199,42 +183,13 @@ function MicrobialMonodCreate()
   monod%threshold_concentration = 0.d0
   nullify(monod%next)
 
-  MicrobialMonodCreate => monod
+  ReactionMicrobCreateMonodTerm => monod
 
-end function MicrobialMonodCreate
-
-! ************************************************************************** !
-
-function MicrobialInhibitionCreate()
-  !
-  ! Allocate and initialize a microbial inhibition
-  ! object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/30/12
-  !
-
-  implicit none
-
-  type(inhibition_type), pointer :: MicrobialInhibitionCreate
-
-  type(inhibition_type), pointer :: inhibition
-
-  allocate(inhibition)
-  inhibition%id = 0
-  inhibition%itype = 0
-  inhibition%species_name = ''
-  inhibition%inhibition_constant = UNINITIALIZED_DOUBLE
-  inhibition%inhibition_constant2 = 0.d0
-  nullify(inhibition%next)
-
-  MicrobialInhibitionCreate => inhibition
-
-end function MicrobialInhibitionCreate
+end function ReactionMicrobCreateMonodTerm
 
 ! ************************************************************************** !
 
-function MicrobialBiomassCreate()
+function ReactionMicrobCreateBiomass()
   !
   ! Allocate and initialize a microbial biomass object
   !
@@ -244,7 +199,7 @@ function MicrobialBiomassCreate()
 
   implicit none
 
-  type(microbial_biomass_type), pointer :: MicrobialBiomassCreate
+  type(microbial_biomass_type), pointer :: ReactionMicrobCreateBiomass
 
   type(microbial_biomass_type), pointer :: biomass
 
@@ -253,13 +208,13 @@ function MicrobialBiomassCreate()
   biomass%species_name = ''
   biomass%yield = 0.d0
 
-  MicrobialBiomassCreate => biomass
+  ReactionMicrobCreateBiomass => biomass
 
-end function MicrobialBiomassCreate
+end function ReactionMicrobCreateBiomass
 
 ! ************************************************************************** !
 
-function MicrobialGetMonodCount(microbial_rxn)
+function ReactionMicrobGetMonodCount(microbial_rxn)
   !
   ! Counts number of monod expressions in
   ! microbial reaction
@@ -272,7 +227,7 @@ function MicrobialGetMonodCount(microbial_rxn)
 
   type(microbial_rxn_type) :: microbial_rxn
 
-  PetscInt :: MicrobialGetMonodCount
+  PetscInt :: ReactionMicrobGetMonodCount
 
   type(monod_type), pointer :: cur_monod
   PetscInt :: icount
@@ -285,13 +240,13 @@ function MicrobialGetMonodCount(microbial_rxn)
     cur_monod => cur_monod%next
   enddo
 
-  MicrobialGetMonodCount = icount
+  ReactionMicrobGetMonodCount = icount
 
-end function MicrobialGetMonodCount
+end function ReactionMicrobGetMonodCount
 
 ! ************************************************************************** !
 
-function MicrobialGetInhibitionCount(microbial_rxn)
+function ReactionMicrobGetInhibtionCount(microbial_rxn)
   !
   ! Counts number of inhibiton expressions in
   ! microbial reaction
@@ -304,7 +259,7 @@ function MicrobialGetInhibitionCount(microbial_rxn)
 
   type(microbial_rxn_type) :: microbial_rxn
 
-  PetscInt :: MicrobialGetInhibitionCount
+  PetscInt :: ReactionMicrobGetInhibtionCount
 
   type(inhibition_type), pointer :: cur_inhibition
   PetscInt :: icount
@@ -317,13 +272,13 @@ function MicrobialGetInhibitionCount(microbial_rxn)
     cur_inhibition => cur_inhibition%next
   enddo
 
-  MicrobialGetInhibitionCount = icount
+  ReactionMicrobGetInhibtionCount = icount
 
-end function MicrobialGetInhibitionCount
+end function ReactionMicrobGetInhibtionCount
 
 ! ************************************************************************** !
 
-function MicrobialGetBiomassCount(microbial)
+function ReactionMicrobGetBiomassCount(microbial)
   !
   ! Returns the number of biomass species
   !
@@ -333,24 +288,24 @@ function MicrobialGetBiomassCount(microbial)
 
   implicit none
 
-  PetscInt :: MicrobialGetBiomassCount
+  PetscInt :: ReactionMicrobGetBiomassCount
   type(microbial_type) :: microbial
 
   type(microbial_rxn_type), pointer :: microbial_rxn
 
-  MicrobialGetBiomassCount = 0
+  ReactionMicrobGetBiomassCount = 0
   microbial_rxn => microbial%microbial_rxn_list
   do
     if (.not.associated(microbial_rxn%biomass)) exit
-    MicrobialGetBiomassCount = MicrobialGetBiomassCount + 1
+    ReactionMicrobGetBiomassCount = ReactionMicrobGetBiomassCount + 1
     microbial_rxn => microbial_rxn%next
   enddo
 
-end function MicrobialGetBiomassCount
+end function ReactionMicrobGetBiomassCount
 
 ! ************************************************************************** !
 
-subroutine MicrobialRxnDestroy(microbial)
+subroutine ReactionMicrobDestroyRxn(microbial)
   !
   ! Deallocates a microbial rxn object
   !
@@ -362,19 +317,19 @@ subroutine MicrobialRxnDestroy(microbial)
 
   type(microbial_rxn_type), pointer :: microbial
 
-  call DatabaseRxnDestroy(microbial%dbaserxn)
-  call MicrobialMonodDestroy(microbial%monod)
-  call MicrobialInhibitionDestroy(microbial%inhibition)
-  call MicrobialBiomassDestroy(microbial%biomass)
+  call ReactionEquationDestroy(microbial%reaction_equation)
+  call ReactionMicrobDestroyMonod(microbial%monod)
+  call ReactionInhibitionDestroyAux(microbial%inhibition)
+  call ReactionMicrobDestroyBiomass(microbial%biomass)
 
   deallocate(microbial)
   nullify(microbial)
 
-end subroutine MicrobialRxnDestroy
+end subroutine ReactionMicrobDestroyRxn
 
 ! ************************************************************************** !
 
-recursive subroutine MicrobialMonodDestroy(monod)
+recursive subroutine ReactionMicrobDestroyMonod(monod)
   !
   ! Deallocates a microbial monod object
   !
@@ -388,39 +343,16 @@ recursive subroutine MicrobialMonodDestroy(monod)
 
   if (.not.associated(monod)) return
 
-  call MicrobialMonodDestroy(monod%next)
+  call ReactionMicrobDestroyMonod(monod%next)
 
   deallocate(monod)
   nullify(monod)
 
-end subroutine MicrobialMonodDestroy
+end subroutine ReactionMicrobDestroyMonod
 
 ! ************************************************************************** !
 
-recursive subroutine MicrobialInhibitionDestroy(inhibition)
-  !
-  ! Deallocates a microbial inhibition object
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/30/12
-  !
-
-  implicit none
-
-  type(inhibition_type), pointer :: inhibition
-
-  if (.not. associated(inhibition)) return
-
-  call MicrobialInhibitionDestroy(inhibition%next)
-
-  deallocate(inhibition)
-  nullify(inhibition)
-
-end subroutine MicrobialInhibitionDestroy
-
-! ************************************************************************** !
-
-subroutine MicrobialBiomassDestroy(biomass)
+subroutine ReactionMicrobDestroyBiomass(biomass)
   !
   ! Deallocates a microbial biomass object
   !
@@ -437,11 +369,11 @@ subroutine MicrobialBiomassDestroy(biomass)
   deallocate(biomass)
   nullify(biomass)
 
-end subroutine MicrobialBiomassDestroy
+end subroutine ReactionMicrobDestroyBiomass
 
 ! ************************************************************************** !
 
-subroutine MicrobialDestroy(microbial)
+subroutine ReactionMicrobDestrMicrobAux(microbial)
   !
   ! Deallocates a microbial object
   !
@@ -465,7 +397,7 @@ subroutine MicrobialDestroy(microbial)
     if (.not.associated(cur_microbial)) exit
     prev_microbial => cur_microbial
     cur_microbial => cur_microbial%next
-    call MicrobialRxnDestroy(prev_microbial)
+    call ReactionMicrobDestroyRxn(prev_microbial)
   enddo
   nullify(microbial%microbial_rxn_list)
 
@@ -488,6 +420,6 @@ subroutine MicrobialDestroy(microbial)
   deallocate(microbial)
   nullify(microbial)
 
-end subroutine MicrobialDestroy
+end subroutine ReactionMicrobDestrMicrobAux
 
 end module Reaction_Microbial_Aux_module

@@ -37,76 +37,76 @@ int main(int argc,char* argv[]){
 
   PetscErrorCode ierr;
 
-  PetscInitialize(&argc,&argv,(char *)0,(char *)0);
-  MPI_Comm_size(PETSC_COMM_WORLD, &size);
-  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  PetscCall(PetscInitialize(&argc,&argv,(char *)0,(char *)0));
+  PetscCall(MPI_Comm_size(PETSC_COMM_WORLD, &size));
+  PetscCall(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));
 
   if (!rank) printf("Beginning of C test program\n");
 
   ncell = 3;
   ndof = 11;
 
-  DMDACreate3d(PETSC_COMM_WORLD,bt,bt,bt,stype,
+  PetscCall(DMDACreate3d(PETSC_COMM_WORLD,bt,bt,bt,stype,
                ncell,1,1, 
                PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE, 
-               ndof,1,NULL,NULL,NULL,&da);
+               ndof,1,NULL,NULL,NULL,&da));
 
-  DMSetUp(da);
-  DMDAGetCorners(da,&offset,&dummy,&dummy,&ncell_local,&dummy,&dummy);
-  DMCreateGlobalVector(da,&x);
-  VecDuplicate(x,&b);
-  DMSetMatType(da,MATBAIJ);
-  DMCreateMatrix(da,&A);
+  PetscCall(DMSetUp(da));
+  PetscCall(DMDAGetCorners(da,&offset,&dummy,&dummy,&ncell_local,&dummy,&dummy));
+  PetscCall(DMCreateGlobalVector(da,&x));
+  PetscCall(VecDuplicate(x,&b));
+  PetscCall(DMSetMatType(da,MATBAIJ));
+  PetscCall(DMCreateMatrix(da,&A));
 
   for (i=offset*ndof;i<(offset+ncell_local)*ndof;i++) {
     value = 1333.33;
-    MatSetValue(A,i,i,value,INSERT_VALUES);
+    PetscCall(MatSetValue(A,i,i,value,INSERT_VALUES));
     if (i > ndof-1) {
       value = -7.5e-7;
-      MatSetValue(A,i,i-ndof,value,INSERT_VALUES);
+      PetscCall(MatSetValue(A,i,i-ndof,value,INSERT_VALUES));
     }
     if (i < (ncell-1)*ndof) {
       value = -7.5e-7;
-      MatSetValue(A,i,i+ndof,value,INSERT_VALUES);
+      PetscCall(MatSetValue(A,i,i+ndof,value,INSERT_VALUES));
     }
   }
-  MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
+  PetscCall(MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY));
+  PetscCall(MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY));
 
-  VecZeroEntries(b);
+  PetscCall(VecZeroEntries(b));
   if (!rank) {
     value = 6.66134e-16;
-    VecSetValue(b,0,value,INSERT_VALUES);
+    PetscCall(VecSetValue(b,0,value,INSERT_VALUES));
     value = -value;
-    VecSetValue(b,ndof,value,INSERT_VALUES);
+    PetscCall(VecSetValue(b,ndof,value,INSERT_VALUES));
   }
-  VecAssemblyBegin(b);
-  VecAssemblyEnd(b);
+  PetscCall(VecAssemblyBegin(b));
+  PetscCall(VecAssemblyEnd(b));
 
-  PetscViewerASCIIOpen(PETSC_COMM_WORLD,"Ac.txt",&viewer);
-  MatView(A,viewer);
-  PetscViewerDestroy(&viewer);
+  PetscCall(PetscViewerASCIIOpen(PETSC_COMM_WORLD,"Ac.txt",&viewer));
+  PetscCall(MatView(A,viewer));
+  PetscCall(PetscViewerDestroy(&viewer));
 
-  PetscViewerASCIIOpen(PETSC_COMM_WORLD,"bc.txt",&viewer);
-  VecView(b,viewer);
-  PetscViewerDestroy(&viewer);
+  PetscCall(PetscViewerASCIIOpen(PETSC_COMM_WORLD,"bc.txt",&viewer));
+  PetscCall(VecView(b,viewer));
+  PetscCall(PetscViewerDestroy(&viewer));
 
-  KSPCreate(PETSC_COMM_WORLD,&ksp);
-  KSPSetType(ksp,KSPBCGS);
-  KSPSetFromOptions(ksp);
-  KSPSetOperators(ksp,A,A);
-  KSPSolve(ksp,b,x);
+  PetscCall(KSPCreate(PETSC_COMM_WORLD,&ksp));
+  PetscCall(KSPSetType(ksp,KSPBCGS));
+  PetscCall(KSPSetFromOptions(ksp));
+  PetscCall(KSPSetOperators(ksp,A,A));
+  PetscCall(KSPSolve(ksp,b,x));
 
-  PetscViewerASCIIOpen(PETSC_COMM_WORLD,"xc.txt",&viewer);
-  VecView(x,viewer);
-  PetscViewerDestroy(&viewer);
+  PetscCall(PetscViewerASCIIOpen(PETSC_COMM_WORLD,"xc.txt",&viewer));
+  PetscCall(VecView(x,viewer));
+  PetscCall(PetscViewerDestroy(&viewer));
 
-  VecDestroy(&x);
-  VecDestroy(&b);
-  MatDestroy(&A);
-  DMDestroy(&da);
-  KSPDestroy(&ksp);
-  PetscFinalize();
+  PetscCall(VecDestroy(&x));
+  PetscCall(VecDestroy(&b));
+  PetscCall(MatDestroy(&A));
+  PetscCall(DMDestroy(&da));
+  PetscCall(KSPDestroy(&ksp));
+  PetscCall(PetscFinalize());
 
   if (!rank) printf("End of C test program\n");
 

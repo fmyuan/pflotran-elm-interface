@@ -192,7 +192,7 @@ contains
     PetscReal, parameter :: p4 = 0.99d0
     PetscReal :: calc_value
     PetscReal :: value
-    PetscReal :: derivative, num_derivative, calc_value2, ppert, pert
+    PetscReal :: derivative
     PetscReal, parameter :: tolerance = 1.d-12
     character(len=128) :: string
 

@@ -38,13 +38,13 @@ module Reaction_Sandbox_Gas_class
     procedure, public :: Destroy => GasDestroy
   end type reaction_sandbox_gas_type
 
-  public :: GasCreate
+  public :: ReactionGasCreateAux
 
 contains
 
 ! ************************************************************************** !
 
-function GasCreate()
+function ReactionGasCreateAux()
   !
   ! Allocates gas reaction object.
   !
@@ -54,26 +54,26 @@ function GasCreate()
 
   implicit none
 
-  class(reaction_sandbox_gas_type), pointer :: GasCreate
+  class(reaction_sandbox_gas_type), pointer :: ReactionGasCreateAux
   PetscInt, parameter :: ns = 0
 
-  allocate(GasCreate)
-  GasCreate%nspecies = ns
-  allocate(GasCreate%aq_vec(ns))
-  allocate(GasCreate%im_vec(ns))
-  allocate(GasCreate%gas_vec(ns))
-  GasCreate%aq_vec = -999
-  GasCreate%im_vec = -999
-  GasCreate%gas_vec = -999
-  allocate(GasCreate%k(ns))
-  allocate(GasCreate%Keq(ns))
-  GasCreate%k = 0.0d0
-  GasCreate%Keq = 0.0d0
-  GasCreate%material_id_skip = 0
-  allocate(GasCreate%name_vec(ns))
-  nullify(GasCreate%next)
+  allocate(ReactionGasCreateAux)
+  ReactionGasCreateAux%nspecies = ns
+  allocate(ReactionGasCreateAux%aq_vec(ns))
+  allocate(ReactionGasCreateAux%im_vec(ns))
+  allocate(ReactionGasCreateAux%gas_vec(ns))
+  ReactionGasCreateAux%aq_vec = -999
+  ReactionGasCreateAux%im_vec = -999
+  ReactionGasCreateAux%gas_vec = -999
+  allocate(ReactionGasCreateAux%k(ns))
+  allocate(ReactionGasCreateAux%Keq(ns))
+  ReactionGasCreateAux%k = 0.0d0
+  ReactionGasCreateAux%Keq = 0.0d0
+  ReactionGasCreateAux%material_id_skip = 0
+  allocate(ReactionGasCreateAux%name_vec(ns))
+  nullify(ReactionGasCreateAux%next)
 
-end function GasCreate
+end function ReactionGasCreateAux
 
 ! ************************************************************************** !
 
@@ -87,7 +87,6 @@ subroutine GasRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -180,9 +179,9 @@ subroutine GasSetup(this,reaction,option)
   ! Date: July 2018
   !
 
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
-  use Reaction_Gas_Aux_module, only : GasGetIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Gas_Aux_module
   use Option_module
 
   implicit none
@@ -200,11 +199,12 @@ subroutine GasSetup(this,reaction,option)
 
   do i = 1, this%nspecies
     word = trim(this%name_vec(i))//aq
-    this%aq_vec(i) = GetPrimarySpeciesIDFromName(word,reaction,option)
+    this%aq_vec(i) = ReactionAuxGetPriSpecIDFromName(word,reaction,option)
     word = trim(this%name_vec(i))//im
-    this%im_vec(i) = GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
+    this%im_vec(i) = &
+      ReactionImGetSpeciesIDFromName(word,reaction%immobile,option)
     word = trim(this%name_vec(i))//g
-    this%gas_vec(i) = GasGetIDFromName(reaction%gas,word)
+    this%gas_vec(i) = ReactionGasGetGasIDFromName(reaction%gas,word)
   end do
 
 end subroutine GasSetup

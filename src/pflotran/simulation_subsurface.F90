@@ -164,7 +164,7 @@ subroutine SimSubsurfInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 02/15/21
   !
-
+  use Init_Subsurface_module
   use Logging_module
   use Option_module
   use Option_Checkpoint_module
@@ -220,7 +220,7 @@ subroutine SimSubsurfInitializeRun(this)
 
   ! the user may request output of variable that do not exist for the
   ! the requested process models; this routine should catch such issues.
-  call OutputEnsureVariablesExist(this%output_option,this%option)
+  call InitSubsurfProcessOutputVars(this%realization)
   call SimSubsurfForbiddenCombinations(this)
 
   if (this%option%restart_flag) then
@@ -325,6 +325,8 @@ subroutine SimSubsurfInputRecord(this)
       write(id,'(a)') 'thermo-hydro'
     case(TH_TS_MODE)
       write(id,'(a)') 'thermo-hydro_ts'
+    case(SCO2_MODE)
+      write(id,'(a)') 'SCO2'
   end select
 
   ! print time information
@@ -353,7 +355,7 @@ subroutine SimSubsurfInputRecord(this)
        this%realization%patch%characteristic_curves_thermal)
 
   ! print chemistry and reactive transport information
-  call ReactionInputRecord(this%realization%reaction)
+  call ReactionAuxInputRecord(this%realization%reaction)
 
   ! print coupler information (ICs, BCs, SSs)
   call PatchCouplerInputRecord(this%realization%patch)
@@ -836,7 +838,7 @@ subroutine SimSubsurfFinalizeRun(this)
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
   use Klinkenberg_module, only : KlinkenbergDestroy
-  use CLM_Rxn_module, only : RCLMRxnDestroy
+  use CLM_Rxn_module, only : ReactionCLMRxnDestroy
   use Output_EKG_module
 
   implicit none
@@ -885,7 +887,7 @@ subroutine SimSubsurfFinalizeRun(this)
     tran_timestepper => this%tran_process_model_coupler%timestepper
     if (this%option%itranmode == RT_MODE) then
       call RSandboxDestroy()
-      call RCLMRxnDestroy()
+      call ReactionCLMRxnDestroy()
     endif
   endif
 

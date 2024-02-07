@@ -127,7 +127,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
   pm_ert%surface_conductivity = 0.d0 ! to modify Archie's equation
-  pm_ert%tracer_conductivity = 0.d0
+  pm_ert%tracer_conductivity = UNINITIALIZED_DOUBLE
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_concentration = UNINITIALIZED_DOUBLE
@@ -342,6 +342,15 @@ subroutine PMERTSetup(this)
         &specified as an ERT option and solute transport is included as a &
         &PFLOTRAN process model.'
       call PrintErrMsg(this%option)
+    endif
+  else ! no transport
+    if (Initialized(this%tracer_conductivity)) then
+      option%io_buffer = 'TRACER_CONDUCTIVITY will not be factored into the &
+        &bulk electrical conductivity calculation since solute is not being &
+        &transported. Please add SOLUTE_CONCENTRATION as a process under &
+        &ZFLOW->OPTIONS->PROCESSES or include SUBSURFACE_TRANSPORT as a &
+        &process model.'
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -566,8 +575,8 @@ recursive subroutine PMERTInitializeRun(this)
                           'MOBILITY_DATABASE')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,'MOBILITY VALUE','MOBILITY_DATABASE')
-        ispecies = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
-                                              this%option)
+        ispecies = ReactionAuxGetPriSpecIDFromName(word,reaction,PETSC_FALSE, &
+                                                   this%option)
         if (Initialized(ispecies)) then
           this%species_conductivity_coef(ispecies) = & ! [m^2-charge-A/V-mol]
             tempreal * &                               ! mobility [m^2/V-s]
@@ -792,6 +801,9 @@ subroutine PMERTPreSolve(this)
 
   option => this%option
   if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
+
+  option%io_buffer = ' Calculating bulk electrical conductivity'
+  call PrintMsg(option)
 
   patch => this%realization%patch
   grid => patch%grid

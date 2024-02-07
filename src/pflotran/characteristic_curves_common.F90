@@ -46,6 +46,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: SetAlpha_ => SFVGSetAlpha
     procedure, public :: SetM_ => SFVGSetM
   end type sat_func_VG_type
+
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_BC_type
     PetscReal :: alpha
@@ -98,6 +99,17 @@ module Characteristic_Curves_Common_module
     procedure, public :: CapillaryPressure => SFExpFreezingCapillaryPressure
     procedure, public :: Saturation => SFExpFreezingSaturation
   end type sat_func_Exp_Freezing_type
+  !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_VG_STOMP_type
+    PetscReal :: alpha 
+    PetscReal :: n
+  contains
+    procedure, public :: Init => SFVGSTOMPInit
+    procedure, public :: Verify => SFVGSTOMPVerify
+    procedure, public :: GetAlpha_ => SFVGSTOMPGetAlpha
+    procedure, public :: CapillaryPressure => SFVGSTOMPCapillaryPressure
+    procedure, public :: Saturation => SFVGSTOMPSaturation
+  end type sat_func_VG_STOMP_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Table_type
     class(dataset_ascii_type), pointer :: pc_dataset
@@ -302,6 +314,14 @@ module Characteristic_Curves_Common_module
                                   RPFTableGasRelPerm
   end type rpf_Table_gas_type
 
+  type, public, extends(rel_perm_func_base_type) :: rpf_Modified_Corey_gas_type
+    PetscReal :: a
+    contains
+    procedure, public :: Init => RPFModifiedCoreyGasInit
+    procedure, public :: Verify => RPFModifiedCoreyGasVerify
+    procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
+    procedure, public :: RelPermTrapped => RPFModifiedCoreyGasRelPermWTGas
+  end type rpf_Modified_Corey_gas_type
 
   public :: &! standard char. curves:
             SFDefaultCreate, &
@@ -312,6 +332,7 @@ module Characteristic_Curves_Common_module
             SFmKCreate, &
             SFIGHCC2Create, &
             SFExpFreezingCreate, &
+            SFVGSTOMPCreate, &
             SFTableCreate, &
             ! standard rel. perm. curves:
             RPFDefaultCreate, &
@@ -336,7 +357,8 @@ module Characteristic_Curves_Common_module
             RPFModBrooksCoreyLiqCreate, &
             RPFModBrooksCoreyGasCreate, &
             RPFTableLiqCreate, &
-            RPFTableGasCreate
+            RPFTableGasCreate, &
+            RPFModifiedCoreyGasCreate
 
 contains
 
@@ -554,7 +576,7 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call PrintErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,MPH_MODE,H_MODE)
+    case(WF_MODE,G_MODE,MPH_MODE,H_MODE,SCO2_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &
@@ -1350,6 +1372,156 @@ subroutine SFExpFreezingSaturation(this,capillary_pressure, &
   endif
   
 end subroutine SFExpFreezingSaturation
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function SFVGSTOMPCreate()
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type), pointer :: SFVGSTOMPCreate
+
+  allocate(SFVGSTOMPCreate)
+  call SFVGSTOMPCreate%Init()
+
+end function SFVGSTOMPCreate
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPInit(this)
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+
+  call SFBaseInit(this)
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%n = UNINITIALIZED_DOUBLE
+
+end subroutine SFVGSTOMPInit
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,VG_STOMP'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%n)) then
+    option%io_buffer = UninitializedMessage('N',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFVGSTOMPVerify
+
+! ************************************************************************** !
+
+function SFVGSTOMPGetAlpha(this)
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+
+  PetscReal :: SFVGSTOMPGetAlpha
+
+  SFVGSTOMPGetAlpha = this%alpha
+
+end function SFVGSTOMPGetAlpha
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
+                                      capillary_pressure,dpc_dsatl,option)
+  !
+  ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
+  ! Currently does nothing.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: esl, m, n
+
+  esl = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+
+  if (liquid_saturation > this%Sr) then
+    capillary_pressure = ((1.d0 / esl)**(1.d0/m)-1.d0)**(1.d0/n) / &
+                          this%alpha
+  else
+    capillary_pressure = this%pcmax
+  endif
+
+end subroutine SFVGSTOMPCapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
+                               liquid_saturation,dsat_dpres,option)
+  !
+  ! Computes saturation as a function of capillary head:
+  ! sigma * Pc / (rho_l * g)
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/2024
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: m,n
+  PetscReal :: asl
+
+  dsat_dpres = 0.d0
+
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+  ! m = this%m
+  ! n = - 1.d0 / (m - 1.d0)
+
+  asl = (1.d0 / (1.d0 + (this%alpha * capillary_pressure)**n))**m
+  liquid_saturation = asl * (1.d0 - this%Sr) + this%Sr
+
+end subroutine SFVGSTOMPSaturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -4785,5 +4957,135 @@ subroutine RPFmKGasRelPerm(this,liquid_saturation, &
 
 end subroutine RPFmKGasRelPerm
 
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPFModifiedCoreyGasCreate()
+
+  ! Creates the Modified Corey gas relative permeability function object
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type), pointer :: RPFModifiedCoreyGasCreate
+
+  allocate(RPFModifiedCoreyGasCreate)
+  call RPFModifiedCoreyGasCreate%Init()
+
+end function RPFModifiedCoreyGasCreate
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasInit(this)
+
+  ! Initializes the Modified Corey gas relative permeability function
+  ! object
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+
+  call RPFBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_FALSE
+  this%a = 1.d0
+
+end subroutine RPFModifiedCoreyGasInit
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,Modified_Corey_GAS'
+  endif
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPFModifiedCoreyGasVerify
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
+                                      relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0) 
+  Sla = Se
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+end subroutine 
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
+                 trapped_gas_sat, relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid and trapped gas saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(in) :: trapped_gas_sat
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+  PetscReal :: Sgte
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0) 
+  Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
+  Sla = Se + Sgte
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+
+end subroutine RPFModifiedCoreyGasRelPermWTGas
+
+! ************************************************************************** !
+! ************************************************************************** !
 
 end module Characteristic_Curves_Common_module

@@ -76,7 +76,6 @@ subroutine ExampleRead(this,input,option)
   use Option_module
   use String_module
   use Input_Aux_module
-  use Units_module, only : UnitsConvertToInternal
 
   implicit none
 
@@ -156,7 +155,7 @@ subroutine ExampleSetup(this,reaction,option)
   ! Author: John Doe
   ! Date: 00/00/00
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module
   use Option_module
 
   implicit none
@@ -167,7 +166,7 @@ subroutine ExampleSetup(this,reaction,option)
 
 ! 9. Add code to initialize.
   this%species_id = &
-    GetPrimarySpeciesIDFromName(this%species_name,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(this%species_name,reaction,option)
 
 end subroutine ExampleSetup
 

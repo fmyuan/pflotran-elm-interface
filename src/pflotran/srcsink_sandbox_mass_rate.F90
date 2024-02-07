@@ -124,7 +124,7 @@ end subroutine MassRateRead
 
 ! ************************************************************************** !
 
-subroutine MassRateSetup(this,grid,option)
+subroutine MassRateSetup(this,grid,region_list,material_auxvars,option)
   !
   ! Sets up the mass rate src/sink
   !
@@ -135,14 +135,18 @@ subroutine MassRateSetup(this,grid,option)
   use Grid_module
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
+  use Material_Aux_module, only: material_auxvar_type
+  use Region_module
 
   implicit none
 
   class(srcsink_sandbox_mass_rate_type) :: this
   type(grid_type) :: grid
+  type(region_list_type) :: region_list
+  type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
-  call SSSandboxBaseSetup(this,grid,option)
+  call SSSandboxBaseSetup(this,grid,region_list,material_auxvars,option)
   ! convert rate from kg/s to mol/s
   select case(option%iflowmode)
     case(RICHARDS_MODE)

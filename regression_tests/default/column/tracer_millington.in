@@ -59,8 +59,6 @@ CHEMISTRY
   PRIMARY_SPECIES
     Tracer
   /
-  USE_FULL_GEOCHEMISTRY
-  DATABASE ../../../database/hanford.dat
   OUTPUT
     TOTAL
     ALL

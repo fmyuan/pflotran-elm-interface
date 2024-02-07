@@ -89,7 +89,6 @@ CHEMISTRY
       RATE_CONSTANT 1.d-5 1/h 
     /
   /
-  DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

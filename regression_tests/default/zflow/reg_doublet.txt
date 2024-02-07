@@ -10,6 +10,7 @@ CHEMISTRY
     Tracer2
   /
   OUTPUT
+    ALL
     TOTAL
   /
 END

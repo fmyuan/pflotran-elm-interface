@@ -2994,8 +2994,9 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   PetscReal :: res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   class(srcsink_sandbox_base_type), pointer :: cur_srcsink
-  PetscInt :: local_id, ghosted_id, istart, iend
+  PetscInt :: local_id, ghosted_id, istart, iend, icell
   PetscReal :: aux_real(10)
+!  PetscReal :: res_pert(1), pert
   PetscErrorCode :: ierr
 
   if (.not.compute_derivative) then
@@ -3005,31 +3006,44 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   cur_srcsink => ss_sandbox_list
   do
     if (.not.associated(cur_srcsink)) exit
-    aux_real = 0.d0
-    local_id = cur_srcsink%local_cell_id
-    ghosted_id = grid%nL2G(local_id)
-    res = 0.d0
-    Jac = 0.d0
-    call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
-                                      global_auxvars(ghosted_id), &
-                                      rich_auxvars(ghosted_id),option)
-    call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
-                              material_auxvars(ghosted_id), &
-                              aux_real,option)
-    if (compute_derivative) then
+    do icell = 1, size(cur_srcsink%local_cell_ids)
+      local_id = cur_srcsink%local_cell_ids(icell)
+      ghosted_id = grid%nL2G(local_id)
+      aux_real = 0.d0
+      res = 0.d0
+      Jac = 0.d0
       call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
                                         global_auxvars(ghosted_id), &
                                         rich_auxvars(ghosted_id),option)
-      call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
+      call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
                                 material_auxvars(ghosted_id), &
                                 aux_real,option)
-      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
-                                    Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
-    else
-      iend = local_id*option%nflowdof
-      istart = iend - option%nflowdof + 1
-      r_p(istart:iend) = r_p(istart:iend) - res
-    endif
+      if (compute_derivative) then
+        call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
+                                          global_auxvars(ghosted_id), &
+                                          rich_auxvars(ghosted_id),option)
+        call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
+                                  material_auxvars(ghosted_id), &
+                                  aux_real,option)
+#if 0
+        pert = global_auxvars(ghosted_id)%pres(1)*1.d-6
+        aux_real(1) = global_auxvars(ghosted_id)%pres(1)+pert
+        call cur_srcsink%Evaluate(res_pert,Jac,PETSC_FALSE, &
+                                  material_auxvars(ghosted_id), &
+                                  aux_real,option)
+        Jac(1,1) = (res_pert(1)-res(1))/pert
+        print *, 'Jac_num:', Jac(1,1)
+  !      stop
+#endif
+        call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
+                                      Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
+
+      else
+        iend = local_id*option%nflowdof
+        istart = iend - option%nflowdof + 1
+        r_p(istart:iend) = r_p(istart:iend) - res
+      endif
+    enddo
     cur_srcsink => cur_srcsink%next
   enddo
 
@@ -3047,6 +3061,7 @@ subroutine RichardsSSSandboxLoadAuxReal(srcsink,aux_real,global_auxvar, &
   use Option_module
   use SrcSink_Sandbox_Base_class
   use SrcSink_Sandbox_Downreg_class
+  use SrcSink_Sandbox_Pressure_class
 
   implicit none
 
@@ -3058,12 +3073,17 @@ subroutine RichardsSSSandboxLoadAuxReal(srcsink,aux_real,global_auxvar, &
 
   aux_real = 0.d0
 
-  !select type(srcsink)
-  !  class is(srcsink_sandbox_downreg_type)
+  select type(srcsink)
+    class is(srcsink_sandbox_pressure_type)
+      aux_real(SS_PRES_LIQUID_PRESSURE_OFFSET) = global_auxvar%pres(1)
+      aux_real(SS_PRES_GAS_PRESSURE_OFFSET) = UNINITIALIZED_DOUBLE
+      aux_real(SS_PRES_LIQUID_DENSITY_OFFSET) = global_auxvar%den(1)
+      aux_real(SS_PRES_GAS_DENSITY_OFFSET) = UNINITIALIZED_DOUBLE
+    class is(srcsink_sandbox_downreg_type)
       aux_real(1) = rich_auxvars%kvr ! fluid mobility
       aux_real(3) = global_auxvar%pres(1)
       aux_real(9) = global_auxvar%den(1)
-  !end select
+  end select
 
 end subroutine RichardsSSSandboxLoadAuxReal
 

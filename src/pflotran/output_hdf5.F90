@@ -167,7 +167,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
       do
         if (.not.associated(cur_variable)) exit
         call OutputGetVariableArray(realization_base,global_vec,cur_variable)
-        string = cur_variable%name
+        string = OutputVariableGetName(cur_variable)
         call StringSwapChar(string," ","_")
         if (len_trim(cur_variable%units) > 0) then
           word = cur_variable%units
@@ -189,7 +189,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     case (AVERAGED_VARS)
       cur_variable => output_option%aveg_output_variable_list%first
       do ivar = 1,output_option%aveg_output_variable_list%nvars
-        string = 'Aveg. ' // cur_variable%name
+        string = 'Aveg. ' // OutputVariableGetName(cur_variable)
         if (len_trim(cur_variable%units) > 0) then
           word = cur_variable%units
           call HDF5MakeStringCompatible(word)
@@ -590,7 +590,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         call OutputGetVariableArray(realization_base,global_vec,cur_variable)
         call DiscretizationGlobalToNatural(discretization,global_vec, &
                                            natural_vec,ONEDOF)
-        string = cur_variable%name
+        string = OutputVariableGetName(cur_variable)
         if (len_trim(cur_variable%units) > 0) then
           word = cur_variable%units
           call HDF5MakeStringCompatible(word)
@@ -616,7 +616,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
       if (associated(output_option%aveg_output_variable_list%first)) then
         cur_variable => output_option%aveg_output_variable_list%first
         do ivar = 1,output_option%aveg_output_variable_list%nvars
-          string = 'Aveg. ' // cur_variable%name
+          string = 'Aveg. ' // OutputVariableGetName(cur_variable)
           if (len_trim(cur_variable%units) > 0) then
             word = cur_variable%units
             call HDF5MakeStringCompatible(word)
@@ -924,14 +924,22 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       (output_option%print_explicit_primal_grid .or. &
        len_trim(grid%unstructured_grid%explicit_grid% &
                   domain_filename) > 0)) then
-    if (.not.output_option%print_explicit_primal_grid) then
+    if (output_option%print_explicit_primal_grid) then
+      ! for primal grid output, num_cells is set in the call to
+      ! WriteHDF5CoordinatesUGridXDMFExplicit() below.  Therefore, this value
+      ! for num_cells will be overwritten the first time called.
+      num_cells = realization_base%output_option%xmf_vert_len
+      num_vertices = grid%unstructured_grid%explicit_grid%num_vertices
+    else
       ! have to open up domain file read the size of the vertex array
       domain_filename_path = &
         grid%unstructured_grid%explicit_grid%domain_filename
+
       domain_filename_header = domain_filename_path
-        ! initialize fortran hdf5 interface
-      option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename_path)
-!      call PrintMsg(option)
+      option%io_buffer = 'Opening HDF5 primary grid "' // &
+        trim(domain_filename_path) // &
+        '" for referencing in file "' // trim(xmf_filename) // '".'
+      call PrintMsg(option)
       call HDF5FileOpenReadOnly(domain_filename_path,file_id2, &
                                 PETSC_FALSE,'',option)
       string = 'Domain/Cells'
@@ -964,12 +972,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       call HDF5DatasetClose(data_set_id,option)
       call HDF5FileClose(file_id2,option)
       include_cell_centers = PETSC_TRUE
-    else
-      ! for primal grid output, num_cells is set in the call to
-      ! WriteHDF5CoordinatesUGridXDMFExplicit() below.  Therefore, this value
-      ! for num_cells will be overwritten the first time called.
-      num_cells = realization_base%output_option%xmf_vert_len
-      num_vertices = grid%unstructured_grid%explicit_grid%num_vertices
     endif
     write_xdmf = PETSC_TRUE
   endif
@@ -1035,7 +1037,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
         call OutputGetVariableArray(realization_base,global_vec,cur_variable)
         call DiscretizationGlobalToNatural(discretization,global_vec, &
                                            natural_vec,ONEDOF)
-        string = cur_variable%name
+        string = OutputVariableGetName(cur_variable)
         if (len_trim(cur_variable%units) > 0) then
           word = cur_variable%units
           call HDF5MakeStringCompatible(word)
@@ -1063,7 +1065,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       if (associated(output_option%aveg_output_variable_list%first)) then
         cur_variable => output_option%aveg_output_variable_list%first
         do ivar = 1,output_option%aveg_output_variable_list%nvars
-          string = 'Aveg. ' // cur_variable%name
+          string = 'Aveg. ' // OutputVariableGetName(cur_variable)
           if (len_trim(cur_variable%units) > 0) then
             word = cur_variable%units
             call HDF5MakeStringCompatible(word)

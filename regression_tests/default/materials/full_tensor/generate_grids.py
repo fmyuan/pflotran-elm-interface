@@ -13,7 +13,7 @@ h5 = True
 n = (9,9,8) #nx,ny,nz
 d = [[100.],[100.],[50.]] #uniform grid spacing in all direction
 origin = (0,0,0)
-struct_grid_to_ugrid_implicit(ref_name, h5, n, d, origin)
+struct_grid_to_ugrid_implicit(ref_name, h5, n, d, origin, True)
 
 
 #def rotation to be done

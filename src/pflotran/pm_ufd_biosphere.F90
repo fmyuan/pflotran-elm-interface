@@ -992,10 +992,12 @@ subroutine PMUFDBSupportedRadCheckRT(this)
   option => this%option
 
   if (associated(this%realization%reaction)) then
-    allocate(pri_names(GetPrimarySpeciesCount(this%realization%reaction)))
-    pri_names => GetPrimarySpeciesNames(this%realization%reaction)
-    allocate(sec_names(GetSecondarySpeciesCount(this%realization%reaction)))
-    sec_names => GetSecondarySpeciesNames(this%realization%reaction)
+    allocate(pri_names(ReactionAuxGetPriSpeciesCount( &
+                         this%realization%reaction)))
+    pri_names => ReactionAuxGetPriSpeciesNames(this%realization%reaction)
+    allocate(sec_names(ReactionAuxGetSecSpeciesCount( &
+                         this%realization%reaction)))
+    sec_names => ReactionAuxGetSecSpeciesNames(this%realization%reaction)
   else
     option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
                        &transport.'
@@ -1010,8 +1012,9 @@ subroutine PMUFDBSupportedRadCheckRT(this)
     do i = 1,len(pri_names)
       if (adjustl(trim(rad_name)) == adjustl(trim(pri_names(i)))) then
         found = PETSC_TRUE
-        cur_supp_rad%species_id = GetPrimarySpeciesIDFromName(rad_name, &
-                                              this%realization%reaction,option)
+        cur_supp_rad%species_id = &
+          ReactionAuxGetPriSpecIDFromName(rad_name,this%realization%reaction, &
+                                          option)
       endif
       if (found) exit
     enddo
@@ -1019,8 +1022,9 @@ subroutine PMUFDBSupportedRadCheckRT(this)
       do i = 1,len(sec_names)
         if (adjustl(trim(rad_name)) == adjustl(trim(sec_names(i)))) then
           found = PETSC_TRUE
-          cur_supp_rad%species_id = GetSecondarySpeciesIDFromName(rad_name, &
-                                              this%realization%reaction,option)
+          cur_supp_rad%species_id = &
+             ReactionAuxGetSecSpecIDFromName(rad_name, &
+                                             this%realization%reaction,option)
         endif
         if (found) exit
       enddo

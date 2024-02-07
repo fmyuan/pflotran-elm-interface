@@ -195,6 +195,7 @@ subroutine PMCBaseReadNumericalMethods(this,input,pm_label)
     option%io_buffer = 'No time integrator is used with process model "' // &
       trim(this%pm_list%name) // '". Therefore, a NUMERICAL_METHODS card &
       &may not be used.'
+    call PrintErrMsg(option)
   endif
 
   input%ierr = 0

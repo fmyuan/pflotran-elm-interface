@@ -137,6 +137,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
   use PM_Well_class
+  use PM_SCO2_class
   use Solver_module
   use Timestepper_Base_class
   use Timestepper_SNES_class
@@ -194,6 +195,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           string = " mode = Hydrate: p, sg/sh/si/X, T"
         case(WF_MODE)
           string = " mode = WIPP Flow: p, sg"
+        case(SCO2_MODE)
+          string = " mode = SCO2: p, x/sg/p, T, x"
         case default
           string = "mode unknown"
       end select
@@ -321,13 +324,15 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
               add_pre_check = PETSC_TRUE
           endif
         class is(pm_general_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
         class is(pm_hydrate_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
         class is(pm_zflow_type)
-              add_pre_check = PETSC_TRUE
+          add_pre_check = PETSC_TRUE
+        class is(pm_sco2_type)
+          add_pre_check = PETSC_TRUE
         class is(pm_th_type)
           if (Initialized(pm%pressure_dampening_factor) .or. &
               Initialized(pm%pressure_change_limit) .or. &
@@ -679,6 +684,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   PetscErrorCode :: ierr
 
 #ifdef GEOMECH_DEBUG
+  PetscViewer :: viewer
   print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
 #endif
 
