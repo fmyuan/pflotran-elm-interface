@@ -5868,7 +5868,6 @@ subroutine PMWellPostSolveTran(this)
 
   class(pm_well_type) :: this
 
-  character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time, cur_time_converted
 
   cur_time = this%option%time + this%option%tran_dt
