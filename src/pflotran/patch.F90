@@ -122,7 +122,7 @@ module Patch_module
             PatchGetCompMassInRegionAssign, &
             PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection, &
-            PatchGetPorosityValue
+            PatchGetSolublePorosityValue
 
 contains
 
@@ -1675,7 +1675,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   if (general_immiscible) then
                     xmol2 = GENERAL_IMMISCIBLE_VALUE
                   endif
-                  print *, 'hello, salt'
                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = xmol2
                   dof4 = PETSC_TRUE
                   coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
@@ -1983,52 +1982,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                 'GENERAL_MODE liquid state mole fraction ',string)
               call PrintErrMsg(option)
           end select
-
-          ! air mole fraction; 3rd dof ------------------- !
-!          if (associated(general%mole_fraction)) then
-!            select case(general%mole_fraction%itype)
-!              case(DIRICHLET_BC)
-!                if (Uninitialized(gas_pressure) .or. &
-!                    Uninitialized(temperature)) then
-!                  option%io_buffer = 'GAS_PRESSURE or TEMPERATURE not set &
-!                    &correctly in flow condition "' // &
-!                    trim(flow_condition%name) // '".'
-!                  call PrintErrMsg(option)
-!                endif
-!                call PatchGetCouplerValueFromDataset(coupler,option, &
-!                            patch%grid,general%mole_fraction%dataset,iconn,xmol)
-!                air_pressure = xmol * gas_pressure
-!                if (general_immiscible) then
-!                  air_pressure = gas_pressure - GENERAL_IMMISCIBLE_VALUE
-!                endif
-!                call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-!                if (gas_pressure - air_pressure >= p_sat) then
-!                  option%io_buffer = 'MOLE_FRACTION set in flow &
-!                    &condition "' // trim(flow_condition%name) // &
-!                    '" results in a vapor pressure exceeding the water &
-!                    &saturation pressure, which indicates that a two-phase &
-!                    &state with GAS_PRESSURE and GAS_SATURATION should be used.'
-!                  call PrintErrMsg(option)
-!                endif
-!                if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
-!                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
-!                  dof3 = PETSC_TRUE
-!                  coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = &
-!                                                                     DIRICHLET_BC
-!                else
-!                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = 1.d0 - xmol
-!                  dof3 = PETSC_TRUE
-!                  coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = &
-!                                                                    DIRICHLET_BC
-!                endif
-!              case default
-!                string = GetSubConditionType(general%mole_fraction%itype)
-!                option%io_buffer = &
-!                  FlowConditionUnknownItype(coupler%flow_condition, &
-!                  'GENERAL_MODE air mole fraction',string)
-!                call PrintErrMsg(option)
-!            end select
-!          endif
           ! precipitate saturation; 4th dof ---------------------- !
           if (associated(general%precipitate_saturation)) then
             select case(general%precipitate_saturation%itype)
@@ -2048,7 +2001,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           elseif (associated(general%salt_mole_fraction)) then
             select case(general%salt_mole_fraction%itype)
               case(AT_SOLUBILITY_BC)
-                 call PatchGetPorosityValue(coupler,patch,iconn,por,soluble)
+                 call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
                  if (soluble) then
                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
                  else
@@ -2202,7 +2155,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                    call PrintErrMsg(option)
               end select
             else
-              call PatchGetPorosityValue(coupler,patch,iconn,por,soluble)
+              call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
               if (soluble) then
                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
                 dof4 = PETSC_TRUE
@@ -2291,9 +2244,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         elseif (associated(general%salt_mole_fraction)) then
           select case(general%salt_mole_fraction%itype)
             case(AT_SOLUBILITY_BC)
-               ! call PatchGetCouplerValueFromDataset(coupler,option, &
-               !      patch%grid,general%solubility%dataset,iconn,por)
-               call PatchGetPorosityValue(coupler,patch,iconn,por,soluble)
+               call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
                if (soluble) then
                  coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
                else
@@ -5430,7 +5381,7 @@ end subroutine PatchGetCouplerValueFromDataset
 
 ! ************************************************************************** !
 
-subroutine PatchGetPorosityValue(coupler,patch,iconn,porosity,soluble)
+subroutine PatchGetSolublePorosityValue(coupler,patch,iconn,porosity,soluble)
 
   !
   ! Gets porosity and soluble material boolean for a given connection.
@@ -5467,7 +5418,7 @@ subroutine PatchGetPorosityValue(coupler,patch,iconn,porosity,soluble)
   soluble = material_property_array(patch%imat(ghosted_id))%ptr%soluble
   porosity = material_auxvars(ghosted_id)%porosity_0
 
-end subroutine PatchGetPorosityValue
+end subroutine PatchGetSolublePorosityValue
 
 ! ************************************************************************** !
 

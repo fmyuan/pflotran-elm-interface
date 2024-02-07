@@ -451,8 +451,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                       if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
                         xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = 1.d-10
                       else
-                      xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = &
-                           general%precipitate_saturation%dataset%rarray(1)
+                        xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = &
+                             general%precipitate_saturation%dataset%rarray(1)
                       endif
                     endif
                   endif
