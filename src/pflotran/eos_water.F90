@@ -4444,6 +4444,7 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
     hg = R*T_temp * tao * (gamma_0_tao + gamma_r_tao)
 
     dg = 1/dg
+    dgmol = dg/FMWH2O
     if (calculate_derivatives) then
     stop 'IF97 region 5 steam density/enthalpy derivative not implemented yet'
     else
