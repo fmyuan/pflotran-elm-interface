@@ -2057,7 +2057,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       if (.not.soluble_matrix) then
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       else
-        gen_auxvar%effective_porosity = max(general_min_porosity,x(GENERAL_POROSITY_DOF))
+        gen_auxvar%effective_porosity = min(1.d0,max(general_min_porosity,x(GENERAL_POROSITY_DOF)))
         gen_auxvar%sat(pid) = 0.d0
       endif
       if (gen_auxvar%istatechng) then
@@ -2237,7 +2237,7 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
 
       if (soluble_matrix) then
-        gen_auxvar%effective_porosity = max(general_min_porosity,x(GENERAL_POROSITY_DOF))
+        gen_auxvar%effective_porosity = min(1.d0,max(general_min_porosity,x(GENERAL_POROSITY_DOF)))
       else
         gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       endif
