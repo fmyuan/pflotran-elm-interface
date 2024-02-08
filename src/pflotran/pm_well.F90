@@ -375,7 +375,6 @@ module PM_Well_class
     PetscBool :: well_on          !Turns the well on, regardless of other checks
     PetscInt :: well_force_ts_cut
     PetscBool :: update_for_wippflo_qi_coupling
-    PetscBool :: tran_QI_coupling
     PetscBool :: print_well
     PetscBool :: print_output
   contains
@@ -470,7 +469,6 @@ function PMWellCreate()
   this%well_on = PETSC_TRUE
   this%well_force_ts_cut = 0
   this%update_for_wippflo_qi_coupling = PETSC_FALSE
-  this%tran_QI_coupling = PETSC_FALSE
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
 
@@ -1884,7 +1882,9 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
 
   PetscInt :: k
   PetscInt :: num_errors,read_max,num_read
-  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: at_index,num_segs
+  character(len=MAXWORDLENGTH) :: word, index_word
+  PetscReal :: index_val
   PetscReal, pointer :: temp_diameter(:)
   PetscReal, pointer :: temp_friction(:)
   PetscReal, pointer :: temp_well_index(:)
@@ -1895,7 +1895,7 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
   found = PETSC_TRUE
   num_errors = 0
 
-  read_max = 200
+  read_max = 9000
   allocate(temp_diameter(read_max))
   allocate(temp_friction(read_max))
   allocate(temp_well_index(read_max))
@@ -1951,8 +1951,18 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
         !-----------------------------
           case('WELL_INDEX')
             do k = 1,read_max
+              index_word = trim(input%buf)
               call InputReadDouble(input,option,temp_well_index(k))
-              if (InputError(input)) exit
+              if (InputError(input)) then
+                at_index = 0; at_index = index(index_word,'@')
+                if (at_index > 0) then
+                  read(index_word(1:at_index-1), *) num_segs
+                  read(index_word(at_index+1:len(index_word)), *) index_val
+                  temp_well_index(k:k+num_segs-1) = index_val
+                  num_read = num_read + num_segs
+                endif
+                exit
+              endif 
               num_read = num_read + 1
             enddo
             if (num_read == 0) then
@@ -1960,6 +1970,7 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
                 &must be provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
+            write(*,*) 'num_read =', num_read
             allocate(pm_well%well%WI_base(num_read))
             pm_well%well%WI_base(1:num_read) = temp_well_index(1:num_read)
         !-----------------------------
@@ -3085,18 +3096,6 @@ subroutine PMWellInitializeTimestep(this)
       .not. this%well_on) return
   
   call PMWellInitializeTimestepFlow(this,curr_time)
-
-  if (this%tran_QI_coupling) return
-
-  if (initialize_well_tran) then
-    ! enter here if its the very first timestep
-    call PMWellInitializeWellTran(this)
-  endif
-
-  if (this%transport) then
-    call PMWellUpdatePropertiesTran(this)
-    this%dt_tran = this%dt_flow
-  endif
 
 end subroutine PMWellInitializeTimestep
 
@@ -4343,7 +4342,7 @@ subroutine PMWellResidualTranRxn(this)
     enddo
 
     this%tran_soln%residual(istart:iend) = &
-                          this%tran_soln%residual(istart:iend) - Res(:)
+                          this%tran_soln%residual(istart:iend) + Res(:)
   enddo
 
 end subroutine PMWellResidualTranRxn
@@ -5015,27 +5014,17 @@ subroutine PMWellPreSolveTran(this,master_dt)
   this%tran_soln%not_converged = PETSC_TRUE
   this%tran_soln%converged = PETSC_FALSE
 
-  if (this%tran_QI_coupling) then
-    cur_time = this%option%time + this%cumulative_dt_tran
-  else
-    cur_time = this%option%time - master_dt + this%cumulative_dt_tran
-  endif
+  cur_time = this%option%time + this%cumulative_dt_tran
   this%tran_soln%tran_time = cur_time
 
   cur_time_converted = cur_time/this%output_option%tconv
   dt_converted = this%dt_tran/this%output_option%tconv
 
-  if (this%tran_QI_coupling) then
-    write(out_string,'(" WELL TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
-                     1pe12.5," ",a4)') &
-                     (this%tran_soln%n_steps+1),cur_time_converted, &
-                     dt_converted,this%output_option%tunit
-  else
-    write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
-                     1pe12.5," ",a4)') &
-                     (this%tran_soln%n_steps+1),cur_time_converted, &
-                     dt_converted,this%output_option%tunit
-  endif
+  write(out_string,'(" WELL TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+                   1pe12.5," ",a4)') &
+                   (this%tran_soln%n_steps+1),cur_time_converted, &
+                   dt_converted,this%output_option%tunit
+
   call PrintMsg(this%option,out_string)
 
 end subroutine PMWellPreSolveTran
@@ -5056,12 +5045,7 @@ subroutine PMWellSolve(this,time,ierr)
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: curr_time, curr_time_converted
 
-  curr_time = this%option%time
-
-  if (this%tran_QI_coupling) then
-    curr_time = this%option%time + this%cumulative_dt_tran
-  endif
-
+  curr_time = this%option%time + this%cumulative_dt_tran
   curr_time_converted = curr_time/this%output_option%tconv
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs if the solve
@@ -5088,15 +5072,11 @@ subroutine PMWellSolve(this,time,ierr)
   !Debugging
   !call MPI_Barrier(this%option%comm%communicator,ierr);CHKERRQ(ierr)
   if (this%transport) then
-    if (this%tran_QI_coupling) then
-      write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
-                      &transport coupling is being used.")')
-      call PrintMsg(this%option,out_string)
-      this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
-      this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
-    else 
-      call PMWellSolveTran(this,ierr)
-    endif
+    write(out_string,'(" TRAN Step          Quasi-implicit wellbore &
+                     &transport coupling is being used.")')
+    call PrintMsg(this%option,out_string)
+    this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+    this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
   endif
 
 end subroutine PMWellSolve
@@ -5523,11 +5503,7 @@ subroutine PMWellSolveTran(this,ierr)
   soln%converged = PETSC_FALSE
   soln%not_converged = PETSC_TRUE
 
-  if (this%tran_QI_coupling) then
-    master_dt = this%option%tran_dt
-  else
-    master_dt = this%realization%option%flow_dt
-  endif
+  master_dt = this%option%tran_dt
 
   do while (this%cumulative_dt_tran < master_dt)
 
@@ -5543,10 +5519,7 @@ subroutine PMWellSolveTran(this,ierr)
                       &Cutting timestep!'
         call PrintMsg(this%option,out_string)
         call PMWellCutTimestepTran(this)
-        if (this%tran_QI_coupling) return 
-        n_iter = 0
-        ts_cut = ts_cut + 1
-        exit
+        return 
       endif
       if (ts_cut > soln%max_ts_cut) then
         this%realization%option%io_buffer = &
@@ -5725,13 +5698,6 @@ subroutine PMWellCutTimestepTran(this)
   this%well%aqueous_conc = this%tran_soln%prev_soln%aqueous_conc
   call PMWellUpdatePropertiesTran(this)
 
-  if (this%tran_QI_coupling) then
-    return
-  else
-    this%dt_tran = this%dt_tran / this%tran_soln%ts_cut_factor
-    this%dt_tran = max(this%dt_tran,this%min_dt_tran)
-  endif
-
 end subroutine PMWellCutTimestepTran
 
 ! ************************************************************************** !
@@ -5902,25 +5868,11 @@ subroutine PMWellPostSolveTran(this)
 
   class(pm_well_type) :: this
 
-  character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time, cur_time_converted
 
-  if (this%tran_QI_coupling) then
-    cur_time = this%option%time + this%option%tran_dt
-  else 
-    cur_time = this%option%time
-  endif 
+  cur_time = this%option%time + this%option%tran_dt
   this%tran_soln%tran_time = cur_time
-
   cur_time_converted = cur_time/this%output_option%tconv
-
-  if (.not. this%tran_QI_coupling) then
-    WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," &
-                      &",a4,"Total Newton Its =",i8)') &
-                      cur_time_converted,this%output_option%tunit, &
-                      this%tran_soln%n_newton
-    call PrintMsg(this%option,out_string)
-  endif
 
 end subroutine PMWellPostSolveTran
 
@@ -6341,10 +6293,6 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     out_string = ' WELL TRAN Solution converged!  ---> ' // trim(rsn_string)
     call PrintMsg(this%option,out_string)
     this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
-    if (.not. this%tran_QI_coupling) then
-      soln%prev_soln%aqueous_conc = this%well%aqueous_conc
-      soln%prev_soln%aqueous_mass = this%well%aqueous_mass
-    endif
   else
     soln%converged = PETSC_FALSE
     soln%not_converged = PETSC_TRUE
@@ -7749,7 +7697,7 @@ subroutine PMWellOutputHeader(this)
   class(pm_well_type) :: this
 
   type(output_option_type), pointer :: output_option
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename, word
   character(len=MAXWORDLENGTH) :: units_string, variable_string
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscBool :: exist
@@ -7770,6 +7718,37 @@ subroutine PMWellOutputHeader(this)
   exist = FileExists(trim(filename))
   if (this%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")
+
+  ! First write out the well grid information
+  write(fid,'(a)',advance="yes") '========= WELLBORE MODEL GRID INFORMATION &
+                                  &==================' 
+  write(word,'(i5)') this%well_grid%nsegments
+  write(fid,'(a)',advance="yes") ' Number of segments: ' // trim(word) 
+  write(word,'(i5)') this%well_grid%nconnections 
+  write(fid,'(a)',advance="yes") ' Number of connections: ' // trim(word)
+  write(word,'(es10.3,es10.3,es10.3)') this%well_grid%tophole(1), &
+                          this%well_grid%tophole(2), this%well_grid%tophole(3)
+  write(fid,'(a)',advance="yes") ' Top of hole (x,y,z) [m]: ' // trim(word)
+  write(word,'(es10.3,es10.3,es10.3)') this%well_grid%bottomhole(1), &
+                    this%well_grid%bottomhole(2), this%well_grid%bottomhole(3)
+  write(fid,'(a)',advance="yes") ' Bottom of hole (x,y,z) [m]: ' // trim(word)
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &================='
+  write(fid,'(a)',advance="yes") ' Segment Number: Center coordinate (x,y,z) [m] '
+  do k = 1,this%well_grid%nsegments
+    write(word,'(i4,a3,es10.3,es10.3,es10.3,a1)') k,': (', &
+      this%well_grid%h(k)%x,this%well_grid%h(k)%y,this%well_grid%h(k)%z,')'
+    write(fid,'(a)',advance="yes") trim(word)
+  enddo
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &================='   
+  write(fid,'(a)',advance="yes") ' Segment Number: Segment length [m] '
+  do k = 1,this%well_grid%nsegments
+    write(word,'(i4,a3,es10.3,a1)') k,': (',this%well_grid%dh(k),')'
+    write(fid,'(a)',advance="yes") trim(word)
+  enddo
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &=================' 
 
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
@@ -7837,6 +7816,14 @@ subroutine PMWellOutputHeader(this)
                              icolumn)
     variable_string = 'Well Liq Mass'
     units_string = 'kmol'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Well P. Index'
+    units_string = '-'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Peacman Radius'
+    units_string = 'm'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     if (this%transport) then
@@ -7923,7 +7910,9 @@ subroutine PMWellOutput(this)
                                   this%well%qg(k-1)
     endif
     write(fid,100,advance="no") this%well%mass_balance_liq(k), &
-                                this%well%liq_mass(k)
+                                this%well%liq_mass(k), &
+                                this%well%WI(k), &
+                                this%well%r0(k)
     if (this%transport) then
       do j = 1,this%nspecies
         write(fid,100,advance="no") this%well%aqueous_conc(j,k), &

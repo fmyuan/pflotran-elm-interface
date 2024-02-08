@@ -246,9 +246,6 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
 !      case('TEMPERATURE_DEPENDENT_DIFFUSION')
 !        this%temperature_dependent_diffusion = PETSC_TRUE
     !-----------------------------------------------------------
-      case('QUASI_IMPLICIT_WELLBORE_COUPLING') 
-        nwt_well_quasi_imp_coupled = PETSC_TRUE
-    !-----------------------------------------------------------
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     !-----------------------------------------------------------
@@ -774,10 +771,6 @@ subroutine PMNWTInitializeRun(this)
   !===========================================================================!
 
   call PMNWTUpdateSolution(this)
-
-  if (associated(this%pmwell_ptr) .and. nwt_well_quasi_imp_coupled) then
-    this%pmwell_ptr%tran_QI_coupling = PETSC_TRUE
-  endif
 
 end subroutine PMNWTInitializeRun
 
@@ -1729,8 +1722,7 @@ subroutine PMNWTTimeCut(this)
   ! copy previous solution back to current solution
   call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
 
-  if (nwt_well_quasi_imp_coupled .and. &
-      .not. this%controls%well_cut_dt) then
+  if (.not. this%controls%well_cut_dt) then
     this%pmwell_ptr%well%aqueous_mass = &
       this%pmwell_ptr%tran_soln%prev_soln%aqueous_mass
     this%pmwell_ptr%well%aqueous_conc =  &
