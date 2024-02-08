@@ -1783,11 +1783,10 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
   PetscReal :: pi, tao, g_pi, T_temp
   PetscReal :: dg_pi_dT, dv_dt, dg_pi_dp, dv_dp
 
-
-  if (Tf <= 623.15d0) then
+  T_temp = T + 273.15d0
+  if (T_temp <= 623.15d0) then
     ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
 
-    T_temp = T+Tf
     pi = P/p_ref
     tao = T_ref/T_temp
 
