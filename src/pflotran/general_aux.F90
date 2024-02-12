@@ -622,7 +622,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscErrorCode :: ierr
   PetscErrorCode :: eos_henry_ierr
 
-  PetscReal :: sigma
+  PetscReal :: sigma, temp_psat
 
   ierr = 0
   eos_henry_ierr = 0
@@ -792,6 +792,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%pv_p = 1.d0 - gen_auxvar%d%Hc_p*gen_auxvar%xmol(acid,lid)
         gen_auxvar%d%pv_T = -gen_auxvar%d%Hc_T*gen_auxvar%xmol(acid,lid)
       endif
+      cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
+                      gen_auxvar%pres(spid))
 
     case(GAS_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
@@ -816,6 +818,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(lid) = 0.d0
       gen_auxvar%sat(gid) = 1.d0
       gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
+      cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
+                      gen_auxvar%pres(spid))
       ! need to set mole fractions in liquid phase in equilibrium with
       ! water saturated with air in order to accommodate air diffusion between
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
@@ -848,10 +852,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
               ! Adjust saturation pressure so it is properly used in Henry and
               ! UpdateState. Right now this adds an extra call to density.
               call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+                                   gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+              temp_psat = gen_auxvar%pres(spid)
               call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                   gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                   gen_auxvar%pres(spid))
+                                  gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
             endif
           endif
 
@@ -902,9 +906,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
               call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
                                    gen_auxvar%den_kg(lid), &
                                    gen_auxvar%den(lid),ierr)
+              temp_psat = gen_auxvar%pres(spid)
               call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                  gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                  gen_auxvar%pres(spid))
+                                  gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
             endif
           endif
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
@@ -969,7 +973,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%sat(gid) = max(0.d0,gen_auxvar%sat(gid))
         gen_auxvar%sat(gid) = min(1.d0,gen_auxvar%sat(gid))
       endif
-
+      cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
+                      gen_auxvar%pres(spid))
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
         if (.not.option%flow%sat_pres_depends_on_salinity) then
@@ -1004,9 +1009,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                 ! UpdateState. Right now this adds an extra density call
                 call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
                                 gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+                temp_psat = gen_auxvar%pres(spid)
                 call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                    gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                    gen_auxvar%pres(spid))
+                                  gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
               endif
             endif
             call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
@@ -1055,10 +1060,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                ! Adjust saturation pressure so it is properly used in Henry and
                ! UpdateState. Right now this adds an extra call to density.
                  call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-                 call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid),&
-                                    gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                    gen_auxvar%pres(spid))
+                                      gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+                 temp_psat = gen_auxvar%pres(spid)
+                 call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                     gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
                endif
              endif
              call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
@@ -1156,7 +1161,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   if (eos_henry_ierr /= 0) then
      call GeneralEOSGasError(natural_id,eos_henry_ierr,gen_auxvar,option)
   endif
-
 
   cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
                       gen_auxvar%pres(spid))
