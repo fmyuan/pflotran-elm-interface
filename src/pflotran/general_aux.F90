@@ -818,8 +818,18 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(lid) = 0.d0
       gen_auxvar%sat(gid) = 1.d0
       gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-      cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
-                      gen_auxvar%pres(spid))
+      cell_pressure = gen_auxvar%pres(gid)
+      call characteristic_curves%saturation_function% &
+               CapillaryPressure(gen_auxvar%sat(lid), &
+                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
+      !man: IFT calculation. Probably will yield slightly lower Pc than
+      !     MAX_CAPILLARY_PRESSURE
+
+      if (general_compute_surface_tension) then
+        call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
+        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+      endif
+
       ! need to set mole fractions in liquid phase in equilibrium with
       ! water saturated with air in order to accommodate air diffusion between
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
@@ -927,16 +937,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 !      gen_auxvar%pres(lid) = gen_auxvar%pres(gid)
 !      gen_auxvar%pres(cpid) = 0.d0
 
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option)
-      !man: IFT calculation. Probably will yield slightly lower Pc than
-      !     MAX_CAPILLARY_PRESSURE
-      if (general_compute_surface_tension) then
-        call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-      endif
-
       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
                              gen_auxvar%pres(cpid)
 
@@ -975,8 +975,17 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
       cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
                       gen_auxvar%pres(spid))
+      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
+      call characteristic_curves%saturation_function% &
+               CapillaryPressure(gen_auxvar%sat(lid), &
+                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
+
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
+        if (general_compute_surface_tension) then
+          call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
+          gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+        endif
         if (.not.option%flow%sat_pres_depends_on_salinity) then
           if (associated(gen_auxvar%d)) then
             !Not supported: interfacial tension, Kelvin equation
@@ -1094,17 +1103,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                               &variable."
           call PrintErrMsg(option)
         endif
-      endif
-
-      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
-
-      call characteristic_curves%saturation_function% &
-               CapillaryPressure(gen_auxvar%sat(lid), &
-                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
-
-      if (general_compute_surface_tension) then
-        call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+        if (general_compute_surface_tension) then
+          call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
+          gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+        endif
       endif
 
       if (associated(gen_auxvar%d)) then
