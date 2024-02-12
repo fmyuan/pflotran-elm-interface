@@ -404,6 +404,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
     if (upwind) then
       up_scale = 1.d0
       ! mobility = hyd_auxvar_up%mobility(iphase)
+      kr = hyd_auxvar_up%kr(iphase)
       xmol(:) = hyd_auxvar_up%xmol(:,iphase)
       xmass(:) = hyd_auxvar_up%xmass(:,iphase)
       uH = hyd_auxvar_up%H(iphase)
@@ -411,6 +412,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
     else
       dn_scale = 1.d0
       ! mobility = hyd_auxvar_dn%mobility(iphase)
+      kr = hyd_auxvar_dn%kr(iphase)
       xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
       xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
       uH = hyd_auxvar_dn%H(iphase)

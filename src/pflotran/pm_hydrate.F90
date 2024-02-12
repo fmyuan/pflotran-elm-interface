@@ -1301,7 +1301,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           temp_index = offset + THREE_INTEGER
 
           !Limit changes in gas phase pressure
-          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)-hyd_auxvar%pres(lid)))
           dX_p(gas_pressure_index) = sign(min(dabs(dP), &
                                      dabs(dX_p(gas_pressure_index))), &
                                      dX_p(gas_pressure_index))

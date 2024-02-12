@@ -437,7 +437,7 @@ subroutine HydrateAuxVarInit(auxvar,option)
 
   allocate(auxvar%pres(option%nphase+FOUR_INTEGER))
   auxvar%pres = 0.d0
-  allocate(auxvar%sat(option%nphase))
+  allocate(auxvar%sat(option%nphase+1))
   auxvar%sat = 0.d0
   allocate(auxvar%den(3 + option%nphase)) ! Pure component and mixture
   auxvar%den = 0.d0
@@ -1742,17 +1742,19 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                h_air,u_air,ierr)
     h_air = h_air * 1.d-6 ! J/kmol -> MJ/kmol
     u_air = u_air * 1.d-6 ! J/kmol -> MJ/kmol
-
-    call EOSWaterSteamDensityEnthalpy(T_temp,water_vapor_pressure, &
+    if (water_vapor_pressure > 0.d0) then
+      call EOSWaterSteamDensityEnthalpy(T_temp,water_vapor_pressure, &
                                         den_kg_water_vapor,den_water_vapor, &
                                         h_water_vapor,ierr)
+    else
+      h_water_vapor = 0.d0
+    endif
+    
     u_water_vapor = h_water_vapor - &
                     ! Pa / kmol/m^3 = J/kmol
                     water_vapor_pressure / den_water_vapor
     h_water_vapor = h_water_vapor * 1.d-6 ! J/kmol -> MJ/kmol
     u_water_vapor = u_water_vapor * 1.d-6 ! J/kmol -> MJ/kmol
-    hyd_auxvar%den(gid) = den_water_vapor + den_air
-    hyd_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*hydrate_fmw_comp(gid)
     xmol_air_in_gas = hyd_auxvar%xmol(acid,gid)
     xmol_water_in_gas = hyd_auxvar%xmol(wid,gid)
 
@@ -2235,16 +2237,16 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           endif
         else
           if (hyd_auxvar%temp > Tf_ice) then
-            ! sh_est = 1.d0 - dabs(PE_hyd / hyd_auxvar%pres(apid))
-            ! hyd_auxvar%sat(hid) = sh_est
-            ! hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid) - sh_est
-            ! istatechng = PETSC_TRUE
-            ! global_auxvar%istate = HGA_STATE
-            ! two_phase_epsilon = hydrate_phase_chng_epsilon
+            sh_est = dabs(PE_hyd / hyd_auxvar%pres(apid))
+            hyd_auxvar%sat(hid) = sh_est
+            hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid) - sh_est
+            istatechng = PETSC_TRUE
+            global_auxvar%istate = HGA_STATE
+            two_phase_epsilon = hydrate_phase_chng_epsilon
           else
-            ! istatechng = PETSC_TRUE
-            ! global_auxvar%istate = HGAI_STATE
-            ! two_phase_epsilon = hydrate_phase_chng_epsilon
+            istatechng = PETSC_TRUE
+            global_auxvar%istate = HGAI_STATE
+            two_phase_epsilon = hydrate_phase_chng_epsilon
           endif
         endif
       endif
