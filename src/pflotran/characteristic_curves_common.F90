@@ -1456,7 +1456,6 @@ subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
                                       capillary_pressure,dpc_dsatl,option)
   !
   ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
-  ! Currently does nothing.
   !
   ! Author: Michael Nole
   ! Date: 01/09/24
