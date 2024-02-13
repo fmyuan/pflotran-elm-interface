@@ -849,24 +849,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         else
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
-          if (general_compute_surface_tension .or. general_kelvin_equation) then
-            call characteristic_curves%saturation_function% &
-                 CapillaryPressure(gen_auxvar%sat(lid), &
-                                   gen_auxvar%pres(cpid),dpc_dsatl,option)
-            if (general_compute_surface_tension) then
-              call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-              gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-            endif
-
-            if (general_kelvin_equation) then
-              ! Adjust saturation pressure so it is properly used in Henry and
-              ! UpdateState. Right now this adds an extra call to density.
-              call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                   gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-              temp_psat = gen_auxvar%pres(spid)
-              call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                  gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
-            endif
+          if (general_kelvin_equation) then
+            ! Adjust saturation pressure so it is properly used in Henry and
+            ! UpdateState. Right now this adds an extra call to density.
+            call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                                 gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+            temp_psat = gen_auxvar%pres(spid)
+            call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
           endif
 
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
@@ -901,25 +891,15 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                              gen_auxvar%pres(spid),ierr)
           !geh: Henry_air_xxx returns K_H in units of Pa, but I am
           !     not confident that K_H is truly K_H_tilde (i.e. p_g * K_H).
-          if (general_compute_surface_tension.or.general_kelvin_equation) then
-            call characteristic_curves%saturation_function% &
-                   CapillaryPressure(gen_auxvar%sat(lid), &
-                                     gen_auxvar%pres(cpid),dpc_dsatl,option)
-            if (general_compute_surface_tension) then
-              call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-              gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-            endif
-
-            if (general_kelvin_equation) then
+          if (general_kelvin_equation) then
               ! Adjust saturation pressure so it is properly used in Henry and
               ! UpdateState. Right now this adds an extra call to density.
-              call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                   gen_auxvar%den_kg(lid), &
-                                   gen_auxvar%den(lid),ierr)
-              temp_psat = gen_auxvar%pres(spid)
-              call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                  gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
-            endif
+            call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                                 gen_auxvar%den_kg(lid), &
+                                 gen_auxvar%den(lid),ierr)
+            temp_psat = gen_auxvar%pres(spid)
+            call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
           endif
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                            eos_henry_ierr)
@@ -968,7 +948,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       !gen_auxvar%pres(gid) = max(0.d0,gen_auxvar%pres(gid))
 
       gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
-
+      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
       if (gen_auxvar%istatechng) then
         gen_auxvar%sat(gid) = max(0.d0,gen_auxvar%sat(gid))
         gen_auxvar%sat(gid) = min(1.d0,gen_auxvar%sat(gid))
@@ -1001,27 +981,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
           else
             call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                             gen_auxvar%pres(spid),ierr)
-            if (general_compute_surface_tension .or. &
-                general_kelvin_equation) then
-              gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
-              call characteristic_curves%saturation_function% &
-                   CapillaryPressure(gen_auxvar%sat(lid), &
-                                     gen_auxvar%pres(cpid),dpc_dsatl,option)
-              !man: IFT calculation
-              if (general_compute_surface_tension) then
-                call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-                gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-              endif
-
-              if (general_kelvin_equation) then
-                ! Adjust saturation pressure so it is properly used in Henry and
-                ! UpdateState. Right now this adds an extra density call
-                call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-                temp_psat = gen_auxvar%pres(spid)
-                call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                  gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
-              endif
+            if (general_kelvin_equation) then
+              ! Adjust saturation pressure so it is properly used in Henry and
+              ! UpdateState. Right now this adds an extra density call
+              call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                              gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+              temp_psat = gen_auxvar%pres(spid)
+              call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
             endif
             call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                              eos_henry_ierr)
@@ -1055,17 +1022,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                   gen_auxvar%pres(spid),ierr)
              !geh: Henry_air_xxx returns K_H in units of Pa, but I am
              !     not confident that K_H is truly K_H_tilde (i.e. p_g * K_H).
-             if (general_compute_surface_tension .or. &
-                 general_kelvin_equation) then
-               call characteristic_curves%saturation_function% &
-                    CapillaryPressure(gen_auxvar%sat(lid), &
-                                    gen_auxvar%pres(cpid),dpc_dsatl,option)
-               if (general_compute_surface_tension) then
-                 call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-                 gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-               endif
-
-               if (general_kelvin_equation) then
+             if (general_kelvin_equation) then
                ! Adjust saturation pressure so it is properly used in Henry and
                ! UpdateState. Right now this adds an extra call to density.
                  call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
@@ -1073,7 +1030,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                  temp_psat = gen_auxvar%pres(spid)
                  call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
                                      gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
-               endif
              endif
              call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                   eos_henry_ierr)
