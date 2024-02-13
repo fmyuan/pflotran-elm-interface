@@ -1540,6 +1540,8 @@ subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
 
 end subroutine EOSWaterSatPresWagnerPruss
 
+! ************************************************************************** !
+
 subroutine EOSWaterSaturationPressureIce(T, calculate_derivatives, &
                                       PS, dPS_dT, ierr)
   !
@@ -1747,6 +1749,8 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
 
 end subroutine EOSWaterDensityIFC67
 
+! ************************************************************************** !
+
 subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
                                 dwp,dwt,ierr,table_idxs)
 
@@ -1819,6 +1823,8 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
   end if
   
 end subroutine EOSWaterDensityIF97
+
+! ************************************************************************** !
 
 subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
                                      dwp,dwt)
@@ -2088,6 +2094,8 @@ function T3bdry(P,idx)
   end select
 end function T3bdry
 
+! ************************************************************************** !
+
 function IF97_subregion_3a(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(30) = [0.110879558823853D-2, &
@@ -2114,6 +2122,8 @@ function IF97_subregion_3a(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3a
+
+! ************************************************************************** !
 
 function IF97_subregion_3b(p,T) result (v)
   implicit none
@@ -2143,6 +2153,8 @@ function IF97_subregion_3b(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3b
 
+! ************************************************************************** !
+
 function IF97_subregion_3c(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(35) = [0.311967788763030D1, &
@@ -2171,6 +2183,8 @@ function IF97_subregion_3c(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3c
+
+! ************************************************************************** !
 
 function IF97_subregion_3d(p,T) result (v)
   implicit none
@@ -2202,6 +2216,8 @@ function IF97_subregion_3d(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3d
 
+! ************************************************************************** !
+
 function IF97_subregion_3e(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(29) = [0.715815808404721D9, &
@@ -2228,6 +2244,8 @@ function IF97_subregion_3e(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3e
+
+! ************************************************************************** !
 
 function IF97_subregion_3f(p,T) result (v)
   implicit none
@@ -2261,6 +2279,8 @@ function IF97_subregion_3f(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3f
 
+! ************************************************************************** !
+
 function IF97_subregion_3g(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(38) = [0.412209020652996D-4, &
@@ -2292,6 +2312,8 @@ function IF97_subregion_3g(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3g
 
+! ************************************************************************** !
+
 function IF97_subregion_3h(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(29) = [0.561379678887577D-1, &
@@ -2318,6 +2340,8 @@ function IF97_subregion_3h(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3h
+
+! ************************************************************************** !
 
 function IF97_subregion_3i(p,T) result (v)
   implicit none
@@ -2351,6 +2375,8 @@ function IF97_subregion_3i(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3i
 
+! ************************************************************************** !
+
 function IF97_subregion_3j(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(29) = [-0.111371317395540D-3, &
@@ -2376,6 +2402,8 @@ function IF97_subregion_3j(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3j
+
+! ************************************************************************** !
 
 function IF97_subregion_3k(p,T) result (v)
   implicit none
@@ -2404,6 +2432,8 @@ function IF97_subregion_3k(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3k
+
+! ************************************************************************** !
 
 function IF97_subregion_3l(p,T) result (v)
   implicit none
@@ -2437,6 +2467,8 @@ function IF97_subregion_3l(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3l
 
+! ************************************************************************** !
+
 function IF97_subregion_3m(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(40) = [0.811384363481847D0, &
@@ -2467,6 +2499,8 @@ function IF97_subregion_3m(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3m
+
+! ************************************************************************** !
 
 function IF97_subregion_3n(p,T) result (v)
   implicit none
@@ -2521,6 +2555,8 @@ function IF97_subregion_3o(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3o
 
+! ************************************************************************** !
+
 function IF97_subregion_3p(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(27) = [-0.982825342010366D-4, &
@@ -2546,6 +2582,8 @@ function IF97_subregion_3p(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3p
 
+! ************************************************************************** !
+
 function IF97_subregion_3q(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(24) = [-0.820433843259950D5, &
@@ -2569,6 +2607,8 @@ function IF97_subregion_3q(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3q
+
+! ************************************************************************** !
 
 function IF97_subregion_3r(p,T) result (v)
   implicit none
@@ -2594,6 +2634,8 @@ function IF97_subregion_3r(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3r
+
+! ************************************************************************** !
 
 function IF97_subregion_3s(p,T) result (v)
   implicit none
@@ -2621,6 +2663,8 @@ function IF97_subregion_3s(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3s
 
+! ************************************************************************** !
+
 function IF97_subregion_3t(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(33) = [0.155287249586268D1, &
@@ -2647,6 +2691,8 @@ function IF97_subregion_3t(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3t
+
+! ************************************************************************** !
 
 function IF97_subregion_3u(p,T) result (v)
   implicit none
@@ -2679,6 +2725,8 @@ function IF97_subregion_3u(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3u
 
+! ************************************************************************** !
+
 function IF97_subregion_3v(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(39) = [-0.415652812061591D-54, &
@@ -2710,6 +2758,8 @@ function IF97_subregion_3v(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3v
 
+! ************************************************************************** !
+
 function IF97_subregion_3w(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(35) = [-0.586219133817016D-7, &
@@ -2739,6 +2789,8 @@ function IF97_subregion_3w(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3w
+
+! ************************************************************************** !
 
 function IF97_subregion_3x(p,T) result (v)
   implicit none
@@ -2792,6 +2844,8 @@ function IF97_subregion_3y(p,T) result (v)
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3y
 
+! ************************************************************************** !
+
 function IF97_subregion_3z(p,T) result (v)
   implicit none
   PetscReal, parameter :: n_i(23) = [0.244007892290650D-10, &
@@ -2815,6 +2869,8 @@ function IF97_subregion_3z(p,T) result (v)
   theta = (T + 273.15d0)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3z
+
+! ************************************************************************** !
 
 function IF97SaturationTemperature(Ps) result(Ts)
   ! section 8.2 of IAPWS R7-97(2012)
@@ -3152,6 +3208,8 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   end if
 
 end subroutine EOSWaterEnthalpyIF97
+
+! ************************************************************************** !
 
 subroutine EOSWaterEnthalpyIF97Region3(T,P,calculate_derivatives,hw,hwp,hwt)
 
@@ -4457,6 +4515,8 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   end if
 
 end subroutine EOSWaterSteamDensityEnthalpyIF97
+
+! ************************************************************************** !
 
 subroutine EOSWaterDuanMixture(t,p,xmol,y_nacl,avgmw,dw_kg,denmix)
 
