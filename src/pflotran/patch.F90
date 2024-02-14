@@ -1903,8 +1903,14 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   call PrintErrMsg(option)
                 endif
                 call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-                                  ! convert from % to fraction
+                ! convert from % to fraction
                 air_pressure = gas_pressure - relative_humidity*1.d-2*p_sat
+                ! Check if RH specified is possible for given pressure
+                if (air_pressure < 0.d0) then
+                  option%io_buffer = 'RELATIVE_HUMIDITY in flow condition "' &
+                    // trim(flow_condition%name) // '" exceeds total pressure.'
+                  call PrintErrMsg(option)
+                endif
                 if (general_immiscible) then
                   air_pressure = gas_pressure - GENERAL_IMMISCIBLE_VALUE
                 endif
