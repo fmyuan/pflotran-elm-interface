@@ -6226,7 +6226,7 @@ subroutine EOSWaterKelvin(Pc,rhow,T,Psat,Pv)
   T_temp = T + 273.15d0
 
   ! For water:
-  vp_factor = Pc / (rhow * 1000.d0 * IDEAL_GAS_CONSTANT * T_temp)
+  vp_factor = -Pc / (rhow * 1000.0d0 * IDEAL_GAS_CONSTANT * T_temp)
 
   Pv = exp(vp_factor) * Psat
 

@@ -622,7 +622,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscErrorCode :: ierr
   PetscErrorCode :: eos_henry_ierr
 
-  PetscReal :: sigma
+  PetscReal :: sigma, temp_psat
 
   ierr = 0
   eos_henry_ierr = 0
@@ -792,6 +792,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%pv_p = 1.d0 - gen_auxvar%d%Hc_p*gen_auxvar%xmol(acid,lid)
         gen_auxvar%d%pv_T = -gen_auxvar%d%Hc_T*gen_auxvar%xmol(acid,lid)
       endif
+      cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
+                      gen_auxvar%pres(spid))
 
     case(GAS_STATE)
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
@@ -816,6 +818,18 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(lid) = 0.d0
       gen_auxvar%sat(gid) = 1.d0
       gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
+      cell_pressure = gen_auxvar%pres(gid)
+      call characteristic_curves%saturation_function% &
+               CapillaryPressure(gen_auxvar%sat(lid), &
+                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
+      !man: IFT calculation. Probably will yield slightly lower Pc than
+      !     MAX_CAPILLARY_PRESSURE
+
+      if (general_compute_surface_tension) then
+        call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
+        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+      endif
+
       ! need to set mole fractions in liquid phase in equilibrium with
       ! water saturated with air in order to accommodate air diffusion between
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
@@ -835,24 +849,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         else
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
-          if (general_compute_surface_tension .or. general_kelvin_equation) then
-            call characteristic_curves%saturation_function% &
-                 CapillaryPressure(gen_auxvar%sat(lid), &
-                                   gen_auxvar%pres(cpid),dpc_dsatl,option)
-            if (general_compute_surface_tension) then
-              call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-              gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-            endif
-
-            if (general_kelvin_equation) then
-              ! Adjust saturation pressure so it is properly used in Henry and
-              ! UpdateState. Right now this adds an extra call to density.
-              call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-              call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                   gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                   gen_auxvar%pres(spid))
-            endif
+          if (general_kelvin_equation) then
+            ! Adjust saturation pressure so it is properly used in Henry and
+            ! UpdateState. Right now this adds an extra call to density.
+            call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                                 gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+            temp_psat = gen_auxvar%pres(spid)
+            call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
           endif
 
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
@@ -887,25 +891,15 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                              gen_auxvar%pres(spid),ierr)
           !geh: Henry_air_xxx returns K_H in units of Pa, but I am
           !     not confident that K_H is truly K_H_tilde (i.e. p_g * K_H).
-          if (general_compute_surface_tension.or.general_kelvin_equation) then
-            call characteristic_curves%saturation_function% &
-                   CapillaryPressure(gen_auxvar%sat(lid), &
-                                     gen_auxvar%pres(cpid),dpc_dsatl,option)
-            if (general_compute_surface_tension) then
-              call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-              gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-            endif
-
-            if (general_kelvin_equation) then
+          if (general_kelvin_equation) then
               ! Adjust saturation pressure so it is properly used in Henry and
               ! UpdateState. Right now this adds an extra call to density.
-              call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                   gen_auxvar%den_kg(lid), &
-                                   gen_auxvar%den(lid),ierr)
-              call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                  gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                  gen_auxvar%pres(spid))
-            endif
+            call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                                 gen_auxvar%den_kg(lid), &
+                                 gen_auxvar%den(lid),ierr)
+            temp_psat = gen_auxvar%pres(spid)
+            call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
           endif
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                            eos_henry_ierr)
@@ -922,16 +916,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       ! liquid pressure.  Set to gas pressure.
 !      gen_auxvar%pres(lid) = gen_auxvar%pres(gid)
 !      gen_auxvar%pres(cpid) = 0.d0
-
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option)
-      !man: IFT calculation. Probably will yield slightly lower Pc than
-      !     MAX_CAPILLARY_PRESSURE
-      if (general_compute_surface_tension) then
-        call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-      endif
 
       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
                              gen_auxvar%pres(cpid)
@@ -964,14 +948,24 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       !gen_auxvar%pres(gid) = max(0.d0,gen_auxvar%pres(gid))
 
       gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
-
+      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
       if (gen_auxvar%istatechng) then
         gen_auxvar%sat(gid) = max(0.d0,gen_auxvar%sat(gid))
         gen_auxvar%sat(gid) = min(1.d0,gen_auxvar%sat(gid))
       endif
+      cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
+                      gen_auxvar%pres(spid))
+      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
+      call characteristic_curves%saturation_function% &
+               CapillaryPressure(gen_auxvar%sat(lid), &
+                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
 
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
+        if (general_compute_surface_tension) then
+          call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
+          gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+        endif
         if (.not.option%flow%sat_pres_depends_on_salinity) then
           if (associated(gen_auxvar%d)) then
             !Not supported: interfacial tension, Kelvin equation
@@ -987,27 +981,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
           else
             call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                             gen_auxvar%pres(spid),ierr)
-            if (general_compute_surface_tension .or. &
-                general_kelvin_equation) then
-              gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
-              call characteristic_curves%saturation_function% &
-                   CapillaryPressure(gen_auxvar%sat(lid), &
-                                     gen_auxvar%pres(cpid),dpc_dsatl,option)
-              !man: IFT calculation
-              if (general_compute_surface_tension) then
-                call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-                gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-              endif
-
-              if (general_kelvin_equation) then
-                ! Adjust saturation pressure so it is properly used in Henry and
-                ! UpdateState. Right now this adds an extra density call
-                call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-                call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
-                                    gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                    gen_auxvar%pres(spid))
-              endif
+            if (general_kelvin_equation) then
+              ! Adjust saturation pressure so it is properly used in Henry and
+              ! UpdateState. Right now this adds an extra density call
+              call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                              gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+              temp_psat = gen_auxvar%pres(spid)
+              call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
             endif
             call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                              eos_henry_ierr)
@@ -1041,25 +1022,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                   gen_auxvar%pres(spid),ierr)
              !geh: Henry_air_xxx returns K_H in units of Pa, but I am
              !     not confident that K_H is truly K_H_tilde (i.e. p_g * K_H).
-             if (general_compute_surface_tension .or. &
-                 general_kelvin_equation) then
-               call characteristic_curves%saturation_function% &
-                    CapillaryPressure(gen_auxvar%sat(lid), &
-                                    gen_auxvar%pres(cpid),dpc_dsatl,option)
-               if (general_compute_surface_tension) then
-                 call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-                 gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-               endif
-
-               if (general_kelvin_equation) then
+             if (general_kelvin_equation) then
                ! Adjust saturation pressure so it is properly used in Henry and
                ! UpdateState. Right now this adds an extra call to density.
                  call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                                gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-                 call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid),&
-                                    gen_auxvar%temp,gen_auxvar%pres(spid), &
-                                    gen_auxvar%pres(spid))
-               endif
+                                      gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+                 temp_psat = gen_auxvar%pres(spid)
+                 call EOSWaterKelvin(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                     gen_auxvar%temp,temp_psat,gen_auxvar%pres(spid))
              endif
              call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                   eos_henry_ierr)
@@ -1089,17 +1059,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                               &variable."
           call PrintErrMsg(option)
         endif
-      endif
-
-      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
-
-      call characteristic_curves%saturation_function% &
-               CapillaryPressure(gen_auxvar%sat(lid), &
-                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
-
-      if (general_compute_surface_tension) then
-        call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
-        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+        if (general_compute_surface_tension) then
+          call EOSWaterSurfaceTension(gen_auxvar%temp,sigma)
+          gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+        endif
       endif
 
       if (associated(gen_auxvar%d)) then
@@ -1156,7 +1119,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   if (eos_henry_ierr /= 0) then
      call GeneralEOSGasError(natural_id,eos_henry_ierr,gen_auxvar,option)
   endif
-
 
   cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
                       gen_auxvar%pres(spid))
