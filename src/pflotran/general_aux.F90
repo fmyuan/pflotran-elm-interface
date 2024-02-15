@@ -1761,8 +1761,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                           eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
-        liq_comp(:) = gen_auxvar%xmol(sid,lid)
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
+        aux(1) = gen_auxvar%xmol(sid,lid)
+        call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux,&
                                            gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
@@ -1836,8 +1836,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                           eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
-        liq_comp(:) = gen_auxvar%xmol(sid,lid)
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
+        aux(1) = gen_auxvar%xmol(sid,lid)
+        call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux,&
                                            gen_auxvar%pres(spid),ierr)
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                          eos_henry_ierr)
@@ -1896,7 +1896,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
         if (associated(gen_auxvar%d)) then
-          call EOSWaterSaturationPressureExt(gen_auxvar%temp,gen_auxvar%xmol(:,lid), &
+          aux(1) = gen_auxvar%xmol(sid,lid)
+          call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux, &
                                    gen_auxvar%pres(spid),ierr)
           gen_auxvar%d%psat_p = 0.d0
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
@@ -1905,8 +1906,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                            eos_henry_ierr)
           gen_auxvar%d%Hc = K_H_tilde
         else
-          liq_comp(:) = gen_auxvar%xmol(sid,lid)
-          call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
+          aux(1) = gen_auxvar%xmol(sid,lid)
+          call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux,&
                                    gen_auxvar%pres(spid),ierr)
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                            eos_henry_ierr)
@@ -2016,7 +2017,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                           eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp, gen_auxvar%xmol(:,lid),&
+        aux(1) = gen_auxvar%xmol(sid,lid)
+        call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux,&
                                            gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
@@ -2054,11 +2056,11 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
       gen_auxvar%xmol(acid,lid) = x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      if (.not.soluble_matrix) then
-        gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
-      else
+      if (soluble_matrix) then
         gen_auxvar%effective_porosity = min(1.d0,max(general_min_porosity,x(GENERAL_POROSITY_DOF)))
         gen_auxvar%sat(pid) = 0.d0
+      else
+        gen_auxvar%sat(pid) = x(GENERAL_PRECIPITATE_SAT_DOF)
       endif
       if (gen_auxvar%istatechng) then
         gen_auxvar%xmol(acid,lid) = max(0.d0,x(GENERAL_LIQUID_STATE_X_MOLE_DOF))
@@ -2085,8 +2087,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
       gen_auxvar%sat(gid) = 0.d0
 
-      liq_comp(:) = gen_auxvar%xmol(sid,lid)
-      call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
+      aux(1) = gen_auxvar%xmol(sid,lid)
+      call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux,&
                                            gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
@@ -2149,13 +2151,9 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
       ! diffuse through the liquid phase.
 
-      if (soluble_matrix) then
-        call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
-        liq_comp(:) = NaClSolubility
-      else
-        liq_comp(:) = 0.d0
-      endif
-      call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp,&
+      call GeneralAuxNaClSolubility(gen_auxvar%temp,NaClSolubility,solubility_function)
+      aux(1) = NaClSolubility
+      call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux,&
                                          gen_auxvar%pres(spid),ierr)
       if (general_compute_surface_tension .or. general_kelvin_equation) then
         call characteristic_curves%saturation_function% &
@@ -2256,8 +2254,8 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
 
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-        liq_comp(:) = gen_auxvar%xmol(sid,lid)
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp,liq_comp, &
+        aux(1) = gen_auxvar%xmol(sid,lid)
+        call EOSWaterSaturationPressureExt(gen_auxvar%temp,aux, &
                                            gen_auxvar%pres(spid),ierr)
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                          eos_henry_ierr)
@@ -4604,7 +4602,7 @@ subroutine GeneralAuxVarPerturb4(gen_auxvar,global_auxvar, &
         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
                         x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
       endif
-      if (x(GENERAL_PRECIPITATE_SAT_DOF) > 0.50) THEN
+      if (x(GENERAL_PRECIPITATE_SAT_DOF) > 0.5d0) then
          pert(GENERAL_PRECIPITATE_SAT_DOF) = -1.d0 * perturbation_tolerance
       else
          pert(GENERAL_PRECIPITATE_SAT_DOF) = perturbation_tolerance
