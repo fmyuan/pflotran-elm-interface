@@ -1140,6 +1140,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscInt :: liq_pressure_index, gas_pressure_index, air_pressure_index, &
               air_frac_index, temp_index, liq_sat_index, gas_sat_index, &
               hyd_sat_index, ice_sat_index
+  PetscReal :: s_extra
   PetscReal :: Pc_entry, dP
 
   PetscReal, parameter :: ALMOST_ZERO = 1.d-10
@@ -1508,6 +1509,13 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
              dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
 
+          if ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
+              X_p(liq_sat_index) + dX_p(liq_sat_index)) > 1.d0) then
+            s_extra = 1.d0 - ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
+                      X_p(liq_sat_index) + dX_p(liq_sat_index)))
+            dX_p(hyd_sat_index) = dX_p(hyd_sat_index) + s_extra / 2.d0
+            dX_p(liq_sat_index) = dX_p(liq_sat_index) + s_extra / 2.d0
+          endif
 
           ! Limit changes in temperature
           if (hyd_auxvar%sat(hid) > epsilon) then
