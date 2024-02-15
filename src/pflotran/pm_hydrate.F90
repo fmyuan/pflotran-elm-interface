@@ -1817,6 +1817,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   use Option_module
   use String_module
   use EOS_Gas_module
+  use Material_Aux_module
 
   implicit none
 
@@ -1835,7 +1836,9 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(hydrate_auxvar_type) :: hyd_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscReal, pointer :: dX_p(:)
@@ -1897,6 +1900,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
   hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
+  material_auxvars => patch%aux%Material%auxvars
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1982,6 +1986,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         natural_id = grid%nG2A(ghosted_id)
 
         hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
+        material_auxvar = material_auxvars(ghosted_id)
 
         if (patch%imat(ghosted_id) <= 0) cycle
         istate = global_auxvars(ghosted_id)%istate
@@ -2016,10 +2021,14 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 Prvap = Psat
                 x_salt_dissolved = xsl
                 call HydrateEquilibrate(hyd_auxvar%temp,hyd_auxvar%pres(lid), &
+                                     hyd_auxvar%sat(hid), &
                                      Pa, Pv, Psat, Prvap, &
                                      xag, xwg, xal, xsl, xwl, &
                                      xmolag, xmolwg, xmolal, xmolsl, &
-                                     xmolwl, option)
+                                     xmolwl, &
+                                     patch%characteristic_curves_array( &
+                                     patch%cc_id(ghosted_id))%ptr, &
+                                     material_auxvar, option)
                 x_salt_dissolved = x_salt_dissolved + &
                                    (xsl - x_salt_dissolved) * &
                                    (hyd_auxvar%xmass(acid,lid) / xal)

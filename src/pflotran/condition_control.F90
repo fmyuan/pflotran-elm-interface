@@ -874,7 +874,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
                     hydrate%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
-                    MOL_RATIO_METH
+                    0.d0
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
                 case(I_STATE)
