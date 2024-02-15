@@ -2977,7 +2977,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           ! mole fraction; 2nd dof ----------------------- !
             select case(hydrate%mole_fraction%itype)
               case(DIRICHLET_BC)
-                xmol = MOL_RATIO_METH
+                xmol = 0.d0
                 coupler%flow_aux_real_var(TWO_INTEGER,iconn) = xmol
                 dof2 = PETSC_TRUE
                 coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
