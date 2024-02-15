@@ -347,7 +347,7 @@ subroutine PMERTSetup(this)
     if (Initialized(this%tracer_conductivity)) then
       option%io_buffer = 'TRACER_CONDUCTIVITY will not be factored into the &
         &bulk electrical conductivity calculation since solute is not being &
-        &transported. Please add SOLUTE_CONCENTRATION as a process under &
+        &transported. Please add SOLUTE_TRANSPORT as a process under &
         &ZFLOW->OPTIONS->PROCESSES or include SUBSURFACE_TRANSPORT as a &
         &process model.'
       call PrintErrMsg(option)
