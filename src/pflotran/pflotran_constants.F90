@@ -308,6 +308,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: GEOMECH_DISP_Z_DOF = 3
   PetscInt, parameter, public :: GEOMECH_ONE_WAY_COUPLED = 4
   PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
+  PetscInt, parameter, public :: GEOMECH_ERT_COUPLING = 6
 
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3

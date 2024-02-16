@@ -169,6 +169,7 @@ subroutine SimSubsurfInitializeRun(this)
   use Option_module
   use Option_Checkpoint_module
   use Output_module
+  use Parameter_module
   use hdf5
 
   implicit none
@@ -222,6 +223,7 @@ subroutine SimSubsurfInitializeRun(this)
   ! the requested process models; this routine should catch such issues.
   call InitSubsurfProcessOutputVars(this%realization)
   call SimSubsurfForbiddenCombinations(this)
+  call ParameterQualityCheck(this%realization%parameter_list,this%option)
 
   if (this%option%restart_flag) then
     if (index(this%option%restart_filename,'.chk') > 0) then

@@ -45,6 +45,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   use Option_module
   use Gauss_module
   use Geometry_module
+  use String_module
 
   implicit none
 
@@ -83,6 +84,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   type(point3d_type), pointer :: vertices(:)
   PetscInt, allocatable :: vertex_count_array(:)
   PetscInt, allocatable :: vertex_count_array2(:)
+  PetscBool :: lflag
 
 
 #ifdef GEOMECH_DEBUG
@@ -329,15 +331,21 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
                      option%comm%size,MPIU_INTEGER,MPI_SUM, &
                      option%mycomm,ierr);CHKERRQ(ierr)
 
-  do int_rank = 0, option%comm%size
-    if (option%myrank == int_rank) geomech_grid%nlmax_node = &
-      vertex_count_array2(int_rank+1)
-    if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
-      option%io_buffer = 'Error: nlmax_node cannot be greater than' // &
-                         ' ngmax_node.'
-      call PrintErrMsg(option)
-    endif
-  enddo
+  lflag = PETSC_FALSE
+  geomech_grid%nlmax_node = vertex_count_array2(option%myrank+1)
+  if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
+    option%io_buffer = 'Error: nlmax_node (' // &
+      StringWrite(geomech_grid%nlmax_node) // ') cannot be greater than &
+      &ngmax_node (' // StringWrite(geomech_grid%ngmax_node) // ').'
+    call PrintMsgByRank(option)
+    lflag = PETSC_TRUE
+  endif
+  call MPI_Allreduce(MPI_IN_PLACE,lflag,ONE_INTEGER_MPI, &
+                     MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
+  if (lflag) then
+    option%io_buffer = 'See errors above.'
+    call PrintErrMsg(option)
+  endif 
 
 
   if (allocated(vertex_count_array)) deallocate(vertex_count_array)
@@ -490,7 +498,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
   if (vertex_count /= geomech_grid%ngmax_node - geomech_grid%nlmax_node) then
     option%io_buffer = 'Error in number of ghost nodes!'
-    call PrintErrMsg(option)
+    call PrintErrMsgByRank(option)
   endif
 
 #ifdef GEOMECH_DEBUG

@@ -46,6 +46,7 @@ module Realization_Base_class
             RealizationSetVariable, &
             RealizCreateTranMassTransferVec, &
             RealizCreateFlowMassTransferVec, &
+            RealizationRegisterParameter, &
             RealizationBaseStrip
 
 contains
@@ -240,6 +241,29 @@ subroutine RealizCreateTranMassTransferVec(this)
   endif
 
 end subroutine RealizCreateTranMassTransferVec
+
+! ************************************************************************** !
+
+subroutine RealizationRegisterParameter(this,parameter_name)
+  !
+  ! Adds a parameter with the specified name to the parameter list
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/03/24
+  !
+  implicit none
+
+  class(realization_base_type) :: this
+  character(len=*) :: parameter_name
+
+  type(parameter_type), pointer :: parameter
+
+  parameter => ParameterCreate()
+  parameter%name = trim(parameter_name)
+  call ParameterAddToList(parameter,this%parameter_list)
+  nullify(parameter)
+
+end subroutine RealizationRegisterParameter
 
 ! ************************************************************************** !
 
