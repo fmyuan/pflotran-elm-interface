@@ -78,18 +78,20 @@ CHEMISTRY
     ALL
     TOTAL
   /
-  CARBON_SANDBOX
-    FIRST_ORDER
-      REACTION A -> B
-      RATE_CONSTANT 1.d-7
-    /
-    FIRST_ORDER
-      REACTION B -> C
-      RATE_CONSTANT 1.1d-7
-    /
-    FIRST_ORDER
-      REACTION C -> D
-      RATE_CONSTANT 0.9d-7
+  CARBON_SANDBOX FIRST_ORDER
+    REACTION_NETWORK
+      REACTION
+        REACTION_EQUATION A -> B
+        RATE_CONSTANT 1.d-7
+      /
+      REACTION
+        REACTION_EQUATION B -> C
+        RATE_CONSTANT 1.1d-7
+      /
+      REACTION
+        REACTION_EQUATION C -> D
+        RATE_CONSTANT 0.9d-7
+      /
     /
   /
 

@@ -95,43 +95,35 @@ subroutine CarbonSandboxRead2(local_sandbox_list,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: err_string
   class(carbon_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
 
   err_string = 'CHEMISTRY,CARBON_SANDBOX'
 
+  call InputReadCard(input,option,keyword)
+  call InputErrorMsg(input,option,'keyword',err_string)
+  call StringToUpper(keyword)
   nullify(new_sandbox)
   call InputPushBlock(input,option)
-  do
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'keyword',err_string)
-    call StringToUpper(word)
-
-    select case(trim(word))
-      case('FIRST_ORDER')
-        new_sandbox => CarbonBaseCreate()
-      case default
-        call InputKeywordUnrecognized(input,word,err_string,option)
-    end select
-
-    call new_sandbox%ReadInput(input,option)
-
-    if (.not.associated(local_sandbox_list)) then
-      local_sandbox_list => new_sandbox
-    else
-      cur_sandbox => local_sandbox_list
-      do
-        if (.not.associated(cur_sandbox%next)) exit
-        cur_sandbox => cur_sandbox%next
-      enddo
-      cur_sandbox%next => new_sandbox
-    endif
-  enddo
+  select case(trim(keyword))
+    case('FIRST_ORDER')
+      new_sandbox => CarbonBaseCreate()
+    case default
+      call InputKeywordUnrecognized(input,keyword,err_string,option)
+  end select
+  call new_sandbox%ReadInput(input,option)
+  if (.not.associated(local_sandbox_list)) then
+    local_sandbox_list => new_sandbox
+  else
+    cur_sandbox => local_sandbox_list
+    do
+      if (.not.associated(cur_sandbox%next)) exit
+      cur_sandbox => cur_sandbox%next
+    enddo
+    cur_sandbox%next => new_sandbox
+  endif
+  nullify(new_sandbox)
   call InputPopBlock(input,option)
 
 end subroutine CarbonSandboxRead2
