@@ -11,13 +11,21 @@ module Carbon_Sandbox_Base_class
 
   private
 
+  PetscInt, parameter, public :: CARBON_UNITS_MOLALITY = 1
+  PetscInt, parameter, public :: CARBON_UNITS_MOLARITY = 2
+  PetscInt, parameter, public :: CARBON_UNITS_MOLE_PER_KG_SOIL = 3
+  PetscInt, parameter, public :: CARBON_UNITS_MOLE_PER_M3_BULK = 4
+  PetscInt, parameter, public :: CARBON_UNITS_MOLES = 5
+
   type, public :: carbon_sandbox_base_type
+    PetscInt :: concentration_units
     type(carbon_sandbox_aux_type), pointer :: aux
     class(carbon_sandbox_rxn_base_type), pointer :: rxn_list
     class(carbon_sandbox_base_type), pointer :: next
   contains
     procedure, public :: ReadInput => CarbonBaseReadInput
     procedure, public :: Setup => CarbonBaseSetup
+    procedure, public :: MapStateVariables => CarbonBaseMapStateVariables
     procedure, public :: Evaluate => CarbonBaseEvaluate
     procedure, public :: Destroy => CarbonBaseDestroy
   end type carbon_sandbox_base_type
@@ -39,6 +47,7 @@ module Carbon_Sandbox_Base_class
     PetscReal :: liquid_density
     PetscReal :: porosity
     PetscReal :: cell_volume
+    PetscReal :: liter_water
     PetscReal, pointer :: conc(:)
     PetscReal, pointer :: ln_conc(:)
     PetscReal, pointer :: inhibition_conc(:)
@@ -63,6 +72,7 @@ function CarbonBaseCreate()
   class(carbon_sandbox_base_type), pointer :: this
 
   allocate(this)
+  this%concentration_units = UNINITIALIZED_INTEGER
   nullify(this%aux)
   nullify(this%rxn_list)
   nullify(this%next)
@@ -89,6 +99,7 @@ subroutine CarbonBaseReadInput(this,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: err_string
   class(carbon_sandbox_rxn_base_type), pointer :: new_rxn
 
@@ -103,6 +114,25 @@ subroutine CarbonBaseReadInput(this,input,option)
 
     call StringToUpper(keyword)
     select case(trim(keyword))
+      case('CONCENTRATION_UNITS')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+        call StringToUpper(word)
+        select case(word)
+          case('MOLALITY')
+            this%concentration_units = CARBON_UNITS_MOLALITY
+          case('MOLARITY')
+            this%concentration_units = CARBON_UNITS_MOLARITY
+          case('MOLE_PER_KG_SOIL')
+            this%concentration_units = CARBON_UNITS_MOLE_PER_KG_SOIL
+          case('MOLE_PER_CUBIC_METER_BULK')
+            this%concentration_units = CARBON_UNITS_MOLE_PER_M3_BULK
+          case('MOLES')
+            this%concentration_units = CARBON_UNITS_MOLES
+          case default
+            err_string = trim(err_string) // ',CONCENTRATION_UNITS'
+            call InputKeywordUnrecognized(input,word,err_string,option)
+        end select
       case('REACTION_NETWORK')
         err_string = 'CHEMISTRY,CARBON_SANDBOX,REACTION_NETWORK'
         call InputPushBlock(input,option)
@@ -129,8 +159,13 @@ subroutine CarbonBaseReadInput(this,input,option)
     end select
   enddo
 
+  if (Uninitialized(this%concentration_units)) then
+    option%io_buffer = 'CONCENTRATION_UNITS not defined in ' // &
+      trim(err_string)
+    call PrintErrMsg(option)
+  endif
   if (.not.associated(this%rxn_list)) then
-    option%io_buffer = 'No reaction network defined in ' // trim(err_string)
+    option%io_buffer = 'REACTION_NETWORK not defined in ' // trim(err_string)
     call PrintErrMsg(option)
   endif
 
@@ -159,6 +194,7 @@ subroutine CarbonBaseSetup(this,reaction,option)
   this%aux%liquid_density = UNINITIALIZED_DOUBLE
   this%aux%porosity = UNINITIALIZED_DOUBLE
   this%aux%cell_volume = UNINITIALIZED_DOUBLE
+  this%aux%liter_water = UNINITIALIZED_DOUBLE
   allocate(this%aux%conc(reaction%ncomp))
   this%aux%conc = UNINITIALIZED_DOUBLE
   allocate(this%aux%ln_conc(reaction%ncomp))
@@ -169,11 +205,85 @@ subroutine CarbonBaseSetup(this,reaction,option)
   cur_rxn => this%rxn_list
   do
     if (.not.associated(cur_rxn)) exit
-    call cur_rxn%Setup(reaction,option)
+    call cur_rxn%Setup(this%aux,reaction,option)
     cur_rxn => cur_rxn%next
   enddo
 
 end subroutine CarbonBaseSetup
+
+! ************************************************************************** !
+
+subroutine CarbonBaseMapStateVariables(this,rt_auxvar,global_auxvar, &
+                                       material_auxvar,reaction,option)
+  !
+  ! Configures the reaction and associated data structures
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/02/24
+  !
+  use Global_Aux_module
+  use Material_Aux_module
+  use Option_module
+  use Reaction_Aux_module
+  use Reaction_Inhibition_Aux_module
+  use Reactive_Transport_Aux_module
+  use String_module
+
+  class(carbon_sandbox_base_type) :: this
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  PetscInt :: i
+  PetscReal :: conc_volume
+
+  this%aux%liquid_saturation = global_auxvar%sat(1)
+  this%aux%liquid_density = global_auxvar%den_kg(1)
+  this%aux%porosity = material_auxvar%porosity
+  this%aux%cell_volume = material_auxvar%volume
+  this%aux%liter_water = this%aux%liquid_saturation * &
+                         this%aux%porosity * &
+                         this%aux%cell_volume * 1.d3
+
+  do i = 1, reaction%naqcomp
+    this%aux%conc(i) = rt_auxvar%pri_molal(i)*this%aux%liter_water
+  enddo
+  do i = 1, reaction%immobile%nimmobile
+    this%aux%conc(reaction%offset_immobile+i) = &
+      rt_auxvar%immobile(i)*this%aux%cell_volume
+  enddo
+  conc_volume = UNINITIALIZED_DOUBLE
+  select case(this%concentration_units)
+    case(CARBON_UNITS_MOLALITY)
+      conc_volume = this%aux%liter_water*this%aux%liquid_density*1.d-3
+    case(CARBON_UNITS_MOLARITY)
+      conc_volume = this%aux%liter_water
+    case(CARBON_UNITS_MOLE_PER_KG_SOIL)
+      if (Uninitialized(material_auxvar%soil_particle_density)) then
+        option%io_buffer = 'ROCK_DENSITY must be defined for each material &
+          &to use units of MOLE_PER_KG_SOIL.'
+        call PrintErrMsg(option)
+      endif
+      conc_volume = (1.d0-this%aux%porosity) * &
+                    material_auxvar%soil_particle_density * &
+                    this%aux%cell_volume
+    case(CARBON_UNITS_MOLE_PER_M3_BULK)
+      conc_volume = this%aux%cell_volume
+    case(CARBON_UNITS_MOLES)
+      conc_volume = 1.d0
+    case default
+      option%io_buffer = 'Unrecognized concentration units in &
+        &CarbonBaseMapStateVariables(): ' // &
+        StringWrite(this%concentration_units)
+      call PrintErrMsg(option)
+  end select
+  this%aux%conc = this%aux%conc/conc_volume
+  this%aux%ln_conc = log(this%aux%conc)
+  !this%aux%inhibition_conc =
+
+end subroutine CarbonBaseMapStateVariables
 
 ! ************************************************************************** !
 
@@ -206,12 +316,12 @@ subroutine CarbonBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   class(carbon_sandbox_rxn_base_type), pointer :: cur_rxn
 
+  call this%MapStateVariables(rt_auxvar,global_auxvar,material_auxvar, &
+                              reaction,option)
   cur_rxn => this%rxn_list
   do
     if (.not.associated(cur_rxn)) exit
-    call cur_rxn%Evaluate(Residual,Jacobian,compute_derivative, &
-                          rt_auxvar,global_auxvar,material_auxvar, &
-                          reaction,option)
+    call cur_rxn%Evaluate(Residual,Jacobian,option)
     cur_rxn => cur_rxn%next
   enddo
 
@@ -330,11 +440,11 @@ subroutine CarbonRxnBaseReadInput(this,input,option)
   call InputPopBlock(input,option)
 
   if (Uninitialized(this%rate_constant)) then
-    option%io_buffer = 'Uninitialized RATE_CONSTANT in ' // trim(err_string)
+    option%io_buffer = 'RATE_CONSTANT not defined in ' // trim(err_string)
     call PrintErrMsg(option)
   endif
   if (len_trim(this%reaction_string) <= 1) then
-    option%io_buffer = 'A REACTION_EQUATION is undefined in ' // &
+    option%io_buffer = 'A REACTION_EQUATION is not defined in ' // &
       trim(err_string)
     call PrintErrMsg(option)
   endif
@@ -343,7 +453,7 @@ end subroutine CarbonRxnBaseReadInput
 
 ! ************************************************************************** !
 
-subroutine CarbonRxnBaseSetup(this,reaction,option)
+subroutine CarbonRxnBaseSetup(this,aux,reaction,option)
   !
   ! Configures the reaction and associated data structures
   !
@@ -353,9 +463,11 @@ subroutine CarbonRxnBaseSetup(this,reaction,option)
   use Reaction_Aux_module
 
   class(carbon_sandbox_rxn_base_type) :: this
+  type(carbon_sandbox_aux_type), pointer :: aux
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
+  this%aux => aux
   this%reaction_equation => &
       ReactionEquationCreateFromString(this%reaction_string, &
                                        reaction%naqcomp, &
@@ -370,40 +482,25 @@ end subroutine CarbonRxnBaseSetup
 
 ! ************************************************************************** !
 
-subroutine CarbonRxnBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
-                                 rt_auxvar,global_auxvar,material_auxvar, &
-                                 reaction,option)
+subroutine CarbonRxnBaseEvaluate(this,Residual,Jacobian,option)
   !
   ! Evaluates the rate expression
   !
   ! Author: Glenn Hammond
   ! Date: 02/02/24
   !
-  use Global_Aux_module
-  use Material_Aux_module
   use Option_module
-  use Reaction_Aux_module
   use Reaction_Inhibition_Aux_module
-  use Reactive_Transport_Aux_module
 
   class(carbon_sandbox_rxn_base_type) :: this
-  class(reaction_rt_type) :: reaction
-  ! the following arrays must be declared after reaction
   PetscReal :: Residual(:)
   PetscReal :: Jacobian(:,:)
-  PetscBool :: compute_derivative
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
   PetscInt, pointer :: specid(:)
   PetscReal, pointer :: stoich(:)
   PetscReal :: effective_rate
-  PetscReal :: mol_spec(reaction%ncomp)
-  PetscReal :: ln_mol_spec(reaction%ncomp)
   PetscReal :: conc,inhibition,inhibition_factor
-  PetscReal :: liter_water
   PetscReal :: dummy
   PetscInt :: i, icomp, ncomp
 
@@ -411,27 +508,14 @@ subroutine CarbonRxnBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   specid => this%reaction_equation%specid
   stoich => this%reaction_equation%stoich
 
-  liter_water = material_auxvar%volume* &
-                material_auxvar%porosity* &
-                global_auxvar%sat(1)*1.d3
-
-  do i = 1, reaction%naqcomp
-    mol_spec(i) = rt_auxvar%pri_molal(i)*liter_water
-  enddo
-  do i = 1, reaction%offset_immobile+reaction%immobile%nimmobile
-    mol_spec(reaction%offset_immobile+i) = &
-      rt_auxvar%immobile(i)*material_auxvar%volume
-  enddo
-  ln_mol_spec = log(mol_spec)
-
   effective_rate = log(this%rate_constant)
   inhibition = 0.d0
   do i = 1, ncomp
     if (stoich(i) > 0.d0) cycle
     icomp = specid(i)
     ! subtract due to negative stoichiometry
-    effective_rate = effective_rate - stoich(i) * ln_mol_spec(icomp)
-    conc = mol_spec(icomp) / liter_water
+    effective_rate = effective_rate - stoich(i) * this%aux%ln_conc(icomp)
+    conc = this%aux%conc(icomp) / this%aux%liter_water
     call ReactionInhibitionSmoothStep(conc,1.d-20,inhibition_factor,dummy)
     inhibition = inhibition + log(inhibition_factor)
   enddo
