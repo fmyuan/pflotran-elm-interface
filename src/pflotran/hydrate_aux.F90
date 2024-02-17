@@ -2236,10 +2236,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           endif
         else
           if (hyd_auxvar%temp > Tf_ice) then
-            sh_est = 1.d0 - dabs(PE_hyd / hyd_auxvar%pres(apid))
-            sh_est = min(hyd_auxvar%sat(gid)-1.d-3,sh_est)
-            hyd_auxvar%sat(hid) = sh_est
-            hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid) - sh_est
+            !sh_est = 1.d0 - dabs(PE_hyd / hyd_auxvar%pres(apid))
+            !sh_est = min(hyd_auxvar%sat(gid)-1.d-3,sh_est)
+            !hyd_auxvar%sat(hid) = sh_est
+            !hyd_auxvar%sat(gid) = hyd_auxvar%sat(gid) - sh_est
             istatechng = PETSC_TRUE
             global_auxvar%istate = HGA_STATE
             two_phase_epsilon = hydrate_phase_chng_epsilon
