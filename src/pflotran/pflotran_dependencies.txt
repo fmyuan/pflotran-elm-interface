@@ -43,7 +43,20 @@ carbon_sandbox_base.o : \
   reaction_equation.o \
   reaction_inhibition_aux.o \
   reactive_transport_aux.o \
-  string.o
+  string.o \
+  utility.o
+carbon_sandbox_mend.o : \
+  carbon_sandbox_base.o \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_inhibition_aux.o \
+  reactive_transport_aux.o \
+  string.o \
+  utility.o
 characteristic_curves.o : \
   characteristic_curves_base.o \
   characteristic_curves_common.o \

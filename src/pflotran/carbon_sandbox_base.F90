@@ -27,7 +27,7 @@ module Carbon_Sandbox_Base_class
     procedure, public :: Setup => CarbonBaseSetup
     procedure, public :: MapStateVariables => CarbonBaseMapStateVariables
     procedure, public :: Evaluate => CarbonBaseEvaluate
-    procedure, public :: Destroy => CarbonBaseDestroy
+    procedure, public :: Strip => CarbonBaseStrip
   end type carbon_sandbox_base_type
 
   type, public :: carbon_sandbox_rxn_base_type
@@ -40,6 +40,7 @@ module Carbon_Sandbox_Base_class
     procedure, public :: ReadInput => CarbonRxnBaseReadInput
     procedure, public :: Setup => CarbonRxnBaseSetup
     procedure, public :: Evaluate => CarbonRxnBaseEvaluate
+    procedure, public :: Strip => CarbonRxnBaseStrip
   end type carbon_sandbox_rxn_base_type
 
   type, public :: carbon_sandbox_aux_type
@@ -54,7 +55,13 @@ module Carbon_Sandbox_Base_class
   end type carbon_sandbox_aux_type
 
   public :: CarbonBaseCreate, &
-            CarbonRxnBaseCreate
+            CarbonRxnBaseCreate, &
+            CarbonBaseInit, &
+            CarbonBaseReadSelectCase, &
+            CarbonBaseSetup, &
+            CarbonBaseStrip, &
+            CarbonRxnBaseSetup, &
+            CarbonRxnBaseStrip
 
 contains
 
@@ -65,21 +72,36 @@ function CarbonBaseCreate()
   ! Allocates and initializes the carbon sandbox object
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   class(carbon_sandbox_base_type), pointer :: CarbonBaseCreate
 
   class(carbon_sandbox_base_type), pointer :: this
 
   allocate(this)
+  call CarbonBaseInit(this)
+
+  CarbonBaseCreate => this
+
+end function CarbonBaseCreate
+
+! ************************************************************************** !
+
+subroutine CarbonBaseInit(this)
+  !
+  ! Initializes members of carbon sandbox base class
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/16/24
+  !
+  class(carbon_sandbox_base_type) :: this
+
   this%concentration_units = UNINITIALIZED_INTEGER
   nullify(this%aux)
   nullify(this%rxn_list)
   nullify(this%next)
 
-  CarbonBaseCreate => this
-
-end function CarbonBaseCreate
+end subroutine CarbonBaseInit
 
 ! ************************************************************************** !
 
@@ -88,7 +110,7 @@ subroutine CarbonBaseReadInput(this,input,option)
   ! Reads parameters from input deck
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Input_Aux_module
   use Option_module
@@ -99,11 +121,10 @@ subroutine CarbonBaseReadInput(this,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: err_string
-  class(carbon_sandbox_rxn_base_type), pointer :: new_rxn
+  PetscBool :: found
 
-  err_string = 'CHEMISTRY,CARBON_SANDBOX'
+  err_string = 'CHEMISTRY,CARBON_SANDBOX,BASE'
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -111,65 +132,86 @@ subroutine CarbonBaseReadInput(this,input,option)
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',err_string)
-
     call StringToUpper(keyword)
-    select case(trim(keyword))
-      case('CONCENTRATION_UNITS')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,err_string)
-        call StringToUpper(word)
-        select case(word)
-          case('MOLALITY')
-            this%concentration_units = CARBON_UNITS_MOLALITY
-          case('MOLARITY')
-            this%concentration_units = CARBON_UNITS_MOLARITY
-          case('MOLE_PER_KG_SOIL')
-            this%concentration_units = CARBON_UNITS_MOLE_PER_KG_SOIL
-          case('MOLE_PER_CUBIC_METER_BULK')
-            this%concentration_units = CARBON_UNITS_MOLE_PER_M3_BULK
-          case('MOLES')
-            this%concentration_units = CARBON_UNITS_MOLES
-          case default
-            err_string = trim(err_string) // ',CONCENTRATION_UNITS'
-            call InputKeywordUnrecognized(input,word,err_string,option)
-        end select
-      case('REACTION_NETWORK')
-        err_string = 'CHEMISTRY,CARBON_SANDBOX,REACTION_NETWORK'
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,keyword)
-          call InputErrorMsg(input,option,'keyword',err_string)
-          call StringToUpper(keyword)
-          select case(trim(keyword))
-            case('REACTION')
-              new_rxn => CarbonRxnBaseCreate()
-              call new_rxn%ReadInput(input,option)
-              call CarbonRxnBaseAppend(new_rxn,this%rxn_list)
-            case default
-              call InputKeywordUnrecognized(input,keyword,err_string,option)
-          end select
-        enddo
-        call InputPopBlock(input,option)
-        err_string = 'CHEMISTRY,CARBON_SANDBOX'
-      case default
-        call InputKeywordUnrecognized(input,keyword,err_string,option)
-    end select
+
+    found = PETSC_FALSE
+    call CarbonBaseReadSelectCase(this,input,keyword,found,err_string,option)
+    if (.not.found) then
+      call InputKeywordUnrecognized(input,keyword,err_string,option)
+    endif
   enddo
 
-  if (Uninitialized(this%concentration_units)) then
-    option%io_buffer = 'CONCENTRATION_UNITS not defined in ' // &
-      trim(err_string)
-    call PrintErrMsg(option)
-  endif
-  if (.not.associated(this%rxn_list)) then
-    option%io_buffer = 'REACTION_NETWORK not defined in ' // trim(err_string)
-    call PrintErrMsg(option)
-  endif
-
 end subroutine CarbonBaseReadInput
+
+! ************************************************************************** !
+
+subroutine CarbonBaseReadSelectCase(this,input,keyword,found,err_string,option)
+  !
+  ! Reads parameters from input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/16/24
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  class(carbon_sandbox_base_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: err_string
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  class(carbon_sandbox_rxn_base_type), pointer :: new_rxn
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('CONCENTRATION_UNITS')
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,keyword,err_string)
+      call StringToUpper(word)
+      select case(word)
+        case('MOLALITY')
+          this%concentration_units = CARBON_UNITS_MOLALITY
+        case('MOLARITY')
+          this%concentration_units = CARBON_UNITS_MOLARITY
+        case('MOLE_PER_KG_SOIL')
+          this%concentration_units = CARBON_UNITS_MOLE_PER_KG_SOIL
+        case('MOLE_PER_CUBIC_METER_BULK')
+          this%concentration_units = CARBON_UNITS_MOLE_PER_M3_BULK
+        case('MOLES')
+          this%concentration_units = CARBON_UNITS_MOLES
+        case default
+          err_string = trim(err_string) // ',CONCENTRATION_UNITS'
+          call InputKeywordUnrecognized(input,word,err_string,option)
+      end select
+    case('REACTION_NETWORK')
+      err_string = 'CHEMISTRY,CARBON_SANDBOX,REACTION_NETWORK'
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,keyword)
+        call InputErrorMsg(input,option,'keyword',err_string)
+        call StringToUpper(keyword)
+        select case(trim(keyword))
+          case('REACTION')
+            new_rxn => CarbonRxnBaseCreate()
+            call new_rxn%ReadInput(input,option)
+            call CarbonRxnBaseAppend(new_rxn,this%rxn_list)
+          case default
+            call InputKeywordUnrecognized(input,keyword,err_string,option)
+        end select
+      enddo
+      call InputPopBlock(input,option)
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine CarbonBaseReadSelectCase
 
 ! ************************************************************************** !
 
@@ -178,7 +220,7 @@ subroutine CarbonBaseSetup(this,reaction,option)
   ! Configures the reaction and associated data structures
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Option_module
   use Reaction_Aux_module
@@ -188,6 +230,15 @@ subroutine CarbonBaseSetup(this,reaction,option)
   type(option_type) :: option
 
   class(carbon_sandbox_rxn_base_type), pointer :: cur_rxn
+
+  if (Uninitialized(this%concentration_units)) then
+    option%io_buffer = 'CONCENTRATION_UNITS not defined in CarbonBaseSetup.'
+    call PrintErrMsg(option)
+  endif
+  if (.not.associated(this%rxn_list)) then
+    option%io_buffer = 'REACTION_NETWORK not defined in CarbonBaseSetup.'
+    call PrintErrMsg(option)
+  endif
 
   allocate(this%aux)
   this%aux%liquid_saturation = UNINITIALIZED_DOUBLE
@@ -216,10 +267,10 @@ end subroutine CarbonBaseSetup
 subroutine CarbonBaseMapStateVariables(this,rt_auxvar,global_auxvar, &
                                        material_auxvar,reaction,option)
   !
-  ! Configures the reaction and associated data structures
+  ! Maps external state variables to aux object
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Global_Aux_module
   use Material_Aux_module
@@ -294,7 +345,7 @@ subroutine CarbonBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   ! Evaluates the rate expression
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Global_Aux_module
   use Material_Aux_module
@@ -329,25 +380,57 @@ end subroutine CarbonBaseEvaluate
 
 ! ************************************************************************** !
 
+subroutine CarbonBaseDestroyAux(aux)
+  !
+  ! Destroys the carbon sandbox aux object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/16/24
+  !
+  use Utility_module
+
+  type(carbon_sandbox_aux_type), pointer :: aux
+
+  if (.not.associated(aux)) return
+
+  call DeallocateArray(aux%conc)
+  call DeallocateArray(aux%ln_conc)
+  call DeallocateArray(aux%conc)
+  deallocate(aux)
+  nullify(aux)
+
+end subroutine CarbonBaseDestroyAux
+
+! ************************************************************************** !
+
+subroutine CarbonBaseStrip(this)
+  !
+  ! Destroys the carbon sandbox object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/16/24
+  !
+  class(carbon_sandbox_base_type) :: this
+
+  call CarbonBaseDestroyAux(this%aux)
+  call CarbonRxnBaseDestroyList(this%rxn_list)
+
+end subroutine CarbonBaseStrip
+
+! ************************************************************************** !
+
 subroutine CarbonBaseDestroy(this)
   !
   ! Destroys the carbon sandbox object
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
-  use Utility_module
+  class(carbon_sandbox_base_type), pointer :: this
 
-  class(carbon_sandbox_base_type) :: this
-
-  if (associated(this%aux)) then ! aux is not allocated in dummy list
-    call DeallocateArray(this%aux%conc)
-    call DeallocateArray(this%aux%ln_conc)
-    call DeallocateArray(this%aux%conc)
-    deallocate(this%aux)
-  endif
-  nullify(this%aux)
-  call CarbonRxnBaseDestroy(this%rxn_list)
+  call CarbonBaseStrip(this)
+  deallocate(this)
+  nullify(this)
 
 end subroutine CarbonBaseDestroy
 
@@ -358,7 +441,7 @@ function CarbonRxnBaseCreate()
   ! Allocates and initializes the carbon sandbox rxn object
   !
   ! Author: Glenn Hammond
-  ! Date: 02/05/24
+  ! Date: 02/16/24
   !
   class(carbon_sandbox_rxn_base_type), pointer :: CarbonRxnBaseCreate
 
@@ -402,7 +485,7 @@ subroutine CarbonRxnBaseReadInput(this,input,option)
   ! Reads reaction parameters from input deck
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Input_Aux_module
   use Option_module
@@ -439,16 +522,6 @@ subroutine CarbonRxnBaseReadInput(this,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  if (Uninitialized(this%rate_constant)) then
-    option%io_buffer = 'RATE_CONSTANT not defined in ' // trim(err_string)
-    call PrintErrMsg(option)
-  endif
-  if (len_trim(this%reaction_string) <= 1) then
-    option%io_buffer = 'A REACTION_EQUATION is not defined in ' // &
-      trim(err_string)
-    call PrintErrMsg(option)
-  endif
-
 end subroutine CarbonRxnBaseReadInput
 
 ! ************************************************************************** !
@@ -458,7 +531,7 @@ subroutine CarbonRxnBaseSetup(this,aux,reaction,option)
   ! Configures the reaction and associated data structures
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Reaction_Aux_module
 
@@ -466,6 +539,16 @@ subroutine CarbonRxnBaseSetup(this,aux,reaction,option)
   type(carbon_sandbox_aux_type), pointer :: aux
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
+
+  if (Uninitialized(this%rate_constant)) then
+    option%io_buffer = 'RATE_CONSTANT not defined in CarbonRxnBaseSetup.'
+    call PrintErrMsg(option)
+  endif
+  if (len_trim(this%reaction_string) <= 1) then
+    option%io_buffer = 'A REACTION_EQUATION is not defined in &
+      &CarbonRxnBaseSetup.'
+    call PrintErrMsg(option)
+  endif
 
   this%aux => aux
   this%reaction_equation => &
@@ -487,7 +570,7 @@ subroutine CarbonRxnBaseEvaluate(this,Residual,Jacobian,option)
   ! Evaluates the rate expression
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
   use Option_module
   use Reaction_Inhibition_Aux_module
@@ -529,23 +612,44 @@ end subroutine CarbonRxnBaseEvaluate
 
 ! ************************************************************************** !
 
-recursive subroutine CarbonRxnBaseDestroy(this)
+subroutine CarbonRxnBaseStrip(this)
+  !
+  ! Destroys members of carbon sandbox object but not the object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/16/24
+  !
+  class(carbon_sandbox_rxn_base_type) :: this
+
+  call ReactionEquationDestroy(this%reaction_equation)
+  nullify(this%aux)
+  nullify(this%next)
+
+end subroutine CarbonRxnBaseStrip
+
+! ************************************************************************** !
+
+subroutine CarbonRxnBaseDestroyList(rxn_list)
   !
   ! Destroys the carbon sandbox object
   !
   ! Author: Glenn Hammond
-  ! Date: 02/02/24
+  ! Date: 02/16/24
   !
-  class(carbon_sandbox_rxn_base_type), pointer :: this
+  class(carbon_sandbox_rxn_base_type), pointer :: rxn_list
 
-  if (.not.associated(this)) return
+  class(carbon_sandbox_rxn_base_type), pointer :: cur_rxn, next_rxn
 
-  call ReactionEquationDestroy(this%reaction_equation)
-  nullify(this%aux)
+  cur_rxn => rxn_list
+  do
+    if (.not.associated(cur_rxn)) exit
+    next_rxn => cur_rxn%next
+    call cur_rxn%Strip()
+    deallocate(cur_rxn)
+    nullify(cur_rxn)
+    cur_rxn => next_rxn
+  enddo
 
-  deallocate(this)
-  nullify(this)
-
-end subroutine CarbonRxnBaseDestroy
+end subroutine CarbonRxnBaseDestroyList
 
 end module Carbon_Sandbox_Base_class

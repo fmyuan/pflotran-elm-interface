@@ -255,16 +255,16 @@ subroutine CarbonSandboxDestroy2(local_sandbox_list)
 
   class(carbon_sandbox_base_type), pointer :: local_sandbox_list
 
-  class(carbon_sandbox_base_type), pointer :: cur_sandbox, prev_sandbox
+  class(carbon_sandbox_base_type), pointer :: cur_sandbox, next_sandbox
 
   ! sandbox reactions
   cur_sandbox => local_sandbox_list
   do
     if (.not.associated(cur_sandbox)) exit
-    prev_sandbox => cur_sandbox%next
-    call cur_sandbox%Destroy()
+    next_sandbox => cur_sandbox%next
+    call cur_sandbox%Strip()
     deallocate(cur_sandbox)
-    cur_sandbox => prev_sandbox
+    cur_sandbox => next_sandbox
   enddo
   nullify(local_sandbox_list)
 
