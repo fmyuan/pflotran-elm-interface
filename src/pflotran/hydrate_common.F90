@@ -329,7 +329,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
                              liq_upwind_flip_count_by_jac)
     if (upwind) then
       up_scale = 1.d0
-      ! mobility = hyd_auxvar_up%mobility(iphase)
+      mobility = hyd_auxvar_up%mobility(iphase)
       kr = hyd_auxvar_up%kr(iphase)
       xmol(:) = hyd_auxvar_up%xmol(:,iphase)
       xmass(:) = hyd_auxvar_up%xmass(:,iphase)
@@ -337,7 +337,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       density_kg_ave = hyd_auxvar_up%den_kg(iphase)
     else
       dn_scale = 1.d0
-      ! mobility = hyd_auxvar_dn%mobility(iphase)
+      mobility = hyd_auxvar_dn%mobility(iphase)
       kr = hyd_auxvar_dn%kr(iphase)
       xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
       xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
@@ -345,6 +345,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
     endif
 
+    ! Harmonic on viscosity
     mobility = kr / visc_mean
 
     if (mobility > floweps ) then
@@ -403,7 +404,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
                              gas_upwind_flip_count_by_jac)
     if (upwind) then
       up_scale = 1.d0
-      ! mobility = hyd_auxvar_up%mobility(iphase)
+      mobility = hyd_auxvar_up%mobility(iphase)
       kr = hyd_auxvar_up%kr(iphase)
       xmol(:) = hyd_auxvar_up%xmol(:,iphase)
       xmass(:) = hyd_auxvar_up%xmass(:,iphase)
@@ -411,7 +412,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       density_kg_ave = hyd_auxvar_up%den_kg(iphase)
     else
       dn_scale = 1.d0
-      ! mobility = hyd_auxvar_dn%mobility(iphase)
+      mobility = hyd_auxvar_dn%mobility(iphase)
       kr = hyd_auxvar_dn%kr(iphase)
       xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
       xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
@@ -419,6 +420,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
     endif
 
+    ! Harmonic on viscosity
     mobility = kr / visc_mean
 
     if (mobility > floweps) then
@@ -917,7 +919,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                  liq_bc_upwind_flip_count_by_res, &
                                  liq_bc_upwind_flip_count_by_jac)
         if (upwind) then
-          ! mobility = hyd_auxvar_up%mobility(iphase)
+          mobility = hyd_auxvar_up%mobility(iphase)
           kr = hyd_auxvar_up%kr(iphase)
           xmol(:) = hyd_auxvar_up%xmol(:,iphase)
           xmass(:) = hyd_auxvar_up%xmass(:,iphase)
@@ -925,14 +927,15 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
           density_kg_ave = hyd_auxvar_up%den_kg(iphase)
         else
           dn_scale = 1.d0
-          ! mobility = hyd_auxvar_dn%mobility(iphase)
+          mobility = hyd_auxvar_dn%mobility(iphase)
           kr = hyd_auxvar_dn%kr(iphase)
           xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
           xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
           uH = hyd_auxvar_dn%H(iphase)
-          density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+          density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
         endif
 
+        ! Harmonic on viscosity
         mobility = kr / visc_mean
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -1068,7 +1071,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                  gas_bc_upwind_flip_count_by_res, &
                                  gas_bc_upwind_flip_count_by_jac)
         if (upwind) then
-          ! mobility = hyd_auxvar_up%mobility(iphase)
+          mobility = hyd_auxvar_up%mobility(iphase)
           kr = hyd_auxvar_up%kr(iphase)
           xmol(:) = hyd_auxvar_up%xmol(:,iphase)
           xmass(:) = hyd_auxvar_up%xmass(:,iphase)
@@ -1076,15 +1079,17 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
           density_kg_ave = hyd_auxvar_up%den_kg(iphase)
         else
           dn_scale = 1.d0
-          ! mobility = hyd_auxvar_dn%mobility(iphase)
+          mobility = hyd_auxvar_dn%mobility(iphase)
           kr = hyd_auxvar_dn%kr(iphase)
           xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
           xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
           uH = hyd_auxvar_dn%H(iphase)
-          density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+          density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
         endif
 
+        ! Harmonic on viscosity
         mobility = kr / visc_mean
+
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility

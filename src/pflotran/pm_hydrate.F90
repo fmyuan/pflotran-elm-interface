@@ -236,11 +236,11 @@ subroutine PMHydrateSetFlowMode(option)
   option%precipitate_phase = 5
   option%trapped_gas_phase = 6
 
-  option%air_pressure_id = 3
-  option%capillary_pressure_id = 4
-  option%vapor_pressure_id = 5
-  option%saturation_pressure_id = 6
-  option%reduced_vapor_pressure_id = 7
+  option%air_pressure_id = 4
+  option%capillary_pressure_id = 5
+  option%vapor_pressure_id = 6
+  option%saturation_pressure_id = 7
+  option%reduced_vapor_pressure_id = 8
   
   option%pure_water_phase = 5
   option%pure_brine_phase = 6
@@ -312,6 +312,8 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         select case(word)
           case('CRAMER')
             hydrate_henrys_constant = 2
+          case('CO2')
+            hydrate_use_henry_co2 = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_HENRYS_CONSTANT',option)
@@ -2021,6 +2023,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 Prvap = Psat
                 x_salt_dissolved = xsl
                 call HydrateEquilibrate(hyd_auxvar%temp,hyd_auxvar%pres(lid), &
+                                     istate, &
                                      hyd_auxvar%sat(hid), &
                                      Pa, Pv, Psat, Prvap, &
                                      xag, xwg, xal, xsl, xwl, &
