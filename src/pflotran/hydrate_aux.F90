@@ -589,7 +589,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: den_steam
   PetscReal :: salt_solubility, x_salt_dissolved
   PetscReal :: drho_dp, drho_dT
-  PetscReal :: visc_water, visc_brine, visc_co2
+  PetscReal :: visc_water, visc_brine, visc_a
   PetscReal :: sl_temp, pva
   PetscReal :: xmol_air_in_gas, xmol_water_in_gas
   PetscReal :: krl, visl
@@ -959,7 +959,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       ! Dissolved salt mass fraction
       x_salt_dissolved = min(hyd_auxvar%m_salt(1),salt_solubility)
 
-      hyd_auxvar%xmass(sid,lid) = x_salt_dissolved
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
       beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
@@ -1148,7 +1147,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                             TWO_INTEGER,hyd_auxvar%den_kg(pwid), &
                             den_steam_kg,option)
       pva = max(hyd_auxvar%pres(lid) - hyd_auxvar%pres(rvpid), 0.d0)
-
+      xsl = x_salt_dissolved
       call HydrateEquilibrate(hyd_auxvar%temp,hyd_auxvar%pres(lid), &
                            global_auxvar%istate, hyd_auxvar%sat(hid), &
                            hyd_auxvar%pres(apid), &
@@ -1603,28 +1602,45 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                             hyd_auxvar%den_kg(apid) + &
                             hyd_auxvar%xmass(wid,gid) * &
                             den_steam_kg
-  ! Gas phase viscosity
-  call HydrateViscosityWater(hyd_auxvar%temp,hyd_auxvar%pres(rvpid), &
-                          den_steam_kg,visc_water,option)
-  call HydrateViscosityCO2(hyd_auxvar%temp,hyd_auxvar%den_kg(apid), &
-                        visc_co2)
-  call HydrateViscosityGas(visc_water,visc_co2,hyd_auxvar%xmol(wid,gid), &
-                        hyd_auxvar%xmol(acid,gid),hyd_auxvar%visc(gid))
-
-  ! Liquid phase density (including CO2)
-  call HydrateDensityCompositeLiquid(hyd_auxvar%temp,hyd_auxvar%den_kg(pbid), &
+  select case (hydrate_former)
+    case(HYDRATE_FORMER_CO2)
+      ! Gas phase viscosity
+      call HydrateViscosityWater(hyd_auxvar%temp,hyd_auxvar%pres(rvpid), &
+                                 den_steam_kg,visc_water,option)
+      call HydrateViscosityCO2(hyd_auxvar%temp,hyd_auxvar%den_kg(apid), &
+                               visc_a)
+      call HydrateViscosityGas(visc_water,visc_a,hyd_auxvar%xmol(wid,gid), &
+                               hyd_auxvar%xmol(acid,gid),hyd_auxvar%visc(gid))
+      ! Liquid phase density (including air)
+      call HydrateDensityCompositeLiquid(hyd_auxvar%temp,hyd_auxvar%den_kg(pbid), &
                                   hyd_auxvar%xmass(acid,lid), &
                                   hyd_auxvar%den_kg(lid))
-  ! Liquid phase viscosity
-  call HydrateWaterDensity(hyd_auxvar%temp, cell_pressure, ONE_INTEGER, &
-                        hyd_auxvar%den_kg(pwid), den_steam, &
-                        option)
-  call HydrateViscosityWater(hyd_auxvar%temp,cell_pressure, &
-                          hyd_auxvar%den_kg(pwid),visc_water,option)
-  call HydrateViscosityBrine(hyd_auxvar%temp, hyd_auxvar%xmass(sid,lid), &
-                          visc_water, visc_brine)
-  call HydrateViscosityLiquid(hyd_auxvar%xmol(acid,lid), visc_brine, &
-                           visc_co2, hyd_auxvar%visc(lid))
+      ! Liquid phase viscosity
+      call HydrateWaterDensity(hyd_auxvar%temp, cell_pressure, ONE_INTEGER, &
+                               hyd_auxvar%den_kg(pwid), den_steam, &
+                               option)
+      call HydrateViscosityWater(hyd_auxvar%temp,cell_pressure, &
+                                 hyd_auxvar%den_kg(pwid),visc_water,option)
+      call HydrateViscosityBrine(hyd_auxvar%temp, hyd_auxvar%xmass(sid,lid), &
+                                 visc_water, visc_brine)
+      call HydrateViscosityLiquid(hyd_auxvar%xmol(acid,lid), visc_brine, &
+                                  visc_a, hyd_auxvar%visc(lid))
+    case default
+      if (.not.option%flow%density_depends_on_salinity) then
+        call EOSWaterDensity(T_temp,cell_pressure, &
+                             hyd_auxvar%den_kg(lid),hyd_auxvar%den(lid),ierr)
+      else
+        aux(1) = hyd_auxvar%xmass(sid,lid)
+        call EOSWaterDensityExt(T_temp,cell_pressure,aux, &
+                                  hyd_auxvar%den_kg(lid),hyd_auxvar%den(lid),ierr)
+      endif
+      call EOSWaterViscosity(T_temp,cell_pressure, &
+                            hyd_auxvar%pres(spid),hyd_auxvar%visc(lid),ierr)
+      call EOSGasViscosity(hyd_auxvar%temp,hyd_auxvar%pres(apid), &
+                           hyd_auxvar%pres(gid),hyd_auxvar%den_kg(apid), &
+                           hyd_auxvar%visc(gid),ierr)
+      visc_a = hyd_auxvar%visc(gid)
+  end select
 
   ! CO2-water surface tension
   ! MAN: doesn't do anything here right now
@@ -1720,11 +1736,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                         (cell_pressure / hyd_auxvar%den(lid) * &
                         1.d-6)
   if (global_auxvar%istate /= L_STATE) then
-    if (global_auxvar%istate == G_STATE) then
-      water_vapor_pressure = hyd_auxvar%pres(vpid)
-    else
-      water_vapor_pressure = hyd_auxvar%pres(spid)
-    endif
+    water_vapor_pressure = hyd_auxvar%pres(vpid)
     call EOSGasDensityEnergy(T_temp,hyd_auxvar%pres(apid),den_air, &
                                h_air,u_air,ierr)
     h_air = h_air * 1.d-6 ! J/kmol -> MJ/kmol
