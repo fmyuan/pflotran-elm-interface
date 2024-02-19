@@ -25,6 +25,10 @@ module Carbon_Sandbox_Base_class
   contains
     procedure, public :: ReadInput => CarbonBaseReadInput
     procedure, public :: Setup => CarbonBaseSetup
+    procedure, public :: GetConcentrationUnits => &
+                           CarbonBaseGetConcentrationUnits
+    procedure, public :: EnforceConcentrationUnits => &
+                           CarbonBaseEnforceConcUnits
     procedure, public :: MapStateVariables => CarbonBaseMapStateVariables
     procedure, public :: Evaluate => CarbonBaseEvaluate
     procedure, public :: Strip => CarbonBaseStrip
@@ -235,10 +239,6 @@ subroutine CarbonBaseSetup(this,reaction,option)
     option%io_buffer = 'CONCENTRATION_UNITS not defined in CarbonBaseSetup.'
     call PrintErrMsg(option)
   endif
-  if (.not.associated(this%rxn_list)) then
-    option%io_buffer = 'REACTION_NETWORK not defined in CarbonBaseSetup.'
-    call PrintErrMsg(option)
-  endif
 
   allocate(this%aux)
   this%aux%liquid_saturation = UNINITIALIZED_DOUBLE
@@ -261,6 +261,106 @@ subroutine CarbonBaseSetup(this,reaction,option)
   enddo
 
 end subroutine CarbonBaseSetup
+
+! ************************************************************************** !
+
+subroutine CarbonBaseEnforceConcUnits(this,iunits,option)
+  !
+  ! Checks whether appropriate carbon units have been set
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/19/24
+  !
+  use Option_module
+
+  class(carbon_sandbox_base_type) :: this
+  PetscInt :: iunits
+  type(option_type) :: option
+
+  if (this%concentration_units /= iunits) then
+    option%io_buffer = 'Only concentration units of "' // &
+      this%GetConcentrationUnits() // &
+      '" are supported by the carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine CarbonBaseEnforceConcUnits
+
+! ************************************************************************** !
+
+function CarbonBaseGetConcentrationUnits(this)
+  !
+  ! Checks whether appropriate carbon units have been set
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/19/24
+  !
+  class(carbon_sandbox_base_type) :: this
+
+  character(len=:), allocatable :: CarbonBaseGetConcentrationUnits
+
+  CarbonBaseGetConcentrationUnits = &
+    CarbonBaseConcUnitsIntToString(this%concentration_units)
+
+end function CarbonBaseGetConcentrationUnits
+
+! ************************************************************************** !
+
+function CarbonBaseConcUnitsIntToString(iunits)
+  !
+  ! Maps the integer representing carbon units to the corresponding string
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/19/24
+  !
+  PetscInt :: iunits
+
+  character(len=:), allocatable :: CarbonBaseConcUnitsIntToString
+
+  CarbonBaseConcUnitsIntToString = ''
+  select case(iunits)
+    case(CARBON_UNITS_MOLALITY)
+      CarbonBaseConcUnitsIntToString = 'MOLALITY'
+    case(CARBON_UNITS_MOLARITY)
+      CarbonBaseConcUnitsIntToString = 'MOLARITY'
+    case(CARBON_UNITS_MOLE_PER_KG_SOIL)
+      CarbonBaseConcUnitsIntToString = 'MOLE_PER_KG_SOIL'
+    case(CARBON_UNITS_MOLE_PER_M3_BULK)
+      CarbonBaseConcUnitsIntToString = 'MOLE_PER_CUBIC_METER_BULK'
+    case(CARBON_UNITS_MOLES)
+      CarbonBaseConcUnitsIntToString = 'MOLES'
+  end select
+
+end function CarbonBaseConcUnitsIntToString
+
+! ************************************************************************** !
+
+function CarbonBaseConcUnitsStringToInt(string)
+  !
+  ! Maps the string representing carbon units to the corresponding integer
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/19/24
+  !
+  character(len=*) :: string
+
+  PetscInt :: CarbonBaseConcUnitsStringToInt
+
+  CarbonBaseConcUnitsStringToInt = UNINITIALIZED_INTEGER
+  select case(string)
+    case('MOLALITY')
+      CarbonBaseConcUnitsStringToInt = CARBON_UNITS_MOLALITY
+    case('MOLARITY')
+      CarbonBaseConcUnitsStringToInt = CARBON_UNITS_MOLARITY
+    case('MOLE_PER_KG_SOIL')
+      CarbonBaseConcUnitsStringToInt = CARBON_UNITS_MOLE_PER_KG_SOIL
+    case('MOLE_PER_CUBIC_METER_BULK')
+      CarbonBaseConcUnitsStringToInt = CARBON_UNITS_MOLE_PER_M3_BULK
+    case('MOLES')
+      CarbonBaseConcUnitsStringToInt = CARBON_UNITS_MOLES
+  end select
+
+end function CarbonBaseConcUnitsStringToInt
 
 ! ************************************************************************** !
 

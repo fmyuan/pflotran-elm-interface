@@ -24,6 +24,7 @@ block_tridiag.o : \
   utility.o
 carbon_sandbox.o : \
   carbon_sandbox_base.o \
+  carbon_sandbox_mend.o \
   global_aux.o \
   input_aux.o \
   material_aux.o \
@@ -53,6 +54,7 @@ carbon_sandbox_mend.o : \
   option.o \
   pflotran_constants.o \
   reaction_aux.o \
+  reaction_immobile_aux.o \
   reaction_inhibition_aux.o \
   reactive_transport_aux.o \
   string.o \

@@ -12,10 +12,47 @@ module Carbon_Sandbox_MEND_class
   private
 
   type, extends(carbon_sandbox_base_type), public :: carbon_sandbox_mend_type
+    character(len=MAXWORDLENGTH) :: B_species_name
+    character(len=MAXWORDLENGTH) :: D_species_name
+    character(len=MAXWORDLENGTH) :: EM_species_name
+    character(len=MAXWORDLENGTH) :: EP_species_name
+    character(len=MAXWORDLENGTH) :: IC_species_name
+    character(len=MAXWORDLENGTH) :: M_species_name
+    character(len=MAXWORDLENGTH) :: P_species_name
+    character(len=MAXWORDLENGTH) :: Q_species_name
+    PetscInt :: B_species_index
+    PetscInt :: D_species_index
+    PetscInt :: EM_species_index
+    PetscInt :: EP_species_index
+    PetscInt :: IC_species_index
+    PetscInt :: M_species_index
+    PetscInt :: P_species_index
+    PetscInt :: Q_species_index
+    PetscReal :: V_P
+    PetscReal :: K_P
+    PetscReal :: V_M
+    PetscReal :: K_M
+    PetscReal :: V_D
+    PetscReal :: K_D
+    PetscReal :: m_R
+    PetscReal :: E_C
+    PetscReal :: f_D
+    PetscReal :: g_D
+    PetscReal :: P_EP
+    PetscReal :: P_EM
+    PetscReal :: r_EP
+    PetscReal :: r_EM
+    PetscReal :: Q_max
+    PetscReal :: K_ads
+    PetscReal :: K_des
+    PetscReal :: K_BA
+    PetscReal :: I_P
+    PetscReal :: I_D
+    PetscReal :: fI_D
   contains
     procedure, public :: ReadInput => CarbonMENDReadInput
     procedure, public :: Setup => CarbonMENDSetup
-!    procedure, public :: Evaluate => CarbonMENDEvaluate
+    procedure, public :: Evaluate => CarbonMENDEvaluate
     procedure, public :: Strip => CarbonMENDStrip
   end type carbon_sandbox_mend_type
 
@@ -48,6 +85,43 @@ function CarbonMENDCreate()
 
   allocate(this)
   call CarbonBaseInit(this)
+  this%B_species_name = 'biomass'
+  this%D_species_name = 'doc'
+  this%EM_species_name = 'mineral_enzyme'
+  this%EP_species_name = 'particulate_enzyme'
+  this%IC_species_name = 'inorganic_carbon'
+  this%M_species_name = 'mineral_associated_carbon'
+  this%P_species_name = 'particulate_carbon'
+  this%Q_species_name = 'adsorbed_carbon'
+  this%B_species_index = UNINITIALIZED_INTEGER
+  this%D_species_index = UNINITIALIZED_INTEGER
+  this%EM_species_index = UNINITIALIZED_INTEGER
+  this%EP_species_index = UNINITIALIZED_INTEGER
+  this%IC_species_index = UNINITIALIZED_INTEGER
+  this%M_species_index = UNINITIALIZED_INTEGER
+  this%P_species_index = UNINITIALIZED_INTEGER
+  this%Q_species_index = UNINITIALIZED_INTEGER
+  this%V_P = UNINITIALIZED_DOUBLE
+  this%K_P = UNINITIALIZED_DOUBLE
+  this%V_M = UNINITIALIZED_DOUBLE
+  this%K_M = UNINITIALIZED_DOUBLE
+  this%V_D = UNINITIALIZED_DOUBLE
+  this%K_D = UNINITIALIZED_DOUBLE
+  this%m_R = UNINITIALIZED_DOUBLE
+  this%E_C = UNINITIALIZED_DOUBLE
+  this%f_D = UNINITIALIZED_DOUBLE
+  this%g_D = UNINITIALIZED_DOUBLE
+  this%P_EP = UNINITIALIZED_DOUBLE
+  this%P_EM = UNINITIALIZED_DOUBLE
+  this%r_EP = UNINITIALIZED_DOUBLE
+  this%r_EM = UNINITIALIZED_DOUBLE
+  this%Q_max = UNINITIALIZED_DOUBLE
+  this%K_ads = UNINITIALIZED_DOUBLE
+  this%K_des = UNINITIALIZED_DOUBLE
+  this%K_BA = UNINITIALIZED_DOUBLE
+  this%I_P = UNINITIALIZED_DOUBLE
+  this%I_D = UNINITIALIZED_DOUBLE
+  this%fI_D = UNINITIALIZED_DOUBLE
 
   CarbonMENDCreate => this
 
@@ -71,7 +145,9 @@ subroutine CarbonMENDReadInput(this,input,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: err_string
+  PetscReal :: tempreal
   PetscBool :: found
 
   err_string = 'CHEMISTRY,CARBON_SANDBOX,MEND'
@@ -89,6 +165,101 @@ subroutine CarbonMENDReadInput(this,input,option)
     if (found) cycle
 
     select case(keyword)
+      case('B_SPECIES_NAME')
+        call InputReadWord(input,option,this%B_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('D_SPECIES_NAME')
+        call InputReadWord(input,option,this%D_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('EM_SPECIES_NAME')
+        call InputReadWord(input,option,this%EM_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('EP_SPECIES_NAME')
+        call InputReadWord(input,option,this%EP_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('IC_SPECIES_NAME')
+        call InputReadWord(input,option,this%IC_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('M_SPECIES_NAME')
+        call InputReadWord(input,option,this%M_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('P_SPECIES_NAME')
+        call InputReadWord(input,option,this%P_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('Q_SPECIES_NAME')
+        call InputReadWord(input,option,this%Q_species_name,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,err_string)
+      case('V_P','V_M','V_D','M_R','R_EP','R_EM','K_ADS','K_DES', &
+           'I_P','I_D')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,err_string)
+        internal_units = 'kg/kg-s'
+        call InputReadAndConvertUnits(input,tempreal,internal_units, &
+                                      keyword,option)
+        select case(keyword)
+          case('V_P')
+            this%V_P = tempreal
+          case('V_M')
+            this%V_M = tempreal
+          case('V_D')
+            this%V_D = tempreal
+          case('K_D')
+            this%K_D = tempreal
+          case('M_R')
+            this%M_R = tempreal
+          case('R_EP')
+            this%r_EP = tempreal
+          case('R_EM')
+            this%r_EM = tempreal
+          case('K_ADS')
+            this%K_ads = tempreal
+          case('K_DES')
+            this%K_des = tempreal
+          case('I_P')
+            this%I_P = tempreal
+          case('I_D')
+            this%I_D = tempreal
+        end select
+      case('K_P','K_M','K_D','Q_MAX')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,err_string)
+        internal_units = 'kg/kg'
+        call InputReadAndConvertUnits(input,tempreal,internal_units, &
+                                      keyword,option)
+        select case(keyword)
+          case('K_P')
+            this%K_P = tempreal
+          case('K_M')
+            this%K_M = tempreal
+          case('K_D')
+            this%K_D = tempreal
+          case('Q_MAX')
+            this%Q_max = tempreal
+        end select
+      case('K_BA')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,err_string)
+        internal_units = 'kg/kg'  ! these are inverted units
+        call InputReadAndConvertUnits(input,tempreal,internal_units, &
+                                      keyword,option)
+        this%K_BA = tempreal
+      case('E_C','F_D','G_D','P_EP','P_EM','FI_D') ! unitless
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,err_string)
+        select case(keyword)
+          case('E_C')
+            this%E_C = tempreal
+          case('F_D')
+            this%f_D = tempreal
+          case('G_D')
+            this%g_D = tempreal
+          case('P_EP')
+            this%p_EP = tempreal
+          case('P_EM')
+            this%p_EM = tempreal
+          case('FI_D')
+            this%fI_D = tempreal
+        end select
       case default
         call InputKeywordUnrecognized(input,keyword,err_string,option)
     end select
@@ -105,8 +276,10 @@ subroutine CarbonMENDSetup(this,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 02/16/24
   !
+  use Material_Aux_module
   use Option_module
   use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
 
   class(carbon_sandbox_mend_type) :: this
   class(reaction_rt_type) :: reaction
@@ -114,7 +287,215 @@ subroutine CarbonMENDSetup(this,reaction,option)
 
   call CarbonBaseSetup(this,reaction,option)
 
+  this%B_species_index = &
+    ReactionAuxGetPriSpecIDFromName(this%B_species_name,reaction,option)
+  this%D_species_index = &
+    ReactionAuxGetPriSpecIDFromName(this%D_species_name,reaction,option)
+  this%EM_species_index = &
+    ReactionAuxGetPriSpecIDFromName(this%EM_species_name,reaction,option)
+  this%EP_species_index = &
+    ReactionAuxGetPriSpecIDFromName(this%EP_species_name,reaction,option)
+  this%IC_species_index = &
+    ReactionAuxGetPriSpecIDFromName(this%IC_species_name,reaction,option)
+  this%M_species_index = &
+    ReactionImGetSpeciesIDFromName(this%M_species_name,reaction%immobile, &
+                                   PETSC_FALSE,option) + &
+    reaction%offset_immobile
+  if (this%M_species_index <= 0) then
+    option%io_buffer = 'Species "' // trim(this%M_species_name) // &
+      '" not found among the available immobile species. Mineral associated &
+      &biomass must be an immobile species.'
+    call PrintErrMsg(option)
+  endif
+  this%P_species_index = &
+    ReactionAuxGetPriSpecIDFromName(this%P_species_name,reaction,option)
+  this%Q_species_index = &
+    ReactionImGetSpeciesIDFromName(this%Q_species_name,reaction%immobile, &
+                                   PETSC_FALSE,option) + &
+    reaction%offset_immobile
+  if (this%M_species_index <= 0) then
+    option%io_buffer = 'Species "' // trim(this%M_species_name) // &
+      '" not found among the available immobile species. Adsorbed biomass &
+      &must be an immobile species.'
+    call PrintErrMsg(option)
+  endif
+
+  if (Uninitialized(this%V_P)) then
+    option%io_buffer = 'V_P not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_P)) then
+    option%io_buffer = 'K_P not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%V_M)) then
+    option%io_buffer = 'V_M not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_M)) then
+    option%io_buffer = 'K_M not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%V_D)) then
+    option%io_buffer = 'V_D not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_D)) then
+    option%io_buffer = 'K_D not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%m_R)) then
+    option%io_buffer = 'm_R not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%E_C)) then
+    option%io_buffer = 'E_C not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%f_D)) then
+    option%io_buffer = 'f_D not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%g_D)) then
+    option%io_buffer = 'g_D not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%P_EP)) then
+    option%io_buffer = 'P_EP not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%P_EM)) then
+    option%io_buffer = 'P_EM not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%r_EP)) then
+    option%io_buffer = 'r_EP not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%r_EM)) then
+    option%io_buffer = 'r_EM not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%Q_max)) then
+    option%io_buffer = 'Q_max not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_ads)) then
+    option%io_buffer = 'K_ads not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_des)) then
+    option%io_buffer = 'K_des not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_BA)) then
+    option%io_buffer = 'K_BA not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_ads)) then
+    option%io_buffer = 'K_ads not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%I_P)) then
+    this%I_P = 0.d0 ! this is a source term that is not required
+  endif
+  if (Uninitialized(this%I_D)) then
+    this%I_D = 0.d0 ! this is a source term that is not required
+  endif
+  if (Uninitialized(this%fI_D)) then
+    option%io_buffer = 'fI_D not defined in MEND carbon sandbox.'
+    call PrintErrMsg(option)
+  endif
+
+  call this%EnforceConcentrationUnits(CARBON_UNITS_MOLE_PER_KG_SOIL,option)
+
 end subroutine CarbonMENDSetup
+
+! ************************************************************************** !
+
+subroutine CarbonMENDEvaluate(this,Residual,Jacobian,compute_derivative, &
+                              rt_auxvar,global_auxvar,material_auxvar, &
+                              reaction,option)
+  !
+  ! Evaluates the rate expression
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/16/24
+  !
+  use Global_Aux_module
+  use Material_Aux_module
+  use Option_module
+  use Reaction_Aux_module
+  use Reaction_Inhibition_Aux_module
+  use Reactive_Transport_Aux_module
+
+  class(carbon_sandbox_mend_type) :: this
+  class(reaction_rt_type) :: reaction
+  ! the following arrays must be declared after reaction
+  PetscReal :: Residual(:)
+  PetscReal :: Jacobian(:,:)
+  PetscBool :: compute_derivative
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+  type(option_type) :: option
+
+  PetscReal :: B, D, EM, EP, IC, M, P, Q
+  PetscReal :: D_monod, M_monod, P_monod
+  PetscReal :: one_over_E_C
+  PetscReal :: F1, F2, F3, F4, F5, F6, F7, F8, F9EP, F9EM, F10EP, F10EM
+  PetscReal :: dB, dD, dEM, dEP, dIC, dM, dP, dQ
+  PetscReal :: conc_units_conversion
+
+  call this%MapStateVariables(rt_auxvar,global_auxvar,material_auxvar, &
+                              reaction,option)
+  ! mgC/gsoil = molC/kgsoil*gC/molC*mgC/gC*kgsoil/gsoil
+  conc_units_conversion = 30.d0*1000.d0*1.d-3
+  B = this%aux%conc(this%B_species_index)*conc_units_conversion
+  D = this%aux%conc(this%D_species_index)*conc_units_conversion
+  EM = this%aux%conc(this%EM_species_index)*conc_units_conversion
+  EP = this%aux%conc(this%EP_species_index)*conc_units_conversion
+  IC = this%aux%conc(this%IC_species_index)*conc_units_conversion
+  M = this%aux%conc(this%M_species_index)*conc_units_conversion
+  P = this%aux%conc(this%P_species_index)*conc_units_conversion
+  Q = this%aux%conc(this%Q_species_index)*conc_units_conversion
+  D_monod = D/(this%K_D+D)
+  M_monod = M/(this%K_M+M)
+  P_monod = P/(this%K_P+P)
+  one_over_E_C = 1.d0 / this%E_C
+  F1 = one_over_E_C*(this%V_D+this%m_R)*B*D_monod
+  F2 = this%V_P*EP*P_monod
+  F3 = this%V_M*EM*M_monod
+  F4 = (one_over_E_C-1.d0)*this%V_D*B
+  F5 = (one_over_E_C-1.d0)*this%m_R*B*D_monod
+  F6 = this%K_ads*(1.d0-Q/this%Q_max)*D
+  F7 = this%K_des*Q/this%Q_max
+  F8 = (1.d0-this%p_EP-this%p_EM)*this%m_R*B
+  F9EM = this%p_EM*this%m_R*B
+  F9EP = this%p_EP*this%m_R*B
+  F10EM = this%r_EM*EM
+  F10EP = this%r_EP*EP
+
+  dB = F1 - (F4 + F5) - F8 - (F9EP + F9EM)
+  dD = this%I_D + this%f_D*F2 + this%g_D*F8 + F3 + (F10EP + F10EM) - &
+       F1 - (F6 - F7)
+  dEM = F9EM - F10EM
+  dEP = F9EP - F10EP
+  dM = (1.d0-this%f_D)*F2 - F3
+  dP = this%I_P + (1.d0-this%g_D)*F8 - F2
+  dQ = F6 - F7
+  dIC = F4 + F5
+
+  Residual(this%B_species_index) = Residual(this%B_species_index) - dB
+  Residual(this%D_species_index) = Residual(this%D_species_index) - dD
+  Residual(this%EM_species_index) = Residual(this%EM_species_index) - dEM
+  Residual(this%EP_species_index) = Residual(this%EP_species_index) - dEP
+  Residual(this%IC_species_index) = Residual(this%IC_species_index) - dIC
+  Residual(this%M_species_index) = Residual(this%M_species_index) - dM
+  Residual(this%P_species_index) = Residual(this%P_species_index) - dP
+  Residual(this%Q_species_index) = Residual(this%Q_species_index) - dQ
+
+end subroutine CarbonMENDEvaluate
 
 ! ************************************************************************** !
 
