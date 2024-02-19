@@ -32,6 +32,9 @@ subroutine ShapeFunctionInitialize(shapefunction)
   ! Author: Satish Karra, LANL
   ! Date: 5/17/2013
   !
+  ! Updated by Piyoosh Jaysaval, PNNL
+  ! Date: 2/16/2024
+  !
 
   type(shapefunction_type) :: shapefunction
   PetscReal, pointer :: coord(:,:)
@@ -150,6 +153,10 @@ subroutine ShapeFunctionCalculate(shapefunction)
   ! Author: Satish Karra, LANL
   ! Date: 5/17/2013
   !
+  ! Updated by Piyoosh Jaysaval, PNNL
+  ! Date: 2/16/2024
+  !
+!
 
   type(shapefunction_type) :: shapefunction
   PetscReal, pointer :: zeta(:)
