@@ -121,7 +121,8 @@ module Patch_module
             PatchGetWaterMassInRegion, &
             PatchGetCompMassInRegionAssign, &
             PatchUpdateCouplerSaturation, &
-            PatchSetupUpwindDirection
+            PatchSetupUpwindDirection, &
+            PatchGetSolublePorosityValue
 
 contains
 
@@ -1438,7 +1439,8 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: dof_count_local(option%nflowdof)
   PetscInt :: dof_count_global(option%nflowdof)
   PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
-
+  PetscBool :: soluble
+  
   num_connections = coupler%connection_set%num_connections
 
   flow_condition => coupler%flow_condition
@@ -1478,112 +1480,61 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
 
   select case(flow_condition%iphase)
     case(MULTI_STATE)
-      if (.not. general_soluble_matrix) then
-        select type(dataset => general%gas_saturation%dataset)
-          class is(dataset_ascii_type)
-            gas_sat = general%gas_saturation%dataset%rarray(1)
-            if (general_salt) then
-              precipitate_sat = general%precipitate_saturation%dataset%rarray(1)
-            endif
-            if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                TWO_PHASE_STATE
-            ! Cannot user gas_sat == 0.d0 or Equal(gas_sat,0.d0) as optimization
-            ! in the Intel compiler changes the answer.
-            else if (gas_sat < 0.5d0) then
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                LIQUID_STATE
-            else if (precipitate_sat > 0.5d0 .and. general_soluble_matrix) then
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                LP_STATE
-            else
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                GAS_STATE
-            endif
-          class is(dataset_gridded_hdf5_type)
-            ! If the gas pressure dataset is defined, we must ensure that its
-            ! minimum pressure is greater than min_two_phase_gas_pressure.
-            ! Otherwise, a zero gas pressure may be incorrectly used within
-            ! an interpolation of gas pressure for a two phase cell mixed
-            ! with a single phase liquid cell
-            if (associated(general%gas_pressure)) then
-              dummy_real = &
-                DatasetGetMinRValue(general%gas_pressure%dataset,option)
-              if (dummy_real < min_two_phase_gas_pressure) then
-                option%io_buffer = 'Minimum gas pressure exceeded for &
-                      &FLOW_CONDITION "' // trim(flow_condition%name) // &
-                      '": ' // trim(StringFormatDouble(dummy_real)) // '.'
-                call PrintErrMsg(option)
-              endif
-            endif
-            do iconn = 1, num_connections
-              call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
-                                    general%gas_saturation%dataset,iconn,gas_sat)
-              if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
-                coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = &
-                  TWO_PHASE_STATE
-              else if (gas_sat < 0.5d0) then
-                coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
-              else
-                coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
-              endif
-            enddo
-          class default
-            call PrintMsg(option,'general%gas_saturation%dataset,MULTI_STATE')
-            call DatasetUnknownClass(dataset,option, &
-                                     'PatchUpdateCouplerAuxVarsG')
-        end select
-      elseif (general_soluble_matrix) then
-        select type(dataset => general%gas_saturation%dataset)
-          class is(dataset_ascii_type)
-            gas_sat = general%gas_saturation%dataset%rarray(1)
+      select type(dataset => general%gas_saturation%dataset)
+        class is(dataset_ascii_type)
+          gas_sat = general%gas_saturation%dataset%rarray(1)
+          if (general_salt) then
             precipitate_sat = general%precipitate_saturation%dataset%rarray(1)
+          endif
+          if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
+            coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+              TWO_PHASE_STATE
+            ! if () then LGP_state
+          ! Cannot user gas_sat == 0.d0 or Equal(gas_sat,0.d0) as optimization
+          ! in the Intel compiler changes the answer.
+          else if (gas_sat < 0.5d0) then
+            coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+              LIQUID_STATE
+          ! else if (precipitate_sat > 0.5d0 .and. general_soluble_matrix) then
+          !   coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+          !     LP_STATE
+          else
+            coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+              GAS_STATE
+          endif
+        class is(dataset_gridded_hdf5_type)
+          ! If the gas pressure dataset is defined, we must ensure that its
+          ! minimum pressure is greater than min_two_phase_gas_pressure.
+          ! Otherwise, a zero gas pressure may be incorrectly used within
+          ! an interpolation of gas pressure for a two phase cell mixed
+          ! with a single phase liquid cell
+          if (associated(general%gas_pressure)) then
+            dummy_real = &
+              DatasetGetMinRValue(general%gas_pressure%dataset,option)
+            if (dummy_real < min_two_phase_gas_pressure) then
+              option%io_buffer = 'Minimum gas pressure exceeded for &
+                    &FLOW_CONDITION "' // trim(flow_condition%name) // &
+                    '": ' // trim(StringFormatDouble(dummy_real)) // '.'
+              call PrintErrMsg(option)
+            endif
+          endif
+          do iconn = 1, num_connections
+            call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
+                                  general%gas_saturation%dataset,iconn,gas_sat)
             if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                LGP_STATE
-            ! Cannot user gas_sat == 0.d0 or Equal(gas_sat,0.d0) as optimization
-            ! in the Intel compiler changes the answer.
+              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = &
+                TWO_PHASE_STATE
             else if (gas_sat < 0.5d0) then
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                LP_STATE
+              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
             else
-              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
-                GP_STATE
+              coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
             endif
-          class is(dataset_gridded_hdf5_type)
-            ! If the gas pressure dataset is defined, we must ensure that its
-            ! minimum pressure is greater than min_two_phase_gas_pressure.
-            ! Otherwise, a zero gas pressure may be incorrectly used within
-            ! an interpolation of gas pressure for a two phase cell mixed
-            ! with a single phase liquid cell
-            if (associated(general%gas_pressure)) then
-              dummy_real = &
-                DatasetGetMinRValue(general%gas_pressure%dataset,option)
-              if (dummy_real < min_two_phase_gas_pressure) then
-                option%io_buffer = 'Minimum gas pressure exceeded for &
-                      &FLOW_CONDITION "' // trim(flow_condition%name) // &
-                      '": ' // trim(StringFormatDouble(dummy_real)) // '.'
-                call PrintErrMsg(option)
-              endif
-            endif
-            do iconn = 1, num_connections
-              call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
-                                    general%gas_saturation%dataset,iconn,gas_sat)
-              if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
-                coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = &
-                  LGP_STATE
-              else if (gas_sat < 0.5d0) then
-                coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LP_STATE
-              else
-                coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GP_STATE
-              endif
-            enddo
-          class default
-            call PrintMsg(option,'general%gas_saturation%dataset,MULTI_STATE')
-            call DatasetUnknownClass(dataset,option, &
-                                     'PatchUpdateCouplerAuxVarsG')
-        end select
-      endif
+          enddo
+        class default
+          call PrintMsg(option,'general%gas_saturation%dataset,MULTI_STATE')
+          call DatasetUnknownClass(dataset,option, &
+                                   'PatchUpdateCouplerAuxVarsG')
+      end select
     case(TWO_PHASE_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         TWO_PHASE_STATE
@@ -1595,6 +1546,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     case(LGP_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         LGP_STATE
+    case(GP_STATE)
+      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+        GP_STATE
     case(LIQUID_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         LIQUID_STATE
@@ -1712,21 +1666,24 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   'GENERAL_MODE two phase state gas saturation ',string)
               call PrintErrMsg(option)
           end select
-          if (general_salt .and. general_soluble_matrix) then
-          ! porosity; 4th dof ---------------------- !
-            select case(general%porosity%itype)
+          if (general_salt) then
+            ! salt mole fraction; 4th dof ----------------------- !
+            select case(general%salt_mole_fraction%itype)
               case(DIRICHLET_BC)
-                 call PatchGetCouplerValueFromDataset(coupler,option, &
-                           patch%grid,general%porosity%dataset,iconn,por)
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-                 dof4 = PETSC_TRUE
-                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,general%salt_mole_fraction%dataset,iconn,xmol2)
+                  if (general_immiscible) then
+                    xmol2 = GENERAL_IMMISCIBLE_VALUE
+                  endif
+                  coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = xmol2
+                  dof4 = PETSC_TRUE
+                  coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
               case default
-                 string = GetSubConditionType(general%porosity%itype)
-                 option%io_buffer = &
-                      FlowConditionUnknownItype(coupler%flow_condition, &
-                      'GENERAL_MODE two phase state porosity ',string)
-                 call PrintErrMsg(option)
+                string = GetSubConditionType(general%salt_mole_fraction%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                  'GENERAL_MODE liquid state mole fraction ',string)
+                call PrintErrMsg(option)
             end select
           endif
       ! ---------------------------------------------------------------------- !
@@ -1750,7 +1707,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
             coupler%flow_bc_type(2:3) = DIRICHLET_BC
-            if (general_salt .and. .not. general_soluble_matrix) then
+            if (general_salt) then
               ! mole fraction; 4th dof ----------------------- !
               select case(general%salt_mole_fraction%itype)
                 case(DIRICHLET_BC)
@@ -1821,25 +1778,27 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   'GENERAL_MODE liquid state mole fraction ',string)
                 call PrintErrMsg(option)
             end select
-            if (general_salt .and. .not. general_soluble_matrix) then
+            if (general_salt) then
               ! mole fraction; 4th dof ----------------------- !
-              select case(general%salt_mole_fraction%itype)
-                case(DIRICHLET_BC)
-                  call PatchGetCouplerValueFromDataset(coupler,option, &
-                         patch%grid,general%salt_mole_fraction%dataset,iconn,xmol2)
-                    if (general_immiscible) then
-                      xmol2 = GENERAL_IMMISCIBLE_VALUE
-                    endif
-                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = xmol2
-                    dof4 = PETSC_TRUE
-                    coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-               case default
-                   string = GetSubConditionType(general%salt_mole_fraction%itype)
-                   option%io_buffer = &
-                       FlowConditionUnknownItype(coupler%flow_condition, &
-                       'GENERAL_MODE liquid state salt mole fraction ',string)
-                 call PrintErrMsg(option)
-               end select
+              if (associated(general%salt_mole_fraction)) then
+                select case(general%salt_mole_fraction%itype)
+                  case(DIRICHLET_BC)
+                    call PatchGetCouplerValueFromDataset(coupler,option, &
+                           patch%grid,general%salt_mole_fraction%dataset,iconn,xmol2)
+                      if (general_immiscible) then
+                        xmol2 = GENERAL_IMMISCIBLE_VALUE
+                      endif
+                      coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = xmol2
+                      dof4 = PETSC_TRUE
+                      coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+                  case default
+                    string = GetSubConditionType(general%salt_mole_fraction%itype)
+                    option%io_buffer = &
+                      FlowConditionUnknownItype(coupler%flow_condition, &
+                      'GENERAL_MODE liquid state mole fraction ',string)
+                    call PrintErrMsg(option)
+                end select
+              endif
             endif
           endif
       ! ---------------------------------------------------------------------- !
@@ -2005,84 +1964,59 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   'GENERAL_MODE two phase state temperature ',string)
               call PrintErrMsg(option)
           end select
-          ! air mole fraction; 3rd dof ------------------- !
-          if (associated(general%mole_fraction)) then
-            select case(general%mole_fraction%itype)
-              case(DIRICHLET_BC)
-                if (Uninitialized(gas_pressure) .or. &
-                    Uninitialized(temperature)) then
-                  option%io_buffer = 'GAS_PRESSURE or TEMPERATURE not set &
-                    &correctly in flow condition "' // &
-                    trim(flow_condition%name) // '".'
-                  call PrintErrMsg(option)
-                endif
-                call PatchGetCouplerValueFromDataset(coupler,option, &
-                            patch%grid,general%mole_fraction%dataset,iconn,xmol)
-                air_pressure = xmol * gas_pressure
-                if (general_immiscible) then
-                  air_pressure = gas_pressure - GENERAL_IMMISCIBLE_VALUE
-                endif
-                call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-                if (gas_pressure - air_pressure >= p_sat) then
-                  option%io_buffer = 'MOLE_FRACTION set in flow &
-                    &condition "' // trim(flow_condition%name) // &
-                    '" results in a vapor pressure exceeding the water &
-                    &saturation pressure, which indicates that a two-phase &
-                    &state with GAS_PRESSURE and GAS_SATURATION should be used.'
-                  call PrintErrMsg(option)
-                endif
-                if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
-                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
-                  dof3 = PETSC_TRUE
-                  coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = &
-                                                                     DIRICHLET_BC
-                else
-                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = 1.d0 - xmol
-                  dof3 = PETSC_TRUE
-                  coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = &
-                                                                    DIRICHLET_BC
-                endif
-              case default
-                string = GetSubConditionType(general%mole_fraction%itype)
-                option%io_buffer = &
-                  FlowConditionUnknownItype(coupler%flow_condition, &
-                  'GENERAL_MODE air mole fraction',string)
-                call PrintErrMsg(option)
-            end select
-
+          ! mole fraction; 3rd dof ----------------------- !
+          select case(general%mole_fraction%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                          patch%grid,general%mole_fraction%dataset,iconn,xmol)
+              if (general_immiscible) then
+                xmol = GENERAL_IMMISCIBLE_VALUE
+              endif
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = xmol
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionType(general%mole_fraction%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                'GENERAL_MODE liquid state mole fraction ',string)
+              call PrintErrMsg(option)
+          end select
           ! precipitate saturation; 4th dof ---------------------- !
-          if (.not. general_soluble_matrix) then
+          if (associated(general%precipitate_saturation)) then
             select case(general%precipitate_saturation%itype)
-            case(DIRICHLET_BC)
-               call PatchGetCouplerValueFromDataset(coupler,option, &
-                    patch%grid,general%precipitate_saturation%dataset,iconn,precipitate_sat)
-               coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = precipitate_sat
-               dof4 = PETSC_TRUE
-               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-               string = GetSubConditionType(general%gas_saturation%itype)
-               option%io_buffer = &
-                    FlowConditionUnknownItype(coupler%flow_condition, &
-                    'GENERAL_MODE LP state precipitate saturation ',string)
-               call PrintErrMsg(option)
-            end select
-          else
-            select case(general%porosity%itype)
-            case(DIRICHLET_BC)
-               call PatchGetCouplerValueFromDataset(coupler,option, &
-                    patch%grid,general%porosity%dataset,iconn,por)
-               coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-               dof4 = PETSC_TRUE
-               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-               string = GetSubConditionType(general%porosity%itype)
-               option%io_buffer = &
-                    FlowConditionUnknownItype(coupler%flow_condition, &
-                    'GENERAL_MODE LP state porosity ',string)
-               call PrintErrMsg(option)
+              case(DIRICHLET_BC)
+                 call PatchGetCouplerValueFromDataset(coupler,option, &
+                      patch%grid,general%precipitate_saturation%dataset,iconn,precipitate_sat)
+                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = precipitate_sat
+                 dof4 = PETSC_TRUE
+                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+              case default
+                 string = GetSubConditionType(general%gas_saturation%itype)
+                 option%io_buffer = &
+                      FlowConditionUnknownItype(coupler%flow_condition, &
+                      'GENERAL_MODE LP state precipitate saturation ',string)
+                 call PrintErrMsg(option)
+              end select
+          elseif (associated(general%salt_mole_fraction)) then
+            select case(general%salt_mole_fraction%itype)
+              case(AT_SOLUBILITY_BC)
+                 call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
+                 if (soluble) then
+                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
+                 else
+                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+                 endif
+                 dof4 = PETSC_TRUE
+                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+              case default
+                 string = GetSubConditionType(general%salt_mole_fraction%itype)
+                 option%io_buffer = &
+                      FlowConditionUnknownItype(coupler%flow_condition, &
+                      'GENERAL_MODE LP state solubility ',string)
+                 call PrintErrMsg(option)
             end select
           endif
-      endif
       ! ---------------------------------------------------------------------- !
         case(GP_STATE)
           gas_pressure = UNINITIALIZED_DOUBLE
@@ -2201,55 +2135,62 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   'GENERAL_MODE relative humidity',string)
                 call PrintErrMsg(option)
             end select
-            if (.not. general_soluble_matrix) then
-              select case(general%precipitate_saturation%itype)
-              case(DIRICHLET_BC)
-                 call PatchGetCouplerValueFromDataset(coupler,option, &
-                      patch%grid,general%precipitate_saturation%dataset,iconn,precipitate_sat)
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = precipitate_sat
-                 dof4 = PETSC_TRUE
-                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-              case default
-                 string = GetSubConditionType(general%gas_saturation%itype)
-                 option%io_buffer = &
-                      FlowConditionUnknownItype(coupler%flow_condition, &
-                      'GENERAL_MODE LP state precipitate saturation ',string)
-                 call PrintErrMsg(option)
-              end select
-            else
-              select case(general%porosity%itype)
-              case(DIRICHLET_BC)
-                 call PatchGetCouplerValueFromDataset(coupler,option, &
-                      patch%grid,general%porosity%dataset,iconn,por)
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-                 dof4 = PETSC_TRUE
-                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-              case default
-                 string = GetSubConditionType(general%porosity%itype)
-                 option%io_buffer = &
-                      FlowConditionUnknownItype(coupler%flow_condition, &
-                      'GENERAL_MODE LP state porosity ',string)
-                 call PrintErrMsg(option)
-              end select
-            endif
           endif
+          ! precipitate saturation; 4th dof ---------------------- !
+          if (general_salt) then
+            ! check if precipitate saturation is defined, otherwise use porosity if soluble material
+            if (associated(general%precipitate_saturation)) then
+              select case(general%precipitate_saturation%itype)
+                case(DIRICHLET_BC)
+                   call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,general%precipitate_saturation%dataset,iconn,precipitate_sat)
+                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = precipitate_sat
+                   dof4 = PETSC_TRUE
+                   coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+                case default
+                   string = GetSubConditionType(general%gas_saturation%itype)
+                   option%io_buffer = &
+                        FlowConditionUnknownItype(coupler%flow_condition, &
+                        'GENERAL_MODE GP state precipitate saturation ',string)
+                   call PrintErrMsg(option)
+              end select
+            elseif (associated(general%salt_mole_fraction)) then
+              select case(general%salt_mole_fraction%itype)
+                case(AT_SOLUBILITY_BC)
+                  call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
+                  if (soluble) then
+                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
+                  else
+                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.0d-10
+                  end if
+                  dof4 = PETSC_TRUE
+                  coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+                case default
+                  string = GetSubConditionType(general%salt_mole_fraction%itype)
+                  option%io_buffer = &
+                       FlowConditionUnknownItype(coupler%flow_condition, &
+                       'GENERAL_MODE GP state salt DOF ',string)
+                  call PrintErrMsg(option)
+                end select
+              endif
+            endif
 
       ! ---------------------------------------------------------------------- !
       case(LGP_STATE)
         ! gas pressure; 1st dof ------------------------ !
         select case(general%gas_pressure%itype)
-        case(DIRICHLET_BC)
-           call PatchGetCouplerValueFromDataset(coupler,option, &
-                patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
-           coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
-           dof1 = PETSC_TRUE
-           coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-        case default
-           string = GetSubConditionType(general%gas_pressure%itype)
-           option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                'GENERAL_MODE two phase state gas pressure ',string)
-           call PrintErrMsg(option)
+          case(DIRICHLET_BC)
+             call PatchGetCouplerValueFromDataset(coupler,option, &
+                  patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
+             coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+             dof1 = PETSC_TRUE
+             coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+          case default
+             string = GetSubConditionType(general%gas_pressure%itype)
+             option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                  'GENERAL_MODE two phase state gas pressure ',string)
+             call PrintErrMsg(option)
         end select
         ! temperature; 2nd dof ------------------------- !
         select case(general%temperature%itype)
@@ -2291,37 +2232,40 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
            call PrintErrMsg(option)
         end select
         ! precipitate saturation; 4th dof ---------------------- !
-        if (.not. general_soluble_matrix) then
+        if (associated(general%precipitate_saturation)) then
           select case(general%precipitate_saturation%itype)
-          case(DIRICHLET_BC)
-             call PatchGetCouplerValueFromDataset(coupler,option, &
-                  patch%grid,general%precipitate_saturation%dataset,iconn,precipitate_sat)
-             coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = precipitate_sat
-             dof4 = PETSC_TRUE
-             coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-             string = GetSubConditionType(general%gas_saturation%itype)
-             option%io_buffer = &
-                  FlowConditionUnknownItype(coupler%flow_condition, &
-                  'GENERAL_MODE LP state precipitate saturation ',string)
-             call PrintErrMsg(option)
-           end select
-        elseif (general_soluble_matrix) then
-          select case(general%porosity%itype)
-          case(DIRICHLET_BC)
-             call PatchGetCouplerValueFromDataset(coupler,option, &
-                  patch%grid,general%porosity%dataset,iconn,por)
-             coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-             dof4 = PETSC_TRUE
-             coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-          case default
-             string = GetSubConditionType(general%porosity%itype)
-             option%io_buffer = &
-                  FlowConditionUnknownItype(coupler%flow_condition, &
-                  'GENERAL_MODE LP state porosity ',string)
-             call PrintErrMsg(option)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                   patch%grid,general%precipitate_saturation%dataset,iconn,precipitate_sat)
+              coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = precipitate_sat
+              dof4 = PETSC_TRUE
+              coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionType(general%gas_saturation%itype)
+              option%io_buffer = &
+                   FlowConditionUnknownItype(coupler%flow_condition, &
+                   'GENERAL_MODE LP state precipitate saturation ',string)
+              call PrintErrMsg(option)
           end select
-       endif
+        elseif (associated(general%salt_mole_fraction)) then
+          select case(general%salt_mole_fraction%itype)
+            case(AT_SOLUBILITY_BC)
+               call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
+               if (soluble) then
+                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
+               else
+                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+               endif
+               dof4 = PETSC_TRUE
+               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+               string = GetSubConditionType(general%salt_mole_fraction%itype)
+               option%io_buffer = &
+                    FlowConditionUnknownItype(coupler%flow_condition, &
+                    'GENERAL_MODE LP state solubility ',string)
+               call PrintErrMsg(option)
+          end select
+        endif
 
       ! ---------------------------------------------------------------------- !
         case(ANY_STATE)
@@ -2468,23 +2412,24 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     end select
     if (general_salt) dof4 = PETSC_TRUE
   endif
-
-  if (associated(general%salt_mole_fraction)) then
-    coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
-    select type(selector => general%salt_mole_fraction%dataset)
-      class is(dataset_ascii_type)
-        coupler%flow_aux_real_var(FOUR_INTEGER,1:num_connections) = &
-                                              general%salt_mole_fraction%dataset%rarray(1)
-        dof4 = PETSC_TRUE
-      class is(dataset_gridded_hdf5_type)
-        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
-                                           FOUR_INTEGER)
-        dof4 = PETSC_TRUE
-      class default
-        call PrintMsg(option,'general%salt_mole_fraction%dataset')
-        call DatasetUnknownClass(selector,option, &
-                                 'PatchUpdateCouplerAuxVarsG')
-    end select
+  if (associated(general%liquid_flux)) then
+    if (associated(general%salt_mole_fraction)) then
+      coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
+      select type(selector => general%salt_mole_fraction%dataset)
+        class is(dataset_ascii_type)
+          coupler%flow_aux_real_var(FOUR_INTEGER,1:num_connections) = &
+                                                general%salt_mole_fraction%dataset%rarray(1)
+          dof4 = PETSC_TRUE
+        class is(dataset_gridded_hdf5_type)
+          call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
+                                             FOUR_INTEGER)
+          dof4 = PETSC_TRUE
+        class default
+          call PrintMsg(option,'general%salt_mole_fraction%dataset')
+          call DatasetUnknownClass(selector,option, &
+                                   'PatchUpdateCouplerAuxVarsG')
+      end select
+    endif
   endif
 
   if (associated(general%precipitate_saturation)) then
@@ -2519,12 +2464,12 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   if (general_salt) then
     if (dof4) then
       dof_count_local(4) = 1
-      call MPI_Allreduce(dof_count_local,dof_count_global,FOUR_INTEGER_MPI, &
-           MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     endif
+    call MPI_Allreduce(dof_count_local,dof_count_global,FOUR_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   else
-      call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
-                         MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   endif
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
@@ -5442,6 +5387,47 @@ end subroutine PatchGetCouplerValueFromDataset
 
 ! ************************************************************************** !
 
+subroutine PatchGetSolublePorosityValue(coupler,patch,iconn,porosity,soluble)
+
+  !
+  ! Gets porosity and soluble material boolean for a given connection.
+  !
+  ! Author: David Fukuyama
+  ! Date: 09/18/23
+  !
+
+  use Coupler_module
+  use Grid_module
+  use Material_Aux_module
+  use Material_module
+
+  implicit none
+
+  type(coupler_type) :: coupler
+  type(patch_type) :: patch
+  type(grid_type),pointer :: grid
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_property_ptr_type), pointer :: material_property_array(:)
+
+  PetscInt :: iconn
+  PetscReal :: porosity
+  PetscBool :: soluble
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+
+  grid => patch%grid
+  material_auxvars => patch%aux%Material%auxvars
+  material_property_array => patch%material_property_array
+
+  local_id = coupler%connection_set%id_dn(iconn)
+  ghosted_id = grid%nL2G(local_id)
+  soluble = material_property_array(patch%imat(ghosted_id))%ptr%soluble
+  porosity = material_auxvars(ghosted_id)%porosity_0
+
+end subroutine PatchGetSolublePorosityValue
+
+! ************************************************************************** !
+
 subroutine PatchUpdateCouplerGridDataset(coupler,option,grid,dataset,dof)
   !
   ! Updates auxiliary variables from a gridded dataset.
@@ -6279,6 +6265,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Variables_module
   use Material_Aux_module
   use Reaction_Base_module
+  use Characteristic_Curves_Thermal_module
 
   implicit none
 
@@ -6297,10 +6284,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
+  class(cc_thermal_type), pointer :: thermal_cc
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: xmass, lnQKgas, eh0, pe0, ph0
-  PetscReal :: tempreal
-  PetscInt :: tempint, tempint2
+  PetscReal :: tempreal, dummy1, dummy2
+  PetscInt :: tempint, tempint2, icct
   PetscInt :: irate, irxn
   PetscInt :: ivar_temp
   PetscErrorCode :: ierr
@@ -7982,6 +7970,32 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           endif
         endif
       enddo
+    case(THERMAL_CONDUCTIVITY)
+      select case(option%iflowmode)
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            !if isotropic then
+              ! if (x) then dist = (1,1,0,0)
+            ! call thermal_cc%thermal_conductivity_function% &
+            !      TCondTensorToScalar(dist,option)
+              ! if (y) then dist = (1,0,1,0)
+              ! if (z) then dist = (1,0,0,1)
+            !else
+
+            !endif
+            ghosted_id = grid%nL2G(local_id)
+            icct = patch%cct_id(ghosted_id)
+            thermal_cc => patch%char_curves_thermal_array(icct)%ptr
+            call thermal_cc%thermal_conductivity_function%CalculateTCond(&
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%sat(option%liquid_phase), & !saturation
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%temp, & !temperature
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%effective_porosity, & !effective porosity
+                            vec_ptr(local_id),dummy1,dummy2,option)
+          enddo
+      end select
     case(ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -8155,6 +8169,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use ZFlow_Aux_module
   use SCO2_Aux_module
   use Material_Aux_module
+  use Characteristic_Curves_Thermal_module
 
   implicit none
 
@@ -8166,20 +8181,21 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
+  class(cc_thermal_type), pointer :: thermal_cc
   PetscInt :: ivar
   PetscInt :: isubvar
   PetscInt :: tempint, tempint2
   PetscInt :: isubvar2
   PetscInt :: iphase
   PetscInt :: ghosted_id
-  PetscInt :: local_id
+  PetscInt :: local_id, icct
   PetscInt :: ivar_temp
 
   PetscReal :: value, xmass, lnQKgas, eh0, pe0, ph0
   PetscInt :: irate, irxn
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
-  PetscReal :: tempreal
+  PetscReal :: tempreal, dummy1, dummy2
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -9161,6 +9177,31 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case default
           option%io_buffer = 'Output of gas phase relative permeability &
             &not supported for current flow mode.'
+      end select
+    case(THERMAL_CONDUCTIVITY)
+      select case(option%iflowmode)
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            !if isotropic then
+              ! if (x) then dist = (1,1,0,0)
+            ! call thermal_cc%thermal_conductivity_function% &
+            !      TCondTensorToScalar(dist,option)
+              ! if (y) then dist = (1,0,1,0)
+              ! if (z) then dist = (1,0,0,1)
+            !else
+            !endif
+            ghosted_id = grid%nL2G(local_id)
+            icct = patch%cct_id(ghosted_id)
+            thermal_cc => patch%char_curves_thermal_array(icct)%ptr
+            call thermal_cc%thermal_conductivity_function%CalculateTCond(&
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%sat(option%liquid_phase), & !saturation
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%temp, & !temperature
+                            patch%aux%General%auxvars(ZERO_INTEGER,&
+                            ghosted_id)%effective_porosity, & !effective porosity
+                            value,dummy1,dummy2,option)
+          enddo
       end select
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(abs(patch%imat(ghosted_id)))
