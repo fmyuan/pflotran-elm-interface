@@ -117,11 +117,6 @@ MATERIAL_PROPERTY sourceMaterial
     CHARACTERISTIC_CURVES default
 /
 
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  DEFAULT
-END
-
 #=========================== output options ===================================
 OUTPUT
 #  TIMES y 5. 10. 15. 20.
