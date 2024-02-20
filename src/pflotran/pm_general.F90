@@ -112,7 +112,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   ! Author: David Fukuyama
   ! Date: 06/10/21
   !
-
+  use General_Aux_module
   use Option_module
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
@@ -166,7 +166,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   allocate(max_change_index)
 
 
-  option%use_isothermal = PETSC_FALSE
+  option%use_isothermal = general_isothermal
 
   option%liquid_phase = 1  ! liquid_pressure
   option%gas_phase = 2     ! gas_pressure
