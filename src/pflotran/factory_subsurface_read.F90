@@ -1536,6 +1536,10 @@ subroutine FactorySubsurfReadInput(simulation,input)
             option%io_buffer = 'Variably-saturated flow not supported &
               &in PORE mode.'
             call PrintErrMsg(option)
+          case(NULL_MODE)
+            option%io_buffer = 'CHARACTERISTIC_CURVES may not be used &
+              &without a SUBSURFACE_FLOW mode.'
+            call PrintErrMsg(option)
         end select
         characteristic_curves => CharacteristicCurvesCreate()
         call InputReadWord(input,option,characteristic_curves%name,PETSC_TRUE)

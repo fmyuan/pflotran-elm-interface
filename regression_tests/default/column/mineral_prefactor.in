@@ -196,7 +196,6 @@ MATERIAL_PROPERTY NW
     PERM_Y 0.64d-12
     PERM_Z 0.64d-12
   /
-  CHARACTERISTIC_CURVES default
 END
 
 MATERIAL_PROPERTY NE
@@ -208,7 +207,6 @@ MATERIAL_PROPERTY NE
     PERM_Y 1.75d-12
     PERM_Z 1.75d-12
   /
-  CHARACTERISTIC_CURVES default
 END
 
 MATERIAL_PROPERTY SW
@@ -220,7 +218,6 @@ MATERIAL_PROPERTY SW
     PERM_Y 0.75d-12
     PERM_Z 0.75d-12
   /
-  CHARACTERISTIC_CURVES default
 END
 
 MATERIAL_PROPERTY SE
@@ -232,13 +229,6 @@ MATERIAL_PROPERTY SE
     PERM_Y 0.85d-12
     PERM_Z 0.85d-12
   /
-  CHARACTERISTIC_CURVES default
-END
-
-
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  DEFAULT
 END
 
 #=========================== output options ===================================
