@@ -480,7 +480,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
             vec_ptr(local_id) = 0.d0
             do i = 1, 3
               vec_ptr(local_id) = vec_ptr(local_id) + &
-                              dabs(stress_p((local_id - 1)*SIX_INTEGER + i))
+                              stress_p((local_id - 1)*SIX_INTEGER + i)
             enddo
             vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
@@ -508,9 +508,9 @@ subroutine PMCGeomechanicsSetAuxData(this)
             vec_ptr(local_id) = 0.d0
             do i = 1, 3
               vec_ptr(local_id) = vec_ptr(local_id) + &
-                              dabs(strain_p((local_id - 1)*SIX_INTEGER + i))
+                              strain_p((local_id - 1)*SIX_INTEGER + i)
             enddo
-            vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
+            !vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
           call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
