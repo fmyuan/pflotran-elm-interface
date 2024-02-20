@@ -2316,7 +2316,11 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
                       gen_auxvar%pres(spid))
 
   ! calculate effective porosity as a function of pressure
-  if (.not.soluble_matrix) then !DF: turn off this capability with soluble 4dof until tested
+  if (soluble_matrix) then
+    if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
+      material_auxvar%porosity = gen_auxvar%effective_porosity
+    endif
+  else
     if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
       dpor_dp = 0.d0
       gen_auxvar%effective_porosity = material_auxvar%porosity_base
@@ -2350,10 +2354,6 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       if (option%iflag /= GENERAL_UPDATE_FOR_DERIVATIVE) then
         material_auxvar%porosity = gen_auxvar%effective_porosity
       endif
-    endif
-  else
-    if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      material_auxvar%porosity = gen_auxvar%effective_porosity
     endif
   endif
   if (associated(gen_auxvar%d)) then
