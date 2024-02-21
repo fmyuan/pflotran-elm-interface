@@ -915,7 +915,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
              dX_p(co2_frac_index) = - X_p(co2_frac_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
-          call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+          call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
           if (X_p(salt_index) < xsl ) THEN
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
@@ -951,7 +951,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
             dX_p(co2_pressure_index) = 0.d0
             dX_p2(co2_pressure_index) = 0.d0
           endif
-          call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+          call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
           xsl = min(X_p(salt_index),xsl)
           call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
                                          xsl,Psb)
@@ -1013,7 +1013,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               dX_p(gas_sat_index) = - X_p(gas_sat_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
-          call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+          call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
           if (X_p(salt_index) < xsl ) THEN
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
@@ -1080,7 +1080,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                  dX_p(gas_pressure_index)) - Pc_max) - X_p(liq_pressure_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
-          call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+          call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
           if (X_p(salt_index) < xsl ) THEN
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
@@ -1480,7 +1480,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               elseif (idof == TWO_INTEGER) then
 
               !---      CO2 mass equation, ignore residual for small aqueous-CO2
-                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
                 xsl = min(sco2_auxvar%m_salt(1),xsl)
                 call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat)
                 Pv = sco2_auxvar%pres(vpid)
@@ -1511,7 +1511,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               elseif (idof == THREE_INTEGER) then
 
               !---      Salt mass equation  ---
-                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
                 res_scaled = min(dabs(update)/xsl, &
                              dabs(residual / (accumulation + epsilon)))
                 res_scaled = 1.d-1 * res_scaled
@@ -1527,7 +1527,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
               if (idof == ONE_INTEGER) then
               !---      Water mass equation  ---
-                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
                 if (sco2_auxvar%m_salt(2) <= 0.d0) xsl = 0.d0
                 call SCO2BrineSaturationPressure(sco2_auxvar%temp,xsl,Psat)
 
@@ -1556,7 +1556,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               elseif (idof == THREE_INTEGER) then
               !---      Salt mass equation, isobrine option  ---
 
-                call SCO2ComputeSaltDensity(sco2_auxvar%temp, &
+                call SCO2SaltDensity(sco2_auxvar%temp, &
                                             sco2_auxvar%pres(gid), &
                                             den_salt)
                 res_scaled = min(dabs(update) / den_salt, &
@@ -1593,7 +1593,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
               elseif (idof == THREE_INTEGER) then
               !---      Salt mass equation  ---
-                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
                 res_scaled = min(dabs(update) / xsl, &
                              dabs(residual / (accumulation + epsilon)))
                 res_scaled = 1.d-1 * res_scaled
@@ -1635,7 +1635,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 endif
               elseif (idof == THREE_INTEGER) then
               !---      Salt mass equation  ---
-                call SCO2ComputeSaltSolubility(sco2_auxvar%temp,xsl)
+                call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
                 res_scaled = min(dabs(update) / xsl, &
                              dabs(residual / (accumulation + epsilon)))
                 res_scaled = 1.d-1 * res_scaled

@@ -191,12 +191,12 @@ module SCO2_Aux_module
             SCO2OutputAuxVars, &
             SCO2AuxVarDestroy, &
             SCO2AuxVarStrip, &
-            SCO2ComputeSaltSolubility, &
+            SCO2SaltSolubility, &
             SCO2BrineSaturationPressure, &
             SCO2VaporPressureBrine, &
             SCO2BrineDensity, &
             SCO2Henry, &
-            SCO2ComputeSaltDensity, &
+            SCO2SaltDensity, &
             SCO2Equilibrate
 
 
@@ -436,7 +436,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   vpid = option%vapor_pressure_id
   rvpid = option%reduced_vapor_pressure_id
 
-  call SCO2ComputeSaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
+  call SCO2SaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
   dxs = 1.0d-5 * xsl
   !MAN: need to make sure total salt mass is updated in AuxVarCompute
   salt_mass = sco2_auxvar(ZERO_INTEGER)%m_salt(ONE_INTEGER)
@@ -445,7 +445,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   dt = -1.d0 * perturbation_tolerance * (sco2_auxvar(ZERO_INTEGER)%temp + &
        min_perturbation)
 
-  call SCO2ComputeSurfaceTension(sco2_auxvar(ZERO_INTEGER)%temp, xsl, sigma)
+  call SCO2SurfaceTension(sco2_auxvar(ZERO_INTEGER)%temp, xsl, sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
   sgt_max = characteristic_curves%saturation_function%Sgt_max
@@ -675,7 +675,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
 
   if (sco2_auxvar%istatechng) return
 
-  call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
+  call SCO2SaltSolubility(sco2_auxvar%temp, salt_solubility)
   if (global_auxvar%istate == SCO2_GAS_STATE) then
     if (sco2_auxvar%m_salt(2) > epsilon) then
       xsl = salt_solubility
@@ -685,7 +685,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   else
     xsl = min(salt_solubility,sco2_auxvar%m_salt(1))
   endif
-  call SCO2ComputeSurfaceTension(sco2_auxvar%temp, &
+  call SCO2SurfaceTension(sco2_auxvar%temp, &
                                  xsl, sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
@@ -744,7 +744,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
           sl_temp = 1.d0 - min(sg_est, 1.d-1)
           sgt_temp = 0.d0
           !MAN: sco2_auxvar%sat(tgid) should be 0
-          call SCO2ComputePcHysteresis(characteristic_curves, &
+          call SCO2PcHysteresis(characteristic_curves, &
                                        sl_temp, &
                                        sco2_auxvar%sat(tgid), &
                                        beta_gl, Pc, option)
@@ -782,11 +782,11 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                                 (sco2_auxvar%den_kg(lid) * &
                                 sl_temp * &
                                 material_auxvar%porosity)
-        call SCO2ComputeSurfaceTension(sco2_auxvar%temp, &
+        call SCO2SurfaceTension(sco2_auxvar%temp, &
                                        xsl, sigma)
         beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
         sgt_temp = 0.d0
-        call SCO2ComputePcHysteresis(characteristic_curves, &
+        call SCO2PcHysteresis(characteristic_curves, &
                                      sco2_auxvar%sat(lid), &
                                      sco2_auxvar%sat(tgid), &
                                      beta_gl, Pc, option)
@@ -795,7 +795,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
       endif
 
     case(SCO2_TRAPPED_GAS_STATE)
-      call SCO2ComputeSurfaceTension(sco2_auxvar%temp, &
+      call SCO2SurfaceTension(sco2_auxvar%temp, &
                                      xsl, sigma)
       beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
       Slr = characteristic_curves%saturation_function%Sr
@@ -827,7 +827,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
               ((Sgt - sgt_max) > epsilon)) then
         ! Trapped gas saturation is increasing or exceeds max trapped gas sat
         sgt_temp = sco2_auxvar%sg_trapped
-        call SCO2ComputePcHysteresis(characteristic_curves, &
+        call SCO2PcHysteresis(characteristic_curves, &
                                 sco2_auxvar%sat(lid), Sgt_temp, &
                                 beta_gl, Pc, option)
         Pc = min(Pc,(Pc_entry / beta_gl) + 1.d5)
@@ -843,7 +843,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
     case(SCO2_LIQUID_GAS_STATE)
 
       ! Compute Saturation including Hysteresis
-      call SCO2ComputeSatHysteresis(characteristic_curves, &
+      call SCO2SatHysteresis(characteristic_curves, &
                                     sco2_auxvar%pres(cpid), &
                                     sco2_auxvar%sl_min, &
                                     beta_gl, sco2_auxvar%den_kg(lid), &
@@ -1115,7 +1115,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       ! Secondary Variables
 
       ! kg NaCl/kg liquid
-      call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
+      call SCO2SaltSolubility(sco2_auxvar%temp, salt_solubility)
       ! Dissolved salt mass fraction
       x_salt_dissolved = min(sco2_auxvar%m_salt(1),salt_solubility)
       call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
@@ -1188,17 +1188,17 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
       ! Secondary Variables
       ! kg NaCl/kg liquid
-      call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
+      call SCO2SaltSolubility(sco2_auxvar%temp, salt_solubility)
       if (sco2_auxvar%m_salt(2) > epsilon) then
         x_salt_dissolved = salt_solubility
       else
         x_salt_dissolved = 0.d0
       endif
       sco2_auxvar%xmass(sid,lid) = x_salt_dissolved
-      call SCO2ComputeSurfaceTension(sco2_auxvar%temp, &
+      call SCO2SurfaceTension(sco2_auxvar%temp, &
                                      x_salt_dissolved, sigma)
       beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
-      call SCO2ComputePcHysteresis(characteristic_curves, &
+      call SCO2PcHysteresis(characteristic_curves, &
                                    sco2_auxvar%sat(lid), &
                                    sco2_auxvar%sat(tgid), &
                                    beta_gl,sco2_auxvar%pres(cpid), option)
@@ -1227,7 +1227,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            xco2g, xwg, xco2l, xsl, xwl, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
 
-      call SCO2ComputeSaltDensity(sco2_auxvar%temp, cell_pressure, &
+      call SCO2SaltDensity(sco2_auxvar%temp, cell_pressure, &
                                   sco2_auxvar%den_kg(pid))
 
       sco2_auxvar%sat(pid) = sco2_auxvar%m_salt(2) / &
@@ -1284,7 +1284,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       ! Trapped gas is disconnected
       sco2_auxvar%pres(cpid) = 0.d0
       ! kg NaCl/kg liquid
-      call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
+      call SCO2SaltSolubility(sco2_auxvar%temp, salt_solubility)
       ! Dissolved salt mass fraction
       x_salt_dissolved = min(sco2_auxvar%m_salt(1),salt_solubility)
       call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
@@ -1348,7 +1348,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%pres(cpid) = max(sco2_auxvar%pres(gid) - &
                                    sco2_auxvar%pres(lid), 0.d0)
       ! kg NaCl/kg liquid
-      call SCO2ComputeSaltSolubility(sco2_auxvar%temp, salt_solubility)
+      call SCO2SaltSolubility(sco2_auxvar%temp, salt_solubility)
       ! Dissolved salt mass fraction
       x_salt_dissolved = min(sco2_auxvar%m_salt(1),salt_solubility)
       call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
@@ -1461,12 +1461,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
   ! CO2-water surface tension
   ! MAN: doesn't do anything here right now
-  call SCO2ComputeSurfaceTension(sco2_auxvar%temp,sco2_auxvar%xmass(sid,lid), &
+  call SCO2SurfaceTension(sco2_auxvar%temp,sco2_auxvar%xmass(sid,lid), &
                                  sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
   if (global_auxvar%istate /= SCO2_GAS_STATE) then
-    call SCO2ComputeSatHysteresis(characteristic_curves, &
+    call SCO2SatHysteresis(characteristic_curves, &
                                     sco2_auxvar%pres(cpid), &
                                     sco2_auxvar%sl_min, &
                                     beta_gl, sco2_auxvar%den_kg(lid), &
@@ -1512,14 +1512,14 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                           sco2_auxvar%xmass(sid,lid), &
                           sco2_auxvar%visc(lid), &
                           sco2_parameter, option)
-  call SCO2ComputeEffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
+  call SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
 
   ! Precipitate salt
   sco2_auxvar%xmass(sid,pid) = 1.d0
   sco2_auxvar%xmol(sid,pid) = 1.d0
 
   ! Salt precipitate density and saturation
-  call SCO2ComputeSaltDensity(sco2_auxvar%temp, cell_pressure, &
+  call SCO2SaltDensity(sco2_auxvar%temp, cell_pressure, &
                               sco2_auxvar%den_kg(pid))
   if (global_auxvar%istate == SCO2_GAS_STATE .or. &
       sco2_auxvar%sat(lid) == 0.d0) then
@@ -2035,7 +2035,7 @@ end subroutine CubicRootsNickalls
 
 ! ************************************************************************** !
 
-subroutine SCO2ComputeSaltDensity(T,P,rho_s)
+subroutine SCO2SaltDensity(T,P,rho_s)
   !
   ! Computes NaCl density following Battistelli et al., 1997
   !
@@ -2051,11 +2051,11 @@ subroutine SCO2ComputeSaltDensity(T,P,rho_s)
 
   rho_s = 2.165d3 * exp(-1.2d-4 * T + 4.d-11 * P)
 
-end subroutine SCO2ComputeSaltDensity
+end subroutine SCO2SaltDensity
 
 ! ************************************************************************** !
 
-subroutine SCO2ComputeSurfaceTension(T,x_nacl,surface_tension)
+subroutine SCO2SurfaceTension(T,x_nacl,surface_tension)
   !
   ! Computes CO2-Water surface tension as a function of temperature
   ! and salt concentration following Abramzon and Gaukhberg, 1993.
@@ -2082,7 +2082,7 @@ subroutine SCO2ComputeSurfaceTension(T,x_nacl,surface_tension)
   ! MAN: turn off surface tension effects
   surface_tension = CO2_REFERENCE_SURFACE_TENSION
 
-end subroutine SCO2ComputeSurfaceTension
+end subroutine SCO2SurfaceTension
 
 ! ************************************************************************** !
 
@@ -3014,7 +3014,7 @@ end subroutine SCO2Tortuosity
 
 ! ************************************************************************** !
 
-subroutine SCO2ComputeSatHysteresis(characteristic_curves, Pc, Sl_min, &
+subroutine SCO2SatHysteresis(characteristic_curves, Pc, Sl_min, &
                                     beta_gl,rho_l, Sl, Sgt, option)
   !
   ! Compute saturation as a function of Pc including hysteretic effects.
@@ -3083,11 +3083,11 @@ subroutine SCO2ComputeSatHysteresis(characteristic_curves, Pc, Sl_min, &
 
   if (Sgt > Sgt_max) Sgt = Sgt_max
 
-end subroutine SCO2ComputeSatHysteresis
+end subroutine SCO2SatHysteresis
 
 ! ************************************************************************** !
 
-subroutine SCO2ComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
+subroutine SCO2PcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
                                    Pc, option)
   !
   ! Compute Pc as a function of saturation including trapped gas.
@@ -3127,11 +3127,11 @@ subroutine SCO2ComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
   end select
 
 
-end subroutine SCO2ComputePcHysteresis
+end subroutine SCO2PcHysteresis
 
 ! ************************************************************************** !
 
-subroutine SCO2ComputeEffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
+subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
   !
   ! Compute effective diffusion coefficients
   !
@@ -3197,7 +3197,7 @@ subroutine SCO2ComputeEffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
   sco2_auxvar%effective_diffusion_coeff(co2_id,gid) = &
                                sco2_auxvar%effective_diffusion_coeff(wid,gid)
 
-end subroutine SCO2ComputeEffectiveDiffusion
+end subroutine SCO2EffectiveDiffusion
 
 ! ************************************************************************** !
 
@@ -3234,7 +3234,7 @@ end subroutine SCO2SaltEnthalpy
 
 ! ************************************************************************** !
 
-subroutine SCO2ComputeSaltSolubility(T, x_salt)
+subroutine SCO2SaltSolubility(T, x_salt)
   !
   ! Computes solubility of NaCl in water. McKibbin and McNabb, 1993.
   !
@@ -3251,7 +3251,7 @@ subroutine SCO2ComputeSaltSolubility(T, x_salt)
 
   x_salt = coeff(1) + coeff(2) * T + coeff(3) * T ** 2
 
-end subroutine SCO2ComputeSaltSolubility
+end subroutine SCO2SaltSolubility
 
 ! ************************************************************************** !
 
