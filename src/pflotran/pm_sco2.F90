@@ -1209,12 +1209,12 @@ subroutine PMSCO2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   patch => this%realization%patch
   global_auxvars => patch%aux%Global%auxvars
 
-  allocate(converged_abs_update_flag(option%nflowdof,sco2_max_states))
-  allocate(converged_rel_update_flag(option%nflowdof,sco2_max_states))
-  allocate(converged_abs_update_cell(option%nflowdof,sco2_max_states))
-  allocate(converged_rel_update_cell(option%nflowdof,sco2_max_states))
-  allocate(converged_abs_update_real(option%nflowdof,sco2_max_states))
-  allocate(converged_rel_update_real(option%nflowdof,sco2_max_states))
+  allocate(converged_abs_update_flag(MAX_DOF,sco2_max_states))
+  allocate(converged_rel_update_flag(MAX_DOF,sco2_max_states))
+  allocate(converged_abs_update_cell(MAX_DOF,sco2_max_states))
+  allocate(converged_rel_update_cell(MAX_DOF,sco2_max_states))
+  allocate(converged_abs_update_real(MAX_DOF,sco2_max_states))
+  allocate(converged_rel_update_real(MAX_DOF,sco2_max_states))
 
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
@@ -1362,17 +1362,17 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   global_auxvars => patch%aux%Global%auxvars
   sco2_auxvars => this%realization%patch%aux%SCO2%auxvars
 
-  allocate(flags(MAX_INDEX*option%nflowdof*sco2_max_states))
-  ! allocate(flags(MAX_INDEX*option%nflowdof*sco2_max_states+1))
+  allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states))
+  ! allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states+1))
   allocate(state_string(sco2_max_states))
-  allocate(dof_string(option%nflowdof,sco2_max_states))
+  allocate(dof_string(MAX_DOF,sco2_max_states))
 
-  allocate(converged_abs_residual_flag(option%nflowdof,sco2_max_states))
-  allocate(converged_abs_residual_real(option%nflowdof,sco2_max_states))
-  allocate(converged_abs_residual_cell(option%nflowdof,sco2_max_states))
-  allocate(converged_scaled_residual_flag(option%nflowdof,sco2_max_states))
-  allocate(converged_scaled_residual_real(option%nflowdof,sco2_max_states))
-  allocate(converged_scaled_residual_cell(option%nflowdof,sco2_max_states))
+  allocate(converged_abs_residual_flag(MAX_DOF,sco2_max_states))
+  allocate(converged_abs_residual_real(MAX_DOF,sco2_max_states))
+  allocate(converged_abs_residual_cell(MAX_DOF,sco2_max_states))
+  allocate(converged_scaled_residual_flag(MAX_DOF,sco2_max_states))
+  allocate(converged_scaled_residual_real(MAX_DOF,sco2_max_states))
+  allocate(converged_scaled_residual_cell(MAX_DOF,sco2_max_states))
 
   lid = option%liquid_phase
   gid = option%gas_phase

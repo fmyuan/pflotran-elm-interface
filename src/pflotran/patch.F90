@@ -4542,7 +4542,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
     coupler%flow_aux_mapping(SCO2_TWO_PHASE_GAS_PRES_DOF) = 2
     coupler%flow_aux_mapping(SCO2_GAS_SATURATION_DOF) = 2
     coupler%flow_aux_mapping(SCO2_GAS_FLUX_INDEX) = 2
-    ! salt mass is 4th 
+    ! salt mass is 3rd
     coupler%flow_aux_mapping(SCO2_SALT_MASS_FRAC_DOF) = 3
     ! temperature is set to 4th dof index
     ! energy flux is set to 4th dof index

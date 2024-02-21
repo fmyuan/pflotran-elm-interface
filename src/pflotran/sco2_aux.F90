@@ -1544,62 +1544,64 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   sco2_auxvar%mobility(lid) = sco2_auxvar%kr(lid) / sco2_auxvar%visc(lid)
   sco2_auxvar%mobility(gid) = sco2_auxvar%kr(gid) / sco2_auxvar%visc(gid)
 
-  ! Energy calculations
+  if (.not. sco2_isothermal) then
+    ! Energy calculations
 
-  ! Brine enthalpy
-  aux(1) = sco2_auxvar%xmass(sid,lid)
-  call EOSWaterEnthalpyExt(sco2_auxvar%temp,cell_pressure, &
-                           aux,sco2_auxvar%H(pwid),ierr)
-  ! CO2 density, internal energy, enthalpy
-  call EOSGasDensityEnergy(sco2_auxvar%temp,sco2_auxvar% &
-                           pres(co2_pressure_id),den_co2, &
-                           sco2_auxvar%H(pgid),sco2_auxvar%U(pgid),ierr)
-  ! Liquid phase enthalpy
-  sco2_auxvar%H(lid) = SCO2EnthalpyCompositeLiquid(sco2_auxvar%temp, &
-                                   sco2_auxvar%xmass(sid,lid), &
-                                   sco2_auxvar%xmass(co2_id,lid), &
-                                   sco2_auxvar%H(pwid), sco2_auxvar%H(pgid))
+    ! Brine enthalpy
+    aux(1) = sco2_auxvar%xmass(sid,lid)
+    call EOSWaterEnthalpyExt(sco2_auxvar%temp,cell_pressure, &
+                             aux,sco2_auxvar%H(pwid),ierr)
+    ! CO2 density, internal energy, enthalpy
+    call EOSGasDensityEnergy(sco2_auxvar%temp,sco2_auxvar% &
+                             pres(co2_pressure_id),den_co2, &
+                             sco2_auxvar%H(pgid),sco2_auxvar%U(pgid),ierr)
+    ! Liquid phase enthalpy
+    sco2_auxvar%H(lid) = SCO2EnthalpyCompositeLiquid(sco2_auxvar%temp, &
+                                     sco2_auxvar%xmass(sid,lid), &
+                                     sco2_auxvar%xmass(co2_id,lid), &
+                                     sco2_auxvar%H(pwid), sco2_auxvar%H(pgid))
 
-  sco2_auxvar%H(pwid) = sco2_auxvar%H(pwid) * 1.d-6 ! J/kg -> MJ/kg
-  sco2_auxvar%H(lid) = sco2_auxvar%H(lid) * 1.d-6 ! J/kg -> MJ/kg
-  ! MJ/kg comp
-  sco2_auxvar%U(lid) = (sco2_auxvar%H(lid) - &
-                        ! Pa / kg/m^3 * 1.e-6 = MJ/kg
-                        (cell_pressure / sco2_auxvar%den_kg(lid) * &
-                        1.d-6))
-  sco2_auxvar%U(pwid) = (sco2_auxvar%H(pwid) - &
-                        ! Pa / kg/m^3 * 1.e-6 = MJ/kg
-                        (cell_pressure / sco2_auxvar%den_kg(pwid) * &
-                        1.d-6))
+    sco2_auxvar%H(pwid) = sco2_auxvar%H(pwid) * 1.d-6 ! J/kg -> MJ/kg
+    sco2_auxvar%H(lid) = sco2_auxvar%H(lid) * 1.d-6 ! J/kg -> MJ/kg
+    ! MJ/kg comp
+    sco2_auxvar%U(lid) = (sco2_auxvar%H(lid) - &
+                          ! Pa / kg/m^3 * 1.e-6 = MJ/kg
+                          (cell_pressure / sco2_auxvar%den_kg(lid) * &
+                          1.d-6))
+    sco2_auxvar%U(pwid) = (sco2_auxvar%H(pwid) - &
+                          ! Pa / kg/m^3 * 1.e-6 = MJ/kg
+                          (cell_pressure / sco2_auxvar%den_kg(pwid) * &
+                          1.d-6))
 
-  sco2_auxvar%H(pgid) = sco2_auxvar%H(pgid) / fmw_comp(co2_id) * 1.d-6 ! MJ/kg
-  sco2_auxvar%U(pgid) = sco2_auxvar%U(pgid) / fmw_comp(co2_id) * 1.d-6 ! MJ/kg
-  if (sco2_auxvar%pres(rvpid) > 0.d0) then
-    call EOSWaterSteamDensityEnthalpy(sco2_auxvar%temp, &
-                                    sco2_auxvar%pres(rvpid), &
-                                    den_steam_kg, &
-                                    den_steam, &
-                                    H_steam,ierr)
-  else
-    den_steam = 0.d0
-    H_steam = 0.d0
+    sco2_auxvar%H(pgid) = sco2_auxvar%H(pgid) / fmw_comp(co2_id) * 1.d-6 ! MJ/kg
+    sco2_auxvar%U(pgid) = sco2_auxvar%U(pgid) / fmw_comp(co2_id) * 1.d-6 ! MJ/kg
+    if (sco2_auxvar%pres(rvpid) > 0.d0) then
+      call EOSWaterSteamDensityEnthalpy(sco2_auxvar%temp, &
+                                      sco2_auxvar%pres(rvpid), &
+                                      den_steam_kg, &
+                                      den_steam, &
+                                      H_steam,ierr)
+    else
+      den_steam = 0.d0
+      H_steam = 0.d0
+    endif
+    ! J/kmol -> MJ/kg
+    H_steam = H_steam / fmw_comp(wid) * 1.d-6                                  
+    U_steam = H_steam - sco2_auxvar%pres(vpid) / den_steam_kg
+
+    ! Gas phase enthalpy
+    sco2_auxvar%H(gid) = sco2_auxvar%xmass(wid,gid) * H_steam + &
+                         sco2_auxvar%xmass(co2_id,gid) * sco2_auxvar%H(pgid)
+    sco2_auxvar%U(gid) = sco2_auxvar%H(gid) - &
+                         ! Pa / kg/m^3 * 1.e-6 = MJ/kg
+                         sco2_auxvar%pres(gid) / sco2_auxvar%den_kg(gid) * 1.d-6
+
+    ! Precipitate phase enthalpy
+    call SCO2SaltEnthalpy(sco2_auxvar%temp,sco2_auxvar%H(pid))
+    ! MJ/kg
+    sco2_auxvar%H(pid) = sco2_auxvar%H(pid) * 1.d-6
+    sco2_auxvar%U(pid) = sco2_auxvar%H(pid)
   endif
-  ! J/kmol -> MJ/kg
-  H_steam = H_steam / fmw_comp(wid) * 1.d-6                                  
-  U_steam = H_steam - sco2_auxvar%pres(vpid) / den_steam_kg
-
-  ! Gas phase enthalpy
-  sco2_auxvar%H(gid) = sco2_auxvar%xmass(wid,gid) * H_steam + &
-                       sco2_auxvar%xmass(co2_id,gid) * sco2_auxvar%H(pgid)
-  sco2_auxvar%U(gid) = sco2_auxvar%H(gid) - &
-                       ! Pa / kg/m^3 * 1.e-6 = MJ/kg
-                       sco2_auxvar%pres(gid) / sco2_auxvar%den_kg(gid) * 1.d-6
-
-  ! Precipitate phase enthalpy
-  call SCO2SaltEnthalpy(sco2_auxvar%temp,sco2_auxvar%H(pid))
-  ! MJ/kg
-  sco2_auxvar%H(pid) = sco2_auxvar%H(pid) * 1.d-6
-  sco2_auxvar%U(pid) = sco2_auxvar%H(pid)
 
 end subroutine SCO2AuxVarCompute
 
