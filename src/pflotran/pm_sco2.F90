@@ -19,12 +19,12 @@ module PM_SCO2_class
   PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 4
   PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
   PetscInt, parameter :: sco2_max_states = 4
-  PetscInt, parameter :: max_change_index = 6 ! & with energy (temperature)
+  PetscInt, parameter :: max_change_index = 6
 
   ! DOF's: water mass, CO2 mass, salt mass fraction
-  PetscInt, parameter :: MAX_DOF = 3
+  ! PetscInt, parameter :: MAX_DOF = 3
   ! DOF's: water mass, CO2 mass, salt mass fraction, energy
-  ! PetscInt, parameter :: MAX_DOF = 4
+  PetscInt, parameter :: MAX_DOF = 4
   ! States: Liquid, Gas, Trapped Gas, Liquid-Gas
   ! MAN: is this redundant? Already have MAX_STATE in aux
   PetscInt, parameter :: MAX_STATE = 4 ! 7
@@ -123,6 +123,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
                               LIQUID_MASS_FRACTION, LIQUID_SALT_MASS_FRAC, &
                               TEMPERATURE, LIQUID_SATURATION, GAS_SATURATION, &
                               PRECIPITATE_SATURATION, POROSITY
+  use SCO2_Aux_module, only : sco2_isothermal
 
   implicit none
 
@@ -130,93 +131,59 @@ subroutine PMSCO2SetFlowMode(pm,option)
   type(option_type) :: option
 
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
-  ! PetscReal, parameter :: temp_abs_inf_tol = 1.d-5 ! [C]
   PetscReal, parameter :: sat_abs_inf_tol = 1.d-5 ! [-]
   PetscReal, parameter :: xmass_abs_inf_tol = 1.d-5 ! [mass fraction]
+  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5 ! [C]
 
   PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
-  ! PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
   PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
   PetscReal, parameter :: xmass_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
 
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_water/sec
   PetscReal, parameter :: co2_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_co2/sec
-  ! PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7 !MW
   PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5 !1.d-7 !kg_salt/sec
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7 !MW
 
   !With Energy
-  ! PetscReal, parameter :: residual_abs_inf_tol(MAX_DOF) = &
-  !                            (/w_mass_abs_inf_tol, co2_mass_abs_inf_tol, &
-  !                              u_abs_inf_tol, s_mass_abs_inf_tol/)
-  !Without Energy
   PetscReal, parameter :: residual_abs_inf_tol(MAX_DOF) = &
                              (/w_mass_abs_inf_tol, co2_mass_abs_inf_tol, &
-                               s_mass_abs_inf_tol/)
+                               s_mass_abs_inf_tol, u_abs_inf_tol/)
+
   PetscReal, parameter :: residual_scaled_inf_tol(MAX_DOF) = 1.d-6
 
   ! With Energy
-  ! PetscReal, parameter :: abs_update_inf_tol(MAX_DOF,MAX_STATE) = &
-  !                         ! Liquid State: Pl, Xw_co2, T, X_salt
-  !                         reshape([pres_abs_inf_tol,xmass_abs_inf_tol, &
-  !                                  temp_abs_inf_tol,xmass_abs_inf_tol, &
-  !                         ! Gas: Pg, Pco2, T, X_salt
-  !                                  pres_abs_inf_tol,pres_abs_inf_tol, &
-  !                                  temp_abs_inf_tol,xmass_abs_inf_tol,&
-  !                         ! Trapped Gas: Pl, Sg, T, X_salt
-  !                                  pres_abs_inf_tol,sat_abs_inf_tol, &
-  !                                  temp_abs_inf_tol,xmass_abs_inf_tol, &
-  !                         ! Liquid-Gas State: Pl, Pg, T, X_salt
-  !                                  pres_abs_inf_tol,pres_abs_inf_tol, &
-  !                                  temp_abs_inf_tol,xmass_abs_inf_tol], &
-  !                                  shape(abs_update_inf_tol)) * &
-  !                                  1.d0
-  ! PetscReal, parameter :: rel_update_inf_tol(MAX_DOF,MAX_STATE) = &
-  !                         ! Liquid State: Pl, Xw_co2, T, X_salt
-  !                         reshape([pres_rel_inf_tol,xmass_rel_inf_tol, &
-  !                                  temp_rel_inf_tol,xmass_rel_inf_tol,&
-  !                         ! Gas State: Pg, Pco2, T, X_salt
-  !                                  pres_rel_inf_tol,pres_rel_inf_tol, &
-  !                                  temp_rel_inf_tol,xmass_rel_inf_tol,&
-  !                         ! Trapped Gas State: Pl, Sg, T, X_salt
-  !                                  pres_rel_inf_tol,sat_rel_inf_tol, &
-  !                                  temp_rel_inf_tol,xmass_rel_inf_tol, &
-  !                         ! Liquid-Gas State: Pl, Pg, T, X_salt
-  !                                  pres_rel_inf_tol,pres_rel_inf_tol, &
-  !                                  temp_rel_inf_tol,xmass_rel_inf_tol],&
-  !                                  shape(rel_update_inf_tol)) * &
-  !                                  1.d0
-
-  !Without Energy
   PetscReal, parameter :: abs_update_inf_tol(MAX_DOF,MAX_STATE) = &
-                          ! Liquid State: Pl, Xw_co2, T, X_salt
+                          ! Liquid State: Pl, Xw_co2, X_salt, T
                           reshape([pres_abs_inf_tol,xmass_abs_inf_tol, &
-                                   xmass_abs_inf_tol, &
-                          ! Gas: Pg, Pco2, T, X_salt
+                                   xmass_abs_inf_tol,temp_abs_inf_tol, &
+                          ! Gas: Pg, Pco2, X_salt, T
                                    pres_abs_inf_tol,pres_abs_inf_tol, &
-                                   xmass_abs_inf_tol,&
-                          ! Trapped Gas: Pl, Sg, T, X_salt
+                                   xmass_abs_inf_tol,temp_abs_inf_tol,&
+                          ! Trapped Gas: Pl, Sg, X_salt, T
                                    pres_abs_inf_tol,sat_abs_inf_tol, &
-                                   xmass_abs_inf_tol, &
-                          ! Liquid-Gas State: Pl, Pg, T, X_salt
+                                   xmass_abs_inf_tol,temp_abs_inf_tol, &
+                          ! Liquid-Gas State: Pl, Pg, X_salt, T
                                    pres_abs_inf_tol,pres_abs_inf_tol, &
-                                   xmass_abs_inf_tol], &
+                                   xmass_abs_inf_tol,temp_abs_inf_tol], &
                                    shape(abs_update_inf_tol)) * &
                                    1.d0
   PetscReal, parameter :: rel_update_inf_tol(MAX_DOF,MAX_STATE) = &
-                          ! Liquid State: Pl, Xw_co2, T, X_salt
+                          ! Liquid State: Pl, Xw_co2, X_salt, T
                           reshape([pres_rel_inf_tol,xmass_rel_inf_tol, &
-                                   xmass_rel_inf_tol,&
-                          ! Gas State: Pg, Pco2, T, X_salt
+                                   xmass_rel_inf_tol,temp_rel_inf_tol,&
+                          ! Gas State: Pg, Pco2, X_salt, T
                                    pres_rel_inf_tol,pres_rel_inf_tol, &
-                                   xmass_rel_inf_tol,&
-                          ! Trapped Gas State: Pl, Sg, T, X_salt
+                                   xmass_rel_inf_tol,temp_rel_inf_tol,&
+                          ! Trapped Gas State: Pl, Sg, X_salt, T 
                                    pres_rel_inf_tol,sat_rel_inf_tol, &
-                                   xmass_rel_inf_tol, &
-                          ! Liquid-Gas State: Pl, Pg, T, X_salt
+                                   xmass_rel_inf_tol,temp_rel_inf_tol, &
+                          ! Liquid-Gas State: Pl, Pg, X_salt, T
                                    pres_rel_inf_tol,pres_rel_inf_tol, &
-                                   xmass_rel_inf_tol],&
+                                   xmass_rel_inf_tol,temp_rel_inf_tol],&
                                    shape(rel_update_inf_tol)) * &
                                    1.d0
+
 
   option%iflowmode = SCO2_MODE
 
@@ -238,28 +205,28 @@ subroutine PMSCO2SetFlowMode(pm,option)
 
   option%trapped_gas_phase = 4
 
-  ! Water balance, CO2 balance, Salt balance
-  option%nflowdof = 3
-  ! Water balance, CO2 balance, Salt balance, Energy balance
-  ! option%nflowdof = 4
+  ! Water, CO2, Salt, Energy
+  if (sco2_isothermal) then
+    option%nflowdof = 3
+  else
+    option%nflowdof = 4
+  endif
+
   ! Components: water, co2, salt
   option%nflowspec = 3
   option%water_id = 1
   option%co2_id = 2
   option%air_id = 2
   option%salt_id = 3
-  ! option%eid = 3
+  option%energy_id = 4
 
 
-
-  allocate(pm%max_change_ivar(7))
+  allocate(pm%max_change_ivar(6))
   ! MAN: need to check this
   allocate(pm%max_change_isubvar(6))
-  pm%max_change_isubvar = [0,0,0,2,0,0]
+  pm%max_change_isubvar = [0,0,0,3,0,0]
   pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, CO2_PRESSURE, &
-                                LIQUID_MASS_FRACTION, LIQUID_SALT_MASS_FRAC, &
-                                GAS_SATURATION]
-                                ! TEMPERATURE, GAS_SATURATION]
+                        LIQUID_MASS_FRACTION, GAS_SATURATION,TEMPERATURE]
   pm%damping_factor = -1.d0
 
   pm%residual_abs_inf_tol = residual_abs_inf_tol
@@ -340,6 +307,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
       case('TEMPERATURE')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
+        sco2_isothermal = PETSC_TRUE
         sco2_isothermal_temperature = tempreal
       case default
         call InputKeywordUnrecognized(input,keyword,'SCO2 Mode',option)
@@ -426,9 +394,9 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
     case('GAS_RESIDUAL_ABS_INF_TOL')
       call InputReadDouble(input,option,this%residual_abs_inf_tol(gid))
       call InputErrorMsg(input,option,keyword,error_string)
-    ! case('ENERGY_RESIDUAL_ABS_INF_TOL')
-    !   call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
-    !   call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
+      call InputErrorMsg(input,option,keyword,error_string)
     case('SALT_RESIDUAL_ABS_INF_TOL')
       call InputReadDouble(input,option,this%residual_abs_inf_tol(sid))
       call InputErrorMsg(input,option,keyword,error_string)
@@ -450,9 +418,9 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
     case('SALT_RESIDUAL_SCALED_INF_TOL')
       call InputReadDouble(input,option,this%residual_scaled_inf_tol(sid))
       call InputErrorMsg(input,option,keyword,error_string)
-    ! case('ENERGY_RESIDUAL_SCALED_INF_TOL')
-    !   call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
-    !   call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+      call InputErrorMsg(input,option,keyword,error_string)
 
     ! All Updates
     case('UPDATE_INF_TOL')
@@ -463,10 +431,10 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
 
     ! Update Map:
     !  State   Primary1 Primary2 Primary3 Primary4
-    !    L        Pl     Xw_CO2      T     X_salt
-    !    G        Pg     Pco2        T     X_salt
-    !    TG       Pl     Sg          T     X_salt
-    !    LG       Pg     Pl          T     X_salt
+    !    L        Pl     Xw_CO2   X_salt     T
+    !    G        Pg     Pco2     M_salt     T
+    !    TG       Pl     Sg       X_salt     T
+    !    LG       Pg     Pl       X_salt     T
 
 
     ! Absolute Updates
@@ -480,10 +448,10 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
       this%abs_update_inf_tol(1,:) = tempreal
       this%abs_update_inf_tol(2,2) = tempreal
       this%abs_update_inf_tol(2,4) = tempreal
-    ! case('TEMP_ABS_UPDATE_INF_TOL')
-    !   call InputReadDouble(input,option,tempreal)
-    !   call InputErrorMsg(input,option,keyword,error_string)
-    !   this%abs_update_inf_tol(3,:) = tempreal
+    case('TEMP_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(4,:) = tempreal
     case('SAT_ABS_UPDATE_INF_TOL')
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -511,10 +479,10 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
       this%rel_update_inf_tol(1,:) = tempreal
       this%rel_update_inf_tol(2,2) = tempreal
       this%rel_update_inf_tol(2,4) = tempreal
-    ! case('TEMP_REL_UPDATE_INF_TOL')
-    !   call InputReadDouble(input,option,tempreal)
-    !   call InputErrorMsg(input,option,keyword,error_string)
-    !   this%rel_update_inf_tol(3,:) = tempreal
+    case('TEMP_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(4,:) = tempreal
     case('SAT_REL_UPDATE_INF_TOL')
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -698,8 +666,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
 
   PetscReal :: fac
   PetscInt :: ifac
-  PetscReal :: up, ux, us, um, umin
-  ! PetscReal :: ut
+  PetscReal :: up, ux, us, um, ut, umin
   PetscReal :: dtt
   PetscReal :: governed_dt
   PetscReal :: umin_scale
@@ -719,12 +686,11 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
       umin = 0.d0
     else
       up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-      ! ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+      ut = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
       ux = this%xmol_change_governor/(this%max_xmol_change+1.d-5)
       us = this%saturation_change_governor/(this%max_saturation_change+1.d-5)
       um = this%salt_mass_change_governor/(this%max_salt_mass_change+1.d-5)
-      umin = min(up,ux,us)
-      ! umin = min(up,ut,ux,us)
+      umin = min(up,ut,ux,us)
     endif
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
@@ -746,10 +712,10 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
         string = 'Pressure'
         value = this%max_pressure_change
         governor_value = this%pressure_change_governor
-      ! else if (ut < umin) then
-      !   string = 'Temperature'
-      !   value = this%max_temperature_change
-      !   governor_value = this%temperature_change_governor
+      else if (ut < umin) then
+        string = 'Temperature'
+        value = this%max_temperature_change
+        governor_value = this%temperature_change_governor
       else if (ux < umin) then
         string = 'CO2 Mass Fraction'
         value = this%max_xmol_change
@@ -884,7 +850,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   class(characteristic_curves_type), pointer :: characteristic_curves
   PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
   PetscInt :: liq_pressure_index, gas_pressure_index, co2_frac_index, &
-              gas_sat_index, co2_pressure_index, salt_index
+              gas_sat_index, co2_pressure_index, salt_index, temperature_index
   PetscInt :: local_id, ghosted_id, offset
   PetscInt :: lid
   PetscReal :: dP, dsg, Pc_max, Psb, Pvb, rho_b, Pc, Pc_entry
@@ -926,6 +892,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       co2_frac_index = offset + TWO_INTEGER
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
+      !MAN: need to decide how to truncate temperature updates.
+      if (.not. sco2_isothermal) temperature_index = offset + FOUR_INTEGER
 
       select case(global_auxvars(ghosted_id)%istate)
 
@@ -1156,15 +1124,18 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
       end select
 
-      if (sco2_auxvar%temp + 273.15 >= H2O_CRITICAL_TEMPERATURE) then
-        option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
-         &greater than (or equal to) the critical temperature of water.'
-        call PrintErrMsg(option)
-      endif
-      if (sco2_auxvar%temp <= 0.d0 ) then
-        option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
-         &less than (or equal to) the freezing temperature of water.'
-        call PrintErrMsg(option)
+      if (.not. sco2_isothermal) then
+        if ((X_p(temperature_index) + dX_p(temperature_index)) + 273.15 >= &
+           H2O_CRITICAL_TEMPERATURE) then
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
+           &greater than (or equal to) the critical temperature of water.'
+          call PrintErrMsg(option)
+        endif
+        if ((X_p(temperature_index) + dX_p(temperature_index)) <= 0.d0) then
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
+           &less than (or equal to) the freezing temperature of water.'
+          call PrintErrMsg(option)
+        endif
       endif
     enddo
 
@@ -1411,28 +1382,28 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   state_string = &
     ['Liquid State        ','Gas State           ', &
      'Trapped Gas State   ','Liquid-Gas State    ']
-     !Without Energy
-     dof_string = &
-     reshape(['Liquid Pressure  ','CO2 Fraction     ', &
-              'Salt Mass Frac   ', &
-	      'Gas Pressure     ','CO2 Partial Pres ', &
-              'Salt Mass Frac   ', &
-              'Gas Pressure     ','Gas Saturation   ', &
-              'Salt Mass Frac   ', &
-              'Gas Pressure     ','Liquid Pressure  ', &
-              'Salt Mass Frac   '], &
-             shape(dof_string))
+  !    !Without Energy
+  !    dof_string = &
+  !    reshape(['Liquid Pressure  ','CO2 Fraction     ', &
+  !             'Salt Mass Frac   ', &
+	!       'Gas Pressure     ','CO2 Partial Pres ', &
+  !             'Salt Mass Frac   ', &
+  !             'Gas Pressure     ','Gas Saturation   ', &
+  !             'Salt Mass Frac   ', &
+  !             'Gas Pressure     ','Liquid Pressure  ', &
+  !             'Salt Mass Frac   '], &
+  !            shape(dof_string))
   ! With Energy
-  ! dof_string = &
-  !   reshape(['Liquid Pressure  ','CO2 Fraction     ','Temperature      ', &
-  !            'Salt Mass Frac   ', &
-  !            'Gas Pressure     ','CO2 Partial Pres ','Temperature      ', &
-  !            'Salt Mass Frac   ', &
-  !            'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
-  !            'Salt Mass Frac   ', &
-  !            'Gas Pressure     ','Liquid Pressure  ','Temperature      ', &
-  !            'Salt Mass Frac   '], &
-  !           shape(dof_string))
+  dof_string = &
+    reshape(['Liquid Pressure  ','CO2 Fraction     ', &
+             'Salt Mass Frac   ', 'Temperature      ', &
+             'Gas Pressure     ','CO2 Partial Pres ', &
+             'Salt Mass Frac   ', 'Temperature      ', &
+             'Gas Pressure     ','Gas Saturation   ', &
+             'Salt Mass Frac   ', 'Temperature      ', &
+             'Gas Pressure     ','Liquid Pressure  ', &
+             'Salt Mass Frac   ','Temperature      '], &
+            shape(dof_string))
 
   call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
@@ -1466,7 +1437,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         do idof = 1, option%nflowdof
           res_scaled = 0.d0
           ival = offset+idof
-          !converged_absolute = PETSC_TRUE
           converged_absolute = PETSC_FALSE
           converged_scaled = PETSC_TRUE
 
@@ -1475,6 +1445,19 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           update = dX_p(ival)
 
           ! STOMP convergence criteria
+          if (idof == FOUR_INTEGER) then
+            res_scaled = 1.d-1 * min(dabs(update) / &
+                         (sco2_auxvar%temp + 237.15d0), &
+                         dabs(residual/(accumulation + epsilon)))
+            ! find max value regardless of convergence
+            if (converged_scaled_residual_real(idof,istate) < &
+                res_scaled) then
+              converged_scaled_residual_real(idof,istate) = res_scaled
+              converged_scaled_residual_cell(idof,istate) = natural_id
+            endif
+
+          else
+
           select case (istate)
             case(SCO2_LIQUID_STATE)
 
@@ -1660,6 +1643,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
           end select
 
+          endif
+
           if (res_scaled > this%residual_scaled_inf_tol(idof)) then
             converged_scaled = PETSC_FALSE
           endif
@@ -1738,25 +1723,25 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
                                        converged_scaled_residual_cell(:,:)
 
-    flags(1:option%nflowdof*sco2_max_states*MAX_INDEX) = &
-      reshape(this%converged_flag,(/option%nflowdof*sco2_max_states* &
+    flags(1:MAX_DOF*sco2_max_states*MAX_INDEX) = &
+      reshape(this%converged_flag,(/MAX_DOF*sco2_max_states* &
               MAX_INDEX/))
 
-    ! flags(option%nflowdof*sco2_max_states*MAX_INDEX+1) =&
+    ! flags(MAX_DOF*sco2_max_states*MAX_INDEX+1) =&
     !   .not.sco2_high_temp_ts_cut
 
-    mpi_int = option%nflowdof*sco2_max_states*MAX_INDEX+1
+    mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+1
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
 
-    this%converged_flag = reshape(flags(1:option%nflowdof*sco2_max_states* &
-                                  MAX_INDEX),(/option%nflowdof, &
+    this%converged_flag = reshape(flags(1:MAX_DOF*sco2_max_states* &
+                                  MAX_INDEX),(/MAX_DOF, &
                                   sco2_max_states,MAX_INDEX/))
 
-    ! sco2_high_temp_ts_cut = .not.flags(option%nflowdof*sco2_max_states* &
+    ! sco2_high_temp_ts_cut = .not.flags(MAX_DOF*sco2_max_states* &
     !                                    MAX_INDEX+1)
 
-    mpi_int = option%nflowdof*sco2_max_states*MAX_INDEX
+    mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
@@ -1776,16 +1761,12 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 elseif (idof == 2) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', CO2 Mass'
-                ! elseif (idof == 3) then
-                !   string = '   ' // trim(tol_string(itol)) // ', ' // &
-                !    trim(state_string(istate)) // ', Energy'
-                ! elseif (idof == 4) then
-                !   string = '   ' // trim(tol_string(itol)) // ', ' // &
-                !    trim(state_string(istate)) // ', Salt Mass Frac'
-                ! endif
                 elseif (idof == 3) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Salt Mass Frac'
+                elseif (idof == 4) then
+                  string = '   ' // trim(tol_string(itol)) // ', ' // &
+                   trim(state_string(istate)) // ', Energy'
                 endif
               else
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
@@ -1805,30 +1786,30 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       enddo
     enddo
 
-    if (option%flow%using_newtontrdc .and. &
-        sco2_state_changed .and. &
-        .not.rho_flag) then
-      if (sco2_newtontrdc_hold_inner) then
-        sco2_force_iteration = PETSC_TRUE
-        sco2_state_changed = PETSC_FALSE
-      else
-        sco2_force_iteration = PETSC_TRUE
-        sco2_state_changed = PETSC_FALSE
-      endif
-    endif
+    ! if (option%flow%using_newtontrdc .and. &
+    !     sco2_state_changed .and. &
+    !     .not.rho_flag) then
+    !   if (sco2_newtontrdc_hold_inner) then
+    !     sco2_force_iteration = PETSC_TRUE
+    !     sco2_state_changed = PETSC_FALSE
+    !   else
+    !     sco2_force_iteration = PETSC_TRUE
+    !     sco2_state_changed = PETSC_FALSE
+    !   endif
+    ! endif
 
-    call MPI_Allreduce(MPI_IN_PLACE,sco2_force_iteration,ONE_INTEGER, &
-                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
-    if (sco2_force_iteration) then
-      if (.not.sco2_newtontrdc_hold_inner) then
-        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
-        sco2_force_iteration = PETSC_FALSE
-      else if (sco2_newtontrdc_hold_inner .and. &
-               option%convergence == CONVERGENCE_CONVERGED) then
-        option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
-        sco2_force_iteration = PETSC_FALSE
-      endif
-    endif
+    ! call MPI_Allreduce(MPI_IN_PLACE,sco2_force_iteration,ONE_INTEGER, &
+    !                    MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+    ! if (sco2_force_iteration) then
+    !   if (.not.sco2_newtontrdc_hold_inner) then
+    !     option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+    !     sco2_force_iteration = PETSC_FALSE
+    !   else if (sco2_newtontrdc_hold_inner .and. &
+    !            option%convergence == CONVERGENCE_CONVERGED) then
+    !     option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
+    !     sco2_force_iteration = PETSC_FALSE
+    !   endif
+    ! endif
 
     if (this%logging_verbosity > 0 .and. it > 0 .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
@@ -2028,27 +2009,25 @@ subroutine PMSCO2MaxChange(this)
     & " dsg= ",1pe12.4)') &
       max_change_global(1:max_change_index)
   endif
-  ! if (OptionPrintToScreen(option)) then
-  !   write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-  !     & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4,&
-  !     & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
-  !     max_change_global(1:max_change_index)
-  ! endif
+  if (OptionPrintToScreen(option)) then
+    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+      & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4,&
+      & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
+      max_change_global(1:max_change_index)
+  endif
 
-  ! if (OptionPrintToFile(option)) then
-  !   write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4," dpg= ",1pe12.4,&
-  !   & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4, &
-  !   & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
-  !     max_change_global(1:max_change_index)
-  ! endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4," dpg= ",1pe12.4,&
+    & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4, &
+    & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
+      max_change_global(1:max_change_index)
+  endif
 
   ! MAN: check these
   this%max_pressure_change = maxval(max_change_global(1:3))
-  this%max_xmol_change = max_change_global(4)
-  this%max_salt_mass_change = max_change_global(5)
-  this%max_saturation_change = max_change_global(6)
-  ! this%max_temperature_change = max_change_global(6)
-  ! this%max_saturation_change = max_change_global(7)
+  this%max_salt_mass_change = max_change_global(4)
+  this%max_saturation_change = max_change_global(5)
+  this%max_temperature_change = max_change_global(6)
 
 end subroutine PMSCO2MaxChange
 

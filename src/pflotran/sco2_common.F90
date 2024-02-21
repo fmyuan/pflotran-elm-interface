@@ -77,24 +77,25 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
                               sco2_auxvar%m_salt(TWO_INTEGER) * &
                               volume_over_dt
 
-  ! do iphase = 1, option%nphase
-  !   ! Res[MJ/s] =    sat[m^3 phase/m^3 void] *
-  !   !                    den_kg[kg phase/m^3 phase] * U[MJ/kg phase] *
-  !   !                    por[m^3 void/m^3 bulk] *
-  !   !                    vol/dt[m^3 bulk/sec]
-  !   Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-  !                                     sco2_auxvar%sat(iphase) * &
-  !                                     sco2_auxvar%den_kg(iphase) * &
-  !                                     sco2_auxvar%U(iphase) * &
-  !                                     porosity * volume_over_dt
-  ! enddo
-  ! ! Add rock component
-  ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-  !                                   (1.d0 - porosity) * &
-  !                                   material_auxvar%soil_particle_density * &
-  !                                   soil_heat_capacity * sco2_auxvar%temp * &
-  !                                   volume_over_dt
-
+  if (.not. sco2_isothermal) then
+    do iphase = 1, option%nphase
+      ! Res[MJ/s] =    sat[m^3 phase/m^3 void] *
+      !                    den_kg[kg phase/m^3 phase] * U[MJ/kg phase] *
+      !                    por[m^3 void/m^3 bulk] *
+      !                    vol/dt[m^3 bulk/sec]
+      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                        sco2_auxvar%sat(iphase) * &
+                                        sco2_auxvar%den_kg(iphase) * &
+                                        sco2_auxvar%U(iphase) * &
+                                        porosity * volume_over_dt
+    enddo
+    ! Add rock component
+    Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                      (1.d0 - porosity) * &
+                                      material_auxvar%soil_particle_density * &
+                                      soil_heat_capacity * sco2_auxvar%temp * &
+                                      volume_over_dt
+  endif
 end subroutine SCO2Accumulation
 
 ! ************************************************************************** !
@@ -146,13 +147,13 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   PetscInt :: lid, gid, pid, tgid, wid, co2_id, sid
   PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure
-  ! PetscReal :: delta_temp
+  PetscReal :: delta_temp
   PetscReal :: uH
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: gravity_term
   PetscReal :: mobility, q
-  ! PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
-  ! PetscReal :: dkeff_up_dsatlup, dkeff_up_dTup, dkeff_dn_dsatldn, dkeff_dn_dTdn
+  PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
+  PetscReal :: dkeff_up_dsatlup, dkeff_up_dTup, dkeff_dn_dsatldn, dkeff_dn_dTdn
 
   PetscReal :: xmass(option%nflowspec)
   PetscReal :: tot_mass_flux, component_mass_flux, co2_mass_flux, &
@@ -160,10 +161,10 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
                water_mass_flux, salt_diff_flux
   PetscReal :: delta_xmass, delta_xmol, den_dn, den_up, density_ave
   PetscReal :: den_kg_up, den_kg_dn, density_kg_ave
-  ! PetscReal :: sat_dn, sat_up
+  PetscReal :: sat_dn, sat_up
   PetscReal :: stpd_ave_over_dist, stpd_up, stpd_dn
   PetscReal :: al, alp
-  ! PetscReal :: dheat_flux_ddelta_temp
+  PetscReal :: dheat_flux_ddelta_temp
   PetscReal :: dtot_mole_flux_ddeltaX
   PetscReal :: dsalt_mass_flux_ddeltaX
   PetscReal :: up_scale, dn_scale
@@ -270,9 +271,11 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
           Res(icomp) = Res(icomp) + component_mass_flux
 
         enddo
-        ! Energy flux
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-        !                                   tot_mass_flux * uH
+        if (.not. sco2_isothermal) then
+          ! Energy flux
+          Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                            tot_mass_flux * uH
+        endif
       endif
     endif
 
@@ -469,45 +472,47 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   ! Conduction
   ! MAN: Need to extend the thermal conductivity functionality to include
   !      salt
-  ! sat_up = sco2_auxvar_up%sat(lid)
-  ! sat_dn = sco2_auxvar_dn%sat(lid)
+  if (.not. sco2_isothermal) then
+    sat_up = sco2_auxvar_up%sat(lid)
+    sat_dn = sco2_auxvar_dn%sat(lid)
 
-  ! ! derive wet and dry conductivities with anisotropy tensor and direction
-  ! call thermal_cc_up%thermal_conductivity_function% &
-  !      TCondTensorToScalar(dist,option)
+    ! derive wet and dry conductivities with anisotropy tensor and direction
+    call thermal_cc_up%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
 
-  ! call thermal_cc_dn%thermal_conductivity_function% &
-  !      TCondTensorToScalar(dist,option)
+    call thermal_cc_dn%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
 
-  ! ! thermal conductivity a function of temperature and liquid saturation
-  ! call thermal_cc_up%thermal_conductivity_function%CalculateTCond(sat_up, &
-  !      sco2_auxvar_up%temp,sco2_auxvar_up%effective_porosity, &
-  !      k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
+    ! thermal conductivity a function of temperature and liquid saturation
+    call thermal_cc_up%thermal_conductivity_function%CalculateTCond(sat_up, &
+         sco2_auxvar_up%temp,sco2_auxvar_up%effective_porosity, &
+         k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
 
-  ! call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
-  !      sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
-  !      k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+    call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
+         sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
+         k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
-  ! if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
-  !   tempreal = k_eff_up*dist_dn + k_eff_dn*dist_up
-  !   k_eff_ave = k_eff_up*k_eff_dn/tempreal
-  ! else
-  !   k_eff_ave = 0.d0
-  ! endif
+    if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
+      tempreal = k_eff_up*dist_dn + k_eff_dn*dist_up
+      k_eff_ave = k_eff_up*k_eff_dn/tempreal
+    else
+      k_eff_ave = 0.d0
+    endif
 
-  ! ! units:
-  ! ! k_eff = W/K-m = J/s/K-m
-  ! ! delta_temp = K
-  ! ! area = m^2
-  ! ! heat_flux = k_eff * delta_temp * area = J/s
-  ! ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
+    ! units:
+    ! k_eff = W/K-m = J/s/K-m
+    ! delta_temp = K
+    ! area = m^2
+    ! heat_flux = k_eff * delta_temp * area = J/s
+    ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
 
-  ! delta_temp = sco2_auxvar_up%temp - sco2_auxvar_dn%temp
-  ! dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-  ! heat_flux = dheat_flux_ddelta_temp * delta_temp
+    delta_temp = sco2_auxvar_up%temp - sco2_auxvar_dn%temp
+    dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+    heat_flux = dheat_flux_ddelta_temp * delta_temp
 
-  ! MJ/s or MW
-  ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+    ! MJ/s or MW
+    Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+  endif
 
 end subroutine SCO2Flux
 
@@ -555,14 +560,14 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   PetscInt :: lid, gid, pid, tgid, wid, co2_id, sid
   PetscReal :: perm_dn
   PetscReal :: delta_pressure
-  ! PetscReal :: delta_temp
+  PetscReal :: delta_temp
   PetscReal :: uH
   PetscReal :: perm_dn_adj(option%nphase)
   PetscReal :: perm_ave_over_dist
   PetscReal :: gravity_term
   PetscReal :: mobility, q
   PetscReal :: kr, visc_mean
-  ! PetscReal :: k_eff_dn, k_eff_ave, heat_flux
+  PetscReal :: k_eff_dn, k_eff_ave, heat_flux
 
   PetscInt :: bc_type
   PetscReal :: boundary_pressure
@@ -575,8 +580,8 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   PetscBool :: upwind
   PetscReal :: delta_xmol, den_dn, den_up
   PetscReal :: delta_xmass, den_kg_dn, den_kg_up, density_kg_ave
-  ! PetscReal :: dheat_flux_ddelta_temp, dkeff_dn_dsatldn, &
-  !              dkeff_dn_dtdn
+  PetscReal :: dheat_flux_ddelta_temp, dkeff_dn_dsatldn, &
+               dkeff_dn_dtdn
   PetscReal :: al, alp
   PetscReal :: dsalt_mass_flux_ddeltax, &
                dtot_mole_flux_ddeltax, dv_darcy_ddelta_pressure
@@ -760,9 +765,11 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           component_mass_flux = tot_mass_flux * xmass(icomp)
           Res(icomp) = Res(icomp) + component_mass_flux
         enddo
-        ! Energy flux
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-        !                                   tot_mass_flux * uH
+        if (.not. sco2_isothermal) then
+          ! Energy flux
+          Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                          tot_mass_flux * uH
+        endif
       endif
     endif
 
@@ -885,49 +892,51 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   enddo
 
   ! Conduction
-  ! heat_flux = 0.d0
-  ! select case(ibndtype(SCO2_ENERGY_EQUATION_INDEX))
-  ! case(DIRICHLET_BC)
-  !   ! MAN: Need better thermal conductivity calculations, but right now
-  !   !      taking roughly a weighted average of salt conductivity and
-  !   !      pore/rock conductivity, assuming kgas ~ 0.
-  !   sat_dn = sco2_auxvar_dn%sat(lid)
+  if (.not. sco2_isothermal) then
+    heat_flux = 0.d0
+    select case(ibndtype(SCO2_ENERGY_EQUATION_INDEX))
+    case(DIRICHLET_BC)
+      ! MAN: Need better thermal conductivity calculations, but right now
+      !      taking roughly a weighted average of salt conductivity and
+      !      pore/rock conductivity, assuming kgas ~ 0.
+      sat_dn = sco2_auxvar_dn%sat(lid)
 
-  !   ! derive wet and dry conductivities with anisotropy tensor and direction
-  !   call thermal_cc_dn%thermal_conductivity_function% &
-  !        TCondTensorToScalar(dist,option)
-  !   call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
-  !          sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
-  !          k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+      ! derive wet and dry conductivities with anisotropy tensor and direction
+      call thermal_cc_dn%thermal_conductivity_function% &
+           TCondTensorToScalar(dist,option)
+      call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
+             sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
+             k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
 
-  !   if (k_eff_dn > 0.d0) then
-  !     k_eff_ave = k_eff_dn / dist(0)
-  !   else
-  !     k_eff_ave = 0.d0
-  !   endif
+      if (k_eff_dn > 0.d0) then
+        k_eff_ave = k_eff_dn / dist(0)
+      else
+        k_eff_ave = 0.d0
+      endif
 
-  !   ! units:
-  !   ! k_eff = W/K-m = J/s/K-m
-  !   ! delta_temp = K
-  !   ! area = m^2
-  !   ! heat_flux = k_eff * delta_temp * area = J/s
-  !   ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
+      ! units:
+      ! k_eff = W/K-m = J/s/K-m
+      ! delta_temp = K
+      ! area = m^2
+      ! heat_flux = k_eff * delta_temp * area = J/s
+      ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
 
-  !   delta_temp = sco2_auxvar_up%temp - sco2_auxvar_dn%temp
-  !   dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-  !   heat_flux = dheat_flux_ddelta_temp * delta_temp
-  ! case(NEUMANN_BC)
-  !   ! Heat flux in MW/m^2
-  !   heat_flux = auxvars(auxvar_mapping(SCO2_ENERGY_FLUX_INDEX)) * area
-  ! case default
-  !   option%io_buffer = 'Boundary condition type not recognized in ' // &
-  !       'SCO2BCFlux heat conduction loop.'
-  !     call PrintErrMsg(option)
-  ! end select
+      delta_temp = sco2_auxvar_up%temp - sco2_auxvar_dn%temp
+      dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+      heat_flux = dheat_flux_ddelta_temp * delta_temp
+    case(NEUMANN_BC)
+      ! Heat flux in MW/m^2
+      heat_flux = auxvars(auxvar_mapping(SCO2_ENERGY_FLUX_INDEX)) * area
+    case default
+      option%io_buffer = 'Boundary condition type not recognized in ' // &
+          'SCO2BCFlux heat conduction loop.'
+        call PrintErrMsg(option)
+    end select
 
-  ! ! MJ/s or MW
-  ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+    ! ! MJ/s or MW
+    Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+  endif
 
 end subroutine SCO2BCFlux
 
@@ -988,44 +997,44 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     select case(global_auxvar%istate)
       case(SCO2_LIQUID_STATE)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar%xmass(co2_id,lid)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar%m_salt(1)
       case(SCO2_GAS_STATE)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar%pres(co2_pressure_id)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar%m_salt(2)
       case(SCO2_TRAPPED_GAS_STATE)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar%sat(gid)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar%m_salt(1)
       case(SCO2_LIQUID_GAS_STATE)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar%pres(gid)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar%m_salt(1)
     end select
+    if (.not. sco2_isothermal) then
+      xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar%temp
+    endif
     global_auxvar_ss%istate = global_auxvar%istate
   else
     !Injection: use primary variables from user-supplied conditions
-    xxss(SCO2_WATER_EQUATION_INDEX) = maxval(sco2_auxvar_ss%pres(option% &
-                                             liquid_phase:option%gas_phase))
     select case(global_auxvar_ss%istate)
       case(SCO2_LIQUID_STATE)
+        xxss(SCO2_WATER_EQUATION_INDEX) = sco2_auxvar_ss%pres(lid)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar_ss%xmass(co2_id,lid)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar_ss%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar_ss%m_salt(1)
       case(SCO2_GAS_STATE)
+        xxss(SCO2_WATER_EQUATION_INDEX) = sco2_auxvar%pres(gid)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar_ss%pres(co2_pressure_id)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar_ss%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar_ss%m_salt(2)
       case(SCO2_TRAPPED_GAS_STATE)
+        xxss(SCO2_WATER_EQUATION_INDEX) = sco2_auxvar%pres(lid)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar_ss%sat(gid)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar_ss%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar_ss%m_salt(1)
       case(SCO2_LIQUID_GAS_STATE)
+        xxss(SCO2_WATER_EQUATION_INDEX) = sco2_auxvar%pres(lid)
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar_ss%pres(gid)
-        ! xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar_ss%temp
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar_ss%m_salt(1)
     end select
+    if (.not. sco2_isothermal) then
+      xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar_ss%temp
+    endif
   endif
 
   call SCO2AuxVarCompute(xxss,sco2_auxvar_ss, global_auxvar_ss, &
@@ -1044,15 +1053,19 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         Res(SCO2_WATER_EQUATION_INDEX) = qsrc(1) * sco2_auxvar%xmass(wid,lid)
         Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
                                        sco2_auxvar%xmass(co2_id,lid)
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(lid)
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%xmass(sid,lid)
+        if (.not. sco2_isothermal) then
+          Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(lid)
+        endif
       elseif (sco2_auxvar%sat(lid) <= 0.d0) then
-        ! kg/sec total to kmol/sec component
+        ! kg/sec total to kg/sec component
         Res(SCO2_WATER_EQUATION_INDEX) = qsrc(1) * sco2_auxvar%xmass(wid,gid)
         Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
                                        sco2_auxvar%xmass(co2_id,gid)
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(gid)
         Res(SCO2_SALT_EQUATION_INDEX) = 0.d0
+        if (.not. sco2_isothermal) then
+          Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(gid)
+        endif
       else
         ! Water component
         Res(SCO2_WATER_EQUATION_INDEX) = qsrc(1) * &
@@ -1067,55 +1080,69 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                                          sco2_auxvar%mobility(gid)/mob_tot * &
                                          sco2_auxvar%xmass(co2_id,gid))
 
-        ! Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * &
-        !                                  (sco2_auxvar%mobility(lid)/mob_tot * &
-        !                                   sco2_auxvar%H(lid) + &
-        !                                   sco2_auxvar%mobility(gid)/mob_tot * &
-        !                                   sco2_auxvar%H(gid))
         ! Salt component
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * &
                                          (sco2_auxvar%mobility(lid)/mob_tot * &
-                                          sco2_auxvar%xmass(sid,lid))
+                                          sco2_auxvar%xmass(sid,lid)) 
+        if (.not. sco2_isothermal) then
+          ! Energy                                  
+          Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * &
+                                         (sco2_auxvar%mobility(lid)/mob_tot * &
+                                          sco2_auxvar%H(lid) + &
+                                          sco2_auxvar%mobility(gid)/mob_tot * &
+                                          sco2_auxvar%H(gid))
+        endif
+        
       endif
 
     case(MASS_RATE_SS)
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid)
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id)
-      ! Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(wid) * &
-      !           sco2_auxvar_ss%U(lid) + qsrc(gid) * &
-      !           sco2_auxvar_ss%U(gid)
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid)
+      if (.not. sco2_isothermal) then
+        Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(wid) * &
+                  sco2_auxvar_ss%U(lid) + qsrc(gid) * &
+                  sco2_auxvar_ss%U(gid)
+      endif
     case(SCALED_MASS_RATE_SS)
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * scale
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * scale
-      ! Res(SCO2_ENERGY_EQUATION_INDEX) = scale * (qsrc(wid) * &
-      !           sco2_auxvar_ss%U(lid) + qsrc(gid) * &
-      !           sco2_auxvar_ss%U(gid))
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * scale
+      if (.not. sco2_isothermal) then
+        Res(SCO2_ENERGY_EQUATION_INDEX) = scale * (qsrc(wid) * &
+                  sco2_auxvar_ss%U(lid) + qsrc(gid) * &
+                  sco2_auxvar_ss%U(gid))
+      endif
     case(VOLUMETRIC_RATE_SS)
       ! This would have to be in m^3/sec phase
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * sco2_auxvar%den_kg(lid)
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * &
                                      sco2_auxvar%den_kg(gid)
-      ! Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
-      !            sco2_auxvar%den_kg(lid) * sco2_auxvar%U(lid) + qsrc(gid) * &
-      !            sco2_auxvar%den_kg(gid)) * sco2_auxvar%U(gid)
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG
+      if (.not. sco2_isothermal) then
+        Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
+                   sco2_auxvar%den_kg(lid) * sco2_auxvar%U(lid) + qsrc(gid) * &
+                   sco2_auxvar%den_kg(gid)) * sco2_auxvar%U(gid)
+      endif
     case(SCALED_VOLUMETRIC_RATE_SS)
       ! This would have to be in m^3/sec phase
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * sco2_auxvar%den_kg(lid) * &
                                        scale
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * &
                                      sco2_auxvar%den_kg(gid) * scale
-      ! Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
-      !            sco2_auxvar%U(lid) + qsrc(gid) * &
-      !            sco2_auxvar%U(gid)) * scale
+      
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG * &
                                       scale
+      if (.not. sco2_isothermal) then
+        Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
+                                        sco2_auxvar%U(lid) + qsrc(gid) * &
+                                        sco2_auxvar%U(gid)) * scale
+      endif
   end select
 
   ! If there's a heater
-  ! Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + qsrc(4)
+  if (.not. sco2_isothermal) Res(SCO2_ENERGY_EQUATION_INDEX) = &
+                             Res(SCO2_ENERGY_EQUATION_INDEX) + qsrc(4)
 
 end subroutine SCO2AuxVarComputeAndSrcSink
 
