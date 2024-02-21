@@ -1101,8 +1101,8 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid)
       if (.not. sco2_isothermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(wid) * &
-                  sco2_auxvar_ss%U(lid) + qsrc(gid) * &
-                  sco2_auxvar_ss%U(gid)
+                  sco2_auxvar_ss%H(lid) + qsrc(gid) * &
+                  sco2_auxvar_ss%H(gid)
       endif
     case(SCALED_MASS_RATE_SS)
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * scale
@@ -1110,8 +1110,8 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * scale
       if (.not. sco2_isothermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = scale * (qsrc(wid) * &
-                  sco2_auxvar_ss%U(lid) + qsrc(gid) * &
-                  sco2_auxvar_ss%U(gid))
+                  sco2_auxvar_ss%H(lid) + qsrc(gid) * &
+                  sco2_auxvar_ss%H(gid))
       endif
     case(VOLUMETRIC_RATE_SS)
       ! This would have to be in m^3/sec phase
@@ -1121,8 +1121,8 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG
       if (.not. sco2_isothermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
-                   sco2_auxvar%den_kg(lid) * sco2_auxvar%U(lid) + qsrc(gid) * &
-                   sco2_auxvar%den_kg(gid)) * sco2_auxvar%U(gid)
+                   sco2_auxvar%den_kg(lid) * sco2_auxvar%H(lid) + qsrc(gid) * &
+                   sco2_auxvar%den_kg(gid)) * sco2_auxvar%H(gid)
       endif
     case(SCALED_VOLUMETRIC_RATE_SS)
       ! This would have to be in m^3/sec phase
@@ -1135,8 +1135,8 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                                       scale
       if (.not. sco2_isothermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
-                                        sco2_auxvar%U(lid) + qsrc(gid) * &
-                                        sco2_auxvar%U(gid)) * scale
+                                        sco2_auxvar%H(lid) + qsrc(gid) * &
+                                        sco2_auxvar%H(gid)) * scale
       endif
   end select
 

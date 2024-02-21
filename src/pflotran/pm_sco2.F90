@@ -1106,25 +1106,29 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
-          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
-            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
-             &mode: greater than (or equal to) 500 MPa.'
-            call PrintErrMsg(option)
-          endif
-
-          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
-            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
-             &mode: less than (or equal to) 0 Pa.'
-            call PrintErrMsg(option)
-          endif
-          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
-            option%io_buffer = 'Error: Liquid pressure is out of bounds for &
-              &SCO2 mode: greater than (or equal to) 500 MPa.'
-            call PrintErrMsg(option)
-          endif
+          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
+          !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+          !    &mode: greater than (or equal to) 500 MPa.'
+          !   call PrintErrMsg(option)
+          ! endif
+          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
+          !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+          !    &mode: less than (or equal to) 0 Pa.'
+          !   call PrintErrMsg(option)
+          ! endif
+          ! if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
+          !   option%io_buffer = 'Error: Liquid pressure is out of bounds for &
+          !     &SCO2 mode: greater than (or equal to) 500 MPa.'
+          !   call PrintErrMsg(option)
+          ! endif
       end select
 
       if (.not. sco2_isothermal) then
+        !Limit temperature changes
+        dX_p(temperature_index) = sign(min(1.d0, &
+                                  dabs(dX_p(temperature_index))), &
+                                  dX_p(temperature_index))
+
         if ((X_p(temperature_index) + dX_p(temperature_index)) + 273.15 >= &
            H2O_CRITICAL_TEMPERATURE) then
           option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &

@@ -1548,22 +1548,29 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
     ! Energy calculations
 
     ! Brine enthalpy
-    aux(1) = sco2_auxvar%xmass(sid,lid)
-    call EOSWaterEnthalpyExt(sco2_auxvar%temp,cell_pressure, &
-                             aux,sco2_auxvar%H(pwid),ierr)
+    call EOSWaterEnthalpy(sco2_auxvar%temp,cell_pressure, &
+                          sco2_auxvar%H(pwid),ierr)
+    ! J/kmol --> J/kg
+    sco2_auxvar%H(pwid) = sco2_auxvar%H(pwid) / fmw_comp(wid)
+    call SCO2BrineEnthalpy(sco2_auxvar%temp, sco2_auxvar%xmass(sid,lid), &
+                           sco2_auxvar%H(pwid),sco2_auxvar%H(pbid))                  
     ! CO2 density, internal energy, enthalpy
     call EOSGasDensityEnergy(sco2_auxvar%temp,sco2_auxvar% &
                              pres(co2_pressure_id),den_co2, &
                              sco2_auxvar%H(pgid),sco2_auxvar%U(pgid),ierr)
+    ! J/kmol --> J/kg
+    sco2_auxvar%H(pgid) = sco2_auxvar%H(pgid) / fmw_comp(co2_id) 
+    sco2_auxvar%U(pgid) = sco2_auxvar%U(pgid) / fmw_comp(co2_id)
+
     ! Liquid phase enthalpy
     sco2_auxvar%H(lid) = SCO2EnthalpyCompositeLiquid(sco2_auxvar%temp, &
                                      sco2_auxvar%xmass(sid,lid), &
                                      sco2_auxvar%xmass(co2_id,lid), &
-                                     sco2_auxvar%H(pwid), sco2_auxvar%H(pgid))
+                                     sco2_auxvar%H(pbid), sco2_auxvar%H(pgid))
 
+    sco2_auxvar%H(pbid) = sco2_auxvar%H(pbid) * 1.d-6 ! J/kg -> MJ/kg
     sco2_auxvar%H(pwid) = sco2_auxvar%H(pwid) * 1.d-6 ! J/kg -> MJ/kg
     sco2_auxvar%H(lid) = sco2_auxvar%H(lid) * 1.d-6 ! J/kg -> MJ/kg
-    ! MJ/kg comp
     sco2_auxvar%U(lid) = (sco2_auxvar%H(lid) - &
                           ! Pa / kg/m^3 * 1.e-6 = MJ/kg
                           (cell_pressure / sco2_auxvar%den_kg(lid) * &
@@ -1572,9 +1579,13 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                           ! Pa / kg/m^3 * 1.e-6 = MJ/kg
                           (cell_pressure / sco2_auxvar%den_kg(pwid) * &
                           1.d-6))
+    sco2_auxvar%U(pbid) = (sco2_auxvar%H(pbid) - &
+                          ! Pa / kg/m^3 * 1.e-6 = MJ/kg
+                          (cell_pressure / sco2_auxvar%den_kg(pwid) * &
+                          1.d-6))
 
-    sco2_auxvar%H(pgid) = sco2_auxvar%H(pgid) / fmw_comp(co2_id) * 1.d-6 ! MJ/kg
-    sco2_auxvar%U(pgid) = sco2_auxvar%U(pgid) / fmw_comp(co2_id) * 1.d-6 ! MJ/kg
+    sco2_auxvar%H(pgid) = sco2_auxvar%H(pgid)  * 1.d-6 ! MJ/kg
+    sco2_auxvar%U(pgid) = sco2_auxvar%U(pgid)  * 1.d-6 ! MJ/kg
     if (sco2_auxvar%pres(rvpid) > 0.d0) then
       call EOSWaterSteamDensityEnthalpy(sco2_auxvar%temp, &
                                       sco2_auxvar%pres(rvpid), &
@@ -2400,15 +2411,15 @@ subroutine SCO2BrineDensity(T, P, x_s, rho_b, option)
   PetscReal, intent(out) :: rho_b
   type(option_type) :: option
 
-  PetscReal, parameter :: c_c(4) = [-3.033405D+0, 10.128163D+0, -8.750567D+0, &
-                                    2.663107D+0]
-  PetscReal, parameter :: c_h(10) = [-167.219D+0, 448.55D+0, -261.07D+0, &
-                                     -13.644D+0, 13.97D+0, -0.315154D+0, &
-                                     -1.203374D-3, 7.48908D-13, 0.1342489D+0, &
-                                     -3.946963D-3]
-  PetscReal, parameter :: s_c(3) = [-9.9559D+0, 7.0845D+0, 3.9093D+0]
-  PetscReal, parameter :: s_a(3) = [-4.539D-3, -1.638D-4, 2.551D-5]
-  PetscReal, parameter :: v_c = 3.1975D+0
+  PetscReal, parameter :: c_c(4) = [-3.033405d0, 10.128163d0, -8.750567d0, &
+                                    2.663107d0]
+  PetscReal, parameter :: c_h(10) = [-167.219d0, 448.55d0, -261.07d0, &
+                                     -13.644d0, 13.97d0, -0.315154d0, &
+                                     -1.203374d-3, 7.48908d-13, 0.1342489d0, &
+                                     -3.946963d-3]
+  PetscReal, parameter :: s_c(3) = [-9.9559d0, 7.0845d0, 3.9093d0]
+  PetscReal, parameter :: s_a(3) = [-4.539d-3, -1.638d-4, 2.551d-5]
+  PetscReal, parameter :: v_c = 3.1975d0
 
   PetscReal :: P_bar, P_sat, P_w
   PetscReal :: rho_l, rho_v, spec_vol, x_s_molal
@@ -2435,6 +2446,60 @@ subroutine SCO2BrineDensity(T, P, x_s, rho_b, option)
   rho_b = rho_b * 1.d3
 
 end subroutine SCO2BrineDensity
+
+! ************************************************************************** !
+
+subroutine SCO2BrineEnthalpy(T, x_s, H_w, H_b)
+  !
+  ! Computes brine enthalpy as a function of salt mass fraction and pure water
+  ! enthalpy. Michaelides, E.E.  1981. Thermodynamic properties of geothermal
+  ! fluids.  Geothermal Resources Council, Transactions 5:361-364.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/21/24
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T    ! C
+  PetscReal, intent(in) :: x_s  ! kg/kg
+  PetscReal, intent(in) :: H_w  ! J/kg
+  PetscReal, intent(out) :: H_b ! J/kg
+
+  PetscReal, parameter :: s_a(12) = [9633.6d0, -4080.0d0, 286.49d0, 166.58d0, &
+                                     68.577d0, -4.6856d0, -0.90963d0, &
+                                     -0.36524d0, 0.249667d-1, 0.17965d-2, &
+                                     0.71924d-3, -0.4900d-4]
+  PetscReal, parameter :: s_b(3) = [-0.83624d-3, 0.16792d0, -25.9293d0]
+  PetscReal, parameter :: s_c(4) = [0.12453d-4, -0.45137d-2, 4.81155d0, &
+                                    -29.578d0]
+  PetscReal :: h_salt, s_molality
+  PetscInt :: i,j,n_c
+  PetscReal :: dh_mix
+
+  s_molality = 1.d3 * x_s / (fmw_comp(3)*(1.d0-x_s))
+
+  ! Enthalpy of mixing
+  dh_mix = 0.d0
+  n_c = 0
+  do i = 0,3
+    do j = 0,2
+      n_c = n_c + 1
+      dh_mix = dh_mix + s_a(n_c) * T**i * s_molality**j
+    enddo
+  enddo
+
+  dh_mix = (4.184d3/(1.d3+fmw_comp(3)*s_molality))*dh_mix
+
+  ! Enthalpy of pure NaCl
+  h_salt = 4.184d3*(s_b(1)*(T**3) + s_b(2)*(T**2) + s_b(3)*T)/fmw_comp(3)
+
+
+  ! Enthalpy of brine
+  H_b = (1.D+0-x_s)*H_w + x_s*h_salt + s_molality*dh_mix
+
+
+end subroutine SCO2BrineEnthalpy
 
 ! ************************************************************************** !
 
@@ -2817,8 +2882,8 @@ subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,option)
                      omega) * 1.d-4
 
   ! CO2 diffusion through the liquid phase
-  Dco2l = 3.5984d0 - 6.5113d-2*T_k + 2.0282D-4*(T_k**2)
-  Dco2l = Dco2l*1.D-9
+  Dco2l = 3.5984d0 - 6.5113d-2*T_k + 2.0282d-4*(T_k**2)
+  Dco2l = Dco2l*1.d-9
 
   ! Correct for NaCl
   Dco2l = Dco2l*(1.6678d0 - 1.2531d-1*(1.d3*(xsl/fmw_comp(THREE_INTEGER)) / &
