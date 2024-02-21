@@ -1526,7 +1526,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
   PetscReal :: res_pert_minus(option%nflowdof)
