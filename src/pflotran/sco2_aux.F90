@@ -1039,7 +1039,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dkrl_dsatl, dkrg_dsatl
   PetscReal :: visc_water, visc_brine, visc_co2
   PetscReal :: sl_temp, pva
-  PetscReal :: aux(1)
   PetscReal :: H_steam, U_steam
   PetscErrorCode :: ierr
 
