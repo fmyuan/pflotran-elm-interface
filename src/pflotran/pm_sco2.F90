@@ -304,7 +304,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_window_epsilon = tempreal
-      case('TEMPERATURE')
+      case('TEMPERATURE', 'ISOTHERMAL_TEMPERATURE')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_isothermal = PETSC_TRUE

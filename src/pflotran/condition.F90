@@ -2796,7 +2796,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
               internal_units = trim(rate_string) // ',' // &
                              trim(rate_string) // ',' // &
                              trim(rate_string) // ',' // &
-                             ',MJ/sec|MW'
+                             'MJ/sec|MW'
             endif
           case('LIQUID_FLUX','GAS_FLUX')
             internal_units = 'meter/sec'
